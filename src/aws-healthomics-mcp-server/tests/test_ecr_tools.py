@@ -252,9 +252,8 @@ def non_pull_through_cache_repository_strategy(draw) -> str:
 
 
 # =============================================================================
-# Property 7: Pull-Through Cache Detection
-# Feature: ecr-container-tools, Property 7: Pull-Through Cache Detection
-# Validates: Requirements 2.6
+# Property: Pull-Through Cache Detection
+# Feature: ecr-container-tools, Property: Pull-Through Cache Detection
 # =============================================================================
 
 
@@ -303,9 +302,7 @@ def _create_mock_ecr_client() -> MagicMock:
 
 
 class TestPullThroughCacheDetection:
-    """Property 7: Pull-Through Cache Detection.
-
-    **Validates: Requirements 2.6**
+    """Property: Pull-Through Cache Detection.
 
     *For any* repository name that matches a configured pull-through cache prefix
     pattern, the container availability response SHALL set `is_pull_through_cache: True`.
@@ -314,10 +311,9 @@ class TestPullThroughCacheDetection:
     @settings(max_examples=100)
     @given(repository_name=pull_through_cache_repository_strategy())
     def test_pull_through_cache_prefix_detected(self, repository_name: str):
-        """Property 7.1: Repository names with PTC prefixes are detected.
+        """Property: Repository names with PTC prefixes are detected.
 
-        Feature: ecr-container-tools, Property 7: Pull-Through Cache Detection
-        **Validates: Requirements 2.6**
+        Feature: ecr-container-tools, Property: Pull-Through Cache Detection
 
         For any repository name that starts with a pull-through cache prefix
         (docker-hub/, quay/, ecr-public/) followed by a slash, the
@@ -344,10 +340,9 @@ class TestPullThroughCacheDetection:
     @settings(max_examples=100)
     @given(repository_name=non_pull_through_cache_repository_strategy())
     def test_non_pull_through_cache_prefix_not_detected(self, repository_name: str):
-        """Property 7.2: Repository names without PTC prefixes are not detected.
+        """Property: Repository names without PTC prefixes are not detected.
 
-        Feature: ecr-container-tools, Property 7: Pull-Through Cache Detection
-        **Validates: Requirements 2.6**
+        Feature: ecr-container-tools, Property: Pull-Through Cache Detection
 
         For any repository name that does NOT start with a pull-through cache prefix
         followed by a slash, the _is_pull_through_cache_repository function SHALL
@@ -376,10 +371,9 @@ class TestPullThroughCacheDetection:
         suffix=image_suffix_strategy,
     )
     def test_all_default_prefixes_detected(self, prefix: str, suffix: str):
-        """Property 7.3: All default ECR prefixes are correctly detected.
+        """Property: All default ECR prefixes are correctly detected.
 
-        Feature: ecr-container-tools, Property 7: Pull-Through Cache Detection
-        **Validates: Requirements 2.6**
+        Feature: ecr-container-tools, Property: Pull-Through Cache Detection
 
         For any of the default ECR prefixes (docker-hub, quay, ecr-public),
         a repository name in the format {prefix}/{suffix} SHALL be detected
@@ -407,10 +401,9 @@ class TestPullThroughCacheDetection:
     @settings(max_examples=100)
     @given(prefix=st.sampled_from(list(DEFAULT_ECR_PREFIXES.values())))
     def test_prefix_without_slash_not_detected(self, prefix: str):
-        """Property 7.4: Prefix alone without trailing slash is not detected.
+        """Property: Prefix alone without trailing slash is not detected.
 
-        Feature: ecr-container-tools, Property 7: Pull-Through Cache Detection
-        **Validates: Requirements 2.6**
+        Feature: ecr-container-tools, Property: Pull-Through Cache Detection
 
         A repository name that exactly matches a prefix (without a trailing slash
         and image path) SHALL NOT be detected as a pull-through cache repository.
@@ -434,10 +427,9 @@ class TestPullThroughCacheDetection:
         )
 
     def test_custom_prefix_detected_when_rule_exists(self):
-        """Property 7.4a: Custom PTC prefixes are detected when rules exist.
+        """Property: Custom PTC prefixes are detected when rules exist.
 
-        Feature: ecr-container-tools, Property 7: Pull-Through Cache Detection
-        **Validates: Requirements 2.6**
+        Feature: ecr-container-tools, Property: Pull-Through Cache Detection
 
         For any repository name that matches a custom pull-through cache prefix
         (not just default prefixes), the function SHALL return True when a
@@ -469,10 +461,9 @@ class TestPullThroughCacheDetection:
         )
 
     def test_fallback_to_default_prefixes_on_access_denied(self):
-        """Property 7.4b: Falls back to default prefix check on AccessDeniedException.
+        """Property: Falls back to default prefix check on AccessDeniedException.
 
-        Feature: ecr-container-tools, Property 7: Pull-Through Cache Detection
-        **Validates: Requirements 2.6**
+        Feature: ecr-container-tools, Property: Pull-Through Cache Detection
 
         When the describe_pull_through_cache_rules API call fails with
         AccessDeniedException, the function SHALL fall back to checking
@@ -505,10 +496,9 @@ class TestPullThroughCacheDetection:
         )
 
     def test_no_rules_returns_false(self):
-        """Property 7.4c: Returns False when no PTC rules exist.
+        """Property: Returns False when no PTC rules exist.
 
-        Feature: ecr-container-tools, Property 7: Pull-Through Cache Detection
-        **Validates: Requirements 2.6**
+        Feature: ecr-container-tools, Property: Pull-Through Cache Detection
 
         When no pull-through cache rules exist in the registry, the function
         SHALL return False for any repository name.
@@ -536,10 +526,9 @@ class TestPullThroughCacheDetection:
     async def test_check_container_availability_sets_is_pull_through_cache_true(
         self, repository_name: str
     ):
-        """Property 7.5: check_container_availability sets is_pull_through_cache=True for PTC repos.
+        """Property: check_container_availability sets is_pull_through_cache=True for PTC repos.
 
-        Feature: ecr-container-tools, Property 7: Pull-Through Cache Detection
-        **Validates: Requirements 2.6**
+        Feature: ecr-container-tools, Property: Pull-Through Cache Detection
 
         For any repository name that matches a pull-through cache prefix pattern,
         the check_container_availability response SHALL set is_pull_through_cache: True.
@@ -584,10 +573,9 @@ class TestPullThroughCacheDetection:
     async def test_check_container_availability_sets_is_pull_through_cache_false(
         self, repository_name: str
     ):
-        """Property 7.6: check_container_availability sets is_pull_through_cache=False for non-PTC repos.
+        """Property: check_container_availability sets is_pull_through_cache=False for non-PTC repos.
 
-        Feature: ecr-container-tools, Property 7: Pull-Through Cache Detection
-        **Validates: Requirements 2.6**
+        Feature: ecr-container-tools, Property: Pull-Through Cache Detection
 
         For any repository name that does NOT match a pull-through cache prefix pattern,
         the check_container_availability response SHALL set is_pull_through_cache: False.
@@ -630,10 +618,9 @@ class TestPullThroughCacheDetection:
     @settings(max_examples=100)
     @given(repository_name=pull_through_cache_repository_strategy())
     async def test_ptc_detection_when_image_not_found(self, repository_name: str):
-        """Property 7.7: PTC detection works even when image is not found.
+        """Property: PTC detection works even when image is not found.
 
-        Feature: ecr-container-tools, Property 7: Pull-Through Cache Detection
-        **Validates: Requirements 2.6**
+        Feature: ecr-container-tools, Property: Pull-Through Cache Detection
 
         For any repository name that matches a pull-through cache prefix pattern,
         the is_pull_through_cache field SHALL be True even when the image is not found.
@@ -678,10 +665,9 @@ class TestPullThroughCacheDetection:
     @settings(max_examples=100)
     @given(repository_name=pull_through_cache_repository_strategy())
     async def test_ptc_detection_when_repository_not_found(self, repository_name: str):
-        """Property 7.8: PTC detection works even when repository is not found.
+        """Property: PTC detection works even when repository is not found.
 
-        Feature: ecr-container-tools, Property 7: Pull-Through Cache Detection
-        **Validates: Requirements 2.6**
+        Feature: ecr-container-tools, Property: Pull-Through Cache Detection
 
         For any repository name that matches a pull-through cache prefix pattern,
         the is_pull_through_cache field SHALL be True even when the repository
@@ -730,10 +716,9 @@ class TestPullThroughCacheDetection:
         image_tag=image_tag_strategy,
     )
     async def test_ptc_detection_with_various_tags(self, repository_name: str, image_tag: str):
-        """Property 7.9: PTC detection is independent of image tag.
+        """Property: PTC detection is independent of image tag.
 
-        Feature: ecr-container-tools, Property 7: Pull-Through Cache Detection
-        **Validates: Requirements 2.6**
+        Feature: ecr-container-tools, Property: Pull-Through Cache Detection
 
         For any repository name that matches a pull-through cache prefix pattern,
         the is_pull_through_cache field SHALL be True regardless of the image tag
@@ -775,16 +760,13 @@ class TestPullThroughCacheDetection:
 
 
 # =============================================================================
-# Property 8: Pagination Token Preservation
-# Feature: ecr-container-tools, Property 8: Pagination Token Preservation
-# Validates: Requirements 1.4
+# Property: Pagination Token Preservation
+# Feature: ecr-container-tools, Property: Pagination Token Preservation
 # =============================================================================
 
 
 class TestPaginationTokenPreservation:
-    """Property 8: Pagination Token Preservation.
-
-    **Validates: Requirements 1.4**
+    """Property: Pagination Token Preservation.
 
     *For any* list operation (repositories or pull-through cache rules) where the
     AWS response contains a `nextToken`, the tool response SHALL include that token
@@ -795,10 +777,9 @@ class TestPaginationTokenPreservation:
     @settings(max_examples=100)
     @given(aws_response=ecr_response_with_token_strategy())
     async def test_next_token_preserved_when_present(self, aws_response: Dict[str, Any]):
-        """Property 8.1: When AWS response contains nextToken, tool response includes it.
+        """Property: When AWS response contains nextToken, tool response includes it.
 
-        Feature: ecr-container-tools, Property 8: Pagination Token Preservation
-        **Validates: Requirements 1.4**
+        Feature: ecr-container-tools, Property: Pagination Token Preservation
 
         For any AWS ECR describe_repositories response that contains a nextToken,
         the list_ecr_repositories tool SHALL include that exact token in the
@@ -839,10 +820,9 @@ class TestPaginationTokenPreservation:
     @settings(max_examples=100)
     @given(aws_response=ecr_response_without_token_strategy())
     async def test_next_token_none_when_not_present(self, aws_response: Dict[str, Any]):
-        """Property 8.2: When AWS response has no nextToken, tool response has None.
+        """Property: When AWS response has no nextToken, tool response has None.
 
-        Feature: ecr-container-tools, Property 8: Pagination Token Preservation
-        **Validates: Requirements 1.4**
+        Feature: ecr-container-tools, Property: Pagination Token Preservation
 
         For any AWS ECR describe_repositories response that does NOT contain a
         nextToken (last page), the list_ecr_repositories tool SHALL have
@@ -879,10 +859,9 @@ class TestPaginationTokenPreservation:
     @settings(max_examples=100)
     @given(aws_response=ecr_describe_repositories_response_strategy())
     async def test_next_token_matches_aws_response(self, aws_response: Dict[str, Any]):
-        """Property 8.3: Tool next_token always matches AWS nextToken exactly.
+        """Property: Tool next_token always matches AWS nextToken exactly.
 
-        Feature: ecr-container-tools, Property 8: Pagination Token Preservation
-        **Validates: Requirements 1.4**
+        Feature: ecr-container-tools, Property: Pagination Token Preservation
 
         For any AWS ECR describe_repositories response, the list_ecr_repositories
         tool's next_token field SHALL exactly match the AWS response's nextToken
@@ -925,10 +904,9 @@ class TestPaginationTokenPreservation:
     async def test_input_token_passed_to_aws_and_output_preserved(
         self, input_token: str, aws_response: Dict[str, Any]
     ):
-        """Property 8.4: Input token is passed to AWS and output token is preserved.
+        """Property: Input token is passed to AWS and output token is preserved.
 
-        Feature: ecr-container-tools, Property 8: Pagination Token Preservation
-        **Validates: Requirements 1.4**
+        Feature: ecr-container-tools, Property: Pagination Token Preservation
 
         When a next_token is provided as input, it SHALL be passed to the AWS API,
         and the response's nextToken SHALL be preserved in the output.
@@ -977,10 +955,9 @@ class TestPaginationTokenPreservation:
     async def test_token_preserved_regardless_of_repository_count(
         self, token: str, num_repos: int
     ):
-        """Property 8.5: Token preservation is independent of repository count.
+        """Property: Token preservation is independent of repository count.
 
-        Feature: ecr-container-tools, Property 8: Pagination Token Preservation
-        **Validates: Requirements 1.4**
+        Feature: ecr-container-tools, Property: Pagination Token Preservation
 
         The pagination token SHALL be preserved regardless of how many repositories
         are returned in the response (including zero repositories).
@@ -1036,10 +1013,9 @@ class TestPaginationTokenPreservation:
         filter_accessible=st.booleans(),
     )
     async def test_token_preserved_regardless_of_filter(self, token: str, filter_accessible: bool):
-        """Property 8.6: Token preservation is independent of filtering.
+        """Property: Token preservation is independent of filtering.
 
-        Feature: ecr-container-tools, Property 8: Pagination Token Preservation
-        **Validates: Requirements 1.4**
+        Feature: ecr-container-tools, Property: Pagination Token Preservation
 
         The pagination token SHALL be preserved regardless of whether
         filter_healthomics_accessible is True or False.
@@ -1201,16 +1177,11 @@ class TestListECRRepositoriesUnit:
     3. Error scenarios (AccessDeniedException, other ClientErrors, BotoCoreError)
     4. Filter by HealthOmics accessibility
     5. Empty repository list handling
-
-    **Validates: Requirements 1.1, 1.4, 1.5**
     """
 
     @pytest.mark.asyncio
     async def test_successful_listing_single_repository(self):
-        """Test successful listing with a single repository.
-
-        **Validates: Requirement 1.1** - List ECR repositories in the specified region
-        """
+        """Test successful listing with a single repository."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_repositories.return_value = {
@@ -1241,10 +1212,7 @@ class TestListECRRepositoriesUnit:
 
     @pytest.mark.asyncio
     async def test_successful_listing_multiple_repositories(self):
-        """Test successful listing with multiple repositories.
-
-        **Validates: Requirement 1.1** - List ECR repositories in the specified region
-        """
+        """Test successful listing with multiple repositories."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_repositories.return_value = {
@@ -1280,10 +1248,7 @@ class TestListECRRepositoriesUnit:
 
     @pytest.mark.asyncio
     async def test_empty_repository_list(self):
-        """Test handling of empty repository list.
-
-        **Validates: Requirement 1.1** - Handle case when no repositories exist
-        """
+        """Test handling of empty repository list."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_repositories.return_value = {
@@ -1311,10 +1276,7 @@ class TestListECRRepositoriesUnit:
 
     @pytest.mark.asyncio
     async def test_pagination_input_token_passed_to_api(self):
-        """Test that input next_token is passed to the AWS API.
-
-        **Validates: Requirement 1.4** - Support next_token for pagination
-        """
+        """Test that input next_token is passed to the AWS API."""
         # Arrange
         input_token = 'test-pagination-token-12345'
         mock_client = _create_mock_ecr_client()
@@ -1344,10 +1306,7 @@ class TestListECRRepositoriesUnit:
 
     @pytest.mark.asyncio
     async def test_pagination_output_token_returned(self):
-        """Test that output next_token from AWS is returned in response.
-
-        **Validates: Requirement 1.4** - Support next_token for pagination
-        """
+        """Test that output next_token from AWS is returned in response."""
         # Arrange
         output_token = 'next-page-token-67890'
         mock_client = _create_mock_ecr_client()
@@ -1376,10 +1335,7 @@ class TestListECRRepositoriesUnit:
 
     @pytest.mark.asyncio
     async def test_pagination_no_token_on_last_page(self):
-        """Test that next_token is None when no more pages exist.
-
-        **Validates: Requirement 1.4** - Support next_token for pagination
-        """
+        """Test that next_token is None when no more pages exist."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_repositories.return_value = {
@@ -1407,10 +1363,7 @@ class TestListECRRepositoriesUnit:
 
     @pytest.mark.asyncio
     async def test_max_results_passed_to_api(self):
-        """Test that max_results parameter is passed to the AWS API.
-
-        **Validates: Requirement 1.4** - Support pagination parameters
-        """
+        """Test that max_results parameter is passed to the AWS API."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_repositories.return_value = {
@@ -1438,10 +1391,7 @@ class TestListECRRepositoriesUnit:
 
     @pytest.mark.asyncio
     async def test_error_access_denied_exception(self):
-        """Test handling of AccessDeniedException.
-
-        **Validates: Requirement 1.5** - Return informative error message
-        """
+        """Test handling of AccessDeniedException."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_repositories.side_effect = _create_access_denied_exception()
@@ -1466,10 +1416,7 @@ class TestListECRRepositoriesUnit:
 
     @pytest.mark.asyncio
     async def test_error_other_client_error(self):
-        """Test handling of other ClientError types.
-
-        **Validates: Requirement 1.5** - Return informative error message
-        """
+        """Test handling of other ClientError types."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_repositories.side_effect = _create_client_error(
@@ -1497,10 +1444,7 @@ class TestListECRRepositoriesUnit:
 
     @pytest.mark.asyncio
     async def test_error_botocore_error(self):
-        """Test handling of BotoCoreError.
-
-        **Validates: Requirement 1.5** - Return informative error message
-        """
+        """Test handling of BotoCoreError."""
         import botocore.exceptions
 
         # Arrange
@@ -1527,10 +1471,7 @@ class TestListECRRepositoriesUnit:
 
     @pytest.mark.asyncio
     async def test_healthomics_accessible_repository(self):
-        """Test repository with HealthOmics access permissions.
-
-        **Validates: Requirement 1.2, 1.3** - Check repository policy for HealthOmics permissions
-        """
+        """Test repository with HealthOmics access permissions."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_repositories.return_value = {
@@ -1561,10 +1502,7 @@ class TestListECRRepositoriesUnit:
 
     @pytest.mark.asyncio
     async def test_healthomics_not_accessible_no_policy(self):
-        """Test repository without policy is marked as not accessible.
-
-        **Validates: Requirement 1.2, 1.3** - Check repository policy for HealthOmics permissions
-        """
+        """Test repository without policy is marked as not accessible."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_repositories.return_value = {
@@ -1593,10 +1531,7 @@ class TestListECRRepositoriesUnit:
 
     @pytest.mark.asyncio
     async def test_healthomics_not_accessible_partial_permissions(self):
-        """Test repository with partial HealthOmics permissions.
-
-        **Validates: Requirement 1.2, 1.3** - Check repository policy for HealthOmics permissions
-        """
+        """Test repository with partial HealthOmics permissions."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_repositories.return_value = {
@@ -1627,10 +1562,7 @@ class TestListECRRepositoriesUnit:
 
     @pytest.mark.asyncio
     async def test_filter_healthomics_accessible_true(self):
-        """Test filtering to only return HealthOmics accessible repositories.
-
-        **Validates: Requirement 1.2** - Filter by HealthOmics accessibility
-        """
+        """Test filtering to only return HealthOmics accessible repositories."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_repositories.return_value = {
@@ -1670,10 +1602,7 @@ class TestListECRRepositoriesUnit:
 
     @pytest.mark.asyncio
     async def test_filter_healthomics_accessible_false(self):
-        """Test that all repositories are returned when filter is False.
-
-        **Validates: Requirement 1.1** - List all repositories
-        """
+        """Test that all repositories are returned when filter is False."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_repositories.return_value = {
@@ -1711,10 +1640,7 @@ class TestListECRRepositoriesUnit:
 
     @pytest.mark.asyncio
     async def test_filter_healthomics_accessible_empty_result(self):
-        """Test filtering when no repositories are accessible.
-
-        **Validates: Requirement 1.2** - Filter by HealthOmics accessibility
-        """
+        """Test filtering when no repositories are accessible."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_repositories.return_value = {
@@ -1745,10 +1671,7 @@ class TestListECRRepositoriesUnit:
 
     @pytest.mark.asyncio
     async def test_repository_policy_check_error_marks_unknown(self):
-        """Test that policy check errors result in unknown accessibility status.
-
-        **Validates: Requirement 1.2** - Handle policy check errors gracefully
-        """
+        """Test that policy check errors result in unknown accessibility status."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_repositories.return_value = {
@@ -1781,10 +1704,7 @@ class TestListECRRepositoriesUnit:
 
     @pytest.mark.asyncio
     async def test_repository_fields_populated_correctly(self):
-        """Test that all repository fields are populated correctly.
-
-        **Validates: Requirement 1.1** - Return repository information
-        """
+        """Test that all repository fields are populated correctly."""
         # Arrange
         created_time = datetime(2024, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
         mock_client = _create_mock_ecr_client()
@@ -1825,10 +1745,7 @@ class TestListECRRepositoriesUnit:
 
     @pytest.mark.asyncio
     async def test_mixed_accessibility_statuses(self):
-        """Test handling of repositories with mixed accessibility statuses.
-
-        **Validates: Requirement 1.2, 1.3** - Check each repository's policy
-        """
+        """Test handling of repositories with mixed accessibility statuses."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_repositories.return_value = {
@@ -1895,21 +1812,15 @@ class TestCheckContainerAvailabilityUnit:
     4. Pull-through cache detection - sets is_pull_through_cache correctly
     5. Invalid input validation (empty repository name, invalid digest format)
     6. Error handling (AccessDeniedException, other errors)
-
-    **Validates: Requirements 2.3, 2.4, 2.5, 2.6**
     """
 
     # =========================================================================
     # Test: Image exists - returns image details
-    # Validates: Requirement 2.3
     # =========================================================================
 
     @pytest.mark.asyncio
     async def test_image_exists_returns_details(self):
-        """Test that existing image returns full details.
-
-        **Validates: Requirement 2.3** - Return image details including digest, size, push timestamp
-        """
+        """Test that existing image returns full details."""
         # Arrange
         pushed_time = datetime(2024, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
         mock_client = _create_mock_ecr_client()
@@ -1949,10 +1860,7 @@ class TestCheckContainerAvailabilityUnit:
 
     @pytest.mark.asyncio
     async def test_image_exists_with_specific_tag(self):
-        """Test that image with specific tag returns correct tag in response.
-
-        **Validates: Requirement 2.3** - Return image details
-        """
+        """Test that image with specific tag returns correct tag in response."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_images.return_value = {
@@ -1986,10 +1894,7 @@ class TestCheckContainerAvailabilityUnit:
 
     @pytest.mark.asyncio
     async def test_image_exists_with_digest(self):
-        """Test that image lookup by digest works correctly.
-
-        **Validates: Requirement 2.3** - Return image details including digest
-        """
+        """Test that image lookup by digest works correctly."""
         # Arrange
         digest = 'sha256:abc123def456'
         mock_client = _create_mock_ecr_client()
@@ -2028,15 +1933,11 @@ class TestCheckContainerAvailabilityUnit:
 
     # =========================================================================
     # Test: Image not found - returns available=False with clear message
-    # Validates: Requirement 2.4
     # =========================================================================
 
     @pytest.mark.asyncio
     async def test_image_not_found_returns_clear_message(self):
-        """Test that image not found returns available=False with clear message.
-
-        **Validates: Requirement 2.4** - Return clear indication that image is not found
-        """
+        """Test that image not found returns available=False with clear message."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         error_response = {
@@ -2072,10 +1973,7 @@ class TestCheckContainerAvailabilityUnit:
 
     @pytest.mark.asyncio
     async def test_image_not_found_empty_image_details(self):
-        """Test that empty imageDetails returns available=False.
-
-        **Validates: Requirement 2.4** - Return clear indication that image is not found
-        """
+        """Test that empty imageDetails returns available=False."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_images.return_value = {
@@ -2103,15 +2001,11 @@ class TestCheckContainerAvailabilityUnit:
 
     # =========================================================================
     # Test: Repository not found - returns repository_exists=False
-    # Validates: Requirement 2.5
     # =========================================================================
 
     @pytest.mark.asyncio
     async def test_repository_not_found(self):
-        """Test that repository not found returns repository_exists=False.
-
-        **Validates: Requirement 2.5** - Indicate repository is missing
-        """
+        """Test that repository not found returns repository_exists=False."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         error_response = {
@@ -2147,10 +2041,7 @@ class TestCheckContainerAvailabilityUnit:
 
     @pytest.mark.asyncio
     async def test_repository_not_found_ptc_message(self):
-        """Test that PTC repository not found includes helpful message.
-
-        **Validates: Requirement 2.5, 2.6** - Indicate repository may be created on first pull
-        """
+        """Test that PTC repository not found includes helpful message."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         error_response = {
@@ -2186,15 +2077,11 @@ class TestCheckContainerAvailabilityUnit:
 
     # =========================================================================
     # Test: Pull-through cache detection
-    # Validates: Requirement 2.6
     # =========================================================================
 
     @pytest.mark.asyncio
     async def test_ptc_detection_docker_hub(self):
-        """Test pull-through cache detection for docker-hub prefix.
-
-        **Validates: Requirement 2.6** - Indicate if image may be pulled on first access
-        """
+        """Test pull-through cache detection for docker-hub prefix."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_images.return_value = {
@@ -2227,10 +2114,7 @@ class TestCheckContainerAvailabilityUnit:
 
     @pytest.mark.asyncio
     async def test_ptc_detection_quay(self):
-        """Test pull-through cache detection for quay prefix.
-
-        **Validates: Requirement 2.6** - Indicate if image may be pulled on first access
-        """
+        """Test pull-through cache detection for quay prefix."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_images.return_value = {
@@ -2263,10 +2147,7 @@ class TestCheckContainerAvailabilityUnit:
 
     @pytest.mark.asyncio
     async def test_ptc_detection_ecr_public(self):
-        """Test pull-through cache detection for ecr-public prefix.
-
-        **Validates: Requirement 2.6** - Indicate if image may be pulled on first access
-        """
+        """Test pull-through cache detection for ecr-public prefix."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_images.return_value = {
@@ -2299,10 +2180,7 @@ class TestCheckContainerAvailabilityUnit:
 
     @pytest.mark.asyncio
     async def test_non_ptc_repository(self):
-        """Test that regular repositories are not marked as pull-through cache.
-
-        **Validates: Requirement 2.6** - Correctly identify non-PTC repositories
-        """
+        """Test that regular repositories are not marked as pull-through cache."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_images.return_value = {
@@ -2335,10 +2213,7 @@ class TestCheckContainerAvailabilityUnit:
 
     @pytest.mark.asyncio
     async def test_ptc_image_not_found_message(self):
-        """Test that PTC image not found includes helpful message about first access.
-
-        **Validates: Requirement 2.6** - Indicate image may be pulled on first access
-        """
+        """Test that PTC image not found includes helpful message about first access."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         error_response = {
@@ -2373,15 +2248,11 @@ class TestCheckContainerAvailabilityUnit:
 
     # =========================================================================
     # Test: Invalid input validation
-    # Validates: Requirement 2.1
     # =========================================================================
 
     @pytest.mark.asyncio
     async def test_empty_repository_name(self):
-        """Test that empty repository name returns validation error.
-
-        **Validates: Requirement 2.1** - Validate URI format
-        """
+        """Test that empty repository name returns validation error."""
         # Arrange
         mock_ctx = AsyncMock()
 
@@ -2400,10 +2271,7 @@ class TestCheckContainerAvailabilityUnit:
 
     @pytest.mark.asyncio
     async def test_whitespace_only_repository_name(self):
-        """Test that whitespace-only repository name returns validation error.
-
-        **Validates: Requirement 2.1** - Validate URI format
-        """
+        """Test that whitespace-only repository name returns validation error."""
         # Arrange
         mock_ctx = AsyncMock()
 
@@ -2422,10 +2290,7 @@ class TestCheckContainerAvailabilityUnit:
 
     @pytest.mark.asyncio
     async def test_invalid_digest_format_no_sha256_prefix(self):
-        """Test that digest without sha256: prefix returns validation error.
-
-        **Validates: Requirement 2.1** - Validate URI format
-        """
+        """Test that digest without sha256: prefix returns validation error."""
         # Arrange
         mock_ctx = AsyncMock()
 
@@ -2443,10 +2308,7 @@ class TestCheckContainerAvailabilityUnit:
 
     @pytest.mark.asyncio
     async def test_invalid_digest_format_wrong_prefix(self):
-        """Test that digest with wrong prefix returns validation error.
-
-        **Validates: Requirement 2.1** - Validate URI format
-        """
+        """Test that digest with wrong prefix returns validation error."""
         # Arrange
         mock_ctx = AsyncMock()
 
@@ -2464,10 +2326,7 @@ class TestCheckContainerAvailabilityUnit:
 
     @pytest.mark.asyncio
     async def test_valid_digest_format_accepted(self):
-        """Test that valid sha256: digest format is accepted.
-
-        **Validates: Requirement 2.1** - Validate URI format
-        """
+        """Test that valid sha256: digest format is accepted."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_images.return_value = {
@@ -2502,15 +2361,12 @@ class TestCheckContainerAvailabilityUnit:
 
     # =========================================================================
     # Test: Error handling
-    # Validates: Requirement 2.1 (error handling)
+    # Validates: Requirement(error handling)
     # =========================================================================
 
     @pytest.mark.asyncio
     async def test_access_denied_exception(self):
-        """Test handling of AccessDeniedException.
-
-        **Validates: Requirement 2.1** - Handle AWS API errors
-        """
+        """Test handling of AccessDeniedException."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         error_response = {
@@ -2540,10 +2396,7 @@ class TestCheckContainerAvailabilityUnit:
 
     @pytest.mark.asyncio
     async def test_other_client_error(self):
-        """Test handling of other ClientError types.
-
-        **Validates: Requirement 2.1** - Handle AWS API errors
-        """
+        """Test handling of other ClientError types."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         error_response = {
@@ -2573,10 +2426,7 @@ class TestCheckContainerAvailabilityUnit:
 
     @pytest.mark.asyncio
     async def test_botocore_error(self):
-        """Test handling of BotoCoreError.
-
-        **Validates: Requirement 2.1** - Handle AWS API errors
-        """
+        """Test handling of BotoCoreError."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_images.side_effect = botocore.exceptions.BotoCoreError()
@@ -2601,10 +2451,7 @@ class TestCheckContainerAvailabilityUnit:
 
     @pytest.mark.asyncio
     async def test_unexpected_exception(self):
-        """Test handling of unexpected exceptions.
-
-        **Validates: Requirement 2.1** - Handle errors gracefully
-        """
+        """Test handling of unexpected exceptions."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_images.side_effect = RuntimeError('Unexpected error')
@@ -2629,15 +2476,11 @@ class TestCheckContainerAvailabilityUnit:
 
     # =========================================================================
     # Test: API call verification
-    # Validates: Requirement 2.2
     # =========================================================================
 
     @pytest.mark.asyncio
     async def test_api_called_with_tag(self):
-        """Test that API is called with correct tag parameter.
-
-        **Validates: Requirement 2.2** - Query ECR for specified image and tag
-        """
+        """Test that API is called with correct tag parameter."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_images.return_value = {
@@ -2673,10 +2516,7 @@ class TestCheckContainerAvailabilityUnit:
 
     @pytest.mark.asyncio
     async def test_api_called_with_digest_takes_precedence(self):
-        """Test that digest takes precedence over tag in API call.
-
-        **Validates: Requirement 2.2** - Query ECR for specified image
-        """
+        """Test that digest takes precedence over tag in API call."""
         # Arrange
         digest = 'sha256:abc123def456'
         mock_client = _create_mock_ecr_client()
@@ -2714,10 +2554,7 @@ class TestCheckContainerAvailabilityUnit:
 
     @pytest.mark.asyncio
     async def test_default_tag_is_latest(self):
-        """Test that default tag is 'latest' when not specified.
-
-        **Validates: Requirement 2.2** - Query ECR for specified image and tag
-        """
+        """Test that default tag is 'latest' when not specified."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_images.return_value = {
@@ -2752,10 +2589,7 @@ class TestCheckContainerAvailabilityUnit:
 
     @pytest.mark.asyncio
     async def test_repository_name_trimmed(self):
-        """Test that repository name is trimmed of whitespace.
-
-        **Validates: Requirement 2.1** - Validate URI format
-        """
+        """Test that repository name is trimmed of whitespace."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_images.return_value = {
@@ -2790,15 +2624,12 @@ class TestCheckContainerAvailabilityUnit:
 
     # =========================================================================
     # Test: HealthOmics accessibility check
-    # Validates: Requirement 2.7 (HealthOmics access verification)
+    # Validates: Requirement(HealthOmics access verification)
     # =========================================================================
 
     @pytest.mark.asyncio
     async def test_healthomics_accessible_when_policy_grants_permissions(self):
-        """Test that healthomics_accessible is 'accessible' when policy grants required permissions.
-
-        **Validates: Requirement 2.7** - Check if HealthOmics can access the container
-        """
+        """Test that healthomics_accessible is 'accessible' when policy grants required permissions."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_images.return_value = {
@@ -2834,10 +2665,7 @@ class TestCheckContainerAvailabilityUnit:
 
     @pytest.mark.asyncio
     async def test_healthomics_not_accessible_when_no_policy(self):
-        """Test that healthomics_accessible is 'not_accessible' when no policy exists.
-
-        **Validates: Requirement 2.7** - Check if HealthOmics can access the container
-        """
+        """Test that healthomics_accessible is 'not_accessible' when no policy exists."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_images.return_value = {
@@ -2884,10 +2712,7 @@ class TestCheckContainerAvailabilityUnit:
 
     @pytest.mark.asyncio
     async def test_healthomics_not_accessible_when_policy_missing_permissions(self):
-        """Test that healthomics_accessible is 'not_accessible' when policy lacks permissions.
-
-        **Validates: Requirement 2.7** - Check if HealthOmics can access the container
-        """
+        """Test that healthomics_accessible is 'not_accessible' when policy lacks permissions."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_images.return_value = {
@@ -2938,10 +2763,7 @@ class TestCheckContainerAvailabilityUnit:
 
     @pytest.mark.asyncio
     async def test_healthomics_unknown_when_policy_check_fails(self):
-        """Test that healthomics_accessible is 'unknown' when policy check fails with other error.
-
-        **Validates: Requirement 2.7** - Handle errors gracefully
-        """
+        """Test that healthomics_accessible is 'unknown' when policy check fails with other error."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_images.return_value = {
@@ -2986,10 +2808,7 @@ class TestCheckContainerAvailabilityUnit:
 
     @pytest.mark.asyncio
     async def test_healthomics_accessible_with_wildcard_actions(self):
-        """Test that healthomics_accessible is 'accessible' when policy uses wildcard actions.
-
-        **Validates: Requirement 2.7** - Check if HealthOmics can access the container
-        """
+        """Test that healthomics_accessible is 'accessible' when policy uses wildcard actions."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_images.return_value = {
@@ -3132,21 +2951,15 @@ class TestListPullThroughCacheRulesUnit:
     4. Pagination handling (next_token)
     5. Error handling (AccessDeniedException, other errors)
     6. Rules with and without credentials
-
-    **Validates: Requirements 3.1, 3.2, 3.6**
     """
 
     # =========================================================================
     # Test: Successful listing with configured rules
-    # Validates: Requirement 3.1, 3.2
     # =========================================================================
 
     @pytest.mark.asyncio
     async def test_successful_listing_single_rule(self):
-        """Test successful listing with a single pull-through cache rule.
-
-        **Validates: Requirement 3.1** - Return all configured rules in the region
-        """
+        """Test successful listing with a single pull-through cache rule."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_pull_through_cache_rules.return_value = {
@@ -3181,10 +2994,7 @@ class TestListPullThroughCacheRulesUnit:
 
     @pytest.mark.asyncio
     async def test_successful_listing_multiple_rules(self):
-        """Test successful listing with multiple pull-through cache rules.
-
-        **Validates: Requirement 3.1** - Return all configured rules in the region
-        """
+        """Test successful listing with multiple pull-through cache rules."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_pull_through_cache_rules.return_value = {
@@ -3221,10 +3031,7 @@ class TestListPullThroughCacheRulesUnit:
 
     @pytest.mark.asyncio
     async def test_rule_includes_upstream_registry_url(self):
-        """Test that rules include upstream registry URL.
-
-        **Validates: Requirement 3.2** - Include upstream registry URL
-        """
+        """Test that rules include upstream registry URL."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_pull_through_cache_rules.return_value = {
@@ -3255,15 +3062,11 @@ class TestListPullThroughCacheRulesUnit:
 
     # =========================================================================
     # Test: Empty rules case - returns empty list
-    # Validates: Requirement 3.6
     # =========================================================================
 
     @pytest.mark.asyncio
     async def test_empty_rules_returns_empty_list(self):
-        """Test that empty rules returns empty list.
-
-        **Validates: Requirement 3.6** - Return empty list if no rules exist
-        """
+        """Test that empty rules returns empty list."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_pull_through_cache_rules.return_value = {
@@ -3289,10 +3092,7 @@ class TestListPullThroughCacheRulesUnit:
 
     @pytest.mark.asyncio
     async def test_empty_rules_no_registry_policy_check(self):
-        """Test that registry policy is not checked when no rules exist.
-
-        **Validates: Requirement 3.6** - Efficient handling of empty rules
-        """
+        """Test that registry policy is not checked when no rules exist."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_pull_through_cache_rules.return_value = {
@@ -3317,15 +3117,11 @@ class TestListPullThroughCacheRulesUnit:
 
     # =========================================================================
     # Test: Permission checking integration
-    # Validates: Requirements 3.3, 3.4, 3.5
     # =========================================================================
 
     @pytest.mark.asyncio
     async def test_healthomics_usable_when_all_permissions_granted(self):
-        """Test that rule is marked usable when all permissions are granted.
-
-        **Validates: Requirements 3.3, 3.4, 3.5** - Check registry and template permissions
-        """
+        """Test that rule is marked usable when all permissions are granted."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_pull_through_cache_rules.return_value = {
@@ -3367,10 +3163,7 @@ class TestListPullThroughCacheRulesUnit:
 
     @pytest.mark.asyncio
     async def test_healthomics_not_usable_no_registry_policy(self):
-        """Test that rule is not usable when registry policy is missing.
-
-        **Validates: Requirement 3.3** - Check registry permissions policy
-        """
+        """Test that rule is not usable when registry policy is missing."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_pull_through_cache_rules.return_value = {
@@ -3408,10 +3201,7 @@ class TestListPullThroughCacheRulesUnit:
 
     @pytest.mark.asyncio
     async def test_healthomics_not_usable_no_template(self):
-        """Test that rule is not usable when repository creation template is missing.
-
-        **Validates: Requirement 3.4** - Check repository creation template exists
-        """
+        """Test that rule is not usable when repository creation template is missing."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_pull_through_cache_rules.return_value = {
@@ -3447,10 +3237,7 @@ class TestListPullThroughCacheRulesUnit:
 
     @pytest.mark.asyncio
     async def test_healthomics_not_usable_template_missing_permissions(self):
-        """Test that rule is not usable when template lacks required permissions.
-
-        **Validates: Requirement 3.5** - Verify template grants required permissions
-        """
+        """Test that rule is not usable when template lacks required permissions."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_pull_through_cache_rules.return_value = {
@@ -3492,10 +3279,7 @@ class TestListPullThroughCacheRulesUnit:
 
     @pytest.mark.asyncio
     async def test_registry_policy_checked_once_for_all_rules(self):
-        """Test that registry policy is checked only once for all rules.
-
-        **Validates: Requirement 3.3** - Efficient permission checking
-        """
+        """Test that registry policy is checked only once for all rules."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_pull_through_cache_rules.return_value = {
@@ -3530,15 +3314,11 @@ class TestListPullThroughCacheRulesUnit:
 
     # =========================================================================
     # Test: Pagination handling
-    # Validates: Requirement 3.1
     # =========================================================================
 
     @pytest.mark.asyncio
     async def test_pagination_input_token_passed_to_api(self):
-        """Test that input next_token is passed to the AWS API.
-
-        **Validates: Requirement 3.1** - Support pagination
-        """
+        """Test that input next_token is passed to the AWS API."""
         # Arrange
         input_token = 'test-pagination-token-12345'
         mock_client = _create_mock_ecr_client()
@@ -3572,10 +3352,7 @@ class TestListPullThroughCacheRulesUnit:
 
     @pytest.mark.asyncio
     async def test_pagination_output_token_returned(self):
-        """Test that output next_token from AWS is returned in response.
-
-        **Validates: Requirement 3.1** - Support pagination
-        """
+        """Test that output next_token from AWS is returned in response."""
         # Arrange
         output_token = 'next-page-token-67890'
         mock_client = _create_mock_ecr_client()
@@ -3608,10 +3385,7 @@ class TestListPullThroughCacheRulesUnit:
 
     @pytest.mark.asyncio
     async def test_pagination_no_token_on_last_page(self):
-        """Test that next_token is None when no more pages exist.
-
-        **Validates: Requirement 3.1** - Support pagination
-        """
+        """Test that next_token is None when no more pages exist."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_pull_through_cache_rules.return_value = {
@@ -3643,10 +3417,7 @@ class TestListPullThroughCacheRulesUnit:
 
     @pytest.mark.asyncio
     async def test_max_results_passed_to_api(self):
-        """Test that max_results parameter is passed to the AWS API.
-
-        **Validates: Requirement 3.1** - Support pagination parameters
-        """
+        """Test that max_results parameter is passed to the AWS API."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_pull_through_cache_rules.return_value = {
@@ -3673,15 +3444,11 @@ class TestListPullThroughCacheRulesUnit:
 
     # =========================================================================
     # Test: Error handling
-    # Validates: Requirement 3.1
     # =========================================================================
 
     @pytest.mark.asyncio
     async def test_error_access_denied_exception(self):
-        """Test handling of AccessDeniedException.
-
-        **Validates: Requirement 3.1** - Return informative error message
-        """
+        """Test handling of AccessDeniedException."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         error_response = {
@@ -3713,10 +3480,7 @@ class TestListPullThroughCacheRulesUnit:
 
     @pytest.mark.asyncio
     async def test_error_other_client_error(self):
-        """Test handling of other ClientError types.
-
-        **Validates: Requirement 3.1** - Return informative error message
-        """
+        """Test handling of other ClientError types."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         error_response = {
@@ -3748,10 +3512,7 @@ class TestListPullThroughCacheRulesUnit:
 
     @pytest.mark.asyncio
     async def test_error_botocore_error(self):
-        """Test handling of BotoCoreError.
-
-        **Validates: Requirement 3.1** - Return informative error message
-        """
+        """Test handling of BotoCoreError."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_pull_through_cache_rules.side_effect = (
@@ -3777,10 +3538,7 @@ class TestListPullThroughCacheRulesUnit:
 
     @pytest.mark.asyncio
     async def test_registry_policy_error_handled_gracefully(self):
-        """Test that registry policy errors are handled gracefully.
-
-        **Validates: Requirement 3.3** - Handle permission check errors
-        """
+        """Test that registry policy errors are handled gracefully."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_pull_through_cache_rules.return_value = {
@@ -3821,10 +3579,7 @@ class TestListPullThroughCacheRulesUnit:
 
     @pytest.mark.asyncio
     async def test_template_error_handled_gracefully(self):
-        """Test that template errors are handled gracefully.
-
-        **Validates: Requirement 3.4** - Handle template check errors
-        """
+        """Test that template errors are handled gracefully."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_pull_through_cache_rules.return_value = {
@@ -3865,15 +3620,11 @@ class TestListPullThroughCacheRulesUnit:
 
     # =========================================================================
     # Test: Rules with and without credentials
-    # Validates: Requirement 3.2
     # =========================================================================
 
     @pytest.mark.asyncio
     async def test_rule_with_credential_arn(self):
-        """Test that rules with credential ARN include it in response.
-
-        **Validates: Requirement 3.2** - Include credential ARN if configured
-        """
+        """Test that rules with credential ARN include it in response."""
         # Arrange
         credential_arn = 'arn:aws:secretsmanager:us-east-1:123456789012:secret:docker-hub-creds'
         mock_client = _create_mock_ecr_client()
@@ -3907,10 +3658,7 @@ class TestListPullThroughCacheRulesUnit:
 
     @pytest.mark.asyncio
     async def test_rule_without_credential_arn(self):
-        """Test that rules without credential ARN have None.
-
-        **Validates: Requirement 3.2** - Include credential ARN if configured
-        """
+        """Test that rules without credential ARN have None."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_pull_through_cache_rules.return_value = {
@@ -3941,10 +3689,7 @@ class TestListPullThroughCacheRulesUnit:
 
     @pytest.mark.asyncio
     async def test_mixed_rules_with_and_without_credentials(self):
-        """Test listing rules with mixed credential configurations.
-
-        **Validates: Requirement 3.2** - Include credential ARN if configured
-        """
+        """Test listing rules with mixed credential configurations."""
         # Arrange
         credential_arn = 'arn:aws:secretsmanager:us-east-1:123456789012:secret:docker-hub-creds'
         mock_client = _create_mock_ecr_client()
@@ -3983,15 +3728,11 @@ class TestListPullThroughCacheRulesUnit:
 
     # =========================================================================
     # Test: Rule fields populated correctly
-    # Validates: Requirement 3.2
     # =========================================================================
 
     @pytest.mark.asyncio
     async def test_rule_fields_populated_correctly(self):
-        """Test that all rule fields are populated correctly.
-
-        **Validates: Requirement 3.2** - Include all rule information
-        """
+        """Test that all rule fields are populated correctly."""
         # Arrange
         created_time = datetime(2024, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
         updated_time = datetime(2024, 2, 20, 14, 45, 0, tzinfo=timezone.utc)
@@ -4037,10 +3778,7 @@ class TestListPullThroughCacheRulesUnit:
 
     @pytest.mark.asyncio
     async def test_template_checked_for_each_rule(self):
-        """Test that repository creation template is checked for each rule.
-
-        **Validates: Requirement 3.4** - Check template for each prefix
-        """
+        """Test that repository creation template is checked for each rule."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.describe_pull_through_cache_rules.return_value = {
@@ -4079,16 +3817,13 @@ class TestListPullThroughCacheRulesUnit:
 
 
 # =============================================================================
-# Property 2: Registry Type to URL Mapping
-# Feature: ecr-container-tools, Property 2: Registry Type to URL Mapping
-# Validates: Requirements 4.2
+# Property: Registry Type to URL Mapping
+# Feature: ecr-container-tools, Property: Registry Type to URL Mapping
 # =============================================================================
 
 
 class TestRegistryTypeToURLMapping:
-    """Property 2: Registry Type to URL Mapping.
-
-    **Validates: Requirements 4.2**
+    """Property: Registry Type to URL Mapping.
 
     *For any* valid upstream registry type (docker-hub, quay, ecr-public), the
     pull-through cache creation SHALL use the correct upstream registry URL:
@@ -4107,10 +3842,9 @@ class TestRegistryTypeToURLMapping:
     @settings(max_examples=100)
     @given(registry_type=st.sampled_from(list(UpstreamRegistry)))
     def test_upstream_registry_urls_constant_mapping(self, registry_type: UpstreamRegistry):
-        """Property 2.1: UPSTREAM_REGISTRY_URLS constant maps correctly.
+        """Property: UPSTREAM_REGISTRY_URLS constant maps correctly.
 
-        Feature: ecr-container-tools, Property 2: Registry Type to URL Mapping
-        **Validates: Requirements 4.2**
+        Feature: ecr-container-tools, Property: Registry Type to URL Mapping
 
         For any valid UpstreamRegistry enum value, the UPSTREAM_REGISTRY_URLS
         constant SHALL contain the correct upstream registry URL.
@@ -4126,10 +3860,9 @@ class TestRegistryTypeToURLMapping:
     @settings(max_examples=100)
     @given(registry_type=st.sampled_from(['docker-hub', 'quay', 'ecr-public']))
     def test_all_registry_types_have_url_mapping(self, registry_type: str):
-        """Property 2.2: All valid registry types have URL mappings.
+        """Property: All valid registry types have URL mappings.
 
-        Feature: ecr-container-tools, Property 2: Registry Type to URL Mapping
-        **Validates: Requirements 4.2**
+        Feature: ecr-container-tools, Property: Registry Type to URL Mapping
 
         For any valid registry type string, there SHALL exist a corresponding
         URL mapping in UPSTREAM_REGISTRY_URLS.
@@ -4143,10 +3876,9 @@ class TestRegistryTypeToURLMapping:
     @settings(max_examples=100)
     @given(registry_type=st.sampled_from(['quay', 'ecr-public']))
     async def test_create_ptc_uses_correct_url_for_registry_type(self, registry_type: str):
-        """Property 2.3: create_pull_through_cache_for_healthomics uses correct URL.
+        """Property: create_pull_through_cache_for_healthomics uses correct URL.
 
-        Feature: ecr-container-tools, Property 2: Registry Type to URL Mapping
-        **Validates: Requirements 4.2**
+        Feature: ecr-container-tools, Property: Registry Type to URL Mapping
 
         For any valid upstream registry type, the create_pull_through_cache_for_healthomics
         function SHALL use the correct upstream registry URL when creating the
@@ -4207,10 +3939,9 @@ class TestRegistryTypeToURLMapping:
         ).map(lambda s: f'arn:aws:secretsmanager:us-east-1:123456789012:secret:{s}')
     )
     async def test_docker_hub_uses_correct_url_with_credentials(self, credential_arn: str):
-        """Property 2.4: Docker Hub registry type uses correct URL.
+        """Property: Docker Hub registry type uses correct URL.
 
-        Feature: ecr-container-tools, Property 2: Registry Type to URL Mapping
-        **Validates: Requirements 4.2**
+        Feature: ecr-container-tools, Property: Registry Type to URL Mapping
 
         For docker-hub registry type (which requires credentials), the
         create_pull_through_cache_for_healthomics function SHALL use
@@ -4264,10 +3995,9 @@ class TestRegistryTypeToURLMapping:
     @settings(max_examples=100)
     @given(registry_type=st.sampled_from(['quay', 'ecr-public']))
     async def test_url_mapping_in_successful_response(self, registry_type: str):
-        """Property 2.5: Successful response contains correct URL mapping.
+        """Property: Successful response contains correct URL mapping.
 
-        Feature: ecr-container-tools, Property 2: Registry Type to URL Mapping
-        **Validates: Requirements 4.2**
+        Feature: ecr-container-tools, Property: Registry Type to URL Mapping
 
         For any valid upstream registry type, when the pull-through cache is
         successfully created, the response SHALL contain the correct upstream
@@ -4320,10 +4050,9 @@ class TestRegistryTypeToURLMapping:
     @settings(max_examples=100)
     @given(registry_type=st.sampled_from(['quay', 'ecr-public']))
     async def test_url_mapping_when_rule_already_exists(self, registry_type: str):
-        """Property 2.6: URL mapping is correct even when rule already exists.
+        """Property: URL mapping is correct even when rule already exists.
 
-        Feature: ecr-container-tools, Property 2: Registry Type to URL Mapping
-        **Validates: Requirements 4.2**
+        Feature: ecr-container-tools, Property: Registry Type to URL Mapping
 
         For any valid upstream registry type, when the pull-through cache rule
         already exists, the response SHALL still contain the correct upstream
@@ -4390,10 +4119,9 @@ class TestRegistryTypeToURLMapping:
     @settings(max_examples=100)
     @given(registry_type=st.sampled_from(list(UpstreamRegistry)))
     def test_url_mapping_completeness(self, registry_type: UpstreamRegistry):
-        """Property 2.7: All UpstreamRegistry enum values have URL mappings.
+        """Property: All UpstreamRegistry enum values have URL mappings.
 
-        Feature: ecr-container-tools, Property 2: Registry Type to URL Mapping
-        **Validates: Requirements 4.2**
+        Feature: ecr-container-tools, Property: Registry Type to URL Mapping
 
         For any UpstreamRegistry enum value, there SHALL be a corresponding
         entry in UPSTREAM_REGISTRY_URLS with a non-empty URL string.
@@ -4410,10 +4138,9 @@ class TestRegistryTypeToURLMapping:
     @settings(max_examples=100)
     @given(registry_type=st.sampled_from(list(UpstreamRegistry)))
     def test_url_mapping_format_validity(self, registry_type: UpstreamRegistry):
-        """Property 2.8: URL mappings are valid registry URLs.
+        """Property: URL mappings are valid registry URLs.
 
-        Feature: ecr-container-tools, Property 2: Registry Type to URL Mapping
-        **Validates: Requirements 4.2**
+        Feature: ecr-container-tools, Property: Registry Type to URL Mapping
 
         For any UpstreamRegistry enum value, the mapped URL SHALL be a valid
         registry URL format (containing a domain with at least one dot or
@@ -4434,16 +4161,13 @@ class TestRegistryTypeToURLMapping:
 
 
 # =============================================================================
-# Property 3: Credential Requirement by Registry Type
-# Feature: ecr-container-tools, Property 3: Credential Requirement by Registry Type
-# Validates: Requirements 4.5, 4.6
+# Property: Credential Requirement by Registry Type
+# Feature: ecr-container-tools, Property: Credential Requirement by Registry Type
 # =============================================================================
 
 
 class TestCredentialRequirementByRegistryType:
-    """Property 3: Credential Requirement by Registry Type.
-
-    **Validates: Requirements 4.5, 4.6**
+    """Property: Credential Requirement by Registry Type.
 
     *For any* pull-through cache creation request:
     - If upstream_registry is 'docker-hub' and credential_arn is None, the request
@@ -4466,17 +4190,16 @@ class TestCredentialRequirementByRegistryType:
     )
 
     # =========================================================================
-    # Property 3.1: Docker Hub requires credentials
+    # Property: Docker Hub requires credentials
     # =========================================================================
 
     @pytest.mark.asyncio
     @settings(max_examples=100)
     @given(data=st.data())
     async def test_docker_hub_without_credentials_rejected(self, data):
-        """Property 3.1: Docker Hub without credentials is rejected.
+        """Property: Docker Hub without credentials is rejected.
 
-        Feature: ecr-container-tools, Property 3: Credential Requirement by Registry Type
-        **Validates: Requirements 4.5**
+        Feature: ecr-container-tools, Property: Credential Requirement by Registry Type
 
         For any pull-through cache creation request where upstream_registry is
         'docker-hub' and credential_arn is None, the request SHALL be rejected
@@ -4523,10 +4246,9 @@ class TestCredentialRequirementByRegistryType:
     @settings(max_examples=100)
     @given(credential_arn=credential_arn_strategy)
     async def test_docker_hub_with_credentials_accepted(self, credential_arn: str):
-        """Property 3.2: Docker Hub with credentials is accepted.
+        """Property: Docker Hub with credentials is accepted.
 
-        Feature: ecr-container-tools, Property 3: Credential Requirement by Registry Type
-        **Validates: Requirements 4.5**
+        Feature: ecr-container-tools, Property: Credential Requirement by Registry Type
 
         For any pull-through cache creation request where upstream_registry is
         'docker-hub' and a valid credential_arn is provided, the request SHALL
@@ -4580,17 +4302,16 @@ class TestCredentialRequirementByRegistryType:
         )
 
     # =========================================================================
-    # Property 3.3: Quay succeeds regardless of credential presence
+    # Property: Quay succeeds regardless of credential presence
     # =========================================================================
 
     @pytest.mark.asyncio
     @settings(max_examples=100)
     @given(credential_arn=optional_credential_arn_strategy)
     async def test_quay_succeeds_regardless_of_credentials(self, credential_arn: Optional[str]):
-        """Property 3.3: Quay succeeds regardless of credential_arn presence.
+        """Property: Quay succeeds regardless of credential_arn presence.
 
-        Feature: ecr-container-tools, Property 3: Credential Requirement by Registry Type
-        **Validates: Requirements 4.6**
+        Feature: ecr-container-tools, Property: Credential Requirement by Registry Type
 
         For any pull-through cache creation request where upstream_registry is
         'quay', the request SHALL succeed regardless of whether credential_arn
@@ -4640,10 +4361,9 @@ class TestCredentialRequirementByRegistryType:
     @settings(max_examples=100)
     @given(data=st.data())
     async def test_quay_without_credentials_proceeds_to_api(self, data):
-        """Property 3.4: Quay without credentials proceeds to API call.
+        """Property: Quay without credentials proceeds to API call.
 
-        Feature: ecr-container-tools, Property 3: Credential Requirement by Registry Type
-        **Validates: Requirements 4.6**
+        Feature: ecr-container-tools, Property: Credential Requirement by Registry Type
 
         For any pull-through cache creation request where upstream_registry is
         'quay' and credential_arn is None, the request SHALL proceed to make
@@ -4699,7 +4419,7 @@ class TestCredentialRequirementByRegistryType:
         assert result['success'] is True
 
     # =========================================================================
-    # Property 3.5: ECR Public succeeds regardless of credential presence
+    # Property: ECR Public succeeds regardless of credential presence
     # =========================================================================
 
     @pytest.mark.asyncio
@@ -4708,10 +4428,9 @@ class TestCredentialRequirementByRegistryType:
     async def test_ecr_public_succeeds_regardless_of_credentials(
         self, credential_arn: Optional[str]
     ):
-        """Property 3.5: ECR Public succeeds regardless of credential_arn presence.
+        """Property: ECR Public succeeds regardless of credential_arn presence.
 
-        Feature: ecr-container-tools, Property 3: Credential Requirement by Registry Type
-        **Validates: Requirements 4.6**
+        Feature: ecr-container-tools, Property: Credential Requirement by Registry Type
 
         For any pull-through cache creation request where upstream_registry is
         'ecr-public', the request SHALL succeed regardless of whether credential_arn
@@ -4762,10 +4481,9 @@ class TestCredentialRequirementByRegistryType:
     @settings(max_examples=100)
     @given(data=st.data())
     async def test_ecr_public_without_credentials_proceeds_to_api(self, data):
-        """Property 3.6: ECR Public without credentials proceeds to API call.
+        """Property: ECR Public without credentials proceeds to API call.
 
-        Feature: ecr-container-tools, Property 3: Credential Requirement by Registry Type
-        **Validates: Requirements 4.6**
+        Feature: ecr-container-tools, Property: Credential Requirement by Registry Type
 
         For any pull-through cache creation request where upstream_registry is
         'ecr-public' and credential_arn is None, the request SHALL proceed to make
@@ -4821,7 +4539,7 @@ class TestCredentialRequirementByRegistryType:
         assert result['success'] is True
 
     # =========================================================================
-    # Property 3.7: Comprehensive registry type and credential combinations
+    # Property: Comprehensive registry type and credential combinations
     # =========================================================================
 
     @pytest.mark.asyncio
@@ -4833,10 +4551,9 @@ class TestCredentialRequirementByRegistryType:
     async def test_non_docker_hub_registries_accept_any_credential_state(
         self, registry_type: str, has_credentials: bool
     ):
-        """Property 3.7: Non-Docker Hub registries accept any credential state.
+        """Property: Non-Docker Hub registries accept any credential state.
 
-        Feature: ecr-container-tools, Property 3: Credential Requirement by Registry Type
-        **Validates: Requirements 4.6**
+        Feature: ecr-container-tools, Property: Credential Requirement by Registry Type
 
         For any pull-through cache creation request where upstream_registry is
         'quay' or 'ecr-public', the request SHALL succeed regardless of whether
@@ -4908,10 +4625,9 @@ class TestCredentialRequirementByRegistryType:
     async def test_docker_hub_credential_requirement_independent_of_prefix(
         self, ecr_prefix: Optional[str]
     ):
-        """Property 3.8: Docker Hub credential requirement is independent of prefix.
+        """Property: Docker Hub credential requirement is independent of prefix.
 
-        Feature: ecr-container-tools, Property 3: Credential Requirement by Registry Type
-        **Validates: Requirements 4.5**
+        Feature: ecr-container-tools, Property: Credential Requirement by Registry Type
 
         For any pull-through cache creation request where upstream_registry is
         'docker-hub' and credential_arn is None, the request SHALL be rejected
@@ -4943,10 +4659,9 @@ class TestCredentialRequirementByRegistryType:
     async def test_credential_validation_by_registry_type(
         self, registry_type: str, credential_arn: Optional[str]
     ):
-        """Property 3.9: Credential validation depends on registry type.
+        """Property: Credential validation depends on registry type.
 
-        Feature: ecr-container-tools, Property 3: Credential Requirement by Registry Type
-        **Validates: Requirements 4.5, 4.6**
+        Feature: ecr-container-tools, Property: Credential Requirement by Registry Type
 
         For any combination of registry type and credential presence:
         - docker-hub + no credentials → rejected
@@ -5014,17 +4729,16 @@ class TestCredentialRequirementByRegistryType:
             )
 
     # =========================================================================
-    # Property 3.10: Error message quality for Docker Hub credential requirement
+    # Property: Error message quality for Docker Hub credential requirement
     # =========================================================================
 
     @pytest.mark.asyncio
     @settings(max_examples=100)
     @given(data=st.data())
     async def test_docker_hub_rejection_message_is_informative(self, data):
-        """Property 3.10: Docker Hub rejection message is informative.
+        """Property: Docker Hub rejection message is informative.
 
-        Feature: ecr-container-tools, Property 3: Credential Requirement by Registry Type
-        **Validates: Requirements 4.5**
+        Feature: ecr-container-tools, Property: Credential Requirement by Registry Type
 
         When docker-hub is used without credentials, the error message SHALL
         be informative and mention both Docker Hub and Secrets Manager.
@@ -5071,8 +4785,6 @@ class TestCreatePullThroughCacheForHealthOmicsUnit:
     6. Error handling (AccessDeniedException, InvalidParameterException, LimitExceededException)
     7. Custom prefix handling
     8. Response structure validation
-
-    **Validates: Requirements 4.1, 4.5, 4.7, 4.8**
     """
 
     # =========================================================================
@@ -5081,10 +4793,7 @@ class TestCreatePullThroughCacheForHealthOmicsUnit:
 
     @pytest.mark.asyncio
     async def test_successful_creation_docker_hub(self):
-        """Test successful creation for Docker Hub registry.
-
-        **Validates: Requirement 4.1** - Accept upstream registry type and credential ARN
-        """
+        """Test successful creation for Docker Hub registry."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.create_pull_through_cache_rule.return_value = {
@@ -5125,10 +4834,7 @@ class TestCreatePullThroughCacheForHealthOmicsUnit:
 
     @pytest.mark.asyncio
     async def test_successful_creation_quay(self):
-        """Test successful creation for Quay.io registry.
-
-        **Validates: Requirement 4.1** - Accept upstream registry type
-        """
+        """Test successful creation for Quay.io registry."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.create_pull_through_cache_rule.return_value = {
@@ -5168,10 +4874,7 @@ class TestCreatePullThroughCacheForHealthOmicsUnit:
 
     @pytest.mark.asyncio
     async def test_successful_creation_ecr_public(self):
-        """Test successful creation for ECR Public registry.
-
-        **Validates: Requirement 4.1** - Accept upstream registry type
-        """
+        """Test successful creation for ECR Public registry."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.create_pull_through_cache_rule.return_value = {
@@ -5215,10 +4918,7 @@ class TestCreatePullThroughCacheForHealthOmicsUnit:
 
     @pytest.mark.asyncio
     async def test_docker_hub_requires_credential_arn(self):
-        """Test that Docker Hub requires credential ARN.
-
-        **Validates: Requirement 4.5** - Docker Hub SHALL require credential ARN
-        """
+        """Test that Docker Hub requires credential ARN."""
         # Arrange
         mock_ctx = AsyncMock()
 
@@ -5240,10 +4940,7 @@ class TestCreatePullThroughCacheForHealthOmicsUnit:
 
     @pytest.mark.asyncio
     async def test_docker_hub_with_credential_arn_succeeds(self):
-        """Test that Docker Hub with credential ARN succeeds.
-
-        **Validates: Requirement 4.5** - Docker Hub with credentials should succeed
-        """
+        """Test that Docker Hub with credential ARN succeeds."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         credential_arn = 'arn:aws:secretsmanager:us-east-1:123456789012:secret:docker-creds'
@@ -5285,10 +4982,7 @@ class TestCreatePullThroughCacheForHealthOmicsUnit:
 
     @pytest.mark.asyncio
     async def test_existing_rule_handling(self):
-        """Test handling when pull-through cache rule already exists.
-
-        **Validates: Requirement 4.7** - Return informative message for existing rule
-        """
+        """Test handling when pull-through cache rule already exists."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.create_pull_through_cache_rule.side_effect = botocore.exceptions.ClientError(
@@ -5341,10 +5035,7 @@ class TestCreatePullThroughCacheForHealthOmicsUnit:
 
     @pytest.mark.asyncio
     async def test_existing_rule_with_failed_describe(self):
-        """Test handling when rule exists but describe fails.
-
-        **Validates: Requirement 4.7** - Handle existing rule gracefully
-        """
+        """Test handling when rule exists but describe fails."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.create_pull_through_cache_rule.side_effect = botocore.exceptions.ClientError(
@@ -5388,10 +5079,7 @@ class TestCreatePullThroughCacheForHealthOmicsUnit:
 
     @pytest.mark.asyncio
     async def test_registry_policy_update_failure(self):
-        """Test handling when registry policy update fails.
-
-        **Validates: Requirement 4.8** - Return detailed error for permission failures
-        """
+        """Test handling when registry policy update fails."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.create_pull_through_cache_rule.return_value = {
@@ -5434,10 +5122,7 @@ class TestCreatePullThroughCacheForHealthOmicsUnit:
 
     @pytest.mark.asyncio
     async def test_repository_template_creation_failure(self):
-        """Test handling when repository template creation fails.
-
-        **Validates: Requirement 4.8** - Return detailed error for permission failures
-        """
+        """Test handling when repository template creation fails."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.create_pull_through_cache_rule.return_value = {
@@ -5480,10 +5165,7 @@ class TestCreatePullThroughCacheForHealthOmicsUnit:
 
     @pytest.mark.asyncio
     async def test_both_permission_updates_fail(self):
-        """Test handling when both registry policy and template creation fail.
-
-        **Validates: Requirement 4.8** - Return detailed error for permission failures
-        """
+        """Test handling when both registry policy and template creation fail."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.create_pull_through_cache_rule.return_value = {
@@ -5527,10 +5209,7 @@ class TestCreatePullThroughCacheForHealthOmicsUnit:
 
     @pytest.mark.asyncio
     async def test_invalid_registry_type(self):
-        """Test handling of invalid registry type.
-
-        **Validates: Requirement 4.1** - Validate upstream registry type
-        """
+        """Test handling of invalid registry type."""
         # Arrange
         mock_ctx = AsyncMock()
 
@@ -5550,10 +5229,7 @@ class TestCreatePullThroughCacheForHealthOmicsUnit:
 
     @pytest.mark.asyncio
     async def test_empty_registry_type(self):
-        """Test handling of empty registry type.
-
-        **Validates: Requirement 4.1** - Validate upstream registry type
-        """
+        """Test handling of empty registry type."""
         # Arrange
         mock_ctx = AsyncMock()
 
@@ -5576,10 +5252,7 @@ class TestCreatePullThroughCacheForHealthOmicsUnit:
 
     @pytest.mark.asyncio
     async def test_access_denied_error(self):
-        """Test handling of AccessDeniedException.
-
-        **Validates: Requirement 4.8** - Return detailed error for permission failures
-        """
+        """Test handling of AccessDeniedException."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.create_pull_through_cache_rule.side_effect = botocore.exceptions.ClientError(
@@ -5612,10 +5285,7 @@ class TestCreatePullThroughCacheForHealthOmicsUnit:
 
     @pytest.mark.asyncio
     async def test_invalid_parameter_exception(self):
-        """Test handling of InvalidParameterException.
-
-        **Validates: Requirement 4.8** - Return detailed error
-        """
+        """Test handling of InvalidParameterException."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.create_pull_through_cache_rule.side_effect = botocore.exceptions.ClientError(
@@ -5648,10 +5318,7 @@ class TestCreatePullThroughCacheForHealthOmicsUnit:
 
     @pytest.mark.asyncio
     async def test_limit_exceeded_exception(self):
-        """Test handling of LimitExceededException.
-
-        **Validates: Requirement 4.8** - Return detailed error
-        """
+        """Test handling of LimitExceededException."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.create_pull_through_cache_rule.side_effect = botocore.exceptions.ClientError(
@@ -5684,10 +5351,7 @@ class TestCreatePullThroughCacheForHealthOmicsUnit:
 
     @pytest.mark.asyncio
     async def test_generic_client_error(self):
-        """Test handling of generic ClientError.
-
-        **Validates: Requirement 4.8** - Return detailed error
-        """
+        """Test handling of generic ClientError."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.create_pull_through_cache_rule.side_effect = botocore.exceptions.ClientError(
@@ -5725,10 +5389,7 @@ class TestCreatePullThroughCacheForHealthOmicsUnit:
 
     @pytest.mark.asyncio
     async def test_custom_prefix_used(self):
-        """Test that custom prefix is used when provided.
-
-        **Validates: Requirement 4.1** - Accept optional ECR repository prefix
-        """
+        """Test that custom prefix is used when provided."""
         # Arrange
         custom_prefix = 'my-custom-prefix'
         mock_client = _create_mock_ecr_client()
@@ -5768,10 +5429,7 @@ class TestCreatePullThroughCacheForHealthOmicsUnit:
 
     @pytest.mark.asyncio
     async def test_default_prefix_used_when_not_provided(self):
-        """Test that default prefix is used when not provided.
-
-        **Validates: Requirement 4.1** - Default to registry type name
-        """
+        """Test that default prefix is used when not provided."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.create_pull_through_cache_rule.return_value = {
@@ -5813,10 +5471,7 @@ class TestCreatePullThroughCacheForHealthOmicsUnit:
 
     @pytest.mark.asyncio
     async def test_response_structure_on_success(self):
-        """Test that successful response has correct structure.
-
-        **Validates: Requirement 4.1** - Return created rule details
-        """
+        """Test that successful response has correct structure."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         created_at = datetime.now(timezone.utc)
@@ -5867,10 +5522,7 @@ class TestCreatePullThroughCacheForHealthOmicsUnit:
 
     @pytest.mark.asyncio
     async def test_response_structure_on_failure(self):
-        """Test that failure response has correct structure.
-
-        **Validates: Requirement 4.8** - Return detailed error
-        """
+        """Test that failure response has correct structure."""
         # Arrange
         mock_ctx = AsyncMock()
 
@@ -5896,10 +5548,7 @@ class TestCreatePullThroughCacheForHealthOmicsUnit:
 
     @pytest.mark.asyncio
     async def test_healthomics_usable_flag_when_all_permissions_succeed(self):
-        """Test that healthomics_usable is True when all permissions are configured.
-
-        **Validates: Requirement 4.1** - Return confirmation of HealthOmics permissions
-        """
+        """Test that healthomics_usable is True when all permissions are configured."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.create_pull_through_cache_rule.return_value = {
@@ -5938,10 +5587,7 @@ class TestCreatePullThroughCacheForHealthOmicsUnit:
 
     @pytest.mark.asyncio
     async def test_healthomics_usable_flag_when_permissions_fail(self):
-        """Test that healthomics_usable is False when permissions fail.
-
-        **Validates: Requirement 4.8** - Indicate permission status
-        """
+        """Test that healthomics_usable is False when permissions fail."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.create_pull_through_cache_rule.return_value = {
@@ -5983,10 +5629,7 @@ class TestCreatePullThroughCacheForHealthOmicsUnit:
 
     @pytest.mark.asyncio
     async def test_existing_registry_policy_updated(self):
-        """Test that existing registry policy is updated correctly.
-
-        **Validates: Requirement 4.1** - Update registry permissions policy
-        """
+        """Test that existing registry policy is updated correctly."""
         # Arrange
         existing_policy = {
             'Version': '2012-10-17',
@@ -6033,10 +5676,7 @@ class TestCreatePullThroughCacheForHealthOmicsUnit:
 
     @pytest.mark.asyncio
     async def test_template_already_exists_updated(self):
-        """Test that existing template is updated correctly.
-
-        **Validates: Requirement 4.1** - Create/update repository creation template
-        """
+        """Test that existing template is updated correctly."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.create_pull_through_cache_rule.return_value = {
@@ -6085,10 +5725,7 @@ class TestCreatePullThroughCacheForHealthOmicsUnit:
 
     @pytest.mark.asyncio
     async def test_quay_with_optional_credentials(self):
-        """Test Quay.io with optional credentials provided.
-
-        **Validates: Requirement 4.1** - Quay.io accepts optional credentials
-        """
+        """Test Quay.io with optional credentials provided."""
         # Arrange
         credential_arn = 'arn:aws:secretsmanager:us-east-1:123456789012:secret:quay-creds'
         mock_client = _create_mock_ecr_client()
@@ -6128,10 +5765,7 @@ class TestCreatePullThroughCacheForHealthOmicsUnit:
 
     @pytest.mark.asyncio
     async def test_botocore_error_handling(self):
-        """Test handling of BotoCoreError.
-
-        **Validates: Requirement 4.8** - Return detailed error
-        """
+        """Test handling of BotoCoreError."""
         # Arrange
         mock_client = _create_mock_ecr_client()
         mock_client.create_pull_through_cache_rule.side_effect = (
@@ -6158,9 +5792,8 @@ class TestCreatePullThroughCacheForHealthOmicsUnit:
 
 
 # =============================================================================
-# Property 5: Validation Issue Remediation
-# Feature: ecr-container-tools, Property 5: Validation Issue Remediation
-# Validates: Requirements 5.5
+# Property: Validation Issue Remediation
+# Feature: ecr-container-tools, Property: Validation Issue Remediation
 # =============================================================================
 
 
@@ -6388,9 +6021,7 @@ def validation_scenario_strategy(draw) -> Dict[str, Any]:
 
 
 class TestValidationIssueRemediation:
-    """Property 5: Validation Issue Remediation.
-
-    **Validates: Requirements 5.5**
+    """Property: Validation Issue Remediation.
 
     *For any* validation issue detected during configuration validation, the issue
     object SHALL contain a non-empty `remediation` field with actionable guidance.
@@ -6402,10 +6033,9 @@ class TestValidationIssueRemediation:
     async def test_all_validation_issues_have_non_empty_remediation(
         self, scenario: Dict[str, Any]
     ):
-        """Property 5.1: All validation issues have non-empty remediation fields.
+        """Property: All validation issues have non-empty remediation fields.
 
-        Feature: ecr-container-tools, Property 5: Validation Issue Remediation
-        **Validates: Requirements 5.5**
+        Feature: ecr-container-tools, Property: Validation Issue Remediation
 
         For any validation issue detected during configuration validation,
         the issue object SHALL contain a non-empty `remediation` field.
@@ -6484,10 +6114,9 @@ class TestValidationIssueRemediation:
     @settings(max_examples=100)
     @given(scenario=validation_scenario_strategy())
     async def test_remediation_contains_actionable_guidance(self, scenario: Dict[str, Any]):
-        """Property 5.2: Remediation fields contain actionable guidance.
+        """Property: Remediation fields contain actionable guidance.
 
-        Feature: ecr-container-tools, Property 5: Validation Issue Remediation
-        **Validates: Requirements 5.5**
+        Feature: ecr-container-tools, Property: Validation Issue Remediation
 
         For any validation issue, the remediation field SHALL contain actionable
         guidance (indicated by containing action words or specific instructions).
@@ -6586,10 +6215,9 @@ class TestValidationIssueRemediation:
 
     @pytest.mark.asyncio
     async def test_no_ptc_rules_issue_has_remediation(self):
-        """Property 5.3: Info issue for no PTC rules has remediation.
+        """Property: Info issue for no PTC rules has remediation.
 
-        Feature: ecr-container-tools, Property 5: Validation Issue Remediation
-        **Validates: Requirements 5.5**
+        Feature: ecr-container-tools, Property: Validation Issue Remediation
 
         When no pull-through cache rules exist, the info issue SHALL have
         a non-empty remediation field with guidance on creating rules.
@@ -6635,10 +6263,9 @@ class TestValidationIssueRemediation:
 
     @pytest.mark.asyncio
     async def test_missing_registry_policy_issue_has_remediation(self):
-        """Property 5.4: Error issue for missing registry policy has remediation.
+        """Property: Error issue for missing registry policy has remediation.
 
-        Feature: ecr-container-tools, Property 5: Validation Issue Remediation
-        **Validates: Requirements 5.5**
+        Feature: ecr-container-tools, Property: Validation Issue Remediation
 
         When registry policy is missing, the error issue SHALL have a non-empty
         remediation field with guidance on creating the policy.
@@ -6693,10 +6320,9 @@ class TestValidationIssueRemediation:
 
     @pytest.mark.asyncio
     async def test_missing_template_issue_has_remediation(self):
-        """Property 5.5: Error issue for missing template has remediation.
+        """Property: Error issue for missing template has remediation.
 
-        Feature: ecr-container-tools, Property 5: Validation Issue Remediation
-        **Validates: Requirements 5.5**
+        Feature: ecr-container-tools, Property: Validation Issue Remediation
 
         When repository creation template is missing, the error issue SHALL have
         a non-empty remediation field with guidance on creating the template.
@@ -6763,10 +6389,9 @@ class TestValidationIssueRemediation:
 
     @pytest.mark.asyncio
     async def test_valid_config_info_issue_has_remediation(self):
-        """Property 5.6: Info issue for valid config has remediation.
+        """Property: Info issue for valid config has remediation.
 
-        Feature: ecr-container-tools, Property 5: Validation Issue Remediation
-        **Validates: Requirements 5.5**
+        Feature: ecr-container-tools, Property: Validation Issue Remediation
 
         When configuration is valid, the info issue SHALL have a non-empty
         remediation field (even if it says 'no action required').
@@ -6856,10 +6481,9 @@ class TestValidationIssueRemediation:
         registry_has_policy: bool,
         registry_has_permissions: bool,
     ):
-        """Property 5.7: Permission-related remediation mentions HealthOmics.
+        """Property: Permission-related remediation mentions HealthOmics.
 
-        Feature: ecr-container-tools, Property 5: Validation Issue Remediation
-        **Validates: Requirements 5.5**
+        Feature: ecr-container-tools, Property: Validation Issue Remediation
 
         For any permission-related validation issue, the remediation SHALL
         mention HealthOmics or the HealthOmics principal to provide context.
@@ -6967,16 +6591,11 @@ class TestValidateHealthomicsECRConfigUnit:
     4. Incorrect template permissions
     5. No pull-through cache rules
     6. Error handling
-
-    **Validates: Requirements 5.1, 5.5, 5.6**
     """
 
     @pytest.mark.asyncio
     async def test_fully_valid_configuration(self):
-        """Test validation of a fully valid ECR configuration.
-
-        **Validates: Requirement 5.6** - Return overall validity status
-        """
+        """Test validation of a fully valid ECR configuration."""
         from awslabs.aws_healthomics_mcp_server.tools.ecr_tools import (
             validate_healthomics_ecr_config,
         )
@@ -7050,10 +6669,7 @@ class TestValidateHealthomicsECRConfigUnit:
 
     @pytest.mark.asyncio
     async def test_missing_registry_policy(self):
-        """Test validation when registry policy is missing.
-
-        **Validates: Requirement 5.2** - Check registry permissions policy
-        """
+        """Test validation when registry policy is missing."""
         from awslabs.aws_healthomics_mcp_server.tools.ecr_tools import (
             validate_healthomics_ecr_config,
         )
@@ -7109,10 +6725,7 @@ class TestValidateHealthomicsECRConfigUnit:
 
     @pytest.mark.asyncio
     async def test_missing_repository_templates(self):
-        """Test validation when repository templates are missing.
-
-        **Validates: Requirement 5.3** - Check repository creation templates
-        """
+        """Test validation when repository templates are missing."""
         from awslabs.aws_healthomics_mcp_server.tools.ecr_tools import (
             validate_healthomics_ecr_config,
         )
@@ -7183,10 +6796,7 @@ class TestValidateHealthomicsECRConfigUnit:
 
     @pytest.mark.asyncio
     async def test_incorrect_template_permissions(self):
-        """Test validation when template has incorrect permissions.
-
-        **Validates: Requirement 5.4** - Verify template permissions
-        """
+        """Test validation when template has incorrect permissions."""
         from awslabs.aws_healthomics_mcp_server.tools.ecr_tools import (
             validate_healthomics_ecr_config,
         )
@@ -7270,10 +6880,7 @@ class TestValidateHealthomicsECRConfigUnit:
 
     @pytest.mark.asyncio
     async def test_no_pull_through_cache_rules(self):
-        """Test validation when no pull-through cache rules exist.
-
-        **Validates: Requirement 5.1** - List all pull-through cache rules
-        """
+        """Test validation when no pull-through cache rules exist."""
         from awslabs.aws_healthomics_mcp_server.tools.ecr_tools import (
             validate_healthomics_ecr_config,
         )
@@ -7310,10 +6917,7 @@ class TestValidateHealthomicsECRConfigUnit:
 
     @pytest.mark.asyncio
     async def test_access_denied_error(self):
-        """Test handling of AccessDeniedException.
-
-        **Validates: Requirement 5.6** - Handle errors gracefully
-        """
+        """Test handling of AccessDeniedException."""
         from awslabs.aws_healthomics_mcp_server.tools.ecr_tools import (
             validate_healthomics_ecr_config,
         )
@@ -7342,10 +6946,7 @@ class TestValidateHealthomicsECRConfigUnit:
 
     @pytest.mark.asyncio
     async def test_botocore_error_handling(self):
-        """Test handling of BotoCoreError.
-
-        **Validates: Requirement 5.6** - Handle errors gracefully
-        """
+        """Test handling of BotoCoreError."""
         from awslabs.aws_healthomics_mcp_server.tools.ecr_tools import (
             validate_healthomics_ecr_config,
         )
@@ -7371,10 +6972,7 @@ class TestValidateHealthomicsECRConfigUnit:
 
     @pytest.mark.asyncio
     async def test_multiple_ptc_rules_validation(self):
-        """Test validation with multiple pull-through cache rules.
-
-        **Validates: Requirement 5.1** - List all pull-through cache rules
-        """
+        """Test validation with multiple pull-through cache rules."""
         from awslabs.aws_healthomics_mcp_server.tools.ecr_tools import (
             validate_healthomics_ecr_config,
         )
@@ -7460,10 +7058,7 @@ class TestValidateHealthomicsECRConfigUnit:
 
     @pytest.mark.asyncio
     async def test_registry_policy_missing_actions(self):
-        """Test validation when registry policy is missing required actions.
-
-        **Validates: Requirement 5.2** - Check registry permissions policy
-        """
+        """Test validation when registry policy is missing required actions."""
         from awslabs.aws_healthomics_mcp_server.tools.ecr_tools import (
             validate_healthomics_ecr_config,
         )
@@ -7527,10 +7122,7 @@ class TestValidateHealthomicsECRConfigUnit:
 
     @pytest.mark.asyncio
     async def test_template_without_policy(self):
-        """Test validation when template exists but has no policy.
-
-        **Validates: Requirement 5.4** - Verify template permissions
-        """
+        """Test validation when template exists but has no policy."""
         from awslabs.aws_healthomics_mcp_server.tools.ecr_tools import (
             validate_healthomics_ecr_config,
         )
@@ -7596,10 +7188,7 @@ class TestValidateHealthomicsECRConfigUnit:
 
     @pytest.mark.asyncio
     async def test_all_issues_have_remediation(self):
-        """Test that all validation issues have non-empty remediation fields.
-
-        **Validates: Requirement 5.5** - Provide remediation steps
-        """
+        """Test that all validation issues have non-empty remediation fields."""
         from awslabs.aws_healthomics_mcp_server.tools.ecr_tools import (
             validate_healthomics_ecr_config,
         )
@@ -7654,10 +7243,7 @@ class TestValidateHealthomicsECRConfigUnit:
 
     @pytest.mark.asyncio
     async def test_pagination_of_ptc_rules(self):
-        """Test that pagination is handled when listing PTC rules.
-
-        **Validates: Requirement 5.1** - List all pull-through cache rules
-        """
+        """Test that pagination is handled when listing PTC rules."""
         from awslabs.aws_healthomics_mcp_server.tools.ecr_tools import (
             validate_healthomics_ecr_config,
         )
