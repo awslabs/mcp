@@ -66,12 +66,15 @@ For global configuration, edit `~/.kiro/settings/mcp.json`. For project-specific
 - `read_document`: Extract content from various document formats by specifying file_path and file_type ('pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt')
 - `read_image`: Load image files for LLM viewing and analysis
 - `extract_slides_as_images`: Extract slides/pages as individual PNG images from PPTX, PPT, or PDF files. Requires [LibreOffice](https://www.libreoffice.org/) (for PPTX/PPT) and [poppler-utils](https://poppler.freedesktop.org/) (for PDF-to-image rendering)
+- `inspect_document_assets`: Inspect a document to discover embedded images and metadata. Returns an inventory of all embedded assets with properties (dimensions, format, DPI, color space). Supports PDF directly; DOCX, DOC, PPTX, PPT, XLSX, XLS require [LibreOffice](https://www.libreoffice.org/)
+- `extract_document_assets`: Extract embedded images from documents to disk. Use after `inspect_document_assets` to selectively extract specific assets by index. Supports PDF directly; Office formats require [LibreOffice](https://www.libreoffice.org/)
 
 ## Environment Variables
 
 - `FASTMCP_LOG_LEVEL`: Set logging level (ERROR, INFO, DEBUG)
 - `MAX_FILE_SIZE_MB`: Maximum allowed file size in megabytes (default: 50). Must be a positive integer.
 - `DOCUMENT_BASE_DIR`: Base directory for file access security. Restricts document loading to files within this directory. Defaults to the current working directory.
+- `MAX_ASSETS`: Maximum number of assets to return/extract per call (default: 200). Must be a positive integer.
 
 ## Development
 
