@@ -14,6 +14,10 @@
 """Data models for asset extraction functionality."""
 
 import os
+import shutil
+import tempfile
+from loguru import logger
+from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional, Tuple
 
@@ -105,3 +109,147 @@ class ExtractionResponse(BaseModel):
     output_dir: str = Field('', description='Directory containing extracted assets')
     warnings: List[str] = Field(default_factory=list, description='Non-fatal warnings')
     error_message: Optional[str] = Field(None, description='Error message if status is error')
+
+
+# Dispatch logic for multi-format support
+ASSET_EXTRACTION_EXTENSIONS = {
+    '.pdf',
+    '.docx',
+    '.doc',
+    '.pptx',
+    '.ppt',
+    '.xlsx',
+    '.xls',
+}
+
+OFFICE_EXTENSIONS = {'.docx', '.doc', '.pptx', '.ppt', '.xlsx', '.xls'}
+
+
+async def dispatch_inspect(
+    file_path: str,
+    timeout_seconds: int = 30,
+    convert_to_pdf_fn=None,
+    check_soffice_fn=None,
+) -> InspectionResponse:
+    """Dispatch inspection based on file type.
+
+    PDF -> pdfplumber directly.
+    Office formats -> soffice convert to PDF -> pdfplumber.
+    """
+    from awslabs.document_loader_mcp_server.extractors.pdf import inspect_pdf
+
+    suffix = Path(file_path).suffix.lower()
+
+    if suffix not in ASSET_EXTRACTION_EXTENSIONS:
+        return InspectionResponse(
+            status='error',
+            asset_count=0,
+            total_assets_found=0,
+            error_message=f'Unsupported file type: {suffix}. Supported: {", ".join(sorted(ASSET_EXTRACTION_EXTENSIONS))}',
+        )
+
+    if suffix == '.pdf':
+        return await inspect_pdf(file_path, timeout_seconds)
+
+    # Office format: check soffice, convert to PDF, then inspect
+    if check_soffice_fn:
+        soffice_error = check_soffice_fn()
+        if soffice_error:
+            return InspectionResponse(
+                status='error',
+                asset_count=0,
+                total_assets_found=0,
+                error_message=soffice_error,
+            )
+
+    if convert_to_pdf_fn is None:
+        return InspectionResponse(
+            status='error',
+            asset_count=0,
+            total_assets_found=0,
+            error_message='soffice conversion not available (no converter provided)',
+        )
+
+    temp_dir = None
+    try:
+        temp_dir = tempfile.mkdtemp(prefix='docloader_assets_')
+        pdf_path = convert_to_pdf_fn(file_path, temp_dir, timeout_seconds)
+        result = await inspect_pdf(pdf_path, timeout_seconds)
+        # Override metadata to reflect original file
+        if result.metadata:
+            result.metadata.file_path = file_path
+            result.metadata.file_type = suffix.lstrip('.')
+            result.metadata.file_size_bytes = Path(file_path).stat().st_size
+        return result
+    except Exception as e:
+        logger.error(f'Error during soffice inspection of {file_path}: {str(e)}')
+        return InspectionResponse(
+            status='error',
+            asset_count=0,
+            total_assets_found=0,
+            error_message=f'Error converting {suffix} to PDF: {str(e)}',
+        )
+    finally:
+        if temp_dir and os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+async def dispatch_extract(
+    file_path: str,
+    output_dir: str,
+    asset_indices: Optional[List[int]] = None,
+    timeout_seconds: int = 60,
+    convert_to_pdf_fn=None,
+    check_soffice_fn=None,
+) -> ExtractionResponse:
+    """Dispatch extraction based on file type.
+
+    PDF -> pdfplumber directly.
+    Office formats -> soffice convert to PDF -> pdfplumber.
+    """
+    from awslabs.document_loader_mcp_server.extractors.pdf import extract_pdf
+
+    suffix = Path(file_path).suffix.lower()
+
+    if suffix not in ASSET_EXTRACTION_EXTENSIONS:
+        return ExtractionResponse(
+            status='error',
+            output_dir=output_dir,
+            error_message=f'Unsupported file type: {suffix}. Supported: {", ".join(sorted(ASSET_EXTRACTION_EXTENSIONS))}',
+        )
+
+    if suffix == '.pdf':
+        return await extract_pdf(file_path, output_dir, asset_indices, timeout_seconds)
+
+    # Office format: check soffice, convert to PDF, then extract
+    if check_soffice_fn:
+        soffice_error = check_soffice_fn()
+        if soffice_error:
+            return ExtractionResponse(
+                status='error',
+                output_dir=output_dir,
+                error_message=soffice_error,
+            )
+
+    if convert_to_pdf_fn is None:
+        return ExtractionResponse(
+            status='error',
+            output_dir=output_dir,
+            error_message='soffice conversion not available (no converter provided)',
+        )
+
+    temp_dir = None
+    try:
+        temp_dir = tempfile.mkdtemp(prefix='docloader_assets_')
+        pdf_path = convert_to_pdf_fn(file_path, temp_dir, timeout_seconds)
+        return await extract_pdf(pdf_path, output_dir, asset_indices, timeout_seconds)
+    except Exception as e:
+        logger.error(f'Error during soffice extraction of {file_path}: {str(e)}')
+        return ExtractionResponse(
+            status='error',
+            output_dir=output_dir,
+            error_message=f'Error converting {suffix} to PDF: {str(e)}',
+        )
+    finally:
+        if temp_dir and os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir, ignore_errors=True)

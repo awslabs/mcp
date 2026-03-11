@@ -327,3 +327,47 @@ async def test_extract_pdf_creates_output_dir(pdf_with_images, tmp_path):
     result = await extract_pdf(pdf_with_images, output_dir)
     assert result.status == 'success'
     assert Path(output_dir).exists()
+
+
+# Dispatch logic tests
+from awslabs.document_loader_mcp_server.extractors import (
+    ASSET_EXTRACTION_EXTENSIONS,
+    dispatch_extract,
+    dispatch_inspect,
+)
+
+
+def test_asset_extraction_extensions():
+    """Test that ASSET_EXTRACTION_EXTENSIONS contains expected formats."""
+    assert '.pdf' in ASSET_EXTRACTION_EXTENSIONS
+    assert '.docx' in ASSET_EXTRACTION_EXTENSIONS
+    assert '.doc' in ASSET_EXTRACTION_EXTENSIONS
+    assert '.pptx' in ASSET_EXTRACTION_EXTENSIONS
+    assert '.ppt' in ASSET_EXTRACTION_EXTENSIONS
+    assert '.xlsx' in ASSET_EXTRACTION_EXTENSIONS
+    assert '.xls' in ASSET_EXTRACTION_EXTENSIONS
+
+
+@pytest.mark.asyncio
+async def test_dispatch_inspect_pdf(pdf_with_images):
+    """Test dispatch_inspect with PDF file."""
+    result = await dispatch_inspect(pdf_with_images)
+    assert result.status == 'success'
+    assert result.asset_count > 0
+
+
+@pytest.mark.asyncio
+async def test_dispatch_inspect_unsupported():
+    """Test dispatch_inspect with unsupported file type."""
+    result = await dispatch_inspect('/tmp/test.txt')
+    assert result.status == 'error'
+    assert 'Unsupported' in result.error_message
+
+
+@pytest.mark.asyncio
+async def test_dispatch_extract_pdf(pdf_with_images, tmp_path):
+    """Test dispatch_extract with PDF file."""
+    output_dir = str(tmp_path / 'dispatch_extract')
+    result = await dispatch_extract(pdf_with_images, output_dir)
+    assert result.status == 'success'
+    assert result.extracted_count > 0
