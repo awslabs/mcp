@@ -32,7 +32,7 @@ from awslabs.aws_serverless_mcp_server.tools.webapps.utils.deploy_service import
 )
 from awslabs.aws_serverless_mcp_server.utils.const import DEPLOYMENT_STATUS_DIR
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Any, Dict, Literal, Optional
 

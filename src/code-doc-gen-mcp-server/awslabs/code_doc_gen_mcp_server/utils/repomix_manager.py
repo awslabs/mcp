@@ -16,7 +16,7 @@
 
 import time
 from loguru import logger
-from mcp.server.fastmcp import Context
+from fastmcp import Context
 from pathlib import Path
 from repomix import RepomixConfig, RepoProcessor
 from typing import Any, Dict, Optional

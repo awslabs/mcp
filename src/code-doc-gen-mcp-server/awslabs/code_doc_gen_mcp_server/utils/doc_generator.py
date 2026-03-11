@@ -22,7 +22,7 @@ from awslabs.code_doc_gen_mcp_server.utils.models import (
     ProjectAnalysis,
 )
 from loguru import logger
-from mcp.server.fastmcp import Context
+from fastmcp import Context
 from pathlib import Path
 from typing import List, Optional
 

@@ -22,7 +22,7 @@ import boto3
 from typing import Optional, List, Dict
 from botocore.config import Config
 from awslabs.aws_msk_mcp_server import __version__
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from pydantic import Field
 
 from ..common_functions import check_mcp_generated_tag

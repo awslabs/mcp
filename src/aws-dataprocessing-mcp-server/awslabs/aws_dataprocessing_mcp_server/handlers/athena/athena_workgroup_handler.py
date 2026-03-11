@@ -24,7 +24,7 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     LogLevel,
     log_with_request_id,
 )
-from mcp.server.fastmcp import Context
+from fastmcp import Context
 from mcp.types import CallToolResult, TextContent
 from pydantic import Field
 from typing import Annotated, Any, Dict, Optional

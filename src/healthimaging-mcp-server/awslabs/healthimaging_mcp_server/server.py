@@ -14,6 +14,7 @@
 
 """AWS HealthImaging MCP Server implementation."""
 
+import argparse
 from . import healthimaging_operations
 from .models import (
     CopyImageSetRequest,
@@ -61,7 +62,7 @@ from .models import (
     UpdateImageSetMetadataRequest,
     UpdateImageSetMetadataResponse,
 )
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from pydantic import Field
 from pydantic.fields import FieldInfo
 from typing import Any, Dict, List, Optional
@@ -713,7 +714,29 @@ def remove_instance_from_image_set(
 
 def main():
     """Main entry point for the MCP server application."""
-    app.run()
+    parser = argparse.ArgumentParser(
+        description='An AWS Labs Model Context Protocol (MCP) server'
+    )
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='Transport protocol to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='127.0.0.1',
+        help='Host to bind to for SSE/HTTP transports (default: 127.0.0.1)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to for SSE/HTTP transports (default: 8000)',
+    )
+    args = parser.parse_args()
+    app.run(transport=args.transport, host=args.host, port=args.port)
 
 
 if __name__ == '__main__':

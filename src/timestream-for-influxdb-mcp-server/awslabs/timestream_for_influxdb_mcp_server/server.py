@@ -15,6 +15,7 @@
 
 """awslabs Timestream for InfluxDB MCP Server implementation."""
 
+import argparse
 import boto3
 import os
 from awslabs.timestream_for_influxdb_mcp_server import __version__
@@ -25,7 +26,7 @@ from influxdb_client.client.write_api import ASYNCHRONOUS, SYNCHRONOUS
 from influxdb_client.domain.bucket_retention_rules import BucketRetentionRules
 from influxdb_client.domain.write_precision import WritePrecision
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from pydantic import Field
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
@@ -240,7 +241,6 @@ mcp = FastMCP(
     It allows you to create and manage databases, users, and perform other operations
     related to Timestream for InfluxDB service.
     """,
-    dependencies=['loguru', 'boto3', 'influxdb-client'],
 )
 
 
@@ -1521,7 +1521,29 @@ async def influxdb_create_org(
 def main():
     """Main entry point for the MCP server application."""
     logger.info('Starting Timestream for InfluxDB MCP Server')
-    mcp.run()
+    parser = argparse.ArgumentParser(
+        description='An AWS Labs Model Context Protocol (MCP) server'
+    )
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='Transport protocol to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='127.0.0.1',
+        help='Host to bind to for HTTP transports (default: 127.0.0.1)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to for HTTP transports (default: 8000)',
+    )
+    args = parser.parse_args()
+    mcp.run(transport=args.transport, host=args.host, port=args.port)
 
 
 if __name__ == '__main__':

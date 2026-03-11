@@ -16,7 +16,7 @@
 
 import os
 import pytest
-from mcp.server.fastmcp import Context
+from fastmcp import Context
 from unittest.mock import AsyncMock, MagicMock
 
 

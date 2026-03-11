@@ -17,7 +17,7 @@
 from typing import Any, Dict
 
 import boto3
-from mcp.server.fastmcp import Context
+from fastmcp import Context
 
 from awslabs.well_architected_security_mcp_server.consts import USER_AGENT_CONFIG
 

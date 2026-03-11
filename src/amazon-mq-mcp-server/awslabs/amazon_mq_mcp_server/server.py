@@ -18,7 +18,7 @@ from awslabs.amazon_mq_mcp_server.aws_service_mcp_generator import (
 )
 from awslabs.amazon_mq_mcp_server.consts import MCP_SERVER_VERSION
 from awslabs.amazon_mq_mcp_server.rabbitmq.module import RabbitMQModule
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from typing import Any, Dict, Optional
 
 
@@ -128,7 +128,6 @@ def allow_mutative_action_only_on_tagged_resource(
 mcp = FastMCP(
     'awslabs.amazon-mq-mcp-server',
     instructions="""Manage RabbitMQ and ActiveMQ message brokers on AmazonMQ.""",
-    dependencies=['pydantic', 'boto3'],
 )
 
 
@@ -141,6 +140,23 @@ def main():
         '--allow-resource-creation',
         action='store_true',
         help='Enable tools that create resources on user AWS account',
+    )
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='Transport protocol to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        default='127.0.0.1',
+        help='Host to bind to for HTTP transports (default: 127.0.0.1)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to for HTTP transports (default: 8000)',
     )
     args = parser.parse_args()
 
@@ -185,7 +201,7 @@ def main():
     allow_mutative_tools = args.allow_resource_creation if args.allow_resource_creation else False
     rmq_module.register_rabbitmq_management_tools(allow_mutative_tools)
 
-    mcp.run()
+    mcp.run(transport=args.transport, host=args.host, port=args.port)
 
 
 if __name__ == '__main__':

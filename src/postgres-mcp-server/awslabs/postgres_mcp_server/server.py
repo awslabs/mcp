@@ -41,7 +41,7 @@ from awslabs.postgres_mcp_server.mutable_sql_detector import (
 from botocore.exceptions import ClientError
 from datetime import datetime
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from fastmcp import Context, FastMCP
 from mcp.shared.exceptions import McpError
 from mcp.types import INVALID_PARAMS, ErrorData
 from pydantic import Field
@@ -109,9 +109,6 @@ def parse_execute_response(response: dict) -> list[dict]:
 
 mcp = FastMCP(
     'pg-mcp MCP server. This is the starting point for all solutions created',
-    dependencies=[
-        'loguru',
-    ],
 )
 
 
@@ -834,6 +831,24 @@ def main():
     )
     parser.add_argument('--database', help='Database name')
     parser.add_argument('--port', type=int, default=5432, help='Database port (default: 5432)')
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='Transport protocol to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='127.0.0.1',
+        help='Host to bind to for HTTP transports (default: 127.0.0.1)',
+    )
+    parser.add_argument(
+        '--server-port',
+        type=int,
+        default=8000,
+        help='Port to bind to for HTTP transports (default: 8000)',
+    )
     args = parser.parse_args()
 
     logger.info(
@@ -893,7 +908,7 @@ def main():
                     logger.success('Successfully validated database connection to Postgres')
 
         logger.info('Postgres MCP server started')
-        mcp.run()
+        mcp.run(transport=args.transport, host=args.host, port=args.server_port)
         logger.info('Postgres MCP server stopped')
     finally:
         db_connection_map.close_all()

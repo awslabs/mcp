@@ -14,9 +14,10 @@
 
 """awslabs frontend MCP Server implementation."""
 
+import argparse
 from awslabs.frontend_mcp_server.utils.file_utils import load_markdown_file
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from pydantic import Field
 from typing import Literal
 
@@ -24,10 +25,6 @@ from typing import Literal
 mcp = FastMCP(
     'awslabs.frontend-mcp-server',
     instructions='The Frontend MCP Server provides specialized tools for modern web application development. It offers guidance on React application setup, optimistic UI implementation, and authentication integration. Use these tools when you need expert advice on frontend development best practices.',
-    dependencies=[
-        'pydantic',
-        'loguru',
-    ],
 )
 
 
@@ -64,7 +61,29 @@ async def get_react_docs_by_topic(
 
 def main():
     """Run the MCP server with CLI argument support."""
-    mcp.run()
+    parser = argparse.ArgumentParser(
+        description='An AWS Labs Model Context Protocol (MCP) server'
+    )
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='Transport protocol to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='127.0.0.1',
+        help='Host to bind to for SSE/HTTP transports (default: 127.0.0.1)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to for SSE/HTTP transports (default: 8000)',
+    )
+    args = parser.parse_args()
+    mcp.run(transport=args.transport, host=args.host, port=args.port)
 
     logger.trace('A trace message.')
     logger.debug('A debug message.')

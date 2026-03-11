@@ -15,6 +15,7 @@
 #!/usr/bin/env python3
 """terraform MCP server implementation."""
 
+import argparse
 from awslabs.terraform_mcp_server.impl.resources import (
     terraform_aws_provider_assets_listing_impl,
     terraform_awscc_provider_resources_listing_impl,
@@ -46,7 +47,7 @@ from awslabs.terraform_mcp_server.static import (
     MCP_INSTRUCTIONS,
     TERRAFORM_WORKFLOW_GUIDE,
 )
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from pydantic import Field
 from typing import Any, Dict, List, Literal, Optional
 
@@ -60,13 +61,6 @@ DEPRECATION_NOTICE = (
 mcp = FastMCP(
     'terraform_mcp_server',
     instructions=f'{DEPRECATION_NOTICE}\n\n{MCP_INSTRUCTIONS}',
-    dependencies=[
-        'pydantic',
-        'loguru',
-        'requests',
-        'beautifulsoup4',
-        'PyPDF2',
-    ],
 )
 
 
@@ -463,7 +457,29 @@ def main():
     import warnings
 
     warnings.warn(DEPRECATION_NOTICE, DeprecationWarning, stacklevel=1)
-    mcp.run()
+    parser = argparse.ArgumentParser(
+        description='An AWS Labs Model Context Protocol (MCP) server'
+    )
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='Transport protocol to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='127.0.0.1',
+        help='Host to bind to for HTTP transports (default: 127.0.0.1)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to for HTTP transports (default: 8000)',
+    )
+    args = parser.parse_args()
+    mcp.run(transport=args.transport, host=args.host, port=args.port)
 
 
 if __name__ == '__main__':

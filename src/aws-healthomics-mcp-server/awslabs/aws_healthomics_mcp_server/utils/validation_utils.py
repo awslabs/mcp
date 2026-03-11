@@ -19,7 +19,7 @@ from awslabs.aws_healthomics_mcp_server.models import ContainerRegistryMap, Defi
 from awslabs.aws_healthomics_mcp_server.utils.content_resolver import resolve_single_content
 from enum import Enum
 from loguru import logger
-from mcp.server.fastmcp import Context
+from fastmcp import Context
 from pydantic import ValidationError
 from typing import Any, Dict, List, Optional, Tuple
 

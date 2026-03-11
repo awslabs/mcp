@@ -735,6 +735,19 @@ def main():
     )
     parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
     parser.add_argument('--debug', action='store_true', help='Enable debug logging')
+    parser.add_argument(
+        '--transport',
+        type=str,
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='MCP transport to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='127.0.0.1',
+        help='Host to bind to for HTTP transports (default: 127.0.0.1)',
+    )
 
     args = parser.parse_args()
 
@@ -791,9 +804,9 @@ def main():
     logger.debug('Starting awslabs_support_mcp_server MCP server')
 
     # Log the startup mode
-    logger.info('Starting AWS Support MCP Server with stdio transport')
-    # Run with stdio transport
-    mcp.run(transport='stdio')
+    logger.info(f'Starting AWS Support MCP Server with {args.transport} transport')
+    # Run with specified transport
+    mcp.run(transport=args.transport, host=args.host, port=args.port)
 
 
 if __name__ == '__main__':

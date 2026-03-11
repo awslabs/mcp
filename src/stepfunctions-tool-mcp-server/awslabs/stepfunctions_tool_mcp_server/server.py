@@ -17,13 +17,14 @@
 # This version should match the version in pyproject.toml
 __version__ = '0.1.5'
 
+import argparse
 import asyncio
 import json
 import logging
 import os
 import re
 from awslabs.stepfunctions_tool_mcp_server.aws_helper import AwsHelper
-from mcp.server.fastmcp import Context, FastMCP
+from fastmcp import Context, FastMCP
 from typing import Optional
 
 
@@ -61,7 +62,6 @@ mcp = FastMCP(
     'awslabs.stepfunctions-tool-mcp-server',
     instructions="""Use AWS Step Functions state machines to improve your answers.
     These state machines give you additional capabilities and access to AWS services and resources in an AWS account.""",
-    dependencies=['pydantic', 'boto3'],
 )
 
 
@@ -408,7 +408,29 @@ def register_state_machines():
 def main():
     """Run the MCP server."""
     register_state_machines()
-    mcp.run()
+    parser = argparse.ArgumentParser(
+        description='An AWS Labs Model Context Protocol (MCP) server'
+    )
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='Transport protocol to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='127.0.0.1',
+        help='Host to bind to for HTTP transports (default: 127.0.0.1)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to for HTTP transports (default: 8000)',
+    )
+    args = parser.parse_args()
+    mcp.run(transport=args.transport, host=args.host, port=args.port)
 
 
 if __name__ == '__main__':

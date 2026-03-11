@@ -14,12 +14,13 @@
 
 """awslabs lambda MCP Server implementation."""
 
+import argparse
 import boto3
 import json
 import logging
 import os
 import re
-from mcp.server.fastmcp import Context, FastMCP
+from fastmcp import Context, FastMCP
 from typing import Optional
 
 
@@ -61,7 +62,6 @@ mcp = FastMCP(
     'awslabs.lambda-tool-mcp-server',
     instructions="""Use AWS Lambda functions to improve your answers.
     These Lambda functions give you additional capabilities and access to AWS services and resources in an AWS account.""",
-    dependencies=['pydantic', 'boto3'],
 )
 
 
@@ -325,7 +325,29 @@ def main():
     """Run the MCP server with CLI argument support."""
     register_lambda_functions()
 
-    mcp.run()
+    parser = argparse.ArgumentParser(
+        description='An AWS Labs Model Context Protocol (MCP) server'
+    )
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='Transport protocol to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='127.0.0.1',
+        help='Host to bind to for SSE/HTTP transports (default: 127.0.0.1)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to for SSE/HTTP transports (default: 8000)',
+    )
+    args = parser.parse_args()
+    mcp.run(transport=args.transport, host=args.host, port=args.port)
 
 
 if __name__ == '__main__':

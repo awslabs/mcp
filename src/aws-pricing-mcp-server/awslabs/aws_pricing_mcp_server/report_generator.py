@@ -24,7 +24,7 @@ import re
 from awslabs.aws_pricing_mcp_server.helpers import CostAnalysisHelper
 from awslabs.aws_pricing_mcp_server.static import COST_REPORT_TEMPLATE
 from dataclasses import dataclass
-from mcp.server.fastmcp import Context
+from fastmcp import Context
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 

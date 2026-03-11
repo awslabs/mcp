@@ -33,7 +33,7 @@ from awslabs.aws_appsync_mcp_server.tools.create_graphql_api import (
 from awslabs.aws_appsync_mcp_server.tools.create_resolver import register_create_resolver_tool
 from awslabs.aws_appsync_mcp_server.tools.create_schema import register_create_schema_tool
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 
 # Initialize FastMCP app
@@ -52,11 +52,6 @@ mcp = FastMCP(
     For more information about AWS AppSync, visit:
     https://aws.amazon.com/appsync/
     """,
-    dependencies=[
-        'pydantic',
-        'loguru',
-        'boto3',
-    ],
 )
 
 
@@ -69,6 +64,23 @@ def main():
         '--allow-write',
         action='store_true',
         help='Allow write operations. By default, the server runs in read-only mode.',
+    )
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='Transport protocol to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        default='127.0.0.1',
+        help='Host to bind to for HTTP transports (default: 127.0.0.1)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to for HTTP transports (default: 8000)',
     )
 
     args = parser.parse_args()
@@ -91,7 +103,7 @@ def main():
     logger.info(
         f'Starting AWS AppSync MCP Server (write operations: {"enabled" if args.allow_write else "disabled"}).'
     )
-    mcp.run()
+    mcp.run(transport=args.transport, host=args.host, port=args.port)
 
 
 if __name__ == '__main__':

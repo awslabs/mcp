@@ -15,7 +15,7 @@
 """Deploy serverless app help tool for AWS Serverless MCP Server."""
 
 from enum import Enum
-from mcp.server.fastmcp import Context, FastMCP
+from fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Any, Dict, Literal
 

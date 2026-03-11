@@ -13,6 +13,7 @@
 # limitations under the License.
 """awslabs Bedrock Knowledge Base Retrieval MCP Server."""
 
+import argparse
 import json
 import os
 import sys
@@ -28,7 +29,7 @@ from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.retrieval import (
     query_knowledge_base,
 )
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from pydantic import Field
 from typing import List, Literal, Optional
 
@@ -83,7 +84,6 @@ mcp = FastMCP(
     - You can filter by specific data sources within a knowledge base using data_source_ids
     - Always verify that the knowledge base ID exists in the ListKnowledgeBases tool response before querying
     """,
-    dependencies=['boto3'],
 )
 
 
@@ -193,7 +193,30 @@ async def query_knowledge_bases_tool(
 
 def main():
     """Run the MCP server with CLI argument support."""
-    mcp.run()
+    parser = argparse.ArgumentParser(
+        description='An AWS Labs Model Context Protocol (MCP) server'
+    )
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='Transport protocol to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='127.0.0.1',
+        help='Host to bind to (default: 127.0.0.1)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to (default: 8000)',
+    )
+    args = parser.parse_args()
+
+    mcp.run(transport=args.transport, host=args.host, port=args.port)
 
 
 if __name__ == '__main__':

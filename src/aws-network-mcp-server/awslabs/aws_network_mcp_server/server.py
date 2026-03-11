@@ -14,6 +14,7 @@
 
 """AWS Core Networking MCP Server, that provides tools for AWS core network services for troubleshooting and analysis."""
 
+import argparse
 import logging
 import sys
 from awslabs.aws_network_mcp_server.tools import (
@@ -93,8 +94,31 @@ logger.info('Tools registered successfully')
 
 def main():
     """Run the MCP server."""
+    parser = argparse.ArgumentParser(
+        description='An AWS Labs Model Context Protocol (MCP) server'
+    )
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='Transport protocol to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='127.0.0.1',
+        help='Host to bind to (default: localhost)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to (default: 8000)',
+    )
+    args = parser.parse_args()
+
     logger.info('Starting MCP server...')
-    mcp.run()
+    mcp.run(transport=args.transport, host=args.host, port=args.port)
 
 
 if __name__ == '__main__':

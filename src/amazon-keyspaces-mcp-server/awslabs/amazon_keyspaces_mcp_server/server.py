@@ -13,6 +13,7 @@
 # limitations under the License.
 """awslabs MCP Server implementation for Amazon Keyspaces (for Apache Cassandra)."""
 
+import argparse
 import sys
 from .client import UnifiedCassandraClient
 from .config import AppConfig
@@ -31,7 +32,7 @@ from .llm_context import (
 )
 from .services import DataService, QueryAnalysisService, SchemaService
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Any, Optional
 
@@ -426,7 +427,28 @@ class KeyspacesMcpStdioServer:
 
 def main():
     """Run the MCP server."""
-    mcp.run()
+    parser = argparse.ArgumentParser(
+        description='An AWS Labs Model Context Protocol (MCP) server'
+    )
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='Transport protocol to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        default='127.0.0.1',
+        help='Host to bind to for HTTP transports (default: 127.0.0.1)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to for HTTP transports (default: 8000)',
+    )
+    args = parser.parse_args()
+    mcp.run(transport=args.transport, host=args.host, port=args.port)
 
 
 if __name__ == '__main__':

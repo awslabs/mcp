@@ -17,6 +17,7 @@
 This server provides tools for analyzing AWS service costs across different user tiers.
 """
 
+import argparse
 import re
 import sys
 from awslabs.aws_pricing_mcp_server import consts
@@ -48,7 +49,7 @@ from awslabs.aws_pricing_mcp_server.static.patterns import BEDROCK
 from awslabs.aws_pricing_mcp_server.terraform_analyzer import analyze_terraform_project
 from datetime import datetime, timezone
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from fastmcp import Context, FastMCP
 from mcp.types import ToolAnnotations
 from pydantic import Field
 from pydantic.fields import FieldInfo
@@ -155,7 +156,6 @@ mcp = FastMCP(
     IMPORTANT: For report generation, steps MUST be executed in the exact order specified. Each step must be attempted
     before moving to the next fallback mechanism. The report is particularly focused on
     serverless services and pay-as-you-go pricing models.""",
-    dependencies=['pydantic', 'loguru', 'boto3', 'beautifulsoup4', 'websearch'],
 )
 
 
@@ -1513,7 +1513,30 @@ async def get_price_list_urls(
 
 def main():
     """Run the MCP server with CLI argument support."""
-    mcp.run()
+    parser = argparse.ArgumentParser(
+        description='An AWS Labs Model Context Protocol (MCP) server'
+    )
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='Transport protocol to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='127.0.0.1',
+        help='Host to bind to (default: 127.0.0.1)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to (default: 8000)',
+    )
+    args = parser.parse_args()
+
+    mcp.run(transport=args.transport, host=args.host, port=args.port)
 
 
 if __name__ == '__main__':

@@ -13,6 +13,7 @@
 # limitations under the License.
 """Nova Canvas MCP Server implementation."""
 
+import argparse
 import boto3
 import os
 import sys
@@ -30,7 +31,7 @@ from awslabs.nova_canvas_mcp_server.novacanvas import (
     generate_image_with_text,
 )
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import TYPE_CHECKING, List, Optional
 
@@ -82,10 +83,6 @@ Generate an image from a text prompt and color palette using Amazon Nova Canvas.
 
 {PROMPT_INSTRUCTIONS}
 """,
-    dependencies=[
-        'pydantic',
-        'boto3',
-    ],
 )
 
 
@@ -318,7 +315,29 @@ async def mcp_generate_image_with_colors(
 def main():
     """Run the MCP server with CLI argument support."""
     logger.info('Starting nova-canvas-mcp-server MCP server')
-    mcp.run()
+    parser = argparse.ArgumentParser(
+        description='An AWS Labs Model Context Protocol (MCP) server'
+    )
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='Transport protocol to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='127.0.0.1',
+        help='Host to bind to for HTTP transports (default: 127.0.0.1)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to for HTTP transports (default: 8000)',
+    )
+    args = parser.parse_args()
+    mcp.run(transport=args.transport, host=args.host, port=args.port)
 
 
 if __name__ == '__main__':

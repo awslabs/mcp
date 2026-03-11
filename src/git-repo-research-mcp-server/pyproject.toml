@@ -8,6 +8,7 @@ dependencies = [
     "boto3>=1.37.26",
     "backoff>=2.2.1",
     "faiss-cpu>=1.10.0",
+    "fastmcp>=2.14.0",
     "gitpython>=3.1.44",
     "loguru>=0.7.3",
     "mcp[cli]>=1.23.0",

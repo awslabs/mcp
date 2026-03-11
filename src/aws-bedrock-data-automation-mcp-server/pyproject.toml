@@ -5,10 +5,11 @@ description = "An AWS Labs Model Context Protocol (MCP) server for Bedrock Data 
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "boto3>=1.38.0",
+    "fastmcp>=2.14.0",
     "loguru>=0.7.0",
     "mcp[cli]>=1.23.0",
     "pydantic>=2.10.6",
-    "boto3>=1.38.0",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]

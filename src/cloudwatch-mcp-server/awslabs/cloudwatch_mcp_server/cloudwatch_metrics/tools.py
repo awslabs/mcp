@@ -42,7 +42,7 @@ from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
 )
 from datetime import datetime, timedelta, timezone
 from loguru import logger
-from mcp.server.fastmcp import Context
+from fastmcp import Context
 from pathlib import Path
 from pydantic import Field
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union

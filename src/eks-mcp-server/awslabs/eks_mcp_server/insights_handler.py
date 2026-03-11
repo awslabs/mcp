@@ -23,7 +23,7 @@ from awslabs.eks_mcp_server.models import (
     EksInsightStatus,
 )
 from datetime import datetime
-from mcp.server.fastmcp import Context
+from fastmcp import Context
 from mcp.types import CallToolResult, TextContent
 from pydantic import Field
 from typing import Any, Optional

@@ -8,8 +8,9 @@ description = "An AWS Labs Model Context Protocol (MCP) server for awslabs.s3-ta
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "fastmcp>=2.14.0",
     "loguru==0.7.3",
-    "mcp[cli]==1.23.0",
+    "mcp[cli]>=1.23.0",
     "pydantic==2.12.5",
     "boto3==1.42.41",
     "pyiceberg==0.10.0",

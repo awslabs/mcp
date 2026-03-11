@@ -33,7 +33,7 @@ from awslabs.cloudwatch_mcp_server.common import (
     remove_null_values,
 )
 from loguru import logger
-from mcp.server.fastmcp import Context
+from fastmcp import Context
 from pydantic import Field
 from timeit import default_timer as timer
 from typing import Annotated, Dict, List, Literal, Optional

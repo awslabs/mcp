@@ -33,7 +33,7 @@ from awslabs.eks_mcp_server.insights_handler import InsightsHandler
 from awslabs.eks_mcp_server.k8s_handler import K8sHandler
 from awslabs.eks_mcp_server.vpc_config_handler import VpcConfigHandler
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 
 # Define server instructions and dependencies
@@ -102,7 +102,6 @@ def create_server():
     return FastMCP(
         'awslabs.eks-mcp-server',
         instructions=SERVER_INSTRUCTIONS,
-        dependencies=SERVER_DEPENDENCIES,
     )
 
 
@@ -124,6 +123,24 @@ def main():
         action=argparse.BooleanOptionalAction,
         default=False,
         help='Enable sensitive data access (required for reading logs, events, and Kubernetes Secrets)',
+    )
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='Transport protocol to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='127.0.0.1',
+        help='Host to bind to for SSE/HTTP transports (default: 127.0.0.1)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to for SSE/HTTP transports (default: 8000)',
     )
 
     args = parser.parse_args()
@@ -155,7 +172,7 @@ def main():
     InsightsHandler(mcp, allow_sensitive_data_access)
 
     # Run server
-    mcp.run()
+    mcp.run(transport=args.transport, host=args.host, port=args.port)
 
     return mcp
 

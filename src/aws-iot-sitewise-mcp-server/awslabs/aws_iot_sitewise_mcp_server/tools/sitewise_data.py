@@ -27,7 +27,7 @@ from awslabs.aws_iot_sitewise_mcp_server.client import create_iam_client, create
 from awslabs.aws_iot_sitewise_mcp_server.tool_metadata import tool_metadata
 from botocore.exceptions import ClientError
 from datetime import datetime
-from mcp.server.fastmcp.tools import Tool
+from fastmcp.tools import Tool
 from pydantic import Field
 from pydantic.fields import FieldInfo
 from typing import Any, Dict, List, Optional

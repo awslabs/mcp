@@ -31,7 +31,7 @@ from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
     validate_repository_path_params,
 )
 from loguru import logger
-from mcp.server.fastmcp import Context
+from fastmcp import Context
 from pydantic import Field
 from typing import Annotated, Any, Dict, Optional
 

@@ -97,21 +97,31 @@ The Model Context Protocol is an open source project run by Anthropic, PBC. and 
 
 ### Supported transport mechanisms
 
-The MCP protocol currently defines two standard transport mechanisms for client-server communication:
-- stdio, communication over standard in and standard out
-- streamable HTTP
+All MCP servers in this repository support multiple transport mechanisms via the `--transport` CLI flag:
 
-The MCP servers in this repository are designed to support stdio only.
+- **stdio** (default): Communication over standard input/output. Best for local development and MCP clients that launch servers as subprocesses.
+- **sse**: Server-Sent Events over HTTP. Useful for remote server deployments where clients connect over the network.
+- **streamable-http**: Streamable HTTP transport. The recommended transport for remote deployments, providing improved capabilities over SSE.
+
+Example usage:
+```bash
+# Default stdio transport
+uvx awslabs.aws-documentation-mcp-server@latest
+
+# Streamable HTTP transport
+uvx awslabs.aws-documentation-mcp-server@latest --transport streamable-http
+
+# SSE transport
+uvx awslabs.aws-documentation-mcp-server@latest --transport sse
+```
 
 You are responsible for ensuring that your use of these servers comply with the terms governing them, and any laws, rules, regulations, policies, or standards that apply to you.
 
-### Server Sent Events Support Removal
+### Server Sent Events Support Update
 
-**Important Notice:** On May 26th, 2025, Server Sent Events (SSE) support was removed from all MCP servers in their latest major versions. This change aligns with the Model Context Protocol specification's [backwards compatibility guidelines](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#backwards-compatibility).
+**Notice:** On May 26th, 2025, Server Sent Events (SSE) support was removed from all MCP servers in their latest major versions. SSE support has since been re-added and is now available via the `--transport sse` CLI flag on all servers.
 
-We are actively working towards supporting [Streamable HTTP](https://modelcontextprotocol.io/specification/draft/basic/transports#streamable-http), which will provide improved transport capabilities for future versions.
-
-For applications still requiring SSE support, please use the previous major version of the respective MCP server until you can migrate to alternative transport methods.
+All servers now support three transport mechanisms: **stdio** (default), **sse**, and **streamable-http**. Streamable HTTP is the recommended transport for remote deployments, providing improved capabilities over SSE. See the [Supported transport mechanisms](#supported-transport-mechanisms) section above for usage examples.
 
 ### Why MCP Servers for AWS?
 

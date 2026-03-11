@@ -93,6 +93,24 @@ def main() -> None:
         default=False,
         help='Enable write access mode (allow mutating operations)',
     )
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='Transport protocol to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='127.0.0.1',
+        help='Host to bind to (default: localhost)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to (default: 8000)',
+    )
 
     args = parser.parse_args()
 
@@ -128,7 +146,7 @@ def main() -> None:
         f'awslabs/mcp/aws-bedrock-custom-model-import-mcp-server/{__version__}'
     )
 
-    mcp.run()
+    mcp.run(transport=args.transport, host=args.host, port=args.port)
 
 
 if __name__ == '__main__':

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
 import json
 import os
 from awslabs.aws_api_mcp_server.server import call_aws
@@ -36,8 +37,8 @@ from awslabs.dynamodb_mcp_server.model_validation_utils import (
 )
 from awslabs.dynamodb_mcp_server.repo_generation_tool.codegen import generate
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
-from mcp.server.fastmcp.exceptions import ToolError
+from fastmcp import Context, FastMCP
+from fastmcp.exceptions import ToolError
 from pathlib import Path
 from pydantic import Field, ValidationError
 from typing import Any, Dict, List, Optional
@@ -939,7 +940,29 @@ def _load_next_steps_prompt(filename: str, **kwargs) -> str:
 
 def main():
     """Main entry point for the MCP server application."""
-    app.run()
+    parser = argparse.ArgumentParser(
+        description='An AWS Labs Model Context Protocol (MCP) server'
+    )
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='Transport protocol to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='127.0.0.1',
+        help='Host to bind to for SSE/HTTP transports (default: 127.0.0.1)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to for SSE/HTTP transports (default: 8000)',
+    )
+    args = parser.parse_args()
+    app.run(transport=args.transport, host=args.host, port=args.port)
 
 
 async def _execute_access_patterns(

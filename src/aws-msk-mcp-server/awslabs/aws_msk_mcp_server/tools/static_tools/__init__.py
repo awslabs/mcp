@@ -19,7 +19,7 @@ This module provides static tools that do not require AWS API calls.
 """
 
 from awslabs.aws_msk_mcp_server import __version__
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from pydantic import Field
 
 from .cluster_best_practices import get_cluster_best_practices

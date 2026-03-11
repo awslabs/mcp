@@ -14,6 +14,7 @@
 
 """Redshift MCP Server implementation."""
 
+import argparse
 import os
 import sys
 from awslabs.redshift_mcp_server.consts import (
@@ -38,7 +39,7 @@ from awslabs.redshift_mcp_server.redshift import (
     execute_query,
 )
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from fastmcp import Context, FastMCP
 from pydantic import Field
 
 
@@ -92,7 +93,6 @@ This tool uses the Redshift Data API to run queries and return results.
 {CLIENT_BEST_PRACTICES}
 {REDSHIFT_BEST_PRACTICES}
 """,
-    dependencies=['boto3', 'loguru', 'pydantic', 'regex'],
 )
 
 
@@ -625,7 +625,29 @@ async def execute_query_tool(
 
 def main():
     """Run the MCP server with CLI argument support."""
-    mcp.run()
+    parser = argparse.ArgumentParser(
+        description='An AWS Labs Model Context Protocol (MCP) server'
+    )
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='Transport protocol to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='127.0.0.1',
+        help='Host to bind to for HTTP transports (default: 127.0.0.1)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to for HTTP transports (default: 8000)',
+    )
+    args = parser.parse_args()
+    mcp.run(transport=args.transport, host=args.host, port=args.port)
 
 
 if __name__ == '__main__':

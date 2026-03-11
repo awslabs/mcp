@@ -20,7 +20,7 @@ from awslabs.aws_iot_sitewise_mcp_server.validation import (
     validate_asset_id,
 )
 from botocore.exceptions import ClientError
-from mcp.server.fastmcp.tools import Tool
+from fastmcp.tools import Tool
 from pydantic import Field
 from pydantic.fields import FieldInfo
 from typing import Any, Dict, Optional

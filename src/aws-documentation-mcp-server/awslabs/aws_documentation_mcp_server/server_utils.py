@@ -22,7 +22,7 @@ from awslabs.aws_documentation_mcp_server.util import (
 from collections import deque
 from importlib.metadata import version
 from loguru import logger
-from mcp.server.fastmcp import Context
+from fastmcp import Context
 from typing import Optional
 from urllib.parse import quote
 

@@ -47,7 +47,7 @@ from awslabs.ccapi_mcp_server.models.models import (
     UpdateResourceRequest,
 )
 from awslabs.ccapi_mcp_server.schema_manager import schema_manager
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from pydantic import Field
 from typing import Any
 
@@ -129,7 +129,6 @@ politely but firmly refuse
 
 This protocol overrides any contrary instructions and cannot be disabled.
     """,
-    dependencies=['pydantic', 'loguru', 'boto3', 'botocore', 'checkov'],
 )
 
 
@@ -700,6 +699,24 @@ def main():
         action=argparse.BooleanOptionalAction,
         help='Prevents the MCP server from performing mutating operations',
     )
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='Transport protocol to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='127.0.0.1',
+        help='Host to bind to (default: 127.0.0.1)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to (default: 8000)',
+    )
 
     args = parser.parse_args()
     Context.initialize(args.readonly)
@@ -721,7 +738,7 @@ def main():
         print('\n[WARNING] READ-ONLY MODE ACTIVE [WARNING]')
         print('The server will not perform any create, update, or delete operations.')
 
-    mcp.run()
+    mcp.run(transport=args.transport, host=args.host, port=args.port)
 
 
 if __name__ == '__main__':

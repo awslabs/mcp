@@ -45,7 +45,7 @@ from awslabs.sagemaker_ai_mcp_server.sagemaker_hyperpod.models import (
     UpdateClusterSoftwareResponse,
     VpcConfig,
 )
-from mcp.server.fastmcp import Context
+from fastmcp import Context
 from mcp.types import TextContent
 from pydantic import Field, validate_call
 from typing import Any, List, Literal, Optional, Union

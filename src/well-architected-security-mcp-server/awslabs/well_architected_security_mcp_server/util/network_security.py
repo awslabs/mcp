@@ -18,7 +18,7 @@ from typing import Any, Dict, List
 
 import boto3
 import botocore.exceptions
-from mcp.server.fastmcp import Context
+from fastmcp import Context
 
 from awslabs.well_architected_security_mcp_server.consts import USER_AGENT_CONFIG
 

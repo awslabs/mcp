@@ -37,7 +37,7 @@ from awslabs.iam_mcp_server.models import (
     UsersListResponse,
 )
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from mcp.types import CallToolResult
 from pydantic import Field
 from typing import Any, Dict, List, Optional, Union
@@ -80,7 +80,6 @@ mcp = FastMCP(
     - Some operations may be restricted in read-only mode
     - Always test policy changes in a safe environment first
     """,
-    dependencies=['pydantic', 'loguru', 'boto3', 'botocore'],
 )
 
 
@@ -1578,6 +1577,24 @@ def main():
         action='store_true',
         help='Run server in read-only mode (prevents all mutating operations)',
     )
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='Transport protocol to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='127.0.0.1',
+        help='Host to bind to for SSE/HTTP transports (default: 127.0.0.1)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to for SSE/HTTP transports (default: 8000)',
+    )
 
     args = parser.parse_args()
 
@@ -1589,7 +1606,7 @@ def main():
         logger.info('Server started in FULL ACCESS mode')
 
     # Run the MCP server
-    mcp.run()
+    mcp.run(transport=args.transport, host=args.host, port=args.port)
 
 
 if __name__ == '__main__':

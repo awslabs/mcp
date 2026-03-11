@@ -16,6 +16,7 @@
 AWS ECS MCP Server - Main entry point
 """
 
+import argparse
 import logging
 import os
 import sys
@@ -234,10 +235,33 @@ def main() -> None:
         # Start the server
         logger = _setup_logging()
 
+        parser = argparse.ArgumentParser(
+            description='An AWS Labs Model Context Protocol (MCP) server'
+        )
+        parser.add_argument(
+            '--transport',
+            choices=['stdio', 'sse', 'streamable-http'],
+            default='stdio',
+            help='Transport protocol to use (default: stdio)',
+        )
+        parser.add_argument(
+            '--host',
+            type=str,
+            default='127.0.0.1',
+            help='Host to bind to (default: localhost)',
+        )
+        parser.add_argument(
+            '--port',
+            type=int,
+            default=8000,
+            help='Port to bind to (default: 8000)',
+        )
+        args = parser.parse_args()
+
         logger.info("Server started")
         logger.info(f"Write operations enabled: {_config.get('allow-write', False)}")
         logger.info(f"Sensitive data access enabled: {_config.get('allow-sensitive-data', False)}")
-        mcp.run()
+        mcp.run(transport=args.transport, host=args.host, port=args.port)
     except KeyboardInterrupt:
         logger.info("Server stopped by user")
         sys.exit(0)

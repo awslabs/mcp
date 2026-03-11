@@ -8,6 +8,7 @@ dependencies = [
     "bandit>=1.8.6",
     "boto3>=1.40.53",
     "diagrams>=0.24.4",
+    "fastmcp>=2.14.0",
     "mcp[cli]>=1.23.0",
     "pydantic>=2.12.2",
     "sarif-om>=1.0.4",

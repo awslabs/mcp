@@ -25,7 +25,7 @@ from awslabs.mysql_mcp_server.mutable_sql_detector import (
 )
 from botocore.exceptions import ClientError
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Annotated, Any, Dict, List, Optional
 
@@ -81,7 +81,6 @@ def parse_execute_response(response: dict) -> list[dict]:
 mcp = FastMCP(
     'awslabs.mysql-mcp-server',
     instructions='You are an expert MySQL assistant. Use run_query and get_table_schema to interfact with the database.',
-    dependencies=['loguru', 'boto3', 'pydantic'],
 )
 
 
@@ -235,6 +234,24 @@ def main():
     parser.add_argument(
         '--readonly', required=True, help='Enforce NL to SQL to only allow readonly sql statement'
     )
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='Transport protocol to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='127.0.0.1',
+        help='Host to bind to for SSE/HTTP transports (default: 127.0.0.1)',
+    )
+    parser.add_argument(
+        '--mcp_port',
+        type=int,
+        default=8000,
+        help='Port to bind to for SSE/HTTP transports (default: 8000)',
+    )
     args = parser.parse_args()
 
     # Validate connection parameters
@@ -301,7 +318,7 @@ def main():
 
     # Run server with appropriate transport
     logger.info('Starting MySQL MCP server')
-    mcp.run()
+    mcp.run(transport=args.transport, host=args.host, port=args.mcp_port)
 
 
 if __name__ == '__main__':

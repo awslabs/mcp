@@ -25,7 +25,7 @@ from awslabs.aws_healthomics_mcp_server.tools.workflow_analysis import (
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_omics_client
 from datetime import datetime, timezone
 from loguru import logger
-from mcp.server.fastmcp import Context
+from fastmcp import Context
 from pydantic import Field
 from typing import Any, Dict, List, Optional, Union
 

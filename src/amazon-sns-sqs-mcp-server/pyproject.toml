@@ -20,14 +20,15 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
+    "boto3>=1.38.12",
+    "fastmcp>=2.14.0",
     "markdownify>=0.13.1",
     "mcp[cli]>=1.23.0",
     "protego>=0.3.1",
     "pydantic>=2.0.0",
+    "pytest>=8.3.5",
     "readabilipy>=0.2.0",
     "requests>=2.32.3",
-    "boto3>=1.38.12",
-    "pytest>=8.3.5",
 ]
 
 [project.scripts]

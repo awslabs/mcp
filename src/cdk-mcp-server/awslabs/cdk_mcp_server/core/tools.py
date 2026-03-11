@@ -36,7 +36,7 @@ from awslabs.cdk_mcp_server.data.solutions_constructs_parser import (
 from awslabs.cdk_mcp_server.static import (
     CDK_GENERAL_GUIDANCE,
 )
-from mcp.server.fastmcp import Context
+from fastmcp import Context
 from typing import Any, Dict, List, Optional
 
 

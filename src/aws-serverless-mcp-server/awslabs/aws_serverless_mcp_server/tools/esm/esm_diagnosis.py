@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from awslabs.aws_serverless_mcp_server.tools.common.base_tool import BaseTool
-from mcp.server.fastmcp import Context, FastMCP
+from fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Any, Dict, Literal, Optional
 

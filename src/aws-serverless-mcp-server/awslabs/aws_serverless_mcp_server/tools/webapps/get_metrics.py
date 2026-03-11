@@ -18,7 +18,7 @@ import datetime
 from awslabs.aws_serverless_mcp_server.tools.common.base_tool import BaseTool
 from awslabs.aws_serverless_mcp_server.utils.aws_client_helper import get_aws_client
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Any, Dict, List, Literal, Optional
 

@@ -14,20 +14,15 @@
 
 """awslabs cloudtrail MCP Server implementation."""
 
+import argparse
 from awslabs.cloudtrail_mcp_server.tools import CloudTrailTools
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 
 mcp = FastMCP(
     'awslabs.cloudtrail-mcp-server',
     instructions='Use this MCP server to query AWS CloudTrail events for security investigations, compliance auditing, and operational troubleshooting. Supports event lookup by various attributes (username, event name, resource name, etc.), user activity analysis, API call tracking, and advanced CloudTrail Lake SQL queries for complex analytics. Can search the last 90 days of management events and provides detailed event summaries and activity analysis.',
-    dependencies=[
-        'boto3',
-        'botocore',
-        'pydantic',
-        'loguru',
-    ],
 )
 
 # Initialize and register CloudTrail tools
@@ -42,7 +37,29 @@ except Exception as e:
 
 def main():
     """Run the MCP server."""
-    mcp.run()
+    parser = argparse.ArgumentParser(
+        description='An AWS Labs Model Context Protocol (MCP) server'
+    )
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='Transport protocol to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='127.0.0.1',
+        help='Host to bind to (default: 127.0.0.1)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to (default: 8000)',
+    )
+    args = parser.parse_args()
+    mcp.run(transport=args.transport, host=args.host, port=args.port)
 
 
 if __name__ == '__main__':

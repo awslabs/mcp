@@ -22,7 +22,7 @@ import sys
 from awslabs.amazon_mq_mcp_server.consts import MCP_SERVER_VERSION
 from botocore.config import Config
 from botocore.exceptions import ClientError
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from pydantic import Field
 from typing import Annotated, Any, Callable, Dict, List
 

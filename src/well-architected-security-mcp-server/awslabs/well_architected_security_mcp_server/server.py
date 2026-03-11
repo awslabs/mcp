@@ -22,7 +22,7 @@ from typing import Dict, List, Optional
 
 import boto3
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from fastmcp import Context, FastMCP
 from pydantic import Field
 
 from awslabs.well_architected_security_mcp_server.consts import INSTRUCTIONS
@@ -62,13 +62,6 @@ logger.add(sys.stderr, level=os.getenv("FASTMCP_LOG_LEVEL", "DEBUG"))
 mcp = FastMCP(
     "well-architected-security-mcp-server",
     instructions=INSTRUCTIONS,
-    dependencies=[
-        "boto3",
-        "requests",
-        "beautifulsoup4",
-        "pydantic",
-        "loguru",
-    ],
 )
 
 # Global shared components
@@ -1146,21 +1139,40 @@ By following this workflow, you'll efficiently assess your AWS network security 
 def main():
     """Run the MCP server with CLI argument support."""
     parser = argparse.ArgumentParser(description="AWS Security Pillar MCP Server")
-    parser.add_argument("--sse", action="store_true", help="Use SSE transport")
-    parser.add_argument("--port", type=int, default=8888, help="Port to run the server on")
+    parser.add_argument("--sse", action="store_true", help="Use SSE transport (deprecated, use --transport sse)")
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='Transport protocol to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='127.0.0.1',
+        help='Host to bind to for HTTP transports (default: 127.0.0.1)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to for HTTP transports (default: 8000)',
+    )
 
     args = parser.parse_args()
 
     logger.info("Starting AWS Security Pillar MCP Server")
 
-    # Run server with appropriate transport
+    # Handle legacy --sse flag
     if args.sse:
-        logger.info(f"Running MCP server with SSE transport on port {args.port}")
-        mcp.settings.port = args.port
-        mcp.run(transport="sse")
+        logger.warning("--sse flag is deprecated, use --transport sse instead")
+        transport = "sse"
     else:
-        logger.info("Running MCP server with default transport")
-        mcp.run()
+        transport = args.transport
+
+    # Run server with appropriate transport
+    logger.info(f"Running MCP server with {transport} transport")
+    mcp.run(transport=transport, host=args.host, port=args.port)
 
 
 if __name__ == "__main__":

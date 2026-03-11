@@ -30,7 +30,7 @@ from awslabs.cloudtrail_mcp_server.models import (
 )
 from botocore.config import Config
 from loguru import logger
-from mcp.server.fastmcp import Context
+from fastmcp import Context
 from pydantic import Field
 from typing import Annotated, Any, Dict, List, Literal, Optional
 

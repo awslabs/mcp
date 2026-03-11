@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
 import os
 import signal
 from anyio import CancelScope, create_task_group, open_signal_receiver, run
@@ -122,8 +123,8 @@ from awslabs.aws_iot_sitewise_mcp_server.tools.timestamp_tools import (
     create_timestamp_range_tool,
     get_current_timestamp_tool,
 )
-from mcp.server.fastmcp import FastMCP
-from mcp.server.fastmcp.tools import Tool
+from fastmcp import FastMCP
+from fastmcp.tools import Tool
 from typing import Any, Dict
 
 
@@ -277,7 +278,7 @@ async def signal_handler(scope: CancelScope):
             os._exit(0)
 
 
-async def run_server():
+async def run_server(transport='stdio'):
     """Run the MCP server with signal handling."""
     # Check if writes are allowed
     allow_writes = os.environ.get('SITEWISE_MCP_ALLOW_WRITES', 'False').lower() == 'true'
@@ -364,12 +365,48 @@ async def run_server():
     async with create_task_group() as tg:
         tg.start_soon(signal_handler, tg.cancel_scope)
         # proceed with starting the actual application logic
-        await mcp.run_stdio_async()
+        if transport == 'stdio':
+            await mcp.run_stdio_async()
+        else:
+            # For sse and streamable-http, return the mcp instance to run synchronously
+            return mcp
 
 
 def main():
     """Entry point for the MCP server."""
-    run(run_server)
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(
+        description='AWS IoT SiteWise MCP Server'
+    )
+    parser.add_argument(
+        '--transport',
+        type=str,
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='MCP transport to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='127.0.0.1',
+        help='Host to bind to (default: 127.0.0.1)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to (default: 8000)',
+    )
+    args = parser.parse_args()
+
+    # Run the server with the specified transport
+    if args.transport == 'stdio':
+        run(run_server, args.transport)
+    else:
+        # For non-stdio transports, run the async setup then use synchronous run
+        mcp_instance = run(run_server, args.transport)
+        if mcp_instance:
+            mcp_instance.run(transport=args.transport, host=args.host, port=args.port)
 
 
 if __name__ == '__main__':

@@ -36,9 +36,15 @@ async def health_check(request):
 class MemcachedMCPServer:
     """Memcached MCP Server wrapper."""
 
+    def __init__(self, transport='stdio', host='localhost', port=8000):
+        """Initialize with transport, host, and port."""
+        self.transport = transport
+        self.host = host
+        self.port = port
+
     def run(self):
-        """Run server with appropriate transport."""
-        mcp.run()
+        """Run server with appropriate transport, host, and port."""
+        mcp.run(transport=self.transport, host=self.host, port=self.port)
 
 
 def main():
@@ -51,12 +57,30 @@ def main():
         action=argparse.BooleanOptionalAction,
         help='Prevents the MCP server from performing mutating operations',
     )
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='Transport protocol to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='127.0.0.1',
+        help='Host to bind to (default: localhost)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to (default: 8000)',
+    )
 
     args = parser.parse_args()
     Context.initialize(args.readonly)
 
     logger.info('Amazon ElastiCache Memcached MCP Server Started...')
-    MemcachedMCPServer().run()
+    MemcachedMCPServer(transport=args.transport, host=args.host, port=args.port).run()
 
 
 if __name__ == '__main__':

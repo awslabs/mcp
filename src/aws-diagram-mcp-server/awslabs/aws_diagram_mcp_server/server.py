@@ -18,13 +18,14 @@ This server provides tools to generate diagrams using the Python diagrams packag
 It accepts Python code as a string and generates PNG diagrams without displaying them.
 """
 
+import argparse
 from awslabs.aws_diagram_mcp_server.diagrams_tools import (
     generate_diagram,
     get_diagram_examples,
     list_diagram_icons,
 )
 from awslabs.aws_diagram_mcp_server.models import DiagramType
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from pydantic import Field
 from typing import Optional
 
@@ -39,11 +40,6 @@ DEPRECATION_NOTICE = (
 # Create the MCP server
 mcp = FastMCP(
     'aws-diagram-mcp-server',
-    dependencies=[
-        'pydantic',
-        'diagrams',
-    ],
-    log_level='ERROR',
     instructions=f"""{DEPRECATION_NOTICE}
 
 Use this server to generate professional diagrams using the Python diagrams package.
@@ -289,8 +285,29 @@ def main():
     """Run the MCP server with CLI argument support."""
     import warnings
 
+    parser = argparse.ArgumentParser(
+        description='An AWS Labs Model Context Protocol (MCP) server'
+    )
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='Transport protocol to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        default='127.0.0.1',
+        help='Host to bind to for HTTP transports (default: 127.0.0.1)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to for HTTP transports (default: 8000)',
+    )
+    args = parser.parse_args()
     warnings.warn(DEPRECATION_NOTICE, DeprecationWarning, stacklevel=1)
-    mcp.run()
+    mcp.run(transport=args.transport, host=args.host, port=args.port)
 
 
 if __name__ == '__main__':

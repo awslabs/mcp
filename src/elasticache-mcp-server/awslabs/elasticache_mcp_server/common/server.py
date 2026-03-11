@@ -14,7 +14,7 @@
 
 """Common MCP server configuration."""
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 
 mcp = FastMCP(
@@ -22,9 +22,4 @@ mcp = FastMCP(
     instructions="""AWS ElastiCache MCP Server provides tools for interacting with Amazon ElastiCache.
     These tools allow you to describe and manage serverless caches in your AWS account.
     You can use these capabilities to get information about cache configurations, endpoints, and more.""",
-    dependencies=[
-        'pydantic',
-        'loguru',
-        'boto3',
-    ],
 )

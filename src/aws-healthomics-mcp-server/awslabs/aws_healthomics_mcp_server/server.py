@@ -100,8 +100,9 @@ from awslabs.aws_healthomics_mcp_server.tools.workflow_management import (
     list_workflow_versions,
     list_workflows,
 )
+import argparse
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 
 mcp = FastMCP(
@@ -204,13 +205,6 @@ This MCP server provides tools for creating, managing, and analyzing genomic wor
 ## Service Availability
 AWS HealthOmics is available in select AWS regions. Use the GetAHOSupportedRegions tool to get the current list of supported regions.
 """,
-    dependencies=[
-        'boto3',
-        'pydantic',
-        'loguru',
-        'miniwdl',
-        'cwltool',
-    ],
 )
 
 # Register workflow management tools
@@ -304,9 +298,32 @@ mcp.tool(name='ListAHOReferenceImportJobs')(list_reference_import_jobs)
 
 def main():
     """Run the MCP server with CLI argument support."""
+    parser = argparse.ArgumentParser(
+        description='An AWS Labs Model Context Protocol (MCP) server'
+    )
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='Transport protocol to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='127.0.0.1',
+        help='Host to bind to (default: 127.0.0.1)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to (default: 8000)',
+    )
+    args = parser.parse_args()
+
     logger.info('AWS HealthOmics MCP server starting')
 
-    mcp.run()
+    mcp.run(transport=args.transport, host=args.host, port=args.port)
 
 
 if __name__ == '__main__':

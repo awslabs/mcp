@@ -15,7 +15,7 @@
 import logging
 import os
 from boto3 import client as boto3_client
-from mcp.server.fastmcp import Context, FastMCP
+from fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Any, Dict, List, Literal, Optional
 

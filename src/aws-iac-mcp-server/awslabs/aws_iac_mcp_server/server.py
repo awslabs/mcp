@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 from ..aws_iac_mcp_server.client.aws_knowledge_client import KNOWLEDGE_MCP_ENDPOINT
 from .client.mcp_proxy import create_local_proxied_tool, get_remote_proxy_server_tool
@@ -529,6 +530,29 @@ def main():
     """Run the MCP server."""
     import asyncio
 
+    parser = argparse.ArgumentParser(
+        description='An AWS Labs Model Context Protocol (MCP) server'
+    )
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='Transport protocol to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='127.0.0.1',
+        help='Host to bind to (default: localhost)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to (default: 8000)',
+    )
+    args = parser.parse_args()
+
     # Create the read tool proxy before starting the server
     # Don't fail the entire server startup in case there is an issue with the proxy
     try:
@@ -539,7 +563,7 @@ def main():
         )
 
     # Run the server
-    mcp.run()
+    mcp.run(transport=args.transport, host=args.host, port=args.port)
 
 
 if __name__ == '__main__':

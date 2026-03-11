@@ -25,7 +25,7 @@ from awslabs.aws_iot_sitewise_mcp_server.validation import (
     validate_service_quotas,
 )
 from botocore.exceptions import ClientError
-from mcp.server.fastmcp.tools import Tool
+from fastmcp.tools import Tool
 from pydantic import Field
 from typing import Any, Dict, List, Optional
 

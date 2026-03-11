@@ -36,7 +36,7 @@ from awslabs.aws_documentation_mcp_server.util import (
     parse_recommendation_results,
 )
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import List, Optional
 
@@ -80,11 +80,6 @@ mcp = FastMCP(
     - Use `recommend` when: You want to find related content to a documentation page you're already viewing or need to find newly released information
     - Use `recommend` as a fallback when: Multiple searches have not yielded the specific information needed
     """,
-    dependencies=[
-        'pydantic',
-        'httpx',
-        'beautifulsoup4',
-    ],
 )
 
 
@@ -445,10 +440,10 @@ async def recommend(
     return results
 
 
-def main():
+def main(transport='stdio', host='localhost', port=8000):
     """Run the MCP server with CLI argument support."""
     logger.info('Starting AWS Documentation MCP Server')
-    mcp.run()
+    mcp.run(transport=transport, host=host, port=port)
 
 
 if __name__ == '__main__':

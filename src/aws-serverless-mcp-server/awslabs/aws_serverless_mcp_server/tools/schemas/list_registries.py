@@ -16,7 +16,7 @@
 
 from botocore.client import BaseClient
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Dict, Optional
 

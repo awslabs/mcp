@@ -43,7 +43,7 @@ from botocore.config import Config
 from botocore.exceptions import ClientError, NoCredentialsError
 from dotenv import load_dotenv
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Any, Dict, Optional
 
@@ -66,6 +66,25 @@ class ConfigManager:
         parser.add_argument('--region', type=str, help='AWS region to use')
         parser.add_argument('--url', type=str, help='Prometheus URL to use')
         parser.add_argument('--debug', action='store_true', help='Enable debug logging')
+        parser.add_argument(
+            '--transport',
+            type=str,
+            choices=['stdio', 'sse', 'streamable-http'],
+            default='stdio',
+            help='MCP transport to use (default: stdio)',
+        )
+        parser.add_argument(
+            '--host',
+            type=str,
+            default='127.0.0.1',
+            help='Host to bind to for HTTP transports (default: 127.0.0.1)',
+        )
+        parser.add_argument(
+            '--port',
+            type=int,
+            default=8000,
+            help='Port to bind to for HTTP transports (default: 8000)',
+        )
         return parser.parse_args()
 
     @staticmethod
@@ -396,13 +415,6 @@ class PrometheusConnection:
 mcp = FastMCP(
     name='awslabs-prometheus-mcp-server',
     instructions=SERVER_INSTRUCTIONS,
-    dependencies=[
-        'boto3',
-        'requests',
-        'pydantic',
-        'python-dotenv',
-        'loguru',
-    ],
 )
 
 # No global configuration - using environment variables instead
@@ -1096,12 +1108,12 @@ def main():
 
     logger.info('Starting server...')
 
-    # Run with stdio transport
+    # Run with specified transport
     try:
-        logger.info('Starting with stdio transport...')
-        mcp.run(transport='stdio')
+        logger.info(f'Starting with {args.transport} transport...')
+        mcp.run(transport=args.transport, host=args.host, port=args.port)
     except Exception as e:
-        logger.error(f'Error starting server with stdio transport: {e}')
+        logger.error(f'Error starting server with {args.transport} transport: {e}')
         sys.exit(1)
 
 

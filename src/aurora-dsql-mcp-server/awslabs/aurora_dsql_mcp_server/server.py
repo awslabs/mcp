@@ -55,7 +55,7 @@ from awslabs.aurora_dsql_mcp_server.mutable_sql_detector import (
 )
 from botocore.config import Config
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Annotated, Any, List
 from urllib.parse import urlparse
@@ -104,9 +104,6 @@ mcp = FastMCP(
     ### dsql_recommend
     Get recommendations for DSQL best practices.
     """,
-    dependencies=[
-        'loguru',
-    ],
 )
 
 
@@ -660,6 +657,23 @@ def main():
         default=30.0,
         help='Timeout in seconds for knowledge server requests (default: 30.0)',
     )
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='Transport protocol to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        default='127.0.0.1',
+        help='Host to bind to for HTTP transports (default: 127.0.0.1)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to for HTTP transports (default: 8000)',
+    )
     args = parser.parse_args()
 
     # Validate knowledge server URL
@@ -718,7 +732,7 @@ def main():
             'Please configure --cluster_endpoint, --database_user, and --region to enable database operations.'
         )
         logger.info('Starting Aurora DSQL MCP server (documentation tools only)')
-        mcp.run()
+        mcp.run(transport=args.transport, host=args.host, port=args.port)
         return
 
     mode_description = 'READ-WRITE' if args.allow_writes else 'READ-ONLY'
@@ -738,7 +752,7 @@ def main():
     dsql_client = session.client('dsql', region_name=region, config=_config)
 
     logger.info('Starting Aurora DSQL MCP server')
-    mcp.run()
+    mcp.run(transport=args.transport, host=args.host, port=args.port)
 
 
 if __name__ == '__main__':

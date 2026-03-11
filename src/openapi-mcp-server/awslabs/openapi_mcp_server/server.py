@@ -483,6 +483,25 @@ def main():
         '--auth-cognito-scopes',
         help='Comma-separated list of scopes for Cognito OAuth 2.0 client credentials flow',
     )
+    parser.add_argument(
+        '--transport',
+        type=str,
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='MCP transport to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='127.0.0.1',
+        help='Host to bind to (default: localhost)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to (default: 8000)',
+    )
 
     args = parser.parse_args()
 
@@ -527,9 +546,9 @@ def main():
         logger.error(f'Traceback: {traceback.format_exc()}')
         sys.exit(1)
 
-    # Run server with stdio transport only
-    logger.info('Running server with stdio transport')
-    mcp_server.run()
+    # Run server with specified transport
+    logger.info(f'Running server with {args.transport} transport')
+    mcp_server.run(transport=args.transport, host=args.host, port=args.port)
 
 
 if __name__ == '__main__':

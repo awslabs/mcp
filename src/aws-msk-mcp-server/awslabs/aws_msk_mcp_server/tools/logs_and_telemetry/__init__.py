@@ -19,7 +19,7 @@ This module provides functions to retrieve metrics and telemetry data for MSK cl
 as well as a separate tool for IAM access information.
 """
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from pydantic import Field
 
 from ..common_functions.client_manager import AWSClientManager

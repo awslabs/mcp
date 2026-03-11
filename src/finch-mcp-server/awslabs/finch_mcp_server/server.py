@@ -45,7 +45,7 @@ from awslabs.finch_mcp_server.utils.vm import (
     stop_vm,
 )
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from pathlib import Path
 from pydantic import Field
 from typing import Any, Dict, List, Optional
@@ -495,11 +495,14 @@ async def finch_create_ecr_repo(
         return Result(**error_result)
 
 
-def main(enable_aws_resource_write: bool = False):
+def main(enable_aws_resource_write: bool = False, transport: str = 'stdio', host: str = '127.0.0.1', port: int = 8000):
     """Run the Finch MCP server.
 
     Args:
         enable_aws_resource_write (bool, optional): Whether to enable AWS resource creation/modification. Defaults to False.
+        transport (str, optional): MCP transport to use. Defaults to 'stdio'.
+        host (str, optional): Host to bind to for SSE/HTTP transports. Defaults to '127.0.0.1'.
+        port (int, optional): Port to bind to for SSE/HTTP transports. Defaults to 8000.
 
     """
     # Set AWS resource write mode
@@ -516,7 +519,7 @@ def main(enable_aws_resource_write: bool = False):
     else:
         logger.info('Logging to stderr and default logging file')
 
-    mcp.run(transport='stdio')
+    mcp.run(transport=transport, host=host, port=port)
 
 
 if __name__ == '__main__':  # pragma: no cover
@@ -533,6 +536,25 @@ if __name__ == '__main__':  # pragma: no cover
         action='store_true',
         help='Disable file logging entirely (stderr only, follows MCP standard)',
     )
+    parser.add_argument(
+        '--transport',
+        type=str,
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='MCP transport to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='127.0.0.1',
+        help='Host to bind to for SSE/HTTP transports (default: 127.0.0.1)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to for SSE/HTTP transports (default: 8000)',
+    )
     args = parser.parse_args()
 
     # Set disable file logging from command line if provided
@@ -542,4 +564,4 @@ if __name__ == '__main__':  # pragma: no cover
     # Configure logging after parsing arguments
     configure_logging()
 
-    main(enable_aws_resource_write=args.enable_aws_resource_write)
+    main(enable_aws_resource_write=args.enable_aws_resource_write, transport=args.transport, host=args.host, port=args.port)

@@ -13,6 +13,7 @@
 # limitations under the License.
 """awslabs git-repo-research MCP Server implementation."""
 
+import argparse
 import json
 import mimetypes
 import os
@@ -40,7 +41,8 @@ from awslabs.git_repo_research_mcp_server.utils import (
 )
 from datetime import datetime
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP, Image
+from fastmcp import Context, FastMCP
+from mcp.server.fastmcp import Image
 from mcp.types import ImageContent
 from pathlib import Path
 from pydantic import Field
@@ -184,14 +186,6 @@ search_repos_on_github(
 ```
 Results are automatically filtered to AWS organizations (aws-samples, aws-solutions-library-samples, awslabs) and specific licenses (Apache License 2.0, MIT, MIT No Attribution), and sorted by stars (descending) and then by updated date.
 """,
-    dependencies=[
-        'boto3',
-        'faiss-cpu',
-        'gitpython',
-        'loguru',
-        'numpy',
-        'pydantic',
-    ],
 )
 
 
@@ -933,7 +927,29 @@ async def mcp_delete_repository(
 
 def main():
     """Run the MCP server with CLI argument support."""
-    mcp.run()
+    parser = argparse.ArgumentParser(
+        description='An AWS Labs Model Context Protocol (MCP) server'
+    )
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='Transport protocol to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='127.0.0.1',
+        help='Host to bind to for SSE/HTTP transports (default: 127.0.0.1)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to for SSE/HTTP transports (default: 8000)',
+    )
+    args = parser.parse_args()
+    mcp.run(transport=args.transport, host=args.host, port=args.port)
 
 
 if __name__ == '__main__':

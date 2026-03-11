@@ -17,7 +17,7 @@
 from awslabs.aws_iot_sitewise_mcp_server.validation import (
     validate_asset_id,
 )
-from mcp.server.fastmcp.prompts import Prompt
+from fastmcp.prompts import Prompt
 
 
 def asset_hierarchy_visualization(asset_id: str) -> str:

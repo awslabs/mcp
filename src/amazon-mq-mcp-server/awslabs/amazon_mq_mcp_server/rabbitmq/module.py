@@ -36,7 +36,7 @@ from .handlers import (
     handle_purge_queue,
     handle_shovel,
 )
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from typing import Any
 
 

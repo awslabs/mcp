@@ -21,7 +21,7 @@ This module provides functions to retrieve information about MSK VPC connections
 import boto3
 from botocore.config import Config
 from awslabs.aws_msk_mcp_server import __version__
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from pydantic import Field
 
 from .describe_vpc_connection import describe_vpc_connection

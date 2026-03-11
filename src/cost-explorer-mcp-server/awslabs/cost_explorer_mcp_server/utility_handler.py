@@ -22,7 +22,7 @@ import os
 import sys
 from datetime import datetime, timezone
 from loguru import logger
-from mcp.server.fastmcp import Context
+from fastmcp import Context
 from typing import Dict
 
 

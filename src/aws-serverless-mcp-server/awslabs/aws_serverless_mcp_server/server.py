@@ -59,7 +59,7 @@ from awslabs.aws_serverless_mcp_server.tools.webapps import (
 from awslabs.aws_serverless_mcp_server.utils.aws_client_helper import get_aws_client
 from awslabs.aws_serverless_mcp_server.utils.const import AWS_REGION, DEPLOYMENT_STATUS_DIR
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from typing import Any, Dict
 
 
@@ -131,7 +131,6 @@ mcp = FastMCP(
     3. Set AWS_REGION environment variable if not using default
     4. Install AWS CLI and SAM CLI
     """,
-    dependencies=['pydantic', 'boto3', 'loguru'],
 )
 
 
@@ -300,6 +299,24 @@ def main() -> int:
         action='store_true',
         help='Returns sensitive data from tools (e.g. logs, environment variables)',
     )
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='Transport protocol to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='127.0.0.1',
+        help='Host to bind to (default: 127.0.0.1)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to (default: 8000)',
+    )
 
     args = parser.parse_args()
 
@@ -343,7 +360,7 @@ def main() -> int:
 
     try:
         logger.info(f'Starting AWS Serverless MCP Server in {", ".join(mode_info)}')
-        mcp.run()
+        mcp.run(transport=args.transport, host=args.host, port=args.port)
         return 0
     except Exception as e:
         logger.error(f'Error starting AWS Serverless MCP Server: {e}')

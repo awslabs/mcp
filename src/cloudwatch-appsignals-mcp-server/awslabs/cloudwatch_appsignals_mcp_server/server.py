@@ -14,6 +14,7 @@
 
 """CloudWatch Application Signals MCP Server - Core server implementation."""
 
+import argparse
 import json
 import os
 import re
@@ -57,7 +58,7 @@ from .trace_tools import list_slis, query_sampled_traces, search_transaction_spa
 from .utils import parse_timestamp
 from datetime import datetime, timedelta, timezone
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from pydantic import Field
 from time import perf_counter as timer
 from typing import Optional
@@ -1359,9 +1360,34 @@ mcp.tool()(analyze_canary_failures)
 
 def main():
     """Run the MCP server."""
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(
+        description='CloudWatch AppSignals MCP Server'
+    )
+    parser.add_argument(
+        '--transport',
+        type=str,
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='MCP transport to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='127.0.0.1',
+        help='Host to bind to (default: 127.0.0.1)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to (default: 8000)',
+    )
+    args = parser.parse_args()
+
     logger.debug('Starting CloudWatch AppSignals MCP server')
     try:
-        mcp.run(transport='stdio')
+        mcp.run(transport=args.transport, host=args.host, port=args.port)
     except KeyboardInterrupt:
         logger.debug('Server shutdown by user')
     except Exception as e:

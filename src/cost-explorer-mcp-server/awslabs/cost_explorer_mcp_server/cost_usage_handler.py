@@ -35,7 +35,7 @@ from awslabs.cost_explorer_mcp_server.helpers import (
 from awslabs.cost_explorer_mcp_server.models import DateRange
 from datetime import datetime, timedelta
 from loguru import logger
-from mcp.server.fastmcp import Context
+from fastmcp import Context
 from pydantic import Field
 from typing import Any, Dict, Optional, Union
 

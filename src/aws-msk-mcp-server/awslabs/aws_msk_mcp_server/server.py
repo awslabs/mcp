@@ -37,7 +37,7 @@ from awslabs.aws_msk_mcp_server.tools import (
     static_tools,
 )
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 
 # Global variables
@@ -61,7 +61,7 @@ async def signal_handler(scope: CancelScope):
             os._exit(0)
 
 
-async def run_server():
+async def run_server(transport='stdio'):
     """Run the MCP server with signal handling."""
     mcp = FastMCP(
         name='awslabs.aws-msk-mcp-server',
@@ -96,7 +96,12 @@ async def run_server():
 
     async with create_task_group() as tg:
         tg.start_soon(signal_handler, tg.cancel_scope)
-        await mcp.run_stdio_async()
+        if transport == 'stdio':
+            await mcp.run_stdio_async()
+        else:
+            # For sse and streamable-http, use the synchronous run method with transport parameter
+            # This will be called after the async context exits
+            return mcp
 
 
 def main():
@@ -110,6 +115,25 @@ def main():
         action='store_true',
         help='Allow use of tools that may perform write operations',
     )
+    parser.add_argument(
+        '--transport',
+        type=str,
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='MCP transport to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='127.0.0.1',
+        help='Host to bind to (default: 127.0.0.1)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to (default: 8000)',
+    )
     args = parser.parse_args()
 
     # Set global read_only flag based on command-line arguments
@@ -118,7 +142,14 @@ def main():
 
     logger.info('AWS MSK MCP server initialized with ALLOW-WRITES:{}', not read_only)
 
-    run(run_server)
+    # Run the server with the specified transport
+    if args.transport == 'stdio':
+        run(run_server, args.transport)
+    else:
+        # For non-stdio transports, run the async setup then use synchronous run
+        mcp_instance = run(run_server, args.transport)
+        if mcp_instance:
+            mcp_instance.run(transport=args.transport, host=args.host, port=args.port)
 
 
 if __name__ == '__main__':

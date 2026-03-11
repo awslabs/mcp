@@ -42,6 +42,13 @@ def parse_args():
         action='store_true',
         help='Run server in read-only mode (prevents all mutating operations)',
     )
+    parser.add_argument(
+        '--transport',
+        type=str,
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='MCP transport to use (default: stdio). Note: only stdio is currently supported.',
+    )
     return parser.parse_args()
 
 
@@ -59,6 +66,11 @@ async def main() -> None:
             logger.info('Server started in READ-ONLY mode - mutating operations disabled')
         else:
             logger.info('Server started in FULL ACCESS mode')
+
+        # TODO: implement sse and streamable-http transport for low-level server
+        # Currently only stdio transport is supported for healthlake which uses low-level stdio_server()
+        if args.transport != 'stdio':
+            logger.warning(f'Transport {args.transport} is not yet supported for HealthLake server. Using stdio.')
 
         # Run the server using stdio transport
         async with stdio_server() as (read_stream, write_stream):

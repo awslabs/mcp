@@ -16,7 +16,7 @@ import os
 import re
 from awslabs.aws_serverless_mcp_server.tools.common.base_tool import BaseTool
 from awslabs.aws_serverless_mcp_server.utils.data_scrubber import DataScrubber
-from mcp.server.fastmcp import Context, FastMCP
+from fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Any, Dict, Literal, Optional, cast
 

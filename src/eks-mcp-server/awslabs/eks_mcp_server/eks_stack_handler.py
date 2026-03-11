@@ -34,7 +34,7 @@ from awslabs.eks_mcp_server.logging_helper import LogLevel, log_with_request_id
 from awslabs.eks_mcp_server.models import (
     ManageEksStacksData,
 )
-from mcp.server.fastmcp import Context
+from fastmcp import Context
 from mcp.types import CallToolResult, TextContent
 from pydantic import Field
 from typing import Any, Dict, Optional, Tuple

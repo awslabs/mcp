@@ -14,7 +14,7 @@
 
 import os
 import re
-from mcp.server.fastmcp import Context, FastMCP
+from fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Any, Dict, Literal, Optional
 

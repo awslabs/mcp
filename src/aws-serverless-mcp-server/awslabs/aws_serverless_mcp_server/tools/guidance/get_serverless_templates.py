@@ -15,7 +15,7 @@
 import base64
 from awslabs.aws_serverless_mcp_server.utils.github import fetch_github_content
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Any, Dict, Optional
 

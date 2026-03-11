@@ -17,7 +17,7 @@
 from awslabs.aws_iot_sitewise_mcp_server.validation import (
     validate_string_for_injection,
 )
-from mcp.server.fastmcp.prompts import Prompt
+from fastmcp.prompts import Prompt
 
 
 def data_exploration_helper(exploration_goal: str, time_range: str = 'last 7 days') -> str:

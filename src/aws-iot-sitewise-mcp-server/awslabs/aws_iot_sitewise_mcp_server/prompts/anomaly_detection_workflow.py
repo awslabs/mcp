@@ -14,7 +14,7 @@
 
 """AWS IoT SiteWise Anomaly Detection Workflow Helper Prompt."""
 
-from mcp.server.fastmcp.prompts import Prompt
+from fastmcp.prompts import Prompt
 
 
 def anomaly_detection_workflow_helper() -> str:

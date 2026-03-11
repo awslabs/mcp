@@ -28,7 +28,7 @@ from awslabs.aws_documentation_mcp_server.util import (
     is_html_content,
 )
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from fastmcp import Context, FastMCP
 from pydantic import AnyUrl, Field
 from typing import Union
 
@@ -55,11 +55,6 @@ mcp = FastMCP(
     - Use `get_available_services` when: You need to know what services are available in AWS China
     - Use `read_documentation` when: You have a specific documentation URL and need its content
     """,
-    dependencies=[
-        'pydantic',
-        'httpx',
-        'beautifulsoup4',
-    ],
 )
 
 
@@ -239,12 +234,12 @@ async def get_available_services(
     return result + formatted_service_titles
 
 
-def main():
+def main(transport='stdio', host='localhost', port=8000):
     """Run the MCP server with CLI argument support."""
     # Log startup information
     logger.info('Starting AWS China Documentation MCP Server')
 
-    mcp.run()
+    mcp.run(transport=transport, host=host, port=port)
 
 
 if __name__ == '__main__':

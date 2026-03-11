@@ -18,7 +18,7 @@ import os
 from awslabs.aws_serverless_mcp_server.tools.common.base_tool import BaseTool
 from awslabs.aws_serverless_mcp_server.utils.data_scrubber import DataScrubber
 from boto3 import client as boto3_client
-from mcp.server.fastmcp import Context, FastMCP
+from fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Any, Dict, List, Literal, Optional
 

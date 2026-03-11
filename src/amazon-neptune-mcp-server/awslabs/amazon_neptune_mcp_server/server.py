@@ -14,12 +14,13 @@
 
 """awslabs neptune MCP Server implementation."""
 
+import argparse
 import os
 import sys
 from awslabs.amazon_neptune_mcp_server.models import GraphSchema
 from awslabs.amazon_neptune_mcp_server.neptune import NeptuneServer
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from typing import Optional
 
 
@@ -31,7 +32,6 @@ logger.add(sys.stderr, level='INFO')
 mcp = FastMCP(
     'awslabs.neptune-mcp-server',
     instructions='This server provides the ability to check connectivity, status and schema for working with Amazon Neptune.',
-    dependencies=['pydantic', 'loguru', 'boto3'],
 )
 
 # Global variable to hold the graph instance
@@ -112,7 +112,28 @@ def run_gremlin_query(query: str) -> dict:
 
 def main():
     """Run the MCP server with CLI argument support."""
-    mcp.run()
+    parser = argparse.ArgumentParser(
+        description='An AWS Labs Model Context Protocol (MCP) server'
+    )
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'sse', 'streamable-http'],
+        default='stdio',
+        help='Transport protocol to use (default: stdio)',
+    )
+    parser.add_argument(
+        '--host',
+        default='127.0.0.1',
+        help='Host to bind to for HTTP transports (default: 127.0.0.1)',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8000,
+        help='Port to bind to for HTTP transports (default: 8000)',
+    )
+    args = parser.parse_args()
+    mcp.run(transport=args.transport, host=args.host, port=args.port)
 
 
 if __name__ == '__main__':

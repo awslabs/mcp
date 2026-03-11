@@ -14,7 +14,7 @@
 
 from awslabs.aws_serverless_mcp_server.utils.process import run_command
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Any, Literal, Optional
 

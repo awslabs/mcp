@@ -15,7 +15,7 @@
 """Error handling utilities for MCP tools."""
 
 from loguru import logger
-from mcp.server.fastmcp import Context
+from fastmcp import Context
 from typing import Any, Dict
 
 
