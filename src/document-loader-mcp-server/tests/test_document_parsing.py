@@ -665,6 +665,7 @@ async def test_file_size_validation():
             response = await _read_pdf_helper(temp_file_path)
             assert response.status == 'error'
             assert 'File too large' in response.error_message
+            assert 'MAX_FILE_SIZE_MB' in response.error_message
             print('✓ File size validation passed')
     finally:
         if os.path.exists(temp_file_path):
