@@ -428,7 +428,7 @@ def _save_image_bytes(raw_bytes, fmt, output_path, image_obj):
             img = PILImage.open(io.BytesIO(raw_bytes))
             img.save(output_path, format=save_fmt_map.get(fmt, 'PNG'))
             return
-        except Exception:
+        except Exception:  # nosec B110 - Intentional fallthrough to try alternative extraction method
             pass  # Fall through to raw pixel reconstruction
 
     # Raw pixel data -- reconstruct with frombytes
@@ -439,7 +439,7 @@ def _save_image_bytes(raw_bytes, fmt, output_path, image_obj):
             img = PILImage.frombytes(mode, (stream_w, stream_h), raw_bytes)
             img.save(output_path, format='PNG')
             return
-        except Exception:
+        except Exception:  # nosec B110 - Intentional fallthrough to try last-resort extraction
             pass
 
     # Last resort
