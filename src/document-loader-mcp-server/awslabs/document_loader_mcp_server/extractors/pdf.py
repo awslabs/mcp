@@ -55,7 +55,7 @@ def _resolve_filter_name(filt) -> str:
 
     # Handle PSLiteral objects (have .name attribute)
     if hasattr(filt, 'name'):
-        name = filt.name
+        name = getattr(filt, 'name')
         return name.decode('utf-8') if isinstance(name, bytes) else str(name)
 
     # Handle raw bytes

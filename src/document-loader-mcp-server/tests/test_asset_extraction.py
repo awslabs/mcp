@@ -238,6 +238,7 @@ async def test_inspect_pdf_with_images(pdf_with_images):
     assert result.status == 'success'
     assert result.metadata is not None
     assert result.metadata.file_type == 'pdf'
+    assert result.metadata.page_count is not None
     assert result.metadata.page_count >= 2
     assert result.asset_count > 0
     assert result.total_assets_found > 0
@@ -261,6 +262,7 @@ async def test_inspect_pdf_without_images(pdf_without_images):
     result = await inspect_pdf(pdf_without_images)
     assert result.status == 'success'
     assert result.metadata is not None
+    assert result.metadata.page_count is not None
     assert result.metadata.page_count >= 1
     assert result.asset_count == 0
     assert result.total_assets_found == 0
@@ -417,6 +419,7 @@ async def test_dispatch_inspect_unsupported():
     print('Testing dispatch_inspect with unsupported file type...')
     result = await dispatch_inspect('/tmp/test.txt')
     assert result.status == 'error'
+    assert result.error_message is not None
     assert 'Unsupported' in result.error_message
     print(f'Error message: {result.error_message}')
     print('✓ Dispatch inspect unsupported file passed')

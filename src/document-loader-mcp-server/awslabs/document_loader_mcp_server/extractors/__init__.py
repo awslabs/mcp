@@ -49,12 +49,12 @@ class AssetInfo(BaseModel):
     name: str = Field(..., description='Generated filename (e.g., image_001.jpg)')
     format: str = Field(..., description='Output image format (png, jpeg, tiff, jp2)')
     size_bytes: int = Field(..., description='Raw byte size of the embedded image data')
-    width_px: Optional[int] = Field(None, description='Pixel width')
-    height_px: Optional[int] = Field(None, description='Pixel height')
-    dpi: Optional[Tuple[int, int]] = Field(None, description='(x_dpi, y_dpi)')
-    color_space: Optional[str] = Field(None, description='RGB, CMYK, or Grayscale')
+    width_px: Optional[int] = Field(default=None, description='Pixel width')
+    height_px: Optional[int] = Field(default=None, description='Pixel height')
+    dpi: Optional[Tuple[int, int]] = Field(default=None, description='(x_dpi, y_dpi)')
+    color_space: Optional[str] = Field(default=None, description='RGB, CMYK, or Grayscale')
     compression: Optional[str] = Field(
-        None, description='PDF filter name: DCTDecode, FlateDecode, etc.'
+        default=None, description='PDF filter name: DCTDecode, FlateDecode, etc.'
     )
     location: str = Field(..., description='Location in document, e.g. Page 3')
 
@@ -65,27 +65,31 @@ class DocumentMetadata(BaseModel):
     file_path: str = Field(..., description='Path to the document file')
     file_type: str = Field(..., description='File type: pdf, docx, pptx, xlsx, etc.')
     file_size_bytes: int = Field(..., description='File size in bytes')
-    title: Optional[str] = Field(None, description='Document title')
-    author: Optional[str] = Field(None, description='Document author')
-    created: Optional[str] = Field(None, description='Creation date (ISO 8601)')
-    modified: Optional[str] = Field(None, description='Last modified date (ISO 8601)')
-    page_count: Optional[int] = Field(None, description='Number of pages/slides/sheets')
+    title: Optional[str] = Field(default=None, description='Document title')
+    author: Optional[str] = Field(default=None, description='Document author')
+    created: Optional[str] = Field(default=None, description='Creation date (ISO 8601)')
+    modified: Optional[str] = Field(default=None, description='Last modified date (ISO 8601)')
+    page_count: Optional[int] = Field(default=None, description='Number of pages/slides/sheets')
 
 
 class InspectionResponse(BaseModel):
     """Response from asset inspection operations."""
 
     status: str = Field(..., description='success, partial, or error')
-    metadata: Optional[DocumentMetadata] = Field(None, description='Document-level metadata')
+    metadata: Optional[DocumentMetadata] = Field(
+        default=None, description='Document-level metadata'
+    )
     assets: List[AssetInfo] = Field(
         default_factory=list, description='Successfully inspected assets'
     )
-    asset_count: int = Field(0, description='Number of successfully inspected assets')
+    asset_count: int = Field(default=0, description='Number of successfully inspected assets')
     total_assets_found: int = Field(
-        0, description='Total assets discovered, including failed inspections'
+        default=0, description='Total assets discovered, including failed inspections'
     )
     warnings: List[str] = Field(default_factory=list, description='Non-fatal warnings')
-    error_message: Optional[str] = Field(None, description='Error message if status is error')
+    error_message: Optional[str] = Field(
+        default=None, description='Error message if status is error'
+    )
 
 
 class ExtractedAsset(BaseModel):
@@ -94,7 +98,7 @@ class ExtractedAsset(BaseModel):
     index: int = Field(..., description='Asset index from inspection')
     output_path: str = Field(..., description='Path where the asset was saved')
     status: str = Field(..., description='success or error')
-    error_message: Optional[str] = Field(None, description='Why this asset failed')
+    error_message: Optional[str] = Field(default=None, description='Why this asset failed')
 
 
 class ExtractionResponse(BaseModel):
@@ -104,11 +108,13 @@ class ExtractionResponse(BaseModel):
     extracted: List[ExtractedAsset] = Field(
         default_factory=list, description='Per-asset extraction results'
     )
-    extracted_count: int = Field(0, description='Number of successfully extracted assets')
-    failed_count: int = Field(0, description='Number of failed extractions')
-    output_dir: str = Field('', description='Directory containing extracted assets')
+    extracted_count: int = Field(default=0, description='Number of successfully extracted assets')
+    failed_count: int = Field(default=0, description='Number of failed extractions')
+    output_dir: str = Field(default='', description='Directory containing extracted assets')
     warnings: List[str] = Field(default_factory=list, description='Non-fatal warnings')
-    error_message: Optional[str] = Field(None, description='Error message if status is error')
+    error_message: Optional[str] = Field(
+        default=None, description='Error message if status is error'
+    )
 
 
 # Dispatch logic for multi-format support

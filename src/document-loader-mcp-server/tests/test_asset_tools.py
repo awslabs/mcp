@@ -58,7 +58,7 @@ async def _inspect_assets_helper(file_path: str, timeout_seconds: int = 30):
             )
 
     # Validate file path
-    validation_error = validate_file_path(ctx, file_path)
+    validation_error = validate_file_path(ctx, file_path)  # type: ignore[arg-type]
     if validation_error:
         return InspectionResponse(
             status='error',
@@ -91,7 +91,7 @@ async def _extract_assets_helper(
                 error_message=soffice_error,
             )
 
-    validation_error = validate_file_path(ctx, file_path)
+    validation_error = validate_file_path(ctx, file_path)  # type: ignore[arg-type]
     if validation_error:
         return ExtractionResponse(
             status='error',
@@ -144,8 +144,11 @@ async def test_server_registers_new_tools():
     from awslabs.document_loader_mcp_server.server import mcp
 
     tools = await mcp.get_tools()
-    # tools is a dict with tool names as keys
-    tool_names = list(tools.keys()) if isinstance(tools, dict) else [t.name for t in tools]
+    # tools is a dict with tool names as keys or a list
+    if isinstance(tools, dict):
+        tool_names = list(tools.keys())
+    else:
+        tool_names = [t.name for t in tools]  # type: ignore[union-attr]
     assert 'inspect_document_assets' in tool_names
     assert 'extract_document_assets' in tool_names
     print(f'Found {len(tool_names)} tools, including asset tools')
@@ -187,6 +190,7 @@ async def test_inspect_tool_security_path_traversal(tmp_path):
     print('Testing inspect tool security (path traversal)...')
     result = await _inspect_assets_helper('../../etc/passwd', timeout_seconds=10)
     assert result.status == 'error'
+    assert result.error_message is not None
     print(f'Blocked with error: {result.error_message}')
     print('✓ Inspect tool path traversal security passed')
 
@@ -199,6 +203,7 @@ async def test_extract_tool_security_output_dir(pdf_with_images):
         pdf_with_images, output_dir='/etc/evil_output', timeout_seconds=10
     )
     assert result.status == 'error'
+    assert result.error_message is not None
     print(f'Blocked with error: {result.error_message}')
     print('✓ Extract tool output directory security passed')
 
@@ -216,6 +221,7 @@ async def test_inspect_tool_office_no_soffice():
             mock_find.return_value = None
             result = await _inspect_assets_helper(fake_docx, timeout_seconds=10)
             assert result.status == 'error'
+            assert result.error_message is not None
             assert (
                 'soffice' in result.error_message.lower() or 'LibreOffice' in result.error_message
             )
