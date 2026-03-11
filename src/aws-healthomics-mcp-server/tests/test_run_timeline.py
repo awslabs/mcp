@@ -126,7 +126,13 @@ class TestGenerateRunTimeline:
 
         # Call the function
         result = await generate_run_timeline(
-            ctx, run_id='test-run', time_unit='hr', output_format='svg'
+            ctx,
+            run_id='test-run',
+            time_unit='hr',
+            output_format='svg',
+            region=None,
+            output_path=None,
+            expected_bucket_owner=None,
         )
 
         # Verify result is SVG
@@ -234,7 +240,13 @@ class TestGenerateRunTimeline:
         ctx.error = AsyncMock()
 
         result = await generate_run_timeline(
-            ctx, run_id='test-run', time_unit='hr', output_format='base64'
+            ctx,
+            run_id='test-run',
+            time_unit='hr',
+            output_format='base64',
+            region=None,
+            output_path=None,
+            expected_bucket_owner=None,
         )
 
         # Verify result is pure base64 (no data URI prefix)
