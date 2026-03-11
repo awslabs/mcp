@@ -15,7 +15,6 @@
 """Tests for the MCP server module."""
 
 import warnings
-
 from awslabs.cost_explorer_mcp_server.server import DEPRECATION_NOTICE, main
 from unittest.mock import patch
 
