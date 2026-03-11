@@ -15,9 +15,8 @@
 """Tests for the server module of the bedrock-kb-retrieval-mcp-server."""
 
 import json
-import warnings
-
 import pytest
+import warnings
 from awslabs.bedrock_kb_retrieval_mcp_server.server import (
     DEPRECATION_NOTICE,
     list_knowledge_bases_tool,
