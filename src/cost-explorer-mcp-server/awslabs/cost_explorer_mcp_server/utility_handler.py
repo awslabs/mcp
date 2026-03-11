@@ -32,7 +32,7 @@ logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'WARNING'))
 
 
 async def get_today_date(ctx: Context) -> Dict[str, str]:
-    """Retrieve current date information in UTC time zone.
+    """[DEPRECATED] Retrieve current date information in UTC time zone.
 
     This tool retrieves the current date in YYYY-MM-DD format and the current month in YYYY-MM format.
     It's useful for calculating relevent date when user ask last N months/days.
