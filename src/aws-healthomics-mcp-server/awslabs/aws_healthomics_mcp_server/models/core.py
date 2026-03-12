@@ -233,8 +233,8 @@ class RegistryMapping(BaseModel):
 
     upstreamRegistryUrl: str
     ecrRepositoryPrefix: str
-    upstreamRepositoryPrefix: Optional[str]
-    ecrAccountId: Optional[str]
+    upstreamRepositoryPrefix: Optional[str] = None
+    ecrAccountId: Optional[str] = None
 
 
 class ImageMapping(BaseModel):

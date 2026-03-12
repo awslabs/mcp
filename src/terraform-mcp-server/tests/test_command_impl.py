@@ -23,6 +23,26 @@ from unittest.mock import MagicMock, patch
 pytestmark = pytest.mark.asyncio
 
 
+@pytest.fixture(autouse=True)
+def mock_path_validation(temp_terraform_dir):
+    """Bypass path validation for tests that use temp dirs outside cwd."""
+    with (
+        patch(
+            'awslabs.terraform_mcp_server.impl.tools.execute_terraform_command.validate_working_directory',
+            return_value=temp_terraform_dir,
+        ),
+        patch(
+            'awslabs.terraform_mcp_server.impl.tools.execute_terragrunt_command.validate_working_directory',
+            return_value=temp_terraform_dir,
+        ),
+        patch(
+            'awslabs.terraform_mcp_server.impl.tools.run_checkov_scan.validate_working_directory',
+            return_value=temp_terraform_dir,
+        ),
+    ):
+        yield
+
+
 @pytest.mark.asyncio
 async def test_execute_terraform_command_success(temp_terraform_dir):
     """Test the Terraform command execution function with successful mocks."""

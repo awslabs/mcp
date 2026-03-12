@@ -8,6 +8,7 @@ This MCP server provides comprehensive access to Amazon Bedrock AgentCore docume
 
 - **Search Documentation**: Search through curated AgentCore documentation with ranked results and contextual snippets
 - **Fetch Full Documents**: Retrieve complete documentation pages for in-depth understanding
+- **Browser Automation**: 25 cloud-based browser tools for web navigation, interaction, and data extraction — no local browser installation required
 - **Comprehensive Coverage**: Access documentation for all AgentCore services including Runtime, Memory, Code Interpreter, Browser, Gateway, Observability, and Identity
 - **Smart Caching**: Efficient document caching with on-demand content loading for optimal performance
 - **Curated Documentation List**: Uses llm.txt as a curated list of relevant AgentCore documentations, always fetching the latest version of the file
@@ -125,6 +126,45 @@ Example queries:
 - "Show me examples of using the Code Interpreter service"
 - "What are the deployment options for AgentCore Runtime?"
 - "How do I integrate AgentCore Browser with my application?"
+- "Start a browser session and navigate to docs.aws.amazon.com"
+- "Take a screenshot of the current page and extract all links"
+
+## Browser Tools
+
+The server includes 25 browser automation tools powered by Amazon Bedrock AgentCore. Each session runs in an isolated Firecracker microVM — no local browser installation is needed.
+
+### Quick Start
+
+```python
+# 1. Start a session
+start_browser_session(timeout_seconds=300)
+
+# 2. Navigate and interact
+browser_navigate(session_id="...", url="https://example.com")
+browser_snapshot(session_id="...")       # accessibility tree with element refs
+browser_click(session_id="...", ref="e3")
+browser_type(session_id="...", ref="e5", text="search query")
+
+# 3. Clean up
+stop_browser_session(session_id="...")
+```
+
+### Tool Categories
+
+| Category | Tools | Description |
+|----------|-------|-------------|
+| **Session** (4) | `start_browser_session`, `get_browser_session`, `list_browser_sessions`, `stop_browser_session` | Create, inspect, list, and terminate sessions |
+| **Navigation** (3) | `browser_navigate`, `browser_navigate_back`, `browser_navigate_forward` | URL navigation and history |
+| **Observation** (6) | `browser_snapshot`, `browser_take_screenshot`, `browser_evaluate`, `browser_wait_for`, `browser_console_messages`, `browser_network_requests` | Page state, screenshots, JS execution, network |
+| **Interaction** (9) | `browser_click`, `browser_type`, `browser_fill_form`, `browser_select_option`, `browser_hover`, `browser_press_key`, `browser_upload_file`, `browser_handle_dialog`, `browser_mouse_wheel` | Click, type, forms, keyboard, dialogs |
+| **Management** (3) | `browser_tabs`, `browser_resize`, `browser_close` | Tab management, viewport, page lifecycle |
+
+### Tips
+
+- **Use DuckDuckGo or Bing** instead of Google — Google blocks cloud browser IPs with CAPTCHAs.
+- **Prefer `browser_evaluate` for data extraction** — snapshots show page structure; `browser_evaluate` with `querySelectorAll` extracts actual data efficiently.
+- **Use `browser_evaluate` for long text** — `browser_type` types character-by-character. For long inputs, use `document.querySelector("selector").value = "text"` instead.
+- **Idle timeout, not absolute** — `timeout_seconds` on `start_browser_session` resets on each tool call, not wall-clock duration.
 
 ## Tools
 
