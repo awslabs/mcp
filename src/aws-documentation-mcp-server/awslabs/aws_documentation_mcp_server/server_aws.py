@@ -423,7 +423,7 @@ async def search_documentation(
                     context = text_suggestion['suggestionBody']
 
                 sections = []
-                title = text_suggestion.get('title', 'Unknown')
+                title = text_suggestion.get('title', '')
                 url = text_suggestion.get('link', '')
 
                 # Log metadata for debugging
