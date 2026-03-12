@@ -1,0 +1,6 @@
+This package is deprecated. Do not publish new releases to PyPI.
+
+Replacement: HashiCorp's official Terraform MCP Server
+https://github.com/hashicorp/terraform-mcp-server
+
+Migration guide: docs/migration-terraform.md

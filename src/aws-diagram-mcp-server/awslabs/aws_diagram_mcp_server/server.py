@@ -29,6 +29,13 @@ from pydantic import Field
 from typing import Optional
 
 
+DEPRECATION_NOTICE = (
+    '[DEPRECATED] This server is deprecated and will no longer receive '
+    'updates. We recommend migrating to the diagram agent skill in the '
+    'deploy-on-aws plugin: '
+    'https://github.com/awslabs/agent-plugins/tree/main/plugins/deploy-on-aws'
+)
+
 # Create the MCP server
 mcp = FastMCP(
     'aws-diagram-mcp-server',
@@ -37,7 +44,9 @@ mcp = FastMCP(
         'diagrams',
     ],
     log_level='ERROR',
-    instructions="""Use this server to generate professional diagrams using the Python diagrams package.
+    instructions=f"""{DEPRECATION_NOTICE}
+
+Use this server to generate professional diagrams using the Python diagrams package.
 
 WORKFLOW:
 1. list_icons:
@@ -99,7 +108,10 @@ async def mcp_generate_diagram(
         description="The user's current workspace directory. CRITICAL: Client must always send the current workspace directory when calling this tool! If provided, diagrams will be saved to a 'generated-diagrams' subdirectory.",
     ),
 ):
-    """Generate a diagram from Python code using the diagrams package.
+    """[DEPRECATED] Generate a diagram from Python code using the diagrams package.
+
+    DEPRECATED: This server is deprecated. Use the diagram agent skill instead:
+    https://github.com/awslabs/agent-plugins/tree/main/plugins/deploy-on-aws
 
     This tool accepts Python code as a string that uses the diagrams package DSL
     and generates a PNG diagram without displaying it. The code is executed with
@@ -184,7 +196,10 @@ async def mcp_get_diagram_examples(
         description='Type of diagram example to return. Options: aws, sequence, flow, class, k8s, onprem, custom, all',
     ),
 ):
-    """Get example code for different types of diagrams.
+    """[DEPRECATED] Get example code for different types of diagrams.
+
+    DEPRECATED: This server is deprecated. Use the diagram agent skill instead:
+    https://github.com/awslabs/agent-plugins/tree/main/plugins/deploy-on-aws
 
     This tool provides ready-to-use example code for various diagram types.
     Use these examples to understand the syntax and capabilities of the diagrams package
@@ -238,7 +253,10 @@ async def mcp_list_diagram_icons(
         description='Filter icons by service name (e.g., "compute", "database", "network")',
     ),
 ):
-    """List available icons from the diagrams package, with optional filtering.
+    """[DEPRECATED] List available icons from the diagrams package, with optional filtering.
+
+    DEPRECATED: This server is deprecated. Use the diagram agent skill instead:
+    https://github.com/awslabs/agent-plugins/tree/main/plugins/deploy-on-aws
 
     This tool dynamically inspects the diagrams package to find available
     providers, services, and icons that can be used in diagrams.
@@ -269,6 +287,9 @@ async def mcp_list_diagram_icons(
 
 def main():
     """Run the MCP server with CLI argument support."""
+    import warnings
+
+    warnings.warn(DEPRECATION_NOTICE, DeprecationWarning, stacklevel=1)
     mcp.run()
 
 

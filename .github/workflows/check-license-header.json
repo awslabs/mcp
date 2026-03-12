@@ -81,7 +81,8 @@
       "**/dist/**",
       "**/skills/*/scripts",
       "**/skills/*/references",
-      "**/skills/*/mcp"
+      "**/skills/*/mcp",
+      "**/DO_NOT_RELEASE"
     ]
   }
 ]

@@ -197,8 +197,8 @@ A markdown table which shows 5-10 representative items for the table
 
 - **Purpose**: [what this table stores and why this design was chosen]
 - **Aggregate Boundary**: [what data is grouped together in this table and why]
-- **Partition Key**: [field] - [detailed justification including distribution reasoning, whether it's an identifying relationhip and if so why]
-- **Sort Key**: [field] - [justification including query patterns enabled]
+- **Partition Key**: [field] - [detailed justification including distribution reasoning, whether it's an identifying relationship and if so why. If composite, use string concatenation e.g. clinic_id#patient_id — multi-attribute keys are NOT supported on base tables]
+- **Sort Key**: [field] - [justification including query patterns enabled. If composite, use string concatenation e.g. status#date — multi-attribute keys are NOT supported on base tables]
 - **SK Taxonomy**: [list SK prefixes and their semantics; e.g., `PROFILE`, `ORDER#<id>`, `PAYMENT#<id>`]
 - **Attributes**: [list all key attributes with data types]
 - **Bounded Read Strategy**: [SK prefixes/ranges; typical page size and pagination plan]
@@ -268,6 +268,7 @@ A markdown table which shows 5-10 representative items for the index. You MUST e
 - [ ] Every access pattern solved or alternative provided ✅
 - [ ] Unnecessary GSIs are removed and solved with an identifying relationship ✅
 - [ ] Multi-attribute keys used for GSI instead of composite string keys where applicable ✅
+- [ ] Base table keys use single attributes or composite strings (NOT multi-attribute keys) ✅
 - [ ] All tables and GSIs documented with full justification ✅
 - [ ] Hot partition analysis completed ✅
 - [ ] Trade-offs explicitly documented and justified ✅
@@ -543,7 +544,9 @@ Decision: Separate Aggregates (not even same table)
 • Orders table: PK: order_id, with GSI on customer_id
 • Benefits: Independent scaling, clear boundaries
 
-### Multi-Attribute Keys for GSIs
+### Multi-Attribute Keys (GSI-ONLY Feature)
+
+🔴 **CRITICAL**: Multi-attribute keys are a GSI-ONLY feature. Base table KeySchema must have exactly 1 HASH key and at most 1 RANGE key. NEVER use multi-attribute keys on base tables — DynamoDB does not support them. For base tables needing composite keys, use string concatenation (e.g., `clinic_id#patient_id` as a single key attribute).
 
 Multi-attribute keys compose GSI keys from up to 4 attributes each (8 total). They eliminate string concatenation, maintain type safety, and simplify backfilling.
 
@@ -609,20 +612,28 @@ Query(timestamp BETWEEN start AND end AND status = "ERROR")  // FAILS
 
 #### Multi-Attribute vs Composite Strings
 
-🔴 **CRITICAL**: ALWAYS use multi-attribute keys for GSIs. NEVER use composite strings (key1#key2).
+🔴 **CRITICAL**: ALWAYS use multi-attribute keys for GSIs. NEVER use composite strings (key1#key2) for GSIs. NEVER use multi-attribute keys for base tables — they are not supported by DynamoDB.
 
 ```javascript
-// ❌ WRONG: Composite string
+// ❌ WRONG: Composite string in GSI
 SK: status#created_at
 Query: SK begins_with "PREPARING#"
 
-// ✅ CORRECT: Multi-attribute
+// ✅ CORRECT: Multi-attribute in GSI
 SK: status, created_at
 Query: status = "PREPARING" AND created_at > "2026-01-01"
+
+// ❌ WRONG: Multi-attribute key on base table
+Base Table PK: clinic_id, patient_id  // DynamoDB rejects this
+Base Table SK: diagnosis_code, diagnosis_date  // DynamoDB rejects this
+
+// ✅ CORRECT: Composite string on base table
+Base Table PK: clinic_id#patient_id  // Single concatenated attribute
+Base Table SK: diagnosis_code#diagnosis_date  // Single concatenated attribute
 ```
 **When to use each:**
-- **Multi-attribute keys**: ALWAYS for GSIs
-- **Composite strings**: ONLY for base table
+- **Multi-attribute keys**: ALWAYS for GSIs, NEVER for base tables
+- **Composite strings**: ONLY for base tables when you need composite keys
 
 **Why multi-attribute is better:**
 - Type safety (no parsing)

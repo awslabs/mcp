@@ -20,8 +20,12 @@ from awslabs.aws_healthomics_mcp_server.analysis.cost_analyzer import CostAnalyz
 from awslabs.aws_healthomics_mcp_server.tools.workflow_analysis import (
     get_run_manifest_logs_internal,
 )
-from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_omics_client
+from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_account_id, get_omics_client
+from awslabs.aws_healthomics_mcp_server.utils.error_utils import handle_tool_error
+from awslabs.aws_healthomics_mcp_server.utils.path_utils import write_svg_to_local
+from awslabs.aws_healthomics_mcp_server.utils.s3_utils import write_svg_to_s3
 from awslabs.aws_healthomics_mcp_server.visualization.gantt_generator import GanttGenerator
+from botocore.exceptions import ClientError, NoCredentialsError
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import Field
@@ -36,6 +40,9 @@ VALID_OUTPUT_FORMATS = ['svg', 'base64']
 
 # Default region for cost analysis
 DEFAULT_REGION = 'us-east-1'
+
+# Sentinel value for default bucket owner
+_SENTINEL_DEFAULT_OWNER = '__DEFAULT__'
 
 
 async def generate_run_timeline(
@@ -53,8 +60,31 @@ async def generate_run_timeline(
         description='AWS region for pricing lookups. Defaults to us-east-1.',
     ),
     output_format: str = Field(
-        default='base64',
-        description='Output format for the SVG. Valid values: svg (raw SVG string), base64 (base64-encoded SVG for easier extraction). Defaults to base64.',
+        default='svg',
+        description=(
+            'Output format for the timeline. Valid values: svg (raw SVG string, default), '
+            'base64 (base64-encoded SVG, useful when transport safety is needed to avoid '
+            'XML/SVG markup mangling in JSON or other text protocols; note the output must '
+            'be base64-decoded before it can be rendered as SVG). Use svg when writing to a '
+            'local or s3 path. Defaults to svg.'
+        ),
+    ),
+    output_path: Optional[str] = Field(
+        default=None,
+        description=(
+            'Optional file path or S3 URI (s3://bucket/key) where the SVG output '
+            'will be written. When provided, the response contains only summary '
+            'metadata instead of the full SVG content. Recommended for complex '
+            'workflows to avoid context window overflow.'
+        ),
+    ),
+    expected_bucket_owner: Optional[str] = Field(
+        default=_SENTINEL_DEFAULT_OWNER,
+        description=(
+            'AWS account ID that must own the target S3 bucket. Defaults to the '
+            'current caller identity account ID. Set to None to skip bucket owner '
+            'verification. Only used when output_path is an S3 URI.'
+        ),
     ),
 ) -> str:
     """Generate a Gantt-style timeline visualization for an AWS HealthOmics workflow run.
@@ -82,9 +112,11 @@ async def generate_run_timeline(
         time_unit: Time unit for the timeline axis (sec, min, hr, day)
         region: AWS region for pricing lookups
         output_format: Output format (svg or base64)
+        output_path: Optional file path or S3 URI to write SVG to
+        expected_bucket_owner: AWS account ID for S3 bucket owner verification
 
     Returns:
-        SVG string or base64-encoded SVG representing the Gantt chart timeline
+        SVG string, base64-encoded SVG, or JSON summary when output_path is provided
     """
     try:
         logger.info(f'Generating timeline for run {run_id}')
@@ -197,7 +229,38 @@ Please verify the run ID and ensure the run has completed successfully.
 
         logger.info(f'Generated timeline with {len(all_tasks)} tasks')
 
-        # Return in requested format
+        # If output_path is provided, write SVG to the specified destination
+        if output_path is not None:
+            try:
+                if output_path.startswith('s3://'):
+                    # Resolve expected_bucket_owner sentinel
+                    resolved_owner = expected_bucket_owner
+                    if resolved_owner == _SENTINEL_DEFAULT_OWNER:
+                        resolved_owner = get_account_id()
+                    # None means skip bucket owner check; string means use as-is
+                    result_path = write_svg_to_s3(svg_output, output_path, resolved_owner)
+                else:
+                    result_path = write_svg_to_local(svg_output, output_path)
+
+                return json.dumps(
+                    {
+                        'status': 'success',
+                        'output_path': result_path,
+                        'run_id': run_id,
+                        'task_count': len(all_tasks),
+                    }
+                )
+            except (
+                ValueError,
+                FileExistsError,
+                OSError,
+                ClientError,
+                NoCredentialsError,
+                PermissionError,
+            ) as e:
+                return json.dumps(await handle_tool_error(ctx, e, 'Error writing timeline output'))
+
+        # Return in requested format (existing behavior when output_path is None)
         if output_format == 'base64':
             return base64.b64encode(svg_output.encode('utf-8')).decode('ascii')
         else:

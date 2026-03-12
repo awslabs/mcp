@@ -540,9 +540,6 @@ async def create_template(
         None,
         description='ID of an existing template generation process to check status or retrieve template',
     ),
-    save_to_file: str | None = Field(
-        None, description='Path to save the generated template to a file'
-    ),
     region: str | None = Field(
         description='The AWS region that the operation should be performed in', default=None
     ),
@@ -582,10 +579,9 @@ async def create_template(
     2. Check status of template generation:
        create_template(template_id="arn:aws:cloudformation:us-east-1:123456789012:generatedtemplate/abcdef12-3456-7890-abcd-ef1234567890")
 
-    3. Retrieve and save generated template:
+    3. Retrieve generated template:
        create_template(
            template_id="arn:aws:cloudformation:us-east-1:123456789012:generatedtemplate/abcdef12-3456-7890-abcd-ef1234567890",
-           save_to_file="/path/to/template.yaml",
            output_format="YAML"
        )
     """
@@ -596,23 +592,8 @@ async def create_template(
         deletion_policy=deletion_policy,
         update_replace_policy=update_replace_policy,
         template_id=template_id,
-        save_to_file=save_to_file,
         region_name=region,
     )
-
-    # Handle FieldInfo objects for save_to_file
-    save_path = save_to_file
-    if (
-        save_to_file is not None
-        and not isinstance(save_to_file, str)
-        and hasattr(save_to_file, 'default')
-    ):
-        save_path = save_to_file.default
-
-    # If save_to_file is specified and we have template_body, write it to file
-    if save_path and result.get('template_body'):
-        with open(save_path, 'w') as f:
-            f.write(result['template_body'])
 
     return result
 

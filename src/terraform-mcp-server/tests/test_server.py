@@ -45,6 +45,7 @@ class TestMCPServer:
         """Test that the MCP server is initialized correctly."""
         assert mcp.name == 'terraform_mcp_server'
         assert mcp.instructions is not None and 'AWS-IA modules' in mcp.instructions
+        assert '[DEPRECATED]' in mcp.instructions
         assert 'pydantic' in mcp.dependencies
         assert 'loguru' in mcp.dependencies
         assert 'requests' in mcp.dependencies

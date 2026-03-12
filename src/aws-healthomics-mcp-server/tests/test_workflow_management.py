@@ -901,6 +901,25 @@ async def test_create_workflow_with_container_registry_map():
         ]
     }
 
+    # Expected cleaned map after validation (imageMappings normalized to empty list)
+    expected_registry_map = {
+        'registryMappings': [
+            {
+                'upstreamRegistryUrl': 'registry-1.docker.io',
+                'ecrRepositoryPrefix': 'docker-hub',
+                'upstreamRepositoryPrefix': 'library',
+                'ecrAccountId': '123456789012',
+            },
+            {
+                'upstreamRegistryUrl': 'quay.io',
+                'ecrRepositoryPrefix': 'quay',
+                'upstreamRepositoryPrefix': 'biocontainers',
+                'ecrAccountId': '123456789012',
+            },
+        ],
+        'imageMappings': [],
+    }
+
     with patch(
         'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
         return_value=mock_client,
@@ -921,7 +940,7 @@ async def test_create_workflow_with_container_registry_map():
     assert expected_call.kwargs['definitionZip'] == b'test workflow content'
     assert expected_call.kwargs['description'] == 'Test workflow with container registry map'
     assert expected_call.kwargs['parameterTemplate'] == {'param1': {'type': 'string'}}
-    assert expected_call.kwargs['containerRegistryMap'] == container_registry_map
+    assert expected_call.kwargs['containerRegistryMap'] == expected_registry_map
     # path_to_main should not be passed when None
     assert 'main' not in expected_call.kwargs
 
@@ -1320,6 +1339,25 @@ async def test_create_workflow_version_with_container_registry_map():
         ]
     }
 
+    # Expected cleaned map after validation (imageMappings normalized to empty list)
+    expected_registry_map = {
+        'registryMappings': [
+            {
+                'upstreamRegistryUrl': 'registry-1.docker.io',
+                'ecrRepositoryPrefix': 'docker-hub',
+                'upstreamRepositoryPrefix': 'library',
+                'ecrAccountId': '123456789012',
+            },
+            {
+                'upstreamRegistryUrl': 'quay.io',
+                'ecrRepositoryPrefix': 'quay',
+                'upstreamRepositoryPrefix': 'biocontainers',
+                'ecrAccountId': '123456789012',
+            },
+        ],
+        'imageMappings': [],
+    }
+
     with patch(
         'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
         return_value=mock_client,
@@ -1345,7 +1383,7 @@ async def test_create_workflow_version_with_container_registry_map():
     assert expected_call.kwargs['description'] == 'Version 2.0 with container registry map'
     assert expected_call.kwargs['parameterTemplate'] == {'param1': {'type': 'string'}}
     assert expected_call.kwargs['storageType'] == 'DYNAMIC'
-    assert expected_call.kwargs['containerRegistryMap'] == container_registry_map
+    assert expected_call.kwargs['containerRegistryMap'] == expected_registry_map
     # path_to_main should not be passed when None
     assert 'main' not in expected_call.kwargs
 
@@ -1441,6 +1479,19 @@ async def test_create_workflow_version_with_static_storage_and_container_registr
         ]
     }
 
+    # Expected cleaned map after validation (imageMappings normalized to empty list)
+    expected_registry_map = {
+        'registryMappings': [
+            {
+                'upstreamRegistryUrl': 'registry-1.docker.io',
+                'ecrRepositoryPrefix': 'docker-hub',
+                'upstreamRepositoryPrefix': 'library',
+                'ecrAccountId': '123456789012',
+            }
+        ],
+        'imageMappings': [],
+    }
+
     with patch(
         'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
         return_value=mock_client,
@@ -1469,7 +1520,7 @@ async def test_create_workflow_version_with_static_storage_and_container_registr
     )
     assert expected_call.kwargs['storageType'] == 'STATIC'
     assert expected_call.kwargs['storageCapacity'] == 2000
-    assert expected_call.kwargs['containerRegistryMap'] == container_registry_map
+    assert expected_call.kwargs['containerRegistryMap'] == expected_registry_map
     # path_to_main should not be passed when None
     assert 'main' not in expected_call.kwargs
 
@@ -2351,6 +2402,19 @@ async def test_create_workflow_version_with_path_to_main_and_container_registry(
         ]
     }
 
+    # Expected cleaned map after validation (imageMappings normalized to empty list)
+    expected_registry_map = {
+        'registryMappings': [
+            {
+                'upstreamRegistryUrl': 'registry-1.docker.io',
+                'ecrRepositoryPrefix': 'docker-hub',
+                'upstreamRepositoryPrefix': 'library',
+                'ecrAccountId': '123456789012',
+            }
+        ],
+        'imageMappings': [],
+    }
+
     with patch(
         'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
         return_value=mock_client,
@@ -2380,7 +2444,7 @@ async def test_create_workflow_version_with_path_to_main_and_container_registry(
         == 'Version 2.0 with path_to_main and container registry'
     )
     assert expected_call.kwargs['storageType'] == 'DYNAMIC'
-    assert expected_call.kwargs['containerRegistryMap'] == container_registry_map
+    assert expected_call.kwargs['containerRegistryMap'] == expected_registry_map
     assert expected_call.kwargs['main'] == 'workflows/containerized/main.wdl'
 
     # Verify result contains expected fields
