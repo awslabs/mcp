@@ -126,7 +126,7 @@ Use the `compute_performances_and_costs` tool to calculate DynamoDB capacity and
 def create_server():
     """Create and configure the MCP server instance."""
     return FastMCP(
-        'awslabs.dynamodb-mcp-server',
+        name='dynamodb-mcp-server',
         instructions=SERVER_INSTRUCTIONS,
     )
 

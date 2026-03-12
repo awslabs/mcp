@@ -15,6 +15,7 @@
 """Utility functions for Terraform MCP server tools."""
 
 import asyncio
+import os
 import re
 import requests
 import time
@@ -501,6 +502,40 @@ def parse_variables_tf(content: str) -> List[TerraformVariable]:
         variables.append(variable)
 
     return variables
+
+
+def validate_working_directory(working_dir: str, allowed_base: Optional[str] = None) -> str:
+    """Validate and resolve a working directory path.
+
+    Ensures the resolved path is within an allowed base directory. If no base
+    directory is provided, the current working directory is used.
+
+    Args:
+        working_dir: User-supplied working directory (relative or absolute).
+        allowed_base: Optional base directory that the path must reside under.
+                      Defaults to the current working directory.
+
+    Returns:
+        The validated, resolved absolute path.
+
+    Raises:
+        ValueError: If the resolved path is outside the allowed base directory.
+    """
+    if allowed_base is None:
+        allowed_base = os.getcwd()
+
+    resolved_base = os.path.realpath(allowed_base)
+    resolved_path = os.path.realpath(os.path.join(resolved_base, working_dir))
+
+    # Ensure the resolved path is the base itself or a child of it
+    if resolved_path != resolved_base and not resolved_path.startswith(resolved_base + os.sep):
+        raise ValueError(
+            f"Security: working_directory '{working_dir}' resolves to "
+            f"'{resolved_path}' which is outside the allowed base directory "
+            f"'{resolved_base}'. Only paths within the base directory are permitted."
+        )
+
+    return resolved_path
 
 
 # Security-related constants and utilities
