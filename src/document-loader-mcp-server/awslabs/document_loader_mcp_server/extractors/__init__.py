@@ -196,7 +196,7 @@ async def dispatch_inspect(
             error_message=f'Error converting {suffix} to PDF: {str(e)}',
         )
     finally:
-        if temp_dir and os.path.exists(temp_dir):
+        if temp_dir and Path(temp_dir).exists():
             shutil.rmtree(temp_dir, ignore_errors=True)
 
 
@@ -257,5 +257,5 @@ async def dispatch_extract(
             error_message=f'Error converting {suffix} to PDF: {str(e)}',
         )
     finally:
-        if temp_dir and os.path.exists(temp_dir):
+        if temp_dir and Path(temp_dir).exists():
             shutil.rmtree(temp_dir, ignore_errors=True)

@@ -15,7 +15,6 @@
 
 import asyncio
 import io
-import os
 import pdfplumber
 from awslabs.document_loader_mcp_server.extractors import (
     AssetInfo,
@@ -26,6 +25,7 @@ from awslabs.document_loader_mcp_server.extractors import (
     _get_max_assets,
 )
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from PIL import Image as PILImage
 from typing import List, Optional, Tuple
 
@@ -250,7 +250,8 @@ def _inspect_pdf_sync(file_path: str) -> InspectionResponse:
         InspectionResponse with discovered assets and metadata.
     """
     # Check file exists
-    if not os.path.exists(file_path):
+    pdf_path = Path(file_path)
+    if not pdf_path.exists():
         return InspectionResponse(
             status='error',
             error_message=f'File not found: {file_path}',
@@ -266,7 +267,7 @@ def _inspect_pdf_sync(file_path: str) -> InspectionResponse:
 
     try:
         # Get file metadata
-        file_size = os.path.getsize(file_path)
+        file_size = pdf_path.stat().st_size
 
         # Open PDF with pdfplumber
         with pdfplumber.open(file_path) as pdf:
@@ -464,7 +465,7 @@ def _extract_pdf_sync(
         ExtractionResponse with per-asset extraction results.
     """
     # Check file exists
-    if not os.path.exists(file_path):
+    if not Path(file_path).exists():
         return ExtractionResponse(
             status='error',
             error_message=f'File not found: {file_path}',
@@ -512,7 +513,7 @@ def _extract_pdf_sync(
             indices_to_extract = asset_indices
 
         # Create output directory
-        os.makedirs(output_dir, exist_ok=True)
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
 
         # Extract each requested image
         extracted_assets = []
@@ -555,7 +556,7 @@ def _extract_pdf_sync(
                     continue
 
                 # Build output path
-                output_path = os.path.join(output_dir, f'image_{idx:03d}{ext}')
+                output_path = str(Path(output_dir) / f'image_{idx:03d}{ext}')
 
                 # Save image
                 _save_image_bytes(raw_bytes, fmt, output_path, img_obj)
