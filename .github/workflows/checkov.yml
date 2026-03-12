@@ -28,14 +28,14 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
 
       - name: Checkov GitHub Action
-        uses: bridgecrewio/checkov-action@f99709f8ccc3496220c987b7d8729653237c23dc # v12.3086.0
+        uses: bridgecrewio/checkov-action@f9b0a2206b0401cad02ac0a66be2a7934a5be838 # v12.3088.0
         with:
           # This will add both a CLI output to the console and create a results.sarif file
           output_format: cli,sarif
           output_file_path: console,results.sarif
 
       - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@c0fc915677567258ee3c194d03ffe7ae3dc8d741 # v4.31.9
+        uses: github/codeql-action/upload-sarif@1dbebad653b49a8cce7da97e33aa7a9e33a82651 # v4.31.9
 
         # Results are generated only on a success or failure
         # this is required since GitHub by default won't run the next step
