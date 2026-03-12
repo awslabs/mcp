@@ -95,6 +95,9 @@ Create `~/.kiro/agents/agentcore-investigator.json`:
       }
     }
   },
+  "resources": [
+    "skill://.kiro/skills/cloudwatch-agentcore-investigator/SKILL.md"
+  ],
   "tools": [
     "fs_read",
     "fs_write",
