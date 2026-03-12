@@ -16,6 +16,7 @@
 
 import argparse
 import json
+import warnings
 from awslabs.cfn_mcp_server.aws_client import get_aws_client
 from awslabs.cfn_mcp_server.cloud_control_utils import progress_event, validate_patch
 from awslabs.cfn_mcp_server.context import Context
@@ -26,9 +27,16 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
 
+DEPRECATION_NOTICE = (
+    '[DEPRECATED] This server is deprecated and will no longer receive '
+    'updates. We recommend migrating to the AWS IAC MCP Server: '
+    'https://github.com/awslabs/mcp/tree/main/src/aws-iac-mcp-server'
+)
+
 mcp = FastMCP(
     'awslabs.cfn-mcp-server',
-    instructions="""
+    instructions=f"""{DEPRECATION_NOTICE}
+
     # CloudFormation MCP
 
     This MCP allows you to:
@@ -48,7 +56,7 @@ async def get_resource_schema_information(
         description='The AWS region that the operation should be performed in', default=None
     ),
 ) -> dict:
-    """Get schema information for an AWS resource.
+    """[DEPRECATED] Get schema information for an AWS resource.
 
     Parameters:
         resource_type: The AWS resource type (e.g., "AWS::S3::Bucket")
@@ -73,7 +81,7 @@ async def list_resources(
         description='The AWS region that the operation should be performed in', default=None
     ),
 ) -> list:
-    """List AWS resources of a specified type.
+    """[DEPRECATED] List AWS resources of a specified type.
 
     Parameters:
         resource_type: The AWS resource type (e.g., "AWS::S3::Bucket", "AWS::RDS::DBInstance")
@@ -111,7 +119,7 @@ async def get_resource(
         description='The AWS region that the operation should be performed in', default=None
     ),
 ) -> dict:
-    """Get details of a specific AWS resource.
+    """[DEPRECATED] Get details of a specific AWS resource.
 
     Parameters:
         resource_type: The AWS resource type (e.g., "AWS::S3::Bucket")
@@ -157,7 +165,7 @@ async def update_resource(
         description='The AWS region that the operation should be performed in', default=None
     ),
 ) -> dict:
-    """Update an AWS resource.
+    """[DEPRECATED] Update an AWS resource.
 
     Parameters:
         resource_type: The AWS resource type (e.g., "AWS::S3::Bucket")
@@ -218,7 +226,7 @@ async def create_resource(
         description='The AWS region that the operation should be performed in', default=None
     ),
 ) -> dict:
-    """Create an AWS resource.
+    """[DEPRECATED] Create an AWS resource.
 
     Parameters:
         resource_type: The AWS resource type (e.g., "AWS::S3::Bucket")
@@ -271,7 +279,7 @@ async def delete_resource(
         description='The AWS region that the operation should be performed in', default=None
     ),
 ) -> dict:
-    """Delete an AWS resource.
+    """[DEPRECATED] Delete an AWS resource.
 
     Parameters:
         resource_type: The AWS resource type (e.g., "AWS::S3::Bucket")
@@ -320,7 +328,7 @@ async def get_resource_request_status(
         description='The AWS region that the operation should be performed in', default=None
     ),
 ) -> dict:
-    """Get the status of a long running operation with the request token.
+    """[DEPRECATED] Get the status of a long running operation with the request token.
 
     Args:
         request_token: The request_token returned from the long running operation
@@ -382,7 +390,7 @@ async def create_template(
         description='The AWS region that the operation should be performed in', default=None
     ),
 ) -> dict:
-    """Create a CloudFormation template from existing resources using the IaC Generator API.
+    """[DEPRECATED] Create a CloudFormation template from existing resources using the IaC Generator API.
 
     This tool allows you to generate CloudFormation templates from existing AWS resources
     that are not already managed by CloudFormation. The template generation process is
@@ -422,6 +430,7 @@ async def create_template(
 
 def main():
     """Run the MCP server with CLI argument support."""
+    warnings.warn(DEPRECATION_NOTICE, FutureWarning, stacklevel=2)
     parser = argparse.ArgumentParser(
         description='An AWS Labs Model Context Protocol (MCP) server for doing common cloudformation tasks and for managing your resources in your AWS account'
     )
