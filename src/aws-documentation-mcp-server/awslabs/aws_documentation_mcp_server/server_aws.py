@@ -179,8 +179,6 @@ async def read_sections(
     Section matching is case-insensitive and handles whitespace differences.
 
     ## URL Requirements
-
-    - Must be from docs.aws.amazon.com
     - Must end with .html
 
     ## Read Sections Tips
