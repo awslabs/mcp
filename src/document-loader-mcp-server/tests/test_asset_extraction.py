@@ -17,8 +17,6 @@ import asyncio
 import io
 import os
 import pytest
-from pathlib import Path
-from unittest.mock import MagicMock, patch, AsyncMock
 from awslabs.document_loader_mcp_server.extractors import (
     ASSET_EXTRACTION_EXTENSIONS,
     AssetInfo,
@@ -29,7 +27,19 @@ from awslabs.document_loader_mcp_server.extractors import (
     dispatch_extract,
     dispatch_inspect,
 )
-from awslabs.document_loader_mcp_server.extractors.pdf import extract_pdf, inspect_pdf
+from awslabs.document_loader_mcp_server.extractors.pdf import (
+    _get_image_bytes,
+    _get_image_format,
+    _get_stream_color_mode,
+    _get_stream_dimensions,
+    _introspect_image,
+    _is_raw_pixel_data,
+    _resolve_filter_name,
+    _save_image_bytes,
+    extract_pdf,
+    inspect_pdf,
+)
+from pathlib import Path
 from PIL import Image as PILImage
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet
@@ -42,6 +52,7 @@ from reportlab.platypus import (
     SimpleDocTemplate,
     Spacer,
 )
+from unittest.mock import MagicMock, patch
 
 
 @pytest.fixture
@@ -445,17 +456,6 @@ async def test_dispatch_extract_pdf(pdf_with_images, tmp_path):
 # UNIT TESTS FOR INTERNAL PDF EXTRACTOR FUNCTIONS (Coverage Enhancement)
 # ===============================================================================
 
-from awslabs.document_loader_mcp_server.extractors.pdf import (
-    _resolve_filter_name,
-    _get_image_format,
-    _get_stream_dimensions,
-    _get_stream_color_mode,
-    _get_image_bytes,
-    _is_raw_pixel_data,
-    _introspect_image,
-    _save_image_bytes,
-)
-
 
 # Tests for _resolve_filter_name
 def test_resolve_filter_name_list_with_elements():
@@ -826,7 +826,7 @@ def test_introspect_image_fallback_frombytes():
     print('Testing _introspect_image fallback to frombytes...')
     # Create raw RGB pixel data
     width, height = 10, 8
-    raw_bytes = b'\xFF\x00\x00' * (width * height)  # Red pixels
+    raw_bytes = b'\xff\x00\x00' * (width * height)  # Red pixels
 
     mock_stream = MagicMock()
     mock_stream.attrs = {'Width': width, 'Height': height, 'ColorSpace': 'DeviceRGB'}
@@ -904,10 +904,15 @@ def test_save_image_bytes_raw_pixel_frombytes(tmp_path):
     """Test _save_image_bytes with raw pixel data uses frombytes."""
     print('Testing _save_image_bytes with raw pixel data...')
     width, height = 10, 8
-    raw_bytes = b'\xFF\x00\x00' * (width * height)  # Red pixels
+    raw_bytes = b'\xff\x00\x00' * (width * height)  # Red pixels
 
     mock_stream = MagicMock()
-    mock_stream.attrs = {'Width': width, 'Height': height, 'ColorSpace': 'DeviceRGB', 'Filter': 'FlateDecode'}
+    mock_stream.attrs = {
+        'Width': width,
+        'Height': height,
+        'ColorSpace': 'DeviceRGB',
+        'Filter': 'FlateDecode',
+    }
     mock_image_obj = {'stream': mock_stream}
 
     output_path = str(tmp_path / 'test_raw.png')
@@ -963,8 +968,10 @@ async def test_inspect_pdf_timeout():
     print('Testing inspect_pdf timeout...')
 
     # Patch wait_for in the pdf module namespace
-    with patch('awslabs.document_loader_mcp_server.extractors.pdf.asyncio.wait_for',
-               side_effect=asyncio.TimeoutError()):
+    with patch(
+        'awslabs.document_loader_mcp_server.extractors.pdf.asyncio.wait_for',
+        side_effect=asyncio.TimeoutError(),
+    ):
         result = await inspect_pdf('/tmp/test.pdf', timeout_seconds=1)
 
     assert result.status == 'error'
@@ -979,8 +986,10 @@ async def test_inspect_pdf_unexpected_exception():
     print('Testing inspect_pdf unexpected exception...')
 
     # Patch wait_for in the pdf module namespace to raise unexpected error
-    with patch('awslabs.document_loader_mcp_server.extractors.pdf.asyncio.wait_for',
-               side_effect=RuntimeError('Unexpected error')):
+    with patch(
+        'awslabs.document_loader_mcp_server.extractors.pdf.asyncio.wait_for',
+        side_effect=RuntimeError('Unexpected error'),
+    ):
         result = await inspect_pdf('/tmp/test.pdf')
 
     assert result.status == 'error'
@@ -994,8 +1003,10 @@ async def test_extract_pdf_timeout():
     print('Testing extract_pdf timeout...')
 
     # Patch wait_for in the pdf module namespace
-    with patch('awslabs.document_loader_mcp_server.extractors.pdf.asyncio.wait_for',
-               side_effect=asyncio.TimeoutError()):
+    with patch(
+        'awslabs.document_loader_mcp_server.extractors.pdf.asyncio.wait_for',
+        side_effect=asyncio.TimeoutError(),
+    ):
         result = await extract_pdf('/tmp/test.pdf', '/tmp/output', timeout_seconds=1)
 
     assert result.status == 'error'
@@ -1010,8 +1021,10 @@ async def test_extract_pdf_unexpected_exception():
     print('Testing extract_pdf unexpected exception...')
 
     # Patch wait_for in the pdf module namespace to raise unexpected error
-    with patch('awslabs.document_loader_mcp_server.extractors.pdf.asyncio.wait_for',
-               side_effect=ValueError('Unexpected extraction error')):
+    with patch(
+        'awslabs.document_loader_mcp_server.extractors.pdf.asyncio.wait_for',
+        side_effect=ValueError('Unexpected extraction error'),
+    ):
         result = await extract_pdf('/tmp/test.pdf', '/tmp/output')
 
     assert result.status == 'error'
@@ -1058,7 +1071,9 @@ async def test_extract_pdf_max_assets_limit_during_discovery(pdf_with_images, tm
     output_dir = str(tmp_path / 'output')
 
     # Patch _get_max_assets to return 1
-    with patch('awslabs.document_loader_mcp_server.extractors.pdf._get_max_assets', return_value=1):
+    with patch(
+        'awslabs.document_loader_mcp_server.extractors.pdf._get_max_assets', return_value=1
+    ):
         result = await extract_pdf(pdf_with_images, output_dir)
 
     # With limit of 1, discovery will only find 1 image regardless of how many exist
@@ -1110,7 +1125,8 @@ def test_introspect_image_frombytes_grayscale():
 
     # Patch _get_stream_color_mode to return 'L' for grayscale
     with patch(
-        'awslabs.document_loader_mcp_server.extractors.pdf._get_stream_color_mode', return_value='L'
+        'awslabs.document_loader_mcp_server.extractors.pdf._get_stream_color_mode',
+        return_value='L',
     ):
         width, height, dpi, color_space = _introspect_image(raw_bytes, 'png', image_obj)
     assert width == 10
