@@ -1,5 +1,3 @@
-> **⚠️ DEPRECATION NOTICE**: This server is deprecated and will no longer receive updates. Please migrate to the [AWS Knowledge MCP Server](https://github.com/awslabs/mcp/tree/main/src/aws-knowledge-mcp-server), which provides expanded knowledge retrieval capabilities. See the [migration guide](https://github.com/awslabs/mcp/blob/main/docs/migration-bedrock-kb-retrieval.md) for a detailed comparison and known gaps.
-
 # Amazon Bedrock Knowledge Base Retrieval MCP Server
 
 MCP server for accessing Amazon Bedrock Knowledge Bases
