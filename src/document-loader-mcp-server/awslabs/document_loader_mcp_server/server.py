@@ -457,8 +457,18 @@ _SOFFICE_KNOWN_PATHS = [
     os.path.expanduser('~/Applications/LibreOffice.app/Contents/MacOS/soffice'),
     os.path.expanduser('~/Applications/OpenOffice.app/Contents/MacOS/soffice'),
     # Windows
-    os.path.join(os.environ.get('PROGRAMFILES', 'C:\\Program Files'), 'LibreOffice', 'program', 'soffice.exe'),
-    os.path.join(os.environ.get('PROGRAMFILES(X86)', 'C:\\Program Files (x86)'), 'LibreOffice', 'program', 'soffice.exe'),
+    os.path.join(
+        os.environ.get('PROGRAMFILES', 'C:\\Program Files'),
+        'LibreOffice',
+        'program',
+        'soffice.exe',
+    ),
+    os.path.join(
+        os.environ.get('PROGRAMFILES(X86)', 'C:\\Program Files (x86)'),
+        'LibreOffice',
+        'program',
+        'soffice.exe',
+    ),
 ]
 
 
