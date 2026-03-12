@@ -923,7 +923,6 @@ class TestGetAgentValue:
 class TestGetAgentValueProperties:
     """Property-based tests for get_agent_value()."""
 
-    # **Validates: Requirements 1.1, 1.5, 1.6**
     @given(
         value=st.text(
             alphabet=st.characters(
@@ -934,13 +933,11 @@ class TestGetAgentValueProperties:
     )
     @settings(max_examples=100)
     def test_sanitization_invariant(self, value):
-        """Property 1: Sanitization invariant.
+        """Property: Sanitization invariant.
 
         For any string set as the AGENT env var, get_agent_value() returns
         either None or a non-empty string containing only visible ASCII
         characters (0x20-0x7E).
-
-        **Validates: Requirements 1.1, 1.5, 1.6**
         """
         with patch.dict(os.environ, {AGENT_ENV: value}):
             result = get_agent_value()
@@ -952,16 +949,13 @@ class TestGetAgentValueProperties:
                     f'Character {c!r} (ord={ord(c)}) is outside visible ASCII range'
                 )
 
-    # **Validates: Requirements 1.3**
     @given(value=st.text(alphabet=string.whitespace))
     @settings(max_examples=100)
     def test_whitespace_only_strings_are_rejected(self, value):
-        """Property 2: Whitespace-only strings are rejected.
+        """Property: Whitespace-only strings are rejected.
 
         For any string composed entirely of whitespace characters,
         get_agent_value() returns None.
-
-        **Validates: Requirements 1.3**
         """
         with patch.dict(os.environ, {AGENT_ENV: value}):
             result = get_agent_value()
@@ -972,7 +966,6 @@ class TestGetAgentValueProperties:
 class TestUserAgentInjectionProperties:
     """Property-based tests for agent user-agent injection."""
 
-    # **Validates: Requirements 2.2, 3.2**
     @given(
         agent_value=st.text(
             alphabet=st.characters(min_codepoint=0x21, max_codepoint=0x7E),
@@ -981,13 +974,11 @@ class TestUserAgentInjectionProperties:
     )
     @settings(max_examples=100)
     def test_user_agent_contains_agent_suffix_and_server_id(self, agent_value):
-        """Property 3: User-agent string contains both server ID and agent/<value>.
+        """Property: User-agent string contains both server ID and agent/<value>.
 
         For any non-empty visible ASCII agent string, get_aws_session() should
         produce a user_agent_extra that contains the server identifier AND
         the agent/<lowercased_value> suffix.
-
-        **Validates: Requirements 2.2, 3.2**
         """
         with (
             patch.dict(os.environ, {AGENT_ENV: agent_value}),

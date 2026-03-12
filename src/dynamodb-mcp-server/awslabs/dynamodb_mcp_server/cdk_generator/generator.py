@@ -109,7 +109,7 @@ class CdkGenerator:
         """
         try:
             subprocess.run(  # nosec B603, B607 - user local env, hardcoded cmd, no shell, timeout
-                ['npx', 'cdk', 'init', 'app', '--language', 'typescript'],
+                ['npx', 'cdk@latest', 'init', 'app', '--language', 'typescript'],
                 cwd=target_dir,
                 capture_output=True,
                 text=True,

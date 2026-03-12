@@ -18,7 +18,10 @@ import json
 import os
 import re
 import subprocess
-from awslabs.terraform_mcp_server.impl.tools.utils import get_dangerous_patterns
+from awslabs.terraform_mcp_server.impl.tools.utils import (
+    get_dangerous_patterns,
+    validate_working_directory,
+)
 from awslabs.terraform_mcp_server.models import TerraformExecutionRequest, TerraformExecutionResult
 from loguru import logger
 
@@ -132,6 +135,19 @@ async def execute_terraform_command_impl(
                         outputs=None,
                     )
 
+    # Validate and resolve working_directory
+    try:
+        validated_working_dir = validate_working_directory(request.working_directory)
+    except ValueError as e:
+        logger.error(str(e))
+        return TerraformExecutionResult(
+            command=f'terraform {request.command}',
+            status='error',
+            error_message=str(e),
+            working_directory=request.working_directory,
+            outputs=None,
+        )
+
     # Build the command
     cmd = ['terraform', request.command]
 
@@ -152,7 +168,7 @@ async def execute_terraform_command_impl(
         # Safe: Command is validated against allowlist, variables are checked for dangerous patterns,
         # working_directory is user-controlled but subprocess uses cwd parameter (not shell injection)
         process = subprocess.run(  # noqa: B603 - Safe: allowlisted commands, validated variables, no shell injection
-            cmd, cwd=request.working_directory, capture_output=True, text=True, env=env
+            cmd, cwd=validated_working_dir, capture_output=True, text=True, env=env
         )
 
         # Prepare the result
@@ -181,7 +197,7 @@ async def execute_terraform_command_impl(
                 logger.info('Getting Terraform outputs')
                 output_process = subprocess.run(  # noqa: B603 - Safe: hardcoded terraform output command with no user input
                     ['terraform', 'output', '-json'],
-                    cwd=request.working_directory,
+                    cwd=validated_working_dir,
                     capture_output=True,
                     text=True,
                     env=env,

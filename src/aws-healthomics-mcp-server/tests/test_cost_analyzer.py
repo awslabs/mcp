@@ -191,13 +191,11 @@ class TestCostAnalyzerPropertyBased:
 
     @given(running_seconds=st.floats(min_value=0, max_value=86400, allow_nan=False))
     def test_property_minimum_billable_time(self, running_seconds: float):
-        """Property 1: Minimum Billable Time.
+        """Property: Minimum Billable Time.
 
         For any task with running time R seconds, the billable time used in
         cost calculation SHALL be max(60, R).
-
-        **Validates: Requirements 1.1, 1.3**
-        **Feature: run-analyzer-enhancement, Property 1: Minimum Billable Time**
+        **Feature: run-analyzer-enhancement, Property: Minimum Billable Time**
         """
         price_per_hour = 1.0  # Use $1/hour for easy verification
 
@@ -220,14 +218,12 @@ class TestCostAnalyzerPropertyBased:
 
     @given(capacity=st.floats(min_value=0, max_value=100000, allow_nan=False))
     def test_property_static_storage_allocation_rounding(self, capacity: float):
-        """Property 11: Static Storage Allocation Rounding.
+        """Property: Static Storage Allocation Rounding.
 
         For any storage capacity C:
         - If C <= 1200, allocation SHALL be 1200 GiB
         - If C > 1200, allocation SHALL be ceil(C / 2400) * 2400 GiB
-
-        **Validates: Requirements 11.1**
-        **Feature: run-analyzer-enhancement, Property 11: Static Storage Allocation Rounding**
+        **Feature: run-analyzer-enhancement, Property: Static Storage Allocation Rounding**
         """
         import math
 

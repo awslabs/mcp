@@ -1,11 +1,15 @@
 """Tests for the utils module of the terraform-mcp-server."""
 
+import os
+import pytest
+import tempfile
 from awslabs.terraform_mcp_server.impl.tools.utils import (
     clean_description,
     extract_description_from_readme,
     extract_outputs_from_readme,
     get_dangerous_patterns,
     parse_variables_tf,
+    validate_working_directory,
 )
 from awslabs.terraform_mcp_server.models import TerraformVariable
 from unittest.mock import patch
@@ -300,3 +304,56 @@ class TestGetDangerousPatterns:
         assert '--' in patterns
         assert 'rm' in patterns
         assert 'sudo' in patterns
+
+
+class TestValidateWorkingDirectory:
+    """Tests for the validate_working_directory function."""
+
+    def test_relative_path_within_base(self):
+        """Test that a relative subdirectory within base is accepted."""
+        with tempfile.TemporaryDirectory() as base:
+            subdir = os.path.join(base, 'child')
+            os.makedirs(subdir)
+            result = validate_working_directory('child', allowed_base=base)
+            assert result == os.path.realpath(subdir)
+
+    def test_absolute_path_outside_base_rejected(self):
+        """Test that an absolute path outside the base raises ValueError."""
+        with tempfile.TemporaryDirectory() as base:
+            with pytest.raises(ValueError, match='Security'):
+                validate_working_directory('/etc', allowed_base=base)
+
+    def test_parent_traversal_rejected(self):
+        """Test that ../ traversal outside the base raises ValueError."""
+        with tempfile.TemporaryDirectory() as base:
+            with pytest.raises(ValueError, match='Security'):
+                validate_working_directory('../../etc', allowed_base=base)
+
+    def test_dot_path_accepted(self):
+        """Test that '.' (the base itself) is accepted."""
+        with tempfile.TemporaryDirectory() as base:
+            result = validate_working_directory('.', allowed_base=base)
+            assert result == os.path.realpath(base)
+
+    def test_nested_subdirectory_accepted(self):
+        """Test that a nested subdirectory within base is accepted."""
+        with tempfile.TemporaryDirectory() as base:
+            nested = os.path.join(base, 'a', 'b', 'c')
+            os.makedirs(nested)
+            result = validate_working_directory('a/b/c', allowed_base=base)
+            assert result == os.path.realpath(nested)
+
+    def test_symlink_escape_rejected(self):
+        """Test that a symlink pointing outside the base is rejected."""
+        with tempfile.TemporaryDirectory() as base:
+            link_path = os.path.join(base, 'escape')
+            os.symlink('/etc', link_path)
+            with pytest.raises(ValueError, match='Security'):
+                validate_working_directory('escape', allowed_base=base)
+
+    def test_defaults_to_cwd(self):
+        """Test that allowed_base defaults to os.getcwd() when not specified."""
+        cwd = os.getcwd()
+        # A relative path that stays within cwd should work
+        result = validate_working_directory('.', allowed_base=None)
+        assert result == os.path.realpath(cwd)

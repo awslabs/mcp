@@ -18,7 +18,10 @@ import json
 import os
 import re
 import subprocess
-from awslabs.terraform_mcp_server.impl.tools.utils import get_dangerous_patterns
+from awslabs.terraform_mcp_server.impl.tools.utils import (
+    get_dangerous_patterns,
+    validate_working_directory,
+)
 from awslabs.terraform_mcp_server.models import (
     TerragruntExecutionRequest,
     TerragruntExecutionResult,
@@ -192,6 +195,20 @@ async def execute_terragrunt_command_impl(
                         affected_dirs=None,
                     )
 
+    # Validate and resolve working_directory
+    try:
+        validated_working_dir = validate_working_directory(request.working_directory)
+    except ValueError as e:
+        logger.error(str(e))
+        return TerragruntExecutionResult(
+            command=f'terragrunt {request.command}',
+            status='error',
+            error_message=str(e),
+            working_directory=request.working_directory,
+            outputs=None,
+            affected_dirs=None,
+        )
+
     # Build the command
     base_cmd = ['terragrunt']
 
@@ -211,8 +228,20 @@ async def execute_terragrunt_command_impl(
 
     # Add terragrunt_config if specified and not using run-all
     if request.terragrunt_config:
-        logger.info(f'Using custom terragrunt config file: {request.terragrunt_config}')
-        base_cmd.append(f'--terragrunt-config={request.terragrunt_config}')
+        try:
+            validated_config = validate_working_directory(request.terragrunt_config)
+        except ValueError as e:
+            logger.error(str(e))
+            return TerragruntExecutionResult(
+                command=f'terragrunt {request.command}',
+                status='error',
+                error_message=f'Security violation: terragrunt_config path is invalid. {e}',
+                working_directory=request.working_directory,
+                outputs=None,
+                affected_dirs=None,
+            )
+        logger.info(f'Using custom terragrunt config file: {validated_config}')
+        base_cmd.append(f'--terragrunt-config={validated_config}')
 
     # Add variables only for commands that accept them (plan, apply, destroy, output)
     if request.command in ['plan', 'apply', 'destroy', 'output', 'run-all'] and request.variables:
@@ -236,7 +265,7 @@ async def execute_terragrunt_command_impl(
         # Safe: Command is validated against allowlist, variables are checked for dangerous patterns,
         # working_directory is user-controlled but subprocess uses cwd parameter (not shell injection)
         process = subprocess.run(  # noqa: B603 - Safe: allowlisted commands, validated variables, no shell injection
-            base_cmd, cwd=request.working_directory, capture_output=True, text=True, env=env
+            base_cmd, cwd=validated_working_dir, capture_output=True, text=True, env=env
         )
 
         # Prepare the result
@@ -277,7 +306,7 @@ async def execute_terragrunt_command_impl(
                 logger.info('Getting Terragrunt outputs')
                 output_process = subprocess.run(  # noqa: B603 - Safe: hardcoded terragrunt output command with no user input
                     ['terragrunt', 'output', '-json'],
-                    cwd=request.working_directory,
+                    cwd=validated_working_dir,
                     capture_output=True,
                     text=True,
                     env=env,

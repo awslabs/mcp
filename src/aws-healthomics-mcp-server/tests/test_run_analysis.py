@@ -1147,13 +1147,11 @@ class TestRunAnalysisPropertyBased:
     def test_property_total_cost_equals_sum_of_parts(
         self, task_costs: list[float], storage_cost: float
     ):
-        """Property 2: Total Cost Equals Sum of Parts.
+        """Property: Total Cost Equals Sum of Parts.
 
         For any workflow run with tasks T1...Tn and storage cost S,
         the total estimated cost SHALL equal sum(cost(Ti)) + S.
-
-        **Validates: Requirements 2.1, 2.4**
-        **Feature: run-analyzer-enhancement, Property 2: Total Cost Equals Sum of Parts**
+        **Feature: run-analyzer-enhancement, Property: Total Cost Equals Sum of Parts**
         """
         # Calculate expected total
         task_cost_sum = sum(task_costs)
@@ -1199,9 +1197,7 @@ class TestRunAnalysisPropertyBased:
 
         For any set of runs R1...Rn, the grand total cost SHALL equal
         sum(totalEstimatedUSD(Ri)).
-
-        **Validates: Requirements 2.4**
-        **Feature: run-analyzer-enhancement, Property 2: Total Cost Equals Sum of Parts**
+        **Feature: run-analyzer-enhancement, Property: Total Cost Equals Sum of Parts**
         """
         # Calculate expected grand total
         expected_grand_total = sum(r['totalEstimatedUSD'] for r in run_summaries)
