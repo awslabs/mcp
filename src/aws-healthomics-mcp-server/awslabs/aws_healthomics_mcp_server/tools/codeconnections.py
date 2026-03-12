@@ -111,6 +111,14 @@ async def list_codeconnections(
         None,
         description='Token for pagination from a previous response',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """List available CodeConnections.
 
@@ -150,7 +158,7 @@ async def list_codeconnections(
     if provider_type_filter:
         await validate_provider_type(ctx, provider_type_filter)
 
-    client = get_codeconnections_client()
+    client = get_codeconnections_client(region_name=aws_region, profile_name=aws_profile)
 
     # Build API parameters
     params: Dict[str, Any] = {'MaxResults': max_results}
@@ -204,6 +212,14 @@ async def create_codeconnection(
         None,
         description='Optional tags to apply to the connection',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Create a new CodeConnection.
 
@@ -236,7 +252,7 @@ async def create_codeconnection(
     # Validate provider_type
     await validate_provider_type(ctx, provider_type)
 
-    client = get_codeconnections_client()
+    client = get_codeconnections_client(region_name=aws_region, profile_name=aws_profile)
 
     # Build API parameters
     params: Dict[str, Any] = {
@@ -281,6 +297,14 @@ async def get_codeconnection(
         ...,
         description='ARN of the connection to retrieve',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Get details about a specific CodeConnection.
 
@@ -311,7 +335,7 @@ async def get_codeconnection(
     # Validate connection_arn format
     await validate_connection_arn(ctx, connection_arn)
 
-    client = get_codeconnections_client()
+    client = get_codeconnections_client(region_name=aws_region, profile_name=aws_profile)
 
     try:
         response = client.get_connection(ConnectionArn=connection_arn)

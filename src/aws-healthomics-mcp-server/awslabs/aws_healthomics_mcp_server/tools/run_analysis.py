@@ -108,6 +108,14 @@ async def analyze_run_performance(
         default=False,
         description='Include very detailed task metrics in the report. Typically this is only required for granular analysis and can consume a large number of tokens in the agents context window. Default is False.',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> str:
     """Analyze AWS HealthOmics workflow run performance and provide optimization recommendations.
 
@@ -153,7 +161,12 @@ async def analyze_run_performance(
         )
 
         # Get the structured analysis data
-        analysis_data = await _get_run_analysis_data(normalized_run_ids, headroom=headroom)
+        analysis_data = await _get_run_analysis_data(
+            normalized_run_ids,
+            headroom=headroom,
+            aws_region=aws_region,
+            aws_profile=aws_profile,
+        )
 
         if not analysis_data or not analysis_data.get('runs'):
             error_msg = f"""
@@ -827,6 +840,8 @@ async def _get_run_analysis_data(
     run_ids: List[str],
     headroom: float = DEFAULT_HEADROOM,
     region: str = DEFAULT_REGION,
+    aws_region: Optional[str] = None,
+    aws_profile: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Get structured analysis data for the specified runs.
 
@@ -840,7 +855,7 @@ async def _get_run_analysis_data(
     """
     try:
         # Get centralized omics client
-        omics_client = get_omics_client()
+        omics_client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
         # Initialize cost analyzer and instance recommender
         cost_analyzer = CostAnalyzer(region=region)

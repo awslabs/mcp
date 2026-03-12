@@ -71,6 +71,14 @@ async def search_genomics_files(
         None,
         description='Optional list of additional S3 bucket paths to search (e.g., ["s3://bucket-name/prefix/"]). These buckets will be searched in addition to any configured buckets, allowing you to search buckets that are not part of the standard configuration. Maximum 50 bucket paths.',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Search for genomics files across S3 buckets, HealthOmics sequence stores, and reference stores.
 
@@ -161,7 +169,9 @@ async def search_genomics_files(
 
         # Initialize search orchestrator from environment configuration
         try:
-            orchestrator = GenomicsSearchOrchestrator.from_environment()
+            orchestrator = GenomicsSearchOrchestrator.from_environment(
+                region_name=aws_region, profile_name=aws_profile
+            )
         except Exception as e:
             return await handle_tool_error(ctx, e, 'Error initializing search orchestrator')
 

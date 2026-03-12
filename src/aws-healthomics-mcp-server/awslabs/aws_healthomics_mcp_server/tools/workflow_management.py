@@ -48,6 +48,14 @@ async def list_workflows(
         None,
         description='Token for pagination from a previous response',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """List available HealthOmics workflows.
 
@@ -59,7 +67,7 @@ async def list_workflows(
     Returns:
         Dictionary containing workflow information and next token if available
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     params: dict[str, Any] = {'maxResults': max_results}
     if next_token:
@@ -154,6 +162,14 @@ async def create_workflow(
         None,
         description='[Deprecated: use definition_source] Base64-encoded workflow definition ZIP file.',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Create a new HealthOmics workflow.
 
@@ -206,7 +222,7 @@ async def create_workflow(
         # Validate and process README input
         readme_markdown, readme_uri = await validate_readme_input(ctx, readme)
 
-        client = get_omics_client()
+        client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
         params: Dict[str, Any] = {
             'name': name,
@@ -271,6 +287,14 @@ async def get_workflow(
         False,
         description='Whether to include a presigned URL for downloading the workflow definition ZIP file',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Get details about a specific workflow.
 
@@ -283,7 +307,7 @@ async def get_workflow(
         Dictionary containing workflow details. When export_definition=True, includes a 'definition'
         field with a presigned URL for downloading the workflow definition ZIP file.
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     params: dict[str, Any] = {'id': workflow_id}
 
@@ -393,6 +417,14 @@ async def create_workflow_version(
         None,
         description='[Deprecated: use definition_source] Base64-encoded workflow definition ZIP file.',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Create a new version of an existing workflow.
 
@@ -456,7 +488,7 @@ async def create_workflow_version(
         # Validate and process README input
         readme_markdown, readme_uri = await validate_readme_input(ctx, readme)
 
-        client = get_omics_client()
+        client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
         params: Dict[str, Any] = {
             'workflowId': workflow_id,
@@ -533,6 +565,14 @@ async def list_workflow_versions(
         None,
         description='Token for pagination from a previous response',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """List versions of a workflow.
 
@@ -545,7 +585,7 @@ async def list_workflow_versions(
     Returns:
         Dictionary containing workflow version information and next token if available
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     params: Dict[str, Any] = {
         'workflowId': workflow_id,

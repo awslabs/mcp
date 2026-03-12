@@ -46,6 +46,14 @@ async def create_run_group(
         None, description='Maximum concurrent runs (1-100000)', ge=1, le=100000
     ),
     tags: Optional[Dict[str, str]] = Field(None, description='Tags to apply to the run group'),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Create a new HealthOmics run group.
 
@@ -62,7 +70,7 @@ async def create_run_group(
         Dictionary containing the created run group's id, arn, and tags, or error dict
     """
     try:
-        client = get_omics_client()
+        client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
         params: Dict[str, Any] = {
             'requestId': str(uuid.uuid4()),
@@ -101,6 +109,14 @@ async def create_run_group(
 async def get_run_group(
     ctx: Context,
     run_group_id: str = Field(..., description='ID of the run group to retrieve'),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Get details of a specific HealthOmics run group.
 
@@ -112,7 +128,7 @@ async def get_run_group(
         Dictionary containing the run group details, or error dict
     """
     try:
-        client = get_omics_client()
+        client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
         logger.info(f'Getting run group: {run_group_id}')
         response = client.get_run_group(id=run_group_id)
@@ -148,6 +164,14 @@ async def list_run_groups(
     next_token: Optional[str] = Field(
         None, description='Token for pagination from a previous response'
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """List HealthOmics run groups.
 
@@ -161,7 +185,7 @@ async def list_run_groups(
         Dictionary containing run group summaries and next token if available, or error dict
     """
     try:
-        client = get_omics_client()
+        client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
         params: Dict[str, Any] = {
             'maxResults': max_results,
@@ -212,6 +236,14 @@ async def update_run_group(
     max_runs: Optional[int] = Field(
         None, description='New maximum concurrent runs', ge=1, le=100000
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Update an existing HealthOmics run group.
 
@@ -228,7 +260,7 @@ async def update_run_group(
         Dictionary containing the run group ID and update status, or error dict
     """
     try:
-        client = get_omics_client()
+        client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
         params: Dict[str, Any] = {
             'id': run_group_id,

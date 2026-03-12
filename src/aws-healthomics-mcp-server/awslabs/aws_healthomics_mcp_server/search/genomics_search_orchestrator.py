@@ -64,12 +64,20 @@ if TYPE_CHECKING:
 class GenomicsSearchOrchestrator:
     """Orchestrates genomics file searches across multiple storage systems."""
 
-    def __init__(self, config: SearchConfig, s3_engine: Optional['S3SearchEngine'] = None):
+    def __init__(
+        self,
+        config: SearchConfig,
+        s3_engine: Optional['S3SearchEngine'] = None,
+        region_name: Optional[str] = None,
+        profile_name: Optional[str] = None,
+    ):
         """Initialize the search orchestrator.
 
         Args:
             config: Search configuration containing settings for all storage systems
             s3_engine: Optional pre-configured S3SearchEngine (for testing)
+            region_name: Optional region override
+            profile_name: Optional AWS profile override
         """
         self.config = config
 
@@ -78,22 +86,34 @@ class GenomicsSearchOrchestrator:
             self.s3_engine = s3_engine
         else:
             try:
-                self.s3_engine = S3SearchEngine.from_environment()
+                self.s3_engine = S3SearchEngine.from_environment(
+                    region_name=region_name, profile_name=profile_name
+                )
             except ValueError as e:
                 logger.warning(
                     f'S3SearchEngine initialization failed: {e}. S3 search will be disabled.'
                 )
                 self.s3_engine = None
 
-        self.healthomics_engine = HealthOmicsSearchEngine(config)
+        self.healthomics_engine = HealthOmicsSearchEngine(
+            config, region_name=region_name, profile_name=profile_name
+        )
         self.association_engine = FileAssociationEngine()
         self.scoring_engine = ScoringEngine()
         self.result_ranker = ResultRanker()
         self.json_builder = JsonResponseBuilder()
 
     @classmethod
-    def from_environment(cls) -> 'GenomicsSearchOrchestrator':
+    def from_environment(
+        cls,
+        region_name: Optional[str] = None,
+        profile_name: Optional[str] = None,
+    ) -> 'GenomicsSearchOrchestrator':
         """Create a GenomicsSearchOrchestrator using configuration from environment variables.
+
+        Args:
+            region_name: Optional region override
+            profile_name: Optional AWS profile override
 
         Returns:
             GenomicsSearchOrchestrator instance configured from environment
@@ -102,7 +122,7 @@ class GenomicsSearchOrchestrator:
             ValueError: If configuration is invalid
         """
         config = get_genomics_search_config()
-        return cls(config)
+        return cls(config, region_name=region_name, profile_name=profile_name)
 
     async def search(self, request: GenomicsFileSearchRequest) -> GenomicsFileSearchResponse:
         """Coordinate searches across multiple storage systems and return ranked results.
