@@ -449,12 +449,16 @@ async def read_image(
         raise RuntimeError(error_msg) from e
 
 
-# Known soffice paths for macOS app bundles (not on $PATH by default)
+# Known soffice paths for macOS app bundles and Windows installs (not on $PATH by default)
 _SOFFICE_KNOWN_PATHS = [
+    # macOS
     '/Applications/LibreOffice.app/Contents/MacOS/soffice',
     '/Applications/OpenOffice.app/Contents/MacOS/soffice',
     os.path.expanduser('~/Applications/LibreOffice.app/Contents/MacOS/soffice'),
     os.path.expanduser('~/Applications/OpenOffice.app/Contents/MacOS/soffice'),
+    # Windows
+    os.path.join(os.environ.get('PROGRAMFILES', 'C:\\Program Files'), 'LibreOffice', 'program', 'soffice.exe'),
+    os.path.join(os.environ.get('PROGRAMFILES(X86)', 'C:\\Program Files (x86)'), 'LibreOffice', 'program', 'soffice.exe'),
 ]
 
 
