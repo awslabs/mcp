@@ -68,7 +68,7 @@ async def get_cost_and_usage(
         description=f'The metric to return in the query. Valid values are {", ".join(VALID_COST_METRICS)}. IMPORTANT: For UsageQuantity, the service aggregates usage numbers without considering units, making results meaningless when mixing different unit types (e.g., compute hours + data transfer GB). To get meaningful UsageQuantity metrics, you MUST filter by USAGE_TYPE or group by USAGE_TYPE/USAGE_TYPE_GROUP to ensure consistent units.',
     ),
 ) -> Dict[str, Any]:
-    """Retrieve AWS cost and usage data.
+    """[DEPRECATED] Retrieve AWS cost and usage data.
 
     This tool retrieves AWS cost and usage data for AWS services during a specified billing period,
     with optional filtering and grouping. It dynamically generates cost reports tailored to specific needs
