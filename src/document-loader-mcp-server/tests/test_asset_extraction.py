@@ -1067,3 +1067,240 @@ async def test_extract_pdf_max_assets_limit_during_discovery(pdf_with_images, tm
     assert result.extracted_count <= 1
 
     print('✓ extract_pdf MAX_ASSETS discovery limit passed')
+
+
+# ===============================================================================
+# CORRUPTED PDF / EDGE CASE TESTS (Remaining coverage gaps)
+# ===============================================================================
+
+
+def test_get_stream_color_mode_array_no_name_attr():
+    """Test array color space where first element has no .name attribute (line 140)."""
+    print('Testing _get_stream_color_mode with array color space, no .name on first element...')
+    mock_stream = MagicMock()
+    mock_stream.attrs = {'ColorSpace': ['DeviceRGB', 256, 'some_table']}
+    image_obj = {'stream': mock_stream}
+    result = _get_stream_color_mode(image_obj)
+    assert result == 'RGB'
+    print('✓ Array color space without .name attribute returns RGB')
+
+
+def test_introspect_image_unusual_mode():
+    """Test _introspect_image with image having unusual mode like RGBA (line 221)."""
+    print('Testing _introspect_image with RGBA mode image...')
+    img = PILImage.new('RGBA', (50, 50), color=(255, 0, 0, 128))
+    buf = io.BytesIO()
+    img.save(buf, format='PNG')
+    raw_bytes = buf.getvalue()
+    image_obj = {'stream': None}
+    width, height, dpi, color_space = _introspect_image(raw_bytes, 'png', image_obj)
+    assert width == 50
+    assert height == 50
+    assert color_space == 'RGBA'
+    print('✓ Unusual mode RGBA preserved as-is')
+
+
+def test_introspect_image_frombytes_grayscale():
+    """Test _introspect_image frombytes fallback with Grayscale raw data (line 233)."""
+    print('Testing _introspect_image frombytes fallback with grayscale raw data...')
+    raw_bytes = bytes([128] * (10 * 10))  # 10x10 grayscale raw pixels
+    mock_stream = MagicMock()
+    mock_stream.attrs = {'Width': 10, 'Height': 10, 'ColorSpace': None}
+    image_obj = {'stream': mock_stream}
+
+    # Patch _get_stream_color_mode to return 'L' for grayscale
+    with patch(
+        'awslabs.document_loader_mcp_server.extractors.pdf._get_stream_color_mode', return_value='L'
+    ):
+        width, height, dpi, color_space = _introspect_image(raw_bytes, 'png', image_obj)
+    assert width == 10
+    assert height == 10
+    assert color_space == 'Grayscale'
+    print('✓ frombytes fallback with Grayscale raw data works')
+
+
+def test_introspect_image_frombytes_fails_last_resort():
+    """Test _introspect_image when frombytes raises, falls to last resort (lines 234-238)."""
+    print('Testing _introspect_image when frombytes fails...')
+    raw_bytes = b'not valid image data at all'
+    mock_stream = MagicMock()
+    mock_stream.attrs = {'Width': 5, 'Height': 5, 'ColorSpace': None}
+    image_obj = {'stream': mock_stream}
+    width, height, dpi, color_space = _introspect_image(raw_bytes, 'png', image_obj)
+    # Last resort: uses stream dimensions directly
+    assert width == 5
+    assert height == 5
+    print('✓ Last resort stream dimensions used when frombytes fails')
+
+
+@pytest.mark.asyncio
+async def test_inspect_pdf_image_no_bytes(pdf_with_images):
+    """Test inspection when _get_image_bytes returns None for an image (lines 322-326)."""
+    print('Testing inspection when image bytes extraction fails...')
+    with patch(
+        'awslabs.document_loader_mcp_server.extractors.pdf._get_image_bytes', return_value=None
+    ):
+        result = await inspect_pdf(pdf_with_images)
+    # Images exist but bytes can't be extracted → warnings, partial status
+    assert result.status in ('partial', 'success')
+    has_warning = any('Could not extract bytes' in w for w in result.warnings)
+    assert has_warning
+    print(f'Warnings: {result.warnings}')
+    print('✓ Image with no extractable bytes produces warning')
+
+
+@pytest.mark.asyncio
+async def test_inspect_pdf_per_image_exception(pdf_with_images):
+    """Test inspection when processing a single image raises exception (lines 357-358)."""
+    print('Testing inspection when image processing raises exception...')
+    with patch(
+        'awslabs.document_loader_mcp_server.extractors.pdf._get_image_format',
+        side_effect=RuntimeError('Corrupted image stream'),
+    ):
+        result = await inspect_pdf(pdf_with_images)
+    # All images fail → total_assets_found > 0 but assets empty
+    has_warning = any('Failed to inspect image' in w for w in result.warnings)
+    assert has_warning
+    print(f'Warnings: {result.warnings}')
+    print('✓ Per-image exception produces warning')
+
+
+@pytest.mark.asyncio
+async def test_inspect_pdf_corrupted_file():
+    """Test inspection of a corrupted/invalid PDF file (lines 374-375)."""
+    print('Testing inspection of corrupted PDF...')
+    import tempfile
+
+    with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as f:
+        f.write(b'%PDF-1.4 this is not a valid pdf at all garbage data')
+        corrupted_path = f.name
+    try:
+        result = await inspect_pdf(corrupted_path)
+        assert result.status == 'error'
+        assert 'Failed to inspect PDF' in result.error_message
+        print(f'Error: {result.error_message}')
+        print('✓ Corrupted PDF returns error status')
+    finally:
+        os.unlink(corrupted_path)
+
+
+def test_save_image_bytes_encoded_non_jpeg_pillow_fails_fallthrough(tmp_path):
+    """Test _save_image_bytes when non-JPEG encoded image Pillow open fails (lines 431-432)."""
+    print('Testing _save_image_bytes fallthrough when Pillow open fails for encoded image...')
+    output_path = str(tmp_path / 'test_fallthrough.png')
+    # Create raw pixel data that _is_raw_pixel_data returns False for (encoded)
+    # but PILImage.open will fail on, then frombytes will succeed
+    raw_bytes = bytes([255, 0, 0] * (10 * 10))  # 10x10 RGB raw
+    mock_stream = MagicMock()
+    mock_stream.attrs = {
+        'Filter': 'JPXDecode',  # encoded, so _is_raw_pixel_data=False
+        'Width': 10,
+        'Height': 10,
+        'ColorSpace': None,
+    }
+    image_obj = {'stream': mock_stream}
+    _save_image_bytes(raw_bytes, 'jp2', output_path, image_obj)
+    assert Path(output_path).exists()
+    assert Path(output_path).stat().st_size > 0
+    print('✓ Fallthrough from Pillow.open to frombytes works')
+
+
+def test_save_image_bytes_frombytes_also_fails(tmp_path):
+    """Test _save_image_bytes when frombytes fails too, tries last resort (lines 442-443)."""
+    print('Testing _save_image_bytes when frombytes fails, tries last resort Pillow open...')
+    output_path = str(tmp_path / 'test_last_resort.png')
+    # Create a valid PNG that PILImage.open can handle at last resort
+    img = PILImage.new('RGB', (5, 5), color='blue')
+    buf = io.BytesIO()
+    img.save(buf, format='PNG')
+    png_bytes = buf.getvalue()
+
+    mock_stream = MagicMock()
+    mock_stream.attrs = {
+        'Filter': 'SomeUnknownFilter',  # raw pixel path
+        'Width': 999,  # Wrong dimensions → frombytes will fail
+        'Height': 999,
+        'ColorSpace': None,
+    }
+    image_obj = {'stream': mock_stream}
+    _save_image_bytes(png_bytes, 'png', output_path, image_obj)
+    assert Path(output_path).exists()
+    print('✓ Last resort Pillow.open succeeds after frombytes fails')
+
+
+@pytest.mark.asyncio
+async def test_extract_pdf_image_no_bytes(pdf_with_images, tmp_path):
+    """Test extraction when _get_image_bytes returns None (lines 545-555)."""
+    print('Testing extraction when image bytes extraction fails...')
+    output_dir = str(tmp_path / 'no_bytes_extract')
+    with patch(
+        'awslabs.document_loader_mcp_server.extractors.pdf._get_image_bytes', return_value=None
+    ):
+        result = await extract_pdf(pdf_with_images, output_dir)
+    # All images have no bytes → all fail
+    assert result.status == 'error'
+    assert result.failed_count > 0
+    for item in result.extracted:
+        assert item.status == 'error'
+        assert 'Could not extract image bytes' in item.error_message
+    print(f'Failed count: {result.failed_count}')
+    print('✓ Extraction with no bytes produces per-asset errors')
+
+
+@pytest.mark.asyncio
+async def test_extract_pdf_save_raises_exception(pdf_with_images, tmp_path):
+    """Test extraction when _save_image_bytes raises (lines 568-577)."""
+    print('Testing extraction when save raises exception...')
+    output_dir = str(tmp_path / 'save_fails')
+    with patch(
+        'awslabs.document_loader_mcp_server.extractors.pdf._save_image_bytes',
+        side_effect=ValueError('Cannot decode image data: corrupt'),
+    ):
+        result = await extract_pdf(pdf_with_images, output_dir)
+    assert result.status == 'error'
+    assert result.failed_count > 0
+    for item in result.extracted:
+        assert item.status == 'error'
+    print(f'Failed count: {result.failed_count}')
+    print('✓ Per-asset save exception handled correctly')
+
+
+@pytest.mark.asyncio
+async def test_extract_pdf_partial_status(pdf_with_images, tmp_path):
+    """Test extraction returns 'partial' when some succeed and some fail (line 585)."""
+    print('Testing partial extraction status...')
+    output_dir = str(tmp_path / 'partial')
+    call_count = [0]
+    original_save = _save_image_bytes
+
+    def flaky_save(raw_bytes, fmt, output_path, image_obj):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            return original_save(raw_bytes, fmt, output_path, image_obj)
+        raise ValueError('Simulated failure on 2nd+ image')
+
+    with patch(
+        'awslabs.document_loader_mcp_server.extractors.pdf._save_image_bytes',
+        side_effect=flaky_save,
+    ):
+        result = await extract_pdf(pdf_with_images, output_dir)
+    assert result.status == 'partial'
+    assert result.extracted_count >= 1
+    assert result.failed_count >= 1
+    print(f'Extracted: {result.extracted_count}, Failed: {result.failed_count}')
+    print('✓ Partial status when mixed success/failure')
+
+
+@pytest.mark.asyncio
+async def test_extract_pdf_corrupted_file(tmp_path):
+    """Test extraction of a corrupted PDF file (outer exception in _extract_pdf_sync)."""
+    print('Testing extraction of corrupted PDF...')
+    corrupted_path = str(tmp_path / 'corrupted.pdf')
+    with open(corrupted_path, 'wb') as f:
+        f.write(b'%PDF-1.4 total garbage not a real pdf')
+    output_dir = str(tmp_path / 'corrupted_out')
+    result = await extract_pdf(corrupted_path, output_dir)
+    assert result.status == 'error'
+    assert 'Failed to extract PDF assets' in result.error_message
+    print(f'Error: {result.error_message}')
+    print('✓ Corrupted PDF extraction returns error')
