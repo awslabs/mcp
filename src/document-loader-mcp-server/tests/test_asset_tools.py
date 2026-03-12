@@ -229,3 +229,379 @@ async def test_inspect_tool_office_no_soffice():
             print('✓ Inspect tool Office file without soffice passed')
     finally:
         os.unlink(fake_docx)
+
+
+# ============================================================================
+# NEW COVERAGE TESTS - Increasing extractors/__init__.py and server.py coverage
+# ============================================================================
+
+
+# Test 1: _get_max_assets() environment variable scenarios
+@pytest.mark.asyncio
+async def test_get_max_assets_custom_valid():
+    """Test _get_max_assets with valid custom MAX_ASSETS environment variable."""
+    from awslabs.document_loader_mcp_server.extractors import _get_max_assets
+
+    print('Testing _get_max_assets with custom valid value (MAX_ASSETS=5)...')
+    with patch.dict(os.environ, {'MAX_ASSETS': '5'}):
+        result = _get_max_assets()
+        assert result == 5
+        print(f'✓ Returned custom value: {result}')
+
+
+@pytest.mark.asyncio
+async def test_get_max_assets_invalid_string():
+    """Test _get_max_assets with invalid string (non-integer)."""
+    from awslabs.document_loader_mcp_server.extractors import (
+        DEFAULT_MAX_ASSETS,
+        _get_max_assets,
+    )
+
+    print('Testing _get_max_assets with invalid string (MAX_ASSETS=abc)...')
+    with patch.dict(os.environ, {'MAX_ASSETS': 'abc'}):
+        result = _get_max_assets()
+        assert result == DEFAULT_MAX_ASSETS
+        print(f'✓ Returned default value: {result}')
+
+
+@pytest.mark.asyncio
+async def test_get_max_assets_zero():
+    """Test _get_max_assets with zero value."""
+    from awslabs.document_loader_mcp_server.extractors import (
+        DEFAULT_MAX_ASSETS,
+        _get_max_assets,
+    )
+
+    print('Testing _get_max_assets with zero (MAX_ASSETS=0)...')
+    with patch.dict(os.environ, {'MAX_ASSETS': '0'}):
+        result = _get_max_assets()
+        assert result == DEFAULT_MAX_ASSETS
+        print(f'✓ Returned default value: {result}')
+
+
+@pytest.mark.asyncio
+async def test_get_max_assets_negative():
+    """Test _get_max_assets with negative value."""
+    from awslabs.document_loader_mcp_server.extractors import (
+        DEFAULT_MAX_ASSETS,
+        _get_max_assets,
+    )
+
+    print('Testing _get_max_assets with negative (MAX_ASSETS=-1)...')
+    with patch.dict(os.environ, {'MAX_ASSETS': '-1'}):
+        result = _get_max_assets()
+        assert result == DEFAULT_MAX_ASSETS
+        print(f'✓ Returned default value: {result}')
+
+
+# Test 2: dispatch_inspect with Office formats - error paths
+@pytest.mark.asyncio
+async def test_dispatch_inspect_office_soffice_error():
+    """Test dispatch_inspect with Office file when soffice check returns error."""
+    print('Testing dispatch_inspect with Office file when soffice check fails...')
+    with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as f:
+        f.write(b'PK\x03\x04')  # Minimal ZIP header for .docx
+        fake_docx = f.name
+
+    try:
+        # Mock check_soffice_fn to return an error message
+        def mock_check_soffice():
+            return 'soffice not found in PATH'
+
+        result = await dispatch_inspect(
+            file_path=fake_docx,
+            timeout_seconds=10,
+            check_soffice_fn=mock_check_soffice,
+            convert_to_pdf_fn=None,
+        )
+        assert result.status == 'error'
+        assert 'soffice not found' in result.error_message
+        print(f'✓ Error message: {result.error_message}')
+    finally:
+        os.unlink(fake_docx)
+
+
+@pytest.mark.asyncio
+async def test_dispatch_inspect_office_no_converter():
+    """Test dispatch_inspect with Office file when converter is None."""
+    print('Testing dispatch_inspect with Office file when no converter provided...')
+    with tempfile.NamedTemporaryFile(suffix='.pptx', delete=False) as f:
+        f.write(b'PK\x03\x04')
+        fake_pptx = f.name
+
+    try:
+        # Mock check_soffice_fn to return None (success), but pass no converter
+        def mock_check_soffice():
+            return None
+
+        result = await dispatch_inspect(
+            file_path=fake_pptx,
+            timeout_seconds=10,
+            check_soffice_fn=mock_check_soffice,
+            convert_to_pdf_fn=None,
+        )
+        assert result.status == 'error'
+        assert 'not available' in result.error_message
+        print(f'✓ Error message: {result.error_message}')
+    finally:
+        os.unlink(fake_pptx)
+
+
+@pytest.mark.asyncio
+async def test_dispatch_inspect_office_conversion_success(pdf_with_images):
+    """Test dispatch_inspect with Office file and successful conversion."""
+    print('Testing dispatch_inspect with Office file and successful conversion...')
+    with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as f:
+        f.write(b'PK\x03\x04')
+        fake_xlsx = f.name
+
+    try:
+
+        def mock_check_soffice():
+            return None
+
+        # Mock converter returns a real PDF path
+        def mock_convert(file_path, temp_dir, timeout):
+            return pdf_with_images
+
+        result = await dispatch_inspect(
+            file_path=fake_xlsx,
+            timeout_seconds=10,
+            check_soffice_fn=mock_check_soffice,
+            convert_to_pdf_fn=mock_convert,
+        )
+        assert result.status == 'success'
+        assert result.asset_count > 0
+        # Verify metadata reflects original file
+        assert result.metadata.file_path == fake_xlsx
+        assert result.metadata.file_type == 'xlsx'
+        print(f'✓ Successfully inspected with {result.asset_count} assets')
+    finally:
+        os.unlink(fake_xlsx)
+
+
+@pytest.mark.asyncio
+async def test_dispatch_inspect_office_conversion_exception():
+    """Test dispatch_inspect with Office file when conversion raises exception."""
+    print('Testing dispatch_inspect with Office file when conversion raises exception...')
+    with tempfile.NamedTemporaryFile(suffix='.doc', delete=False) as f:
+        f.write(b'\xd0\xcf\x11\xe0')  # Minimal OLE header
+        fake_doc = f.name
+
+    try:
+
+        def mock_check_soffice():
+            return None
+
+        def mock_convert(file_path, temp_dir, timeout):
+            raise RuntimeError('Conversion failed: LibreOffice crashed')
+
+        result = await dispatch_inspect(
+            file_path=fake_doc,
+            timeout_seconds=10,
+            check_soffice_fn=mock_check_soffice,
+            convert_to_pdf_fn=mock_convert,
+        )
+        assert result.status == 'error'
+        assert 'Error converting' in result.error_message
+        assert 'LibreOffice crashed' in result.error_message
+        print(f'✓ Error message: {result.error_message}')
+    finally:
+        os.unlink(fake_doc)
+
+
+# Test 3: dispatch_extract with Office formats - error paths
+@pytest.mark.asyncio
+async def test_dispatch_extract_office_soffice_error(tmp_path):
+    """Test dispatch_extract with Office file when soffice check returns error."""
+    print('Testing dispatch_extract with Office file when soffice check fails...')
+    with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as f:
+        f.write(b'PK\x03\x04')
+        fake_docx = f.name
+
+    output_dir = str(tmp_path / 'output')
+
+    try:
+
+        def mock_check_soffice():
+            return 'LibreOffice not available'
+
+        result = await dispatch_extract(
+            file_path=fake_docx,
+            output_dir=output_dir,
+            timeout_seconds=10,
+            check_soffice_fn=mock_check_soffice,
+            convert_to_pdf_fn=None,
+        )
+        assert result.status == 'error'
+        assert 'LibreOffice not available' in result.error_message
+        print(f'✓ Error message: {result.error_message}')
+    finally:
+        os.unlink(fake_docx)
+
+
+@pytest.mark.asyncio
+async def test_dispatch_extract_office_no_converter(tmp_path):
+    """Test dispatch_extract with Office file when converter is None."""
+    print('Testing dispatch_extract with Office file when no converter provided...')
+    with tempfile.NamedTemporaryFile(suffix='.ppt', delete=False) as f:
+        f.write(b'\xd0\xcf\x11\xe0')
+        fake_ppt = f.name
+
+    output_dir = str(tmp_path / 'output')
+
+    try:
+
+        def mock_check_soffice():
+            return None
+
+        result = await dispatch_extract(
+            file_path=fake_ppt,
+            output_dir=output_dir,
+            timeout_seconds=10,
+            check_soffice_fn=mock_check_soffice,
+            convert_to_pdf_fn=None,
+        )
+        assert result.status == 'error'
+        assert 'not available' in result.error_message
+        print(f'✓ Error message: {result.error_message}')
+    finally:
+        os.unlink(fake_ppt)
+
+
+@pytest.mark.asyncio
+async def test_dispatch_extract_office_conversion_success(pdf_with_images, tmp_path):
+    """Test dispatch_extract with Office file and successful conversion."""
+    print('Testing dispatch_extract with Office file and successful conversion...')
+    with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as f:
+        f.write(b'PK\x03\x04')
+        fake_docx = f.name
+
+    output_dir = str(tmp_path / 'extract_output')
+
+    try:
+
+        def mock_check_soffice():
+            return None
+
+        def mock_convert(file_path, temp_dir, timeout):
+            return pdf_with_images
+
+        result = await dispatch_extract(
+            file_path=fake_docx,
+            output_dir=output_dir,
+            timeout_seconds=10,
+            check_soffice_fn=mock_check_soffice,
+            convert_to_pdf_fn=mock_convert,
+        )
+        assert result.status == 'success'
+        assert result.extracted_count > 0
+        print(f'✓ Successfully extracted {result.extracted_count} assets')
+    finally:
+        os.unlink(fake_docx)
+
+
+@pytest.mark.asyncio
+async def test_dispatch_extract_office_conversion_exception(tmp_path):
+    """Test dispatch_extract with Office file when conversion raises exception."""
+    print('Testing dispatch_extract with Office file when conversion raises exception...')
+    with tempfile.NamedTemporaryFile(suffix='.xls', delete=False) as f:
+        f.write(b'\xd0\xcf\x11\xe0')
+        fake_xls = f.name
+
+    output_dir = str(tmp_path / 'output')
+
+    try:
+
+        def mock_check_soffice():
+            return None
+
+        def mock_convert(file_path, temp_dir, timeout):
+            raise RuntimeError('soffice process timeout')
+
+        result = await dispatch_extract(
+            file_path=fake_xls,
+            output_dir=output_dir,
+            timeout_seconds=10,
+            check_soffice_fn=mock_check_soffice,
+            convert_to_pdf_fn=mock_convert,
+        )
+        assert result.status == 'error'
+        assert 'Error converting' in result.error_message
+        assert 'timeout' in result.error_message
+        print(f'✓ Error message: {result.error_message}')
+    finally:
+        os.unlink(fake_xls)
+
+
+@pytest.mark.asyncio
+async def test_dispatch_extract_unsupported_file_type(tmp_path):
+    """Test dispatch_extract with unsupported file type (.txt)."""
+    print('Testing dispatch_extract with unsupported file type (.txt)...')
+    with tempfile.NamedTemporaryFile(suffix='.txt', delete=False) as f:
+        f.write(b'Hello world')
+        fake_txt = f.name
+
+    output_dir = str(tmp_path / 'output')
+
+    try:
+        result = await dispatch_extract(
+            file_path=fake_txt, output_dir=output_dir, timeout_seconds=10
+        )
+        assert result.status == 'error'
+        assert 'Unsupported' in result.error_message
+        print(f'✓ Error message: {result.error_message}')
+    finally:
+        os.unlink(fake_txt)
+
+
+# Test 4: extract_tool handler with Office file and invalid paths
+@pytest.mark.asyncio
+async def test_extract_tool_office_no_soffice():
+    """Test extract tool with Office file when soffice is unavailable."""
+    print('Testing extract tool with Office file when soffice unavailable...')
+    with tempfile.NamedTemporaryFile(suffix='.pptx', delete=False) as f:
+        f.write(b'PK\x03\x04')
+        fake_pptx = f.name
+
+    try:
+        with patch('awslabs.document_loader_mcp_server.server._find_soffice') as mock_find:
+            mock_find.return_value = None
+            result = await _extract_assets_helper(
+                fake_pptx, output_dir='/tmp/test_output', timeout_seconds=10
+            )
+            assert result.status == 'error'
+            assert result.error_message is not None
+            assert (
+                'soffice' in result.error_message.lower() or 'LibreOffice' in result.error_message
+            )
+            print(f'✓ Error message: {result.error_message}')
+    finally:
+        os.unlink(fake_pptx)
+
+
+@pytest.mark.asyncio
+async def test_extract_tool_invalid_file_path():
+    """Test extract tool with invalid file path."""
+    print('Testing extract tool with invalid file path...')
+    result = await _extract_assets_helper(
+        file_path='/nonexistent/path/file.pdf', output_dir='/tmp/output', timeout_seconds=10
+    )
+    assert result.status == 'error'
+    assert result.error_message is not None
+    print(f'✓ Error message: {result.error_message}')
+
+
+@pytest.mark.asyncio
+async def test_inspect_tool_invalid_file_path():
+    """Test inspect tool with invalid file path (non-existent)."""
+    print('Testing inspect tool with non-existent file path...')
+    result = await _inspect_assets_helper(
+        file_path='/tmp/does_not_exist_12345.pdf', timeout_seconds=10
+    )
+    assert result.status == 'error'
+    assert result.error_message is not None
+    print(f'✓ Error message: {result.error_message}')
+
+
+print('\n✓ All new coverage tests added successfully')

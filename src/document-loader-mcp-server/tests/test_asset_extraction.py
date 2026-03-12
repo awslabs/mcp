@@ -13,7 +13,12 @@
 # limitations under the License.
 """Tests for asset extraction data models and functionality."""
 
+import asyncio
+import io
+import os
 import pytest
+from pathlib import Path
+from unittest.mock import MagicMock, patch, AsyncMock
 from awslabs.document_loader_mcp_server.extractors import (
     ASSET_EXTRACTION_EXTENSIONS,
     AssetInfo,
@@ -25,7 +30,6 @@ from awslabs.document_loader_mcp_server.extractors import (
     dispatch_inspect,
 )
 from awslabs.document_loader_mcp_server.extractors.pdf import extract_pdf, inspect_pdf
-from pathlib import Path
 from PIL import Image as PILImage
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet
@@ -435,3 +439,631 @@ async def test_dispatch_extract_pdf(pdf_with_images, tmp_path):
     assert result.extracted_count > 0
     print(f'Dispatch extracted {result.extracted_count} assets')
     print('✓ Dispatch extract PDF passed')
+
+
+# ===============================================================================
+# UNIT TESTS FOR INTERNAL PDF EXTRACTOR FUNCTIONS (Coverage Enhancement)
+# ===============================================================================
+
+from awslabs.document_loader_mcp_server.extractors.pdf import (
+    _resolve_filter_name,
+    _get_image_format,
+    _get_stream_dimensions,
+    _get_stream_color_mode,
+    _get_image_bytes,
+    _is_raw_pixel_data,
+    _introspect_image,
+    _save_image_bytes,
+)
+
+
+# Tests for _resolve_filter_name
+def test_resolve_filter_name_list_with_elements():
+    """Test _resolve_filter_name with non-empty list returns last element."""
+    print('Testing _resolve_filter_name with non-empty list...')
+
+    # Mock PSLiteral-like object
+    mock_literal = MagicMock()
+    mock_literal.name = b'FlateDecode'
+
+    result = _resolve_filter_name(['DCTDecode', mock_literal])
+    assert result == 'FlateDecode'
+    print('✓ _resolve_filter_name with non-empty list passed')
+
+
+def test_resolve_filter_name_empty_list():
+    """Test _resolve_filter_name with empty list returns empty string."""
+    print('Testing _resolve_filter_name with empty list...')
+    result = _resolve_filter_name([])
+    assert result == ''
+    print('✓ _resolve_filter_name with empty list passed')
+
+
+def test_resolve_filter_name_psliteral_bytes_name():
+    """Test _resolve_filter_name with PSLiteral having bytes name."""
+    print('Testing _resolve_filter_name with PSLiteral (bytes name)...')
+    mock_literal = MagicMock()
+    mock_literal.name = b'DCTDecode'
+
+    result = _resolve_filter_name(mock_literal)
+    assert result == 'DCTDecode'
+    print('✓ _resolve_filter_name with PSLiteral bytes name passed')
+
+
+def test_resolve_filter_name_psliteral_string_name():
+    """Test _resolve_filter_name with PSLiteral having string name."""
+    print('Testing _resolve_filter_name with PSLiteral (string name)...')
+    mock_literal = MagicMock()
+    mock_literal.name = 'JPXDecode'
+
+    result = _resolve_filter_name(mock_literal)
+    assert result == 'JPXDecode'
+    print('✓ _resolve_filter_name with PSLiteral string name passed')
+
+
+def test_resolve_filter_name_bytes():
+    """Test _resolve_filter_name with bytes input."""
+    print('Testing _resolve_filter_name with bytes...')
+    result = _resolve_filter_name(b'FlateDecode')
+    assert result == 'FlateDecode'
+    print('✓ _resolve_filter_name with bytes passed')
+
+
+def test_resolve_filter_name_string():
+    """Test _resolve_filter_name with plain string input."""
+    print('Testing _resolve_filter_name with plain string...')
+    result = _resolve_filter_name('CCITTFaxDecode')
+    assert result == 'CCITTFaxDecode'
+    print('✓ _resolve_filter_name with string passed')
+
+
+# Tests for _get_image_format
+def test_get_image_format_no_stream():
+    """Test _get_image_format when image_obj has no stream."""
+    print('Testing _get_image_format with no stream...')
+    image_obj = {}
+    fmt, ext = _get_image_format(image_obj)
+    assert fmt == 'png'
+    assert ext == '.png'
+    print('✓ _get_image_format with no stream passed')
+
+
+def test_get_image_format_no_filter():
+    """Test _get_image_format when stream has no Filter attribute."""
+    print('Testing _get_image_format with stream but no Filter...')
+    mock_stream = MagicMock()
+    mock_stream.attrs = {}
+    image_obj = {'stream': mock_stream}
+
+    fmt, ext = _get_image_format(image_obj)
+    assert fmt == 'png'
+    assert ext == '.png'
+    print('✓ _get_image_format with no filter passed')
+
+
+def test_get_image_format_dctdecode():
+    """Test _get_image_format with DCTDecode filter returns JPEG."""
+    print('Testing _get_image_format with DCTDecode filter...')
+    mock_stream = MagicMock()
+    mock_stream.attrs = {'Filter': 'DCTDecode'}
+    image_obj = {'stream': mock_stream}
+
+    fmt, ext = _get_image_format(image_obj)
+    assert fmt == 'jpeg'
+    assert ext == '.jpg'
+    print('✓ _get_image_format with DCTDecode passed')
+
+
+def test_get_image_format_jpxdecode():
+    """Test _get_image_format with JPXDecode filter returns JP2."""
+    print('Testing _get_image_format with JPXDecode filter...')
+    mock_stream = MagicMock()
+    mock_stream.attrs = {'Filter': 'JPXDecode'}
+    image_obj = {'stream': mock_stream}
+
+    fmt, ext = _get_image_format(image_obj)
+    assert fmt == 'jp2'
+    assert ext == '.jp2'
+    print('✓ _get_image_format with JPXDecode passed')
+
+
+def test_get_image_format_unknown_filter():
+    """Test _get_image_format with unknown filter returns default format."""
+    print('Testing _get_image_format with unknown filter...')
+    mock_stream = MagicMock()
+    mock_stream.attrs = {'Filter': 'UnknownFilter'}
+    image_obj = {'stream': mock_stream}
+
+    fmt, ext = _get_image_format(image_obj)
+    assert fmt == 'png'
+    assert ext == '.png'
+    print('✓ _get_image_format with unknown filter passed')
+
+
+# Tests for _get_stream_dimensions
+def test_get_stream_dimensions_no_stream():
+    """Test _get_stream_dimensions when image_obj has no stream."""
+    print('Testing _get_stream_dimensions with no stream...')
+    image_obj = {}
+    width, height = _get_stream_dimensions(image_obj)
+    assert width is None
+    assert height is None
+    print('✓ _get_stream_dimensions with no stream passed')
+
+
+def test_get_stream_dimensions_with_dimensions():
+    """Test _get_stream_dimensions returns Width and Height from stream."""
+    print('Testing _get_stream_dimensions with Width and Height...')
+    mock_stream = MagicMock()
+    mock_stream.attrs = {'Width': 800, 'Height': 600}
+    image_obj = {'stream': mock_stream}
+
+    width, height = _get_stream_dimensions(image_obj)
+    assert width == 800
+    assert height == 600
+    print('✓ _get_stream_dimensions with dimensions passed')
+
+
+# Tests for _get_stream_color_mode
+def test_get_stream_color_mode_no_stream():
+    """Test _get_stream_color_mode with no stream returns RGB."""
+    print('Testing _get_stream_color_mode with no stream...')
+    image_obj = {}
+    mode = _get_stream_color_mode(image_obj)
+    assert mode == 'RGB'
+    print('✓ _get_stream_color_mode with no stream passed')
+
+
+def test_get_stream_color_mode_no_colorspace():
+    """Test _get_stream_color_mode with stream but no ColorSpace returns RGB."""
+    print('Testing _get_stream_color_mode with no ColorSpace...')
+    mock_stream = MagicMock()
+    mock_stream.attrs = {}
+    image_obj = {'stream': mock_stream}
+
+    mode = _get_stream_color_mode(image_obj)
+    assert mode == 'RGB'
+    print('✓ _get_stream_color_mode with no ColorSpace passed')
+
+
+def test_get_stream_color_mode_device_gray_psliteral():
+    """Test _get_stream_color_mode with DeviceGray PSLiteral returns L."""
+    print('Testing _get_stream_color_mode with DeviceGray PSLiteral...')
+    mock_cs = MagicMock()
+    mock_cs.name = b'DeviceGray'
+    mock_stream = MagicMock()
+    mock_stream.attrs = {'ColorSpace': mock_cs}
+    image_obj = {'stream': mock_stream}
+
+    mode = _get_stream_color_mode(image_obj)
+    assert mode == 'L'
+    print('✓ _get_stream_color_mode with DeviceGray PSLiteral passed')
+
+
+def test_get_stream_color_mode_device_cmyk():
+    """Test _get_stream_color_mode with DeviceCMYK returns CMYK."""
+    print('Testing _get_stream_color_mode with DeviceCMYK...')
+    mock_cs = MagicMock()
+    mock_cs.name = 'DeviceCMYK'
+    mock_stream = MagicMock()
+    mock_stream.attrs = {'ColorSpace': mock_cs}
+    image_obj = {'stream': mock_stream}
+
+    mode = _get_stream_color_mode(image_obj)
+    assert mode == 'CMYK'
+    print('✓ _get_stream_color_mode with DeviceCMYK passed')
+
+
+def test_get_stream_color_mode_bytes_colorspace():
+    """Test _get_stream_color_mode with bytes ColorSpace."""
+    print('Testing _get_stream_color_mode with bytes ColorSpace...')
+    mock_stream = MagicMock()
+    mock_stream.attrs = {'ColorSpace': b'DeviceGray'}
+    image_obj = {'stream': mock_stream}
+
+    mode = _get_stream_color_mode(image_obj)
+    assert mode == 'L'
+    print('✓ _get_stream_color_mode with bytes ColorSpace passed')
+
+
+def test_get_stream_color_mode_array_colorspace():
+    """Test _get_stream_color_mode with array ColorSpace [/Indexed /DeviceRGB ...]."""
+    print('Testing _get_stream_color_mode with array ColorSpace...')
+    mock_first = MagicMock()
+    mock_first.name = b'Indexed'
+    mock_stream = MagicMock()
+    mock_stream.attrs = {'ColorSpace': [mock_first, 'DeviceRGB', 255]}
+    image_obj = {'stream': mock_stream}
+
+    mode = _get_stream_color_mode(image_obj)
+    assert mode == 'RGB'  # 'Indexed' doesn't match Gray or CMYK
+    print('✓ _get_stream_color_mode with array ColorSpace passed')
+
+
+def test_get_stream_color_mode_plain_string():
+    """Test _get_stream_color_mode with plain string ColorSpace."""
+    print('Testing _get_stream_color_mode with plain string ColorSpace...')
+    mock_stream = MagicMock()
+    mock_stream.attrs = {'ColorSpace': 'DeviceRGB'}
+    image_obj = {'stream': mock_stream}
+
+    mode = _get_stream_color_mode(image_obj)
+    assert mode == 'RGB'
+    print('✓ _get_stream_color_mode with plain string passed')
+
+
+# Tests for _get_image_bytes
+def test_get_image_bytes_no_stream():
+    """Test _get_image_bytes with no stream returns None."""
+    print('Testing _get_image_bytes with no stream...')
+    image_obj = {}
+    result = _get_image_bytes(image_obj)
+    assert result is None
+    print('✓ _get_image_bytes with no stream passed')
+
+
+def test_get_image_bytes_get_data_raises():
+    """Test _get_image_bytes when get_data() raises exception returns None."""
+    print('Testing _get_image_bytes when get_data() raises...')
+    mock_stream = MagicMock()
+    mock_stream.get_data.side_effect = Exception('Stream error')
+    image_obj = {'stream': mock_stream}
+
+    result = _get_image_bytes(image_obj)
+    assert result is None
+    print('✓ _get_image_bytes with exception passed')
+
+
+def test_get_image_bytes_success():
+    """Test _get_image_bytes successfully returns bytes."""
+    print('Testing _get_image_bytes with successful get_data()...')
+    mock_stream = MagicMock()
+    mock_stream.get_data.return_value = b'\x89PNG\r\n\x1a\n...'
+    image_obj = {'stream': mock_stream}
+
+    result = _get_image_bytes(image_obj)
+    assert result == b'\x89PNG\r\n\x1a\n...'
+    print('✓ _get_image_bytes success passed')
+
+
+# Tests for _is_raw_pixel_data
+def test_is_raw_pixel_data_no_stream():
+    """Test _is_raw_pixel_data with no stream returns True."""
+    print('Testing _is_raw_pixel_data with no stream...')
+    image_obj = {}
+    result = _is_raw_pixel_data(image_obj)
+    assert result is True
+    print('✓ _is_raw_pixel_data with no stream passed')
+
+
+def test_is_raw_pixel_data_no_filter():
+    """Test _is_raw_pixel_data with no filter returns True."""
+    print('Testing _is_raw_pixel_data with no filter...')
+    mock_stream = MagicMock()
+    mock_stream.attrs = {}
+    image_obj = {'stream': mock_stream}
+
+    result = _is_raw_pixel_data(image_obj)
+    assert result is True
+    print('✓ _is_raw_pixel_data with no filter passed')
+
+
+def test_is_raw_pixel_data_dctdecode():
+    """Test _is_raw_pixel_data with DCTDecode returns False."""
+    print('Testing _is_raw_pixel_data with DCTDecode...')
+    mock_stream = MagicMock()
+    mock_stream.attrs = {'Filter': 'DCTDecode'}
+    image_obj = {'stream': mock_stream}
+
+    result = _is_raw_pixel_data(image_obj)
+    assert result is False
+    print('✓ _is_raw_pixel_data with DCTDecode passed')
+
+
+def test_is_raw_pixel_data_jpxdecode():
+    """Test _is_raw_pixel_data with JPXDecode returns False."""
+    print('Testing _is_raw_pixel_data with JPXDecode...')
+    mock_stream = MagicMock()
+    mock_stream.attrs = {'Filter': 'JPXDecode'}
+    image_obj = {'stream': mock_stream}
+
+    result = _is_raw_pixel_data(image_obj)
+    assert result is False
+    print('✓ _is_raw_pixel_data with JPXDecode passed')
+
+
+def test_is_raw_pixel_data_flatedecode():
+    """Test _is_raw_pixel_data with FlateDecode returns True."""
+    print('Testing _is_raw_pixel_data with FlateDecode...')
+    mock_stream = MagicMock()
+    mock_stream.attrs = {'Filter': 'FlateDecode'}
+    image_obj = {'stream': mock_stream}
+
+    result = _is_raw_pixel_data(image_obj)
+    assert result is True
+    print('✓ _is_raw_pixel_data with FlateDecode passed')
+
+
+# Tests for _introspect_image
+def test_introspect_image_valid_jpeg():
+    """Test _introspect_image with valid JPEG bytes."""
+    print('Testing _introspect_image with valid JPEG...')
+    # Create a small JPEG image
+    img = PILImage.new('RGB', (100, 80), color='red')
+    buffer = io.BytesIO()
+    img.save(buffer, format='JPEG', dpi=(96, 96))
+    jpeg_bytes = buffer.getvalue()
+
+    mock_image_obj = {'stream': None}
+    width, height, dpi, color_space = _introspect_image(jpeg_bytes, 'jpeg', mock_image_obj)
+
+    assert width == 100
+    assert height == 80
+    assert dpi == (96, 96)
+    assert color_space == 'RGB'
+    print('✓ _introspect_image with valid JPEG passed')
+
+
+def test_introspect_image_grayscale():
+    """Test _introspect_image with grayscale image returns 'Grayscale'."""
+    print('Testing _introspect_image with grayscale image...')
+    img = PILImage.new('L', (50, 40), color=128)
+    buffer = io.BytesIO()
+    img.save(buffer, format='PNG')
+    png_bytes = buffer.getvalue()
+
+    mock_image_obj = {'stream': None}
+    width, height, dpi, color_space = _introspect_image(png_bytes, 'png', mock_image_obj)
+
+    assert width == 50
+    assert height == 40
+    assert color_space == 'Grayscale'
+    print('✓ _introspect_image with grayscale passed')
+
+
+def test_introspect_image_fallback_frombytes():
+    """Test _introspect_image fallback to frombytes with stream dimensions."""
+    print('Testing _introspect_image fallback to frombytes...')
+    # Create raw RGB pixel data
+    width, height = 10, 8
+    raw_bytes = b'\xFF\x00\x00' * (width * height)  # Red pixels
+
+    mock_stream = MagicMock()
+    mock_stream.attrs = {'Width': width, 'Height': height, 'ColorSpace': 'DeviceRGB'}
+    mock_image_obj = {'stream': mock_stream}
+
+    w, h, dpi, color_space = _introspect_image(raw_bytes, 'png', mock_image_obj)
+
+    assert w == width
+    assert h == height
+    assert color_space in ('RGB', 'L', 'CMYK')  # Depends on mode detection
+    print('✓ _introspect_image frombytes fallback passed')
+
+
+def test_introspect_image_last_resort_dimensions():
+    """Test _introspect_image last resort uses stream dimensions when all else fails."""
+    print('Testing _introspect_image last resort with stream dimensions...')
+    # Invalid bytes that can't be decoded
+    invalid_bytes = b'\x00\x01\x02\x03\x04'
+
+    mock_stream = MagicMock()
+    mock_stream.attrs = {'Width': 200, 'Height': 150}
+    mock_image_obj = {'stream': mock_stream}
+
+    width, height, dpi, color_space = _introspect_image(invalid_bytes, 'png', mock_image_obj)
+
+    # Should fall back to stream dimensions
+    assert width == 200
+    assert height == 150
+    print('✓ _introspect_image last resort dimensions passed')
+
+
+# Tests for _save_image_bytes
+def test_save_image_bytes_jpeg_direct_write(tmp_path):
+    """Test _save_image_bytes with JPEG format writes directly."""
+    print('Testing _save_image_bytes with JPEG direct write...')
+    # Create JPEG bytes
+    img = PILImage.new('RGB', (50, 40), color='blue')
+    buffer = io.BytesIO()
+    img.save(buffer, format='JPEG')
+    jpeg_bytes = buffer.getvalue()
+
+    mock_stream = MagicMock()
+    mock_stream.attrs = {'Filter': 'DCTDecode'}
+    mock_image_obj = {'stream': mock_stream}
+
+    output_path = str(tmp_path / 'test_direct.jpg')
+    _save_image_bytes(jpeg_bytes, 'jpeg', output_path, mock_image_obj)
+
+    assert Path(output_path).exists()
+    assert Path(output_path).stat().st_size > 0
+    print('✓ _save_image_bytes JPEG direct write passed')
+
+
+def test_save_image_bytes_jp2_pillow_save(tmp_path):
+    """Test _save_image_bytes with non-JPEG encoded uses Pillow open+save."""
+    print('Testing _save_image_bytes with JP2 via Pillow...')
+    # Use PNG as a proxy for non-JPEG encoded format
+    img = PILImage.new('RGB', (30, 20), color='green')
+    buffer = io.BytesIO()
+    img.save(buffer, format='PNG')
+    png_bytes = buffer.getvalue()
+
+    mock_stream = MagicMock()
+    mock_stream.attrs = {'Filter': 'JPXDecode'}
+    mock_image_obj = {'stream': mock_stream}
+
+    output_path = str(tmp_path / 'test_jp2.png')
+    _save_image_bytes(png_bytes, 'jp2', output_path, mock_image_obj)
+
+    assert Path(output_path).exists()
+    print('✓ _save_image_bytes JP2 Pillow save passed')
+
+
+def test_save_image_bytes_raw_pixel_frombytes(tmp_path):
+    """Test _save_image_bytes with raw pixel data uses frombytes."""
+    print('Testing _save_image_bytes with raw pixel data...')
+    width, height = 10, 8
+    raw_bytes = b'\xFF\x00\x00' * (width * height)  # Red pixels
+
+    mock_stream = MagicMock()
+    mock_stream.attrs = {'Width': width, 'Height': height, 'ColorSpace': 'DeviceRGB', 'Filter': 'FlateDecode'}
+    mock_image_obj = {'stream': mock_stream}
+
+    output_path = str(tmp_path / 'test_raw.png')
+    _save_image_bytes(raw_bytes, 'png', output_path, mock_image_obj)
+
+    assert Path(output_path).exists()
+    print('✓ _save_image_bytes raw pixel frombytes passed')
+
+
+def test_save_image_bytes_last_resort_pillow_open(tmp_path):
+    """Test _save_image_bytes last resort uses Pillow.open."""
+    print('Testing _save_image_bytes last resort Pillow.open...')
+    # Create valid PNG that will be used in last resort
+    img = PILImage.new('RGB', (15, 12), color='yellow')
+    buffer = io.BytesIO()
+    img.save(buffer, format='PNG')
+    png_bytes = buffer.getvalue()
+
+    # Mock image_obj with no stream dimensions to force last resort
+    mock_stream = MagicMock()
+    mock_stream.attrs = {'Filter': 'FlateDecode'}  # Raw pixel format
+    mock_image_obj = {'stream': mock_stream}
+
+    output_path = str(tmp_path / 'test_lastresort.png')
+    _save_image_bytes(png_bytes, 'png', output_path, mock_image_obj)
+
+    assert Path(output_path).exists()
+    print('✓ _save_image_bytes last resort Pillow.open passed')
+
+
+def test_save_image_bytes_all_paths_fail(tmp_path):
+    """Test _save_image_bytes raises ValueError when all paths fail."""
+    print('Testing _save_image_bytes with all paths failing...')
+    # Completely invalid bytes
+    invalid_bytes = b'\x00\x01\x02'
+
+    mock_stream = MagicMock()
+    mock_stream.attrs = {'Filter': 'FlateDecode'}
+    mock_image_obj = {'stream': mock_stream}
+
+    output_path = str(tmp_path / 'test_fail.png')
+
+    with pytest.raises(ValueError, match='Cannot decode image data'):
+        _save_image_bytes(invalid_bytes, 'png', output_path, mock_image_obj)
+
+    print('✓ _save_image_bytes all paths fail passed')
+
+
+# Tests for async wrapper timeout and error handling
+@pytest.mark.asyncio
+async def test_inspect_pdf_timeout():
+    """Test inspect_pdf timeout returns error with timeout message."""
+    print('Testing inspect_pdf timeout...')
+
+    # Patch wait_for in the pdf module namespace
+    with patch('awslabs.document_loader_mcp_server.extractors.pdf.asyncio.wait_for',
+               side_effect=asyncio.TimeoutError()):
+        result = await inspect_pdf('/tmp/test.pdf', timeout_seconds=1)
+
+    assert result.status == 'error'
+    assert 'timed out' in result.error_message
+    assert '1 seconds' in result.error_message
+    print('✓ inspect_pdf timeout passed')
+
+
+@pytest.mark.asyncio
+async def test_inspect_pdf_unexpected_exception():
+    """Test inspect_pdf handles unexpected exception."""
+    print('Testing inspect_pdf unexpected exception...')
+
+    # Patch wait_for in the pdf module namespace to raise unexpected error
+    with patch('awslabs.document_loader_mcp_server.extractors.pdf.asyncio.wait_for',
+               side_effect=RuntimeError('Unexpected error')):
+        result = await inspect_pdf('/tmp/test.pdf')
+
+    assert result.status == 'error'
+    assert 'Unexpected error' in result.error_message
+    print('✓ inspect_pdf unexpected exception passed')
+
+
+@pytest.mark.asyncio
+async def test_extract_pdf_timeout():
+    """Test extract_pdf timeout returns error with timeout message."""
+    print('Testing extract_pdf timeout...')
+
+    # Patch wait_for in the pdf module namespace
+    with patch('awslabs.document_loader_mcp_server.extractors.pdf.asyncio.wait_for',
+               side_effect=asyncio.TimeoutError()):
+        result = await extract_pdf('/tmp/test.pdf', '/tmp/output', timeout_seconds=1)
+
+    assert result.status == 'error'
+    assert 'timed out' in result.error_message
+    assert '1 seconds' in result.error_message
+    print('✓ extract_pdf timeout passed')
+
+
+@pytest.mark.asyncio
+async def test_extract_pdf_unexpected_exception():
+    """Test extract_pdf handles unexpected exception."""
+    print('Testing extract_pdf unexpected exception...')
+
+    # Patch wait_for in the pdf module namespace to raise unexpected error
+    with patch('awslabs.document_loader_mcp_server.extractors.pdf.asyncio.wait_for',
+               side_effect=ValueError('Unexpected extraction error')):
+        result = await extract_pdf('/tmp/test.pdf', '/tmp/output')
+
+    assert result.status == 'error'
+    assert 'Unexpected' in result.error_message
+    print('✓ extract_pdf unexpected exception passed')
+
+
+# Tests for MAX_ASSETS limit in inspect
+@pytest.mark.asyncio
+async def test_inspect_pdf_max_assets_limit(pdf_with_images):
+    """Test inspect_pdf hits MAX_ASSETS limit and returns partial status."""
+    print('Testing inspect_pdf with MAX_ASSETS=1...')
+
+    with patch.dict(os.environ, {'MAX_ASSETS': '1'}):
+        result = await inspect_pdf(pdf_with_images)
+
+    # With limit of 1, should only inspect 1 asset but find more
+    assert result.asset_count <= 1
+    if result.total_assets_found > 1:
+        assert result.status == 'partial'
+        assert any('MAX_ASSETS' in warning for warning in result.warnings)
+        print(f'Correctly limited to 1 asset (found {result.total_assets_found} total)')
+
+    print('✓ inspect_pdf MAX_ASSETS limit passed')
+
+
+# Tests for extract_pdf edge cases
+@pytest.mark.asyncio
+async def test_extract_pdf_file_not_found(tmp_path):
+    """Test extract_pdf with non-existent file returns error."""
+    print('Testing extract_pdf with non-existent file...')
+    output_dir = str(tmp_path / 'output')
+    result = await extract_pdf('/nonexistent/file.pdf', output_dir)
+
+    assert result.status == 'error'
+    assert 'not found' in result.error_message.lower()
+    print('✓ extract_pdf file not found passed')
+
+
+@pytest.mark.asyncio
+async def test_extract_pdf_max_assets_limit_during_discovery(pdf_with_images, tmp_path):
+    """Test extract_pdf respects MAX_ASSETS limit during discovery phase."""
+    print('Testing extract_pdf with MAX_ASSETS=1...')
+    output_dir = str(tmp_path / 'output')
+
+    # Patch _get_max_assets to return 1
+    with patch('awslabs.document_loader_mcp_server.extractors.pdf._get_max_assets', return_value=1):
+        result = await extract_pdf(pdf_with_images, output_dir)
+
+    # With limit of 1, discovery will only find 1 image regardless of how many exist
+    # Extraction should succeed with at most 1 asset
+    assert result.status == 'success'
+    assert result.extracted_count <= 1
+
+    print('✓ extract_pdf MAX_ASSETS discovery limit passed')
