@@ -42,13 +42,19 @@ class AwsHelper:
 
     @staticmethod
     def get_aws_region() -> str:
-        """Get the AWS region from the environment if set."""
-        aws_region = os.environ.get(
-            'AWS_REGION',
-        )
+        """Get the AWS region from environment, AWS config, or default.
+        
+        Follows the standard AWS SDK credential/config resolution chain:
+        1. AWS_REGION env var (explicit override)
+        2. AWS_DEFAULT_REGION env var (legacy override)
+        3. boto3.Session().region_name (reads ~/.aws/config, instance metadata, etc.)
+        4. us-east-1 as last resort
+        """
+        aws_region = os.environ.get('AWS_REGION') or os.environ.get('AWS_DEFAULT_REGION')
         if not aws_region:
-            return 'us-east-1'
-        return aws_region
+            session = boto3.Session()
+            aws_region = session.region_name
+        return aws_region or 'us-east-1'
 
     @staticmethod
     def get_aws_profile() -> Optional[str]:
