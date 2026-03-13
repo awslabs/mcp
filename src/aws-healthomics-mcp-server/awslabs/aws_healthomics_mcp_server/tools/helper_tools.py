@@ -146,14 +146,6 @@ async def package_workflow(
 
 async def get_supported_regions(
     ctx: Context,
-    aws_profile: Optional[str] = Field(
-        None,
-        description='AWS profile name for this operation. Overrides the default credential chain.',
-    ),
-    aws_region: Optional[str] = Field(
-        None,
-        description='AWS region for this operation. Overrides the server default.',
-    ),
 ) -> Dict[str, Any]:
     """Get the list of AWS regions where HealthOmics is available.
 
@@ -166,7 +158,7 @@ async def get_supported_regions(
     """
     try:
         # Get centralized AWS session
-        session = get_aws_session(region_name=aws_region, profile_name=aws_profile)
+        session = get_aws_session()
 
         # Get the service name (defaults to 'omics')
         service_name = get_omics_service_name()
