@@ -26,7 +26,7 @@ from awslabs.aws_healthomics_mcp_server.consts import (
     DEFAULT_OMICS_SERVICE_NAME,
     DEFAULT_REGION,
 )
-from functools import cache
+from functools import lru_cache
 from loguru import logger
 from typing import Any, Dict
 
@@ -388,7 +388,7 @@ def get_account_id(
         raise
 
 
-@cache
+@lru_cache
 def get_partition(
     region_name: str | None = None,
     profile_name: str | None = None,
