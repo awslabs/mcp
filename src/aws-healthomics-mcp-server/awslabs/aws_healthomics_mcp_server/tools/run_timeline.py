@@ -122,6 +122,8 @@ async def generate_run_timeline(
         output_format: Output format (svg or base64)
         output_path: Optional file path or S3 URI to write SVG to
         expected_bucket_owner: AWS account ID for S3 bucket owner verification
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         SVG string, base64-encoded SVG, or JSON summary when output_path is provided
@@ -244,7 +246,9 @@ Please verify the run ID and ensure the run has completed successfully.
                     # Resolve expected_bucket_owner sentinel
                     resolved_owner = expected_bucket_owner
                     if resolved_owner == _SENTINEL_DEFAULT_OWNER:
-                        resolved_owner = get_account_id(region_name=aws_region, profile_name=aws_profile)
+                        resolved_owner = get_account_id(
+                            region_name=aws_region, profile_name=aws_profile
+                        )
                     # None means skip bucket owner check; string means use as-is
                     result_path = write_svg_to_s3(svg_output, output_path, resolved_owner)
                 else:

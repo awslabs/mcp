@@ -498,7 +498,9 @@ class TestGetCodeconnectionsClient:
 
         result = get_codeconnections_client()
 
-        mock_create_client.assert_called_once_with('codeconnections', region_name=None, profile_name=None)
+        mock_create_client.assert_called_once_with(
+            'codeconnections', region_name=None, profile_name=None
+        )
         assert result == mock_client
 
     @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.create_aws_client')
@@ -1126,7 +1128,9 @@ class TestProfileAndRegionOverride:
 
     @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.botocore.session.Session')
     @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.boto3.Session')
-    def test_get_aws_session_no_profile_in_kwargs_when_none(self, mock_boto3_session, mock_bc_session):
+    def test_get_aws_session_no_profile_in_kwargs_when_none(
+        self, mock_boto3_session, mock_bc_session
+    ):
         """Test get_aws_session does not pass profile_name when it is None."""
         mock_bc_session.return_value = MagicMock()
 

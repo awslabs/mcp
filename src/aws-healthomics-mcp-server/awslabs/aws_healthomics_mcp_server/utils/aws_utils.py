@@ -229,7 +229,9 @@ def create_aws_client(
     try:
         return session.client(service_name)
     except Exception as e:
-        logger.error(f'Failed to create {service_name} client in region {region_name or get_region()}: {str(e)}')
+        logger.error(
+            f'Failed to create {service_name} client in region {region_name or get_region()}: {str(e)}'
+        )
         raise
 
 
@@ -259,7 +261,9 @@ def get_omics_client(
         else:
             return session.client(service_name)
     except Exception as e:
-        logger.error(f'Failed to create {service_name} client in region {region_name or get_region()}: {str(e)}')
+        logger.error(
+            f'Failed to create {service_name} client in region {region_name or get_region()}: {str(e)}'
+        )
         raise
 
 

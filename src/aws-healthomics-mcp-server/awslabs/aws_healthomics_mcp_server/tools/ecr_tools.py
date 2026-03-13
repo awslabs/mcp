@@ -396,6 +396,8 @@ async def check_container_availability(
         image_digest: Image digest (sha256:...) - if provided, takes precedence over tag
         initiate_pull_through: If True, attempt to initiate pull-through cache for
             missing images in accessible pull-through cache repositories
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing:
@@ -429,12 +431,16 @@ async def check_container_availability(
             return ContainerAvailabilityResponse(
                 available=False,
                 repository_exists=True,
-                is_pull_through_cache=_is_pull_through_cache_repository(repository_name, region_name=aws_region, profile_name=aws_profile),
+                is_pull_through_cache=_is_pull_through_cache_repository(
+                    repository_name, region_name=aws_region, profile_name=aws_profile
+                ),
                 message='Invalid image digest format. Must start with "sha256:"',
             ).model_dump()
 
     # Detect if this is a pull-through cache repository
-    is_ptc = _is_pull_through_cache_repository(repository_name, region_name=aws_region, profile_name=aws_profile)
+    is_ptc = _is_pull_through_cache_repository(
+        repository_name, region_name=aws_region, profile_name=aws_profile
+    )
 
     client = get_ecr_client(region_name=aws_region, profile_name=aws_profile)
 
@@ -549,7 +555,9 @@ async def check_container_availability(
 
             if is_ptc and initiate_pull_through:
                 # Check if the pull-through cache is usable by HealthOmics
-                ptc_usability = _check_pull_through_cache_healthomics_usability(repository_name, region_name=aws_region, profile_name=aws_profile)
+                ptc_usability = _check_pull_through_cache_healthomics_usability(
+                    repository_name, region_name=aws_region, profile_name=aws_profile
+                )
 
                 if ptc_usability['healthomics_usable']:
                     logger.info(
@@ -614,7 +622,9 @@ async def check_container_availability(
 
             if is_ptc and initiate_pull_through:
                 # Check if the pull-through cache is usable by HealthOmics
-                ptc_usability = _check_pull_through_cache_healthomics_usability(repository_name, region_name=aws_region, profile_name=aws_profile)
+                ptc_usability = _check_pull_through_cache_healthomics_usability(
+                    repository_name, region_name=aws_region, profile_name=aws_profile
+                )
 
                 if ptc_usability['healthomics_usable']:
                     logger.info(f'Initiating pull-through cache for {repository_name}:{image_tag}')
@@ -1861,7 +1871,13 @@ async def create_container_registry_map(
     if include_pull_through_caches:
         try:
             # Pass explicit values since Field defaults aren't processed in direct calls
-            ptc_result = await list_pull_through_cache_rules(ctx, max_results=100, next_token=None, aws_profile=aws_profile, aws_region=aws_region)
+            ptc_result = await list_pull_through_cache_rules(
+                ctx,
+                max_results=100,
+                next_token=None,
+                aws_profile=aws_profile,
+                aws_region=aws_region,
+            )
             rules = ptc_result.get('rules', [])
 
             for rule in rules:
@@ -2544,7 +2560,10 @@ async def clone_container_to_ecr(
                 # Grant HealthOmics access
                 try:
                     await grant_healthomics_repository_access(
-                        ctx, repository_name=ecr_repository_name, aws_profile=aws_profile, aws_region=aws_region
+                        ctx,
+                        repository_name=ecr_repository_name,
+                        aws_profile=aws_profile,
+                        aws_region=aws_region,
                     )
                 except Exception as grant_err:
                     logger.warning(f'Failed to grant HealthOmics access: {grant_err}')
@@ -2617,7 +2636,12 @@ async def clone_container_to_ecr(
 
             # Grant HealthOmics access
             try:
-                await grant_healthomics_repository_access(ctx, repository_name=ecr_repository_name, aws_profile=aws_profile, aws_region=aws_region)
+                await grant_healthomics_repository_access(
+                    ctx,
+                    repository_name=ecr_repository_name,
+                    aws_profile=aws_profile,
+                    aws_region=aws_region,
+                )
             except Exception as grant_error:
                 logger.warning(f'Failed to grant HealthOmics access: {grant_error}')
 
