@@ -97,6 +97,8 @@ async def search_genomics_files(
         enable_storage_pagination: Enable efficient storage-level pagination for large datasets
         pagination_buffer_size: Buffer size for storage-level pagination (affects ranking accuracy)
         adhoc_s3_buckets: Optional list of additional S3 bucket paths to search beyond configured buckets
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Comprehensive dictionary containing:

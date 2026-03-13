@@ -114,6 +114,8 @@ async def diagnose_run_failure(
         run_id: ID of the failed run
         detailed: If False (default), excludes manifest logs and limits engine/task logs to last 50 lines
                  from 15 minutes before stop time to 5 minutes after. If True, includes all logs.
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing comprehensive diagnostic information including:

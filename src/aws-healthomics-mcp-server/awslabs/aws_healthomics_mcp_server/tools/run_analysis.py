@@ -141,6 +141,8 @@ async def analyze_run_performance(
         run_ids: List of run IDs to analyze for optimization
         headroom: Headroom percentage for instance recommendations (default 0.20 = 20%)
         detailed: Include detailed task metrics JSON section (default False)
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Formatted analysis string with structured manifest data and optimization recommendations
@@ -849,6 +851,8 @@ async def _get_run_analysis_data(
         run_ids: List of run IDs to analyze
         headroom: Headroom percentage for instance recommendations (default 20%)
         region: AWS region for pricing lookups
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary with analysis results for all runs

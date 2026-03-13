@@ -131,6 +131,8 @@ async def list_codeconnections(
         provider_type_filter: Optional filter by Git provider type
         max_results: Maximum number of results to return (default: 100)
         next_token: Token for pagination from a previous response
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing:
@@ -234,6 +236,8 @@ async def create_codeconnection(
         provider_type: Git provider type (Bitbucket, GitHub, GitHubEnterpriseServer,
             GitLab, GitLabSelfManaged)
         tags: Optional tags to apply to the connection
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing:
@@ -316,6 +320,8 @@ async def get_codeconnection(
     Args:
         ctx: MCP context for error reporting
         connection_arn: ARN of the connection to retrieve
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing:

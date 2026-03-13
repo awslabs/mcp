@@ -192,6 +192,8 @@ async def start_run(
         cache_id: Optional ID of a run cache to use
         cache_behavior: Optional cache behavior (CACHE_ALWAYS or CACHE_ON_FAILURE)
         run_group_id: Optional ID of a run group to associate with this run
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing the run information or error dict
@@ -323,6 +325,8 @@ async def list_runs(
         created_after: Filter for runs created after this timestamp (ISO format)
         created_before: Filter for runs created before this timestamp (ISO format)
         run_group_id: Optional run group ID to filter runs
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing run information and next token if available, or error dict
@@ -471,6 +475,8 @@ async def get_run(
     Args:
         ctx: MCP context for error reporting
         run_id: ID of the run to retrieve
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing run details or error dict including:
@@ -560,6 +566,8 @@ async def list_run_tasks(
         max_results: Maximum number of results to return (default: 10)
         next_token: Token for pagination
         status: Filter by task status
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing task information and next token if available
@@ -633,6 +641,8 @@ async def get_run_task(
         ctx: MCP context for error reporting
         run_id: ID of the run
         task_id: ID of the task
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing task details including imageDetails when available

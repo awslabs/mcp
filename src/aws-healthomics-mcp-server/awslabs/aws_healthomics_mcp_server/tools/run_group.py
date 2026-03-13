@@ -65,6 +65,8 @@ async def create_run_group(
         max_duration: Maximum duration in minutes (1-100000)
         max_runs: Maximum concurrent runs (1-100000)
         tags: Tags to apply to the run group
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing the created run group's id, arn, and tags, or error dict
@@ -123,6 +125,8 @@ async def get_run_group(
     Args:
         ctx: MCP context for error reporting
         run_group_id: ID of the run group to retrieve
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing the run group details, or error dict
@@ -180,6 +184,8 @@ async def list_run_groups(
         name: Filter by run group name
         max_results: Maximum number of results to return
         next_token: Token for pagination from a previous response
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing run group summaries and next token if available, or error dict
@@ -255,6 +261,8 @@ async def update_run_group(
         max_gpus: New maximum GPUs
         max_duration: New maximum duration in minutes
         max_runs: New maximum concurrent runs
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing the run group ID and update status, or error dict

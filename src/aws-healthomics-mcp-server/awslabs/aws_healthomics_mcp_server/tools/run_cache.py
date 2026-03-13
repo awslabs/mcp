@@ -72,6 +72,8 @@ async def create_run_cache(
         description: Description for the run cache
         tags: Tags to apply to the run cache
         cache_bucket_owner_id: AWS account ID of the S3 bucket owner
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing the created run cache's id, arn, and status, or error dict
@@ -155,6 +157,8 @@ async def get_run_cache(
     Args:
         ctx: MCP context for error reporting
         cache_id: ID of the run cache to retrieve
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing the run cache details, or error dict
@@ -210,6 +214,8 @@ async def list_run_caches(
         cache_behavior: Filter by cache behavior
         max_results: Maximum number of results to return
         next_token: Token for pagination from a previous response
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing run cache summaries and next token if available, or error dict
@@ -278,6 +284,8 @@ async def update_run_cache(
         cache_behavior: New cache behavior
         name: New name for the run cache
         description: New description for the run cache
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing the run cache ID and update status, or error dict

@@ -63,6 +63,8 @@ async def list_workflows(
         ctx: MCP context for error reporting
         max_results: Maximum number of results to return (default: 10)
         next_token: Token for pagination
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing workflow information and next token if available
@@ -191,6 +193,8 @@ async def create_workflow(
         readme_path: Path to README markdown file within the repository (only valid with definition_repository)
         definition_zip_base64: **Deprecated** — use definition_source instead.
             Base64-encoded workflow definition ZIP file.
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing the created workflow information or error dict
@@ -302,6 +306,8 @@ async def get_workflow(
         ctx: MCP context for error reporting
         workflow_id: ID of the workflow to retrieve
         export_definition: Whether to include a presigned URL for downloading the workflow definition ZIP file
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing workflow details. When export_definition=True, includes a 'definition'
@@ -449,6 +455,8 @@ async def create_workflow_version(
         readme_path: Path to README markdown file within the repository (only valid with definition_repository)
         definition_zip_base64: **Deprecated** — use definition_source instead.
             Base64-encoded workflow definition ZIP file.
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing the created workflow version information
@@ -581,6 +589,8 @@ async def list_workflow_versions(
         workflow_id: ID of the workflow
         max_results: Maximum number of results to return (default: 10)
         next_token: Token for pagination
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing workflow version information and next token if available

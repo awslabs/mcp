@@ -147,6 +147,8 @@ async def get_run_logs(
         limit: Maximum number of log events to return (default: 100)
         next_token: Token for pagination from a previous response
         start_from_head: Whether to start from the beginning (True) or end (False) of the log stream
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing log events and next token if available
@@ -298,6 +300,8 @@ async def get_run_manifest_logs(
         limit: Maximum number of log events to return (default: 100)
         next_token: Token for pagination from a previous response
         start_from_head: Whether to start from the beginning (True) or end (False) of the log stream
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing log events and next token if available
@@ -373,6 +377,8 @@ async def get_run_engine_logs(
         limit: Maximum number of log events to return (default: 100)
         next_token: Token for pagination from a previous response
         start_from_head: Whether to start from the beginning (True) or end (False) of the log stream
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing log events and next token if available
@@ -453,6 +459,8 @@ async def get_task_logs(
         limit: Maximum number of log events to return (default: 100)
         next_token: Token for pagination from a previous response
         start_from_head: Whether to start from the beginning (True) or end (False) of the log stream
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing log events and next token if available

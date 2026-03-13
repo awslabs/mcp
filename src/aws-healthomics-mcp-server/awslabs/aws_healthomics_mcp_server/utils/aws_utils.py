@@ -140,11 +140,11 @@ def get_aws_session(
     Raises:
         ImportError: If boto3 is not available
     """
-    # Handle FieldInfo objects from Pydantic (when called directly, not through MCP)
-    if hasattr(region_name, 'default'):
-        region_name = region_name.default
-    if hasattr(profile_name, 'default'):
-        profile_name = profile_name.default
+    # Handle FieldInfo objects from Pydantic (FastMCP compatibility)
+    if not isinstance(region_name, (str, type(None))):
+        region_name = None
+    if not isinstance(profile_name, (str, type(None))):
+        profile_name = None
 
     botocore_session = botocore.session.Session()
     user_agent_extra = f'md/awslabs#mcp#aws-healthomics-mcp-server#{__version__}'
