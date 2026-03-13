@@ -74,7 +74,8 @@ class S3SearchEngine:
         self.file_type_detector = FileTypeDetector()
         self.pattern_matcher = PatternMatcher()
 
-        # Caching for optimization
+        # Instance-level caches — scoped to this engine's lifetime (typically one tool call).
+        # Cache isolation between profiles/regions relies on creating a new engine per call.
         self._tag_cache = {}  # Cache for object tags
         self._result_cache = {}  # Cache for search results
 

@@ -62,7 +62,11 @@ if TYPE_CHECKING:
 
 
 class GenomicsSearchOrchestrator:
-    """Orchestrates genomics file searches across multiple storage systems."""
+    """Orchestrates genomics file searches across multiple storage systems.
+
+    A new instance should be created for each tool call to ensure cache isolation
+    between AWS profiles and regions.
+    """
 
     def __init__(
         self,

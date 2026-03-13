@@ -169,7 +169,9 @@ async def search_genomics_files(
             adhoc_s3_buckets=adhoc_s3_buckets,
         )
 
-        # Initialize search orchestrator from environment configuration
+        # IMPORTANT: Create a fresh orchestrator for each tool call. The orchestrator and
+        # its child engines hold instance-level caches that are scoped to a single
+        # profile/region. A new instance ensures cache isolation between credentials.
         try:
             orchestrator = GenomicsSearchOrchestrator.from_environment(
                 region_name=aws_region, profile_name=aws_profile
