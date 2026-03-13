@@ -58,7 +58,9 @@ async def signal_handler(scope: CancelScope):
     try:
         with open_signal_receiver(signal.SIGINT, signal.SIGTERM) as signals:
             async for _ in signals:  # Shutting down regardless of the signal type
-                print('Shutting down MCP server...')
+                logger.info('Shutting down MCP server...')
+                sys.stdout.flush()
+                sys.stderr.flush()
                 # Force immediate exit since MCP blocks on stdio.
                 # You can also use scope.cancel(), but it means after Ctrl+C, you need to press another
                 # 'Enter' to unblock the stdio.
