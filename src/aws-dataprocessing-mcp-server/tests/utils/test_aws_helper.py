@@ -163,7 +163,7 @@ class TestAwsHelper:
             assert isinstance(kwargs['config'], Config)
             assert (
                 kwargs['config'].user_agent_extra
-                == f'awslabs/mcp/aws-dataprocessing-mcp-server/{__version__}'
+                == f'md/awslabs#mcp#aws-dataprocessing-mcp-server#{__version__}'
             )
 
     def test_create_boto3_client_with_env_region(self):
@@ -197,7 +197,7 @@ class TestAwsHelper:
                 assert isinstance(kwargs['config'], Config)
                 assert (
                     kwargs['config'].user_agent_extra
-                    == f'awslabs/mcp/aws-dataprocessing-mcp-server/{__version__}'
+                    == f'md/awslabs#mcp#aws-dataprocessing-mcp-server#{__version__}'
                 )
 
     def test_create_boto3_client_with_profile_and_region(self):

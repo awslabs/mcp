@@ -33,6 +33,9 @@ from awslabs.billing_cost_management_mcp_server.tools.aws_pricing_tools import a
 from awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools import (
     bcm_pricing_calculator_server,
 )
+from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_tools import (
+    billing_conductor_server,
+)
 from awslabs.billing_cost_management_mcp_server.tools.budget_tools import budget_server
 from awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools import (
     compute_optimizer_server,
@@ -98,6 +101,7 @@ TOOLS:
 - ri-performance: Analyze Reserved Instance coverage and utilization
 - sp-performance: Analyze Savings Plans coverage and utilization
 - session-sql: Execute SQL queries on the session database
+- billing-conductor: AWS Billing Conductor tools for AWS Proforma billing (billing groups and associated accounts and cost reports, pricing rules/plans, custom line items)
 
 PROMPTS:
 - savings_plans: Analyzes AWS usage and identifies opportunities for Savings Plans purchases
@@ -150,6 +154,7 @@ async def setup():
     await mcp.import_server(ri_performance_server)
     await mcp.import_server(sp_performance_server)
     await mcp.import_server(unified_sql_server)
+    await mcp.import_server(billing_conductor_server)
 
     await register_prompts()
 
@@ -171,6 +176,17 @@ async def setup():
         'ri-performance',
         'sp-performance',
         'session-sql',
+        'list-billing-groups',
+        'list-billing-group-cost-reports',
+        'get-billing-group-cost-report',
+        'list-account-associations',
+        'list-pricing-plans',
+        'list-pricing-rules',
+        'list-pricing-rules-for-plan',
+        'list-pricing-plans-for-rule',
+        'list-custom-line-items',
+        'list-custom-line-item-versions',
+        'list-resources-associated-to-custom-line-item',
     ]
     for tool in tools:
         logger.info(f'- {tool}')

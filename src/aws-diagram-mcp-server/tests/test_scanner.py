@@ -639,3 +639,129 @@ class TestNamespaceSecurityIntegration:
         code = 'os.popen("echo test")'
         results = check_dangerous_functions(code)
         assert any(r['function'] == 'os.popen' for r in results)
+
+
+class TestFrameTraversalDetection:
+    """Tests for detection of frame traversal and code object attribute access.
+
+    The scanner must detect __traceback__, tb_frame, f_back, f_builtins,
+    and related attributes as dangerous.
+    """
+
+    def test_catches_traceback_access(self):
+        """__traceback__ attribute access must be caught."""
+        code = 'e.__traceback__'
+        results = check_dangerous_functions(code)
+        funcs = [r['function'] for r in results]
+        assert '__traceback__' in funcs
+
+    def test_catches_tb_frame_access(self):
+        """tb_frame attribute access must be caught."""
+        code = 'tb.tb_frame'
+        results = check_dangerous_functions(code)
+        funcs = [r['function'] for r in results]
+        assert 'tb_frame' in funcs
+
+    def test_catches_f_back_traversal(self):
+        """f_back attribute access must be caught."""
+        code = 'frame.f_back'
+        results = check_dangerous_functions(code)
+        funcs = [r['function'] for r in results]
+        assert 'f_back' in funcs
+
+    def test_catches_f_builtins_access(self):
+        """f_builtins attribute access must be caught."""
+        code = 'frame.f_builtins'
+        results = check_dangerous_functions(code)
+        funcs = [r['function'] for r in results]
+        assert 'f_builtins' in funcs
+
+    def test_catches_f_globals_access(self):
+        """f_globals attribute access must be caught."""
+        code = 'frame.f_globals'
+        results = check_dangerous_functions(code)
+        funcs = [r['function'] for r in results]
+        assert 'f_globals' in funcs
+
+    def test_catches_f_locals_access(self):
+        """f_locals attribute access must be caught."""
+        code = 'frame.f_locals'
+        results = check_dangerous_functions(code)
+        funcs = [r['function'] for r in results]
+        assert 'f_locals' in funcs
+
+    def test_catches_generator_frame_access(self):
+        """gi_frame attribute access must be caught."""
+        code = 'gen.gi_frame'
+        results = check_dangerous_functions(code)
+        funcs = [r['function'] for r in results]
+        assert 'gi_frame' in funcs
+
+    def test_catches_coroutine_frame_access(self):
+        """cr_frame attribute access must be caught."""
+        code = 'coro.cr_frame'
+        results = check_dangerous_functions(code)
+        funcs = [r['function'] for r in results]
+        assert 'cr_frame' in funcs
+
+    def test_catches_code_object_access(self):
+        """__code__ attribute access must be caught."""
+        code = 'func.__code__'
+        results = check_dangerous_functions(code)
+        funcs = [r['function'] for r in results]
+        assert '__code__' in funcs
+
+    def test_catches_code_object_consts(self):
+        """co_consts attribute access must be caught."""
+        code = 'code.co_consts'
+        results = check_dangerous_functions(code)
+        funcs = [r['function'] for r in results]
+        assert 'co_consts' in funcs
+
+    def test_catches_getattribute_access(self):
+        """__getattribute__ access must be caught."""
+        code = 'object.__getattribute__(e, "__traceback__")'
+        results = check_dangerous_functions(code)
+        funcs = [r['function'] for r in results]
+        assert '__getattribute__' in funcs
+
+    def test_catches_combined_frame_traversal_pattern(self):
+        """Combined frame traversal pattern must be caught by multiple detections."""
+        code = """
+try:
+    1/0
+except ZeroDivisionError as e:
+    f = e.__traceback__.tb_frame
+    while f is not None:
+        if '__import__' in f.f_builtins:
+            sp = f.f_builtins['__import__']('subprocess')
+            r = sp.run(['whoami'], capture_output=True, text=True)
+            break
+        f = f.f_back
+"""
+        results = check_dangerous_functions(code)
+        funcs = [r['function'] for r in results]
+        # Must catch at least __traceback__, tb_frame, f_builtins, and f_back
+        assert '__traceback__' in funcs
+        assert 'tb_frame' in funcs
+        assert 'f_builtins' in funcs
+        assert 'f_back' in funcs
+
+    @pytest.mark.asyncio
+    async def test_frame_traversal_blocked_by_scan(self):
+        """Frame traversal pattern must be blocked by scan_python_code."""
+        code = """
+try:
+    1/0
+except ZeroDivisionError as e:
+    f = e.__traceback__.tb_frame
+    while f is not None:
+        if '__import__' in f.f_builtins:
+            sp = f.f_builtins['__import__']('subprocess')
+            r = sp.run(['whoami'], capture_output=True, text=True)
+            break
+        f = f.f_back
+"""
+        result = await scan_python_code(code)
+        assert result.has_errors is True
+        assert len(result.security_issues) > 0
