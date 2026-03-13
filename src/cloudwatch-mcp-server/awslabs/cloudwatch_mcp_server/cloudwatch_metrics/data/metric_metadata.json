@@ -2563,7 +2563,7 @@
         "period": 60,
         "statistic": "Sum",
         "threshold": {
-          "justification": "Set the threshold to the number of failed records reflecting the tolerance of the the application for failed records. You can use historical data as reference for the acceptable failure value. You should also consider retries when setting the threshold because failed records can be retried in subsequent PutRecords calls."
+          "justification": "Set the threshold to the number of failed records reflecting the tolerance of the application for failed records. You can use historical data as reference for the acceptable failure value. You should also consider retries when setting the threshold because failed records can be retried in subsequent PutRecords calls."
         },
         "treatMissingData": "notBreaching"
       }
@@ -5692,7 +5692,7 @@
   {
     "alarmRecommendations": [
       {
-        "alarmDescription": "This alarm helps in ensuring that there is available burst credit balance for the file system usage. When there is no available burst credit, applications access to the the file system will be limited due to low throughput. If the metric drops to 0 consistently, consider changing the throughput mode to [Elastic or Provisioned throughput mode](https://docs.aws.amazon.com/efs/latest/ug/performance.html#throughput-modes).",
+        "alarmDescription": "This alarm helps in ensuring that there is available burst credit balance for the file system usage. When there is no available burst credit, applications access to the file system will be limited due to low throughput. If the metric drops to 0 consistently, consider changing the throughput mode to [Elastic or Provisioned throughput mode](https://docs.aws.amazon.com/efs/latest/ug/performance.html#throughput-modes).",
         "comparisonOperator": "LessThanOrEqualToThreshold",
         "datapointsToAlarm": 15,
         "dimensions": [
