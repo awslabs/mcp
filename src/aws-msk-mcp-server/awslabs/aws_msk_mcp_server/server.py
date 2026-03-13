@@ -21,6 +21,7 @@ It exposes the abstracted APIs via the MCP protocol.
 import argparse
 import os
 import signal
+import sys
 from anyio import create_task_group, open_signal_receiver, run
 from anyio.abc import CancelScope
 from awslabs.aws_msk_mcp_server.tools import (

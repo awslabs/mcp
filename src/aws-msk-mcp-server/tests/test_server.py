@@ -547,8 +547,10 @@ class TestServer:
         mock_run.assert_called_once_with(run_server)
 
     @patch('awslabs.aws_msk_mcp_server.server.os._exit')
-    @patch('awslabs.aws_msk_mcp_server.server.print')
-    async def test_signal_handler(self, mock_print, mock_exit):
+    @patch('awslabs.aws_msk_mcp_server.server.sys.stdout.flush')
+    @patch('awslabs.aws_msk_mcp_server.server.sys.stderr.flush')
+    @patch('awslabs.aws_msk_mcp_server.server.logger')
+    async def test_signal_handler(self, mock_logger, mock_stderr_flush, mock_stdout_flush, mock_exit):
         """Test the signal_handler function."""
         # Arrange
         mock_scope = MagicMock(spec=CancelScope)
@@ -564,7 +566,9 @@ class TestServer:
 
             # Assert
             mock_receiver.assert_called_once_with(signal.SIGINT, signal.SIGTERM)
-            mock_print.assert_called_once_with('Shutting down MCP server...')
+            mock_logger.info.assert_called_once_with('Shutting down MCP server...')
+            mock_stdout_flush.assert_called_once()
+            mock_stderr_flush.assert_called_once()
             mock_exit.assert_called_once_with(0)
 
     @patch('awslabs.aws_msk_mcp_server.server.logger')
