@@ -16,7 +16,9 @@
 
 import json
 import pytest
+import warnings
 from awslabs.bedrock_kb_retrieval_mcp_server.server import (
+    DEPRECATION_NOTICE,
     list_knowledge_bases_tool,
     main,
     mcp,
@@ -143,13 +145,22 @@ class TestMain:
     @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.mcp')
     def test_main_default(self, mock_mcp):
         """Test the main function with default arguments."""
-        # Set up the mock
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            main()
 
-        # Call the function
-        main()
-
-        # Check that mcp.run was called with the correct arguments
         mock_mcp.run.assert_called_once_with()
+
+    @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.mcp')
+    def test_main_emits_deprecation_warning(self, mock_mcp):
+        """Test that main() emits a FutureWarning."""
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter('always')
+            main()
+            future_warnings = [x for x in w if issubclass(x.category, FutureWarning)]
+            assert len(future_warnings) == 1
+            assert DEPRECATION_NOTICE in str(future_warnings[0].message)
+        mock_mcp.run.assert_called_once()
 
 
 class TestServerIntegration:

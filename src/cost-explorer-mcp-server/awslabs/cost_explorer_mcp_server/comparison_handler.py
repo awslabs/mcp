@@ -180,7 +180,7 @@ async def get_cost_and_usage_comparisons(
         description='Filter criteria as a Python dictionary to narrow down AWS cost comparisons. Supports filtering by Dimensions (SERVICE, REGION, etc.), Tags, or CostCategories. You can use logical operators (And, Or, Not) for complex filters. Same format as get_cost_and_usage filter_expression.',
     ),
 ) -> Dict[str, Any]:
-    """Compare AWS costs and usage between two time periods.
+    """[DEPRECATED] Compare AWS costs and usage between two time periods.
 
     This tool compares cost and usage data between a baseline period and a comparison period,
     providing percentage changes and absolute differences. Both periods must be exactly one month
@@ -420,7 +420,7 @@ async def get_cost_comparison_drivers(
         description='Filter criteria as a Python dictionary to narrow down AWS cost driver analysis. Supports filtering by Dimensions (SERVICE, REGION, etc.), Tags, or CostCategories. You can use logical operators (And, Or, Not) for complex filters. Same format as get_cost_and_usage filter_expression.',
     ),
 ) -> Dict[str, Any]:
-    """Analyze what drove cost changes between two time periods.
+    """[DEPRECATED] Analyze what drove cost changes between two time periods.
 
     This tool provides detailed analysis of the TOP 10 most significant cost drivers
     that caused changes between periods. AWS returns only the most impactful drivers

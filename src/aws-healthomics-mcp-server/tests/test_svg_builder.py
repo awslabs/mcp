@@ -171,14 +171,12 @@ class TestSVGBuilderPropertyBased:
         num_texts: int,
         num_lines: int,
     ):
-        """Property 6: Valid SVG Output.
+        """Property: Valid SVG Output.
 
         For any set of elements added to SVGBuilder, the generated output
         SHALL be a well-formed SVG document (starts with `<svg`, ends with
         `</svg>`, contains no unescaped special characters, and is valid XML).
-
-        **Validates: Requirements 5.1, 5.7, 8.3**
-        **Feature: run-analyzer-enhancement, Property 6: Valid SVG Output**
+        **Feature: run-analyzer-enhancement, Property: Valid SVG Output**
         """
         builder = SVGBuilder(width, height)
 
@@ -241,9 +239,7 @@ class TestSVGBuilderPropertyBased:
         """Property: Escaped text produces valid XML.
 
         For any input text, the escaped output should be safe for XML inclusion.
-
-        **Validates: Requirements 8.3**
-        **Feature: run-analyzer-enhancement, Property 6: Valid SVG Output (escape component)**
+        **Feature: run-analyzer-enhancement, Property: Valid SVG Output (escape component)**
         """
         builder = SVGBuilder(100, 100)
 
@@ -279,9 +275,7 @@ class TestSVGBuilderPropertyBased:
         """Property: X-axis rendering produces valid SVG.
 
         For any valid axis parameters, the resulting SVG should be well-formed.
-
-        **Validates: Requirements 8.2, 8.3**
-        **Feature: run-analyzer-enhancement, Property 6: Valid SVG Output (axis component)**
+        **Feature: run-analyzer-enhancement, Property: Valid SVG Output (axis component)**
         """
         builder = SVGBuilder(width, height)
         margin = {'top': 60, 'right': 40, 'bottom': 40, 'left': 150}

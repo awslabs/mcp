@@ -1,0 +1,996 @@
+{
+  "tables": [
+    {
+      "entities": {
+        "Recipient": {
+          "access_patterns": [
+            {
+              "description": "Create recipient account",
+              "name": "create_recipient",
+              "operation": "PutItem",
+              "parameters": [
+                {
+                  "entity_type": "Recipient",
+                  "name": "recipient",
+                  "type": "entity"
+                }
+              ],
+              "pattern_id": 16,
+              "return_type": "single_entity"
+            },
+            {
+              "consistent_read": false,
+              "description": "Get recipient profile by ID",
+              "name": "get_recipient",
+              "operation": "GetItem",
+              "parameters": [
+                {
+                  "name": "recipient_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 21,
+              "return_type": "single_entity"
+            }
+          ],
+          "entity_type": "RECIPIENT",
+          "fields": [
+            {
+              "name": "recipient_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "name",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "email",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "phone",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "city",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "created_at",
+              "required": true,
+              "type": "string"
+            }
+          ],
+          "pk_template": "{recipient_id}"
+        }
+      },
+      "table_config": {
+        "partition_key": "recipient_id",
+        "table_name": "Recipients"
+      }
+    },
+    {
+      "entities": {
+        "Courier": {
+          "access_patterns": [
+            {
+              "description": "Register courier",
+              "name": "register_courier",
+              "operation": "PutItem",
+              "parameters": [
+                {
+                  "entity_type": "Courier",
+                  "name": "courier",
+                  "type": "entity"
+                }
+              ],
+              "pattern_id": 18,
+              "return_type": "single_entity"
+            },
+            {
+              "consistent_read": false,
+              "description": "Get courier profile by ID",
+              "name": "get_courier",
+              "operation": "GetItem",
+              "parameters": [
+                {
+                  "name": "courier_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 22,
+              "return_type": "single_entity"
+            }
+          ],
+          "entity_type": "COURIER",
+          "fields": [
+            {
+              "name": "courier_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "name",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "email",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "phone",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "city",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "vehicle_type",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "created_at",
+              "required": true,
+              "type": "string"
+            }
+          ],
+          "pk_template": "{courier_id}"
+        }
+      },
+      "table_config": {
+        "partition_key": "courier_id",
+        "table_name": "Couriers"
+      }
+    },
+    {
+      "entities": {
+        "Product": {
+          "access_patterns": [
+            {
+              "description": "Add or update product",
+              "name": "upsert_product",
+              "operation": "PutItem",
+              "parameters": [
+                {
+                  "entity_type": "Product",
+                  "name": "product",
+                  "type": "entity"
+                }
+              ],
+              "pattern_id": 8,
+              "return_type": "single_entity"
+            },
+            {
+              "description": "Remove product",
+              "name": "delete_product",
+              "operation": "DeleteItem",
+              "parameters": [
+                {
+                  "name": "warehouse_id",
+                  "type": "string"
+                },
+                {
+                  "name": "sort_key",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 9,
+              "return_type": "success_flag"
+            },
+            {
+              "consistent_read": false,
+              "description": "View warehouse products",
+              "name": "get_warehouse_products",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "warehouse_id",
+                  "type": "string"
+                },
+                {
+                  "name": "sort_key_prefix",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 30,
+              "range_condition": "begins_with",
+              "return_type": "entity_list"
+            },
+            {
+              "consistent_read": false,
+              "description": "Get all products by city and category",
+              "index_name": "ProductsByCategory",
+              "name": "get_products_by_city_category",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "city",
+                  "type": "string"
+                },
+                {
+                  "name": "category",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 28,
+              "return_type": "entity_list"
+            }
+          ],
+          "entity_type": "MENU",
+          "fields": [
+            {
+              "name": "warehouse_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "sort_key",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "product_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "category",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "description",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "price",
+              "required": true,
+              "type": "decimal"
+            },
+            {
+              "name": "available",
+              "required": true,
+              "type": "boolean"
+            },
+            {
+              "name": "city",
+              "required": true,
+              "type": "string"
+            }
+          ],
+          "gsi_mappings": [
+            {
+              "name": "ProductsByCategory",
+              "pk_template": "{city}",
+              "sk_template": [
+                "{category}",
+                "{sort_key}"
+              ]
+            }
+          ],
+          "pk_template": "{warehouse_id}",
+          "sk_template": "MENU#{category}#{product_id}"
+        },
+        "Rating": {
+          "access_patterns": [
+            {
+              "description": "Recipient rates warehouse",
+              "name": "create_rating",
+              "operation": "PutItem",
+              "parameters": [
+                {
+                  "entity_type": "Rating",
+                  "name": "rating",
+                  "type": "entity"
+                }
+              ],
+              "pattern_id": 19,
+              "return_type": "single_entity"
+            },
+            {
+              "consistent_read": false,
+              "description": "View ratings for warehouse",
+              "name": "get_warehouse_ratings",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "warehouse_id",
+                  "type": "string"
+                },
+                {
+                  "name": "sort_key_prefix",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 20,
+              "range_condition": "begins_with",
+              "return_type": "entity_list"
+            }
+          ],
+          "entity_type": "REVIEW",
+          "fields": [
+            {
+              "name": "warehouse_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "sort_key",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "rating_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "recipient_name",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "feedback",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "score",
+              "required": true,
+              "type": "integer"
+            },
+            {
+              "name": "created_at",
+              "required": true,
+              "type": "string"
+            }
+          ],
+          "pk_template": "{warehouse_id}",
+          "sk_template": "REVIEW#{created_at}#{rating_id}"
+        },
+        "WarehouseProfile": {
+          "access_patterns": [
+            {
+              "description": "Create warehouse profile",
+              "name": "create_warehouse",
+              "operation": "PutItem",
+              "parameters": [
+                {
+                  "entity_type": "WarehouseProfile",
+                  "name": "warehouse_profile",
+                  "type": "entity"
+                }
+              ],
+              "pattern_id": 17,
+              "return_type": "single_entity"
+            },
+            {
+              "consistent_read": false,
+              "description": "View warehouse profile",
+              "name": "get_warehouse_profile",
+              "operation": "GetItem",
+              "parameters": [
+                {
+                  "name": "warehouse_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 3,
+              "return_type": "single_entity"
+            },
+            {
+              "description": "Update warehouse profile",
+              "name": "update_warehouse_profile",
+              "operation": "UpdateItem",
+              "parameters": [
+                {
+                  "name": "warehouse_id",
+                  "type": "string"
+                },
+                {
+                  "name": "name",
+                  "type": "string"
+                },
+                {
+                  "name": "processing_time",
+                  "type": "integer"
+                }
+              ],
+              "pattern_id": 7,
+              "return_type": "single_entity"
+            },
+            {
+              "consistent_read": false,
+              "description": "Get warehouses by city and category",
+              "index_name": "WarehousesByCity",
+              "name": "get_warehouses_by_city_category",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "city",
+                  "type": "string"
+                },
+                {
+                  "name": "category",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 1,
+              "return_type": "entity_list"
+            },
+            {
+              "consistent_read": false,
+              "description": "Get warehouses by city, category and minimum rating",
+              "index_name": "WarehousesByCity",
+              "name": "get_warehouses_by_city_category_rating",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "city",
+                  "type": "string"
+                },
+                {
+                  "name": "category",
+                  "type": "string"
+                },
+                {
+                  "name": "min_rating",
+                  "type": "decimal"
+                }
+              ],
+              "pattern_id": 27,
+              "range_condition": ">=",
+              "return_type": "entity_list"
+            },
+            {
+              "consistent_read": false,
+              "description": "Search warehouses by name prefix within a city",
+              "index_name": "WarehousesByName",
+              "name": "search_warehouses_by_name",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "city",
+                  "type": "string"
+                },
+                {
+                  "name": "name_prefix",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 2,
+              "range_condition": "begins_with",
+              "return_type": "entity_list"
+            }
+          ],
+          "entity_type": "PROFILE",
+          "fields": [
+            {
+              "name": "warehouse_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "sort_key",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "name",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "address",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "name": "city",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "category",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "rating",
+              "required": true,
+              "type": "decimal"
+            },
+            {
+              "name": "processing_time",
+              "required": true,
+              "type": "integer"
+            },
+            {
+              "name": "created_at",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "gsi_mappings": [
+            {
+              "name": "WarehousesByCity",
+              "pk_template": "{city}",
+              "sk_template": [
+                "{category}",
+                "{rating}"
+              ]
+            },
+            {
+              "name": "WarehousesByName",
+              "pk_template": "{city}",
+              "sk_template": "{name}"
+            }
+          ],
+          "pk_template": "{warehouse_id}",
+          "sk_template": "PROFILE"
+        }
+      },
+      "gsi_list": [
+        {
+          "included_attributes": [
+            "name",
+            "processing_time"
+          ],
+          "name": "WarehousesByCity",
+          "partition_key": "city",
+          "projection": "INCLUDE",
+          "sort_key": [
+            "category",
+            "rating"
+          ]
+        },
+        {
+          "name": "WarehousesByName",
+          "partition_key": "city",
+          "projection": "KEYS_ONLY",
+          "sort_key": "name"
+        },
+        {
+          "included_attributes": [
+            "description",
+            "price",
+            "available"
+          ],
+          "name": "ProductsByCategory",
+          "partition_key": "city",
+          "projection": "INCLUDE",
+          "sort_key": [
+            "category",
+            "sort_key"
+          ]
+        }
+      ],
+      "table_config": {
+        "partition_key": "warehouse_id",
+        "sort_key": "sort_key",
+        "table_name": "Warehouses"
+      }
+    },
+    {
+      "entities": {
+        "Shipment": {
+          "access_patterns": [
+            {
+              "description": "Create a shipment",
+              "name": "create_shipment",
+              "operation": "PutItem",
+              "parameters": [
+                {
+                  "entity_type": "Shipment",
+                  "name": "shipment",
+                  "type": "entity"
+                }
+              ],
+              "pattern_id": 4,
+              "return_type": "single_entity"
+            },
+            {
+              "consistent_read": false,
+              "description": "View shipment status",
+              "name": "get_shipment",
+              "operation": "GetItem",
+              "parameters": [
+                {
+                  "name": "shipment_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 5,
+              "return_type": "single_entity"
+            },
+            {
+              "description": "Update shipment status (warehouse)",
+              "name": "update_shipment_status",
+              "operation": "UpdateItem",
+              "parameters": [
+                {
+                  "name": "shipment_id",
+                  "type": "string"
+                },
+                {
+                  "name": "status",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 11,
+              "return_type": "single_entity"
+            },
+            {
+              "description": "Accept a delivery (assign courier)",
+              "name": "accept_delivery",
+              "operation": "UpdateItem",
+              "parameters": [
+                {
+                  "name": "shipment_id",
+                  "type": "string"
+                },
+                {
+                  "name": "courier_id",
+                  "type": "string"
+                },
+                {
+                  "name": "active_delivery",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 13,
+              "return_type": "single_entity"
+            },
+            {
+              "description": "Update delivery status",
+              "name": "update_delivery_status",
+              "operation": "UpdateItem",
+              "parameters": [
+                {
+                  "name": "shipment_id",
+                  "type": "string"
+                },
+                {
+                  "name": "status",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 14,
+              "return_type": "single_entity"
+            },
+            {
+              "consistent_read": false,
+              "description": "View recipient shipment history",
+              "index_name": "ShipmentsByRecipient",
+              "name": "get_recipient_shipments",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "recipient_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 6,
+              "return_type": "entity_list"
+            },
+            {
+              "consistent_read": false,
+              "description": "Get shipments by recipient and status",
+              "index_name": "ShipmentsByRecipient",
+              "name": "get_recipient_shipments_by_status",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "recipient_id",
+                  "type": "string"
+                },
+                {
+                  "name": "status",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 24,
+              "return_type": "entity_list"
+            },
+            {
+              "consistent_read": false,
+              "description": "View incoming shipments for warehouse",
+              "index_name": "ShipmentsByWarehouse",
+              "name": "get_warehouse_shipments",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "warehouse_id",
+                  "type": "string"
+                },
+                {
+                  "name": "status",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 10,
+              "return_type": "entity_list"
+            },
+            {
+              "consistent_read": false,
+              "description": "Get shipments by warehouse and status",
+              "index_name": "ShipmentsByWarehouse",
+              "name": "get_warehouse_shipments_by_status",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "warehouse_id",
+                  "type": "string"
+                },
+                {
+                  "name": "status",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 25,
+              "return_type": "entity_list"
+            },
+            {
+              "consistent_read": false,
+              "description": "View courier delivery history",
+              "index_name": "ShipmentsByCourier",
+              "name": "get_courier_shipments",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "courier_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 15,
+              "return_type": "entity_list"
+            },
+            {
+              "consistent_read": false,
+              "description": "Get shipments by courier and status",
+              "index_name": "ShipmentsByCourier",
+              "name": "get_courier_shipments_by_status",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "courier_id",
+                  "type": "string"
+                },
+                {
+                  "name": "status",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 26,
+              "return_type": "entity_list"
+            },
+            {
+              "consistent_read": false,
+              "description": "View available shipments for pickup by city",
+              "index_name": "AvailableShipmentsByCity",
+              "name": "get_available_shipments_by_city",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "available_city",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 12,
+              "return_type": "entity_list"
+            },
+            {
+              "consistent_read": false,
+              "description": "Get courier's current active delivery",
+              "index_name": "CourierActiveDelivery",
+              "name": "get_courier_active_delivery",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "active_delivery",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 23,
+              "return_type": "entity_list"
+            }
+          ],
+          "entity_type": "SHIPMENT",
+          "fields": [
+            {
+              "name": "shipment_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "recipient_id",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "name": "warehouse_id",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "name": "warehouse_name",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "name": "recipient_name",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "name": "status",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "item_type": "object",
+              "name": "packages",
+              "required": false,
+              "type": "array"
+            },
+            {
+              "name": "total_weight",
+              "required": false,
+              "type": "decimal"
+            },
+            {
+              "name": "destination_address",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "name": "origin_address",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "name": "created_at",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "name": "updated_at",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "name": "courier_id",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "name": "available_city",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "name": "active_delivery",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "gsi_mappings": [
+            {
+              "name": "ShipmentsByRecipient",
+              "pk_template": "{recipient_id}",
+              "sk_template": [
+                "{status}",
+                "{created_at}"
+              ]
+            },
+            {
+              "name": "ShipmentsByWarehouse",
+              "pk_template": "{warehouse_id}",
+              "sk_template": [
+                "{status}",
+                "{created_at}"
+              ]
+            },
+            {
+              "name": "ShipmentsByCourier",
+              "pk_template": "{courier_id}",
+              "sk_template": [
+                "{status}",
+                "{created_at}"
+              ]
+            },
+            {
+              "name": "AvailableShipmentsByCity",
+              "pk_template": "{available_city}",
+              "sk_template": "{created_at}"
+            },
+            {
+              "name": "CourierActiveDelivery",
+              "pk_template": "{active_delivery}"
+            }
+          ],
+          "pk_template": "{shipment_id}"
+        }
+      },
+      "gsi_list": [
+        {
+          "included_attributes": [
+            "warehouse_name",
+            "total_weight"
+          ],
+          "name": "ShipmentsByRecipient",
+          "partition_key": "recipient_id",
+          "projection": "INCLUDE",
+          "sort_key": [
+            "status",
+            "created_at"
+          ]
+        },
+        {
+          "included_attributes": [
+            "recipient_name",
+            "total_weight"
+          ],
+          "name": "ShipmentsByWarehouse",
+          "partition_key": "warehouse_id",
+          "projection": "INCLUDE",
+          "sort_key": [
+            "status",
+            "created_at"
+          ]
+        },
+        {
+          "included_attributes": [
+            "warehouse_name",
+            "total_weight"
+          ],
+          "name": "ShipmentsByCourier",
+          "partition_key": "courier_id",
+          "projection": "INCLUDE",
+          "sort_key": [
+            "status",
+            "created_at"
+          ]
+        },
+        {
+          "included_attributes": [
+            "warehouse_name",
+            "origin_address",
+            "destination_address"
+          ],
+          "name": "AvailableShipmentsByCity",
+          "partition_key": "available_city",
+          "projection": "INCLUDE",
+          "sort_key": "created_at"
+        },
+        {
+          "included_attributes": [
+            "warehouse_name",
+            "status",
+            "destination_address",
+            "origin_address"
+          ],
+          "name": "CourierActiveDelivery",
+          "partition_key": "active_delivery",
+          "projection": "INCLUDE"
+        }
+      ],
+      "table_config": {
+        "partition_key": "shipment_id",
+        "table_name": "Shipments"
+      }
+    }
+  ]
+}

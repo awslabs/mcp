@@ -444,7 +444,6 @@
         },
         {
           "included_attributes": [
-            "user_id",
             "target_name",
             "created_at"
           ],
@@ -454,9 +453,7 @@
         },
         {
           "included_attributes": [
-            "user_id",
-            "watch_key",
-            "created_at"
+            "target_name"
           ],
           "name": "WatchesByType",
           "partition_key": "watch_type",

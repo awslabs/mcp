@@ -257,7 +257,34 @@ CREATE INDEX ASYNC idx_users_email ON users(email);
 - Reference [`./dsql-examples.md`](./dsql-examples.md) for patterns
 - ALWAYS use `CREATE INDEX ASYNC` for all indexes
 
-### Step 9: What's Next
+### Step 9: Set Up Scoped Database Roles
+
+**Recommend creating scoped roles before application development begins.**
+
+- Ask: "Would you like to set up scoped database roles for your application? This is recommended over using `admin` directly."
+- If yes, follow [access-control.md](./access-control.md) for detailed guidance
+- At minimum, guide creating one application role:
+
+```sql
+-- As admin
+CREATE ROLE app_user WITH LOGIN;
+AWS IAM GRANT app_user TO 'arn:aws:iam::<account-id>:role/<AppIAMRole>';
+GRANT USAGE ON SCHEMA public TO app_user;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_user;
+```
+
+- If the application handles sensitive user data, recommend a separate schema:
+
+```sql
+CREATE SCHEMA users_schema;
+GRANT USAGE ON SCHEMA users_schema TO app_user;
+GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA users_schema TO app_user;
+GRANT CREATE ON SCHEMA users_schema TO app_user;
+```
+
+- After setup, application connections should use `generate-db-connect-auth-token` (not the admin variant)
+
+### Step 10: What's Next
 
 Let them know you're ready to help with more:
 
@@ -267,7 +294,8 @@ Let them know you're ready to help with more:
 - Writing queries with proper tenant isolation
 - Connection pooling and token refresh strategies
 - Multi-region cluster setup for high availability
-- Performance optimization with indexes and query patterns"
+- Performance optimization with indexes and query patterns
+- Setting up additional scoped roles for different services"
 
 ### Important Notes:
 

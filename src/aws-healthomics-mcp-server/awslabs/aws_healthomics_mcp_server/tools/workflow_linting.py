@@ -16,11 +16,16 @@
 
 import tempfile
 from abc import ABC, abstractmethod
+from awslabs.aws_healthomics_mcp_server.utils.content_resolver import (
+    resolve_bundle_content,
+    resolve_single_content,
+)
+from awslabs.aws_healthomics_mcp_server.utils.error_utils import handle_tool_error
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pathlib import Path
 from pydantic import Field
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 
 class WorkflowLinter(ABC):
@@ -345,7 +350,9 @@ def get_linter(workflow_format: str) -> WorkflowLinter:
 
 async def lint_workflow_definition(
     ctx: Context,
-    workflow_content: str = Field(description='The workflow definition content to lint'),
+    workflow_content: str = Field(
+        description='The workflow definition content to lint. Accepts inline content, a local file path, or an S3 URI (s3://bucket/key).'
+    ),
     workflow_format: str = Field(description="The workflow format: 'wdl' or 'cwl'"),
     filename: Optional[str] = Field(default=None, description='Optional filename for context'),
 ) -> Dict[str, Any]:
@@ -363,7 +370,8 @@ async def lint_workflow_definition(
 
     Args:
         ctx: MCP context for error reporting
-        workflow_content: The workflow definition content to lint
+        workflow_content: The workflow definition content to lint. Accepts inline content,
+            a local file path, or an S3 URI (s3://bucket/key).
         workflow_format: The workflow format ('wdl' or 'cwl')
         filename: Optional filename for context in error messages
 
@@ -376,9 +384,16 @@ async def lint_workflow_definition(
         - raw_output: Raw output from the linter command execution
     """
     try:
+        try:
+            resolved = await resolve_single_content(workflow_content, mode='text')
+        except (ValueError, FileNotFoundError, PermissionError) as e:
+            return await handle_tool_error(ctx, e, 'Error resolving workflow content')
+
         logger.info(f'Linting {workflow_format} workflow definition')
         linter = get_linter(workflow_format)
-        return await linter.lint_workflow(workflow_content=workflow_content, filename=filename)
+        return await linter.lint_workflow(
+            workflow_content=str(resolved.content), filename=filename
+        )
     except ValueError as e:
         # Handle unsupported workflow format from get_linter
         error_message = str(e)
@@ -389,8 +404,8 @@ async def lint_workflow_definition(
 
 async def lint_workflow_bundle(
     ctx: Context,
-    workflow_files: Dict[str, str] = Field(
-        description='Dictionary mapping file paths to their content'
+    workflow_files: Union[str, Dict[str, str]] = Field(
+        description='Dictionary mapping file paths to their content, a local directory path, a ZIP file path, or an S3 URI (s3://bucket/prefix/ or s3://bucket/file.zip).'
     ),
     workflow_format: str = Field(description="The workflow format: 'wdl' or 'cwl'"),
     main_workflow_file: str = Field(
@@ -415,7 +430,9 @@ async def lint_workflow_bundle(
 
     Args:
         ctx: MCP context for error reporting
-        workflow_files: Dictionary mapping relative file paths to their content
+        workflow_files: Dictionary mapping relative file paths to their content, a local
+            directory path, a ZIP file path, or an S3 URI (s3://bucket/prefix/ or
+            s3://bucket/file.zip).
         workflow_format: The workflow format ('wdl' or 'cwl')
         main_workflow_file: Path to the main workflow file within the bundle
 
@@ -429,10 +446,15 @@ async def lint_workflow_bundle(
         - raw_output: Raw output from the linter command execution
     """
     try:
-        logger.info(f'Linting {workflow_format} workflow bundle with {len(workflow_files)} files')
+        try:
+            resolved = await resolve_bundle_content(workflow_files)
+        except (ValueError, FileNotFoundError, PermissionError) as e:
+            return await handle_tool_error(ctx, e, 'Error resolving workflow bundle')
+
+        logger.info(f'Linting {workflow_format} workflow bundle with {len(resolved.files)} files')
         linter = get_linter(workflow_format)
         return await linter.lint_workflow_bundle(
-            workflow_files=workflow_files,
+            workflow_files=resolved.files,
             main_workflow_file=main_workflow_file,
         )
     except ValueError as e:

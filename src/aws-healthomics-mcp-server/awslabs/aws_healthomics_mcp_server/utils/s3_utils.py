@@ -14,9 +14,11 @@
 
 """S3 utility functions for the HealthOmics MCP server."""
 
+from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_aws_session
+from awslabs.aws_healthomics_mcp_server.utils.path_utils import validate_s3_uri_format
 from botocore.exceptions import ClientError, NoCredentialsError
 from loguru import logger
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 from urllib.parse import urlparse
 
 
@@ -132,8 +134,6 @@ def validate_bucket_access(bucket_paths: List[str]) -> List[str]:
     Raises:
         ValueError: If no buckets are accessible
     """
-    from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_aws_session
-
     if not bucket_paths:
         raise ValueError('No S3 bucket paths provided')
 
@@ -207,3 +207,145 @@ def validate_bucket_access(bucket_paths: List[str]) -> List[str]:
         logger.warning(f'Some buckets are not accessible: {"; ".join(errors)}')
 
     return accessible_buckets
+
+
+def validate_s3_bucket_for_write(
+    s3_client,
+    bucket: str,
+    expected_bucket_owner: Optional[str] = None,
+) -> None:
+    """Validate that an S3 bucket exists, is accessible, and optionally owned by the expected account.
+
+    Args:
+        s3_client: A boto3 S3 client.
+        bucket: The bucket name.
+        expected_bucket_owner: AWS account ID for owner verification. None skips the check.
+
+    Raises:
+        ValueError: If the bucket does not exist, is not accessible, or owner mismatch.
+        NoCredentialsError: If AWS credentials are not available.
+    """
+    try:
+        head_bucket_args = {'Bucket': bucket}
+        if expected_bucket_owner is not None:
+            head_bucket_args['ExpectedBucketOwner'] = expected_bucket_owner
+        s3_client.head_bucket(**head_bucket_args)
+    except NoCredentialsError:
+        raise
+    except ClientError as e:
+        error_code = e.response['Error']['Code']
+        if error_code == '404':
+            raise ValueError(f'S3 bucket does not exist: {bucket}')
+        elif error_code == '403':
+            if expected_bucket_owner is not None:
+                raise ValueError(
+                    f'Access denied to S3 bucket: {bucket}. '
+                    f'The bucket may not be owned by account {expected_bucket_owner}.'
+                )
+            raise ValueError(f'Access denied to S3 bucket: {bucket}')
+        else:
+            raise ValueError(f'Error accessing S3 bucket {bucket}: {e}')
+
+
+def write_svg_to_s3(
+    svg_content: str,
+    s3_path: str,
+    expected_bucket_owner: Optional[str] = None,
+) -> str:
+    """Parse S3 path, validate bucket, check no-overwrite, and upload SVG.
+
+    Args:
+        svg_content: The SVG string to upload.
+        s3_path: The S3 URI (s3://bucket/key).
+        expected_bucket_owner: AWS account ID for owner verification. None skips the check.
+
+    Returns:
+        The S3 URI where the object was written.
+
+    Raises:
+        ValueError: If path parsing or bucket validation fails.
+        FileExistsError: If an object already exists at the key.
+        ClientError: If the S3 upload fails.
+    """
+    bucket, key = validate_s3_uri_format(s3_path)
+
+    if not key:
+        raise ValueError(f'Invalid S3 URI format: {s3_path}. Missing object key')
+
+    session = get_aws_session()
+    s3_client = session.client('s3')
+
+    validate_s3_bucket_for_write(s3_client, bucket, expected_bucket_owner)
+
+    # Check that the object does not already exist (no-overwrite)
+    try:
+        s3_client.head_object(Bucket=bucket, Key=key)
+        # If head_object succeeds, the object exists — refuse to overwrite
+        raise FileExistsError(f'S3 object already exists: {s3_path}')
+    except ClientError as e:
+        error_code = e.response['Error']['Code']
+        if error_code in ('404'):
+            # Object does not exist — this is the expected case
+            pass
+        else:
+            raise
+
+    s3_client.put_object(
+        Bucket=bucket,
+        Key=key,
+        Body=svg_content.encode('utf-8'),
+        ContentType='image/svg+xml',
+    )
+
+    return s3_path
+
+
+def write_zip_to_s3(
+    zip_data: bytes,
+    s3_path: str,
+    expected_bucket_owner: Optional[str] = None,
+) -> str:
+    """Parse S3 path, validate bucket, check no-overwrite, and upload a ZIP archive.
+
+    Args:
+        zip_data: The raw ZIP bytes to upload.
+        s3_path: The S3 URI (s3://bucket/key).
+        expected_bucket_owner: AWS account ID for owner verification. None skips the check.
+
+    Returns:
+        The S3 URI where the object was written.
+
+    Raises:
+        ValueError: If path parsing or bucket validation fails.
+        FileExistsError: If an object already exists at the key.
+        ClientError: If the S3 upload fails.
+    """
+    bucket, key = validate_s3_uri_format(s3_path)
+
+    if not key:
+        raise ValueError(f'Invalid S3 URI format: {s3_path}. Missing object key')
+
+    session = get_aws_session()
+    s3_client = session.client('s3')
+
+    validate_s3_bucket_for_write(s3_client, bucket, expected_bucket_owner)
+
+    # Check that the object does not already exist (no-overwrite)
+    try:
+        s3_client.head_object(Bucket=bucket, Key=key)
+        raise FileExistsError(f'S3 object already exists: {s3_path}')
+    except ClientError as e:
+        error_code = e.response['Error']['Code']
+        if error_code in ('404'):
+            pass
+        else:
+            raise
+
+    s3_client.put_object(
+        Bucket=bucket,
+        Key=key,
+        Body=zip_data,
+        ContentType='application/zip',
+    )
+
+    return s3_path
