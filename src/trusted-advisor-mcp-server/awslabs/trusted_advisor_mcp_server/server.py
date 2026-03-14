@@ -667,10 +667,37 @@ async def generate_trusted_advisor_report(
     """
     try:
         recommendations = await ta_client.list_recommendations()
+
+        # Fetch details + resources for active (warning/error) recommendations
+        active_recs = [
+            r for r in recommendations if r.get('status') in ('warning', 'error')
+        ]
+        detail_tasks = [ta_client.get_recommendation(r['arn']) for r in active_recs]
+        resource_tasks = [
+            ta_client.list_recommendation_resources(r['arn']) for r in active_recs
+        ]
+        all_results = await asyncio.gather(
+            *detail_tasks, *resource_tasks, return_exceptions=True
+        )
+
+        details: dict = {}
+        resources: dict = {}
+        n = len(active_recs)
+        for i, rec in enumerate(active_recs):
+            arn = rec['arn']
+            detail_result = all_results[i]
+            resource_result = all_results[n + i]
+            if isinstance(detail_result, dict):
+                details[arn] = detail_result
+            if isinstance(resource_result, list):
+                resources[arn] = resource_result
+
         generated_at = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
         html = generate_html_report(
             recommendations,
             generated_at=generated_at,
+            details=details,
+            resources=resources,
         )
 
         if output_path:

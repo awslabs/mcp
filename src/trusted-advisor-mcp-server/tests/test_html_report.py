@@ -148,3 +148,72 @@ class TestGenerateHtmlReport:
         # Should use inline styles (no <style> block with external class)
         # At minimum: no <link> stylesheet references
         assert '<link rel="stylesheet"' not in result
+
+    def test_with_details_and_resources(self, sample_recommendations):
+        """Test that details and resources are rendered when provided."""
+        details = {
+            'arn:1': {
+                'description': '<p>This check warns you about <b>Lambda functions</b> using deprecated runtimes.</p>',
+            },
+        }
+        resources = {
+            'arn:1': [
+                {'id': 'func-alpha', 'status': 'error', 'metadata': {}},
+                {'id': 'func-beta', 'status': 'warning', 'metadata': {}},
+                {'id': 'func-gamma', 'status': 'ok', 'metadata': {}},
+            ],
+        }
+        result = generate_html_report(
+            sample_recommendations, details=details, resources=resources
+        )
+        assert 'What is this check?' in result
+        assert 'Lambda functions' in result  # HTML tags stripped
+        assert '&lt;b&gt;' not in result  # HTML tags should be stripped, not escaped
+        assert 'Risk:' in result
+        assert 'func-alpha' in result
+        assert 'func-beta' in result
+        # OK resources should not appear in affected list
+        assert 'func-gamma' not in result
+        assert 'Affected Resources (2 total)' in result
+
+    def test_risk_text_per_pillar(self, sample_recommendations):
+        """Test that risk text varies by pillar."""
+        result = generate_html_report(sample_recommendations)
+        # Security rec (arn:1) should show security risk
+        assert 'unauthorized access' in result
+        # Cost rec (arn:2) should show cost risk
+        assert 'incur costs' in result
+
+    def test_details_without_resources(self, sample_recommendations):
+        """Test that details work without resources."""
+        details = {
+            'arn:1': {'description': 'Check for deprecated runtimes.'},
+        }
+        result = generate_html_report(
+            sample_recommendations, details=details, resources={}
+        )
+        assert 'What is this check?' in result
+        assert 'Check for deprecated runtimes' in result
+
+    def test_resources_truncated_at_ten(self):
+        """Test that resource list is truncated at 10 items."""
+        rec = {
+            'arn': 'arn:x',
+            'name': 'Many Resources Check',
+            'status': 'error',
+            'pillars': ['security'],
+            'resourcesAggregates': {'okCount': 0, 'warningCount': 0, 'errorCount': 15},
+            'pillarSpecificAggregates': {},
+            'lastUpdatedAt': '2024-01-15',
+        }
+        resource_list = [
+            {'id': f'res-{i}', 'status': 'error', 'metadata': {}} for i in range(15)
+        ]
+        result = generate_html_report(
+            [rec], resources={'arn:x': resource_list}
+        )
+        assert 'Affected Resources (15 total)' in result
+        assert 'res-0' in result
+        assert 'res-9' in result
+        assert 'res-10' not in result
+        assert 'and 5 more' in result

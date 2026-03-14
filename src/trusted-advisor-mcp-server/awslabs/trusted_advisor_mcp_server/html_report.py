@@ -13,7 +13,8 @@
 # limitations under the License.
 """HTML report generation for the AWS Trusted Advisor MCP Server."""
 
-from typing import Any, Dict, List
+import re
+from typing import Any, Dict, List, Optional
 
 from awslabs.trusted_advisor_mcp_server.insights import (
     REMEDIATION_HINTS,
@@ -101,7 +102,35 @@ def _escape_html(text: str) -> str:
     )
 
 
-def _render_accordion_item(rec: Dict[str, Any], extra_col_html: str = '') -> str:
+_RISK_BY_PILLAR = {
+    'security': 'Unresolved security issues may expose resources to unauthorized access, data breaches, or compliance violations.',
+    'cost_optimizing': 'Unused or underutilized resources continue to incur costs unnecessarily.',
+    'fault_tolerance': 'Without resilience improvements, your workload may experience downtime during failures.',
+    'performance': 'Performance issues can degrade user experience and application response times.',
+    'service_limits': 'Approaching service limits may cause request failures or deployment errors.',
+    'operational_excellence': 'Operational gaps can lead to increased maintenance burden and incident response time.',
+}
+_RISK_DEFAULT = 'Unresolved issues may impact reliability, security, or cost efficiency of your workload.'
+
+
+def _strip_html(text: str) -> str:
+    """Remove HTML tags and collapse whitespace."""
+    text = re.sub(r'<[^>]+>', ' ', text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+
+
+def _get_risk_text(pillar: str) -> str:
+    """Return risk text for a pillar."""
+    return _RISK_BY_PILLAR.get(pillar, _RISK_DEFAULT)
+
+
+def _render_accordion_item(
+    rec: Dict[str, Any],
+    extra_col_html: str = '',
+    detail: Optional[Dict[str, Any]] = None,
+    resource_list: Optional[List[Dict[str, Any]]] = None,
+) -> str:
     """Render a single recommendation as a clickable <details> accordion item."""
     status = rec.get('status', 'unknown').lower()
     name = rec.get('name', 'Unknown')
@@ -117,6 +146,61 @@ def _render_accordion_item(rec: Dict[str, Any], extra_col_html: str = '') -> str
     updated = str(raw_ts)[:10] if raw_ts else ''
     hint = _get_remediation_hint(name)
     border_color = _status_color(status)
+
+    # Description section (from detail API)
+    description_html = ''
+    if detail:
+        raw_desc = detail.get('description', '')
+        if raw_desc:
+            stripped = _strip_html(raw_desc)
+            truncated = stripped[:300] + ('...' if len(stripped) > 300 else '')
+            description_html = (
+                f'<div style="margin-top:6px;padding:8px 10px;background:#e3f2fd;'
+                f'border-radius:4px;border-left:3px solid #1565c0;">'
+                f'<strong>What is this check?</strong><br>'
+                f'<span style="font-size:12px;">{_escape_html(truncated)}</span></div>'
+            )
+
+    # Risk section
+    risk_text = _get_risk_text(pillar)
+    risk_html = (
+        f'<div style="margin-top:8px;padding:8px 10px;background:#fce4ec;'
+        f'border-radius:4px;border-left:3px solid #c62828;">'
+        f'<strong>Risk:</strong> {_escape_html(risk_text)}</div>'
+    )
+
+    # Affected resources section
+    resources_html = ''
+    if resource_list:
+        active_resources = [
+            r for r in resource_list
+            if r.get('status', '').lower() in ('warning', 'error')
+        ]
+        if active_resources:
+            total_count = len(active_resources)
+            display = active_resources[:10]
+            items = ''
+            for r in display:
+                label = (
+                    r.get('id')
+                    or r.get('arn')
+                    or next(iter(r.get('metadata', {}).values()), 'N/A')
+                )
+                res_status = r.get('status', '').lower()
+                res_color = '#b71c1c' if res_status == 'error' else '#e65100'
+                items += (
+                    f'<li><span style="color:{res_color};">[{_status_label(res_status)}]</span> '
+                    f'{_escape_html(str(label))}</li>'
+                )
+            more = ''
+            if total_count > 10:
+                more = f'<div style="font-size:12px;color:#757575;margin-top:4px;">(and {total_count - 10} more...)</div>'
+            resources_html = (
+                f'<div style="margin-top:10px;">'
+                f'<strong>Affected Resources ({total_count} total):</strong>'
+                f'<ul style="margin:6px 0;padding-left:20px;font-size:12px;font-family:monospace;">'
+                f'{items}</ul>{more}</div>'
+            )
 
     # Savings line (only if > 0)
     savings_line = ''
@@ -140,12 +224,15 @@ def _render_accordion_item(rec: Dict[str, Any], extra_col_html: str = '') -> str
     detail_html = f'''
         <div style="padding:12px 16px;background:#fafafa;border-top:1px solid #e0e0e0;
                     font-size:13px;color:#424242;line-height:1.6;">
-            <div><strong>Resources:</strong>
+            {description_html}
+            {risk_html}
+            <div style="margin-top:8px;"><strong>Resources:</strong>
                 <span style="color:#2e7d32;">{ok_n} OK</span> ·
                 <span style="color:#e65100;">{warn_n} Warning</span> ·
                 <span style="color:#b71c1c;">{err_n} Error</span>
                 (affected: {affected})
             </div>
+            {resources_html}
             {savings_line}
             {updated_line}
             {arn_line}
@@ -182,6 +269,8 @@ def _render_accordion_item(rec: Dict[str, Any], extra_col_html: str = '') -> str
 def generate_html_report(
     recommendations: List[Dict[str, Any]],
     generated_at: str = '',
+    details: Optional[Dict[str, Any]] = None,
+    resources: Optional[Dict[str, List[Dict[str, Any]]]] = None,
 ) -> str:
     """Generate a self-contained HTML report from Trusted Advisor recommendations.
 
@@ -192,10 +281,16 @@ def generate_html_report(
     Args:
         recommendations: List of all recommendation summaries from the API.
         generated_at: Timestamp string for when the report was generated.
+        details: Optional dict mapping ARN to recommendation detail from get_recommendation.
+        resources: Optional dict mapping ARN to list of resource dicts from list_recommendation_resources.
 
     Returns:
         A complete self-contained HTML file as a string.
     """
+    if details is None:
+        details = {}
+    if resources is None:
+        resources = {}
     total = len(recommendations)
     ok_count = sum(1 for r in recommendations if r.get('status') == 'ok')
     warning_count = sum(1 for r in recommendations if r.get('status') == 'warning')
@@ -260,9 +355,14 @@ def generate_html_report(
     security_html = ''
     if security_recs:
         items = ''.join(
-            _render_accordion_item(r, extra_col_html=(
-                f'<span style="color:#b71c1c;">{int(r.get("resourcesAggregates", {}).get("warningCount", 0)) + int(r.get("resourcesAggregates", {}).get("errorCount", 0))} affected</span>'
-            ))
+            _render_accordion_item(
+                r,
+                extra_col_html=(
+                    f'<span style="color:#b71c1c;">{int(r.get("resourcesAggregates", {}).get("warningCount", 0)) + int(r.get("resourcesAggregates", {}).get("errorCount", 0))} affected</span>'
+                ),
+                detail=details.get(r.get('arn', '')),
+                resource_list=resources.get(r.get('arn', '')),
+            )
             for r in security_recs
         )
         security_html = f'''
@@ -280,11 +380,16 @@ def generate_html_report(
     cost_html = ''
     if cost_recs:
         items = ''.join(
-            _render_accordion_item(r, extra_col_html=(
-                f'<span style="color:#2e7d32;font-weight:600;">'
-                f'{"$" + f"{_extract_savings(r):,.2f}/mo" if _extract_savings(r) > 0 else "N/A"}'
-                f'</span>'
-            ))
+            _render_accordion_item(
+                r,
+                extra_col_html=(
+                    f'<span style="color:#2e7d32;font-weight:600;">'
+                    f'{"$" + f"{_extract_savings(r):,.2f}/mo" if _extract_savings(r) > 0 else "N/A"}'
+                    f'</span>'
+                ),
+                detail=details.get(r.get('arn', '')),
+                resource_list=resources.get(r.get('arn', '')),
+            )
             for r in cost_recs
         )
         cost_html = f'''
@@ -301,7 +406,14 @@ def generate_html_report(
     )
     limits_html = ''
     if limits_recs:
-        items = ''.join(_render_accordion_item(r) for r in limits_recs)
+        items = ''.join(
+            _render_accordion_item(
+                r,
+                detail=details.get(r.get('arn', '')),
+                resource_list=resources.get(r.get('arn', '')),
+            )
+            for r in limits_recs
+        )
         limits_html = f'''
         <h2 style="color:#1a237e;margin-top:32px;margin-bottom:12px;">
             Service Limits <span style="font-size:16px;color:#757575;">({len(limits_recs)})</span>
@@ -318,9 +430,14 @@ def generate_html_report(
     other_html = ''
     if other_recs:
         items = ''.join(
-            _render_accordion_item(r, extra_col_html=(
-                f'<span style="color:#616161;">{_escape_html(_pillar_label(_get_primary_pillar(r)))}</span>'
-            ))
+            _render_accordion_item(
+                r,
+                extra_col_html=(
+                    f'<span style="color:#616161;">{_escape_html(_pillar_label(_get_primary_pillar(r)))}</span>'
+                ),
+                detail=details.get(r.get('arn', '')),
+                resource_list=resources.get(r.get('arn', '')),
+            )
             for r in other_recs
         )
         other_html = f'''
@@ -341,9 +458,14 @@ def generate_html_report(
     unclassified_html = ''
     if unclassified_recs:
         items = ''.join(
-            _render_accordion_item(r, extra_col_html=(
-                f'<span style="color:#616161;">{_escape_html(_pillar_label(_get_primary_pillar(r)))}</span>'
-            ))
+            _render_accordion_item(
+                r,
+                extra_col_html=(
+                    f'<span style="color:#616161;">{_escape_html(_pillar_label(_get_primary_pillar(r)))}</span>'
+                ),
+                detail=details.get(r.get('arn', '')),
+                resource_list=resources.get(r.get('arn', '')),
+            )
             for r in unclassified_recs
         )
         unclassified_html = f'''
