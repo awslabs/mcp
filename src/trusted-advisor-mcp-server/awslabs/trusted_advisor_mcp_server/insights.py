@@ -332,3 +332,200 @@ def format_executive_summary(
         )
 
     return '\n'.join(lines)
+
+
+def format_trend_report(
+    recommendations: List[Dict[str, Any]], since_days: int = 30
+) -> str:
+    """Generate a trend report showing changes over the past N days.
+
+    Args:
+        recommendations: List of all recommendation summaries from the API.
+        since_days: Number of days to look back for changes.
+
+    Returns:
+        A markdown-formatted trend report.
+    """
+    from datetime import datetime, timezone, timedelta
+
+    if not recommendations:
+        return '# Trend Report\n\nNo recommendations found.'
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=since_days)
+
+    recently_resolved: List[Dict[str, Any]] = []
+    new_issues: List[Dict[str, Any]] = []
+    ongoing_issues: List[Dict[str, Any]] = []
+
+    for rec in recommendations:
+        status = rec.get('status', '').lower()
+        raw_ts = rec.get('lastUpdatedAt')
+        updated_at = None
+        if raw_ts:
+            try:
+                if hasattr(raw_ts, 'tzinfo'):
+                    updated_at = raw_ts
+                else:
+                    updated_at = datetime.fromisoformat(str(raw_ts).replace('Z', '+00:00'))
+            except (ValueError, AttributeError):
+                pass
+
+        is_recent = updated_at is not None and updated_at >= cutoff
+
+        if status == 'ok' and is_recent:
+            recently_resolved.append(rec)
+        elif status in ('warning', 'error') and is_recent:
+            new_issues.append(rec)
+        elif status in ('warning', 'error') and not is_recent:
+            ongoing_issues.append(rec)
+
+    recently_resolved.sort(key=lambda r: r.get('lastUpdatedAt') or '', reverse=True)
+    new_issues.sort(key=lambda r: (0 if r.get('status') == 'error' else 1, r.get('name', '')))
+    ongoing_issues.sort(key=lambda r: (0 if r.get('status') == 'error' else 1, r.get('name', '')))
+
+    lines = [f'# Trend Report (Last {since_days} Days)\n']
+    lines.append(f'**Analysis Period**: Last {since_days} days')
+    lines.append(f'**Total Checks**: {len(recommendations)}\n')
+
+    # Summary line
+    lines.append(
+        f'- Resolved in period: **{len(recently_resolved)}** '
+        f'| New/Updated Issues: **{len(new_issues)}** '
+        f'| Ongoing Issues: **{len(ongoing_issues)}**\n'
+    )
+
+    if recently_resolved:
+        lines.append(f'## ✅ Resolved ({len(recently_resolved)})\n')
+        for rec in recently_resolved[:10]:
+            raw_ts = rec.get('lastUpdatedAt', '')
+            ts_str = str(raw_ts)[:10] if raw_ts else 'unknown'
+            lines.append(f'- **{rec.get("name", "Unknown")}** — resolved {ts_str}')
+        if len(recently_resolved) > 10:
+            lines.append(f'- *(and {len(recently_resolved) - 10} more)*')
+        lines.append('')
+
+    if new_issues:
+        lines.append(f'## 🔴 New / Updated Issues ({len(new_issues)})\n')
+        for rec in new_issues[:10]:
+            icon = _status_icon(rec.get('status', ''))
+            raw_ts = rec.get('lastUpdatedAt', '')
+            ts_str = str(raw_ts)[:10] if raw_ts else 'unknown'
+            agg = rec.get('resourcesAggregates', {})
+            affected = int(agg.get('warningCount', 0)) + int(agg.get('errorCount', 0))
+            savings = _extract_savings(rec)
+            extras = []
+            if affected:
+                extras.append(f'{affected} resources')
+            if savings > 0:
+                extras.append(f'${savings:,.2f}/mo savings')
+            extra_str = f' ({", ".join(extras)})' if extras else ''
+            lines.append(f'- {icon} **{rec.get("name", "Unknown")}**{extra_str} — updated {ts_str}')
+        if len(new_issues) > 10:
+            lines.append(f'- *(and {len(new_issues) - 10} more)*')
+        lines.append('')
+
+    if ongoing_issues:
+        lines.append(f'## ⚠️ Ongoing Issues ({len(ongoing_issues)})\n')
+        lines.append('*These issues existed before the analysis period and have not changed.*\n')
+        for rec in ongoing_issues[:10]:
+            icon = _status_icon(rec.get('status', ''))
+            lines.append(f'- {icon} **{rec.get("name", "Unknown")}**')
+        if len(ongoing_issues) > 10:
+            lines.append(f'- *(and {len(ongoing_issues) - 10} more)*')
+        lines.append('')
+
+    if not recently_resolved and not new_issues and not ongoing_issues:
+        lines.append('No changes or active issues found in this period.')
+
+    return '\n'.join(lines)
+
+
+def format_recommendation_remediation(
+    recommendation: Dict[str, Any],
+    resources: List[Dict[str, Any]],
+) -> str:
+    """Generate detailed remediation guidance for a specific recommendation.
+
+    Args:
+        recommendation: A single recommendation object from get_recommendation().
+        resources: List of affected resources from list_recommendation_resources().
+
+    Returns:
+        A markdown-formatted remediation guide.
+    """
+    name = recommendation.get('name', 'Unknown')
+    status = recommendation.get('status', 'unknown').lower()
+    pillars = recommendation.get('pillars') or [recommendation.get('pillar', '')]
+    pillar = pillars[0] if pillars else ''
+    description = recommendation.get('description', '')
+    arn = recommendation.get('arn', '')
+
+    agg = recommendation.get('resourcesAggregates', {})
+    ok_count = int(agg.get('okCount', 0))
+    warning_count = int(agg.get('warningCount', 0))
+    error_count = int(agg.get('errorCount', 0))
+
+    savings = _extract_savings(recommendation)
+
+    lines = [f'# Remediation Guide: {name}\n']
+    lines.append(f'- **Status**: {_status_icon(status)}')
+    lines.append(f'- **Pillar**: {_format_pillar(pillar)}')
+    lines.append(f'- **Resources**: {ok_count} OK · {warning_count} Warning · {error_count} Error')
+    if savings > 0:
+        lines.append(f'- **Estimated Monthly Savings**: ${savings:,.2f}')
+    if arn:
+        lines.append(f'- **ARN**: `{arn}`')
+    lines.append('')
+
+    if description:
+        lines.append('## Description\n')
+        lines.append(description.strip())
+        lines.append('')
+
+    lines.append('## Recommended Action\n')
+    hint = _get_remediation_hint(name)
+    lines.append(hint)
+    lines.append('')
+
+    if resources:
+        error_resources = [r for r in resources if r.get('status') == 'error']
+        warning_resources = [r for r in resources if r.get('status') == 'warning']
+        display_resources = (error_resources + warning_resources)[:20]
+
+        lines.append(f'## Affected Resources ({len(resources)} total)\n')
+        for res in display_resources:
+            res_status = res.get('status', 'unknown')
+            res_id = res.get('id', res.get('arn', 'Unknown'))
+            region = res.get('region', '')
+            meta = res.get('metadata', {})
+
+            # Build a concise resource line
+            parts = [f'- {_status_icon(res_status)} `{res_id}`']
+            if region:
+                parts.append(f'(Region: {region})')
+
+            # Surface useful metadata fields if available
+            if meta:
+                useful_keys = ['instanceId', 'volumeId', 'functionName', 'groupName',
+                               'bucketName', 'loadBalancerName', 'tableName', 'runtime']
+                for key in useful_keys:
+                    if key in meta:
+                        parts.append(f'— {key}: `{meta[key]}`')
+                        break
+
+            lines.append(' '.join(parts))
+
+        if len(resources) > 20:
+            lines.append(f'- *(and {len(resources) - 20} more resources)*')
+        lines.append('')
+
+        lines.append('## Next Steps\n')
+        lines.append('1. Review each affected resource listed above')
+        lines.append('2. Apply the recommended action to each resource')
+        lines.append('3. Allow up to 24 hours for Trusted Advisor to refresh the check status')
+        lines.append('4. Re-run `get_recommendation` to confirm resolution')
+    else:
+        lines.append('## Affected Resources\n')
+        lines.append('No resource-level detail available for this recommendation.')
+
+    return '\n'.join(lines)

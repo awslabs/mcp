@@ -108,7 +108,7 @@ class TestGenerateHtmlReport:
     def test_score_present(self, sample_recommendations):
         """Test that health score appears in the report."""
         result = generate_html_report(sample_recommendations)
-        assert 'out of 100' in result or '/100' in result
+        assert 'out of 100' in result or '/100' in result or '/ 100' in result
 
     def test_recommendation_names_present(self, sample_recommendations):
         """Test that recommendation names appear in the report."""

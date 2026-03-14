@@ -31,6 +31,8 @@ from awslabs.trusted_advisor_mcp_server.html_report import generate_html_report
 from awslabs.trusted_advisor_mcp_server.insights import (
     format_executive_summary,
     format_prioritized_actions,
+    format_trend_report,
+    format_recommendation_remediation,
 )
 from botocore.exceptions import ClientError
 from datetime import datetime, timezone
@@ -692,6 +694,83 @@ async def generate_trusted_advisor_report(
     except Exception as e:
         logger.error(f'Unexpected error generating HTML report: {str(e)}')
         return f'Error generating HTML report: {str(e)}'
+
+
+@mcp.tool(name='get_trend_report')
+async def get_trend_report(
+    ctx: Context,
+    since_days: int = Field(
+        30,
+        description='Number of days to look back for changes (default: 30).',
+        ge=1,
+        le=365,
+    ),
+) -> str:
+    """Generate a trend report showing how Trusted Advisor findings have changed over time.
+
+    Use this when a user wants to track progress, identify newly introduced issues, or
+    confirm that previously flagged items have been resolved. Returns three sections:
+    - Resolved: checks that moved to OK status within the period
+    - New/Updated Issues: warning or error items updated within the period
+    - Ongoing Issues: warning or error items that predate the period
+
+    ## Example
+    ```
+    get_trend_report(since_days=30)
+    get_trend_report(since_days=7)
+    ```
+    """
+    try:
+        recommendations = await ta_client.list_recommendations()
+        return format_trend_report(recommendations, since_days=since_days)
+    except ClientError as e:
+        error_code = e.response['Error']['Code']
+        error_message = e.response['Error']['Message']
+        logger.error(f'Error generating trend report: {error_code} - {error_message}')
+        return f'Error generating trend report: {error_code} - {error_message}'
+    except Exception as e:
+        logger.error(f'Unexpected error generating trend report: {str(e)}')
+        return f'Error generating trend report: {str(e)}'
+
+
+@mcp.tool(name='get_recommendation_remediation')
+async def get_recommendation_remediation(
+    ctx: Context,
+    recommendation_arn: str = Field(
+        ...,
+        description='The ARN of the recommendation to get remediation guidance for. '
+        'Obtain this from list_recommendations or any summary tool.',
+    ),
+) -> str:
+    """Get detailed remediation guidance and affected resources for a specific recommendation.
+
+    Use this when a user wants to understand exactly how to fix a specific Trusted Advisor
+    finding. Returns a step-by-step remediation guide, specific AWS CLI commands or console
+    instructions, and a list of all affected resources with their status.
+
+    ## Example
+    ```
+    get_recommendation_remediation(
+        recommendation_arn="arn:aws:trustedadvisor::123456789012:recommendation/abc123"
+    )
+    ```
+    """
+    try:
+        recommendation, resources = await asyncio.gather(
+            ta_client.get_recommendation(recommendation_arn),
+            ta_client.list_recommendation_resources(recommendation_arn),
+        )
+        if not recommendation:
+            return f'Recommendation not found: {recommendation_arn}'
+        return format_recommendation_remediation(recommendation, resources)
+    except ClientError as e:
+        error_code = e.response['Error']['Code']
+        error_message = e.response['Error']['Message']
+        logger.error(f'Error fetching remediation for {recommendation_arn}: {error_code} - {error_message}')
+        return f'Error fetching remediation: {error_code} - {error_message}'
+    except Exception as e:
+        logger.error(f'Unexpected error fetching remediation: {str(e)}')
+        return f'Error fetching remediation: {str(e)}'
 
 
 def main():
