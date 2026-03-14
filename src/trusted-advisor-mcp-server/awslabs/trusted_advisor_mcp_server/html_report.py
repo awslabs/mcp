@@ -102,6 +102,68 @@ def _escape_html(text: str) -> str:
     )
 
 
+def _extract_resource_display(resource: Dict[str, Any]) -> tuple:
+    """Extract a human-readable (primary, secondary) display pair from a resource.
+
+    Metadata typically has numbered keys: "0" = status color, "1" = region,
+    "2" = ARN or resource identifier, "3" = runtime/type/extra info.
+    """
+    meta = resource.get('metadata', {})
+    primary = ''
+    secondary = ''
+
+    val2 = meta.get('2', '')
+    val3 = meta.get('3', '')
+    val1 = meta.get('1', '')
+
+    if val2:
+        if val2.startswith('arn:'):
+            # Parse ARN: arn:partition:service:region:account:resource
+            arn_parts = val2.split(':')
+            service = arn_parts[2] if len(arn_parts) > 2 else ''
+            # Resource part is everything after 5th colon
+            resource_part = ':'.join(arn_parts[5:]) if len(arn_parts) > 5 else ''
+            # Remove :$LATEST suffix first
+            resource_part = resource_part.split(':$LATEST')[0]
+            # Strip type prefixes like "function:", "role:", "table/", etc.
+            if '/' in resource_part:
+                resource_name = resource_part.rsplit('/', 1)[-1]
+            elif ':' in resource_part:
+                # e.g. "function:my-func" -> "my-func"
+                resource_name = resource_part.split(':', 1)[-1]
+            else:
+                resource_name = resource_part
+            primary = f'{service}:{resource_name}' if service and resource_name else val2
+        else:
+            primary = val2
+        if val3:
+            secondary = val3
+    elif val1:
+        primary = val1
+        if val3:
+            secondary = val3
+    else:
+        # Fall back to regionCode or truncated id
+        primary = resource.get('regionCode', '')
+        if not primary:
+            rid = resource.get('id', '') or resource.get('arn', '')
+            primary = (rid[:32] + '...') if len(rid) > 32 else rid
+        primary = primary or 'N/A'
+
+    return (str(primary), str(secondary))
+
+
+def _status_badge_small(status: str) -> str:
+    """Return a small inline HTML badge for a status."""
+    color = _status_color(status)
+    label = _status_label(status)
+    return (
+        f'<span style="display:inline-block;padding:1px 5px;border-radius:3px;'
+        f'background:{color};color:#fff;font-size:10px;font-weight:600;'
+        f'vertical-align:middle;">{label}</span>'
+    )
+
+
 _RISK_BY_PILLAR = {
     'security': 'Unresolved security issues may expose resources to unauthorized access, data breaches, or compliance violations.',
     'cost_optimizing': 'Unused or underutilized resources continue to incur costs unnecessarily.',
@@ -181,16 +243,18 @@ def _render_accordion_item(
             display = active_resources[:10]
             items = ''
             for r in display:
-                label = (
-                    r.get('id')
-                    or r.get('arn')
-                    or next(iter(r.get('metadata', {}).values()), 'N/A')
-                )
                 res_status = r.get('status', '').lower()
-                res_color = '#b71c1c' if res_status == 'error' else '#e65100'
+                primary, secondary = _extract_resource_display(r)
+                secondary_html = (
+                    f' <span style="color:#757575;font-size:11px;font-family:Arial,sans-serif;">'
+                    f'({_escape_html(secondary)})</span>'
+                    if secondary else ''
+                )
                 items += (
-                    f'<li><span style="color:{res_color};">[{_status_label(res_status)}]</span> '
-                    f'{_escape_html(str(label))}</li>'
+                    f'<li style="margin-bottom:3px;">'
+                    f'{_status_badge_small(res_status)} '
+                    f'<code style="font-size:12px;">{_escape_html(primary)}</code>'
+                    f'{secondary_html}</li>'
                 )
             more = ''
             if total_count > 10:
@@ -198,7 +262,7 @@ def _render_accordion_item(
             resources_html = (
                 f'<div style="margin-top:10px;">'
                 f'<strong>Affected Resources ({total_count} total):</strong>'
-                f'<ul style="margin:6px 0;padding-left:20px;font-size:12px;font-family:monospace;">'
+                f'<ul style="margin:6px 0;padding-left:20px;font-size:12px;list-style:none;">'
                 f'{items}</ul>{more}</div>'
             )
 
