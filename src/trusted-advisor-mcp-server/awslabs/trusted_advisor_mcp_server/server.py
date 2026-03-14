@@ -27,7 +27,13 @@ from awslabs.trusted_advisor_mcp_server.formatters import (
     format_security_summary,
     format_service_limits_summary,
 )
+from awslabs.trusted_advisor_mcp_server.html_report import generate_html_report
+from awslabs.trusted_advisor_mcp_server.insights import (
+    format_executive_summary,
+    format_prioritized_actions,
+)
 from botocore.exceptions import ClientError
+from datetime import datetime, timezone
 from fastmcp import Context, FastMCP
 from loguru import logger
 from pydantic import Field
@@ -579,6 +585,130 @@ async def get_account_score(ctx: Context) -> str:
     except Exception as e:
         logger.error(f'Unexpected error calculating account score: {str(e)}')
         return f'Error calculating account score: {str(e)}'
+
+@mcp.tool(name='get_executive_summary')
+async def get_executive_summary(
+    ctx: Context,
+    account_alias: Optional[str] = Field(
+        None,
+        description='Customer or account name to include in the summary '
+        '(e.g., ACME Corp, Production Account)',
+    ),
+) -> str:
+    """Generate a business-level executive summary of the AWS account health.
+
+    Use this when a user needs a high-level overview suitable for management or stakeholders.
+    Returns an overall health score, key metrics (checks passed/failed, total savings),
+    top security concern, and a narrative assessment paragraph.
+
+    ## Example
+    ```
+    get_executive_summary(account_alias="ACME Corp Production")
+    get_executive_summary()
+    ```
+    """
+    try:
+        recommendations = await ta_client.list_recommendations()
+        return format_executive_summary(recommendations, account_alias or '')
+    except ClientError as e:
+        error_code = e.response['Error']['Code']
+        error_message = e.response['Error']['Message']
+        logger.error(f'Error generating executive summary: {error_code} - {error_message}')
+        return f'Error generating executive summary: {error_code} - {error_message}'
+    except Exception as e:
+        logger.error(f'Unexpected error generating executive summary: {str(e)}')
+        return f'Error generating executive summary: {str(e)}'
+
+
+@mcp.tool(name='get_prioritized_actions')
+async def get_prioritized_actions(ctx: Context) -> str:
+    """Generate a prioritized action plan from all Trusted Advisor recommendations.
+
+    Use this when a user asks "what should I fix first?" or needs a ranked list of
+    remediation actions. Returns recommendations categorized as Quick Wins, High Impact,
+    or Review When Possible, sorted by impact score. Each item includes effort estimate,
+    affected resource count, and a specific remediation hint.
+
+    ## Example
+    ```
+    get_prioritized_actions()
+    ```
+    """
+    try:
+        recommendations = await ta_client.list_recommendations()
+        return format_prioritized_actions(recommendations)
+    except ClientError as e:
+        error_code = e.response['Error']['Code']
+        error_message = e.response['Error']['Message']
+        logger.error(f'Error generating prioritized actions: {error_code} - {error_message}')
+        return f'Error generating prioritized actions: {error_code} - {error_message}'
+    except Exception as e:
+        logger.error(f'Unexpected error generating prioritized actions: {str(e)}')
+        return f'Error generating prioritized actions: {str(e)}'
+
+
+@mcp.tool(name='generate_trusted_advisor_report')
+async def generate_trusted_advisor_report(
+    ctx: Context,
+    account_alias: Optional[str] = Field(
+        None,
+        description='Customer or account name to include in the report header '
+        '(e.g., ACME Corp, Production Account)',
+    ),
+    output_path: Optional[str] = Field(
+        None,
+        description='File path to save the HTML report (e.g., /tmp/ta-report.html). '
+        'If not provided, the HTML content is returned directly.',
+    ),
+) -> str:
+    """Generate a self-contained HTML report of all Trusted Advisor findings.
+
+    Use this when a user needs a shareable, offline-capable report suitable for customer
+    delivery or archiving. The report includes account score, pillar breakdown, security
+    issues, cost optimization opportunities, service limits, and other findings.
+
+    **WARNING: If output_path is provided, this tool writes a file to the specified path.**
+
+    ## Example
+    ```
+    generate_trusted_advisor_report(
+        account_alias="ACME Corp",
+        output_path="/tmp/trusted-advisor-report.html"
+    )
+    generate_trusted_advisor_report()
+    ```
+    """
+    try:
+        recommendations = await ta_client.list_recommendations()
+        generated_at = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
+        html = generate_html_report(
+            recommendations,
+            account_alias=account_alias or '',
+            generated_at=generated_at,
+        )
+
+        if output_path:
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(html)
+            return (
+                f'HTML report saved to `{output_path}` ({len(recommendations)} recommendations, '
+                f'generated at {generated_at}).\n\n'
+                f'Open the file in a browser to view the report.'
+            )
+
+        return html
+    except ClientError as e:
+        error_code = e.response['Error']['Code']
+        error_message = e.response['Error']['Message']
+        logger.error(f'Error generating HTML report: {error_code} - {error_message}')
+        return f'Error generating HTML report: {error_code} - {error_message}'
+    except OSError as e:
+        logger.error(f'Error writing HTML report to file: {str(e)}')
+        return f'Error writing HTML report to file: {str(e)}'
+    except Exception as e:
+        logger.error(f'Unexpected error generating HTML report: {str(e)}')
+        return f'Error generating HTML report: {str(e)}'
+
 
 def main():
     """Run the MCP server."""
