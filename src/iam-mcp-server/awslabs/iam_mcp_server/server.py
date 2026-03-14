@@ -1261,9 +1261,15 @@ async def get_user_policy(
 
         response = iam.get_user_policy(UserName=user_name, PolicyName=policy_name)
 
+        # boto3 returns PolicyDocument as a dict (auto-parsed from JSON),
+        # but InlinePolicyResponse expects a string
+        policy_doc = response['PolicyDocument']
+        if isinstance(policy_doc, dict):
+            policy_doc = json.dumps(policy_doc)
+
         result = InlinePolicyResponse(
             policy_name=response['PolicyName'],
-            policy_document=response['PolicyDocument'],
+            policy_document=policy_doc,
             user_name=response['UserName'],
             role_name=None,
             message=f'Successfully retrieved inline policy {policy_name} for user {user_name}',
@@ -1423,9 +1429,15 @@ async def get_role_policy(
 
         response = iam.get_role_policy(RoleName=role_name, PolicyName=policy_name)
 
+        # boto3 returns PolicyDocument as a dict (auto-parsed from JSON),
+        # but InlinePolicyResponse expects a string
+        policy_doc = response['PolicyDocument']
+        if isinstance(policy_doc, dict):
+            policy_doc = json.dumps(policy_doc)
+
         result = InlinePolicyResponse(
             policy_name=response['PolicyName'],
-            policy_document=response['PolicyDocument'],
+            policy_document=policy_doc,
             user_name=None,
             role_name=response['RoleName'],
             message=f'Successfully retrieved inline policy {policy_name} for role {role_name}',
