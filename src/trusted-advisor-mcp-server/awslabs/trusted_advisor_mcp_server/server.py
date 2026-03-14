@@ -13,6 +13,7 @@
 # limitations under the License.
 """AWS Trusted Advisor MCP Server implementation."""
 
+import asyncio
 import os
 import sys
 from awslabs.trusted_advisor_mcp_server.client import TrustedAdvisorClient
@@ -215,8 +216,10 @@ async def get_recommendation(
     ```
     """
     try:
-        recommendation = await ta_client.get_recommendation(recommendation_identifier)
-        resources = await ta_client.list_recommendation_resources(recommendation_identifier)
+        recommendation, resources = await asyncio.gather(
+            ta_client.get_recommendation(recommendation_identifier),
+            ta_client.list_recommendation_resources(recommendation_identifier),
+        )
         return format_recommendation_detail(recommendation, resources)
     except ClientError as e:
         error_code = e.response['Error']['Code']
@@ -243,11 +246,9 @@ async def get_cost_optimization_summary(ctx: Context) -> str:
     """
     try:
         # Fetch both warning and error cost optimization recommendations
-        warnings = await ta_client.list_recommendations(
-            pillar='cost_optimizing', status='warning'
-        )
-        errors = await ta_client.list_recommendations(
-            pillar='cost_optimizing', status='error'
+        warnings, errors = await asyncio.gather(
+            ta_client.list_recommendations(pillar='cost_optimizing', status='warning'),
+            ta_client.list_recommendations(pillar='cost_optimizing', status='error'),
         )
         all_recommendations = warnings + errors
         return format_cost_optimization_summary(all_recommendations)
@@ -299,11 +300,9 @@ async def get_service_limits_summary(ctx: Context) -> str:
     ```
     """
     try:
-        warnings = await ta_client.list_recommendations(
-            pillar='service_limits', status='warning'
-        )
-        errors = await ta_client.list_recommendations(
-            pillar='service_limits', status='error'
+        warnings, errors = await asyncio.gather(
+            ta_client.list_recommendations(pillar='service_limits', status='warning'),
+            ta_client.list_recommendations(pillar='service_limits', status='error'),
         )
         all_recommendations = warnings + errors
         return format_service_limits_summary(all_recommendations)
@@ -441,8 +440,6 @@ async def list_organization_recommendations(
         return f'Error listing organization recommendations: {str(e)}'
 
 
-
-
 @mcp.tool(name='get_account_score')
 async def get_account_score(ctx: Context) -> str:
     """Calculate an overall health score (0-100) for the AWS account based on Trusted Advisor checks.
@@ -470,36 +467,49 @@ async def get_account_score(ctx: Context) -> str:
         total_error = 0
         pillar_scores = {}
 
+        # Fetch all pillar data in parallel (6 pillars × 3 statuses = 18 calls)
+        tasks = []
         for pillar in pillars:
-            try:
-                ok_recs = await ta_client.list_recommendations(pillar=pillar, status='ok')
-                warning_recs = await ta_client.list_recommendations(pillar=pillar, status='warning')
-                error_recs = await ta_client.list_recommendations(pillar=pillar, status='error')
+            for status in ('ok', 'warning', 'error'):
+                tasks.append(ta_client.list_recommendations(pillar=pillar, status=status))
 
-                ok = len(ok_recs)
-                warning = len(warning_recs)
-                error = len(error_recs)
-                total = ok + warning + error
+        results = await asyncio.gather(*tasks, return_exceptions=True)
 
-                if total > 0:
-                    # Errors count 3x, warnings 1x
-                    penalty = (error * 3) + warning
-                    max_penalty = total * 3
-                    pillar_score = max(0, round(100 * (1 - penalty / max_penalty)))
-                else:
-                    pillar_score = 100
+        for i, pillar in enumerate(pillars):
+            ok_result = results[i * 3]
+            warning_result = results[i * 3 + 1]
+            error_result = results[i * 3 + 2]
 
-                pillar_scores[pillar] = {
-                    'score': pillar_score,
-                    'ok': ok,
-                    'warning': warning,
-                    'error': error,
-                }
-                total_ok += ok
-                total_warning += warning
-                total_error += error
-            except Exception:
+            if (
+                isinstance(ok_result, Exception)
+                or isinstance(warning_result, Exception)
+                or isinstance(error_result, Exception)
+            ):
                 pillar_scores[pillar] = {'score': None, 'ok': 0, 'warning': 0, 'error': 0}
+                continue
+
+            ok = len(ok_result)
+            warning = len(warning_result)
+            error = len(error_result)
+            total = ok + warning + error
+
+            if total > 0:
+                # Errors count 3x, warnings 1x
+                penalty = (error * 3) + warning
+                max_penalty = total * 3
+                pillar_score = max(0, round(100 * (1 - penalty / max_penalty)))
+            else:
+                pillar_score = 100
+
+            pillar_scores[pillar] = {
+                'score': pillar_score,
+                'ok': ok,
+                'warning': warning,
+                'error': error,
+            }
+            total_ok += ok
+            total_warning += warning
+            total_error += error
 
         total = total_ok + total_warning + total_error
         if total > 0:
@@ -572,8 +582,6 @@ async def get_account_score(ctx: Context) -> str:
 
 def main():
     """Run the MCP server."""
-    logger.remove()
-    logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'WARNING'))
     logger.debug('Starting awslabs_trusted_advisor_mcp_server MCP server')
     mcp.run(transport='stdio')
 

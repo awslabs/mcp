@@ -94,17 +94,18 @@ class TrustedAdvisorClient:
         Returns:
             The result of the function call.
         """
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, lambda: func(*args, **kwargs))
 
     async def _paginate(
-        self, method: Callable[..., Any], result_key: str, **kwargs: Any
+        self, method: Callable[..., Any], result_key: str, max_pages: int = 100, **kwargs: Any
     ) -> List[Dict[str, Any]]:
         """Auto-paginate a Trusted Advisor API call.
 
         Args:
             method: The boto3 client method to call.
             result_key: The key in the response that contains the results list.
+            max_pages: Maximum number of pages to fetch (default: 100).
             **kwargs: Additional arguments to pass to the API call.
 
         Returns:
@@ -112,6 +113,7 @@ class TrustedAdvisorClient:
         """
         all_results: List[Dict[str, Any]] = []
         next_token = None
+        page_count = 0
 
         while True:
             if next_token:
@@ -119,9 +121,17 @@ class TrustedAdvisorClient:
 
             response = await self._run_in_executor(method, **kwargs)
             all_results.extend(response.get(result_key, []))
+            page_count += 1
 
             next_token = response.get('nextToken')
             if not next_token:
+                break
+
+            if page_count >= max_pages:
+                logger.warning(
+                    f'Pagination limit reached ({max_pages} pages). '
+                    f'Results may be incomplete.'
+                )
                 break
 
         return all_results

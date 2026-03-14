@@ -13,7 +13,7 @@
 # limitations under the License.
 """Data models for the AWS Trusted Advisor MCP Server."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Any, Dict, List, Optional
 
 
@@ -26,8 +26,7 @@ class RecommendationPillarSpecificAggregates(BaseModel):
         description='Cost optimization specific aggregates including estimated monthly savings',
     )
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class RecommendationResourcesAggregates(BaseModel):
@@ -37,8 +36,7 @@ class RecommendationResourcesAggregates(BaseModel):
     warning_count: int = Field(0, alias='warningCount', description='Number of warning resources')
     error_count: int = Field(0, alias='errorCount', description='Number of error resources')
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class RecommendationSummary(BaseModel):
@@ -62,8 +60,7 @@ class RecommendationSummary(BaseModel):
         None, alias='lastUpdatedAt', description='When the recommendation was last updated'
     )
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class RecommendationDetail(BaseModel):
@@ -108,8 +105,7 @@ class RecommendationDetail(BaseModel):
         None, alias='updateReason', description='The reason for the last update'
     )
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class RecommendationResource(BaseModel):
@@ -138,8 +134,7 @@ class RecommendationResource(BaseModel):
         description='Whether the resource is excluded from the recommendation',
     )
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class CheckSummary(BaseModel):
@@ -155,8 +150,7 @@ class CheckSummary(BaseModel):
     )
     source: Optional[str] = Field(None, description='The source of the check')
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class OrganizationRecommendation(BaseModel):
@@ -183,8 +177,7 @@ class OrganizationRecommendation(BaseModel):
         None, alias='lastUpdatedAt', description='When the recommendation was last updated'
     )
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class CostOptimizationSummary(BaseModel):

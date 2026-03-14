@@ -365,8 +365,8 @@ def format_service_limits_summary(recommendations: List[Dict[str, Any]]) -> str:
     lines.append(f'**Services Approaching or Exceeding Limits: {len(recommendations)}**\n')
 
     # Sort errors first
-    recommendations.sort(
-        key=lambda r: (0 if r.get('status') == 'error' else 1, r.get('name', ''))
+    recommendations = sorted(
+        recommendations, key=lambda r: (0 if r.get('status') == 'error' else 1, r.get('name', ''))
     )
 
     for rec in recommendations:
