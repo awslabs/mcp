@@ -95,15 +95,15 @@ class TestGenerateHtmlReport:
         assert '<script src=' not in result
         assert '<link rel=' not in result or 'stylesheet' not in result
 
-    def test_account_alias_included(self, sample_recommendations):
-        """Test that account alias appears in the report."""
-        result = generate_html_report(sample_recommendations, account_alias='Acme Corp')
-        assert 'Acme Corp' in result
-
     def test_without_account_alias(self, sample_recommendations):
-        """Test report generation without account alias."""
+        """Test report generation works without any extra parameters."""
         result = generate_html_report(sample_recommendations)
         assert '<!DOCTYPE html>' in result
+
+    def test_html_contains_report_title(self, sample_recommendations):
+        """Test that the report contains a meaningful title."""
+        result = generate_html_report(sample_recommendations)
+        assert 'Trusted Advisor' in result
 
     def test_score_present(self, sample_recommendations):
         """Test that health score appears in the report."""

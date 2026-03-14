@@ -79,14 +79,12 @@ def _escape_html(text: str) -> str:
 
 def generate_html_report(
     recommendations: List[Dict[str, Any]],
-    account_alias: str = '',
     generated_at: str = '',
 ) -> str:
     """Generate a self-contained HTML report from Trusted Advisor recommendations.
 
     Args:
         recommendations: List of all recommendation summaries from the API.
-        account_alias: Optional customer or account name.
         generated_at: Timestamp string for when the report was generated.
 
     Returns:
@@ -306,7 +304,7 @@ def generate_html_report(
     # Score bar
     score_color = '#2e7d32' if overall_score >= 75 else '#e65100' if overall_score >= 50 else '#b71c1c'
 
-    account_title = f' - {_escape_html(account_alias)}' if account_alias else ''
+    account_title = ''
     date_line = f'<div style="color:#757575;margin-top:4px;">Generated: {_escape_html(generated_at)}</div>' if generated_at else ''
 
     html = f'''<!DOCTYPE html>

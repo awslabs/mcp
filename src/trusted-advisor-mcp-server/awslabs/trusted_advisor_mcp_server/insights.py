@@ -227,15 +227,13 @@ def format_prioritized_actions(recommendations: List[Dict[str, Any]]) -> str:
 
 
 def format_executive_summary(
-    recommendations: List[Dict[str, Any]], account_alias: str = ''
+    recommendations: List[Dict[str, Any]]
 ) -> str:
     """Generate an executive summary from Trusted Advisor recommendations.
 
     Args:
         recommendations: List of all recommendation summaries from the API.
-        account_alias: Optional customer or account name.
-
-    Returns:
+        Returns:
         A markdown-formatted executive summary.
     """
     total = len(recommendations)
@@ -278,8 +276,7 @@ def format_executive_summary(
         top_savings_amount = _extract_savings(savings_recs[0])
 
     # Build output
-    account_label = f' for {account_alias}' if account_alias else ''
-    lines = [f'## Executive Summary{account_label}\n']
+    lines = ['## Executive Summary\n']
 
     lines.append('### Key Metrics\n')
     lines.append(f'- **Account Health Score**: {overall_score}/100 (Grade: {grade})')
@@ -297,27 +294,27 @@ def format_executive_summary(
 
     if overall_score >= 90:
         lines.append(
-            f'The AWS account{account_label} is in excellent health with a score of '
+            f'The AWS account is in excellent health with a score of '
             f'{overall_score}/100. The vast majority of Trusted Advisor checks are passing '
             f'with only {warning_count} warnings and {error_count} errors across {total} total checks.'
         )
     elif overall_score >= 75:
         lines.append(
-            f'The AWS account{account_label} is in good overall health with a score of '
+            f'The AWS account is in good overall health with a score of '
             f'{overall_score}/100, but there are areas that need attention. '
             f'Out of {total} total checks, {warning_count} returned warnings and '
             f'{error_count} returned errors.'
         )
     elif overall_score >= 60:
         lines.append(
-            f'The AWS account{account_label} has a moderate health score of '
+            f'The AWS account has a moderate health score of '
             f'{overall_score}/100, indicating several areas requiring attention. '
             f'There are {error_count} errors and {warning_count} warnings across '
             f'{total} checks that should be reviewed.'
         )
     else:
         lines.append(
-            f'The AWS account{account_label} has a health score of {overall_score}/100, '
+            f'The AWS account has a health score of {overall_score}/100, '
             f'indicating significant issues that require immediate attention. '
             f'With {error_count} errors and {warning_count} warnings across {total} checks, '
             f'a focused remediation effort is recommended.'

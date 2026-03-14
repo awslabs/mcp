@@ -218,10 +218,10 @@ class TestFormatExecutiveSummary:
         assert 'Executive Summary' in result
         assert '100/100' in result
 
-    def test_with_account_alias(self, sample_recommendations):
-        """Test that account alias appears in output."""
-        result = format_executive_summary(sample_recommendations, account_alias='Acme Corp')
-        assert 'Acme Corp' in result
+    def test_with_no_extra_params(self, sample_recommendations):
+        """Test that executive summary works without extra parameters."""
+        result = format_executive_summary(sample_recommendations)
+        assert 'Executive Summary' in result
 
     def test_without_account_alias(self, sample_recommendations):
         """Test output without account alias."""

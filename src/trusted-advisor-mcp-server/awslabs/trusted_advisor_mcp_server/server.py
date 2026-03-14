@@ -587,29 +587,21 @@ async def get_account_score(ctx: Context) -> str:
         return f'Error calculating account score: {str(e)}'
 
 @mcp.tool(name='get_executive_summary')
-async def get_executive_summary(
-    ctx: Context,
-    account_alias: Optional[str] = Field(
-        None,
-        description='Customer or account name to include in the summary '
-        '(e.g., ACME Corp, Production Account)',
-    ),
-) -> str:
-    """Generate a business-level executive summary of the AWS account health.
+async def get_executive_summary(ctx: Context) -> str:
+    """Generate a concise summary of the AWS account health with key metrics and assessment.
 
-    Use this when a user needs a high-level overview suitable for management or stakeholders.
-    Returns an overall health score, key metrics (checks passed/failed, total savings),
-    top security concern, and a narrative assessment paragraph.
+    Use this when a user needs a high-level overview of their account's Trusted Advisor
+    findings. Returns an overall health score, key metrics (checks passed/failed, total
+    estimated savings), top security concern, and a narrative assessment paragraph.
 
     ## Example
     ```
-    get_executive_summary(account_alias="ACME Corp Production")
     get_executive_summary()
     ```
     """
     try:
         recommendations = await ta_client.list_recommendations()
-        return format_executive_summary(recommendations, account_alias or '')
+        return format_executive_summary(recommendations)
     except ClientError as e:
         error_code = e.response['Error']['Code']
         error_message = e.response['Error']['Message']
@@ -650,11 +642,6 @@ async def get_prioritized_actions(ctx: Context) -> str:
 @mcp.tool(name='generate_trusted_advisor_report')
 async def generate_trusted_advisor_report(
     ctx: Context,
-    account_alias: Optional[str] = Field(
-        None,
-        description='Customer or account name to include in the report header '
-        '(e.g., ACME Corp, Production Account)',
-    ),
     output_path: Optional[str] = Field(
         None,
         description='File path to save the HTML report (e.g., /tmp/ta-report.html). '
@@ -663,18 +650,16 @@ async def generate_trusted_advisor_report(
 ) -> str:
     """Generate a self-contained HTML report of all Trusted Advisor findings.
 
-    Use this when a user needs a shareable, offline-capable report suitable for customer
-    delivery or archiving. The report includes account score, pillar breakdown, security
-    issues, cost optimization opportunities, service limits, and other findings.
+    Use this when a user needs a shareable, offline-capable report. The report includes
+    the account health score, per-pillar breakdown, security issues, cost optimization
+    opportunities, service limits, and all other active findings — all in a single HTML
+    file with inline CSS (no external dependencies).
 
     **WARNING: If output_path is provided, this tool writes a file to the specified path.**
 
     ## Example
     ```
-    generate_trusted_advisor_report(
-        account_alias="ACME Corp",
-        output_path="/tmp/trusted-advisor-report.html"
-    )
+    generate_trusted_advisor_report(output_path="/tmp/trusted-advisor-report.html")
     generate_trusted_advisor_report()
     ```
     """
@@ -683,7 +668,6 @@ async def generate_trusted_advisor_report(
         generated_at = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
         html = generate_html_report(
             recommendations,
-            account_alias=account_alias or '',
             generated_at=generated_at,
         )
 
