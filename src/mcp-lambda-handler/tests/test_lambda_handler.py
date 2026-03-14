@@ -1541,7 +1541,7 @@ def test_prompt_decorator_registers_prompt():
     @handler.prompt
     def generate_code(language: str, task: str) -> str:
         """Generate code for a specific task."""
-        return f"Code in {language} for {task}"
+        return f'Code in {language} for {task}'
 
     assert 'generateCode' in handler.prompts
     assert 'generateCode' in handler.prompt_implementations
@@ -1551,10 +1551,10 @@ def test_prompt_with_custom_name():
     """Test prompt decorator with custom name."""
     handler = MCPLambdaHandler('test-server')
 
-    @handler.prompt(name="customPrompt")
+    @handler.prompt(name='customPrompt')
     def test_function() -> str:
         """Custom prompt."""
-        return "test"
+        return 'test'
 
     assert 'customPrompt' in handler.prompts
     assert handler.prompts['customPrompt']['name'] == 'customPrompt'
@@ -1570,19 +1570,21 @@ def test_prompt_with_description():
 
         This is a detailed description.
         """
-        return f"Summary: {text[:50]}"
+        return f'Summary: {text[:50]}'
 
-    assert handler.prompts['createSummary']['description'] == 'Create a summary of the provided text.'
+    assert (
+        handler.prompts['createSummary']['description'] == 'Create a summary of the provided text.'
+    )
 
 
 def test_prompt_with_custom_description():
     """Test prompt decorator with custom description."""
     handler = MCPLambdaHandler('test-server')
 
-    @handler.prompt(description="Custom description for this prompt")
+    @handler.prompt(description='Custom description for this prompt')
     def test_function() -> str:
         """This should be overridden."""
-        return "test"
+        return 'test'
 
     assert handler.prompts['testFunction']['description'] == 'Custom description for this prompt'
 
@@ -1594,7 +1596,7 @@ def test_prompt_with_arguments():
     @handler.prompt
     def build_query(table: str, filters: str) -> str:
         """Build a database query."""
-        return f"SELECT * FROM {table} WHERE {filters}"
+        return f'SELECT * FROM {table} WHERE {filters}'
 
     prompt = handler.prompts['buildQuery']
     assert 'arguments' in prompt
@@ -1612,7 +1614,7 @@ def test_prompt_argument_types():
     @handler.prompt
     def analyze_data(count: int, value: float, active: bool, name: str) -> str:
         """Analyze data."""
-        return "analysis"
+        return 'analysis'
 
     prompt = handler.prompts['analyzeData']
     types = {arg['name']: arg['type'] for arg in prompt['arguments']}
@@ -1629,7 +1631,7 @@ def test_prompt_without_arguments():
     @handler.prompt
     def get_help() -> str:
         """Get help information."""
-        return "This is help text."
+        return 'This is help text.'
 
     prompt = handler.prompts['getHelp']
     assert prompt['arguments'] == []
@@ -1642,7 +1644,7 @@ def test_prompt_with_tags():
     @handler.prompt(tags={'code', 'generation'})
     def generate_code() -> str:
         """Generate code."""
-        return "code"
+        return 'code'
 
     prompt = handler.prompts['generateCode']
     assert 'tags' in prompt
@@ -1656,7 +1658,7 @@ def test_prompt_with_meta():
     @handler.prompt(meta={'version': '1.0', 'category': 'utility'})
     def utility_prompt() -> str:
         """Utility prompt."""
-        return "utility"
+        return 'utility'
 
     prompt = handler.prompts['utilityPrompt']
     assert '_meta' in prompt
@@ -1671,7 +1673,7 @@ def test_prompt_disabled():
     @handler.prompt(enabled=False)
     def disabled_prompt() -> str:
         """This should not be registered."""
-        return "disabled"
+        return 'disabled'
 
     assert 'disabledPrompt' not in handler.prompts
 
@@ -1683,12 +1685,12 @@ def test_handle_prompts_list():
     @handler.prompt
     def prompt_one() -> str:
         """First prompt."""
-        return "one"
+        return 'one'
 
     @handler.prompt
     def prompt_two(arg: str) -> str:
         """Second prompt."""
-        return "two"
+        return 'two'
 
     req = {'jsonrpc': '2.0', 'id': 1, 'method': 'prompts/list'}
     event = make_lambda_event(req)
@@ -1708,13 +1710,13 @@ def test_handle_prompts_get_without_arguments():
     @handler.prompt
     def welcome_message() -> str:
         """Welcome message prompt."""
-        return "Welcome to the system!"
+        return 'Welcome to the system!'
 
     req = {
         'jsonrpc': '2.0',
         'id': 1,
         'method': 'prompts/get',
-        'params': {'name': 'welcomeMessage'}
+        'params': {'name': 'welcomeMessage'},
     }
     event = make_lambda_event(req)
     resp = handler.handle_request(event, None)
@@ -1736,16 +1738,13 @@ def test_handle_prompts_get_with_arguments():
     @handler.prompt
     def generate_response(name: str, count: int) -> str:
         """Generate a response."""
-        return f"Hello {name}, count is {count}"
+        return f'Hello {name}, count is {count}'
 
     req = {
         'jsonrpc': '2.0',
         'id': 1,
         'method': 'prompts/get',
-        'params': {
-            'name': 'generateResponse',
-            'arguments': {'name': 'Alice', 'count': 42}
-        }
+        'params': {'name': 'generateResponse', 'arguments': {'name': 'Alice', 'count': 42}},
     }
     event = make_lambda_event(req)
     resp = handler.handle_request(event, None)
@@ -1781,7 +1780,7 @@ def test_handle_prompts_get_not_found():
         'jsonrpc': '2.0',
         'id': 1,
         'method': 'prompts/get',
-        'params': {'name': 'nonexistentPrompt'}
+        'params': {'name': 'nonexistentPrompt'},
     }
     event = make_lambda_event(req)
     resp = handler.handle_request(event, None)
@@ -1800,14 +1799,9 @@ def test_handle_prompts_get_rendering_error():
     @handler.prompt
     def failing_prompt() -> str:
         """This prompt will fail."""
-        raise ValueError("Prompt execution failed")
+        raise ValueError('Prompt execution failed')
 
-    req = {
-        'jsonrpc': '2.0',
-        'id': 1,
-        'method': 'prompts/get',
-        'params': {'name': 'failingPrompt'}
-    }
+    req = {'jsonrpc': '2.0', 'id': 1, 'method': 'prompts/get', 'params': {'name': 'failingPrompt'}}
     event = make_lambda_event(req)
     resp = handler.handle_request(event, None)
 
@@ -1844,12 +1838,12 @@ def test_prompt_naming_convention():
     @handler.prompt
     def test_simple_prompt() -> str:
         """Test simple prompt."""
-        return "test"
+        return 'test'
 
     @handler.prompt
     def test_multi_word_prompt() -> str:
         """Test multi word prompt."""
-        return "test"
+        return 'test'
 
     assert 'testSimplePrompt' in handler.prompts
     assert 'testMultiWordPrompt' in handler.prompts
@@ -1862,7 +1856,7 @@ def test_render_prompt_directly():
     @handler.prompt
     def direct_prompt(message: str) -> str:
         """Direct prompt test."""
-        return f"Rendered: {message}"
+        return f'Rendered: {message}'
 
     result = handler._render_prompt('directPrompt', {'message': 'Hello'})
     assert result == 'Rendered: Hello'
@@ -1883,17 +1877,17 @@ def test_multiple_prompts_same_handler():
     @handler.prompt
     def prompt_one() -> str:
         """First prompt."""
-        return "one"
+        return 'one'
 
     @handler.prompt
     def prompt_two() -> str:
         """Second prompt."""
-        return "two"
+        return 'two'
 
     @handler.prompt
     def prompt_three(arg: str) -> str:
         """Third prompt with argument."""
-        return f"three: {arg}"
+        return f'three: {arg}'
 
     assert len(handler.prompts) == 3
     assert 'promptOne' in handler.prompts
