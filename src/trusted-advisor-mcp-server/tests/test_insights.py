@@ -15,9 +15,11 @@
 
 import pytest
 from awslabs.trusted_advisor_mcp_server.insights import (
+    _get_remediation_hint,
     format_executive_summary,
     format_prioritized_actions,
-    _get_remediation_hint,
+    format_recommendation_remediation,
+    format_trend_report,
 )
 
 
@@ -284,3 +286,137 @@ class TestFormatExecutiveSummary:
         ]
         result = format_executive_summary(bad_recs)
         assert 'immediate' in result.lower() or 'significant' in result.lower()
+
+
+class TestFormatTrendReport:
+    """Tests for format_trend_report."""
+
+    def test_empty_recommendations(self):
+        """Test with empty recommendations."""
+        result = format_trend_report([])
+        assert 'Trend Report' in result
+        assert 'No recommendations found' in result
+
+    def test_resolved_items_classified(self):
+        """Test that recently resolved items are classified correctly."""
+        from datetime import datetime, timedelta, timezone
+
+        recent_date = (datetime.now(timezone.utc) - timedelta(days=5)).isoformat()
+        recs = [
+            {
+                'arn': 'arn:1',
+                'name': 'Resolved Check',
+                'status': 'ok',
+                'lastUpdatedAt': recent_date,
+                'resourcesAggregates': {'okCount': 1, 'warningCount': 0, 'errorCount': 0},
+                'pillarSpecificAggregates': {},
+            },
+        ]
+        result = format_trend_report(recs, since_days=30)
+        assert 'Resolved' in result
+        assert 'Resolved Check' in result
+
+    def test_new_issues_classified(self):
+        """Test that new/updated issues within period are classified correctly."""
+        from datetime import datetime, timedelta, timezone
+
+        recent_date = (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()
+        recs = [
+            {
+                'arn': 'arn:1',
+                'name': 'New Security Issue',
+                'status': 'error',
+                'lastUpdatedAt': recent_date,
+                'resourcesAggregates': {'okCount': 0, 'warningCount': 0, 'errorCount': 3},
+                'pillarSpecificAggregates': {},
+            },
+        ]
+        result = format_trend_report(recs, since_days=30)
+        assert 'New / Updated Issues' in result
+        assert 'New Security Issue' in result
+
+    def test_ongoing_issues_classified(self):
+        """Test that old issues are classified as ongoing."""
+        old_date = '2023-01-01T00:00:00Z'
+        recs = [
+            {
+                'arn': 'arn:1',
+                'name': 'Old Warning',
+                'status': 'warning',
+                'lastUpdatedAt': old_date,
+                'resourcesAggregates': {'okCount': 0, 'warningCount': 1, 'errorCount': 0},
+                'pillarSpecificAggregates': {},
+            },
+        ]
+        result = format_trend_report(recs, since_days=30)
+        assert 'Ongoing Issues' in result
+        assert 'Old Warning' in result
+
+    def test_custom_since_days(self):
+        """Test that since_days parameter is reflected in output."""
+        result = format_trend_report([], since_days=7)
+        # Empty case just returns no recommendations
+        assert 'No recommendations found' in result
+
+
+class TestFormatRecommendationRemediation:
+    """Tests for format_recommendation_remediation."""
+
+    def test_with_resources(self):
+        """Test remediation guide with affected resources."""
+        recommendation = {
+            'arn': 'arn:rec:1',
+            'name': 'Low Utilization Amazon EC2 Instances',
+            'status': 'warning',
+            'pillars': ['cost_optimizing'],
+            'description': 'Checks for underutilized EC2 instances.',
+            'resourcesAggregates': {'okCount': 5, 'warningCount': 3, 'errorCount': 0},
+            'pillarSpecificAggregates': {
+                'costOptimizing': {'estimatedMonthlySavings': 150.50}
+            },
+        }
+        resources = [
+            {
+                'id': 'i-abc123',
+                'status': 'warning',
+                'region': 'us-east-1',
+                'metadata': {'instanceId': 'i-abc123'},
+            },
+        ]
+        result = format_recommendation_remediation(recommendation, resources)
+        assert 'Remediation Guide' in result
+        assert 'Low Utilization Amazon EC2 Instances' in result
+        assert 'i-abc123' in result
+        assert '$150.50' in result
+        assert 'Next Steps' in result
+
+    def test_without_resources(self):
+        """Test remediation guide when no resources are available."""
+        recommendation = {
+            'arn': 'arn:rec:2',
+            'name': 'MFA on Root Account',
+            'status': 'error',
+            'pillars': ['security'],
+            'description': 'Checks if MFA is enabled on root account.',
+            'resourcesAggregates': {'okCount': 0, 'warningCount': 0, 'errorCount': 1},
+            'pillarSpecificAggregates': {},
+        }
+        result = format_recommendation_remediation(recommendation, [])
+        assert 'Remediation Guide' in result
+        assert 'MFA on Root Account' in result
+        assert 'No resource-level detail' in result
+
+    def test_remediation_hint_included(self):
+        """Test that remediation hint is included based on recommendation name."""
+        recommendation = {
+            'arn': 'arn:rec:3',
+            'name': 'Security Groups - Unrestricted Access',
+            'status': 'error',
+            'pillars': ['security'],
+            'description': 'Checks for security groups with unrestricted access.',
+            'resourcesAggregates': {'okCount': 0, 'warningCount': 0, 'errorCount': 2},
+            'pillarSpecificAggregates': {},
+        }
+        result = format_recommendation_remediation(recommendation, [])
+        assert 'Recommended Action' in result
+        assert '0.0.0.0/0' in result

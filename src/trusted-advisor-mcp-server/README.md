@@ -15,6 +15,12 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that 
 - **Service Limits Summary** - Identify services approaching or exceeding their quotas
 - **Lifecycle Management** - Update recommendation status (dismiss, resolve, mark in progress)
 - **Organization Support** - View recommendations across all accounts in AWS Organizations (management account only)
+- **Executive Summary** - High-level account health overview with key metrics, score, and narrative assessment
+- **Prioritized Actions** - Ranked action plan categorized as Quick Wins, High Impact, or Review When Possible
+- **HTML Report** - Self-contained HTML report of all findings, saveable to a file for offline sharing
+- **Trend Report** - Track how findings have changed over the past N days (resolved, new, ongoing)
+- **Remediation Guide** - Step-by-step fix guidance and affected resource list for a specific recommendation
+- **In-Memory Caching** - TTL-based cache (default 1 hour) to reduce API calls; configurable via `TA_CACHE_TTL` environment variable
 
 ## Requirements
 
@@ -93,7 +99,12 @@ Create `~/.kiro/agents/trusted-advisor.json`:
     "trusted-advisor__get_security_summary",
     "trusted-advisor__get_cost_optimization_summary",
     "trusted-advisor__get_service_limits_summary",
-    "trusted-advisor__list_organization_recommendations"
+    "trusted-advisor__list_organization_recommendations",
+    "trusted-advisor__get_executive_summary",
+    "trusted-advisor__get_prioritized_actions",
+    "trusted-advisor__generate_trusted_advisor_report",
+    "trusted-advisor__get_trend_report",
+    "trusted-advisor__get_recommendation_remediation"
   ],
   "resources": [],
   "hooks": { "userPromptSubmit": [], "agentSpawn": [] },
@@ -238,6 +249,36 @@ The assistant calls `list_organization_recommendations` with `pillar="security"`
 
 > **Note:** This tool requires **Trusted Advisor Priority**, which is available to AWS Enterprise Support customers and must be activated by your Technical Account Manager (TAM). It is separate from the standard Organizational view in the Trusted Advisor console.
 
+### Executive summary for leadership
+
+> **You:** "Give me an executive summary of our AWS account health"
+
+The assistant calls `get_executive_summary` and returns a concise overview with health score, key metrics, top security concern, savings opportunities, and a narrative assessment.
+
+### What should I fix first?
+
+> **You:** "What are the most important things to fix in our AWS account?"
+
+The assistant calls `get_prioritized_actions` and returns a ranked list of remediation actions categorized as Quick Wins, High Impact, or Review When Possible, each with effort estimate and specific guidance.
+
+### Generate a shareable report
+
+> **You:** "Generate an HTML report of all Trusted Advisor findings and save it to /tmp/ta-report.html"
+
+The assistant calls `generate_trusted_advisor_report(output_path="/tmp/ta-report.html")` and saves a self-contained HTML file.
+
+### Track progress over time
+
+> **You:** "What changed in the last 7 days?"
+
+The assistant calls `get_trend_report(since_days=7)` and shows resolved items, new/updated issues, and ongoing issues.
+
+### How do I fix a specific finding?
+
+> **You:** "How do I fix the IAM Access Analyzer issue?"
+
+The assistant calls `get_recommendation_remediation` with the recommendation ARN and returns step-by-step remediation guidance with affected resources.
+
 ### Workflow integration
 
 > **You:** "Dismiss the S3 versioning recommendation — we manage versioning ourselves"
@@ -264,6 +305,11 @@ The assistant confirms and calls `update_recommendation_lifecycle` with `lifecyc
 | `update_recommendation_lifecycle` | Update recommendation stage (dismissed, resolved, in_progress) |
 | `get_account_score` | Overall health score (0-100) with per-pillar breakdown and letter grade |
 | `list_organization_recommendations` | Priority recommendations across AWS Organizations (requires Trusted Advisor Priority) |
+| `get_executive_summary` | High-level account health overview with key metrics and narrative assessment |
+| `get_prioritized_actions` | Ranked action plan with Quick Wins, High Impact, and Review items |
+| `generate_trusted_advisor_report` | Self-contained HTML report of all findings (optionally saved to file) |
+| `get_trend_report` | Changes over the past N days: resolved, new/updated, and ongoing issues |
+| `get_recommendation_remediation` | Step-by-step remediation guide with affected resources for a specific finding |
 
 ## IAM Permissions
 

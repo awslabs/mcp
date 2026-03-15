@@ -15,7 +15,7 @@
 
 import pytest
 from botocore.exceptions import ClientError
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, mock_open, patch
 
 
 @pytest.fixture
@@ -410,3 +410,312 @@ class TestListOrganizationRecommendations:
             aws_service=None,
             after_last_updated_at=None,
         )
+
+
+class TestGetExecutiveSummary:
+    """Tests for the get_executive_summary tool."""
+
+    async def test_executive_summary_success(
+        self, mock_ta_client, mock_context, recommendation_summaries_data
+    ):
+        """Test successful executive summary generation."""
+        mock_ta_client.list_recommendations.return_value = recommendation_summaries_data
+
+        with patch('awslabs.trusted_advisor_mcp_server.server.ta_client', mock_ta_client):
+            from awslabs.trusted_advisor_mcp_server.server import get_executive_summary
+
+            result = await get_executive_summary(mock_context)
+
+        assert 'Executive Summary' in result
+        assert '/100' in result
+        mock_ta_client.list_recommendations.assert_called_once_with()
+
+    async def test_executive_summary_client_error(self, mock_ta_client, mock_context):
+        """Test error handling for ClientError."""
+        mock_ta_client.list_recommendations.side_effect = ClientError(
+            {'Error': {'Code': 'ThrottlingException', 'Message': 'Rate exceeded'}},
+            'ListRecommendations',
+        )
+
+        with patch('awslabs.trusted_advisor_mcp_server.server.ta_client', mock_ta_client):
+            from awslabs.trusted_advisor_mcp_server.server import get_executive_summary
+
+            result = await get_executive_summary(mock_context)
+
+        assert 'Error' in result
+        assert 'ThrottlingException' in result
+
+    async def test_executive_summary_unexpected_error(self, mock_ta_client, mock_context):
+        """Test error handling for unexpected errors."""
+        mock_ta_client.list_recommendations.side_effect = RuntimeError('Unexpected')
+
+        with patch('awslabs.trusted_advisor_mcp_server.server.ta_client', mock_ta_client):
+            from awslabs.trusted_advisor_mcp_server.server import get_executive_summary
+
+            result = await get_executive_summary(mock_context)
+
+        assert 'Error' in result
+        assert 'Unexpected' in result
+
+
+class TestGetPrioritizedActions:
+    """Tests for the get_prioritized_actions tool."""
+
+    async def test_prioritized_actions_success(
+        self, mock_ta_client, mock_context, recommendation_summaries_data
+    ):
+        """Test successful prioritized actions generation."""
+        mock_ta_client.list_recommendations.return_value = recommendation_summaries_data
+
+        with patch('awslabs.trusted_advisor_mcp_server.server.ta_client', mock_ta_client):
+            from awslabs.trusted_advisor_mcp_server.server import get_prioritized_actions
+
+            result = await get_prioritized_actions(mock_context)
+
+        assert 'Prioritized Actions' in result
+        mock_ta_client.list_recommendations.assert_called_once_with()
+
+    async def test_prioritized_actions_client_error(self, mock_ta_client, mock_context):
+        """Test error handling for ClientError."""
+        mock_ta_client.list_recommendations.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDeniedException', 'Message': 'Access denied'}},
+            'ListRecommendations',
+        )
+
+        with patch('awslabs.trusted_advisor_mcp_server.server.ta_client', mock_ta_client):
+            from awslabs.trusted_advisor_mcp_server.server import get_prioritized_actions
+
+            result = await get_prioritized_actions(mock_context)
+
+        assert 'Error' in result
+        assert 'AccessDeniedException' in result
+
+    async def test_prioritized_actions_unexpected_error(self, mock_ta_client, mock_context):
+        """Test error handling for unexpected errors."""
+        mock_ta_client.list_recommendations.side_effect = RuntimeError('Broken')
+
+        with patch('awslabs.trusted_advisor_mcp_server.server.ta_client', mock_ta_client):
+            from awslabs.trusted_advisor_mcp_server.server import get_prioritized_actions
+
+            result = await get_prioritized_actions(mock_context)
+
+        assert 'Error' in result
+        assert 'Broken' in result
+
+
+class TestGenerateTrustedAdvisorReport:
+    """Tests for the generate_trusted_advisor_report tool."""
+
+    async def test_report_html_returned(
+        self, mock_ta_client, mock_context, recommendation_summaries_data
+    ):
+        """Test that HTML content is returned when no output_path is given."""
+        mock_ta_client.list_recommendations.return_value = recommendation_summaries_data
+        mock_ta_client.get_recommendation.return_value = {}
+        mock_ta_client.list_recommendation_resources.return_value = []
+
+        with patch('awslabs.trusted_advisor_mcp_server.server.ta_client', mock_ta_client):
+            from awslabs.trusted_advisor_mcp_server.server import generate_trusted_advisor_report
+
+            result = await generate_trusted_advisor_report(mock_context, output_path=None)
+
+        # HTML report should contain html tags
+        assert '<html' in result.lower() or 'Trusted Advisor' in result
+
+    async def test_report_saved_to_file(
+        self, mock_ta_client, mock_context, recommendation_summaries_data
+    ):
+        """Test that report is saved to file when output_path is given."""
+        mock_ta_client.list_recommendations.return_value = recommendation_summaries_data
+        mock_ta_client.get_recommendation.return_value = {}
+        mock_ta_client.list_recommendation_resources.return_value = []
+
+        m = mock_open()
+        with (
+            patch('awslabs.trusted_advisor_mcp_server.server.ta_client', mock_ta_client),
+            patch('builtins.open', m),
+        ):
+            from awslabs.trusted_advisor_mcp_server.server import generate_trusted_advisor_report
+
+            result = await generate_trusted_advisor_report(
+                mock_context, output_path='/tmp/test-report.html'
+            )
+
+        assert 'saved' in result.lower() or '/tmp/test-report.html' in result
+        m.assert_called_once_with('/tmp/test-report.html', 'w', encoding='utf-8')
+
+    async def test_report_client_error(self, mock_ta_client, mock_context):
+        """Test error handling for ClientError."""
+        mock_ta_client.list_recommendations.side_effect = ClientError(
+            {'Error': {'Code': 'InternalServerError', 'Message': 'Server error'}},
+            'ListRecommendations',
+        )
+
+        with patch('awslabs.trusted_advisor_mcp_server.server.ta_client', mock_ta_client):
+            from awslabs.trusted_advisor_mcp_server.server import generate_trusted_advisor_report
+
+            result = await generate_trusted_advisor_report(mock_context)
+
+        assert 'Error' in result
+
+    async def test_report_os_error(
+        self, mock_ta_client, mock_context, recommendation_summaries_data
+    ):
+        """Test error handling for OSError when writing file."""
+        mock_ta_client.list_recommendations.return_value = recommendation_summaries_data
+        mock_ta_client.get_recommendation.return_value = {}
+        mock_ta_client.list_recommendation_resources.return_value = []
+
+        with (
+            patch('awslabs.trusted_advisor_mcp_server.server.ta_client', mock_ta_client),
+            patch('builtins.open', side_effect=OSError('Permission denied')),
+        ):
+            from awslabs.trusted_advisor_mcp_server.server import generate_trusted_advisor_report
+
+            result = await generate_trusted_advisor_report(
+                mock_context, output_path='/readonly/report.html'
+            )
+
+        assert 'Error' in result
+        assert 'Permission denied' in result
+
+    async def test_report_unexpected_error(self, mock_ta_client, mock_context):
+        """Test error handling for unexpected errors."""
+        mock_ta_client.list_recommendations.side_effect = RuntimeError('Boom')
+
+        with patch('awslabs.trusted_advisor_mcp_server.server.ta_client', mock_ta_client):
+            from awslabs.trusted_advisor_mcp_server.server import generate_trusted_advisor_report
+
+            result = await generate_trusted_advisor_report(mock_context)
+
+        assert 'Error' in result
+        assert 'Boom' in result
+
+
+class TestGetTrendReport:
+    """Tests for the get_trend_report tool."""
+
+    async def test_trend_report_default_30_days(
+        self, mock_ta_client, mock_context, recommendation_summaries_data
+    ):
+        """Test trend report with default 30 days."""
+        mock_ta_client.list_recommendations.return_value = recommendation_summaries_data
+
+        with patch('awslabs.trusted_advisor_mcp_server.server.ta_client', mock_ta_client):
+            from awslabs.trusted_advisor_mcp_server.server import get_trend_report
+
+            result = await get_trend_report(mock_context, since_days=30)
+
+        assert 'Trend Report' in result
+        assert '30' in result
+        mock_ta_client.list_recommendations.assert_called_once_with()
+
+    async def test_trend_report_custom_days(
+        self, mock_ta_client, mock_context, recommendation_summaries_data
+    ):
+        """Test trend report with custom since_days."""
+        mock_ta_client.list_recommendations.return_value = recommendation_summaries_data
+
+        with patch('awslabs.trusted_advisor_mcp_server.server.ta_client', mock_ta_client):
+            from awslabs.trusted_advisor_mcp_server.server import get_trend_report
+
+            result = await get_trend_report(mock_context, since_days=7)
+
+        assert 'Trend Report' in result
+        assert '7' in result
+
+    async def test_trend_report_client_error(self, mock_ta_client, mock_context):
+        """Test error handling for ClientError."""
+        mock_ta_client.list_recommendations.side_effect = ClientError(
+            {'Error': {'Code': 'ThrottlingException', 'Message': 'Rate exceeded'}},
+            'ListRecommendations',
+        )
+
+        with patch('awslabs.trusted_advisor_mcp_server.server.ta_client', mock_ta_client):
+            from awslabs.trusted_advisor_mcp_server.server import get_trend_report
+
+            result = await get_trend_report(mock_context)
+
+        assert 'Error' in result
+
+    async def test_trend_report_unexpected_error(self, mock_ta_client, mock_context):
+        """Test error handling for unexpected errors."""
+        mock_ta_client.list_recommendations.side_effect = RuntimeError('Network failure')
+
+        with patch('awslabs.trusted_advisor_mcp_server.server.ta_client', mock_ta_client):
+            from awslabs.trusted_advisor_mcp_server.server import get_trend_report
+
+            result = await get_trend_report(mock_context)
+
+        assert 'Error' in result
+        assert 'Network failure' in result
+
+
+class TestGetRecommendationRemediation:
+    """Tests for the get_recommendation_remediation tool."""
+
+    async def test_remediation_success(
+        self, mock_ta_client, mock_context, recommendation_detail_data, recommendation_resources_data
+    ):
+        """Test successful remediation guide generation."""
+        mock_ta_client.get_recommendation.return_value = recommendation_detail_data
+        mock_ta_client.list_recommendation_resources.return_value = recommendation_resources_data
+
+        with patch('awslabs.trusted_advisor_mcp_server.server.ta_client', mock_ta_client):
+            from awslabs.trusted_advisor_mcp_server.server import get_recommendation_remediation
+
+            result = await get_recommendation_remediation(
+                mock_context,
+                recommendation_arn='arn:aws:trustedadvisor::123456789012:recommendation/rec-001',
+            )
+
+        assert 'Remediation Guide' in result
+        assert 'Low Utilization Amazon EC2 Instances' in result
+        mock_ta_client.get_recommendation.assert_called_once_with(
+            'arn:aws:trustedadvisor::123456789012:recommendation/rec-001'
+        )
+
+    async def test_remediation_not_found(self, mock_ta_client, mock_context):
+        """Test handling when recommendation returns empty/None."""
+        mock_ta_client.get_recommendation.return_value = {}
+        mock_ta_client.list_recommendation_resources.return_value = []
+
+        with patch('awslabs.trusted_advisor_mcp_server.server.ta_client', mock_ta_client):
+            from awslabs.trusted_advisor_mcp_server.server import get_recommendation_remediation
+
+            result = await get_recommendation_remediation(
+                mock_context, recommendation_arn='arn:bad'
+            )
+
+        assert 'not found' in result.lower() or 'Remediation' in result
+
+    async def test_remediation_client_error(self, mock_ta_client, mock_context):
+        """Test error handling for ClientError."""
+        mock_ta_client.get_recommendation.side_effect = ClientError(
+            {'Error': {'Code': 'ResourceNotFoundException', 'Message': 'Not found'}},
+            'GetRecommendation',
+        )
+
+        with patch('awslabs.trusted_advisor_mcp_server.server.ta_client', mock_ta_client):
+            from awslabs.trusted_advisor_mcp_server.server import get_recommendation_remediation
+
+            result = await get_recommendation_remediation(
+                mock_context, recommendation_arn='arn:missing'
+            )
+
+        assert 'Error' in result
+        assert 'ResourceNotFoundException' in result
+
+    async def test_remediation_unexpected_error(self, mock_ta_client, mock_context):
+        """Test error handling for unexpected errors."""
+        mock_ta_client.get_recommendation.side_effect = RuntimeError('Connection lost')
+
+        with patch('awslabs.trusted_advisor_mcp_server.server.ta_client', mock_ta_client):
+            from awslabs.trusted_advisor_mcp_server.server import get_recommendation_remediation
+
+            result = await get_recommendation_remediation(
+                mock_context, recommendation_arn='arn:err'
+            )
+
+        assert 'Error' in result
+        assert 'Connection lost' in result

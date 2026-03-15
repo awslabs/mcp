@@ -15,16 +15,21 @@
 
 import asyncio
 import boto3
+import hashlib
+import json
+import os
+import time
 from awslabs.trusted_advisor_mcp_server import __version__
 from botocore.config import Config as BotoConfig
 from botocore.exceptions import ClientError
 from loguru import logger
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 
 DEFAULT_REGION = 'us-east-1'
 API_TIMEOUT = 30
 MAX_RESULTS_PER_PAGE = 200
+DEFAULT_CACHE_TTL = 3600  # 1 hour
 
 
 class TrustedAdvisorClient:
@@ -70,6 +75,8 @@ class TrustedAdvisorClient:
 
             self.client = session.client('trustedadvisor', config=retry_config)
             self.region_name = region_name
+            self._cache: Dict[str, Tuple[float, Any]] = {}
+            self._cache_ttl = int(os.environ.get('TA_CACHE_TTL', str(DEFAULT_CACHE_TTL)))
 
             logger.info(f'Successfully initialized Trusted Advisor client in region {region_name}')
         except ClientError as e:
@@ -82,6 +89,30 @@ class TrustedAdvisorClient:
         except Exception as e:
             logger.error(f'Unexpected error initializing Trusted Advisor client: {str(e)}')
             raise
+
+    def _cache_key(self, method_name: str, **kwargs: Any) -> str:
+        """Generate a cache key from method name and parameters."""
+        key_data = f'{method_name}:{json.dumps(kwargs, sort_keys=True, default=str)}'
+        return hashlib.md5(key_data.encode()).hexdigest()
+
+    def _cache_get(self, key: str) -> Any:
+        """Get a value from cache if it exists and hasn't expired."""
+        if key in self._cache:
+            timestamp, value = self._cache[key]
+            if time.time() - timestamp < self._cache_ttl:
+                logger.debug(f'Cache hit for key {key[:8]}...')
+                return value
+            del self._cache[key]
+        return None
+
+    def _cache_set(self, key: str, value: Any) -> None:
+        """Store a value in the cache."""
+        self._cache[key] = (time.time(), value)
+
+    def _cache_invalidate(self) -> None:
+        """Invalidate all cache entries after a write operation."""
+        self._cache.clear()
+        logger.debug('Cache cleared after write operation')
 
     async def _run_in_executor(self, func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         """Run a synchronous boto3 function in an executor for async compatibility.
@@ -159,10 +190,16 @@ class TrustedAdvisorClient:
             if aws_service:
                 kwargs['awsService'] = aws_service
 
+            cache_key = self._cache_key('list_checks', **kwargs)
+            cached = self._cache_get(cache_key)
+            if cached is not None:
+                return cached
+
             logger.debug(f'Listing Trusted Advisor checks with filters: {kwargs}')
             checks = await self._paginate(self.client.list_checks, 'checkSummaries', **kwargs)
 
             logger.info(f'Retrieved {len(checks)} Trusted Advisor checks')
+            self._cache_set(cache_key, checks)
             return checks
         except ClientError as e:
             error_code = e.response['Error']['Code']
@@ -202,12 +239,18 @@ class TrustedAdvisorClient:
             if aws_service:
                 kwargs['awsService'] = aws_service
 
+            cache_key = self._cache_key('list_recommendations', **kwargs)
+            cached = self._cache_get(cache_key)
+            if cached is not None:
+                return cached
+
             logger.debug(f'Listing recommendations with filters: {kwargs}')
             recommendations = await self._paginate(
                 self.client.list_recommendations, 'recommendationSummaries', **kwargs
             )
 
             logger.info(f'Retrieved {len(recommendations)} recommendations')
+            self._cache_set(cache_key, recommendations)
             return recommendations
         except ClientError as e:
             error_code = e.response['Error']['Code']
@@ -228,14 +271,21 @@ class TrustedAdvisorClient:
             Detailed recommendation information.
         """
         try:
+            cache_key = self._cache_key('get_recommendation', id=recommendation_identifier)
+            cached = self._cache_get(cache_key)
+            if cached is not None:
+                return cached
+
             logger.debug(f'Getting recommendation: {recommendation_identifier}')
             response = await self._run_in_executor(
                 self.client.get_recommendation,
                 recommendationIdentifier=recommendation_identifier,
             )
 
+            result = response.get('recommendation', {})
             logger.info(f'Retrieved recommendation: {recommendation_identifier}')
-            return response.get('recommendation', {})
+            self._cache_set(cache_key, result)
+            return result
         except ClientError as e:
             error_code = e.response['Error']['Code']
             error_message = e.response['Error']['Message']
@@ -257,6 +307,11 @@ class TrustedAdvisorClient:
             A list of affected resources.
         """
         try:
+            cache_key = self._cache_key('list_recommendation_resources', id=recommendation_identifier)
+            cached = self._cache_get(cache_key)
+            if cached is not None:
+                return cached
+
             logger.debug(f'Listing resources for recommendation: {recommendation_identifier}')
             resources = await self._paginate(
                 self.client.list_recommendation_resources,
@@ -267,6 +322,7 @@ class TrustedAdvisorClient:
             logger.info(
                 f'Retrieved {len(resources)} resources for recommendation: {recommendation_identifier}'
             )
+            self._cache_set(cache_key, resources)
             return resources
         except ClientError as e:
             error_code = e.response['Error']['Code']
@@ -306,6 +362,7 @@ class TrustedAdvisorClient:
                 self.client.update_recommendation_lifecycle, **kwargs
             )
 
+            self._cache_invalidate()
             logger.info(
                 f'Successfully updated recommendation lifecycle: {recommendation_identifier}'
             )
