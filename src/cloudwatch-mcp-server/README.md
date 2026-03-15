@@ -159,6 +159,18 @@ Build and install docker image locally on the same host of your LLM client
 ```
 Please reference [AWS documentation](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-files.html) to create and manage your credentials profile
 
+## Skills
+
+This MCP server includes reusable investigation skills that encode domain expertise into structured workflows for AI agents.
+
+| Skill | Description | Setup Guide |
+|-------|-------------|-------------|
+| [AgentCore Investigation](https://github.com/awslabs/mcp/blob/main/src/cloudwatch-mcp-server/skills/agentcore-investigation/SKILL.md) | Investigate Bedrock AgentCore runtime sessions — resolve session/trace IDs, query OTEL spans, filter noise, build timelines | [Kiro CLI setup](https://github.com/awslabs/mcp/blob/main/src/cloudwatch-mcp-server/skills/agentcore-investigation/kiro-skill-setup.md) |
+
+Skills provide pre-built investigation pipelines that agents can follow. They include the skill definition (`SKILL.md`), reference documentation, and MCP server configuration.
+
+See the [skills directory](https://github.com/awslabs/mcp/tree/main/src/cloudwatch-mcp-server/skills) for details.
+
 ## Contributing
 
 Contributions are welcome! Please see the [CONTRIBUTING.md](https://github.com/awslabs/mcp/blob/main/CONTRIBUTING.md) in the monorepo root for guidelines.

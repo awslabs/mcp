@@ -6,7 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
+  - **File Path & S3 URI Content Resolution**: Added shared content resolution utility enabling MCP tools to accept local file paths and S3 URIs as alternatives to inline content
+    - New `content_resolver.py` utility with automatic detection of input type (local file, S3 URI, or inline content)
+    - `lint_workflow_definition` and `lint_workflow_bundle` now accept local file paths and S3 URIs
+    - `package_workflow` now accepts local file paths and S3 URIs for main file and additional files
+    - New `definition_source` parameter in `create_workflow` and `create_workflow_version` replacing deprecated `definition_zip_base64`
+    - `definition_zip_base64` retained as deprecated alias for backward compatibility
+    - Security hardening: path traversal rejection, S3 URI format validation, configurable file size limits
 
+### Added
+- v0.0.28
   - **Sequence Store Management Tools**: Added 15 new MCP tools for managing HealthOmics Sequence Stores
     - **CreateAHOSequenceStore**: Create sequence stores with optional encryption, description, fallback location, and tags
     - **ListAHOSequenceStores**: List and filter sequence stores with pagination support
@@ -29,10 +38,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - **StartAHOReferenceImportJob**: Import reference files from S3 into a reference store
     - **GetAHOReferenceImportJob**: Get import job status with per-source statuses
     - **ListAHOReferenceImportJobs**: List import jobs with pagination
-
-
-### Added
-
 - v0.0.27
   - **Run Cache Management Tools**: Added four new MCP tools for managing HealthOmics Run Caches
     - **CreateAHORunCache**: Create run caches with S3 URI validation and configurable cache behavior (CACHE_ALWAYS or CACHE_ON_FAILURE)
