@@ -12,6 +12,16 @@ from unittest.mock import MagicMock, patch
 pytestmark = pytest.mark.asyncio
 
 
+@pytest.fixture(autouse=True)
+def mock_path_validation(temp_terraform_dir):
+    """Bypass path validation for tests that use temp dirs outside cwd."""
+    with patch(
+        'awslabs.terraform_mcp_server.impl.tools.execute_terraform_command.validate_working_directory',
+        return_value=temp_terraform_dir,
+    ):
+        yield
+
+
 @pytest.mark.asyncio
 async def test_clean_output_text_helper(temp_terraform_dir):
     """Test the clean_output_text helper function indirectly."""
@@ -226,3 +236,25 @@ async def test_execute_terraform_command_complex_outputs(temp_terraform_dir):
         assert result.outputs['vpc_config']['vpc_id'] == 'vpc-1234'
         assert result.outputs['vpc_config']['subnet_ids'] == ['subnet-1', 'subnet-2']
         assert result.outputs['simple_output'] == 'direct_value'
+
+
+@pytest.mark.asyncio
+async def test_execute_terraform_command_rejects_invalid_path(temp_terraform_dir):
+    """Test that terraform command rejects paths outside the allowed base."""
+    request = TerraformExecutionRequest(
+        command='init',
+        working_directory='/etc',
+        variables={},
+        aws_region=None,
+        strip_ansi=True,
+    )
+
+    with patch(
+        'awslabs.terraform_mcp_server.impl.tools.execute_terraform_command.validate_working_directory',
+        side_effect=ValueError('path outside allowed base'),
+    ):
+        result = await execute_terraform_command_impl(request)
+
+        assert result.status == 'error'
+        assert result.error_message is not None
+        assert 'path outside allowed base' in result.error_message

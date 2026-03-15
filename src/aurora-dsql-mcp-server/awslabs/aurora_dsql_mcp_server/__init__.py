@@ -14,4 +14,4 @@
 
 """awslabs.aurora-dsql-mcp-server"""
 
-__version__ = '1.0.23'
+__version__ = '1.0.24'
