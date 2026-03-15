@@ -1423,9 +1423,13 @@ async def get_role_policy(
 
         response = iam.get_role_policy(RoleName=role_name, PolicyName=policy_name)
 
+        policy_doc = response['PolicyDocument']
+        if not isinstance(policy_doc, str):
+            policy_doc = json.dumps(policy_doc)
+
         result = InlinePolicyResponse(
             policy_name=response['PolicyName'],
-            policy_document=response['PolicyDocument'],
+            policy_document=policy_doc,
             user_name=None,
             role_name=response['RoleName'],
             message=f'Successfully retrieved inline policy {policy_name} for role {role_name}',
