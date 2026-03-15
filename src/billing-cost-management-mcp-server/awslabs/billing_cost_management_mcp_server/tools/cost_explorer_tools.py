@@ -128,7 +128,13 @@ DIMENSION REFERENCE:
 - TAG: Cost allocation tag
 - TENANCY: EC2 tenancy (shared, dedicated)
 - USAGE_TYPE: Usage type (e.g., DataTransfer-In-Bytes)
-- RECORD_TYPE: Charge types (e.g., RI fees, usage costs)""",
+- RECORD_TYPE: Charge types (e.g., RI fees, usage costs)
+
+## AUTHENTICATION
+
+- aws_profile: (optional) Named AWS profile from ~/.aws/credentials or ~/.aws/config.
+  When omitted, falls back to the AWS_PROFILE environment variable and then to the
+  default credential chain (instance profile, environment variables, etc.).""",
 )
 async def cost_explorer(
     ctx: Context,
@@ -148,6 +154,7 @@ async def cost_explorer(
     prediction_interval_level: int = 80,
     tag_key: Optional[str] = None,
     cost_category_name: Optional[str] = None,
+    aws_profile: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Main entry point for Cost Explorer operations.
 
@@ -172,6 +179,7 @@ async def cost_explorer(
         prediction_interval_level: Confidence level for forecasts
         tag_key: Tag key to get values for
         cost_category_name: Cost category to get values for
+        aws_profile: Named AWS profile to use for credentials (optional)
 
     Returns:
         Response from the operation handler
@@ -180,7 +188,7 @@ async def cost_explorer(
 
     # Create Cost Explorer client
     try:
-        ce_client = create_aws_client('ce')
+        ce_client = create_aws_client('ce', profile_name=aws_profile)
     except Exception as client_error:
         await ctx.error(f'Failed to create AWS client: {str(client_error)}')
         return format_response(
