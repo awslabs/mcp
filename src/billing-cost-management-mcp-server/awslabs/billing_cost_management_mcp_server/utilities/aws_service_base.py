@@ -84,13 +84,19 @@ def get_pricing_region(requested_region: Optional[str] = None) -> str:
     return pricing_region
 
 
-def create_aws_client(service_name: str, region_name: Optional[str] = None) -> Any:
+def create_aws_client(
+    service_name: str,
+    region_name: Optional[str] = None,
+    profile_name: Optional[str] = None,
+) -> Any:
     """Create and return an AWS service client with appropriate security constraints.
 
     Args:
         service_name: AWS service name (e.g., "ce", "pricing")
         region_name: AWS region name (e.g., "us-east-1"). If None, will use the
                      AWS_REGION environment variable or default to "us-east-1".
+        profile_name: AWS named profile to use for credentials. If None, falls back
+                      to the AWS_PROFILE environment variable or default credentials.
 
     Returns:
         boto3.client: AWS service client with security constraints applied
@@ -121,10 +127,10 @@ def create_aws_client(service_name: str, region_name: Optional[str] = None) -> A
 
     region = region_name or os.environ.get('AWS_REGION', 'us-east-1')
 
-    # Create AWS session
-    profile_name = os.environ.get('AWS_PROFILE')
-    if profile_name:
-        session = boto3.Session(profile_name=profile_name, region_name=region)
+    # Create AWS session — prefer explicit profile_name, then AWS_PROFILE env var
+    resolved_profile = profile_name or os.environ.get('AWS_PROFILE')
+    if resolved_profile:
+        session = boto3.Session(profile_name=resolved_profile, region_name=region)
     else:
         session = boto3.Session(region_name=region)
 
