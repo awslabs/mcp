@@ -33,12 +33,6 @@ from pydantic import Field
 from typing import List, Literal, Optional
 
 
-DEPRECATION_NOTICE = (
-    '[DEPRECATED] This server is deprecated and will no longer receive '
-    'updates. We recommend migrating to the AWS Knowledge MCP Server: '
-    'https://github.com/awslabs/mcp/tree/main/src/aws-knowledge-mcp-server'
-)
-
 # Remove all default handlers then add our own
 logger.remove()
 logger.add(sys.stderr, level='INFO')
@@ -75,8 +69,7 @@ logger.info(
 
 mcp = FastMCP(
     'awslabs.bedrock-kb-retrieval-mcp-server',
-    instructions=f"""{DEPRECATION_NOTICE}
-
+    instructions="""
     The AWS Labs Bedrock Knowledge Bases Retrieval MCP Server provides access to Amazon Bedrock Knowledge Bases for retrieving relevant information through natural language queries.
 
     ## Usage Workflow:
@@ -96,7 +89,7 @@ mcp = FastMCP(
 
 @mcp.tool(name='ListKnowledgeBases')
 async def list_knowledge_bases_tool() -> str:
-    """[DEPRECATED] List all available Amazon Bedrock Knowledge Bases and their data sources.
+    """List all available Amazon Bedrock Knowledge Bases and their data sources.
 
     This tool returns a mapping of knowledge base IDs to their details, including:
     - name: The human-readable name of the knowledge base
@@ -161,7 +154,7 @@ async def query_knowledge_bases_tool(
         description='The data source IDs to filter the knowledge base by. It must be a list of valid data source IDs from the ListKnowledgeBases tool',
     ),
 ) -> str:
-    """[DEPRECATED] Query an Amazon Bedrock Knowledge Base using natural language.
+    """Query an Amazon Bedrock Knowledge Base using natural language.
 
     ## Usage Requirements
     - You MUST first use the ListKnowledgeBases tool to get valid knowledge base IDs
@@ -199,10 +192,7 @@ async def query_knowledge_bases_tool(
 
 
 def main():
-    """Run the MCP server with CLI argument support."""
-    import warnings
-
-    warnings.warn(DEPRECATION_NOTICE, FutureWarning, stacklevel=2)
+    """Run the MCP server."""
     mcp.run()
 
 
