@@ -26,30 +26,30 @@ def test_mcp_tool_functions():
     )
 
     # Test search_best_practices
-    result = search_best_practices.fn()
+    result = search_best_practices()
     assert isinstance(result, list)
 
-    result = search_best_practices.fn(pillar='SECURITY')
+    result = search_best_practices(pillar='SECURITY')
     assert isinstance(result, list)
 
     # Test list_pillars
-    result = list_pillars.fn()
+    result = list_pillars()
     assert isinstance(result, dict)
 
     # Test well_architected_framework_review
-    result = well_architected_framework_review.fn()
+    result = well_architected_framework_review()
     assert isinstance(result, dict)
     assert 'framework' in result
 
     # Test get_best_practice
-    practices = search_best_practices.fn()
+    practices = search_best_practices()
     if practices:
-        result = get_best_practice.fn(practices[0]['id'])
+        result = get_best_practice(practices[0]['id'])
         assert result is None or isinstance(result, dict)
 
     # Test get_related_practices
     if practices:
-        result = get_related_practices.fn(practices[0]['id'])
+        result = get_related_practices(practices[0]['id'])
         assert isinstance(result, list)
 
 
@@ -63,8 +63,10 @@ def test_tool_names():
         well_architected_framework_review,
     )
 
-    assert search_best_practices.name == 'search_best_practices'
-    assert get_best_practice.name == 'get_best_practice'
-    assert list_pillars.name == 'list_pillars'
-    assert get_related_practices.name == 'get_related_practices'
-    assert well_architected_framework_review.name == 'well_architected_framework_review'
+    # In FastMCP 3.x, decorated functions are callable directly
+    # Test that they are callable
+    assert callable(search_best_practices)
+    assert callable(get_best_practice)
+    assert callable(list_pillars)
+    assert callable(get_related_practices)
+    assert callable(well_architected_framework_review)
