@@ -14,7 +14,8 @@
 """Tests for the frontend MCP Server."""
 
 import pytest
-from awslabs.frontend_mcp_server.server import get_react_docs_by_topic
+import warnings
+from awslabs.frontend_mcp_server.server import DEPRECATION_NOTICE, get_react_docs_by_topic, main
 from unittest.mock import patch
 
 
@@ -54,3 +55,15 @@ async def test_get_react_docs_by_topic_invalid():
     # Act & Assert
     with pytest.raises(ValueError, match='Invalid topic:'):
         await get_react_docs_by_topic('invalid-topic')
+
+
+@patch('awslabs.frontend_mcp_server.server.mcp')
+def test_main_emits_deprecation_warning(mock_mcp):
+    """Test that main() emits a FutureWarning."""
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter('always')
+        main()
+        future_warnings = [x for x in w if issubclass(x.category, FutureWarning)]
+        assert len(future_warnings) == 1
+        assert DEPRECATION_NOTICE in str(future_warnings[0].message)
+    mock_mcp.run.assert_called_once()

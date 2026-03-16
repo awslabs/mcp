@@ -34,12 +34,19 @@ from loguru import logger
 from mcp.server.fastmcp import FastMCP
 
 
+DEPRECATION_NOTICE = (
+    '[DEPRECATED] This server is deprecated and will no longer receive '
+    'updates. We recommend migrating to the Billing and Cost Management MCP Server: '
+    'https://github.com/awslabs/mcp/tree/main/src/billing-cost-management-mcp-server'
+)
+
 # Configure Loguru logging
 logger.remove()
 logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'WARNING'))
 
 # Define server instructions
-SERVER_INSTRUCTIONS = """
+SERVER_INSTRUCTIONS = f"""{DEPRECATION_NOTICE}
+
 # AWS Cost Explorer MCP Server
 
 ## IMPORTANT: Each API call costs $0.01 - use filters and specific date ranges to minimize charges.
@@ -85,6 +92,9 @@ app.tool('get_cost_and_usage')(get_cost_and_usage)
 
 def main():
     """Run the MCP server with CLI argument support."""
+    import warnings
+
+    warnings.warn(DEPRECATION_NOTICE, FutureWarning, stacklevel=2)
     app.run()
 
 

@@ -38,7 +38,7 @@ logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'WARNING'))
 async def get_dimension_values(
     ctx: Context, date_range: DateRange, dimension: DimensionKey
 ) -> Dict[str, Any]:
-    """Retrieve available dimension values for AWS Cost Explorer.
+    """[DEPRECATED] Retrieve available dimension values for AWS Cost Explorer.
 
     This tool retrieves all available and valid values for a specified dimension (e.g., SERVICE, REGION)
     over a period of time. This is useful for validating filter values or exploring available options
@@ -67,7 +67,7 @@ async def get_tag_values(
     date_range: DateRange,
     tag_key: str = Field(..., description='The tag key to retrieve values for'),
 ) -> Dict[str, Any]:
-    """Retrieve available tag values for AWS Cost Explorer.
+    """[DEPRECATED] Retrieve available tag values for AWS Cost Explorer.
 
     This tool retrieves all available values for a specified tag key over a period of time.
     This is useful for validating tag filter values or exploring available tag options for cost analysis.
