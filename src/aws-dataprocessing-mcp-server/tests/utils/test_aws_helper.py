@@ -41,14 +41,57 @@ class TestAwsHelper:
         AwsHelper._aws_partition = None
 
     def test_get_aws_region_with_env_var(self):
-        """Test that get_aws_region returns the region from the environment variable."""
+        """Test that get_aws_region returns the region from AWS_REGION environment variable."""
         with patch.dict(os.environ, {'AWS_REGION': 'us-west-2'}):
             assert AwsHelper.get_aws_region() == 'us-west-2'
 
-    def test_get_aws_region_without_env_var(self):
-        """Test that get_aws_region returns None when the environment variable is not set."""
+    def test_get_aws_region_with_default_env_var(self):
+        """Test that get_aws_region returns the region from AWS_DEFAULT_REGION environment variable."""
+        with patch.dict(os.environ, {'AWS_DEFAULT_REGION': 'eu-west-1'}, clear=True):
+            assert AwsHelper.get_aws_region() == 'eu-west-1'
+
+    def test_get_aws_region_prioritizes_aws_region_over_default(self):
+        """Test that AWS_REGION takes precedence over AWS_DEFAULT_REGION."""
+        with patch.dict(
+            os.environ, {'AWS_REGION': 'us-west-2', 'AWS_DEFAULT_REGION': 'eu-west-1'}
+        ):
+            assert AwsHelper.get_aws_region() == 'us-west-2'
+
+    def test_get_aws_region_from_boto3_session(self):
+        """Test that get_aws_region falls back to boto3.Session().region_name when env vars not set."""
+        # Mock boto3.Session to return a region
+        mock_session = MagicMock()
+        mock_session.region_name = 'ap-southeast-2'
+
         with patch.dict(os.environ, {}, clear=True):
-            assert AwsHelper.get_aws_region() == 'us-east-1'
+            with patch('boto3.Session', return_value=mock_session):
+                assert AwsHelper.get_aws_region() == 'ap-southeast-2'
+
+    def test_get_aws_region_boto3_session_no_region(self):
+        """Test that get_aws_region falls back to us-east-1 when boto3.Session returns None."""
+        # Mock boto3.Session to return None for region_name
+        mock_session = MagicMock()
+        mock_session.region_name = None
+
+        with patch.dict(os.environ, {}, clear=True):
+            with patch('boto3.Session', return_value=mock_session):
+                assert AwsHelper.get_aws_region() == 'us-east-1'
+
+    def test_get_aws_region_boto3_session_exception(self):
+        """Test that get_aws_region falls back to us-east-1 when boto3.Session raises an exception."""
+        with patch.dict(os.environ, {}, clear=True):
+            with patch('boto3.Session', side_effect=Exception('Session creation failed')):
+                assert AwsHelper.get_aws_region() == 'us-east-1'
+
+    def test_get_aws_region_without_env_var(self):
+        """Test that get_aws_region returns us-east-1 when no region source is available."""
+        # Mock boto3.Session to return None
+        mock_session = MagicMock()
+        mock_session.region_name = None
+
+        with patch.dict(os.environ, {}, clear=True):
+            with patch('boto3.Session', return_value=mock_session):
+                assert AwsHelper.get_aws_region() == 'us-east-1'
 
     def test_get_aws_profile_with_env_var(self):
         """Test that get_aws_profile returns the profile from the environment variable."""
@@ -187,7 +230,10 @@ class TestAwsHelper:
         mock_session.client.return_value = mock_client
 
         with patch('boto3.Session', return_value=mock_session) as mock_boto3_session:
-            with patch.dict(os.environ, {'AWS_PROFILE': 'test-profile'}):
+            with patch.dict(
+                os.environ, {'AWS_PROFILE': 'test-profile', 'AWS_REGION': 'us-west-2'}
+            ):
+                # Set AWS_REGION to avoid get_aws_region() calling boto3.Session
                 client = AwsHelper.create_boto3_client('s3')
                 assert client == mock_client
                 mock_boto3_session.assert_called_once_with(profile_name='test-profile')
