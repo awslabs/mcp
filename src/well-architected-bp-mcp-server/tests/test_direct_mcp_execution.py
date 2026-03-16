@@ -18,7 +18,7 @@ import unittest.mock
 
 
 def test_mcp_tools_execution():
-    """Test MCP tools execution through fn attribute."""
+    """Test MCP tools execution directly."""
     from well_architected_bp_mcp_server.server import (
         get_best_practice,
         get_related_practices,
@@ -28,26 +28,26 @@ def test_mcp_tools_execution():
     )
 
     # Test search_best_practices
-    result = search_best_practices.fn()
+    result = search_best_practices()
     assert isinstance(result, list)
 
     # Test list_pillars
-    result = list_pillars.fn()
+    result = list_pillars()
     assert isinstance(result, dict)
 
     # Test well_architected_framework_review
-    result = well_architected_framework_review.fn()
+    result = well_architected_framework_review()
     assert isinstance(result, dict)
 
     # Test get_best_practice with valid ID
-    practices = search_best_practices.fn()
+    practices = search_best_practices()
     if practices:
-        result = get_best_practice.fn(practices[0]['id'])
+        result = get_best_practice(practices[0]['id'])
         assert result is not None
 
     # Test get_related_practices
     if practices:
-        result = get_related_practices.fn(practices[0]['id'])
+        result = get_related_practices(practices[0]['id'])
         assert isinstance(result, list)
 
 
@@ -75,9 +75,9 @@ def test_wrapper_functions_with_mocks():
             wrapper_func = getattr(module, wrapper_name)
 
             if wrapper_name in ['get_best_practice', 'get_related_practices']:
-                result = wrapper_func.fn('test_id')
+                result = wrapper_func('test_id')
             else:
-                result = wrapper_func.fn()
+                result = wrapper_func()
 
             assert result == mock_return
             mock_func.assert_called()

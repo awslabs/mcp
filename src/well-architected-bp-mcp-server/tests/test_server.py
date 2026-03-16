@@ -262,12 +262,12 @@ def test_mcp_tool_wrappers():
         well_architected_framework_review,
     )
 
-    # Test that MCP tools exist and have the right type
-    assert str(type(search_best_practices).__name__) == 'FunctionTool'
-    assert str(type(get_best_practice).__name__) == 'FunctionTool'
-    assert str(type(list_pillars).__name__) == 'FunctionTool'
-    assert str(type(get_related_practices).__name__) == 'FunctionTool'
-    assert str(type(well_architected_framework_review).__name__) == 'FunctionTool'
+    # Test that MCP tools exist and are callable (FastMCP 3.x API)
+    assert callable(search_best_practices)
+    assert callable(get_best_practice)
+    assert callable(list_pillars)
+    assert callable(get_related_practices)
+    assert callable(well_architected_framework_review)
 
 
 def test_wrapper_function_calls():
@@ -326,9 +326,9 @@ def test_all_mcp_wrapper_returns():
     assert get_related_practices is not None
     assert well_architected_framework_review is not None
 
-    # Test their names instead of string representations
-    assert hasattr(search_best_practices, 'name')
-    assert hasattr(get_best_practice, 'name')
-    assert hasattr(list_pillars, 'name')
-    assert hasattr(get_related_practices, 'name')
-    assert hasattr(well_architected_framework_review, 'name')
+    # Test they are callable (FastMCP 3.x API)
+    assert callable(search_best_practices)
+    assert callable(get_best_practice)
+    assert callable(list_pillars)
+    assert callable(get_related_practices)
+    assert callable(well_architected_framework_review)
