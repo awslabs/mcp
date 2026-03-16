@@ -1,3 +1,5 @@
+> **⚠️ DEPRECATION NOTICE**: This server is deprecated and will no longer receive updates. Please migrate to the [Billing and Cost Management MCP Server](https://github.com/awslabs/mcp/tree/main/src/billing-cost-management-mcp-server), which provides broader cost analysis capabilities including Cost Explorer, Budgets, and Cost Anomaly Detection. See the [migration guide](https://github.com/awslabs/mcp/blob/main/docs/migration-cost-explorer.md) for a detailed tool-by-tool mapping.
+
 # Cost Explorer MCP Server
 
 MCP server for analyzing AWS costs and usage data through the AWS Cost Explorer API.

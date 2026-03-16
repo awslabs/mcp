@@ -54,7 +54,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-bedrock-kb-retrieval-mcp-server"
-version = "1.0.18"
+version = "1.0.19"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },

@@ -14,7 +14,8 @@
 
 """Tests for the MCP server module."""
 
-from awslabs.cost_explorer_mcp_server.server import main
+import warnings
+from awslabs.cost_explorer_mcp_server.server import DEPRECATION_NOTICE, main
 from unittest.mock import patch
 
 
@@ -24,7 +25,20 @@ class TestServer:
     @patch('awslabs.cost_explorer_mcp_server.server.app')
     def test_main_function(self, mock_app):
         """Test the main function calls app.run()."""
-        main()
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            main()
+        mock_app.run.assert_called_once()
+
+    @patch('awslabs.cost_explorer_mcp_server.server.app')
+    def test_main_emits_deprecation_warning(self, mock_app):
+        """Test that main() emits a FutureWarning."""
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter('always')
+            main()
+            future_warnings = [x for x in w if issubclass(x.category, FutureWarning)]
+            assert len(future_warnings) == 1
+            assert DEPRECATION_NOTICE in str(future_warnings[0].message)
         mock_app.run.assert_called_once()
 
     def test_main_block_coverage(self):

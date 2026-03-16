@@ -1,7 +1,9 @@
 """Tests for syntheticdata MCP server functionality."""
 
 import os
+import warnings
 from awslabs.syntheticdata_mcp_server.server import (
+    DEPRECATION_NOTICE,
     ExecutePandasCodeInput,
     LoadToStorageInput,
     ValidateAndSaveDataInput,
@@ -360,7 +362,21 @@ def test_main_cli_arguments(monkeypatch) -> None:
     monkeypatch.setattr('mcp.server.fastmcp.FastMCP.run', mock_run)
 
     # Run main
-    main()
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        main()
 
     # Verify run was called
     assert run_called
+
+
+def test_main_emits_deprecation_warning(monkeypatch) -> None:
+    """Test that main() emits a FutureWarning."""
+    monkeypatch.setattr('mcp.server.fastmcp.FastMCP.run', lambda self, **kwargs: None)
+
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter('always')
+        main()
+        future_warnings = [x for x in w if issubclass(x.category, FutureWarning)]
+        assert len(future_warnings) == 1
+        assert DEPRECATION_NOTICE in str(future_warnings[0].message)
