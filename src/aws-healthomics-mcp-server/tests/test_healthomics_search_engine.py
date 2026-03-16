@@ -53,6 +53,7 @@ class TestHealthOmicsSearchEngine:
         """Create a test HealthOmics search engine."""
         engine = HealthOmicsSearchEngine(search_config)
         engine.omics_client = MagicMock()
+        engine._get_partition = MagicMock(return_value='aws')
         return engine
 
     @pytest.mark.asyncio

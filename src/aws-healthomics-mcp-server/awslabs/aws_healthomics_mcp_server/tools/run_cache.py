@@ -53,6 +53,14 @@ async def create_run_cache(
         None,
         description='AWS account ID of the S3 bucket owner for cross-account access',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Create a new HealthOmics run cache.
 
@@ -64,6 +72,8 @@ async def create_run_cache(
         description: Description for the run cache
         tags: Tags to apply to the run cache
         cache_bucket_owner_id: AWS account ID of the S3 bucket owner
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing the created run cache's id, arn, and status, or error dict
@@ -85,7 +95,7 @@ async def create_run_cache(
 
         # Verify S3 bucket exists and is accessible
         try:
-            session = get_aws_session()
+            session = get_aws_session(region_name=aws_region, profile_name=aws_profile)
             s3_client = session.client('s3')
             s3_client.head_bucket(Bucket=bucket_name)
         except ClientError as e:
@@ -99,7 +109,7 @@ async def create_run_cache(
             return await handle_tool_error(ctx, ValueError(msg), 'Error creating run cache')
 
         # Build API params with only provided optional params
-        client = get_omics_client()
+        client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
         params: Dict[str, Any] = {
             'requestId': str(uuid.uuid4()),
             'cacheBehavior': cache_behavior,
@@ -133,18 +143,28 @@ async def create_run_cache(
 async def get_run_cache(
     ctx: Context,
     cache_id: str = Field(..., description='ID of the run cache to retrieve'),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Get details of a specific HealthOmics run cache.
 
     Args:
         ctx: MCP context for error reporting
         cache_id: ID of the run cache to retrieve
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing the run cache details, or error dict
     """
     try:
-        client = get_omics_client()
+        client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
         logger.info(f'Getting run cache: {cache_id}')
         response = client.get_run_cache(id=cache_id)
@@ -176,6 +196,14 @@ async def list_run_caches(
     next_token: Optional[str] = Field(
         None, description='Token for pagination from a previous response'
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """List HealthOmics run caches.
 
@@ -186,12 +214,14 @@ async def list_run_caches(
         cache_behavior: Filter by cache behavior
         max_results: Maximum number of results to return
         next_token: Token for pagination from a previous response
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing run cache summaries and next token if available, or error dict
     """
     try:
-        client = get_omics_client()
+        client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
         params: Dict[str, Any] = {
             'maxResults': max_results,
@@ -237,6 +267,14 @@ async def update_run_cache(
     cache_behavior: Optional[str] = Field(None, description='New cache behavior'),
     name: Optional[str] = Field(None, description='New name for the run cache'),
     description: Optional[str] = Field(None, description='New description for the run cache'),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Update an existing HealthOmics run cache.
 
@@ -246,12 +284,14 @@ async def update_run_cache(
         cache_behavior: New cache behavior
         name: New name for the run cache
         description: New description for the run cache
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing the run cache ID and update status, or error dict
     """
     try:
-        client = get_omics_client()
+        client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
         params: Dict[str, Any] = {
             'id': cache_id,

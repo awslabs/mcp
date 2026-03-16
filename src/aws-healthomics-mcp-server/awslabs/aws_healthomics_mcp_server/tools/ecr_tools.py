@@ -67,6 +67,14 @@ async def list_ecr_repositories(
         False,
         description='Only return repositories accessible by HealthOmics',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """List ECR repositories with HealthOmics accessibility status.
 
@@ -79,6 +87,8 @@ async def list_ecr_repositories(
         next_token: Pagination token from a previous response
         filter_healthomics_accessible: If True, only return repositories that are
             accessible by HealthOmics
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing:
@@ -86,7 +96,7 @@ async def list_ecr_repositories(
         - next_token: Pagination token if more results are available
         - total_count: Total number of repositories returned
     """
-    client = get_ecr_client()
+    client = get_ecr_client(region_name=aws_region, profile_name=aws_profile)
 
     # Build parameters for describe_repositories API
     params: Dict[str, Any] = {'maxResults': max_results}
@@ -163,7 +173,11 @@ async def list_ecr_repositories(
         return await handle_tool_error(ctx, e, 'Error listing ECR repositories')
 
 
-def _is_pull_through_cache_repository(repository_name: str) -> bool:
+def _is_pull_through_cache_repository(
+    repository_name: str,
+    region_name: str | None = None,
+    profile_name: str | None = None,
+) -> bool:
     """Check if a repository has a pull-through cache rule configured.
 
     Queries ECR to check if any pull-through cache rule's prefix matches
@@ -172,11 +186,13 @@ def _is_pull_through_cache_repository(repository_name: str) -> bool:
 
     Args:
         repository_name: The ECR repository name to check
+        region_name: Optional region override
+        profile_name: Optional AWS profile override
 
     Returns:
         True if a pull-through cache rule exists for this repository, False otherwise
     """
-    client = get_ecr_client()
+    client = get_ecr_client(region_name=region_name, profile_name=profile_name)
 
     try:
         # Get all pull-through cache rules
@@ -234,6 +250,8 @@ def _is_pull_through_cache_repository(repository_name: str) -> bool:
 
 def _check_pull_through_cache_healthomics_usability(
     repository_name: str,
+    region_name: str | None = None,
+    profile_name: str | None = None,
 ) -> Dict[str, Any]:
     """Check if a pull-through cache repository is usable by HealthOmics.
 
@@ -244,6 +262,8 @@ def _check_pull_through_cache_healthomics_usability(
 
     Args:
         repository_name: The ECR repository name to check
+        region_name: Optional region override
+        profile_name: Optional AWS profile override
 
     Returns:
         Dictionary containing:
@@ -252,7 +272,7 @@ def _check_pull_through_cache_healthomics_usability(
         - ptc_rule: The matching pull-through cache rule (if any)
         - usability_details: Detailed usability information
     """
-    client = get_ecr_client()
+    client = get_ecr_client(region_name=region_name, profile_name=profile_name)
 
     result: Dict[str, Any] = {
         'is_ptc': False,
@@ -348,6 +368,14 @@ async def check_container_availability(
         'that is accessible to HealthOmics, attempt to initiate the pull-through '
         'using batch_get_image API call',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Check if a container image is available in ECR and accessible by HealthOmics.
 
@@ -368,6 +396,8 @@ async def check_container_availability(
         image_digest: Image digest (sha256:...) - if provided, takes precedence over tag
         initiate_pull_through: If True, attempt to initiate pull-through cache for
             missing images in accessible pull-through cache repositories
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing:
@@ -401,14 +431,18 @@ async def check_container_availability(
             return ContainerAvailabilityResponse(
                 available=False,
                 repository_exists=True,
-                is_pull_through_cache=_is_pull_through_cache_repository(repository_name),
+                is_pull_through_cache=_is_pull_through_cache_repository(
+                    repository_name, region_name=aws_region, profile_name=aws_profile
+                ),
                 message='Invalid image digest format. Must start with "sha256:"',
             ).model_dump()
 
     # Detect if this is a pull-through cache repository
-    is_ptc = _is_pull_through_cache_repository(repository_name)
+    is_ptc = _is_pull_through_cache_repository(
+        repository_name, region_name=aws_region, profile_name=aws_profile
+    )
 
-    client = get_ecr_client()
+    client = get_ecr_client(region_name=aws_region, profile_name=aws_profile)
 
     # Build image identifier for describe_images API
     image_ids: List[Dict[str, str]] = []
@@ -521,7 +555,9 @@ async def check_container_availability(
 
             if is_ptc and initiate_pull_through:
                 # Check if the pull-through cache is usable by HealthOmics
-                ptc_usability = _check_pull_through_cache_healthomics_usability(repository_name)
+                ptc_usability = _check_pull_through_cache_healthomics_usability(
+                    repository_name, region_name=aws_region, profile_name=aws_profile
+                )
 
                 if ptc_usability['healthomics_usable']:
                     logger.info(
@@ -586,7 +622,9 @@ async def check_container_availability(
 
             if is_ptc and initiate_pull_through:
                 # Check if the pull-through cache is usable by HealthOmics
-                ptc_usability = _check_pull_through_cache_healthomics_usability(repository_name)
+                ptc_usability = _check_pull_through_cache_healthomics_usability(
+                    repository_name, region_name=aws_region, profile_name=aws_profile
+                )
 
                 if ptc_usability['healthomics_usable']:
                     logger.info(f'Initiating pull-through cache for {repository_name}:{image_tag}')
@@ -666,6 +704,14 @@ async def list_pull_through_cache_rules(
         None,
         description='Pagination token from a previous response',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """List pull-through cache rules with HealthOmics usability status.
 
@@ -680,13 +726,15 @@ async def list_pull_through_cache_rules(
         ctx: MCP context for error reporting
         max_results: Maximum number of results to return (default: 100, max: 1000)
         next_token: Pagination token from a previous response
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing:
         - rules: List of pull-through cache rules with usability status
         - next_token: Pagination token if more results are available
     """
-    client = get_ecr_client()
+    client = get_ecr_client(region_name=aws_region, profile_name=aws_profile)
 
     # Build parameters for describe_pull_through_cache_rules API
     params: Dict[str, Any] = {'maxResults': max_results}
@@ -807,6 +855,14 @@ async def create_pull_through_cache_for_healthomics(
         None,
         description='Secrets Manager ARN for registry credentials (required for docker-hub)',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Create a pull-through cache rule configured for HealthOmics.
 
@@ -824,6 +880,8 @@ async def create_pull_through_cache_for_healthomics(
         ecr_repository_prefix: ECR repository prefix (defaults to registry type name)
         credential_arn: Secrets Manager ARN for registry credentials
                        (required for docker-hub, optional for others)
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing:
@@ -875,7 +933,7 @@ async def create_pull_through_cache_for_healthomics(
         upstream_registry, upstream_registry
     )
 
-    client = get_ecr_client()
+    client = get_ecr_client(region_name=aws_region, profile_name=aws_profile)
 
     # Track what was created/updated
     rule_created = False
@@ -1237,6 +1295,14 @@ async def _create_repository_template_for_healthomics(
 
 async def validate_healthomics_ecr_config(
     ctx: Context,
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Validate ECR configuration for HealthOmics workflows.
 
@@ -1252,6 +1318,8 @@ async def validate_healthomics_ecr_config(
 
     Args:
         ctx: MCP context for error reporting
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing:
@@ -1269,7 +1337,7 @@ async def validate_healthomics_ecr_config(
         check_repository_template_healthomics_access,
     )
 
-    client = get_ecr_client()
+    client = get_ecr_client(region_name=aws_region, profile_name=aws_profile)
     issues: List[ValidationIssue] = []
     pull_through_caches_checked = 0
     repositories_checked = 0
@@ -1510,6 +1578,14 @@ async def grant_healthomics_repository_access(
         ...,
         description='ECR repository name to grant HealthOmics access to',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Grant HealthOmics access to an ECR repository.
 
@@ -1524,6 +1600,8 @@ async def grant_healthomics_repository_access(
     Args:
         ctx: MCP context for error reporting
         repository_name: ECR repository name to grant access to
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing:
@@ -1547,7 +1625,7 @@ async def grant_healthomics_repository_access(
         ).model_dump()
 
     repository_name = repository_name.strip()
-    client = get_ecr_client()
+    client = get_ecr_client(region_name=aws_region, profile_name=aws_profile)
 
     # Check current accessibility status
     previous_status = HealthOmicsAccessStatus.UNKNOWN
@@ -1712,6 +1790,14 @@ async def create_container_registry_map(
         default='json',
         description="Output format: 'json' for raw JSON string, 'dict' for Python dictionary",
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Create a container registry map for HealthOmics workflows.
 
@@ -1740,6 +1826,8 @@ async def create_container_registry_map(
             Each mapping should have 'sourceImage' and 'destinationImage' keys.
             These take precedence over registry mappings.
         output_format: Output format - 'json' for raw JSON string, 'dict' for dictionary.
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing:
@@ -1757,7 +1845,7 @@ async def create_container_registry_map(
     resolved_account_id = ecr_account_id
     if not resolved_account_id:
         try:
-            resolved_account_id = get_account_id()
+            resolved_account_id = get_account_id(region_name=aws_region, profile_name=aws_profile)
         except Exception as e:
             logger.error(f'Failed to get AWS account ID: {e}')
             await ctx.error(f'Failed to get AWS account ID: {e}')
@@ -1783,7 +1871,13 @@ async def create_container_registry_map(
     if include_pull_through_caches:
         try:
             # Pass explicit values since Field defaults aren't processed in direct calls
-            ptc_result = await list_pull_through_cache_rules(ctx, max_results=100, next_token=None)
+            ptc_result = await list_pull_through_cache_rules(
+                ctx,
+                max_results=100,
+                next_token=None,
+                aws_profile=aws_profile,
+                aws_region=aws_region,
+            )
             rules = ptc_result.get('rules', [])
 
             for rule in rules:
@@ -2150,6 +2244,8 @@ async def _copy_image_via_codebuild(
     target_tag: str,
     account_id: str,
     region: str,
+    region_name: str | None = None,
+    profile_name: str | None = None,
 ) -> Dict[str, Any]:
     """Copy a container image to ECR using CodeBuild.
 
@@ -2160,6 +2256,8 @@ async def _copy_image_via_codebuild(
         target_tag: Target image tag
         account_id: AWS account ID
         region: AWS region
+        region_name: Optional region override
+        profile_name: Optional AWS profile override
 
     Returns:
         Dictionary with success status, digest, and message
@@ -2169,8 +2267,8 @@ async def _copy_image_via_codebuild(
         get_iam_client,
     )
 
-    codebuild_client = get_codebuild_client()
-    iam_client = get_iam_client()
+    codebuild_client = get_codebuild_client(region_name=region_name, profile_name=profile_name)
+    iam_client = get_iam_client(region_name=region_name, profile_name=profile_name)
 
     ecr_registry = f'{account_id}.dkr.ecr.{region}.amazonaws.com'
     target_image = f'{ecr_registry}/{target_repo}:{target_tag}'
@@ -2220,7 +2318,7 @@ async def _copy_image_via_codebuild(
                 logger.info(f'CodeBuild completed successfully: {build_id}')
 
                 # Get the image digest from ECR
-                ecr_client = get_ecr_client()
+                ecr_client = get_ecr_client(region_name=region_name, profile_name=profile_name)
                 try:
                     images = ecr_client.describe_images(
                         repositoryName=target_repo,
@@ -2303,6 +2401,14 @@ async def clone_container_to_ecr(
         None,
         description='Target image tag. If not provided, uses source tag or "latest".',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Clone a container image to a private ECR repository for HealthOmics use.
 
@@ -2329,6 +2435,8 @@ async def clone_container_to_ecr(
         target_repository_name: Target ECR repository name (only used if no pull-through
             cache exists; optional)
         target_image_tag: Target image tag (optional)
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing:
@@ -2374,11 +2482,11 @@ async def clone_container_to_ecr(
         f'repository={source_repository}, tag={source_tag}, digest={source_digest}'
     )
 
-    client = get_ecr_client()
+    client = get_ecr_client(region_name=aws_region, profile_name=aws_profile)
 
     # Get account ID and region for ECR URI construction
     try:
-        account_id = get_account_id()
+        account_id = get_account_id(region_name=aws_region, profile_name=aws_profile)
         region = get_region()
     except Exception as e:
         logger.error(f'Failed to get AWS account info: {e}')
@@ -2452,7 +2560,10 @@ async def clone_container_to_ecr(
                 # Grant HealthOmics access
                 try:
                     await grant_healthomics_repository_access(
-                        ctx, repository_name=ecr_repository_name
+                        ctx,
+                        repository_name=ecr_repository_name,
+                        aws_profile=aws_profile,
+                        aws_region=aws_region,
                     )
                 except Exception as grant_err:
                     logger.warning(f'Failed to grant HealthOmics access: {grant_err}')
@@ -2525,7 +2636,12 @@ async def clone_container_to_ecr(
 
             # Grant HealthOmics access
             try:
-                await grant_healthomics_repository_access(ctx, repository_name=ecr_repository_name)
+                await grant_healthomics_repository_access(
+                    ctx,
+                    repository_name=ecr_repository_name,
+                    aws_profile=aws_profile,
+                    aws_region=aws_region,
+                )
             except Exception as grant_error:
                 logger.warning(f'Failed to grant HealthOmics access: {grant_error}')
 
@@ -2572,6 +2688,8 @@ async def clone_container_to_ecr(
                     target_tag=ecr_tag,
                     account_id=account_id,
                     region=region,
+                    region_name=aws_region,
+                    profile_name=aws_profile,
                 )
 
                 if codebuild_result['success']:
