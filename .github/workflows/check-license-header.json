@@ -78,7 +78,11 @@
       "**/*.template",
       "**/*.properties",
       "**/*.xml",
-      "**/dist/**"
+      "**/dist/**",
+      "**/skills/*/scripts",
+      "**/skills/*/references",
+      "**/skills/*/mcp",
+      "**/DO_NOT_RELEASE"
     ]
   }
 ]

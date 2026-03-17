@@ -23,6 +23,7 @@ effortless scaling, multi-region viability, among other advantages.
 - **Plan for Horizontal Scale** - DSQL is designed to optimize for massive scales without latency drops; refer to [Horizontal Scaling](#horizontal-scaling-best-practice)
 - **SHOULD use connection pooling in production applications** - Refer to [Connection Pooling](#connection-pooling-recommended)
 - **SHOULD debug with the troubleshooting guide:** - Always refer to the resources and guidelines in [troubleshooting.md](troubleshooting.md)
+- **ALWAYS use scoped roles for applications** - Create database roles with `dsql:DbConnect`; refer to [Access Control](access-control.md)
 
 ---
 
@@ -149,26 +150,15 @@ For production applications:
 
 ### Access Control
 
-**Database-level security:**
-- Create schema-specific users for applications
-- Grant minimal required privileges (SELECT, INSERT, UPDATE, DELETE)
-- Admin users should only perform administrative tasks
-- Regularly audit user permissions and access patterns
+**ALWAYS prefer scoped database roles over the `admin` role.**
+- **ALWAYS** use scoped database roles for application connections — reserve `admin` for initial setup and role management
+- **MUST** create purpose-specific database roles and connect with `dsql:DbConnect`
+- **MUST** place sensitive data (PII, credentials) in dedicated schemas — not `public`
+- **MUST** grant only the minimum privileges each role requires
+- **SHOULD** audit role mappings: `SELECT * FROM sys.iam_pg_role_mappings;`
 
-**Example IAM policy for non-admin users:**
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": "dsql:DbConnect",
-      "Resource": "arn:aws:dsql:*:*:cluster/*"
-    }
-  ]
-}
-```
+For complete role setup instructions, schema separation patterns, and IAM configuration,
+see [access-control.md](access-control.md).
 
 ---
 
@@ -261,7 +251,7 @@ Low-level libraries that directly connect to the database:
 | **JavaScript** | DSQL Connector for Postgres.js | [Postgres.js samples](https://github.com/aws-samples/aurora-dsql-samples/tree/main/javascript/postgres-js) |
 | **Python** | Psycopg | [Python Psycopg samples](https://github.com/aws-samples/aurora-dsql-samples/tree/main/python/psycopg) |
 | **Python** | DSQL Connector for Psycopg2 | [Python Psycopg2 samples](https://github.com/aws-samples/aurora-dsql-samples/tree/main/python/psycopg2 ) |
-| **Python** | DSQL Connector for Asyncpg | [Python Asyncpg samples](https://github.com/awslabs/aurora-dsql-python-connector/tree/main/examples/asyncpg)|
+| **Python** | DSQL Connector for Asyncpg | [Python Asyncpg samples](https://github.com/awslabs/aurora-dsql-connectors/tree/main/python/connector/examples/asyncpg)|
 | **Ruby** | pg | [Ruby pg samples](https://github.com/aws-samples/aurora-dsql-samples/tree/main/ruby/ruby-pg) |
 | **Rust** | SQLx | [Rust SQLx samples](https://github.com/aws-samples/aurora-dsql-samples/tree/main/rust/sqlx) |
 
@@ -271,8 +261,8 @@ Standalone libraries that provide object-relational mapping functionality:
 
 | Programming Language | ORM Library | Sample Repository |
 |---------------------|-------------|-------------------|
-| **Java** | Hibernate | [Hibernate Pet Clinic App](https://github.com/awslabs/aurora-dsql-hibernate/tree/main/examples/pet-clinic-app) |
-| **Python** | SQLAlchemy | [SQLAlchemy Pet Clinic App](https://github.com/awslabs/aurora-dsql-sqlalchemy/tree/main/examples/pet-clinic-app) |
+| **Java** | Hibernate | [Hibernate Pet Clinic App](https://github.com/awslabs/aurora-dsql-orms/tree/main/java/hibernate/examples/pet-clinic-app) |
+| **Python** | SQLAlchemy | [SQLAlchemy Pet Clinic App](https://github.com/awslabs/aurora-dsql-orms/tree/main/python/sqlalchemy/examples/pet-clinic-app) |
 | **TypeScript** | Sequelize | [TypeScript Sequelize samples](https://github.com/aws-samples/aurora-dsql-samples/tree/main/typescript/sequelize) |
 | **TypeScript** | TypeORM | [TypeScript TypeORM samples](https://github.com/aws-samples/aurora-dsql-samples/tree/main/typescript/type-orm) |
 
@@ -282,9 +272,9 @@ Specific extensions that make existing ORMs work with Aurora DSQL:
 
 | Programming Language | ORM/Framework | Repository |
 |---------------------|---------------|------------|
-| **Java** | Hibernate | [Aurora DSQL Hibernate Adapter](https://github.com/awslabs/aurora-dsql-hibernate/) |
-| **Python** | Django | [Aurora DSQL Django Adapter](https://github.com/awslabs/aurora-dsql-django/) |
-| **Python** | SQLAlchemy | [Aurora DSQL SQLAlchemy Adapter](https://github.com/awslabs/aurora-dsql-sqlalchemy/) |
+| **Java** | Hibernate | [Aurora DSQL Hibernate Adapter](https://github.com/awslabs/aurora-dsql-orms/tree/main/java/hibernate) |
+| **Python** | Django | [Aurora DSQL Django Adapter](https://github.com/awslabs/aurora-dsql-orms/tree/main/python/django) |
+| **Python** | SQLAlchemy | [Aurora DSQL SQLAlchemy Adapter](https://github.com/awslabs/aurora-dsql-orms/tree/main/python/sqlalchemy) |
 
 
 ---

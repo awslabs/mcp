@@ -44,7 +44,9 @@ class CloudTrailTools:
 
     def _get_cloudtrail_client(self, region: str):
         """Create a CloudTrail client for the specified region."""
-        config = Config(user_agent_extra=f'awslabs/mcp/cloudtrail-mcp-server/{MCP_SERVER_VERSION}')
+        config = Config(
+            user_agent_extra=f'md/awslabs#mcp#cloudtrail-mcp-server#{MCP_SERVER_VERSION}'
+        )
 
         try:
             if aws_profile := os.environ.get('AWS_PROFILE'):

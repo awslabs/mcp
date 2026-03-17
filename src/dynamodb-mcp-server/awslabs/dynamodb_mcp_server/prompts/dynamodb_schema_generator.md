@@ -32,8 +32,8 @@ The schema follows this structure (optional fields marked with `?`):
       "gsi_list?": [                    // Optional: only if table has GSIs
         {
           "name": "string",
-          "partition_key": "string",
-          "sort_key?": "string",        // Optional: omit if GSI has no sort key
+          "partition_key": "string" | ["attr1", "attr2"],  // Single or multi-attribute (1-4 attrs)
+          "sort_key?": "string" | ["attr1", "attr2"],      // Optional: single or multi-attribute (1-4 attrs)
           "projection?": "ALL|KEYS_ONLY|INCLUDE",  // Optional: defaults to ALL
           "included_attributes?": ["field1", "field2"]  // Required when projection is INCLUDE
         }
@@ -46,8 +46,8 @@ The schema follows this structure (optional fields marked with `?`):
           "gsi_mappings?": [            // Optional: only if entity uses GSIs
             {
               "name": "GSIName",
-              "pk_template": "TEMPLATE#{field}",
-              "sk_template?": "TEMPLATE#{field}"  // Optional: omit if GSI has no sort key
+              "pk_template": "TEMPLATE#{field}" | ["{field1}", "{field2}"],  // Single or multi-attribute
+              "sk_template?": "TEMPLATE#{field}" | ["{field1}", "{field2}"]  // Optional: single or multi-attribute
             }
           ],
           "fields": [
@@ -65,8 +65,15 @@ The schema follows this structure (optional fields marked with `?`):
               "description": "Pattern description",
               "operation": "GetItem|PutItem|DeleteItem|Query|Scan|UpdateItem|BatchGetItem|BatchWriteItem",
               "index_name?": "GSIName",                     // Optional: only for GSI queries
-              "range_condition?": "begins_with|between|>=|<=|>|<",  // Optional: only for range queries
+              "range_condition?": "begins_with|between|>=|<=|>|<",  // Optional: sort key range operator (maps to SK portion of DynamoDB's KeyConditionExpression)
               "consistent_read?": true|false,               // Optional: defaults to false, only for read operations
+              "filter_expression?": {                       // Optional: server-side filtering for Query/Scan
+                "conditions": [
+                  { "field": "field_name", "operator": "=|<>|<|<=|>|>=|between|in", "param": "param_name", "param2?": "param_name", "params?": ["p1","p2"] },
+                  { "field": "field_name", "function": "contains|begins_with|attribute_exists|attribute_not_exists|size", "param?": "param_name" }
+                ],
+                "logical_operator?": "AND|OR"              // Optional: defaults to AND
+              },
               "parameters": [
                 {
                   "name": "param_name",
@@ -111,29 +118,188 @@ The schema follows this structure (optional fields marked with `?`):
 **Key Points**:
 - Fields marked with `?` are optional - only include them when needed
 - `index_name`: Only for Query/Scan operations that use a GSI
-- `range_condition`: Only for Query operations with range conditions (begins_with, between, etc.)
+- `range_condition`: Only for Query operations with sort key range conditions (begins_with, between, etc.). This maps to the sort key portion of DynamoDB's `KeyConditionExpression` — the PK equality is handled automatically via `pk_template`.
 - `consistent_read`: **Required for read operations** (GetItem, Query, Scan, BatchGetItem). Defaults to `false` (eventually consistent). Must be `false` for GSI. Omit for writes.
+- `filter_expression`: Only for Query/Scan operations. Filters on non-key attributes after data is read. Parameters referenced in conditions must be in the `parameters` array. Cannot filter on PK/SK fields.
 - `projection` and `included_attributes`: Only for GSI definitions (see GSI Projection Types below)
 - `gsi_list` and `gsi_mappings`: Only if the table/entity uses GSIs
 - `item_type`: Only when field type is "array"
 - `entity_type`: Only when parameter type is "entity"
 - `cross_table_access_patterns`: **Optional top-level section** for atomic transactions across multiple tables. Only include when data model specifies cross-table atomic operations (TransactWrite/TransactGet).
 
-### When to Use range_condition
+## Multi-Attribute Keys (GSI Only)
 
-**Only add `range_condition` when the user provides a filter value as a parameter.**
+DynamoDB supports multi-attribute keys for GSIs: up to 4 attributes per key. Multi-attribute keys let you use existing item attributes directly as composite GSI keys — no synthetic concatenated keys needed. DynamoDB handles the composite key logic automatically.
+
+**🔴 CRITICAL: Only use when data model shows "(multi-attribute)".**
+
+### Format
+
+Single-attribute: `"partition_key": "userId"`
+Multi-attribute: `"partition_key": ["attr1", "attr2"]`
+
+Entity mapping: `"pk_template": ["{attr1}", "{attr2}"]`
+
+### Rules
+
+- GSI only (NOT base tables)
+- 1-4 attributes per key
+- Templates must match key structure (array if key is array)
+- All partition key attributes must use equality (=) — you cannot use inequality on PK attributes
+- Sort key attributes must be queried left-to-right — you cannot skip attributes in the middle
+- Inequality/range conditions can only appear on the LAST queried sort key attribute
+
+### Example
+
+Data model: `- **Sort Key**: status, created_at (multi-attribute)`
+Schema: `"sort_key": ["status", "created_at"]`
+
+### Query Examples
+
+Given GSI with `[tournamentId, region]` (PK) + `[round, bracket, matchId]` (SK):
+
+| Query | PK attrs | SK attrs | range_condition? |
+|-------|----------|----------|------------------|
+| All matches for tournament+region | tournamentId, region | — | ❌ No |
+| SEMIFINALS matches | tournamentId, region | round (equality) | ❌ No |
+| SEMIFINALS UPPER bracket | tournamentId, region | round, bracket (equality) | ❌ No |
+| Matches from QUARTERFINALS onwards | tournamentId, region | round (range) | ✅ `">="` |
+| SEMIFINALS brackets starting with "U" | tournamentId, region | round (equality), bracket (range) | ✅ `"begins_with"` |
+
+### Parameter Counting
+
+*Equality queries (NO range_condition):*
+- PK only: N params (all PK attributes)
+- PK + first SK: N + 1 params (all PK + first SK attribute with equality)
+- PK + first two SKs: N + 2 params (all PK + first two SK attributes with equality)
+- Example: GSI with store_id (PK) + [status, created_at] (SK)
+  - Access Pattern: "Get deliveries with status=OUT_FOR_DELIVERY"
+  - Parameters: 2 (store_id, status)
+  - NO range_condition - this is equality on first SK attribute
+  - Query: `store_id = X AND status = Y` (both equality)
+  - ❌ DO NOT add created_at parameter if not in the access pattern definition
+
+*Range queries (WITH range_condition):*
+- PK + SK equality + range: N + M + R params
+  - N = PK attribute count
+  - M = SK attributes with equality (0 to SK_count - 1, queried left-to-right)
+  - R = range values (1 for most operators, 2 for BETWEEN)
+- **You can stop at ANY point** in the SK attribute order - you don't need to query ALL SK attributes
+- The range condition applies to the LAST QUERIED SK attribute, not necessarily the last attribute in the GSI definition
+- Example 1: GSI with store_id (PK) + [status, created_at] (SK)
+  - Data model: "Get deliveries with status=OUT_FOR_DELIVERY created after 2024-01-01"
+  - Parameters: 3 (store_id, status, since_date)
+  - range_condition: ">="
+  - Query: `store_id = X AND status = Y AND created_at >= since_date`
+- Example 2: GSI with category (PK) + [subcategory, price, productId] (SK)
+  - Data model: "Get products in category/subcategory under max price"
+  - Parameters: 3 (category, subcategory, max_price) - productId NOT included
+  - range_condition: "<="
+  - Query: `category = X AND subcategory = Y AND price <= Z`
+  - ✅ This is VALID - range on price (2nd SK), productId (3rd SK) not queried
+
+## When to Use range_condition
+
+**Only add `range_condition` when the user specifies a comparison/filter operation (>, >=, <, <=, BETWEEN, BEGINS_WITH).**
+
+**Single-attribute key examples:**
 
 | Pattern Type | range_condition? | Parameters | Example |
 |--------------|------------------|------------|---------|
-| Get ALL items | ❌ No | 1 (PK only) | "Get all user addresses" → `[{"name": "user_id"}]` |
-| Filter by value | ✅ Yes | 2+ (PK + filter) | "Get orders after date" → `[{"name": "user_id"}, {"name": "since_date"}]` |
+| Get ALL items | ❌ No | PK only | "Get all user addresses" → `[{"name": "user_id"}]` |
+| Equality filter | ❌ No | PK + SK (equality) | "Get deliveries with status=DELIVERED" → `[{"name": "store_id"}, {"name": "status"}]` |
+| Comparison filter | ✅ Yes | PK + SK + range | "Get orders after date" → `[{"name": "user_id"}, {"name": "since_date"}]` with `range_condition: ">="` |
+
+**Multi-attribute key examples:**
+
+| Pattern Type | range_condition? | Parameters | Example |
+|--------------|------------------|------------|---------|
+| All PK attrs, no SK | ❌ No | All PK attrs | "Get matches for tournament+region" → `[{"name": "tournamentId"}, {"name": "region"}]` |
+| PK + SK equality | ❌ No | All PK + SK equality attrs | "Get SEMIFINALS matches for tournament+region" → `[{"name": "tournamentId"}, {"name": "region"}, {"name": "round"}]` |
+| PK + SK equality + range | ✅ Yes | All PK + SK equality + range value(s) | "Get player matches after date" → `[{"name": "player1Id"}, {"name": "since_date"}]` with `range_condition: ">="` |
+| PK + multiple SK equality + range | ✅ Yes | All PK + SK equality + range value(s) | "Get deliveries with status=X created after date" → `[{"name": "store_id"}, {"name": "status"}, {"name": "since_date"}]` with `range_condition: ">="` |
 
 **Parameter count requirements:**
-- No `range_condition`: 1+ parameters (PK only)
-- `begins_with`, `>=`, `<=`, `>`, `<`: 2 parameters (PK + 1 value)
-- `between`: 3 parameters (PK + min + max)
+- No `range_condition`: PK attributes only (or PK + SK attributes for equality queries)
+- With `range_condition`: PK attributes + SK attributes (equality, left-to-right) + range values
 
-**Common mistake:** Adding `range_condition: "begins_with"` to "get all X" queries. These are simple PK queries - omit `range_condition`.
+**For single-attribute keys:**
+- No range: 1 param (PK only)
+- With range: 2 params (PK + range value)
+
+**For multi-attribute keys:** See **Multi-Attribute Keys → Parameter Counting** above.
+
+**Common mistakes:**
+- ❌ Adding `range_condition` to "get all X" queries (simple PK query) → omit `range_condition`
+- ❌ Adding `range_condition` for equality queries on multi-attribute SK (use equality, not range) → omit `range_condition`
+- ❌ Inventing additional parameters not mentioned in the data model → only include parameters from the data model
+- ❌ Adding `range_condition: "begins_with"` just because the SK template uses a static prefix like `ORDER#` or `ITEM#` → static SK prefixes are part of the `sk_template` design and are handled automatically; `range_condition` is only for **user-provided dynamic values** like a date prefix or score threshold
+- ✅ Only use `range_condition` when user specifies comparison: "after", "before", "between", "starts with"
+- ✅ Use equality (no range_condition) when user specifies exact match: "with status=X", "where category=Y"
+- ✅ Use NO `range_condition` when querying all items under a PK (e.g., "get all deliveries for customer") — the SK prefix scoping is implicit in the `sk_template`
+
+### range_condition vs filter_expression — Don't Confuse Them
+
+🔴 **CRITICAL**: `range_condition` and `filter_expression` are completely different features. Never use both for the same filtering need.
+
+| Feature | `range_condition` | `filter_expression` |
+|---------|-------------------|---------------------|
+| **What it filters** | Sort key in KeyConditionExpression | Non-key attributes in FilterExpression (for Scan: any attribute, including PK/SK) |
+| **When to use** | Filtering on the table/GSI sort key | Filtering on non-key attributes (e.g., fulfillment_status, order_total, tags — never PK/SK fields) |
+| **Read capacity** | Only reads matching items | Reads ALL items, then filters |
+
+**Example — WRONG (range_condition without SK parameter):**
+```json
+{
+  "name": "get_active_orders",
+  "operation": "Query",
+  "range_condition": "begins_with",
+  "filter_expression": { "conditions": [{"field": "status", "operator": "<>", "param": "excluded"}] },
+  "parameters": [{"name": "customer_id", "type": "string"}, {"name": "excluded", "type": "string"}]
+}
+```
+❌ `range_condition: "begins_with"` requires a range parameter (2 params total: PK + range value), but only PK + filter param are provided.
+
+**Example — CORRECT (both range_condition and filter_expression):**
+```json
+{
+  "name": "get_active_orders",
+  "operation": "Query",
+  "range_condition": "begins_with",
+  "filter_expression": { "conditions": [{"field": "status", "operator": "<>", "param": "excluded"}] },
+  "parameters": [{"name": "customer_id", "type": "string"}, {"name": "sk_prefix", "type": "string"}, {"name": "excluded", "type": "string"}]
+}
+```
+✅ Both `range_condition` (for SK filtering) and `filter_expression` (for non-key filtering) with correct parameter count.
+
+**Example — CORRECT (filter_expression only, no SK filtering):**
+```json
+{
+  "name": "scan_active_restaurants",
+  "operation": "Scan",
+  "filter_expression": { "conditions": [{"field": "rating", "operator": ">=", "param": "min_rating"}] },
+  "parameters": [{"name": "min_rating", "type": "decimal"}]
+}
+```
+✅ Scan with only `filter_expression` — no sort key involved.
+
+**Example — CORRECT (item collection Query with filter, NO range_condition):**
+```json
+{
+  "name": "get_filtered_items",
+  "operation": "Query",
+  "filter_expression": { "conditions": [{"field": "status", "operator": "<>", "param": "excluded_status"}] },
+  "parameters": [{"name": "user_id", "type": "string"}, {"name": "date", "type": "string"}, {"name": "excluded_status", "type": "string"}]
+}
+```
+✅ Query scoped by a composite PK (e.g., `USER#{user_id}#{date}`) with filter on a non-key field. The SK prefix (e.g., `ITEM#`) is a static constant in `sk_template` — it does NOT require `range_condition`. Only add `range_condition` if the user wants to filter by a dynamic SK value like a date range or score threshold.
+
+**Rule of thumb:**
+- Filtering on sort key with a user-provided value → `range_condition`
+- Filtering on any non-key field → `filter_expression`
+- For Scan operations, `filter_expression` can also filter on key attributes (there is no `KeyConditionExpression` in a Scan)
+- Both can coexist: use `range_condition` for sort key filtering AND `filter_expression` for non-key attribute filtering in the same pattern — even when both use `begins_with`, they operate on different attributes
+- Don't add `range_condition` when there's no sort key filtering — only add it when the query narrows results using the sort key
 
 ## GSI Projection Types
 
@@ -200,6 +366,10 @@ DynamoDB GSIs support three projection types that control which attributes are c
 - `included_attributes` is **required** when `projection` is `"INCLUDE"`
 - `included_attributes` must reference valid entity fields
 - `included_attributes` should **NOT** be provided for `ALL` or `KEYS_ONLY`
+- **🔴 CRITICAL**: Do NOT include key attributes in `included_attributes`:
+  - **Base table keys** (partition_key and sort_key) are automatically included in ALL GSIs
+  - **GSI keys** (partition_key and sort_key, including all multi-attribute key attributes) are automatically included
+  - Only list **non-key attributes** that you want to include
 - Choose projection based on query patterns and cost optimization needs
 
 ### Generated Code Behavior
@@ -260,11 +430,17 @@ When converting GSI key fields to schema, check if the data model indicates the 
 | Context | Where Used | Valid Types | Purpose |
 |---------|------------|-------------|---------|
 | **Field Types** | Entity `fields` array | string, integer, decimal, boolean, array, object, uuid | Define entity attributes |
-| **Parameter Types** | Access pattern `parameters` array | string, integer, boolean, entity | Define method parameters |
+| **Parameter Types** | Access pattern `parameters` array | string, integer, decimal, boolean, entity | Define method parameters |
 
 **Key Difference**:
 - Use `"object"` for **nested JSON data** in entity fields
 - Use `"entity"` for **entity objects** in access pattern parameters
+
+**Parameter Type Inference for Range Queries**:
+- When a parameter is used in a range condition (between, >=, <=, >, <) on a sort key field, the parameter type MUST match the field type
+- Example: If `price` field is `"type": "decimal"`, then `min_price` and `max_price` parameters must be `"type": "decimal"`
+- Example: If `created_at` field is `"type": "string"`, then date range parameters must be `"type": "string"`
+- Example: If `quantity` field is `"type": "integer"`, then quantity range parameters must be `"type": "integer"`
 
 ## Field Type Mappings
 
@@ -286,6 +462,7 @@ Map DynamoDB attribute types to schema field types (for entity fields):
 - ❌ Do NOT use `"float"` - it's not valid
 - ✅ Use `"decimal"` for decimal numbers (prices, ratings)
 - ✅ Use `"integer"` for whole numbers (counts, IDs)
+- ✅ **Range query parameters must match field types**: If querying a `decimal` field with a range condition, parameters must be `"type": "decimal"`
 
 ## Operation Mappings
 
@@ -480,8 +657,9 @@ For each access pattern in the "Access Pattern Mapping" section:
 
 For each GSI:
 - Add to `gsi_list` at the table level (sibling to `table_config` and `entities`)
+- Check for "(multi-attribute)" → use array format, otherwise string
 - Create corresponding `gsi_mappings` in entities that use the GSI
-- Extract PK/SK templates from GSI descriptions
+- Extract PK/SK templates from GSI descriptions (match format: array if key is array)
 - Ensure GSI names match between `gsi_list` and entity `gsi_mappings`
 
 ### 5. Infer Field Types
@@ -533,7 +711,11 @@ Common validation errors and fixes:
 | Duplicate pattern_id | Ensure pattern IDs are unique across all entities |
 | Missing required field | Add required fields: name, type, required |
 | Invalid range_condition | Use valid condition: begins_with, between, >=, <=, >, < |
-| Wrong parameter count for range condition | between needs 2 range params, others need 1 |
+| Wrong parameter count for range condition | Minimum: PK_count + range_params (1 or 2). Maximum: PK_count + (SK_count - 1) + range_params. Range applies to LAST QUERIED SK attribute. |
+| Invalid filter_expression field | Field must exist in entity fields and cannot be PK/SK |
+| Invalid filter operator/function | Use valid operators (=, <>, etc.) or functions (contains, begins_with, etc.) |
+| filter_expression on non-Query/Scan | Filter expressions only valid for Query and Scan operations |
+| range_condition with filter_expression | Both can coexist — ensure range_condition has correct parameter count (PK + range value) separate from filter params |
 | Same field for PK and SK | Use composite pattern: `"sk_template": "{field}#ENTITY_TYPE"` |
 | Non-string field in key template | If data model clearly indicates numeric type (like display_order as Number), use correct numeric type in fields but keep in key template - DynamoDB handles conversion |
 | Invalid consistent_read value | Use boolean `true` or `false`, not string or other types |
@@ -543,6 +725,16 @@ Common validation errors and fixes:
 | Missing included_attributes for INCLUDE | Add `included_attributes` array with field names |
 | included_attributes with non-INCLUDE projection | Remove `included_attributes` or change projection to INCLUDE |
 | Invalid attribute in included_attributes | Ensure attribute exists in entity fields |
+| Key attributes in included_attributes | Remove key attributes (base table keys and GSI keys) - automatically included by DynamoDB |
+| | **Multi-Attribute Keys (GSI Only)** |
+| partition_key/sort_key must be string or array | Change to string (single attribute) or array of 1-4 strings |
+| partition_key/sort_key array cannot be empty | Provide at least one attribute name |
+| partition_key/sort_key array cannot have more than 4 attributes | Remove excess attributes (max 4 per key) |
+| Attribute in key array must be a string | Ensure all array elements are strings |
+| Attribute in key array cannot be empty | Provide valid attribute names |
+| pk_template/sk_template must be string or array | Match the format of corresponding partition_key/sort_key |
+| Template array length mismatch | Template array must have same length as key array |
+| Multi-attribute keys not supported for base table | Use single-attribute keys (string) for table_config |
 
 ## Workflow
 

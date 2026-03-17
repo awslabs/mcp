@@ -24,7 +24,13 @@ from awslabs.dynamodb_mcp_server.repo_generation_tool.core.cross_table_validator
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.file_utils import (
     FileUtils,
 )
+from awslabs.dynamodb_mcp_server.repo_generation_tool.core.filter_expression_validator import (
+    FilterExpressionValidator,
+)
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.gsi_validator import GSIValidator
+from awslabs.dynamodb_mcp_server.repo_generation_tool.core.key_template_parser import (
+    KeyTemplateParser,
+)
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.range_query_validator import (
     RangeQueryValidator,
 )
@@ -69,6 +75,9 @@ class SchemaValidator:
         self.gsi_validator = GSIValidator()  # GSI validation component
         self.range_query_validator = RangeQueryValidator()  # Range query validation component
         self.cross_table_validator = CrossTableValidator()  # Cross-table validation component
+        self.filter_expression_validator = (
+            FilterExpressionValidator()
+        )  # Filter expression validation
 
     def validate_schema_file(self, schema_path: str) -> ValidationResult:
         """Load and validate schema file.
@@ -82,6 +91,7 @@ class SchemaValidator:
         self.result = ValidationResult(is_valid=True, errors=[], warnings=[])
         self.global_entity_names = set()
         self.global_entity_fields = {}  # Track entity fields for reuse
+        self.global_entity_key_attributes = {}  # Track key attributes (PK/SK template fields) per entity
         self.pattern_ids = set()
         self.table_map = {}  # Reset table map for each validation
 
@@ -310,6 +320,17 @@ class SchemaValidator:
         # Store extracted field information for reuse
         self.global_entity_fields[entity_name] = entity_field_names
 
+        # Extract key attributes from PK/SK templates for filter expression validation
+        key_attributes = set()
+        template_parser = KeyTemplateParser()
+        if 'pk_template' in entity_config and isinstance(entity_config['pk_template'], str):
+            key_attributes.update(template_parser.extract_parameters(entity_config['pk_template']))
+        if 'sk_template' in entity_config and isinstance(
+            entity_config.get('sk_template', ''), str
+        ):
+            key_attributes.update(template_parser.extract_parameters(entity_config['sk_template']))
+        self.global_entity_key_attributes[entity_name] = key_attributes
+
         # Validate access patterns
         if 'access_patterns' in entity_config:
             self._validate_access_patterns(
@@ -468,6 +489,20 @@ class SchemaValidator:
         if 'range_condition' in pattern and not pattern.get('index_name'):
             self._validate_main_table_range_query(pattern, path)
 
+        # Validate filter expressions
+        if 'filter_expression' in pattern:
+            entity_fields = self.global_entity_fields.get(entity_name, set())
+            key_attributes = self.global_entity_key_attributes.get(entity_name, set())
+            operation = pattern.get('operation', '')
+            filter_errors = self.filter_expression_validator.validate_filter_expression(
+                pattern['filter_expression'],
+                entity_fields=entity_fields,
+                key_attributes=key_attributes,
+                pattern_path=f'{path}.filter_expression',
+                operation=operation,
+            )
+            self.result.add_errors(filter_errors)
+
     def _validate_parameters(self, parameters: Any, path: str) -> None:
         """Validate parameters array."""
         if not isinstance(parameters, list):
@@ -545,6 +580,7 @@ class SchemaValidator:
                 return_type=pattern.get('return_type', ''),
                 index_name=pattern.get('index_name'),
                 range_condition=pattern.get('range_condition'),
+                filter_expression=pattern.get('filter_expression'),
             )
 
             # Perform comprehensive range query validation

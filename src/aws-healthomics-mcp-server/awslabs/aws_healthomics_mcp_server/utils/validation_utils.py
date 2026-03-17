@@ -16,7 +16,7 @@
 
 import posixpath
 from awslabs.aws_healthomics_mcp_server.models import ContainerRegistryMap, DefinitionRepository
-from awslabs.aws_healthomics_mcp_server.utils.aws_utils import decode_from_base64
+from awslabs.aws_healthomics_mcp_server.utils.content_resolver import resolve_single_content
 from enum import Enum
 from loguru import logger
 from mcp.server.fastmcp import Context
@@ -97,19 +97,94 @@ async def validate_s3_uri(ctx: Context, uri: str, parameter_name: str) -> None:
         raise ValueError(error_message)
 
 
+def parse_tags(tags: Any) -> Dict[str, str]:
+    """Parse tags from either a JSON string or a dict.
+
+    MCP clients may send tags as a JSON string or as a native dict object.
+    This function normalizes both formats into a dict.
+
+    Args:
+        tags: Tags as a JSON string (e.g. '{"key": "value"}') or a dict.
+
+    Returns:
+        Parsed tags dictionary.
+
+    Raises:
+        ValueError: If tags is a string that is not valid JSON, or an unsupported type.
+    """
+    import json
+
+    if isinstance(tags, dict):
+        return tags
+    if isinstance(tags, str):
+        try:
+            parsed = json.loads(tags)
+        except json.JSONDecodeError as e:
+            raise ValueError(f'Invalid tags JSON: {e}') from e
+        if not isinstance(parsed, dict):
+            raise ValueError('Tags JSON must be an object, e.g. {"key": "value"}')
+        return parsed
+    raise ValueError(f'Tags must be a JSON string or dict, got {type(tags).__name__}')
+
+
+def parse_id_list(value: Any) -> list:
+    """Parse an ID list from a JSON string, a plain string, or a native list.
+
+    MCP clients may send list parameters as a JSON string, a single scalar value,
+    or a native list. This function normalizes all formats into a list of strings.
+
+    Args:
+        value: IDs as a JSON list string (e.g. '["id1", "id2"]'), a single string/number,
+               or a native list.
+
+    Returns:
+        List of string IDs.
+
+    Raises:
+        ValueError: If the value cannot be parsed into a list of IDs.
+    """
+    import json
+
+    if isinstance(value, list):
+        return [str(v) for v in value]
+    if isinstance(value, (int, float)):
+        return [str(value)]
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            # Treat as a single ID string
+            return [value]
+        if isinstance(parsed, list):
+            return [str(v) for v in parsed]
+        # json.loads('123') returns an int — treat as single ID
+        return [str(parsed)]
+    raise ValueError(
+        f'IDs must be a JSON string, list, or single value, got {type(value).__name__}'
+    )
+
+
 async def validate_definition_sources(
     ctx: Context,
-    definition_zip_base64: Optional[str],
+    definition_source: Optional[str],
     definition_uri: Optional[str],
     definition_repository: Optional[Dict[str, Any]] = None,
+    definition_zip_base64: Optional[str] = None,
 ) -> Tuple[Optional[bytes], Optional[str], Optional[Dict[str, Any]]]:
     """Validate that exactly one definition source is provided and process it.
 
+    Accepts a ``definition_source`` parameter that can be a local ZIP file path,
+    S3 URI, or base64-encoded ZIP content.  The legacy ``definition_zip_base64``
+    parameter is supported as a deprecated alias for backward compatibility.
+
     Args:
         ctx: MCP context for error reporting
-        definition_zip_base64: Base64-encoded workflow definition ZIP file
+        definition_source: Workflow definition content — a local ZIP file path,
+            S3 URI (s3://bucket/key.zip), or base64-encoded ZIP content
         definition_uri: S3 URI of the workflow definition ZIP file
         definition_repository: Git repository configuration
+        definition_zip_base64: **Deprecated** — use ``definition_source`` instead.
+            Base64-encoded workflow definition ZIP file.
 
     Returns:
         Tuple of (decoded_zip_bytes, validated_uri, validated_repository)
@@ -118,6 +193,27 @@ async def validate_definition_sources(
         ValueError: If validation fails
     """
     # Handle Field objects for optional parameters (FastMCP compatibility)
+    if hasattr(definition_source, 'default') and not isinstance(
+        definition_source, (str, type(None))
+    ):
+        definition_source = getattr(definition_source, 'default', None)
+
+    if hasattr(definition_zip_base64, 'default') and not isinstance(
+        definition_zip_base64, (str, type(None))
+    ):
+        definition_zip_base64 = getattr(definition_zip_base64, 'default', None)
+
+    # Handle deprecated alias
+    if definition_source is None and definition_zip_base64 is not None:
+        logger.warning('definition_zip_base64 is deprecated. Use definition_source instead.')
+        definition_source = definition_zip_base64
+    elif definition_source is not None and definition_zip_base64 is not None:
+        logger.warning(
+            'Both definition_source and definition_zip_base64 provided. '
+            'Using definition_source, ignoring definition_zip_base64.'
+        )
+
+    # Handle Field objects for remaining optional parameters (FastMCP compatibility)
     if hasattr(definition_uri, 'default') and not isinstance(definition_uri, (str, type(None))):
         definition_uri = getattr(definition_uri, 'default', None)
 
@@ -129,7 +225,7 @@ async def validate_definition_sources(
     # Count how many definition sources are provided
     sources_provided = sum(
         [
-            definition_zip_base64 is not None,
+            definition_source is not None,
             definition_uri is not None,
             definition_repository is not None,
         ]
@@ -139,7 +235,7 @@ async def validate_definition_sources(
     if sources_provided > 1:
         error_message = (
             'Cannot specify multiple definition sources. Use only one of: '
-            'definition_zip_base64, definition_uri, or definition_repository'
+            'definition_source, definition_uri, or definition_repository'
         )
         logger.error(error_message)
         await ctx.error(error_message)
@@ -148,22 +244,27 @@ async def validate_definition_sources(
     if sources_provided == 0:
         error_message = (
             'Must specify one definition source: '
-            'definition_zip_base64, definition_uri, or definition_repository'
+            'definition_source, definition_uri, or definition_repository'
         )
         logger.error(error_message)
         await ctx.error(error_message)
         raise ValueError(error_message)
 
-    # Validate and decode base64 input if provided
-    definition_zip = None
-    if definition_zip_base64 is not None:
+    # Resolve definition_source via content resolver
+    definition_zip: bytes | None = None
+    if definition_source is not None:
         try:
-            definition_zip = decode_from_base64(definition_zip_base64)
-        except Exception as e:
-            error_message = f'Failed to decode base64 workflow definition: {str(e)}'
+            resolved = await resolve_single_content(definition_source, mode='binary')
+            definition_zip = (
+                bytes(resolved.content)
+                if isinstance(resolved.content, (bytes, bytearray))
+                else resolved.content.encode('utf-8')
+            )
+        except (ValueError, FileNotFoundError, PermissionError) as e:
+            error_message = f'Failed to resolve definition source: {str(e)}'
             logger.error(error_message)
             await ctx.error(error_message)
-            raise
+            raise ValueError(error_message) from e
 
     # Validate S3 URI format if provided
     if definition_uri is not None:
@@ -236,13 +337,21 @@ async def validate_container_registry_params(
     ctx: Context,
     container_registry_map: Optional[Dict[str, Any]],
     container_registry_map_uri: Optional[str],
-) -> None:
+) -> Optional[Dict[str, Any]]:
     """Validate container registry parameters.
+
+    When a container_registry_map is provided, upstreamRepositoryPrefix and ecrAccountId
+    are not required in each registryMapping. If they are present (explicitly provided or
+    inferred), they will be included in the returned map; otherwise they are omitted.
 
     Args:
         ctx: MCP context for error reporting
         container_registry_map: Container registry map dictionary
         container_registry_map_uri: S3 URI pointing to container registry mappings
+
+    Returns:
+        Cleaned container registry map with optional fields omitted when None, or None if
+        no map was provided.
 
     Raises:
         ValueError: If validation fails
@@ -267,15 +376,41 @@ async def validate_container_registry_params(
         await ctx.error(error_message)
         raise ValueError(error_message)
 
-    # Validate container registry map structure if provided
+    # Validate container registry map structure if provided and return cleaned version
     if container_registry_map is not None:
         try:
-            ContainerRegistryMap(**container_registry_map)
+            validated = ContainerRegistryMap(**container_registry_map)
         except ValidationError as e:
             error_message = f'Invalid container registry map structure: {str(e)}'
             logger.error(error_message)
             await ctx.error(error_message)
             raise ValueError(error_message)
+
+        # Build cleaned registry mappings, including upstreamRepositoryPrefix and ecrAccountId
+        # only when they are present (not None)
+        cleaned_registry_mappings = []
+        for rm in validated.registryMappings:
+            entry: Dict[str, Any] = {
+                'upstreamRegistryUrl': rm.upstreamRegistryUrl,
+                'ecrRepositoryPrefix': rm.ecrRepositoryPrefix,
+            }
+            if rm.upstreamRepositoryPrefix is not None:
+                entry['upstreamRepositoryPrefix'] = rm.upstreamRepositoryPrefix
+            if rm.ecrAccountId is not None:
+                entry['ecrAccountId'] = rm.ecrAccountId
+            cleaned_registry_mappings.append(entry)
+
+        cleaned_image_mappings = [
+            {'sourceImage': im.sourceImage, 'destinationImage': im.destinationImage}
+            for im in validated.imageMappings
+        ]
+
+        return {
+            'registryMappings': cleaned_registry_mappings,
+            'imageMappings': cleaned_image_mappings,
+        }
+
+    return None
 
 
 async def validate_adhoc_s3_buckets(adhoc_buckets: Optional[List[str]]) -> List[str]:
