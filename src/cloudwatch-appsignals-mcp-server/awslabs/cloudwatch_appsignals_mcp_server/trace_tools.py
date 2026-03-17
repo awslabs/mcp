@@ -167,7 +167,7 @@ async def search_transaction_spans(
     )
     logger.debug(f'Query string: {query_string}')
     msg = 'search_transaction_spans tool in cloudwatch-appsignals-mcp-server is deprecated. Please use the search_transaction_spans tool in cloudwatch-applicationsignals-mcp-server instead.'
-    warnings.warn(msg, DeprecationWarning, stacklevel=1)
+    warnings.warn(msg, FutureWarning, stacklevel=2)
 
     # Check if transaction search is enabled
     is_enabled, destination, status = check_transaction_search_enabled()
@@ -357,7 +357,7 @@ async def query_sampled_traces(
     """
     start_time_perf = timer()
     msg = 'query_sampled_traces tool in cloudwatch-appsignals-mcp-server is deprecated. Please use the query_sampled_traces tool in cloudwatch-applicationsignals-mcp-server instead.'
-    warnings.warn(msg, DeprecationWarning, stacklevel=1)
+    warnings.warn(msg, FutureWarning, stacklevel=2)
 
     # Use AWS_REGION environment variable if region not provided
     if not region:
@@ -582,7 +582,7 @@ async def list_slis(
     start_time_perf = timer()
     logger.info(f'Starting get_sli_status request for last {hours} hours')
     msg = 'list_slis tool in cloudwatch-appsignals-mcp-server is deprecated. Please use the list_slis tool in cloudwatch-applicationsignals-mcp-server instead.'
-    warnings.warn(msg, DeprecationWarning, stacklevel=1)
+    warnings.warn(msg, FutureWarning, stacklevel=2)
 
     try:
         # Calculate time range

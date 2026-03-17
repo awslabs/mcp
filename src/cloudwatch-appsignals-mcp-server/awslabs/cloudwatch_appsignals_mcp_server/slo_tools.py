@@ -64,7 +64,7 @@ async def get_slo(
     start_time_perf = timer()
     logger.info(f'Starting get_service_level_objective request for SLO: {slo_id}')
     msg = 'get_slo tool in cloudwatch-appsignals-mcp-server is deprecated. Please use the get_slo tool in cloudwatch-applicationsignals-mcp-server instead.'
-    warnings.warn(msg, DeprecationWarning, stacklevel=1)
+    warnings.warn(msg, FutureWarning, stacklevel=2)
 
     try:
         response = appsignals_client.get_service_level_objective(Id=slo_id)
@@ -317,7 +317,7 @@ async def list_slos(
     start_time_perf = timer()
     logger.debug('Starting list_slos request')
     msg = 'list_slos tool in cloudwatch-appsignals-mcp-server is deprecated. Please use the list_slos tool in cloudwatch-applicationsignals-mcp-server instead.'
-    warnings.warn(msg, DeprecationWarning, stacklevel=1)
+    warnings.warn(msg, FutureWarning, stacklevel=2)
 
     try:
         # Parse key_attributes JSON string

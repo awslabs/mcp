@@ -75,7 +75,7 @@ async def list_monitored_services() -> str:
     start_time_perf = timer()
     logger.debug('Starting list_application_signals_services request')
     msg = 'list_monitored_services tool in cloudwatch-appsignals-mcp-server is deprecated. Please use the list_monitored_services tool in cloudwatch-applicationsignals-mcp-server instead.'
-    warnings.warn(msg, DeprecationWarning, stacklevel=1)
+    warnings.warn(msg, FutureWarning, stacklevel=2)
 
     try:
         # Calculate time range (last 24 hours)
@@ -169,7 +169,7 @@ async def get_service_detail(
     start_time_perf = timer()
     logger.debug(f'Starting get_service_healthy_detail request for service: {service_name}')
     msg = 'get_service_detail tool in cloudwatch-appsignals-mcp-server is deprecated. Please use the get_service_detail tool in cloudwatch-applicationsignals-mcp-server instead.'
-    warnings.warn(msg, DeprecationWarning, stacklevel=1)
+    warnings.warn(msg, FutureWarning, stacklevel=2)
 
     try:
         # Calculate time range (last 24 hours)
@@ -310,7 +310,7 @@ async def query_service_metrics(
         f'Starting query_service_metrics request - service: {service_name}, metric: {metric_name}, hours: {hours}'
     )
     msg = 'query_service_metrics tool in cloudwatch-appsignals-mcp-server is deprecated. Please use the query_service_metrics tool in cloudwatch-applicationsignals-mcp-server instead.'
-    warnings.warn(msg, DeprecationWarning, stacklevel=1)
+    warnings.warn(msg, FutureWarning, stacklevel=2)
 
     try:
         # Calculate time range
@@ -533,7 +533,7 @@ async def list_service_operations(
     start_time_perf = timer()
     logger.debug(f'Starting list_service_operations request for service: {service_name}')
     msg = 'list_service_operations tool in cloudwatch-appsignals-mcp-server is deprecated. Please use the list_service_operations tool in cloudwatch-applicationsignals-mcp-server instead.'
-    warnings.warn(msg, DeprecationWarning, stacklevel=1)
+    warnings.warn(msg, FutureWarning, stacklevel=2)
 
     try:
         # Calculate time range - enforce 24 hour maximum for Application Signals operation discovery
