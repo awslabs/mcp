@@ -70,6 +70,14 @@ async def list_reference_stores(
         None,
         description='Token for pagination from a previous response',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """List HealthOmics reference stores.
 
@@ -78,11 +86,13 @@ async def list_reference_stores(
         name_filter: Filter stores by name
         max_results: Maximum number of results to return
         next_token: Token for pagination
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing reference store list and optional next token
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     params: Dict[str, Any] = {'maxResults': max_results}
 
@@ -125,6 +135,14 @@ async def get_reference_store(
         None,
         description='The ID of the reference store. If not provided, auto-resolves the single store in the account/region.',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Get details about a specific HealthOmics reference store.
 
@@ -134,11 +152,13 @@ async def get_reference_store(
     Args:
         ctx: MCP context for error reporting
         reference_store_id: The ID of the reference store (auto-resolved if omitted)
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing reference store details
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     try:
         reference_store_id = _resolve_reference_store_id(client, reference_store_id)
@@ -182,6 +202,14 @@ async def list_references(
         None,
         description='Token for pagination from a previous response',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """List references in a HealthOmics reference store with optional filtering.
 
@@ -195,11 +223,13 @@ async def list_references(
         status_filter: Filter references by status
         max_results: Maximum number of results to return
         next_token: Token for pagination
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing reference list and optional next token
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     try:
         reference_store_id = _resolve_reference_store_id(client, reference_store_id)
@@ -260,6 +290,14 @@ async def get_reference_metadata(
         None,
         description='The ID of the reference store. If not provided, auto-resolves the single store in the account/region.',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Get metadata for a specific reference in a HealthOmics reference store.
 
@@ -270,11 +308,13 @@ async def get_reference_metadata(
         ctx: MCP context for error reporting
         reference_id: The ID of the reference
         reference_store_id: The ID of the reference store (auto-resolved if omitted)
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing reference metadata
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     try:
         reference_store_id = _resolve_reference_store_id(client, reference_store_id)
@@ -317,6 +357,14 @@ async def start_reference_import_job(
         None,
         description='The ID of the reference store. If not provided, auto-resolves the single store in the account/region.',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Start a reference import job to import reference files from S3 into a reference store.
 
@@ -340,11 +388,13 @@ async def start_reference_import_job(
         role_arn: IAM role ARN for the import job
         sources: JSON list of import sources (validated against ReferenceImportSource)
         reference_store_id: The ID of the reference store (auto-resolved if omitted)
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing the import job information
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     try:
         parsed_sources = json.loads(sources)
@@ -385,6 +435,14 @@ async def get_reference_import_job(
         None,
         description='The ID of the reference store. If not provided, auto-resolves the single store in the account/region.',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Get details about a reference import job.
 
@@ -395,11 +453,13 @@ async def get_reference_import_job(
         ctx: MCP context for error reporting
         import_job_id: The ID of the import job
         reference_store_id: The ID of the reference store (auto-resolved if omitted)
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing the import job details
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     try:
         reference_store_id = _resolve_reference_store_id(client, reference_store_id)
@@ -440,6 +500,14 @@ async def list_reference_import_jobs(
         None,
         description='Token for pagination from a previous response',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """List reference import jobs for a reference store.
 
@@ -451,11 +519,13 @@ async def list_reference_import_jobs(
         reference_store_id: The ID of the reference store (auto-resolved if omitted)
         max_results: Maximum number of results to return
         next_token: Token for pagination
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing import job list and optional next token
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     try:
         reference_store_id = _resolve_reference_store_id(client, reference_store_id)
