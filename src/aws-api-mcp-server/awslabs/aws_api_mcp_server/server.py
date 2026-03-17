@@ -43,6 +43,7 @@ from .core.common.config import (
     FileAccessMode,
     get_server_auth,
 )
+from .core.aws.credential_manager import CredentialManager, get_credential_manager
 from .core.common.errors import AwsApiMcpError, CommandValidationError
 from .core.common.helpers import get_requests_session, validate_aws_region
 from .core.common.models import (
@@ -193,6 +194,13 @@ async def suggest_aws_commands(
     - You can use `--region *` to run a command on all regions enabled in the account.
     - Do not generate explicit batch calls for iterating over all regions, use `--region *` instead.
 
+    Cross-Account Support:
+    - Use role_arn parameter to assume an IAM role in another AWS account
+    - Credentials are automatically cached and reused for 55 minutes to improve performance
+    - Supports both standard AWS (arn:aws:) and China regions (arn:aws-cn:) role ARNs
+    - Optional external_id parameter for secure cross-account access
+    - Example: role_arn="arn:aws:iam::123456789012:role/CrossAccountReadRole"
+
     Single Command Mode:
     - You can run a single AWS CLI command using this tool.
     - Example:
@@ -250,6 +258,18 @@ async def call_aws(
         int | None,
         Field(description='Optional limit for number of results (useful for pagination)'),
     ] = None,
+    role_arn: Annotated[
+        str | None,
+        Field(description='Optional IAM role ARN to assume for cross-account access. Supports both arn:aws: and arn:aws-cn: formats. Credentials are cached for 55 minutes.'),
+    ] = None,
+    external_id: Annotated[
+        str | None,
+        Field(description='Optional external ID for secure cross-account role assumption. Required by some roles for additional security.'),
+    ] = None,
+    session_name: Annotated[
+        str | None,
+        Field(description='Optional session name for the assumed role. Auto-generated if not provided.'),
+    ] = None,
 ) -> list[CallAWSResponse]:
     """Call AWS with the given CLI command and return the result as a dictionary."""
     commands = [cli_command] if isinstance(cli_command, str) else cli_command
@@ -257,6 +277,18 @@ async def call_aws(
     if len(commands) > MAX_BATCH_COMMANDS:
         raise AwsApiMcpError(
             f'Number of batch commands exceeds the maximum limit of {MAX_BATCH_COMMANDS}.'
+        )
+
+    # Resolve cross-account credentials once for all commands in the batch
+    credentials = None
+    if role_arn:
+        from .core.common.config import ENABLE_CROSS_ACCOUNT
+
+        if not ENABLE_CROSS_ACCOUNT:
+            raise AwsApiMcpError('Cross-account access is disabled.')
+        credential_manager = get_credential_manager()
+        credentials = await credential_manager.get_credentials(
+            role_arn=role_arn, external_id=external_id, session_name=session_name
         )
 
     results = []
@@ -267,15 +299,15 @@ async def call_aws(
             results.append(CallAWSResponse(cli_command=cmd, error=str(e)))
         else:
             for expanded_cmd in expanded_commands:
-                results.append(await _execute_single_command(expanded_cmd, ctx, max_results))
+                results.append(await _execute_single_command(expanded_cmd, ctx, max_results, credentials))
     return results
 
 
 async def _execute_single_command(
-    cmd: str, ctx: Context, max_results: int | None
+    cmd: str, ctx: Context, max_results: int | None, credentials: Credentials | None = None
 ) -> CallAWSResponse:
     try:
-        response = await call_aws_helper(cmd, ctx, max_results, None)
+        response = await call_aws_helper(cmd, ctx, max_results, credentials)
         return CallAWSResponse(cli_command=cmd, response=response)
     except Exception as e:
         return CallAWSResponse(cli_command=cmd, error=str(e))
@@ -420,6 +452,62 @@ if ENABLE_AGENT_SCRIPTS:
             error_message = f'Error while retrieving execution plan: {str(e)}'
             await ctx.error(error_message)
             raise AwsApiMcpError(error_message)
+
+
+@server.tool(
+    name='clear_assumed_role_cache',
+    description="""Clear cached assumed role credentials to force fresh credential retrieval.
+
+    Use cases:
+    - Force credential refresh when permissions change
+    - Clear cache when switching contexts or testing
+    - Troubleshoot credential-related issues
+
+    Parameters:
+    - role_arn: If provided, only clear cache for this specific role
+    - If omitted, clear entire credential cache for all roles
+    """,
+    annotations=ToolAnnotations(
+        title='Clear assumed role credential cache',
+        readOnlyHint=False,
+        destructiveHint=False,
+        openWorldHint=False,
+    ),
+)
+async def clear_assumed_role_cache(
+    role_arn: Annotated[
+        str | None,
+        Field(description='Optional role ARN to clear from cache. If omitted, clears entire cache.'),
+    ] = None,
+) -> dict[str, str]:
+    """Clear cached assumed role credentials."""
+    credential_manager = get_credential_manager()
+    await credential_manager.clear_cache(role_arn=role_arn)
+    if role_arn:
+        return {'status': 'success', 'message': f'Cache cleared for role: {role_arn}'}
+    return {'status': 'success', 'message': 'All cached credentials cleared.'}
+
+
+@server.tool(
+    name='get_credential_cache_stats',
+    description="""Get statistics about the current credential cache.
+
+    Returns information about:
+    - Number of roles currently cached
+    - Cache capacity
+    - Details for each cached role (ARN and time until expiry)
+    """,
+    annotations=ToolAnnotations(
+        title='Get credential cache statistics',
+        readOnlyHint=True,
+        destructiveHint=False,
+        openWorldHint=False,
+    ),
+)
+async def get_credential_cache_stats() -> dict[str, Any]:
+    """Get credential cache statistics."""
+    credential_manager = get_credential_manager()
+    return credential_manager.get_cache_stats()
 
 
 def main():
