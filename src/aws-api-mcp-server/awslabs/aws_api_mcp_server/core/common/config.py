@@ -189,6 +189,9 @@ AWS_MAX_ATTEMPTS = int(os.getenv('AWS_MAX_ATTEMPTS', 3))
 MAX_BATCH_COMMANDS = 20
 
 # Cross-Account Configuration
+# AWS_API_MCP_ENABLE_CROSS_ACCOUNT: Enable/disable cross-account role assumption (default: true)
+# AWS_API_MCP_ASSUME_ROLE_CACHE_SIZE: Max number of assumed role credentials to cache (default: 10)
+# AWS_API_MCP_ASSUME_ROLE_DURATION_SECONDS: STS session duration in seconds (default: 3600, max: 43200)
 ENABLE_CROSS_ACCOUNT = get_env_bool('AWS_API_MCP_ENABLE_CROSS_ACCOUNT', True)
 ASSUME_ROLE_CACHE_SIZE = int(os.getenv('AWS_API_MCP_ASSUME_ROLE_CACHE_SIZE', '10'))
 ASSUME_ROLE_DURATION_SECONDS = int(os.getenv('AWS_API_MCP_ASSUME_ROLE_DURATION_SECONDS', '3600'))
