@@ -163,6 +163,14 @@ async def start_run(
         None,
         description='Optional ID of a run group to associate with this run',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Start a workflow run.
 
@@ -184,6 +192,8 @@ async def start_run(
         cache_id: Optional ID of a run cache to use
         cache_behavior: Optional cache behavior (CACHE_ALWAYS or CACHE_ON_FAILURE)
         run_group_id: Optional ID of a run group to associate with this run
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing the run information or error dict
@@ -225,7 +235,7 @@ async def start_run(
     except ValueError as e:
         return await handle_tool_error(ctx, e, 'Invalid S3 URI')
 
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     params = {
         'workflowId': workflow_id,
@@ -296,6 +306,14 @@ async def list_runs(
         None,
         description='Optional run group ID to filter runs',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """List workflow runs.
 
@@ -307,6 +325,8 @@ async def list_runs(
         created_after: Filter for runs created after this timestamp (ISO format)
         created_before: Filter for runs created before this timestamp (ISO format)
         run_group_id: Optional run group ID to filter runs
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing run information and next token if available, or error dict
@@ -330,7 +350,7 @@ async def list_runs(
         except ValueError as e:
             return await handle_tool_error(ctx, e, 'Invalid created_before datetime')
 
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     # Determine if we need client-side filtering
     needs_filtering = created_after or created_before
@@ -441,12 +461,22 @@ async def get_run(
         ...,
         description='ID of the run to retrieve',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Get details about a specific run.
 
     Args:
         ctx: MCP context for error reporting
         run_id: ID of the run to retrieve
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing run details or error dict including:
@@ -458,7 +488,7 @@ async def get_run(
         - Run parameters and metadata
         - Status messages and failure reasons (if applicable)
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     try:
         response = client.get_run(id=run_id)
@@ -519,6 +549,14 @@ async def list_run_tasks(
         None,
         description='Filter by task status',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """List tasks for a specific run.
 
@@ -528,11 +566,13 @@ async def list_run_tasks(
         max_results: Maximum number of results to return (default: 10)
         next_token: Token for pagination
         status: Filter by task status
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing task information and next token if available
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     params = {
         'id': run_id,
@@ -586,6 +626,14 @@ async def get_run_task(
         ...,
         description='ID of the task',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Get details about a specific task.
 
@@ -593,11 +641,13 @@ async def get_run_task(
         ctx: MCP context for error reporting
         run_id: ID of the run
         task_id: ID of the task
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing task details including imageDetails when available
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     try:
         response = client.get_run_task(id=run_id, taskId=task_id)
