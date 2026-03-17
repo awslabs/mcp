@@ -133,7 +133,7 @@ async def search_transaction_spans(
         default=30, description='Maximum time in seconds to wait for query completion'
     ),
 ) -> Dict:
-    """Executes a CloudWatch Logs Insights query for transaction search (100% sampled trace data).
+    """[DEPRECATED] Executes a CloudWatch Logs Insights query for transaction search (100% sampled trace data).
 
     **IMPORTANT**: This tool and server is being deprecated. If available, please use the search_transaction_spans tool in the cloudwatch-applicationsignals-mcp-server instead.
 
@@ -280,7 +280,7 @@ async def query_sampled_traces(
         default=None, description='AWS region (defaults to AWS_REGION environment variable)'
     ),
 ) -> str:
-    """SECONDARY TRACE TOOL - Query AWS X-Ray traces (5% sampled data) for trace investigation.
+    """[DEPRECATED] SECONDARY TRACE TOOL - Query AWS X-Ray traces (5% sampled data) for trace investigation.
 
     **IMPORTANT**: This tool and server is being deprecated. If available, please use the query_sampled_traces tool in the cloudwatch-applicationsignals-mcp-server instead.
 
@@ -551,7 +551,7 @@ async def list_slis(
         description='Number of hours to look back (default 24, typically use 24 for daily checks)',
     ),
 ) -> str:
-    """SPECIALIZED TOOL - Use audit_service_health() as the PRIMARY tool for service auditing.
+    """[DEPRECATED] SPECIALIZED TOOL - Use audit_service_health() as the PRIMARY tool for service auditing.
 
      **IMPORTANT**: This tool and server is being deprecated. If available, please use the list_slis tool in the cloudwatch-applicationsignals-mcp-server instead.
 

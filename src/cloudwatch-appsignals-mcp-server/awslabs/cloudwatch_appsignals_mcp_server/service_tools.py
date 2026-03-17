@@ -24,7 +24,7 @@ from time import perf_counter as timer
 
 
 async def list_monitored_services() -> str:
-    """OPTIONAL TOOL for service discovery - audit_services() can automatically discover services using wildcard patterns.
+    """[DEPRECATED] OPTIONAL TOOL for service discovery - audit_services() can automatically discover services using wildcard patterns.
 
     **IMPORTANT**: This tool and server is being deprecated. If available, please use the list_monitored_services tool in the cloudwatch-applicationsignals-mcp-server instead.
 
@@ -132,7 +132,7 @@ async def get_service_detail(
         ..., description='Name of the service to get details for (case-sensitive)'
     ),
 ) -> str:
-    """Get detailed information about a specific Application Signals service.
+    """[DEPRECATED] Get detailed information about a specific Application Signals service.
 
     **IMPORTANT**: This tool and server is being deprecated. If available, please use the get_service_detail tool in the cloudwatch-applicationsignals-mcp-server instead.
 
@@ -280,7 +280,7 @@ async def query_service_metrics(
         default=1, description='Number of hours to look back (default 1, max 168 for 1 week)'
     ),
 ) -> str:
-    """Get CloudWatch metrics for a specific Application Signals service.
+    """[DEPRECATED] Get CloudWatch metrics for a specific Application Signals service.
 
     **IMPORTANT**: This tool and server is being deprecated. If available, please use the query_service_metrics tool in the cloudwatch-applicationsignals-mcp-server instead.
 
@@ -480,7 +480,7 @@ async def list_service_operations(
         description='Number of hours to look back for operation discovery (default 24, max 24 for Application Signals operation discovery)',
     ),
 ) -> str:
-    """OPERATION DISCOVERY TOOL - For operation inventory only. Use audit_services() as PRIMARY tool for operation auditing.
+    """[DEPRECATED] OPERATION DISCOVERY TOOL - For operation inventory only. Use audit_services() as PRIMARY tool for operation auditing.
 
     **IMPORTANT**: This tool and server is being deprecated. If available, please use the list_service_operations tool in the cloudwatch-applicationsignals-mcp-server instead.
 

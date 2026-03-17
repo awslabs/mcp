@@ -2,7 +2,11 @@
 
 import json
 import pytest
-from awslabs.cloudwatch_appsignals_mcp_server.server import _filter_operation_targets, main
+import warnings
+from awslabs.cloudwatch_appsignals_mcp_server.server import (
+    _filter_operation_targets,
+    main,
+)
 from awslabs.cloudwatch_appsignals_mcp_server.service_tools import (
     get_service_detail,
     list_monitored_services,
@@ -813,24 +817,39 @@ async def test_search_transaction_spans_timeout(mock_aws_clients):
 
 def test_main_normal_execution(mock_mcp):
     """Test normal execution of main function."""
-    main()
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        main()
     mock_mcp.run.assert_called_once_with(transport='stdio')
 
 
 def test_main_keyboard_interrupt(mock_mcp):
     """Test KeyboardInterrupt handling in main function."""
     mock_mcp.run.side_effect = KeyboardInterrupt()
-    # Should not raise an exception
-    main()
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        main()
     mock_mcp.run.assert_called_once_with(transport='stdio')
 
 
 def test_main_general_exception(mock_mcp):
     """Test general exception handling in main function."""
     mock_mcp.run.side_effect = Exception('Server error')
-    with pytest.raises(Exception, match='Server error'):
-        main()
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        with pytest.raises(Exception, match='Server error'):
+            main()
     mock_mcp.run.assert_called_once_with(transport='stdio')
+
+
+def test_main_emits_deprecation_warning(mock_mcp):
+    """Test that main() emits a FutureWarning deprecation notice."""
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter('always')
+        main()
+        future_warnings = [x for x in w if issubclass(x.category, FutureWarning)]
+        assert len(future_warnings) >= 1
+        assert 'deprecated' in str(future_warnings[0].message).lower()
 
 
 @pytest.mark.asyncio
@@ -1874,20 +1893,24 @@ async def test_query_sampled_traces_deduplication(mock_aws_clients):
 
 def test_main_success(mock_aws_clients):
     """Test main function normal execution."""
-    with patch('awslabs.cloudwatch_appsignals_mcp_server.server.mcp') as mock_mcp:
-        main()
-        mock_mcp.run.assert_called_once_with(transport='stdio')
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        with patch('awslabs.cloudwatch_appsignals_mcp_server.server.mcp') as mock_mcp:
+            main()
+            mock_mcp.run.assert_called_once_with(transport='stdio')
 
 
 def test_main_exception(mock_aws_clients):
     """Test main function with general exception."""
-    with patch('awslabs.cloudwatch_appsignals_mcp_server.server.mcp') as mock_mcp:
-        mock_mcp.run.side_effect = Exception('Server error')
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        with patch('awslabs.cloudwatch_appsignals_mcp_server.server.mcp') as mock_mcp:
+            mock_mcp.run.side_effect = Exception('Server error')
 
-        with pytest.raises(Exception) as exc_info:
-            main()
+            with pytest.raises(Exception) as exc_info:
+                main()
 
-        assert 'Server error' in str(exc_info.value)
+            assert 'Server error' in str(exc_info.value)
 
 
 def test_main_entry_point(mock_aws_clients):

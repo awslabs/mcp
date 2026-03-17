@@ -26,7 +26,7 @@ from time import perf_counter as timer
 async def get_slo(
     slo_id: str = Field(..., description='The ARN or name of the SLO to retrieve'),
 ) -> str:
-    """Get detailed information about a specific Service Level Objective (SLO).
+    """[DEPRECATED] Get detailed information about a specific Service Level Objective (SLO).
 
     **IMPORTANT**: This tool and server is being deprecated. If available, please use the get_slo tool in the cloudwatch-applicationsignals-mcp-server instead.
 
@@ -292,7 +292,7 @@ async def list_slos(
         default=50, description='Maximum number of SLOs to return (default: 50, max: 50)'
     ),
 ) -> str:
-    """List all Service Level Objectives (SLOs) in Application Signals.
+    """[DEPRECATED] List all Service Level Objectives (SLOs) in Application Signals.
 
     **IMPORTANT**: This tool and server is being deprecated. If available, please use the list_slos tool in the cloudwatch-applicationsignals-mcp-server instead.
 

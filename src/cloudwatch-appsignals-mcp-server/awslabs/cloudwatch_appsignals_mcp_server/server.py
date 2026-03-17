@@ -68,8 +68,19 @@ BATCH_SIZE_THRESHOLD = 5
 
 RUN_STATES = {'RUNNING': 'RUNNING', 'PASSED': 'PASSED', 'FAILED': 'FAILED'}
 
+DEPRECATION_NOTICE = (
+    'cloudwatch-appsignals-mcp-server is deprecated and will be removed in a future release. '
+    'Please migrate to cloudwatch-applicationsignals-mcp-server, which includes all the same '
+    'tools plus additional features like group-level monitoring, change events, and enablement '
+    'guides. See the migration guide: '
+    'https://github.com/awslabs/mcp/blob/main/docs/migration-cloudwatch-appsignals.md'
+)
+
 # Initialize FastMCP server
-mcp = FastMCP('cloudwatch-appsignals')
+mcp = FastMCP(
+    'cloudwatch-appsignals',
+    instructions=f'DEPRECATION NOTICE: {DEPRECATION_NOTICE}',
+)
 
 # Configure logging
 log_level = os.environ.get('MCP_CLOUDWATCH_APPSIGNALS_LOG_LEVEL', 'INFO').upper()
@@ -165,7 +176,7 @@ async def audit_services(
         description="Optional. Comma-separated auditors (e.g., 'slo,operation_metric,dependency_metric'). Defaults to 'slo,operation_metric' for fast service health auditing. Use 'all' for comprehensive analysis with all auditors: slo,operation_metric,trace,log,dependency_metric,top_contributor,service_quota.",
     ),
 ) -> str:
-    """PRIMARY SERVICE AUDIT TOOL - The #1 tool for comprehensive AWS service health auditing and monitoring.
+    """[DEPRECATED] PRIMARY SERVICE AUDIT TOOL - The #1 tool for comprehensive AWS service health auditing and monitoring.
 
     **IMPORTANT**: This tool and server is being deprecated. If available, please use the audit_services tool in the cloudwatch-applicationsignals-mcp-server instead.
 
@@ -299,7 +310,7 @@ async def audit_services(
     start_time_perf = timer()
     logger.debug('Starting audit_services (PRIMARY SERVICE AUDIT TOOL)')
     msg = 'audit_services tool in cloudwatch-appsignals-mcp-server is deprecated. Please use the audit_services tool in cloudwatch-applicationsignals-mcp-server instead.'
-    warnings.warn(msg, DeprecationWarning, stacklevel=1)
+    warnings.warn(msg, FutureWarning, stacklevel=2)
 
     try:
         # Region defaults
@@ -429,7 +440,7 @@ async def audit_slos(
         description="Optional. Comma-separated auditors (e.g., 'slo,trace,log'). Defaults to 'slo' for fast SLO compliance auditing. Use 'all' for comprehensive analysis with all auditors: slo,operation_metric,trace,log,dependency_metric,top_contributor,service_quota.",
     ),
 ) -> str:
-    """PRIMARY SLO AUDIT TOOL - The #1 tool for comprehensive SLO compliance monitoring and breach analysis.
+    """[DEPRECATED] PRIMARY SLO AUDIT TOOL - The #1 tool for comprehensive SLO compliance monitoring and breach analysis.
 
     **IMPORTANT**: This tool and server is being deprecated. If available, please use the audit_slos tool in the cloudwatch-applicationsignals-mcp-server instead.
 
@@ -522,7 +533,7 @@ async def audit_slos(
     start_time_perf = timer()
     logger.debug('Starting audit_slos (PRIMARY SLO AUDIT TOOL)')
     msg = 'audit_slos tool in cloudwatch-appsignals-mcp-server is deprecated. Please use the audit_slos tool in cloudwatch-applicationsignals-mcp-server instead.'
-    warnings.warn(msg, DeprecationWarning, stacklevel=1)
+    warnings.warn(msg, FutureWarning, stacklevel=2)
 
     try:
         # Region defaults
@@ -646,7 +657,7 @@ async def audit_service_operations(
         description="Optional. Comma-separated auditors (e.g., 'operation_metric,trace,log'). Defaults to 'operation_metric' for fast operation-level auditing. Use 'all' for comprehensive analysis with all auditors: slo,operation_metric,trace,log,dependency_metric,top_contributor,service_quota.",
     ),
 ) -> str:
-    """🥇 PRIMARY OPERATION AUDIT TOOL - The #1 RECOMMENDED tool for operation-specific analysis and performance investigation.
+    """[DEPRECATED] PRIMARY OPERATION AUDIT TOOL - The #1 RECOMMENDED tool for operation-specific analysis and performance investigation.
 
     **IMPORTANT**: This tool and server is being deprecated. If available, please use the audit_service_operations tool in the cloudwatch-applicationsignals-mcp-server instead.
 
@@ -748,7 +759,7 @@ async def audit_service_operations(
     start_time_perf = timer()
     logger.debug('Starting audit_service_operations (SPECIALIZED OPERATION AUDIT TOOL)')
     msg = 'audit_service_operations tool in cloudwatch-appsignals-mcp-server is deprecated. Please use the audit_service_operations tool in cloudwatch-applicationsignals-mcp-server instead.'
-    warnings.warn(msg, DeprecationWarning, stacklevel=1)
+    warnings.warn(msg, FutureWarning, stacklevel=2)
 
     try:
         # Region defaults
@@ -833,7 +844,7 @@ async def audit_service_operations(
 
 @mcp.tool()
 async def analyze_canary_failures(canary_name: str, region: str = AWS_REGION) -> str:
-    """Comprehensive canary failure analysis with deep dive into issues.
+    """[DEPRECATED] Comprehensive canary failure analysis with deep dive into issues.
 
     **IMPORTANT**: This tool and server is being deprecated. If available, please use the analyze_canary_failures tool in the cloudwatch-applicationsignals-mcp-server instead.
 
@@ -880,7 +891,7 @@ async def analyze_canary_failures(canary_name: str, region: str = AWS_REGION) ->
             - Historical pattern analysis and trend insights
     """
     msg = 'analyze_canary_failures tool in cloudwatch-appsignals-mcp-server is deprecated. Please use the analyze_canary_failures tool in cloudwatch-applicationsignals-mcp-server instead.'
-    warnings.warn(msg, DeprecationWarning, stacklevel=1)
+    warnings.warn(msg, FutureWarning, stacklevel=2)
 
     try:
         # Get recent canary runs
@@ -1359,6 +1370,7 @@ mcp.tool()(analyze_canary_failures)
 
 def main():
     """Run the MCP server."""
+    warnings.warn(DEPRECATION_NOTICE, FutureWarning, stacklevel=2)
     logger.debug('Starting CloudWatch AppSignals MCP server')
     try:
         mcp.run(transport='stdio')
