@@ -1468,6 +1468,27 @@
       "workflows": [
         "autonomous"
       ]
+    },
+    {
+      "category": "Integration & Messaging",
+      "description": "Managed Airflow environment management and DAG operations",
+      "icon": "\ud83d\udce1",
+      "id": "mwaa-mcp-server",
+      "name": "AWS MWAA MCP Server",
+      "source_path": "src/mwaa-mcp-server/",
+      "subcategory": "Workflow Orchestration",
+      "tags": [
+        "integration-messaging",
+        "mwaa",
+        "airflow",
+        "dag-management",
+        "workflow-orchestration",
+        "autonomous",
+        "workflow-integration"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
     }
   ],
   "workflows": [
