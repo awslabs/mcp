@@ -75,7 +75,7 @@ Validates CloudFormation template syntax, schema, and resource properties using 
 - `regions` (optional): List of AWS regions to validate against
 - `ignore_checks` (optional): List of cfn-lint check IDs to ignore
 
-#### check_cloudformation_template_compliance
+#### check_cfn_template_compliance
 Validates CloudFormation templates against security and compliance rules using cfn-guard.
 
 **Use this tool to:**
@@ -101,7 +101,7 @@ Analyzes failed CloudFormation stacks and provides resolution guidance.
 #### search_cloudformation_documentation
 Searches AWS CloudFormation documentation knowledge bases and returns relevant best practices.
 
-#### get_cloudformation_pre_deploy_validation_instructions
+#### get_cfn_predeploy_validation_guide
 Returns instructions for CloudFormation's pre-deployment validation feature that validates templates during change set creation.
 
 **Parameters:**
