@@ -163,16 +163,16 @@ async def test_auto_generated_session_name():
     assert call_kwargs['RoleSessionName'].startswith('mcp-')
 
 
-async def test_china_role_uses_china_region():
-    """aws-cn role ARN should use a cn- region for STS."""
+async def test_sts_uses_default_region():
+    """STS client should use DEFAULT_REGION."""
     mgr = CredentialManager(max_cache_size=10, default_duration_seconds=3600)
     mock_client = _make_sts_mock()
 
     with patch('boto3.client', return_value=mock_client) as mock_boto3_client, \
-         patch('awslabs.aws_api_mcp_server.core.aws.credential_manager.DEFAULT_REGION', 'cn-northwest-1'):
-        await mgr.get_credentials(role_arn=ROLE_ARN_CN)
+         patch('awslabs.aws_api_mcp_server.core.aws.credential_manager.DEFAULT_REGION', 'eu-west-1'):
+        await mgr.get_credentials(role_arn=ROLE_ARN)
 
-    mock_boto3_client.assert_called_with('sts', region_name='cn-northwest-1')
+    mock_boto3_client.assert_called_with('sts', region_name='eu-west-1')
 
 
 async def test_clear_cache_specific_role():

@@ -191,17 +191,8 @@ class CredentialManager:
         Raises:
             boto3 ClientError: If AssumeRole fails
         """
-        # Determine region based on partition in role ARN
-        # arn:aws-cn:iam::account:role/name -> use cn-northwest-1
-        # arn:aws:iam::account:role/name -> use us-east-1
+        # Use DEFAULT_REGION for STS endpoint (matches the server's partition)
         region = DEFAULT_REGION
-        if ':aws-cn:' in role_arn:
-            # China region - use configured DEFAULT_REGION
-            region = DEFAULT_REGION
-        elif DEFAULT_REGION and DEFAULT_REGION.startswith('cn-'):
-            # If DEFAULT_REGION is China but role is standard AWS, use us-east-1
-            if ':aws:' in role_arn:
-                region = 'us-east-1'
 
         sts_client = boto3.client('sts', region_name=region)
 
