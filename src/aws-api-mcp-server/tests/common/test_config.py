@@ -1,4 +1,5 @@
 import awslabs.aws_api_mcp_server.core.common.config as config_module
+import os
 import pytest
 from awslabs.aws_api_mcp_server.core.common.config import (
     AWS_API_MCP_WORKING_DIR_KEY,
@@ -368,3 +369,40 @@ def test_get_working_directory_path_is_relative(mock_exists, mock_isdir, mock_is
         match=f'{AWS_API_MCP_WORKING_DIR_KEY} must be an absolute path to an existing directory',
     ):
         get_working_directory()
+
+
+# --- Cross-account config tests ---
+
+
+def test_enable_cross_account_default(monkeypatch):
+    """ENABLE_CROSS_ACCOUNT defaults to True."""
+    monkeypatch.delenv('AWS_API_MCP_ENABLE_CROSS_ACCOUNT', raising=False)
+    from awslabs.aws_api_mcp_server.core.common.config import get_env_bool
+
+    assert get_env_bool('AWS_API_MCP_ENABLE_CROSS_ACCOUNT', True) is True
+
+
+def test_enable_cross_account_false(monkeypatch):
+    """ENABLE_CROSS_ACCOUNT can be set to false."""
+    monkeypatch.setenv('AWS_API_MCP_ENABLE_CROSS_ACCOUNT', 'false')
+    from awslabs.aws_api_mcp_server.core.common.config import get_env_bool
+
+    assert get_env_bool('AWS_API_MCP_ENABLE_CROSS_ACCOUNT', True) is False
+
+
+def test_assume_role_cache_size_default(monkeypatch):
+    """ASSUME_ROLE_CACHE_SIZE defaults to 10."""
+    monkeypatch.delenv('AWS_API_MCP_ASSUME_ROLE_CACHE_SIZE', raising=False)
+    assert int(os.getenv('AWS_API_MCP_ASSUME_ROLE_CACHE_SIZE', '10')) == 10
+
+
+def test_assume_role_cache_size_custom(monkeypatch):
+    """ASSUME_ROLE_CACHE_SIZE can be overridden."""
+    monkeypatch.setenv('AWS_API_MCP_ASSUME_ROLE_CACHE_SIZE', '50')
+    assert int(os.getenv('AWS_API_MCP_ASSUME_ROLE_CACHE_SIZE', '10')) == 50
+
+
+def test_assume_role_duration_default(monkeypatch):
+    """ASSUME_ROLE_DURATION_SECONDS defaults to 3600."""
+    monkeypatch.delenv('AWS_API_MCP_ASSUME_ROLE_DURATION_SECONDS', raising=False)
+    assert int(os.getenv('AWS_API_MCP_ASSUME_ROLE_DURATION_SECONDS', '3600')) == 3600
