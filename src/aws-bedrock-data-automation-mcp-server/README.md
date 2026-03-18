@@ -1,5 +1,9 @@
 # AWS Bedrock Data Automation MCP Server
 
+> **DEPRECATION NOTICE**: This server is deprecated. For Bedrock Data Automation capabilities,
+> use the boto3 API directly or the [aws-api-mcp-server](../aws-api-mcp-server/).
+> See the [migration guide](../../docs/migration-bedrock-data-automation.md) for details.
+
 A Model Context Protocol (MCP) server for Amazon Bedrock Data Automation that enables AI assistants to analyze documents, images, videos, and audio files using Amazon Bedrock Data Automation projects.
 
 ## Features
