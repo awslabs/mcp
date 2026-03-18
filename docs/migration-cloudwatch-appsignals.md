@@ -66,15 +66,14 @@ The replacement server includes additional tools not available in the old server
 
 ## Environment Variables
 
-The same environment variables are supported:
-
-| Variable | Description |
-|---|---|
-| `AWS_PROFILE` | AWS profile name for authentication |
-| `AWS_REGION` | AWS region (defaults to us-east-1) |
-| `FASTMCP_LOG_LEVEL` | Logging level for MCP framework |
-
-**Note:** The old server used `MCP_CLOUDWATCH_APPSIGNALS_LOG_LEVEL` for server-specific logging. Check the replacement server's documentation for its equivalent setting.
+| Variable | Old Server | New Server |
+|---|---|---|
+| `AWS_PROFILE` | Supported | Supported |
+| `AWS_REGION` | Supported | Supported |
+| `FASTMCP_LOG_LEVEL` | Supported | Supported |
+| `MCP_CLOUDWATCH_APPSIGNALS_LOG_LEVEL` | Server-specific log level | N/A (removed) |
+| `MCP_CLOUDWATCH_APPLICATION_SIGNALS_LOG_LEVEL` | N/A | Server-specific log level |
+| `AUDITOR_LOG_PATH` | N/A | Path for auditor log files (defaults to temp dir) |
 
 ## Summary
 
