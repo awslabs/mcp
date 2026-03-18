@@ -604,4 +604,361 @@ async def test_inspect_tool_invalid_file_path():
     print(f'✓ Error message: {result.error_message}')
 
 
-print('\n✓ All new coverage tests added successfully')
+# ============================================================================
+# DIRECT TOOL FUNCTION TESTS - Cover actual server.py tool code paths
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_inspect_document_assets_tool_pdf(pdf_with_images):
+    """Test calling inspect_document_assets tool function directly."""
+    from awslabs.document_loader_mcp_server.server import inspect_document_assets
+
+    ctx = MockContext()
+    # .fn accesses the original function behind the @mcp.tool() FunctionTool wrapper
+    result = await inspect_document_assets.fn(
+        ctx=ctx,
+        file_path=pdf_with_images,
+        timeout_seconds=30,  # type: ignore[arg-type]
+    )
+    assert result.status == 'success'
+    assert result.asset_count > 0
+    assert result.metadata is not None
+
+
+@pytest.mark.asyncio
+async def test_extract_document_assets_tool_pdf(pdf_with_images, tmp_path):
+    """Test calling extract_document_assets tool function directly."""
+    from awslabs.document_loader_mcp_server.server import extract_document_assets
+
+    ctx = MockContext()
+    output_dir = str(tmp_path / 'direct_tool_output')
+    result = await extract_document_assets.fn(
+        ctx=ctx,  # type: ignore[arg-type]
+        file_path=pdf_with_images,
+        output_dir=output_dir,
+        asset_indices=None,
+        timeout_seconds=30,
+    )
+    assert result.status == 'success'
+    assert result.extracted_count > 0
+
+
+@pytest.mark.asyncio
+async def test_inspect_document_assets_tool_office_no_soffice():
+    """Test inspect_document_assets with Office file when soffice is unavailable."""
+    from awslabs.document_loader_mcp_server.server import inspect_document_assets
+
+    with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as f:
+        f.write(b'fake')
+        fake_docx = f.name
+    try:
+        with patch('awslabs.document_loader_mcp_server.server._find_soffice') as mock_find:
+            mock_find.return_value = None
+            ctx = MockContext()
+            result = await inspect_document_assets.fn(
+                ctx=ctx,
+                file_path=fake_docx,
+                timeout_seconds=10,  # type: ignore[arg-type]
+            )
+            assert result.status == 'error'
+            assert result.error_message is not None
+            assert (
+                'soffice' in result.error_message.lower() or 'LibreOffice' in result.error_message
+            )
+    finally:
+        os.unlink(fake_docx)
+
+
+@pytest.mark.asyncio
+async def test_extract_document_assets_tool_office_no_soffice():
+    """Test extract_document_assets with Office file when soffice is unavailable."""
+    from awslabs.document_loader_mcp_server.server import extract_document_assets
+
+    with tempfile.NamedTemporaryFile(suffix='.pptx', delete=False) as f:
+        f.write(b'fake')
+        fake_pptx = f.name
+    try:
+        with patch('awslabs.document_loader_mcp_server.server._find_soffice') as mock_find:
+            mock_find.return_value = None
+            ctx = MockContext()
+            result = await extract_document_assets.fn(
+                ctx=ctx,  # type: ignore[arg-type]
+                file_path=fake_pptx,
+                output_dir='/tmp/test_output',
+                timeout_seconds=10,
+            )
+            assert result.status == 'error'
+            assert result.error_message is not None
+            assert (
+                'soffice' in result.error_message.lower() or 'LibreOffice' in result.error_message
+            )
+    finally:
+        os.unlink(fake_pptx)
+
+
+@pytest.mark.asyncio
+async def test_inspect_document_assets_tool_invalid_file():
+    """Test inspect_document_assets with non-existent file."""
+    from awslabs.document_loader_mcp_server.server import inspect_document_assets
+
+    ctx = MockContext()
+    result = await inspect_document_assets.fn(
+        ctx=ctx,  # type: ignore[arg-type]
+        file_path='/tmp/nonexistent_file_12345.pdf',
+        timeout_seconds=10,
+    )
+    assert result.status == 'error'
+    assert result.error_message is not None
+
+
+@pytest.mark.asyncio
+async def test_extract_document_assets_tool_invalid_file():
+    """Test extract_document_assets with non-existent file."""
+    from awslabs.document_loader_mcp_server.server import extract_document_assets
+
+    ctx = MockContext()
+    result = await extract_document_assets.fn(
+        ctx=ctx,  # type: ignore[arg-type]
+        file_path='/tmp/nonexistent_file_12345.pdf',
+        output_dir='/tmp/output',
+        timeout_seconds=10,
+    )
+    assert result.status == 'error'
+    assert result.error_message is not None
+
+
+@pytest.mark.asyncio
+async def test_extract_document_assets_tool_invalid_output_dir(pdf_with_images):
+    """Test extract_document_assets blocks path traversal on output_dir."""
+    from awslabs.document_loader_mcp_server.server import extract_document_assets
+
+    ctx = MockContext()
+    result = await extract_document_assets.fn(
+        ctx=ctx,  # type: ignore[arg-type]
+        file_path=pdf_with_images,
+        output_dir='/etc/evil_output',
+        timeout_seconds=10,
+    )
+    assert result.status == 'error'
+    assert result.error_message is not None
+
+
+# ============================================================================
+# COVERAGE GAP TESTS - Targeting uncovered lines flagged by Codecov
+# ============================================================================
+
+
+# --- _get_soffice_timeout() env var scenarios (server.py lines 112-127) ---
+
+
+@pytest.mark.asyncio
+async def test_get_soffice_timeout_custom_valid():
+    """Test _get_soffice_timeout with valid custom value."""
+    from awslabs.document_loader_mcp_server.server import _get_soffice_timeout
+
+    with patch.dict(os.environ, {'SOFFICE_TIMEOUT_SECONDS': '60'}):
+        result = _get_soffice_timeout()
+        assert result == 60
+
+
+@pytest.mark.asyncio
+async def test_get_soffice_timeout_invalid_string():
+    """Test _get_soffice_timeout with invalid non-integer string."""
+    from awslabs.document_loader_mcp_server.server import (
+        DEFAULT_SOFFICE_TIMEOUT_SECONDS,
+        _get_soffice_timeout,
+    )
+
+    with patch.dict(os.environ, {'SOFFICE_TIMEOUT_SECONDS': 'abc'}):
+        result = _get_soffice_timeout()
+        assert result == DEFAULT_SOFFICE_TIMEOUT_SECONDS
+
+
+@pytest.mark.asyncio
+async def test_get_soffice_timeout_out_of_range():
+    """Test _get_soffice_timeout with out-of-range values."""
+    from awslabs.document_loader_mcp_server.server import (
+        DEFAULT_SOFFICE_TIMEOUT_SECONDS,
+        _get_soffice_timeout,
+    )
+
+    # Too high (> MAX_TIMEOUT_SECONDS=300)
+    with patch.dict(os.environ, {'SOFFICE_TIMEOUT_SECONDS': '999'}):
+        result = _get_soffice_timeout()
+        assert result == DEFAULT_SOFFICE_TIMEOUT_SECONDS
+
+    # Too low (< MIN_TIMEOUT_SECONDS=5)
+    with patch.dict(os.environ, {'SOFFICE_TIMEOUT_SECONDS': '1'}):
+        result = _get_soffice_timeout()
+        assert result == DEFAULT_SOFFICE_TIMEOUT_SECONDS
+
+
+# --- validate_output_dir() with mocked base directory (server.py lines 212-222) ---
+
+
+@pytest.mark.asyncio
+async def test_validate_output_dir_traversal_blocked():
+    """Test validate_output_dir blocks paths outside base directory."""
+    with patch(
+        'awslabs.document_loader_mcp_server.server._get_base_directory',
+        return_value=Path('/var/app/documents'),
+    ):
+        error = validate_output_dir('/etc/evil')
+        assert error is not None
+        assert 'Access denied' in error
+
+
+@pytest.mark.asyncio
+async def test_validate_output_dir_within_base():
+    """Test validate_output_dir allows paths within base directory."""
+    with patch(
+        'awslabs.document_loader_mcp_server.server._get_base_directory',
+        return_value=Path('/'),
+    ):
+        error = validate_output_dir('/tmp/safe_dir')
+        assert error is None
+
+
+@pytest.mark.asyncio
+async def test_validate_output_dir_exception():
+    """Test validate_output_dir handles exceptions during path resolution."""
+    with patch(
+        'awslabs.document_loader_mcp_server.server.Path',
+        side_effect=OSError('Permission denied'),
+    ):
+        error = validate_output_dir('/some/path')
+        assert error is not None
+        assert 'Error validating' in error
+
+
+# --- _find_soffice() known paths fallback (server.py lines 481-487) ---
+
+
+@pytest.mark.asyncio
+async def test_find_soffice_known_path():
+    """Test _find_soffice returns a known path when shutil.which fails."""
+    from awslabs.document_loader_mcp_server.server import _find_soffice
+
+    with patch('awslabs.document_loader_mcp_server.server.shutil.which', return_value=None):
+        with patch('awslabs.document_loader_mcp_server.server.os.path.isfile', return_value=True):
+            with patch('awslabs.document_loader_mcp_server.server.os.access', return_value=True):
+                result = _find_soffice()
+                assert result is not None
+
+
+@pytest.mark.asyncio
+async def test_find_soffice_not_found():
+    """Test _find_soffice returns None when soffice is not available anywhere."""
+    from awslabs.document_loader_mcp_server.server import _find_soffice
+
+    with patch('awslabs.document_loader_mcp_server.server.shutil.which', return_value=None):
+        with patch('awslabs.document_loader_mcp_server.server.os.path.isfile', return_value=False):
+            result = _find_soffice()
+            assert result is None
+
+
+# --- _check_soffice_available() (server.py line 503) ---
+
+
+@pytest.mark.asyncio
+async def test_check_soffice_available_not_found():
+    """Test _check_soffice_available returns install instructions when missing."""
+    with patch('awslabs.document_loader_mcp_server.server._find_soffice', return_value=None):
+        error = _check_soffice_available()
+        assert error is not None
+        assert 'LibreOffice' in error
+        assert 'soffice' in error.lower()
+
+
+@pytest.mark.asyncio
+async def test_check_soffice_available_found():
+    """Test _check_soffice_available returns None when soffice is present."""
+    with patch(
+        'awslabs.document_loader_mcp_server.server._find_soffice',
+        return_value='/usr/bin/soffice',
+    ):
+        error = _check_soffice_available()
+        assert error is None
+
+
+# --- _convert_to_pdf_with_soffice() with mocked subprocess (server.py lines 510-531) ---
+
+
+@pytest.mark.asyncio
+async def test_convert_to_pdf_with_soffice_success(tmp_path):
+    """Test _convert_to_pdf_with_soffice with successful subprocess conversion."""
+    input_file = str(tmp_path / 'test.pptx')
+    Path(input_file).write_bytes(b'PK\x03\x04')
+    temp_dir = str(tmp_path / 'temp')
+    os.makedirs(temp_dir)
+
+    # Create the expected PDF output file that soffice would produce
+    expected_pdf = os.path.join(temp_dir, 'test.pdf')
+    Path(expected_pdf).write_bytes(b'%PDF-1.4 fake')
+
+    with patch(
+        'awslabs.document_loader_mcp_server.server._find_soffice',
+        return_value='/usr/bin/soffice',
+    ):
+        with patch('awslabs.document_loader_mcp_server.server.subprocess.run') as mock_run:
+            mock_run.return_value = None
+            result = _convert_to_pdf_with_soffice(input_file, temp_dir, timeout_seconds=30)
+            assert result == expected_pdf
+            mock_run.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_convert_to_pdf_with_soffice_no_soffice(tmp_path):
+    """Test _convert_to_pdf_with_soffice raises when soffice binary not found."""
+    with patch('awslabs.document_loader_mcp_server.server._find_soffice', return_value=None):
+        with pytest.raises(RuntimeError, match='soffice binary not found'):
+            _convert_to_pdf_with_soffice(
+                str(tmp_path / 'test.pptx'), str(tmp_path), timeout_seconds=30
+            )
+
+
+@pytest.mark.asyncio
+async def test_convert_to_pdf_with_soffice_no_output(tmp_path):
+    """Test _convert_to_pdf_with_soffice raises when PDF not produced."""
+    input_file = str(tmp_path / 'test.pptx')
+    Path(input_file).write_bytes(b'PK\x03\x04')
+    temp_dir = str(tmp_path / 'temp')
+    os.makedirs(temp_dir)
+    # Don't create the expected PDF output
+
+    with patch(
+        'awslabs.document_loader_mcp_server.server._find_soffice',
+        return_value='/usr/bin/soffice',
+    ):
+        with patch('awslabs.document_loader_mcp_server.server.subprocess.run'):
+            with pytest.raises(FileNotFoundError, match='PDF file not found'):
+                _convert_to_pdf_with_soffice(input_file, temp_dir, timeout_seconds=30)
+
+
+# --- extract_document_assets output_dir validation (server.py line 756) ---
+
+
+@pytest.mark.asyncio
+async def test_extract_document_assets_tool_output_dir_blocked_with_mock(pdf_with_images):
+    """Test extract_document_assets returns error when validate_output_dir fails."""
+    from awslabs.document_loader_mcp_server.server import extract_document_assets
+
+    ctx = MockContext()
+    with patch(
+        'awslabs.document_loader_mcp_server.server.validate_output_dir',
+        return_value='Access denied: output directory outside allowed directory',
+    ):
+        result = await extract_document_assets.fn(
+            ctx=ctx,  # type: ignore[arg-type]
+            file_path=pdf_with_images,
+            output_dir='/etc/evil_output',
+            timeout_seconds=10,
+        )
+        assert result.status == 'error'
+        assert 'Access denied' in result.error_message
+
+
+# Note: pdf.py line 507 (_extract_pdf_sync "too many assets" check) is unreachable
+# dead code — the discovery loop already caps all_images at max_assets, so
+# len(indices_to_extract) > max_assets can never be true.
