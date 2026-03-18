@@ -24,6 +24,7 @@ from awslabs.amazon_neptune_mcp_server.models import (
     Relationship,
     RelationshipPattern,
 )
+from awslabs.amazon_neptune_mcp_server.query_validator import validate_opencypher_query
 from loguru import logger
 from typing import Optional
 
@@ -150,6 +151,7 @@ class NeptuneAnalytics(NeptuneGraph):
         Raises:
             NeptuneException: If an error occurs during query execution
         """
+        validate_opencypher_query(query)
         try:
             if params is None:
                 params = {}
