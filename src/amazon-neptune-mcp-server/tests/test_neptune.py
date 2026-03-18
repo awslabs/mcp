@@ -54,14 +54,49 @@ class TestNeptuneServer:
         # Arrange
         mock_analytics_instance = MagicMock()
         mock_neptune_analytics.return_value = mock_analytics_instance
-        endpoint = 'neptune-graph://test-graph-id'
+        endpoint = 'neptune-graph://g-1234567890'
 
         # Act
         server = NeptuneServer(endpoint)
 
         # Assert
         assert server.graph == mock_analytics_instance
-        mock_neptune_analytics.assert_called_once_with('test-graph-id')
+        mock_neptune_analytics.assert_called_once_with('g-1234567890', endpoint_url=None)
+
+    @patch('awslabs.amazon_neptune_mcp_server.neptune.NeptuneAnalytics')
+    async def test_init_neptune_analytics_with_full_endpoint(self, mock_neptune_analytics):
+        """Test initialization with a full endpoint URI (graphId.host).
+        The graph ID and endpoint URL should be extracted from the URI:
+        neptune-graph://g-1234567890.us-east-1.neptune-graph.amazonaws.com
+        → graphId='g-1234567890', endpoint_url='https://us-east-1.neptune-graph.amazonaws.com'
+        """
+        mock_analytics_instance = MagicMock()
+        mock_neptune_analytics.return_value = mock_analytics_instance
+        endpoint = 'neptune-graph://g-1234567890.us-east-1.neptune-graph.amazonaws.com'
+
+        server = NeptuneServer(endpoint)
+
+        assert server.graph == mock_analytics_instance
+        mock_neptune_analytics.assert_called_once_with(
+            'g-1234567890', endpoint_url='https://us-east-1.neptune-graph.amazonaws.com'
+        )
+
+    @patch('awslabs.amazon_neptune_mcp_server.neptune.NeptuneAnalytics')
+    async def test_init_neptune_analytics_local_container(self, mock_neptune_analytics):
+        """Test initialization with a local container endpoint.
+        neptune-graph://localhost:9100/g-1234567890
+        → graphId='g-1234567890', endpoint_url='http://localhost:9100'
+        """
+        mock_analytics_instance = MagicMock()
+        mock_neptune_analytics.return_value = mock_analytics_instance
+        endpoint = 'neptune-graph://localhost:9100/g-1234567890'
+
+        server = NeptuneServer(endpoint)
+
+        assert server.graph == mock_analytics_instance
+        mock_neptune_analytics.assert_called_once_with(
+            'g-1234567890', endpoint_url='http://localhost:9100'
+        )
 
     async def test_init_invalid_endpoint_format(self):
         """Test that NeptuneServer initialization fails with an invalid endpoint format.

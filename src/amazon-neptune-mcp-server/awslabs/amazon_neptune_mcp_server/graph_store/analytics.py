@@ -28,6 +28,11 @@ from loguru import logger
 from typing import Optional
 
 
+import re
+
+GRAPH_ID_PATTERN = re.compile(r'^g-[a-z0-9]{10}$')
+
+
 class NeptuneAnalytics(NeptuneGraph):
     """Neptune Analytics wrapper for graph operations.
 
@@ -35,7 +40,9 @@ class NeptuneAnalytics(NeptuneGraph):
         graph_identifier: the graph identifier for a Neptune Analytics graph
         credentials_profile_name: optional AWS profile name
         endpoint_url: optional custom endpoint URL for the Neptune Analytics
-            service endpoint (e.g., for VPC endpoints or non-standard configurations)
+            service endpoint (e.g., for VPC endpoints or non-standard configurations).
+            When set, inject_host_prefix is disabled to avoid boto3 prepending
+            the graph identifier to the endpoint hostname.
 
     Example:
         .. code-block:: python
@@ -69,6 +76,13 @@ class NeptuneAnalytics(NeptuneGraph):
             self.client = session.client(
                 'neptune-graph', config=USER_AGENT_CONFIG, **client_params
             )
+
+            # When using a custom endpoint (e.g., local container), disable
+            # host prefix injection so boto3 doesn't prepend the graph
+            # identifier to the hostname.
+            if endpoint_url:
+                self.client.meta.events.unregister('before-sign.neptune-graph.*',
+                    self.client._inject_host_prefix if hasattr(self.client, '_inject_host_prefix') else lambda **kw: None)
 
         except Exception as e:
             logger.exception(

@@ -26,9 +26,11 @@ from awslabs.amazon_neptune_mcp_server.graph_store import (
     NeptuneDatabase,
     NeptuneGraph,
 )
+from awslabs.amazon_neptune_mcp_server.graph_store.analytics import GRAPH_ID_PATTERN
 from awslabs.amazon_neptune_mcp_server.models import GraphSchema
 from loguru import logger
 from typing import Optional
+from urllib.parse import urlparse
 
 
 class NeptuneServer:
@@ -66,9 +68,33 @@ class NeptuneServer:
                 logger.debug('Creating Neptune Database session for %s', endpoint)
             elif endpoint.startswith('neptune-graph://'):
                 # This is a Neptune Analytics Graph
-                graphId = endpoint.replace('neptune-graph://', '')
+                # Support two forms:
+                #   neptune-graph://g-1234567890  (graph ID only, uses default service endpoint)
+                #   neptune-graph://g-1234567890.us-east-1.neptune-graph.amazonaws.com
+                #       (graph ID + custom endpoint, extracted by splitting on first dot)
+                #   neptune-graph://localhost:9100/g-1234567890
+                #       (local endpoint with graph ID as path)
+                value = endpoint.replace('neptune-graph://', '')
+                endpoint_url = kwargs.get('endpoint_url')
+
+                # Check if value is a bare graph ID
+                if GRAPH_ID_PATTERN.match(value):
+                    graphId = value
+                elif '/' in value:
+                    # Form: host:port/graphId (local container)
+                    parts = value.rsplit('/', 1)
+                    endpoint_url = endpoint_url or f'http://{parts[0]}'
+                    graphId = parts[1]
+                elif '.' in value:
+                    # Form: graphId.region.neptune-graph.amazonaws.com
+                    dot_pos = value.index('.')
+                    graphId = value[:dot_pos]
+                    endpoint_url = endpoint_url or f'https://{value[dot_pos+1:]}'
+                else:
+                    graphId = value
+
                 self.graph = NeptuneAnalytics(
-                    graphId, endpoint_url=kwargs.get('endpoint_url')
+                    graphId, endpoint_url=endpoint_url
                 )
                 logger.debug('Creating Neptune Graph session for %s', endpoint)
             else:
