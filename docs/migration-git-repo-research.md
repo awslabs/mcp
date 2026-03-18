@@ -8,7 +8,7 @@ The `git-repo-research-mcp-server` requires Amazon Bedrock credentials for seman
 
 ## Recommended Alternative: Context7
 
-[Context7](https://github.com/upstash/context7) is an open-source MCP server (~50K GitHub stars) that provides up-to-date documentation and code examples for popular libraries directly in your AI coding workflow.
+[Context7](https://github.com/upstash/context7) is an actively maintained open-source MCP server that provides up-to-date documentation and code examples for popular libraries directly in your AI coding workflow.
 
 ### Installing Context7
 
@@ -34,7 +34,7 @@ The `git-repo-research-mcp-server` requires Amazon Bedrock credentials for seman
 | AWS credentials required | Yes (Bedrock) | No |
 | Private repo support | Yes | No |
 | GitHub repo search | Yes (AWS orgs only) | No |
-| Community support | AWS Labs maintained | ~50K stars, actively maintained |
+| Community support | Deprecated | Actively maintained |
 
 ## Tool Migration
 
