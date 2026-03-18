@@ -25,7 +25,6 @@ from awslabs.git_repo_research_mcp_server.models import (
 
 # Import the server functionality
 from awslabs.git_repo_research_mcp_server.server import (
-    DEPRECATION_NOTICE,
     access_file_or_directory,
     list_repositories,
     main,
