@@ -3,7 +3,6 @@
 import pytest
 import warnings
 from awslabs.aws_bedrock_data_automation_mcp_server.server import (
-    DEPRECATION_NOTICE,
     analyze_asset_tool,
     get_project_details_tool,
     get_projects_tool,
