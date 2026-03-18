@@ -16,7 +16,6 @@
 import pytest
 import warnings
 from awslabs.nova_canvas_mcp_server.server import (
-    DEPRECATION_NOTICE,
     main,
     mcp_generate_image,
     mcp_generate_image_with_colors,
