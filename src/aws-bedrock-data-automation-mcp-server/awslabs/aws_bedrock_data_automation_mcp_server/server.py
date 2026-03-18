@@ -15,7 +15,6 @@
 """AWS Bedrock Data Automation MCP Server implementation."""
 
 import warnings
-
 from awslabs.aws_bedrock_data_automation_mcp_server.helpers import (
     get_project,
     invoke_data_automation_and_get_results,
@@ -38,7 +37,8 @@ DEPRECATION_NOTICE = (
 
 mcp = FastMCP(
     'awslabs.aws-bedrock-data-automation-mcp-server',
-    instructions=f'DEPRECATION NOTICE: {DEPRECATION_NOTICE}\n\n' + """
+    instructions=f'DEPRECATION NOTICE: {DEPRECATION_NOTICE}\n\n'
+    + """
     AWS Bedrock Data Automation MCP Server provides tools to interact with Amazon Bedrock Data Automation.
 
     This server enables you to:
