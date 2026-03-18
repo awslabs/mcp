@@ -16,6 +16,7 @@
 import boto3
 import os
 import sys
+import warnings
 from awslabs.nova_canvas_mcp_server.consts import (
     DEFAULT_CFG_SCALE,
     DEFAULT_HEIGHT,
@@ -62,10 +63,21 @@ except Exception as e:
     raise
 
 
-# Create the MCP server Pwith detailed instructions
+DEPRECATION_NOTICE = (
+    'nova-canvas-mcp-server is deprecated and will be removed in a future release. '
+    'Please migrate to bedrock-image-mcp-server (https://github.com/kalleeh/bedrock-image-mcp-server), '
+    'a community-maintained server that includes all Nova Canvas tools plus Stable Diffusion 3.5, '
+    'Stability AI upscaling, and image editing capabilities. '
+    'See the migration guide: '
+    'https://github.com/awslabs/mcp/blob/main/docs/migration-nova-canvas.md'
+)
+
+
+# Create the MCP server with detailed instructions
 mcp = FastMCP(
     'awslabs-nova-canvas-mcp-server',
-    instructions=f"""
+    instructions=f"""DEPRECATION NOTICE: {DEPRECATION_NOTICE}
+
 # Amazon Nova Canvas Image Generation
 
 This MCP server provides tools for generating images using Amazon Nova Canvas through Amazon Bedrock.
@@ -130,7 +142,7 @@ async def mcp_generate_image(
         CRITICAL: Assistant must always provide the current IDE workspace directory parameter to save images to the user's current project.""",
     ),
 ) -> McpImageGenerationResponse:
-    """Generate an image using Amazon Nova Canvas with text prompt.
+    """[DEPRECATED] Generate an image using Amazon Nova Canvas with text prompt.
 
     This tool uses Amazon Nova Canvas to generate images based on a text prompt.
     The generated image will be saved to a file and the path will be returned.
@@ -242,7 +254,7 @@ async def mcp_generate_image_with_colors(
         description="The current workspace directory where the image should be saved. CRITICAL: Assistant must always provide this parameter to save images to the user's current project.",
     ),
 ) -> McpImageGenerationResponse:
-    """Generate an image using Amazon Nova Canvas with color guidance.
+    """[DEPRECATED] Generate an image using Amazon Nova Canvas with color guidance.
 
     This tool uses Amazon Nova Canvas to generate images based on a text prompt and color palette.
     The generated image will be saved to a file and the path will be returned.
@@ -317,6 +329,7 @@ async def mcp_generate_image_with_colors(
 
 def main():
     """Run the MCP server with CLI argument support."""
+    warnings.warn(DEPRECATION_NOTICE, FutureWarning, stacklevel=2)
     logger.info('Starting nova-canvas-mcp-server MCP server')
     mcp.run()
 
