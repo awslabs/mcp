@@ -83,7 +83,7 @@ DEPRECATION_NOTICE = (
     'For library documentation and code research, we recommend Context7 '
     '(https://github.com/upstash/context7) which provides up-to-date docs for popular libraries '
     'without requiring AWS credentials. For semantic search over private repositories, consider '
-    'using your IDE\'s built-in indexing or a general-purpose code search tool. '
+    "using your IDE's built-in indexing or a general-purpose code search tool. "
     'See the migration guide: '
     'https://github.com/awslabs/mcp/blob/main/docs/migration-git-repo-research.md'
 )
@@ -92,7 +92,8 @@ DEPRECATION_NOTICE = (
 # Create the MCP server
 mcp = FastMCP(
     'Git Repository Research MCP Server',
-    instructions=f'DEPRECATION NOTICE: {DEPRECATION_NOTICE}\n\n' + """# Git Repository Research MCP Server
+    instructions=f'DEPRECATION NOTICE: {DEPRECATION_NOTICE}\n\n'
+    + """# Git Repository Research MCP Server
 
 This MCP server provides tools and resources for indexing and searching Git repositories using semantic search.
 
