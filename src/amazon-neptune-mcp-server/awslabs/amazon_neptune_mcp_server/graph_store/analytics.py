@@ -14,6 +14,7 @@
 
 import boto3
 import json
+from botocore.config import Config
 from awslabs.amazon_neptune_mcp_server.constants import USER_AGENT_CONFIG
 from awslabs.amazon_neptune_mcp_server.exceptions import NeptuneException
 from awslabs.amazon_neptune_mcp_server.graph_store import NeptuneGraph
@@ -70,19 +71,14 @@ class NeptuneAnalytics(NeptuneGraph):
                 session = boto3.Session(profile_name=credentials_profile_name)
 
             client_params = {}
+            config = USER_AGENT_CONFIG
             if endpoint_url:
                 client_params['endpoint_url'] = endpoint_url
+                config = Config(inject_host_prefix=False).merge(USER_AGENT_CONFIG)
 
             self.client = session.client(
-                'neptune-graph', config=USER_AGENT_CONFIG, **client_params
+                'neptune-graph', config=config, **client_params
             )
-
-            # When using a custom endpoint (e.g., local container), disable
-            # host prefix injection so boto3 doesn't prepend the graph
-            # identifier to the hostname.
-            if endpoint_url:
-                self.client.meta.events.unregister('before-sign.neptune-graph.*',
-                    self.client._inject_host_prefix if hasattr(self.client, '_inject_host_prefix') else lambda **kw: None)
 
         except Exception as e:
             logger.exception(
