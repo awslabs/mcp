@@ -15,13 +15,17 @@ The most reliable approach is to use the Amazon Bedrock Data Automation API dire
 ```python
 import boto3
 
+# Use bedrock-data-automation for project management
 client = boto3.client('bedrock-data-automation', region_name='us-east-1')
 
 # List projects
 projects = client.list_data_automation_projects()
 
+# Use bedrock-data-automation-runtime for invocations
+runtime_client = boto3.client('bedrock-data-automation-runtime', region_name='us-east-1')
+
 # Analyze an asset
-response = client.invoke_data_automation_async(
+response = runtime_client.invoke_data_automation_async(
     inputConfiguration={'s3Uri': 's3://your-bucket/your-file.pdf'},
     dataAutomationConfiguration={'dataAutomationProjectArn': 'your-project-arn'},
     outputConfiguration={'s3Uri': 's3://your-bucket/output/'}
@@ -54,7 +58,7 @@ The [aws-api-mcp-server](https://github.com/awslabs/mcp/tree/main/src/aws-api-mc
 |---|---|
 | `getprojects` | `boto3.client('bedrock-data-automation').list_data_automation_projects()` |
 | `getprojectdetails` | `boto3.client('bedrock-data-automation').get_data_automation_project()` |
-| `analyzeasset` | `boto3.client('bedrock-data-automation').invoke_data_automation_async()` |
+| `analyzeasset` | `boto3.client('bedrock-data-automation-runtime').invoke_data_automation_async()` |
 
 ## Summary
 

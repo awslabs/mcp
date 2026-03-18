@@ -4,7 +4,7 @@ This guide helps you migrate from `awslabs.nova-canvas-mcp-server` to the commun
 
 ## Why We're Deprecating
 
-The community-maintained `bedrock-image-mcp-server` is a fork of this server that has grown to include significantly more capabilities — 13 tools vs our 2. With AGI's shift away from focusing on image generation capabilities, this server will no longer be actively maintained.
+The community-maintained `bedrock-image-mcp-server` is a fork of this server that has grown to include significantly more capabilities — 13 tools vs 2. As part of our ongoing effort to reduce overlap and promote well-maintained alternatives, this server will no longer be actively maintained.
 
 ## Recommended Alternative: bedrock-image-mcp-server
 

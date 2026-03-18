@@ -1,9 +1,6 @@
 # Amazon Nova Canvas MCP Server
 
-> **DEPRECATION NOTICE**: This server is deprecated. Please use
-> [`bedrock-image-mcp-server`](https://github.com/kalleeh/bedrock-image-mcp-server) instead, which
-> includes all Nova Canvas tools plus Stable Diffusion 3.5, upscaling, and image editing.
-> See the [migration guide](../../docs/migration-nova-canvas.md) for details.
+> **⚠️ DEPRECATION NOTICE**: This server is deprecated and will no longer receive updates. Please use [`bedrock-image-mcp-server`](https://github.com/kalleeh/bedrock-image-mcp-server) instead, which includes all Nova Canvas tools plus Stable Diffusion 3.5, upscaling, and image editing. See the [migration guide](https://github.com/awslabs/mcp/blob/main/docs/migration-nova-canvas.md) for details.
 
 [![smithery badge](https://smithery.ai/badge/@awslabs/nova-canvas-mcp-server)](https://smithery.ai/server/@awslabs/nova-canvas-mcp-server)
 
