@@ -67,31 +67,18 @@ class NeptuneServer:
                 self.graph = NeptuneDatabase(endpoint, port, use_https=use_https)
                 logger.debug('Creating Neptune Database session for %s', endpoint)
             elif endpoint.startswith('neptune-graph://'):
-                # This is a Neptune Analytics Graph
-                # Support two forms:
-                #   neptune-graph://g-1234567890  (graph ID only, uses default service endpoint)
-                #   neptune-graph://g-1234567890.us-east-1.neptune-graph.amazonaws.com
-                #       (graph ID + custom endpoint, extracted by splitting on first dot)
-                #   neptune-graph://localhost:9100/g-1234567890
-                #       (local endpoint with graph ID as path)
+                # Neptune Analytics Graph
+                # Two forms:
+                #   neptune-graph://g-1234567890  (graph ID, uses default service endpoint)
+                #   neptune-graph://localhost:9100 (custom endpoint, placeholder graph ID)
                 value = endpoint.replace('neptune-graph://', '')
-                endpoint_url = kwargs.get('endpoint_url')
 
-                # Check if value is a bare graph ID
                 if GRAPH_ID_PATTERN.match(value):
                     graphId = value
-                elif '/' in value:
-                    # Form: host:port/graphId (local container)
-                    parts = value.rsplit('/', 1)
-                    endpoint_url = endpoint_url or f'http://{parts[0]}'
-                    graphId = parts[1]
-                elif '.' in value:
-                    # Form: graphId.region.neptune-graph.amazonaws.com
-                    dot_pos = value.index('.')
-                    graphId = value[:dot_pos]
-                    endpoint_url = endpoint_url or f'https://{value[dot_pos+1:]}'
+                    endpoint_url = None
                 else:
-                    graphId = value
+                    graphId = 'g-1234567890'
+                    endpoint_url = f'http://{value}'
 
                 self.graph = NeptuneAnalytics(
                     graphId, endpoint_url=endpoint_url
