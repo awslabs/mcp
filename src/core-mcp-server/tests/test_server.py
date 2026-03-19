@@ -1076,7 +1076,7 @@ class TestMainFunction:
 def test_main_emits_deprecation_warning():
     """Test that main() emits a FutureWarning deprecation notice."""
     with patch.dict('sys.modules', mock_modules):
-        import awslabs.core_mcp_server.server as srv
+        from awslabs.core_mcp_server import server as srv
 
         original_asyncio_run = asyncio.run
         original_setup = srv.setup
@@ -1092,7 +1092,9 @@ def test_main_emits_deprecation_warning():
                 srv.main()
                 future_warnings = [x for x in w if issubclass(x.category, FutureWarning)]
                 assert len(future_warnings) >= 1
-                assert 'deprecated' in str(future_warnings[0].message).lower()
+                assert any(
+                    'deprecated' in str(fw.message).lower() for fw in future_warnings
+                )
         finally:
             asyncio.run = original_asyncio_run
             srv.setup = original_setup
