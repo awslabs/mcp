@@ -75,7 +75,7 @@ class TestReadDocumentationChina:
         result = await read_documentation_china(ctx, url=url, max_length=10000, start_index=0)
 
         assert 'Invalid URL' in result
-        assert 'must be from the docs.amazonaws.cn domain' in result
+        assert 'must be from docs.amazonaws.cn' in result
 
     @pytest.mark.asyncio
     async def test_read_documentation_china_invalid_extension(self):
@@ -86,7 +86,7 @@ class TestReadDocumentationChina:
         result = await read_documentation_china(ctx, url=url, max_length=10000, start_index=0)
 
         assert 'Invalid URL' in result
-        assert 'must end with .html' in result
+        assert 'ending in .html' in result
 
     @pytest.mark.asyncio
     async def test_read_documentation_china_error(self):

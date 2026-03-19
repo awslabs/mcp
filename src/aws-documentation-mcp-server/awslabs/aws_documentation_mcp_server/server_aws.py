@@ -107,23 +107,26 @@ async def read_documentation(
         ge=0,
     ),
 ) -> str:
-    """Fetch and convert an AWS documentation page to markdown format.
+    """Fetch and convert a documentation page to markdown format.
 
     ## Usage
+    Supported domains:
+    - AWS documentation:      https://docs.aws.amazon.com/...
+    - Kiro IDE/CLI docs:      https://kiro.dev/docs/...
+    - Neuron SDK docs:        https://awsdocs-neuron.readthedocs-hosted.com/...
 
-    This tool retrieves the content of an AWS documentation page and converts it to markdown format.
-    For long documents, you can make multiple calls with different start_index values to retrieve
-    the entire content in chunks.
-
+    For Kiro topics not found via search_documentation, call this tool
+    directly with the kiro.dev URL (e.g. https://kiro.dev/docs/cli/custom-agents/creating/).
+    
     ## URL Requirements
-
-    - Must be from the docs.aws.amazon.com domain
-    - Must end with .html
+    - AWS and Neuron SDK: Must end with .html
+    - Kiro: Any path under kiro.dev/docs/ (does not require .html)
 
     ## Example URLs
 
     - https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html
     - https://docs.aws.amazon.com/lambda/latest/dg/lambda-invocation.html
+    - https://kiro.dev/docs/cli/custom-agents/creating/
 
     ## Output Format
 
@@ -148,19 +151,23 @@ async def read_documentation(
     Returns:
         Markdown content of the AWS documentation
     """
-    # Validate that URL is from docs.aws.amazon.com and ends with .html
+    # Validate that URL is from a supported domain
     url_str = str(url)
 
-    supported_domains_regex = [r'^https?://docs\.aws\.amazon\.com/']
+    supported_domains_regex = [
+        r'^https?://docs\.aws\.amazon\.com/.*\.html$',
+        r'^https?://kiro\.dev(:\d+)?/docs/.*$',
+    ]
     for modifier in SEARCH_TERM_DOMAIN_MODIFIERS:
-        supported_domains_regex.append(modifier['regex'])
+        # Neuron SDK pages require .html
+        supported_domains_regex.append(modifier['regex'] + r'.*\.html$')
 
     if not any(re.match(domain_regex, url_str) for domain_regex in supported_domains_regex):
-        await ctx.error(f'Invalid URL: {url_str}. URL must be from list of supported domains')
+        await ctx.error(
+            f'Invalid URL: {url_str}. URL must be from docs.aws.amazon.com (ending in .html), '
+            f'kiro.dev/docs/ (any path), or awsdocs-neuron.readthedocs-hosted.com (ending in .html)'
+        )
         raise ValueError('URL must be from list of supported domains')
-    if not url_str.endswith('.html'):
-        await ctx.error(f'Invalid URL: {url_str}. URL must end with .html')
-        raise ValueError('URL must end with .html')
 
     return await read_documentation_impl(ctx, url_str, max_length, start_index, SESSION_UUID)
 
@@ -265,9 +272,20 @@ async def search_documentation(
     """Search AWS documentation using the official AWS Documentation Search API.
 
     ## Usage
+    This tool ONLY searches docs.aws.amazon.com. It cannot find documentation for:
+    - Kiro IDE or Kiro CLI (kiro.dev/docs) — these are NOT on docs.aws.amazon.com
+    - Any third-party or community documentation
 
-    This tool searches across all AWS documentation for pages matching your search phrase.
-    Use it to find relevant documentation when you don't have a specific URL.
+    For Kiro IDE/CLI topics (agents, MCP config, steering, hooks, autocomplete,
+    specs, etc.), do NOT use this search tool. Instead, call read_documentation
+    directly with the appropriate kiro.dev URL:
+      - Kiro CLI overview:        https://kiro.dev/docs/cli/
+      - Kiro CLI custom agents:   https://kiro.dev/docs/cli/custom-agents/creating/
+      - Kiro CLI MCP config:      https://kiro.dev/docs/cli/mcp/
+      - Kiro CLI steering:        https://kiro.dev/docs/cli/steering/
+      - Kiro CLI hooks:           https://kiro.dev/docs/cli/hooks/
+      - Kiro IDE overview:        https://kiro.dev/docs/
+
 
     ## Search Tips
 
