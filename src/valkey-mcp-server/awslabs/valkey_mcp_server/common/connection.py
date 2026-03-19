@@ -26,7 +26,8 @@ from valkey.cluster import ValkeyCluster
 class ValkeyConnectionManager:
     """Manages connection to Valkey."""
 
-    _instance: Optional[Union[Valkey, ValkeyCluster]] = None
+    _default_instance: Optional[Union[Valkey, ValkeyCluster]] = None
+    _no_decode_instance: Optional[Union[Valkey, ValkeyCluster]] = None
 
     @classmethod
     def get_connection(cls, decode_responses: bool = True) -> Union[Valkey, ValkeyCluster]:
@@ -38,63 +39,80 @@ class ValkeyConnectionManager:
         Returns:
             Valkey: A Valkey connection instance.
         """
-        if cls._instance is None:
-            try:
-                valkey_class: Type[Union[Valkey, ValkeyCluster]] = (
-                    ValkeyCluster if VALKEY_CFG['cluster_mode'] else Valkey
-                )
+        instance_field = '_default_instance' if decode_responses else '_no_decode_instance'
+        instance = getattr(cls, instance_field)
 
-                # Get SSL settings with defaults
-                ssl_enabled = VALKEY_CFG.get('ssl', False)
-                ssl_cert_reqs = VALKEY_CFG.get('ssl_cert_reqs')
-                if ssl_enabled and ssl_cert_reqs is None:
-                    ssl_cert_reqs = 'required'
+        if instance is None:
+            instance = cls._create_instance(decode_responses)
+            setattr(cls, instance_field, instance)
 
-                # Build connection kwargs
-                connection_kwargs = {
-                    'host': VALKEY_CFG['host'],
-                    'port': VALKEY_CFG['port'],
-                    'username': VALKEY_CFG.get('username'),
-                    'password': VALKEY_CFG.get('password', ''),
-                    'ssl': ssl_enabled,
-                    'ssl_ca_path': VALKEY_CFG.get('ssl_ca_path'),
-                    'ssl_keyfile': VALKEY_CFG.get('ssl_keyfile'),
-                    'ssl_certfile': VALKEY_CFG.get('ssl_certfile'),
-                    'ssl_cert_reqs': ssl_cert_reqs,
-                    'ssl_ca_certs': VALKEY_CFG.get('ssl_ca_certs'),
-                    'decode_responses': decode_responses,
-                    'lib_name': f'valkey-py(mcp-server_v{__version__})',
-                }
+        return instance
 
-                # Add max_connections parameter based on mode
-                if VALKEY_CFG['cluster_mode']:
-                    connection_kwargs['max_connections_per_node'] = 10
-                else:
-                    connection_kwargs['max_connections'] = 10
+    @classmethod
+    def reset(cls):
+        """Reset connection instances."""
+        cls._default_instance = None
+        cls._no_decode_instance = None
 
-                # Create new instance
-                cls._instance = valkey_class(**connection_kwargs)
+    @classmethod
+    def _create_instance(cls, decode_responses: bool) -> Union[Valkey, ValkeyCluster]:
+        try:
+            valkey_class: Type[Union[Valkey, ValkeyCluster]] = (
+                ValkeyCluster if VALKEY_CFG['cluster_mode'] else Valkey
+            )
 
-            except exceptions.AuthenticationError:
-                print('Authentication failed', file=sys.stderr)
-                raise
-            except exceptions.ConnectionError:
-                print('Failed to connect to Valkey server', file=sys.stderr)
-                raise
-            except exceptions.TimeoutError:
-                print('Connection timed out', file=sys.stderr)
-                raise
-            except exceptions.ResponseError as e:
-                print(f'Response error: {e}', file=sys.stderr)
-                raise
-            except exceptions.ClusterError as e:
-                print(f'Valkey Cluster error: {e}', file=sys.stderr)
-                raise
-            except exceptions.ValkeyError as e:
-                print(f'Valkey error: {e}', file=sys.stderr)
-                raise
-            except Exception as e:
-                print(f'Unexpected error: {e}', file=sys.stderr)
-                raise
+            # Get SSL settings with defaults
+            ssl_enabled = VALKEY_CFG.get('ssl', False)
+            ssl_cert_reqs = VALKEY_CFG.get('ssl_cert_reqs')
+            if ssl_enabled and ssl_cert_reqs is None:
+                ssl_cert_reqs = 'required'
 
-        return cls._instance
+            # Build connection kwargs
+            connection_kwargs = {
+                'host': VALKEY_CFG['host'],
+                'port': VALKEY_CFG['port'],
+                'username': VALKEY_CFG.get('username'),
+                'password': VALKEY_CFG.get('password', ''),
+                'ssl': ssl_enabled,
+                'ssl_ca_path': VALKEY_CFG.get('ssl_ca_path'),
+                'ssl_keyfile': VALKEY_CFG.get('ssl_keyfile'),
+                'ssl_certfile': VALKEY_CFG.get('ssl_certfile'),
+                'ssl_cert_reqs': ssl_cert_reqs,
+                'ssl_ca_certs': VALKEY_CFG.get('ssl_ca_certs'),
+                'decode_responses': decode_responses,
+                'lib_name': f'valkey-py(mcp-server_v{__version__})',
+            }
+
+            # Configure connection pool size for concurrent operations
+            # Higher limits (default 300) support vector search and semantic search workloads
+            # which can generate many concurrent index queries
+            max_connections_per_node = VALKEY_CFG.get('max_connections_per_node', 300)
+            if VALKEY_CFG['cluster_mode']:
+                connection_kwargs['max_connections_per_node'] = max_connections_per_node
+            else:
+                connection_kwargs['max_connections'] = max_connections_per_node
+
+            # Create new instance
+            return valkey_class(**connection_kwargs)
+
+        except exceptions.AuthenticationError:
+            print('Authentication failed', file=sys.stderr)
+            raise
+        except exceptions.ConnectionError:
+            print('Failed to connect to Valkey server', file=sys.stderr)
+            raise
+        except exceptions.TimeoutError:
+            print('Connection timed out', file=sys.stderr)
+            raise
+        except exceptions.ResponseError as e:
+            print(f'Response error: {e}', file=sys.stderr)
+            raise
+        except exceptions.ClusterError as e:
+            print(f'Valkey Cluster error: {e}', file=sys.stderr)
+            raise
+        except exceptions.ValkeyError as e:
+            print(f'Valkey error: {e}', file=sys.stderr)
+            raise
+        except Exception as e:
+            print(f'Unexpected error: {e}', file=sys.stderr)
+            raise
