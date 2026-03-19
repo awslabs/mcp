@@ -857,7 +857,7 @@ def test_create_server():
 
     assert server is not None
     assert hasattr(server, 'name')
-    assert server.name == 'awslabs.dynamodb-mcp-server'
+    assert server.name == 'dynamodb-mcp-server'
 
 
 @settings(max_examples=100)

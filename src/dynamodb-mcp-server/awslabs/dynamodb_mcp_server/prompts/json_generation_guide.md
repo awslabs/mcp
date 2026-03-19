@@ -121,12 +121,12 @@ Rules:
 
 ### Multi-Attribute GSI Keys
 
-🔴 **CRITICAL**: Multi-attribute keys are NOT the default. Only use when `dynamodb_data_model.md` explicitly indicates them (e.g., "Sort Key: status, created_at (multi-attribute)").
+🔴 **CRITICAL**: Multi-attribute keys are NOT the default. Only use when `dynamodb_data_model.md` explicitly indicates them (e.g., "Sort Key: status, created_at (multi-attribute)"). Multi-attribute keys apply ONLY to `GlobalSecondaryIndexes` KeySchema (up to 4 HASH and 4 RANGE attributes) — base table KeySchema must have exactly 1 HASH and at most 1 RANGE.
 
-Multi-attribute keys use multiple KeySchema entries with the same KeyType. This is a native DynamoDB feature — NOT string concatenation.
+Multi-attribute keys use multiple KeySchema entries with the same KeyType in a GSI. This is a native DynamoDB GSI feature — NOT string concatenation.
 
 - ❌ **WRONG — Concatenated String**: `{"AttributeName": "composite_key", "AttributeType": "S"}` with value `"TOURNAMENT#WINTER2024#REGION#NA-EAST"`
-- ✅ **CORRECT — Multi-Attribute Key**: Multiple KeySchema entries with same KeyType
+- ✅ **CORRECT — Multi-Attribute Key on GSI**: Multiple KeySchema entries with same KeyType inside `GlobalSecondaryIndexes`
 
 ```json
 {
@@ -142,7 +142,7 @@ Multi-attribute keys use multiple KeySchema entries with the same KeyType. This 
 ```
 
 - Each attribute must also appear in `AttributeDefinitions` with its native type (S, N, or B)
-- Each attribute is a separate entry in KeySchema — do NOT concatenate values into a single attribute
+- Each attribute is a separate entry in GSI KeySchema — do NOT concatenate values into a single attribute
 
 ## Items Section Rules
 
