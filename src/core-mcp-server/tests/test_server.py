@@ -1092,9 +1092,7 @@ def test_main_emits_deprecation_warning():
                 srv.main()
                 future_warnings = [x for x in w if issubclass(x.category, FutureWarning)]
                 assert len(future_warnings) >= 1
-                assert any(
-                    'deprecated' in str(fw.message).lower() for fw in future_warnings
-                )
+                assert any('deprecated' in str(fw.message).lower() for fw in future_warnings)
         finally:
             asyncio.run = original_asyncio_run
             srv.setup = original_setup
