@@ -14,9 +14,10 @@
 
 """Code execution tools for Code Interpreter."""
 
-from .client import get_client, set_session_context
+from .client import get_session_client
 from .models import ExecutionResult
 from loguru import logger
+from mcp.server.fastmcp import Context
 from typing import Any
 
 
@@ -77,12 +78,13 @@ def _parse_invoke_response(result: Any) -> dict[str, Any]:
 
 
 async def execute_code(
+    ctx: Context,
     session_id: str,
     code: str,
     language: str | None = None,
     clear_context: bool | None = None,
     region: str | None = None,
-) -> dict[str, Any]:
+) -> ExecutionResult:
     """Execute code in a sandboxed code interpreter session.
 
     Runs Python, JavaScript, or TypeScript code in the session's sandbox.
@@ -90,6 +92,7 @@ async def execute_code(
     the same session unless clear_context is True.
 
     Args:
+        ctx: MCP context for error signaling and progress updates.
         session_id: The session ID to execute code in. Must be a started session.
         code: The source code to execute.
         language: Programming language ('python', 'javascript', 'typescript').
@@ -98,14 +101,13 @@ async def execute_code(
         region: AWS region.
 
     Returns:
-        Dictionary with stdout, stderr, exit_code, is_error, content, and message.
+        ExecutionResult with stdout, stderr, exit_code, is_error, content, and message.
     """
-    client = get_client(region)
-    set_session_context(client, session_id)
-
     logger.info(f'Executing code in session {session_id} (language={language or "python"})')
 
     try:
+        client = get_session_client(session_id)
+
         kwargs: dict[str, Any] = {'code': code}
         if language:
             kwargs['language'] = language
@@ -115,100 +117,93 @@ async def execute_code(
         raw = client.execute_code(**kwargs)
         parsed = _parse_invoke_response(raw)
 
-        response = ExecutionResult(
-            stdout=parsed['stdout'],
-            stderr=parsed['stderr'],
-            exit_code=parsed['exitCode'],
-            is_error=parsed['isError'],
-            content=parsed['content'],
-            message='Code executed successfully.'
-            if not parsed['isError']
-            else 'Code execution failed.',
-        )
-        return response.model_dump()
-
     except Exception as e:
-        logger.error(f'Code execution failed: {type(e).__name__}: {e}', exc_info=True)
-        return ExecutionResult(
-            is_error=True,
-            exit_code=1,
-            stderr=f'{type(e).__name__}: {e}',
-            message=f'Code execution failed: {type(e).__name__}: {e}',
-        ).model_dump()
+        error_msg = f'Code execution failed: {type(e).__name__}: {e}'
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        raise
+
+    return ExecutionResult(
+        stdout=parsed['stdout'],
+        stderr=parsed['stderr'],
+        exit_code=parsed['exitCode'],
+        is_error=parsed['isError'],
+        content=parsed['content'],
+        message='Code executed successfully.'
+        if not parsed['isError']
+        else 'Code execution failed.',
+    )
 
 
 async def execute_command(
+    ctx: Context,
     session_id: str,
     command: str,
     region: str | None = None,
-) -> dict[str, Any]:
+) -> ExecutionResult:
     """Execute a shell command in a sandboxed code interpreter session.
 
     Runs a shell command in the session's sandbox environment.
 
     Args:
+        ctx: MCP context for error signaling and progress updates.
         session_id: The session ID to execute the command in.
         command: The shell command to execute.
         region: AWS region.
 
     Returns:
-        Dictionary with stdout, stderr, exit_code, is_error, and message.
+        ExecutionResult with stdout, stderr, exit_code, is_error, and message.
     """
-    client = get_client(region)
-    set_session_context(client, session_id)
-
     logger.info(f'Executing command in session {session_id}')
 
     try:
+        client = get_session_client(session_id)
         raw = client.execute_command(command=command)
         parsed = _parse_invoke_response(raw)
 
-        response = ExecutionResult(
-            stdout=parsed['stdout'],
-            stderr=parsed['stderr'],
-            exit_code=parsed['exitCode'],
-            is_error=parsed['isError'],
-            message='Command executed successfully.'
-            if not parsed['isError']
-            else 'Command execution failed.',
-        )
-        return response.model_dump()
-
     except Exception as e:
-        logger.error(f'Command execution failed: {type(e).__name__}: {e}', exc_info=True)
-        return ExecutionResult(
-            is_error=True,
-            exit_code=1,
-            stderr=f'{type(e).__name__}: {e}',
-            message=f'Command execution failed: {type(e).__name__}: {e}',
-        ).model_dump()
+        error_msg = f'Command execution failed: {type(e).__name__}: {e}'
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        raise
+
+    return ExecutionResult(
+        stdout=parsed['stdout'],
+        stderr=parsed['stderr'],
+        exit_code=parsed['exitCode'],
+        is_error=parsed['isError'],
+        message='Command executed successfully.'
+        if not parsed['isError']
+        else 'Command execution failed.',
+    )
 
 
 async def install_packages(
+    ctx: Context,
     session_id: str,
     packages: list[str],
     upgrade: bool = False,
     region: str | None = None,
-) -> dict[str, Any]:
+) -> ExecutionResult:
     """Install Python packages in a sandboxed code interpreter session.
 
     Uses pip to install the specified packages in the session's sandbox.
 
     Args:
+        ctx: MCP context for error signaling and progress updates.
         session_id: The session ID to install packages in.
         packages: List of package names to install (e.g. ['numpy', 'pandas>=2.0']).
         upgrade: If True, upgrade packages to the latest version.
         region: AWS region.
 
     Returns:
-        Dictionary with stdout, stderr, exit_code, is_error, and message.
+        ExecutionResult with stdout, stderr, exit_code, is_error, and message.
     """
-    client = get_client(region)
-    set_session_context(client, session_id)
-
     logger.info(f'Installing packages in session {session_id}: {packages}')
 
     try:
+        client = get_session_client(session_id)
+
         kwargs: dict[str, Any] = {'packages': packages}
         if upgrade:
             kwargs['upgrade'] = upgrade
@@ -216,22 +211,18 @@ async def install_packages(
         raw = client.install_packages(**kwargs)
         parsed = _parse_invoke_response(raw)
 
-        response = ExecutionResult(
-            stdout=parsed['stdout'],
-            stderr=parsed['stderr'],
-            exit_code=parsed['exitCode'],
-            is_error=parsed['isError'],
-            message=f'Installed {len(packages)} package(s) successfully.'
-            if not parsed['isError']
-            else 'Package installation failed.',
-        )
-        return response.model_dump()
-
     except Exception as e:
-        logger.error(f'Package installation failed: {type(e).__name__}: {e}', exc_info=True)
-        return ExecutionResult(
-            is_error=True,
-            exit_code=1,
-            stderr=f'{type(e).__name__}: {e}',
-            message=f'Package installation failed: {type(e).__name__}: {e}',
-        ).model_dump()
+        error_msg = f'Package installation failed: {type(e).__name__}: {e}'
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        raise
+
+    return ExecutionResult(
+        stdout=parsed['stdout'],
+        stderr=parsed['stderr'],
+        exit_code=parsed['exitCode'],
+        is_error=parsed['isError'],
+        message=f'Installed {len(packages)} package(s) successfully.'
+        if not parsed['isError']
+        else 'Package installation failed.',
+    )

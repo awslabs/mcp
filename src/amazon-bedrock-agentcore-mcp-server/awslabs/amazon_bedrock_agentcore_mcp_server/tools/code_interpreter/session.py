@@ -14,13 +14,21 @@
 
 """Session lifecycle tools for Code Interpreter."""
 
-from .client import get_client, get_default_identifier, set_session_context
+from .client import (
+    create_session_client,
+    get_client,
+    get_default_identifier,
+    get_session_client,
+    register_session_client,
+    remove_session_client,
+)
 from .models import (
     CodeInterpreterSessionResponse,
     CodeInterpreterSessionSummary,
     SessionListResponse,
 )
 from loguru import logger
+from mcp.server.fastmcp import Context
 from typing import Any
 
 
@@ -29,11 +37,12 @@ DEFAULT_SESSION_TIMEOUT_SECONDS = 900
 
 
 async def start_code_interpreter_session(
+    ctx: Context,
     code_interpreter_identifier: str | None = None,
     name: str | None = None,
     session_timeout_seconds: int | None = None,
     region: str | None = None,
-) -> dict[str, Any]:
+) -> CodeInterpreterSessionResponse:
     """Start a new sandboxed code interpreter session.
 
     Creates a new session that can execute code, run commands, and manage files
@@ -41,6 +50,7 @@ async def start_code_interpreter_session(
     stopped or until the timeout expires (default DEFAULT_SESSION_TIMEOUT_SECONDS).
 
     Args:
+        ctx: MCP context for error signaling and progress updates.
         code_interpreter_identifier: Code interpreter to use. Defaults to
             CODE_INTERPRETER_IDENTIFIER env var or 'aws.codeinterpreter.v1'.
         name: Optional human-readable name for the session.
@@ -49,10 +59,10 @@ async def start_code_interpreter_session(
         region: AWS region. Defaults to AWS_REGION env var or 'us-east-1'.
 
     Returns:
-        Dictionary with session_id, status, code_interpreter_identifier, and message.
+        CodeInterpreterSessionResponse with session_id, status, and message.
     """
     identifier = code_interpreter_identifier or get_default_identifier()
-    client = get_client(region)
+    client = create_session_client(region)
 
     logger.info(f'Starting code interpreter session with identifier={identifier}')
 
@@ -60,104 +70,96 @@ async def start_code_interpreter_session(
         kwargs: dict[str, Any] = {
             'identifier': identifier,
         }
-        if name:
+        if name is not None:
             kwargs['name'] = name
-        if session_timeout_seconds:
+        if session_timeout_seconds is not None:
             kwargs['session_timeout_seconds'] = session_timeout_seconds
 
         # SDK start() returns the new session_id as a string
         returned_session_id = client.start(**kwargs)
+        session_id = returned_session_id or client.session_id
+        if not session_id:
+            raise ValueError('Failed to obtain session ID from SDK start() call')
 
-        response = CodeInterpreterSessionResponse(
-            session_id=returned_session_id or client.session_id or '',
+        register_session_client(session_id, client)
+
+        return CodeInterpreterSessionResponse(
+            session_id=session_id,
             status='READY',
             code_interpreter_identifier=identifier,
-            message=f'Session started successfully. Session ID: {returned_session_id}',
+            message=f'Session started successfully. Session ID: {session_id}',
         )
-        return response.model_dump()
 
     except Exception as e:
-        logger.error(f'Failed to start session: {type(e).__name__}: {e}', exc_info=True)
-        return CodeInterpreterSessionResponse(
-            session_id='',
-            status='ERROR',
-            code_interpreter_identifier=identifier,
-            message=f'Failed to start session: {type(e).__name__}: {e}',
-        ).model_dump()
+        error_msg = f'Failed to start session: {type(e).__name__}: {e}'
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        raise
 
 
 async def stop_code_interpreter_session(
+    ctx: Context,
     session_id: str,
     code_interpreter_identifier: str | None = None,
     region: str | None = None,
-) -> dict[str, Any]:
+) -> CodeInterpreterSessionResponse:
     """Stop a running code interpreter session and release its resources.
 
     Args:
+        ctx: MCP context for error signaling and progress updates.
         session_id: The session ID to stop.
         code_interpreter_identifier: Code interpreter identifier. Defaults to
             CODE_INTERPRETER_IDENTIFIER env var or 'aws.codeinterpreter.v1'.
         region: AWS region. Defaults to AWS_REGION env var or 'us-east-1'.
 
     Returns:
-        Dictionary with session_id, status, and message.
+        CodeInterpreterSessionResponse with session_id, status, and message.
     """
     identifier = code_interpreter_identifier or get_default_identifier()
-    client = get_client(region)
 
     logger.info(f'Stopping session {session_id}')
 
     try:
-        # Set session context before stopping. SDK stop() returns bool and
-        # clears internal session state after the API call.
-        set_session_context(client, session_id, identifier)
-        stopped = client.stop()
+        client = get_session_client(session_id)
+        try:
+            stopped = client.stop()
+            if not stopped:
+                logger.warning(f'Stop returned False for session {session_id}')
+        finally:
+            # Always remove from registry, even if stop() fails
+            remove_session_client(session_id)
 
-        if not stopped:
-            logger.warning(f'Stop returned False for session {session_id}')
-
-        # Verify actual status from the service
-        result = client.get_session(
-            interpreter_id=identifier,
-            session_id=session_id,
-        )
-        actual_status = result.get('status', 'UNKNOWN') if isinstance(result, dict) else 'UNKNOWN'
-
-        response = CodeInterpreterSessionResponse(
-            session_id=session_id,
-            status=actual_status,
-            code_interpreter_identifier=identifier,
-            message=f'Session {session_id} stop requested. Status: {actual_status}.',
-        )
-        return response.model_dump()
-
-    except Exception as e:
-        logger.error(
-            f'Failed to stop session {session_id}: {type(e).__name__}: {e}', exc_info=True
-        )
         return CodeInterpreterSessionResponse(
             session_id=session_id,
-            status='ERROR',
+            status='TERMINATED',
             code_interpreter_identifier=identifier,
-            message=f'Failed to stop session: {type(e).__name__}: {e}',
-        ).model_dump()
+            message=f'Session {session_id} stop requested.',
+        )
+
+    except Exception as e:
+        error_msg = f'Failed to stop session {session_id}: {type(e).__name__}: {e}'
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        raise
 
 
 async def get_code_interpreter_session(
+    ctx: Context,
     session_id: str,
     code_interpreter_identifier: str | None = None,
     region: str | None = None,
-) -> dict[str, Any]:
+) -> CodeInterpreterSessionResponse:
     """Get the status and details of a code interpreter session.
 
     Args:
+        ctx: MCP context for error signaling and progress updates.
         session_id: The session ID to query.
         code_interpreter_identifier: Code interpreter identifier. Defaults to
             CODE_INTERPRETER_IDENTIFIER env var or 'aws.codeinterpreter.v1'.
         region: AWS region. Defaults to AWS_REGION env var or 'us-east-1'.
 
     Returns:
-        Dictionary with session_id, status, code_interpreter_identifier, and message.
+        CodeInterpreterSessionResponse with session_id, status, and message.
     """
     identifier = code_interpreter_identifier or get_default_identifier()
     client = get_client(region)
@@ -171,34 +173,32 @@ async def get_code_interpreter_session(
             session_id=session_id,
         )
 
-        response = CodeInterpreterSessionResponse(
+        return CodeInterpreterSessionResponse(
             session_id=session_id,
             status=result.get('status', 'UNKNOWN') if isinstance(result, dict) else 'UNKNOWN',
             code_interpreter_identifier=identifier,
             message=f'Session {session_id} retrieved.',
         )
-        return response.model_dump()
 
     except Exception as e:
-        logger.error(f'Failed to get session {session_id}: {type(e).__name__}: {e}', exc_info=True)
-        return CodeInterpreterSessionResponse(
-            session_id=session_id,
-            status='ERROR',
-            code_interpreter_identifier=identifier,
-            message=f'Failed to get session: {type(e).__name__}: {e}',
-        ).model_dump()
+        error_msg = f'Failed to get session {session_id}: {type(e).__name__}: {e}'
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        raise
 
 
 async def list_code_interpreter_sessions(
+    ctx: Context,
     code_interpreter_identifier: str | None = None,
     status: str | None = None,
     max_results: int | None = None,
     next_token: str | None = None,
     region: str | None = None,
-) -> dict[str, Any]:
+) -> SessionListResponse:
     """List code interpreter sessions with optional filtering.
 
     Args:
+        ctx: MCP context for error signaling and progress updates.
         code_interpreter_identifier: Code interpreter identifier. Defaults to
             CODE_INTERPRETER_IDENTIFIER env var or 'aws.codeinterpreter.v1'.
         status: Filter by session status ('READY' or 'TERMINATED').
@@ -207,7 +207,7 @@ async def list_code_interpreter_sessions(
         region: AWS region. Defaults to AWS_REGION env var or 'us-east-1'.
 
     Returns:
-        Dictionary with sessions list, next_token, and message.
+        SessionListResponse with sessions list, next_token, and message.
     """
     identifier = code_interpreter_identifier or get_default_identifier()
     client = get_client(region)
@@ -218,11 +218,11 @@ async def list_code_interpreter_sessions(
         kwargs: dict[str, Any] = {
             'interpreter_id': identifier,
         }
-        if status:
+        if status is not None:
             kwargs['status'] = status
-        if max_results:
+        if max_results is not None:
             kwargs['max_results'] = max_results
-        if next_token:
+        if next_token is not None:
             kwargs['next_token'] = next_token
 
         # SDK list_sessions() returns a Dict with 'sessions' list and optional 'nextToken'
@@ -239,17 +239,14 @@ async def list_code_interpreter_sessions(
                 )
             )
 
-        response = SessionListResponse(
+        return SessionListResponse(
             sessions=sessions,
             next_token=result.get('nextToken') if isinstance(result, dict) else None,
             message=f'Found {len(sessions)} session(s).',
         )
-        return response.model_dump()
 
     except Exception as e:
-        logger.error(f'Failed to list sessions: {type(e).__name__}: {e}', exc_info=True)
-        return SessionListResponse(
-            sessions=[],
-            next_token=None,
-            message=f'Failed to list sessions: {type(e).__name__}: {e}',
-        ).model_dump()
+        error_msg = f'Failed to list sessions: {type(e).__name__}: {e}'
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        raise

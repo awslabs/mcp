@@ -95,11 +95,9 @@ class FileOperationResult(BaseModel):
     Attributes:
         path: File path in the sandbox.
         content: File content (for downloads).
-        is_error: Whether the operation encountered an error.
         message: Human-readable status message.
     """
 
     path: str = Field(description='File path in the sandbox')
     content: str | None = Field(default=None, description='File content (for downloads)')
-    is_error: bool = Field(default=False, description='Whether operation encountered an error')
     message: str = Field(default='', description='Human-readable status message')

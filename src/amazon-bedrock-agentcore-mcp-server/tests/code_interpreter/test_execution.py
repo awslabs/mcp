@@ -14,6 +14,7 @@
 
 """Tests for code execution tools."""
 
+import pytest
 from .conftest import make_stream_response
 from awslabs.amazon_bedrock_agentcore_mcp_server.tools.code_interpreter import execution
 from awslabs.amazon_bedrock_agentcore_mcp_server.tools.code_interpreter.execution import (
@@ -28,280 +29,269 @@ MODULE_PATH = 'awslabs.amazon_bedrock_agentcore_mcp_server.tools.code_interprete
 class TestExecuteCode:
     """Test cases for execute_code."""
 
-    @patch(f'{MODULE_PATH}.get_client')
-    async def test_execute_code_happy_path(self, mock_get_client, sample_execution_result):
+    @patch(f'{MODULE_PATH}.get_session_client')
+    async def test_execute_code_happy_path(
+        self, mock_get_session, sample_execution_result, mock_ctx
+    ):
         """Test executing code returns correct response."""
-        # Arrange
         mock_client = MagicMock()
         mock_client.execute_code.return_value = sample_execution_result
-        mock_get_client.return_value = mock_client
+        mock_get_session.return_value = mock_client
 
-        # Act
         result = await execution.execute_code(
+            mock_ctx,
             session_id='session-123',
             code='print("Hello, World!")',
         )
 
-        # Assert
-        assert result['stdout'] == 'Hello, World!\n'
-        assert result['stderr'] == ''
-        assert result['exit_code'] == 0
-        assert result['is_error'] is False
-        assert mock_client.session_id == 'session-123'
+        assert result.stdout == 'Hello, World!\n'
+        assert result.stderr == ''
+        assert result.exit_code == 0
+        assert result.is_error is False
+        mock_get_session.assert_called_once_with('session-123')
         mock_client.execute_code.assert_called_once_with(code='print("Hello, World!")')
 
-    @patch(f'{MODULE_PATH}.get_client')
-    async def test_execute_code_with_language(self, mock_get_client):
+    @patch(f'{MODULE_PATH}.get_session_client')
+    async def test_execute_code_with_language(self, mock_get_session, mock_ctx):
         """Test executing code with a specific language."""
-        # Arrange
         mock_client = MagicMock()
         mock_client.execute_code.return_value = make_stream_response()
-        mock_get_client.return_value = mock_client
+        mock_get_session.return_value = mock_client
 
-        # Act
         await execution.execute_code(
+            mock_ctx,
             session_id='session-123',
             code='console.log("hi")',
             language='javascript',
         )
 
-        # Assert
         mock_client.execute_code.assert_called_once_with(
             code='console.log("hi")',
             language='javascript',
         )
 
-    @patch(f'{MODULE_PATH}.get_client')
-    async def test_execute_code_with_clear_context(self, mock_get_client):
+    @patch(f'{MODULE_PATH}.get_session_client')
+    async def test_execute_code_with_clear_context(self, mock_get_session, mock_ctx):
         """Test executing code with clear_context flag."""
-        # Arrange
         mock_client = MagicMock()
         mock_client.execute_code.return_value = make_stream_response()
-        mock_get_client.return_value = mock_client
+        mock_get_session.return_value = mock_client
 
-        # Act
         await execution.execute_code(
+            mock_ctx,
             session_id='session-123',
             code='x = 1',
             clear_context=True,
         )
 
-        # Assert
         mock_client.execute_code.assert_called_once_with(code='x = 1', clear_context=True)
 
-    @patch(f'{MODULE_PATH}.get_client')
-    async def test_execute_code_failure(self, mock_get_client, sample_execution_error):
+    @patch(f'{MODULE_PATH}.get_session_client')
+    async def test_execute_code_failure(self, mock_get_session, sample_execution_error, mock_ctx):
         """Test executing code that fails returns is_error=True."""
-        # Arrange
         mock_client = MagicMock()
         mock_client.execute_code.return_value = sample_execution_error
-        mock_get_client.return_value = mock_client
+        mock_get_session.return_value = mock_client
 
-        # Act
         result = await execution.execute_code(
+            mock_ctx,
             session_id='session-123',
             code='print(x)',
         )
 
-        # Assert
-        assert result['is_error'] is True
-        assert result['exit_code'] == 1
-        assert 'NameError' in result['stderr']
+        assert result.is_error is True
+        assert result.exit_code == 1
+        assert 'NameError' in result.stderr
 
-    @patch(f'{MODULE_PATH}.get_client')
-    async def test_execute_code_sdk_exception(self, mock_get_client):
-        """Test handles SDK exception gracefully."""
-        # Arrange
+    @patch(f'{MODULE_PATH}.get_session_client')
+    async def test_execute_code_sdk_exception(self, mock_get_session, mock_ctx):
+        """Test SDK exception raises as infrastructure error."""
         mock_client = MagicMock()
         mock_client.execute_code.side_effect = Exception('Session expired')
-        mock_get_client.return_value = mock_client
+        mock_get_session.return_value = mock_client
 
-        # Act
-        result = await execution.execute_code(
-            session_id='session-123',
-            code='print("hi")',
-        )
+        with pytest.raises(Exception, match='Session expired'):
+            await execution.execute_code(
+                mock_ctx,
+                session_id='session-123',
+                code='print("hi")',
+            )
 
-        # Assert
-        assert result['is_error'] is True
-        assert 'Session expired' in result['stderr']
-        assert 'Session expired' in result['message']
+        mock_ctx.error.assert_called_once()
 
-    @patch(f'{MODULE_PATH}.get_client')
-    async def test_execute_code_string_result(self, mock_get_client):
+    @patch(f'{MODULE_PATH}.get_session_client')
+    async def test_execute_code_string_result(self, mock_get_session, mock_ctx):
         """Test handles string result from SDK."""
-        # Arrange
         mock_client = MagicMock()
         mock_client.execute_code.return_value = '42'
-        mock_get_client.return_value = mock_client
+        mock_get_session.return_value = mock_client
 
-        # Act
         result = await execution.execute_code(
+            mock_ctx,
             session_id='session-123',
             code='1 + 41',
         )
 
-        # Assert
-        assert result['content'] == '42'
-        assert result['is_error'] is False
+        assert result.content == '42'
+        assert result.is_error is False
+
+    @patch(f'{MODULE_PATH}.get_session_client')
+    async def test_execute_code_unregistered_session_raises(self, mock_get_session, mock_ctx):
+        """Test executing code on unregistered session raises KeyError."""
+        mock_get_session.side_effect = KeyError('No active session client for session unknown')
+
+        with pytest.raises(KeyError, match='No active session client'):
+            await execution.execute_code(
+                mock_ctx,
+                session_id='unknown',
+                code='print("hi")',
+            )
+
+        mock_ctx.error.assert_called_once()
 
 
 class TestExecuteCommand:
     """Test cases for execute_command."""
 
-    @patch(f'{MODULE_PATH}.get_client')
-    async def test_execute_command_happy_path(self, mock_get_client):
+    @patch(f'{MODULE_PATH}.get_session_client')
+    async def test_execute_command_happy_path(self, mock_get_session, mock_ctx):
         """Test executing a shell command returns correct response."""
-        # Arrange
         mock_client = MagicMock()
         mock_client.execute_command.return_value = make_stream_response(
             stdout='file1.txt\nfile2.txt\n',
         )
-        mock_get_client.return_value = mock_client
+        mock_get_session.return_value = mock_client
 
-        # Act
         result = await execution.execute_command(
+            mock_ctx,
             session_id='session-123',
             command='ls /tmp',
         )
 
-        # Assert
-        assert result['stdout'] == 'file1.txt\nfile2.txt\n'
-        assert result['is_error'] is False
-        assert result['exit_code'] == 0
-        assert mock_client.session_id == 'session-123'
+        assert result.stdout == 'file1.txt\nfile2.txt\n'
+        assert result.is_error is False
+        assert result.exit_code == 0
+        mock_get_session.assert_called_once_with('session-123')
         mock_client.execute_command.assert_called_once_with(command='ls /tmp')
 
-    @patch(f'{MODULE_PATH}.get_client')
-    async def test_execute_command_failure(self, mock_get_client):
+    @patch(f'{MODULE_PATH}.get_session_client')
+    async def test_execute_command_failure(self, mock_get_session, mock_ctx):
         """Test command failure returns is_error=True."""
-        # Arrange
         mock_client = MagicMock()
         mock_client.execute_command.return_value = make_stream_response(
             stderr='command not found: foobar',
             exit_code=127,
             is_error=True,
         )
-        mock_get_client.return_value = mock_client
+        mock_get_session.return_value = mock_client
 
-        # Act
         result = await execution.execute_command(
+            mock_ctx,
             session_id='session-123',
             command='foobar',
         )
 
-        # Assert
-        assert result['is_error'] is True
-        assert result['exit_code'] == 127
+        assert result.is_error is True
+        assert result.exit_code == 127
 
-    @patch(f'{MODULE_PATH}.get_client')
-    async def test_execute_command_sdk_exception(self, mock_get_client):
-        """Test handles SDK exception gracefully."""
-        # Arrange
+    @patch(f'{MODULE_PATH}.get_session_client')
+    async def test_execute_command_sdk_exception(self, mock_get_session, mock_ctx):
+        """Test SDK exception raises as infrastructure error."""
         mock_client = MagicMock()
         mock_client.execute_command.side_effect = Exception('Timeout')
-        mock_get_client.return_value = mock_client
+        mock_get_session.return_value = mock_client
 
-        # Act
-        result = await execution.execute_command(
-            session_id='session-123',
-            command='sleep 999',
-        )
+        with pytest.raises(Exception, match='Timeout'):
+            await execution.execute_command(
+                mock_ctx,
+                session_id='session-123',
+                command='sleep 999',
+            )
 
-        # Assert
-        assert result['is_error'] is True
-        assert 'Timeout' in result['message']
+        mock_ctx.error.assert_called_once()
 
 
 class TestInstallPackages:
     """Test cases for install_packages."""
 
-    @patch(f'{MODULE_PATH}.get_client')
-    async def test_install_packages_happy_path(self, mock_get_client):
+    @patch(f'{MODULE_PATH}.get_session_client')
+    async def test_install_packages_happy_path(self, mock_get_session, mock_ctx):
         """Test installing packages returns correct response."""
-        # Arrange
         mock_client = MagicMock()
         mock_client.install_packages.return_value = make_stream_response(
             stdout='Successfully installed numpy-1.26.0',
         )
-        mock_get_client.return_value = mock_client
+        mock_get_session.return_value = mock_client
 
-        # Act
         result = await execution.install_packages(
+            mock_ctx,
             session_id='session-123',
             packages=['numpy'],
         )
 
-        # Assert
-        assert result['is_error'] is False
-        assert 'numpy' in result['stdout']
-        assert result['message'] == 'Installed 1 package(s) successfully.'
-        assert mock_client.session_id == 'session-123'
+        assert result.is_error is False
+        assert 'numpy' in result.stdout
+        assert result.message == 'Installed 1 package(s) successfully.'
+        mock_get_session.assert_called_once_with('session-123')
         mock_client.install_packages.assert_called_once_with(packages=['numpy'])
 
-    @patch(f'{MODULE_PATH}.get_client')
-    async def test_install_packages_with_upgrade(self, mock_get_client):
+    @patch(f'{MODULE_PATH}.get_session_client')
+    async def test_install_packages_with_upgrade(self, mock_get_session, mock_ctx):
         """Test installing packages with upgrade flag."""
-        # Arrange
         mock_client = MagicMock()
         mock_client.install_packages.return_value = make_stream_response(
             stdout='Successfully installed pandas-2.1.0',
         )
-        mock_get_client.return_value = mock_client
+        mock_get_session.return_value = mock_client
 
-        # Act
         await execution.install_packages(
+            mock_ctx,
             session_id='session-123',
             packages=['pandas'],
             upgrade=True,
         )
 
-        # Assert
         mock_client.install_packages.assert_called_once_with(
             packages=['pandas'],
             upgrade=True,
         )
 
-    @patch(f'{MODULE_PATH}.get_client')
-    async def test_install_packages_multiple(self, mock_get_client):
+    @patch(f'{MODULE_PATH}.get_session_client')
+    async def test_install_packages_multiple(self, mock_get_session, mock_ctx):
         """Test installing multiple packages."""
-        # Arrange
         mock_client = MagicMock()
         mock_client.install_packages.return_value = make_stream_response(
             stdout='Installed 3 packages',
         )
-        mock_get_client.return_value = mock_client
+        mock_get_session.return_value = mock_client
 
-        # Act
         result = await execution.install_packages(
+            mock_ctx,
             session_id='session-123',
             packages=['numpy', 'pandas', 'matplotlib'],
         )
 
-        # Assert
-        assert result['message'] == 'Installed 3 package(s) successfully.'
+        assert result.message == 'Installed 3 package(s) successfully.'
 
-    @patch(f'{MODULE_PATH}.get_client')
-    async def test_install_packages_failure(self, mock_get_client):
-        """Test package installation failure."""
-        # Arrange
+    @patch(f'{MODULE_PATH}.get_session_client')
+    async def test_install_packages_failure(self, mock_get_session, mock_ctx):
+        """Test package installation failure (execution-level)."""
         mock_client = MagicMock()
         mock_client.install_packages.return_value = make_stream_response(
             stderr='No matching distribution found for nonexistent-pkg',
             exit_code=1,
             is_error=True,
         )
-        mock_get_client.return_value = mock_client
+        mock_get_session.return_value = mock_client
 
-        # Act
         result = await execution.install_packages(
+            mock_ctx,
             session_id='session-123',
             packages=['nonexistent-pkg'],
         )
 
-        # Assert
-        assert result['is_error'] is True
-        assert result['exit_code'] == 1
+        assert result.is_error is True
+        assert result.exit_code == 1
 
 
 class TestParseInvokeResponse:

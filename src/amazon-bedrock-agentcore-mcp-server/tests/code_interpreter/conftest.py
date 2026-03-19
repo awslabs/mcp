@@ -15,7 +15,15 @@
 """Shared test fixtures for Code Interpreter tool tests."""
 
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
+
+
+@pytest.fixture
+def mock_ctx():
+    """Create a mock MCP Context for tool functions."""
+    ctx = MagicMock()
+    ctx.error = AsyncMock()
+    return ctx
 
 
 @pytest.fixture
