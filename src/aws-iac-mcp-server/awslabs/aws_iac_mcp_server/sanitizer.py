@@ -18,8 +18,7 @@ def sanitize_tool_response(content: str) -> str:
 
     Implements multiple layers of protection:
     1. Filters unicode tag characters (obfuscation attacks)
-    2. Detects common prompt injection patterns
-    3. Wraps content in XML tags for clear boundaries
+    2. Wraps content in XML tags for clear boundaries
 
     Args:
         content: Raw tool response content
