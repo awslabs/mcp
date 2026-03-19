@@ -121,6 +121,14 @@ async def get_run_logs(
         True,
         description='Whether to start from the beginning (True) or end (False) of the log stream',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Retrieve high-level run logs that show workflow execution events.
 
@@ -139,11 +147,13 @@ async def get_run_logs(
         limit: Maximum number of log events to return (default: 100)
         next_token: Token for pagination from a previous response
         start_from_head: Whether to start from the beginning (True) or end (False) of the log stream
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing log events and next token if available
     """
-    client = get_logs_client()
+    client = get_logs_client(region_name=aws_region, profile_name=aws_profile)
     log_group_name = '/aws/omics/WorkflowLog'
     log_stream_name = f'run/{run_id}'
 
@@ -170,10 +180,12 @@ async def _get_run_manifest_logs_internal(
     limit: int = 100,
     next_token: Optional[str] = None,
     start_from_head: bool = True,
+    region_name: Optional[str] = None,
+    profile_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Internal function to get run manifest logs without Pydantic Field decorators."""
     try:
-        client = get_logs_client()
+        client = get_logs_client(region_name=region_name, profile_name=profile_name)
         log_group_name = f'/aws/omics/WorkflowLog/{run_uuid}'
 
         params = {
@@ -262,6 +274,14 @@ async def get_run_manifest_logs(
         True,
         description='Whether to start from the beginning (True) or end (False) of the log stream',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Retrieve run manifest logs produced when a workflow completes or fails.
 
@@ -280,11 +300,13 @@ async def get_run_manifest_logs(
         limit: Maximum number of log events to return (default: 100)
         next_token: Token for pagination from a previous response
         start_from_head: Whether to start from the beginning (True) or end (False) of the log stream
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing log events and next token if available
     """
-    client = get_logs_client()
+    client = get_logs_client(region_name=aws_region, profile_name=aws_profile)
     log_group_name = '/aws/omics/WorkflowLog'
     log_stream_name = f'manifest/run/{run_id}/{run_uuid}' if run_uuid else f'manifest/run/{run_id}'
     try:
@@ -330,6 +352,14 @@ async def get_run_engine_logs(
         True,
         description='Whether to start from the beginning (True) or end (False) of the log stream',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Retrieve engine logs containing STDOUT and STDERR from the workflow engine process.
 
@@ -347,11 +377,13 @@ async def get_run_engine_logs(
         limit: Maximum number of log events to return (default: 100)
         next_token: Token for pagination from a previous response
         start_from_head: Whether to start from the beginning (True) or end (False) of the log stream
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing log events and next token if available
     """
-    client = get_logs_client()
+    client = get_logs_client(region_name=aws_region, profile_name=aws_profile)
     log_group_name = '/aws/omics/WorkflowLog'
     log_stream_name = f'run/{run_id}/engine'
 
@@ -402,6 +434,14 @@ async def get_task_logs(
         True,
         description='Whether to start from the beginning (True) or end (False) of the log stream',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Retrieve logs for a specific workflow task containing STDOUT and STDERR.
 
@@ -419,11 +459,13 @@ async def get_task_logs(
         limit: Maximum number of log events to return (default: 100)
         next_token: Token for pagination from a previous response
         start_from_head: Whether to start from the beginning (True) or end (False) of the log stream
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing log events and next token if available
     """
-    client = get_logs_client()
+    client = get_logs_client(region_name=aws_region, profile_name=aws_profile)
     log_group_name = '/aws/omics/WorkflowLog'
     log_stream_name = f'run/{run_id}/task/{task_id}'
 
@@ -453,9 +495,11 @@ async def get_run_manifest_logs_internal(
     limit: int = 100,
     next_token: Optional[str] = None,
     start_from_head: bool = True,
+    region_name: Optional[str] = None,
+    profile_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Internal wrapper for get_run_manifest_logs without Pydantic Field decorators."""
-    client = get_logs_client()
+    client = get_logs_client(region_name=region_name, profile_name=profile_name)
     log_group_name = '/aws/omics/WorkflowLog'
     log_stream_name = f'manifest/run/{run_id}/{run_uuid}' if run_uuid else f'manifest/run/{run_id}'
 
@@ -482,9 +526,11 @@ async def get_run_engine_logs_internal(
     limit: int = 100,
     next_token: Optional[str] = None,
     start_from_head: bool = True,
+    region_name: Optional[str] = None,
+    profile_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Internal wrapper for get_run_engine_logs without Pydantic Field decorators."""
-    client = get_logs_client()
+    client = get_logs_client(region_name=region_name, profile_name=profile_name)
     log_group_name = '/aws/omics/WorkflowLog'
     log_stream_name = (
         f'run/{run_id}/engine'  # Fixed: should be run/{run_id}/engine, not engine/run/{run_id}
@@ -514,9 +560,11 @@ async def get_task_logs_internal(
     limit: int = 100,
     next_token: Optional[str] = None,
     start_from_head: bool = True,
+    region_name: Optional[str] = None,
+    profile_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Internal wrapper for get_task_logs without Pydantic Field decorators."""
-    client = get_logs_client()
+    client = get_logs_client(region_name=region_name, profile_name=profile_name)
     log_group_name = '/aws/omics/WorkflowLog'
     log_stream_name = f'run/{run_id}/task/{task_id}'  # Fixed: should be run/{run_id}/task/{task_id}, not task/run/{run_id}/{task_id}
 

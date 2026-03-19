@@ -71,6 +71,14 @@ async def search_genomics_files(
         None,
         description='Optional list of additional S3 bucket paths to search (e.g., ["s3://bucket-name/prefix/"]). These buckets will be searched in addition to any configured buckets, allowing you to search buckets that are not part of the standard configuration. Maximum 50 bucket paths.',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Search for genomics files across S3 buckets, HealthOmics sequence stores, and reference stores.
 
@@ -89,6 +97,8 @@ async def search_genomics_files(
         enable_storage_pagination: Enable efficient storage-level pagination for large datasets
         pagination_buffer_size: Buffer size for storage-level pagination (affects ranking accuracy)
         adhoc_s3_buckets: Optional list of additional S3 bucket paths to search beyond configured buckets
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Comprehensive dictionary containing:
@@ -159,9 +169,13 @@ async def search_genomics_files(
             adhoc_s3_buckets=adhoc_s3_buckets,
         )
 
-        # Initialize search orchestrator from environment configuration
+        # IMPORTANT: Create a fresh orchestrator for each tool call. The orchestrator and
+        # its child engines hold instance-level caches that are scoped to a single
+        # profile/region. A new instance ensures cache isolation between credentials.
         try:
-            orchestrator = GenomicsSearchOrchestrator.from_environment()
+            orchestrator = GenomicsSearchOrchestrator.from_environment(
+                region_name=aws_region, profile_name=aws_profile
+            )
         except Exception as e:
             return await handle_tool_error(ctx, e, 'Error initializing search orchestrator')
 
