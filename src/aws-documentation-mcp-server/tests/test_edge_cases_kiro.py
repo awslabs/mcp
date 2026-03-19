@@ -15,7 +15,7 @@
 
 import pytest
 from awslabs.aws_documentation_mcp_server.server_aws import read_documentation
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 
 class MockContext:
@@ -197,8 +197,8 @@ class TestURLValidationEdgeCases:
             await read_documentation(ctx, url=url, max_length=5000, start_index=0)
 
     @pytest.mark.asyncio
-    async def test_url_with_query_parameters_aws_valid(self):
-        """AWS URLs with .html followed by query parameters should be INVALID (regex doesn't allow this)."""
+    async def test_url_with_query_parameters_aws_rejected(self):
+        """AWS URLs with query parameters after .html are rejected — regex requires URL to END with .html."""
         ctx = MockContext()
         url = 'https://docs.aws.amazon.com/s3/latest/userguide/index.html?version=latest'
         
@@ -217,27 +217,24 @@ class TestURLValidationEdgeCases:
             await read_documentation(ctx, url=url, max_length=5000, start_index=0)
 
     @pytest.mark.asyncio
-    async def test_url_with_query_parameters_kiro_valid(self):
-        """Kiro URLs with query parameters should be VALID (regex is permissive)."""
+    async def test_url_with_query_parameters_kiro_rejected(self):
+        """Kiro URLs with query parameters are rejected — regex requires URL to not contain ? or #."""
         ctx = MockContext()
         url = 'https://kiro.dev/docs/cli/mcp/?version=latest'
         
-        # Kiro regex `.*$` allows anything including query params
-        with patch('awslabs.aws_documentation_mcp_server.server_aws.read_documentation_impl', new_callable=AsyncMock) as mock_impl:
-            mock_impl.return_value = "# Kiro"
-            result = await read_documentation(ctx, url=url, max_length=5000, start_index=0)
-            assert result is not None
+        # The regex `[^?#]*$` rejects URLs with ? or # so session params can be appended safely
+        with pytest.raises(ValueError, match='URL must be from list of supported domains'):
+            await read_documentation(ctx, url=url, max_length=5000, start_index=0)
 
     @pytest.mark.asyncio
-    async def test_url_with_fragment_kiro_valid(self):
-        """Kiro URLs with fragments should be VALID (regex is permissive)."""
+    async def test_url_with_fragment_kiro_rejected(self):
+        """Kiro URLs with fragments are rejected — regex requires URL to not contain ? or #."""
         ctx = MockContext()
         url = 'https://kiro.dev/docs/cli/mcp/#section'
         
-        with patch('awslabs.aws_documentation_mcp_server.server_aws.read_documentation_impl', new_callable=AsyncMock) as mock_impl:
-            mock_impl.return_value = "# Kiro"
-            result = await read_documentation(ctx, url=url, max_length=5000, start_index=0)
-            assert result is not None
+        # The regex `[^?#]*$` rejects URLs with ? or # so session params can be appended safely
+        with pytest.raises(ValueError, match='URL must be from list of supported domains'):
+            await read_documentation(ctx, url=url, max_length=5000, start_index=0)
 
     @pytest.mark.asyncio
     async def test_url_uppercase_domain_invalid(self):

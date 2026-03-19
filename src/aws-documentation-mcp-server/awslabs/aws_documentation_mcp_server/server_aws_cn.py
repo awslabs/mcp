@@ -87,8 +87,8 @@ async def read_documentation(
     - AWS China documentation:  https://docs.amazonaws.cn/...
     - Kiro IDE/CLI docs:        https://kiro.dev/docs/...
 
-    For Kiro topics not found via search_documentation, call this tool
-    directly with the kiro.dev URL (e.g. https://kiro.dev/docs/cli/custom-agents/creating/).
+    For Kiro IDE/CLI topics, call this tool directly with the kiro.dev URL,
+    e.g. https://kiro.dev/docs/cli/custom-agents/creating/
 
     ## URL Requirements
 

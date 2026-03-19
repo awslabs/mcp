@@ -156,7 +156,7 @@ async def read_documentation(
 
     supported_domains_regex = [
         r'^https?://docs\.aws\.amazon\.com/.*\.html$',
-        r'^https?://kiro\.dev(:\d+)?/docs/.*$',
+        r'^https?://kiro\.dev(:\d+)?/docs/[^?#]*$',
     ]
     for modifier in SEARCH_TERM_DOMAIN_MODIFIERS:
         # Neuron SDK pages require .html
