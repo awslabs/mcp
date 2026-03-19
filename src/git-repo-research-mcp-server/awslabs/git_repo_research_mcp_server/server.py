@@ -17,6 +17,7 @@ import json
 import mimetypes
 import os
 import sys
+import warnings
 from awslabs.git_repo_research_mcp_server.defaults import Constants
 from awslabs.git_repo_research_mcp_server.github_search import (
     github_repo_search_wrapper,
@@ -77,11 +78,22 @@ def _resolve_and_validate_under_base(file_path: str, base_dir: str) -> Path:
         raise ValueError(f'Invalid path: {file_path}') from e
 
 
+DEPRECATION_NOTICE = (
+    'git-repo-research-mcp-server is deprecated and will be removed in a future release. '
+    'For library documentation and code research, we recommend Context7 '
+    '(https://github.com/upstash/context7) which provides up-to-date docs for popular libraries '
+    'without requiring AWS credentials. For semantic search over private repositories, consider '
+    "using your IDE's built-in indexing or a general-purpose code search tool. "
+    'See the migration guide: '
+    'https://github.com/awslabs/mcp/blob/main/docs/migration-git-repo-research.md'
+)
+
+
 # Create the MCP server
 mcp = FastMCP(
     'Git Repository Research MCP Server',
-    instructions="""
-# Git Repository Research MCP Server
+    instructions=f'DEPRECATION NOTICE: {DEPRECATION_NOTICE}\n\n'
+    + """# Git Repository Research MCP Server
 
 This MCP server provides tools and resources for indexing and searching Git repositories using semantic search.
 
@@ -226,7 +238,7 @@ async def mcp_index_repository(
         description='Overlap between chunks in characters',
     ),
 ) -> Dict:
-    """Build a FAISS index for a Git repository.
+    """[DEPRECATED] Build a FAISS index for a Git repository.
 
     This tool indexes a Git repository (local or remote) using FAISS and Amazon Bedrock embeddings.
     The index can then be used for semantic search within the repository.
@@ -298,7 +310,7 @@ async def mcp_index_repository(
     mime_type='application/json',
 )
 async def repository_summary(repository_name: str) -> str:
-    """Get a summary of an indexed repository including structure and helpful files.
+    """[DEPRECATED] Get a summary of an indexed repository including structure and helpful files.
 
     This resource provides a summary of the repository including:
     - Directory tree structure of all files
@@ -446,7 +458,7 @@ async def repository_summary(repository_name: str) -> str:
 
 @mcp.resource(uri='repositories://', name='Indexed Repositories', mime_type='application/json')
 async def list_repositories() -> str:
-    """List all indexed repositories with detailed information.
+    """[DEPRECATED] List all indexed repositories with detailed information.
 
     This resource returns a list of all repositories that have been indexed and are available for searching.
     It provides detailed information about each index including file counts, chunk counts, file types, etc.
@@ -644,7 +656,7 @@ async def mcp_search_repository(
         default=0.0, description='Minimum similarity score threshold (0.0 to 1.0)'
     ),
 ) -> Dict:
-    """Perform semantic search within an indexed repository.
+    """[DEPRECATED] Perform semantic search within an indexed repository.
 
     This tool searches an indexed repository using semantic search with Amazon Bedrock embeddings.
     It returns results ranked by relevance to the query.
@@ -709,7 +721,7 @@ async def mcp_search_github_repos(
     keywords: List[str] = Field(description='List of keywords to search for GitHub repositories'),
     num_results: int = Field(default=5, description='Number of results to return'),
 ) -> Dict:
-    """Search for GitHub repositories based on keywords, scoped to specific organizations.
+    """[DEPRECATED] Search for GitHub repositories based on keywords, scoped to specific organizations.
 
     This tool searches for GitHub repositories using the GitHub REST/GraphQL APIs, scoped to specific GitHub
     organizations (aws-samples, aws-solutions-library-samples, and awslabs).
@@ -804,7 +816,7 @@ async def mcp_access_file(
     ctx: Context,
     filepath: str = Field(description='Path to the file or directory to access'),
 ) -> Dict | ImageContent:
-    """Access file or directory contents.
+    """[DEPRECATED] Access file or directory contents.
 
     This tool provides access to file or directory contents:
     - If the filepath references a text file, returns the content as a string
@@ -866,7 +878,7 @@ async def mcp_delete_repository(
         description='Directory to look for indices (optional, uses default if not provided)',
     ),
 ) -> Dict:
-    """Delete an indexed repository.
+    """[DEPRECATED] Delete an indexed repository.
 
     This tool deletes an indexed repository and its associated files.
     It can be identified by repository name or the full path to the index.
@@ -933,6 +945,7 @@ async def mcp_delete_repository(
 
 def main():
     """Run the MCP server with CLI argument support."""
+    warnings.warn(DEPRECATION_NOTICE, FutureWarning, stacklevel=2)
     mcp.run()
 
 

@@ -21,9 +21,18 @@ from pydantic import Field
 from typing import Literal
 
 
+DEPRECATION_NOTICE = (
+    'DEPRECATION NOTICE: The Frontend MCP Server (awslabs.frontend-mcp-server) is '
+    'deprecated and will no longer receive updates, bug fixes, or new features. '
+    'This server only serves static React/Amplify documentation that modern AI assistants '
+    'already have knowledge of. Consider using project-level documentation or Kiro specs instead.'
+)
+
 mcp = FastMCP(
     'awslabs.frontend-mcp-server',
-    instructions='The Frontend MCP Server provides specialized tools for modern web application development. It offers guidance on React application setup, optimistic UI implementation, and authentication integration. Use these tools when you need expert advice on frontend development best practices.',
+    instructions=DEPRECATION_NOTICE
+    + ' '
+    + 'The Frontend MCP Server provides specialized tools for modern web application development. It offers guidance on React application setup, optimistic UI implementation, and authentication integration. Use these tools when you need expert advice on frontend development best practices.',
     dependencies=[
         'pydantic',
         'loguru',
@@ -41,7 +50,7 @@ async def get_react_docs_by_topic(
         description='The topic of React documentation to retrieve. Topics include: essential-knowledge, troubleshooting.',
     ),
 ) -> str:
-    """Get specific AWS web application UI setup documentation by topic.
+    """[DEPRECATED] Get specific AWS web application UI setup documentation by topic.
 
     Parameters:
         topic: The topic of React documentation to retrieve.
@@ -64,6 +73,9 @@ async def get_react_docs_by_topic(
 
 def main():
     """Run the MCP server with CLI argument support."""
+    import warnings
+
+    warnings.warn(DEPRECATION_NOTICE, FutureWarning, stacklevel=2)
     mcp.run()
 
     logger.trace('A trace message.')
