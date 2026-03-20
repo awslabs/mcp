@@ -15,14 +15,13 @@
 """Tests for the Amazon Bedrock AgentCore MCP Server."""
 
 import asyncio
-import pytest
 from awslabs.amazon_bedrock_agentcore_mcp_server import server
 from awslabs.amazon_bedrock_agentcore_mcp_server.tools.docs import (
     fetch_agentcore_doc,
     search_agentcore_docs,
 )
 from awslabs.amazon_bedrock_agentcore_mcp_server.utils import cache, doc_fetcher, indexer
-from unittest.mock import AsyncMock, Mock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 
 class TestSearchDocs:
