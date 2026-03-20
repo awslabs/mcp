@@ -19,6 +19,7 @@ from __future__ import annotations
 from awslabs.amazon_bedrock_agentcore_browser_mcp_server.aws_client import (
     get_data_plane_client,
     handle_aws_errors,
+    sign_websocket_headers,
 )
 from loguru import logger
 
@@ -35,7 +36,7 @@ def start_browser_session(
     """Start a new ephemeral browser session.
 
     Creates an isolated browser instance and returns WebSocket endpoints for automation
-    and live view streaming. Use the automation_endpoint with Playwright or CDP.
+    and live view streaming. Use the automation_endpoint with a WebSocket client.
 
     Args:
         browser_identifier: Browser tool ID (default: "aws.browser.v1"). Use a custom ID
@@ -47,7 +48,9 @@ def start_browser_session(
         profile_identifier: Optional profile ID to restore cookies/storage from a saved profile.
 
     Returns:
-        dict with session_id, browser_identifier, automation_endpoint, live_view_endpoint, created_at.
+        dict with session_id, browser_identifier, automation_endpoint, automation_headers,
+        live_view_endpoint, created_at. The automation_headers contain SigV4 auth headers
+        needed to connect to the automation_endpoint via WebSocket.
     """
     client = get_data_plane_client()
 
@@ -64,11 +67,20 @@ def start_browser_session(
     logger.info(f'Starting browser session: browser={browser_identifier}, name={name}')
     response = client.start_browser_session(**params)
     streams = response['streams']
+    automation_endpoint = streams['automationStream']['streamEndpoint']
+
+    # Sign the automation endpoint for WebSocket connections
+    try:
+        automation_headers = sign_websocket_headers(automation_endpoint)
+    except Exception as e:
+        logger.warning(f'Could not sign automation endpoint: {e}')
+        automation_headers = {}
 
     return {
         'session_id': response['sessionId'],
         'browser_identifier': browser_identifier,
-        'automation_endpoint': streams['automationStream']['streamEndpoint'],
+        'automation_endpoint': automation_endpoint,
+        'automation_headers': automation_headers,
         'live_view_endpoint': streams['liveViewStream']['streamEndpoint'],
         'created_at': response['createdAt'],
     }
@@ -100,17 +112,65 @@ def get_browser_session(
 
     streams = response.get('streams', {})
     viewport = response.get('viewPort', {})
+    automation_endpoint = streams.get('automationStream', {}).get('streamEndpoint')
+
+    # Sign the automation endpoint for WebSocket connections
+    automation_headers = {}
+    if automation_endpoint:
+        try:
+            automation_headers = sign_websocket_headers(automation_endpoint)
+        except Exception as e:
+            logger.warning(f'Could not sign automation endpoint: {e}')
 
     return {
         'session_id': response['sessionId'],
         'browser_identifier': response['browserIdentifier'],
         'status': response.get('status'),
-        'automation_endpoint': streams.get('automationStream', {}).get('streamEndpoint'),
+        'automation_endpoint': automation_endpoint,
+        'automation_headers': automation_headers,
         'live_view_endpoint': streams.get('liveViewStream', {}).get('streamEndpoint'),
         'viewport': {'width': viewport.get('width'), 'height': viewport.get('height')},
         'session_timeout_seconds': response.get('sessionTimeoutSeconds'),
         'created_at': response.get('createdAt'),
         'last_updated_at': response.get('lastUpdatedAt'),
+    }
+
+
+@handle_aws_errors('get automation headers')
+def get_automation_headers(
+    session_id: str,
+    browser_identifier: str = 'aws.browser.v1',
+) -> dict:
+    """Get fresh SigV4 auth headers for a session's automation WebSocket endpoint.
+
+    Use this to get refreshed credentials when reconnecting to a session.
+    SigV4 signatures expire after ~5 minutes, so call this before each
+    new WebSocket connection.
+
+    Args:
+        session_id: Unique session identifier.
+        browser_identifier: Browser tool ID (default: "aws.browser.v1").
+
+    Returns:
+        dict with automation_endpoint and automation_headers for WebSocket connection.
+    """
+    client = get_data_plane_client()
+
+    response = client.get_browser_session(
+        browserIdentifier=browser_identifier,
+        sessionId=session_id,
+    )
+
+    streams = response.get('streams', {})
+    automation_endpoint = streams.get('automationStream', {}).get('streamEndpoint')
+
+    if not automation_endpoint:
+        return {'error': 'NoEndpoint', 'message': 'Session has no automation endpoint'}
+
+    return {
+        'session_id': session_id,
+        'automation_endpoint': automation_endpoint,
+        'automation_headers': sign_websocket_headers(automation_endpoint),
     }
 
 
