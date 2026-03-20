@@ -841,6 +841,69 @@ class TestDiscoverFunctions:
         assert cluster['tags'] == {'env': 'test'}
 
     @pytest.mark.asyncio
+    async def test_discover_clusters_provisioned_missing_dbname(self, mocker):
+        """Test discover_clusters handles clusters without DBName field.
+
+        Some Redshift clusters may not have the DBName field present in the
+        describe_clusters response. The function should handle this gracefully
+        by returning None for database_name instead of raising KeyError.
+
+        Fixes: https://github.com/awslabs/mcp/issues/2331
+        """
+        # Mock redshift client with cluster missing DBName
+        mock_redshift_client = mocker.Mock()
+        mock_redshift_client.get_paginator.return_value.paginate.return_value = [
+            {
+                'Clusters': [
+                    {
+                        'ClusterIdentifier': 'no-dbname-cluster',
+                        'ClusterStatus': 'available',
+                        # DBName is intentionally omitted
+                        'Endpoint': {'Address': 'no-db.redshift.amazonaws.com', 'Port': 5439},
+                        'VpcId': 'vpc-456',
+                        'NodeType': 'ra3.xlplus',
+                        'NumberOfNodes': 1,
+                        'ClusterCreateTime': '2024-06-01T00:00:00Z',
+                        'MasterUsername': 'admin',
+                        'PubliclyAccessible': False,
+                        'Encrypted': True,
+                        'Tags': [],
+                    }
+                ]
+            }
+        ]
+
+        # Mock serverless client (empty response)
+        mock_serverless_client = mocker.Mock()
+        mock_serverless_client.get_paginator.return_value.paginate.return_value = [
+            {'workgroups': []}
+        ]
+
+        # Mock client manager
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_client',
+            return_value=mock_redshift_client,
+        )
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_serverless_client',
+            return_value=mock_serverless_client,
+        )
+
+        result = await discover_clusters()
+
+        assert len(result) == 1
+        cluster = result[0]
+        assert cluster['identifier'] == 'no-dbname-cluster'
+        assert cluster['type'] == 'provisioned'
+        assert cluster['status'] == 'available'
+        assert cluster['database_name'] == 'dev'  # Should default to 'dev', not KeyError
+        assert cluster['endpoint'] == 'no-db.redshift.amazonaws.com'
+        assert cluster['port'] == 5439
+        assert cluster['node_type'] == 'ra3.xlplus'
+        assert cluster['number_of_nodes'] == 1
+        assert cluster['tags'] == {}
+
+    @pytest.mark.asyncio
     async def test_discover_clusters_provisioned_error(self, mocker):
         """Test error handling when discovering provisioned clusters fails."""
         mock_redshift_client = mocker.Mock()
