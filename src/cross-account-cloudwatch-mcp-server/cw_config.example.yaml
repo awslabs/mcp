@@ -1,0 +1,9 @@
+accounts:
+  - accountId: "123456789012"
+    region: "us-west-2"
+    roleName: "CloudWatchReadOnly"
+    logGroups:
+      - name: "/aws/lambda/payments-prod"
+        description: "Primary payment handler logs"
+      - name: "/aws/ecs/orders"
+        description: "Orders service application logs"
