@@ -251,6 +251,64 @@ The tool names are subject to change, please refer to CHANGELOG.md for any chang
 - `get_execution_plan` *(Experimental)*: Provides structured, step-by-step guidance for accomplishing complex AWS tasks through agent scripts. This tool is only available when the `EXPERIMENTAL_AGENT_SCRIPTS` environment variable is set to "true". Agent scripts are reusable workflows that automate complex processes and provide detailed guidance for accomplishing specific tasks.
 
 
+## Cross-Account Access
+
+The server supports assuming IAM roles in other AWS accounts via STS AssumeRole. Credentials are cached to minimize STS API calls.
+
+### Usage
+
+Pass `role_arn` to the `call_aws` tool:
+
+```
+call_aws(cli_command="aws s3api list-buckets", role_arn="arn:aws:iam::<account-id>:role/<role-name>")
+```
+
+Optional parameters:
+- `external_id` — Required by some roles for additional security
+- `session_name` — Custom session name (auto-generated if omitted)
+
+### IAM Setup
+
+The target account needs a trust policy on the role:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::<source-account-id>:root"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+```
+
+The source account (where the server runs) needs permission to assume the role:
+
+```json
+{
+  "Effect": "Allow",
+  "Action": "sts:AssumeRole",
+  "Resource": "arn:aws:iam::<target-account-id>:role/<role-name>"
+}
+```
+
+### Configuration
+
+| Environment Variable | Default | Description |
+|---|---|---|
+| `AWS_API_MCP_ENABLE_CROSS_ACCOUNT` | `true` | Enable/disable cross-account access |
+| `AWS_API_MCP_ASSUME_ROLE_CACHE_SIZE` | `10` | Max cached role credentials |
+| `AWS_API_MCP_ASSUME_ROLE_DURATION_SECONDS` | `3600` | STS session duration (seconds) |
+
+### Additional Tools
+
+- `clear_assumed_role_cache` — Clear cached credentials (all or specific role)
+- `get_credential_cache_stats` — View cache size and expiry info
+
 ## Security Considerations
 Before using this MCP Server, you should consider conducting your own independent assessment to ensure that your use would comply with your own specific security and quality control practices and standards, as well as the laws, rules, and regulations that govern you and your content.
 
