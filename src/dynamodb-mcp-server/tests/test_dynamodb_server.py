@@ -73,7 +73,7 @@ async def test_source_db_analyzer_missing_parameters(tmp_path):
     """Test source_db_analyzer with missing database parameter."""
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name=None,
+        source_identifier=None,
         execution_mode='managed',
         pattern_analysis_days=30,
         max_query_results=None,
@@ -91,7 +91,7 @@ async def test_source_db_analyzer_empty_parameters(tmp_path):
     """Test source_db_analyzer with empty string parameters."""
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test',
+        source_identifier='test',
         execution_mode='managed',
         pattern_analysis_days=30,
         max_query_results=None,
@@ -116,7 +116,7 @@ async def test_source_db_analyzer_env_fallback(monkeypatch, tmp_path):
 
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test',
+        source_identifier='test',
         execution_mode='managed',
         pattern_analysis_days=30,
         max_query_results=None,
@@ -137,7 +137,7 @@ async def test_source_db_analyzer_connection_method_precedence(mysql_env_setup, 
     # Pass explicit hostname parameter - this should take precedence over env cluster_arn
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test',
+        source_identifier='test',
         execution_mode='managed',
         pattern_analysis_days=30,
         max_query_results=None,
@@ -164,7 +164,7 @@ async def test_source_db_analyzer_env_hostname_only_fallback(mysql_env_setup, tm
     try:
         result = await source_db_analyzer(
             source_db_type='mysql',
-            database_name='test',
+            source_identifier='test',
             execution_mode='managed',
             pattern_analysis_days=30,
             max_query_results=None,
@@ -193,7 +193,7 @@ async def test_source_db_analyzer_no_env_connection_params(mysql_env_setup, tmp_
     try:
         result = await source_db_analyzer(
             source_db_type='mysql',
-            database_name='test',
+            source_identifier='test',
             execution_mode='managed',
             pattern_analysis_days=30,
             max_query_results=None,
@@ -218,16 +218,16 @@ async def test_source_db_analyzer_unsupported_database(tmp_path):
     """Test source_db_analyzer with unsupported database type."""
     result = await source_db_analyzer(
         source_db_type='oracle',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='managed',
         pattern_analysis_days=30,
         output_dir=str(tmp_path),
     )
-    assert 'Unsupported database type: oracle' in result
+    assert 'Managed mode is not supported for oracle' in result
 
     result = await source_db_analyzer(
         source_db_type='mongodb',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='managed',
         pattern_analysis_days=30,
         output_dir=str(tmp_path),
@@ -249,7 +249,7 @@ async def test_source_db_analyzer_analysis_exception(tmp_path, monkeypatch):
 
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='managed',
         aws_cluster_arn='test-cluster',
         aws_secret_arn='test-secret',
@@ -284,7 +284,7 @@ async def test_source_db_analyzer_successful_analysis(tmp_path, monkeypatch):
 
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='managed',
         aws_cluster_arn='test-cluster',
         aws_secret_arn='test-secret',
@@ -311,7 +311,7 @@ async def test_source_db_analyzer_exception_handling(tmp_path, monkeypatch):
 
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='managed',
         aws_cluster_arn='test-cluster',
         aws_secret_arn='test-secret',
@@ -344,7 +344,7 @@ async def test_source_db_analyzer_all_queries_failed(tmp_path, monkeypatch):
 
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='managed',
         aws_cluster_arn='test-cluster',
         aws_secret_arn='test-secret',
@@ -382,7 +382,7 @@ async def test_source_db_analyzer_no_files_saved(tmp_path, monkeypatch):
 
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='managed',
         aws_cluster_arn='test-cluster',
         aws_secret_arn='test-secret',
@@ -420,7 +420,7 @@ async def test_source_db_analyzer_only_saved_files_no_errors(tmp_path, monkeypat
 
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='managed',
         aws_cluster_arn='test-cluster',
         aws_secret_arn='test-secret',
@@ -443,7 +443,7 @@ async def test_self_service_query_generation(tmp_path, monkeypatch):
     # Test MySQL
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='self_service',
         queries_file_path='queries.sql',
         query_result_file_path=None,
@@ -457,7 +457,7 @@ async def test_self_service_query_generation(tmp_path, monkeypatch):
     # Test PostgreSQL
     result = await source_db_analyzer(
         source_db_type='postgresql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='self_service',
         queries_file_path='pg_queries.sql',
         query_result_file_path=None,
@@ -469,7 +469,7 @@ async def test_self_service_query_generation(tmp_path, monkeypatch):
     # Test SQL Server
     result = await source_db_analyzer(
         source_db_type='sqlserver',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='self_service',
         queries_file_path='sqlserver_queries.sql',
         query_result_file_path=None,
@@ -481,14 +481,14 @@ async def test_self_service_query_generation(tmp_path, monkeypatch):
     # Test missing database name
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name=None,
+        source_identifier=None,
         execution_mode='self_service',
         queries_file_path='queries.sql',
         query_result_file_path=None,
         pattern_analysis_days=30,
         output_dir=str(tmp_path),
     )
-    assert 'database_name is required' in result
+    assert 'source_identifier is required' in result
 
     # Test exception handling
     def mock_generate_query_file(*args, **kwargs):
@@ -500,7 +500,7 @@ async def test_self_service_query_generation(tmp_path, monkeypatch):
 
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='self_service',
         queries_file_path='queries.sql',
         query_result_file_path=None,
@@ -525,7 +525,7 @@ async def test_self_service_result_parsing(tmp_path, monkeypatch):
 """)
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='self_service',
         queries_file_path=None,
         query_result_file_path=result_file,
@@ -538,7 +538,7 @@ async def test_self_service_result_parsing(tmp_path, monkeypatch):
     # Test result file not found
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='self_service',
         queries_file_path=None,
         query_result_file_path=os.path.join(tmp_path, 'nonexistent_results.txt'),
@@ -550,7 +550,7 @@ async def test_self_service_result_parsing(tmp_path, monkeypatch):
     # Test path traversal protection - absolute path outside base directory
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='self_service',
         queries_file_path=None,
         query_result_file_path='/nonexistent/results.txt',
@@ -573,7 +573,7 @@ async def test_self_service_result_parsing(tmp_path, monkeypatch):
 
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='self_service',
         queries_file_path=None,
         query_result_file_path=result_file,
@@ -589,7 +589,7 @@ async def test_invalid_execution_modes(tmp_path):
     # Test invalid execution mode
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='invalid_mode',
         pattern_analysis_days=30,
         output_dir=str(tmp_path),
@@ -599,7 +599,7 @@ async def test_invalid_execution_modes(tmp_path):
     # Test self-service without query or result file
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='self_service',
         queries_file_path=None,
         query_result_file_path=None,
@@ -611,7 +611,7 @@ async def test_invalid_execution_modes(tmp_path):
     # Test PostgreSQL managed mode not supported
     result = await source_db_analyzer(
         source_db_type='postgresql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='managed',
         aws_cluster_arn='test-cluster',
         aws_secret_arn='test-secret',
@@ -1105,7 +1105,7 @@ async def test_source_db_analyzer_managed_mode_not_implemented(tmp_path):
 
         result = await source_db_analyzer(
             source_db_type='mysql',
-            database_name='test_db',
+            source_identifier='test_db',
             execution_mode='managed',
             aws_cluster_arn='test-cluster',
             aws_secret_arn='test-secret',
@@ -1121,7 +1121,7 @@ async def test_source_db_analyzer_invalid_execution_mode(tmp_path):
     """Test source_db_analyzer with invalid execution mode."""
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='invalid_mode',
         output_dir=str(tmp_path),
     )
