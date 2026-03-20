@@ -43,11 +43,13 @@ get connection credentials (WebSocket endpoints), and manage session lifecycle.
 ### Starting a workflow:
 1. Use `list_browsers` to discover available browser tool IDs (system or VPC-bound custom)
 2. Use `start_browser_session` to create an ephemeral browser session
-3. Use the returned `automation_endpoint` (WebSocket URL) with Playwright or CDP to control the browser
-4. Use `open_live_view` to get a URL for watching the browser session in real-time
+3. Use the returned `automation_endpoint` + `automation_headers` to connect via WebSocket
+4. Pass `automation_headers` as headers when connecting (e.g., as `wsHeaders` in a WebSocket client)
+5. Use `open_live_view` to get a URL for watching the browser session in real-time
 
 ### During a workflow:
-- Use `get_browser_session` to check session status and get stream endpoints
+- Use `get_browser_session` to check session status and get stream endpoints + fresh auth headers
+- Use `get_automation_headers` to refresh SigV4 auth headers (they expire after ~5 minutes)
 - Use `list_browser_sessions` to see all active sessions
 
 ### Finishing a workflow:
@@ -70,6 +72,7 @@ mcp.tool()(sessions.start_browser_session)
 mcp.tool()(sessions.get_browser_session)
 mcp.tool()(sessions.list_browser_sessions)
 mcp.tool()(sessions.stop_browser_session)
+mcp.tool()(sessions.get_automation_headers)
 
 # Register profile tool
 mcp.tool()(profiles.save_browser_session_profile)
