@@ -15,6 +15,7 @@
 """Tests for browser session management tools."""
 
 from awslabs.amazon_bedrock_agentcore_browser_mcp_server.tools.sessions import (
+    get_automation_headers,
     get_browser_session,
     list_browser_sessions,
     start_browser_session,
@@ -23,14 +24,19 @@ from awslabs.amazon_bedrock_agentcore_browser_mcp_server.tools.sessions import (
 from unittest.mock import patch
 
 
+MOCK_HEADERS = {'Authorization': 'AWS4-HMAC-SHA256 ...', 'X-Amz-Date': '20260320T000000Z'}
+SIGN_WS_PATH = 'awslabs.amazon_bedrock_agentcore_browser_mcp_server.tools.sessions.sign_websocket_headers'
+
+
 class TestStartBrowserSession:
     """Test cases for start_browser_session."""
 
+    @patch(SIGN_WS_PATH, return_value=MOCK_HEADERS)
     @patch(
         'awslabs.amazon_bedrock_agentcore_browser_mcp_server.tools.sessions.get_data_plane_client'
     )
     def test_start_browser_session_happy_path(
-        self, mock_get_client, mock_start_browser_session_response
+        self, mock_get_client, mock_sign, mock_start_browser_session_response
     ):
         """Test successful browser session start."""
         mock_client = mock_get_client.return_value
@@ -40,9 +46,8 @@ class TestStartBrowserSession:
 
         assert result['session_id'] == 'test-session-123'
         assert result['browser_identifier'] == 'aws.browser.v1'
-        assert 'automation_endpoint' in result
         assert result['automation_endpoint'] == 'wss://automation.example.com/session-123'
-        assert 'live_view_endpoint' in result
+        assert result['automation_headers'] == MOCK_HEADERS
         assert result['live_view_endpoint'] == 'wss://liveview.example.com/session-123'
         assert result['created_at'] == '2024-01-01T00:00:00Z'
         assert 'error' not in result
@@ -53,11 +58,12 @@ class TestStartBrowserSession:
         assert call_args['name'] == 'mcp-browser-session'
         assert 'profileConfiguration' not in call_args
 
+    @patch(SIGN_WS_PATH, return_value=MOCK_HEADERS)
     @patch(
         'awslabs.amazon_bedrock_agentcore_browser_mcp_server.tools.sessions.get_data_plane_client'
     )
     def test_start_browser_session_with_profile(
-        self, mock_get_client, mock_start_browser_session_response
+        self, mock_get_client, mock_sign, mock_start_browser_session_response
     ):
         """Test starting session with profile identifier."""
         mock_client = mock_get_client.return_value
@@ -122,11 +128,12 @@ class TestStartBrowserSession:
 class TestGetBrowserSession:
     """Test cases for get_browser_session."""
 
+    @patch(SIGN_WS_PATH, return_value=MOCK_HEADERS)
     @patch(
         'awslabs.amazon_bedrock_agentcore_browser_mcp_server.tools.sessions.get_data_plane_client'
     )
     def test_get_browser_session_happy_path(
-        self, mock_get_client, mock_get_browser_session_response
+        self, mock_get_client, mock_sign, mock_get_browser_session_response
     ):
         """Test successful session retrieval."""
         mock_client = mock_get_client.return_value
@@ -138,6 +145,7 @@ class TestGetBrowserSession:
         assert result['browser_identifier'] == 'aws.browser.v1'
         assert result['status'] == 'READY'
         assert result['automation_endpoint'] == 'wss://automation.example.com/session-123'
+        assert result['automation_headers'] == MOCK_HEADERS
         assert result['live_view_endpoint'] == 'wss://liveview.example.com/session-123'
         assert result['viewport']['width'] == 1456
         assert result['viewport']['height'] == 819
@@ -366,3 +374,55 @@ class TestStopBrowserSession:
 
         assert result['error'] == 'UnexpectedError'
         assert result['message'] == 'Network timeout'
+
+
+class TestGetAutomationHeaders:
+    """Test cases for get_automation_headers."""
+
+    @patch(SIGN_WS_PATH, return_value=MOCK_HEADERS)
+    @patch(
+        'awslabs.amazon_bedrock_agentcore_browser_mcp_server.tools.sessions.get_data_plane_client'
+    )
+    def test_get_automation_headers_happy_path(
+        self, mock_get_client, mock_sign, mock_get_browser_session_response
+    ):
+        """Test successful header generation."""
+        mock_client = mock_get_client.return_value
+        mock_client.get_browser_session.return_value = mock_get_browser_session_response
+
+        result = get_automation_headers('test-session-123')
+
+        assert result['session_id'] == 'test-session-123'
+        assert result['automation_endpoint'] == 'wss://automation.example.com/session-123'
+        assert result['automation_headers'] == MOCK_HEADERS
+        assert 'error' not in result
+
+    @patch(
+        'awslabs.amazon_bedrock_agentcore_browser_mcp_server.tools.sessions.get_data_plane_client'
+    )
+    def test_get_automation_headers_no_endpoint(self, mock_get_client):
+        """Test when session has no automation endpoint."""
+        mock_client = mock_get_client.return_value
+        mock_client.get_browser_session.return_value = {
+            'sessionId': 'test-session-123',
+            'browserIdentifier': 'aws.browser.v1',
+            'streams': {},
+        }
+
+        result = get_automation_headers('test-session-123')
+
+        assert result['error'] == 'NoEndpoint'
+
+    @patch(
+        'awslabs.amazon_bedrock_agentcore_browser_mcp_server.tools.sessions.get_data_plane_client'
+    )
+    def test_get_automation_headers_client_error(
+        self, mock_get_client, client_error_resource_not_found
+    ):
+        """Test with ResourceNotFoundException."""
+        mock_client = mock_get_client.return_value
+        mock_client.get_browser_session.side_effect = client_error_resource_not_found
+
+        result = get_automation_headers('fake-session')
+
+        assert result['error'] == 'ResourceNotFoundException'

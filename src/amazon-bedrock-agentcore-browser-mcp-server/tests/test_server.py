@@ -28,7 +28,7 @@ class TestServer:
         assert APP_NAME == 'awslabs.amazon-bedrock-agentcore-browser-mcp-server'
 
     def test_all_tools_registered(self):
-        """Test that all 8 tools are registered with the MCP app."""
+        """Test that all 9 tools are registered with the MCP app."""
         tools = asyncio.get_event_loop().run_until_complete(mcp.list_tools())
         tool_names = [tool.name for tool in tools]
 
@@ -37,6 +37,7 @@ class TestServer:
             'get_browser_session',
             'list_browser_sessions',
             'stop_browser_session',
+            'get_automation_headers',
             'save_browser_session_profile',
             'list_browsers',
             'get_browser',
@@ -46,7 +47,9 @@ class TestServer:
         for expected_tool in expected_tools:
             assert expected_tool in tool_names, f'Tool {expected_tool} not registered'
 
-        assert len(tool_names) == 8, f'Expected 8 tools, found {len(tool_names)}'
+        assert len(tool_names) == len(expected_tools), (
+            f'Expected {len(expected_tools)} tools, found {len(tool_names)}'
+        )
 
     @patch.object(mcp, 'run')
     def test_main_entry_point(self, mock_run):
