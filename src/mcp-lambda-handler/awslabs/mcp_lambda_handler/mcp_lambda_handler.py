@@ -355,6 +355,9 @@ class MCPLambdaHandler:
 
             args: List[Dict[str, Any]] = []
 
+            # Use inspect.signature to determine which params have defaults
+            sig = inspect.signature(f)
+
             for param_name, param_type in hints.items():
                 if param_type is str:
                     arg_type = 'string'
@@ -367,11 +370,18 @@ class MCPLambdaHandler:
                 else:
                     arg_type = 'string'
 
+                sig_param = sig.parameters.get(param_name)
+                is_required = (
+                    sig_param is not None
+                    and sig_param.default is inspect.Parameter.empty
+                )
+
                 args.append(
                     {
                         'name': param_name,
                         'type': arg_type,
                         'description': f'Argument for {param_name}',
+                        'required': is_required,
                     }
                 )
 
@@ -395,8 +405,14 @@ class MCPLambdaHandler:
             return decorator(func)
         return decorator
 
-    def _render_prompt(self, name: str, variables: Optional[Dict[str, Any]] = None) -> str:
-        """Render a registered prompt by calling its function."""
+    def _render_prompt(
+        self, name: str, variables: Optional[Dict[str, Any]] = None
+    ) -> Union[str, List[Dict]]:
+        """Render a registered prompt by calling its function.
+
+        Returns either a str (single message) or a list of message dicts
+        (multi-message, each with 'role' and 'content' keys).
+        """
         if name not in self.prompts:
             raise ValueError(f'Prompt not found: {name}')
 
@@ -407,11 +423,25 @@ class MCPLambdaHandler:
         hints = get_type_hints(func)
         hints.pop('return', None)
 
-        # Match variables to function parameters (optional)
+        # Coerce argument values to their expected types
         call_args = {}
-        for param in hints:
+        for param, param_type in hints.items():
             if variables and param in variables:
-                call_args[param] = variables[param]
+                raw = variables[param]
+                try:
+                    if param_type is int:
+                        call_args[param] = int(raw)
+                    elif param_type is float:
+                        call_args[param] = float(raw)
+                    elif param_type is bool:
+                        if isinstance(raw, str):
+                            call_args[param] = raw.lower() not in ('false', '0', '')
+                        else:
+                            call_args[param] = bool(raw)
+                    else:
+                        call_args[param] = raw
+                except (ValueError, TypeError):
+                    call_args[param] = raw
 
         return func(**call_args)
 
@@ -694,12 +724,34 @@ class MCPLambdaHandler:
                     )
 
             if request.method == 'prompts/list':
+                logger.info('Handling prompts/list request')
+                if session_id:
+                    session_data = self.session_store.get_session(session_id)
+                    if session_data is None:
+                        return self._create_error_response(
+                            -32000, 'Invalid or expired session', request.id, status_code=404
+                        )
+                elif not isinstance(self.session_store, NoOpSessionStore):
+                    return self._create_error_response(
+                        -32000, 'Session required', request.id, status_code=400
+                    )
                 return self._create_success_response(
                     {'prompts': list(self.prompts.values())}, request.id, session_id
                 )
 
             # Handle prompts/get
             if request.method == 'prompts/get':
+                if session_id:
+                    session_data = self.session_store.get_session(session_id)
+                    if session_data is None:
+                        return self._create_error_response(
+                            -32000, 'Invalid or expired session', request.id, status_code=404
+                        )
+                elif not isinstance(self.session_store, NoOpSessionStore):
+                    return self._create_error_response(
+                        -32000, 'Session required', request.id, status_code=400
+                    )
+
                 if not request.params or 'name' not in request.params:
                     return self._create_error_response(
                         -32602,
@@ -711,13 +763,17 @@ class MCPLambdaHandler:
                 name = request.params['name']
                 variables = request.params.get('arguments', {})
                 try:
-                    content = self._render_prompt(name, variables)
+                    result = self._render_prompt(name, variables)
+                    # Support multi-message responses: if the function returns a list,
+                    # treat each item as a message dict; otherwise wrap as a single user message.
+                    if isinstance(result, list):
+                        messages = result
+                    else:
+                        messages = [
+                            {'role': 'user', 'content': {'type': 'text', 'text': result}}
+                        ]
                     return self._create_success_response(
-                        {
-                            'messages': [
-                                {'role': 'user', 'content': {'type': 'text', 'text': content}}
-                            ]
-                        },
+                        {'messages': messages},
                         request.id,
                         session_id,
                     )

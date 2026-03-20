@@ -87,6 +87,16 @@ def greeting(name: str, excited: bool = False) -> str:
 * `prompts/list` → Lists all registered prompts with metadata (name, description, arguments, tags).
 * `prompts/get` → Retrieves the rendered content of a prompt given its `name` and optional `arguments`.
 
+### Prompt Naming Convention
+
+> **Note:** By default, prompt function names are automatically converted to camelCase. For example, a function named `generate_code` will be registered as `generateCode`. This differs from FastMCP, which keeps the original snake_case name. To use a custom name, pass the `name` argument explicitly:
+>
+> ```python
+> @mcp.prompt(name="generate_code")
+> def generate_code(language: str) -> str:
+>     ...
+> ```
+
 ## Contributing
 
 Contributions are welcome! Please see the [CONTRIBUTING.md](../../CONTRIBUTING.md) in the monorepo root for guidelines.

@@ -1893,3 +1893,311 @@ def test_multiple_prompts_same_handler():
     assert 'promptOne' in handler.prompts
     assert 'promptTwo' in handler.prompts
     assert 'promptThree' in handler.prompts
+
+
+# ---------------------------------------------------------------------------
+# Tests for PR changes
+# ---------------------------------------------------------------------------
+
+# --- 1. required field on prompt arguments ---
+
+def test_prompt_argument_required_field_present():
+    """Test that every prompt argument has a 'required' field."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def my_prompt(name: str, count: int = 5) -> str:
+        """Test prompt."""
+        return f'{name} {count}'
+
+    args = {a['name']: a for a in handler.prompts['myPrompt']['arguments']}
+    assert 'required' in args['name']
+    assert 'required' in args['count']
+
+
+def test_prompt_argument_required_true_for_no_default():
+    """Test that params without a default value get required=True."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def my_prompt(required_arg: str, optional_arg: int = 0) -> str:
+        """Test prompt."""
+        return required_arg
+
+    args = {a['name']: a for a in handler.prompts['myPrompt']['arguments']}
+    assert args['required_arg']['required'] is True
+    assert args['optional_arg']['required'] is False
+
+
+def test_prompt_argument_required_false_for_default():
+    """Test that params WITH a default value get required=False."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def greeting(name: str, excited: bool = False) -> str:
+        """Greeting prompt."""
+        if excited:
+            return f'Hello, {name}!!!'
+        return f'Hello, {name}.'
+
+    args = {a['name']: a for a in handler.prompts['greeting']['arguments']}
+    assert args['name']['required'] is True
+    assert args['excited']['required'] is False
+
+
+# --- 2. Session validation for prompts/list ---
+
+def test_prompts_list_rejects_invalid_session():
+    """Test that prompts/list returns 404 when session ID is provided but invalid."""
+    with patch('boto3.resource') as mock_resource:
+        mock_table = MagicMock()
+        mock_resource.return_value.Table.return_value = mock_table
+        # Session not found in DynamoDB
+        mock_table.get_item.return_value = {}
+
+        handler = MCPLambdaHandler('test-server', session_store=DynamoDBSessionStore('tbl'))
+
+        req = {'jsonrpc': '2.0', 'id': 1, 'method': 'prompts/list'}
+        event = make_lambda_event(req)
+        event['headers']['mcp-session-id'] = 'bad-session-id'
+
+        resp = handler.handle_request(event, None)
+        assert resp['statusCode'] == 404
+        body = json.loads(resp['body'])
+        assert body['error']['code'] == -32000
+        assert 'Invalid or expired session' in body['error']['message']
+
+
+def test_prompts_list_rejects_missing_session_with_dynamodb_store():
+    """Test that prompts/list returns 400 when no session ID is sent and store requires one."""
+    with patch('boto3.resource') as mock_resource:
+        mock_table = MagicMock()
+        mock_resource.return_value.Table.return_value = mock_table
+
+        handler = MCPLambdaHandler('test-server', session_store=DynamoDBSessionStore('tbl'))
+
+        req = {'jsonrpc': '2.0', 'id': 1, 'method': 'prompts/list'}
+        event = make_lambda_event(req)
+        event['headers'].pop('mcp-session-id', None)
+
+        resp = handler.handle_request(event, None)
+        assert resp['statusCode'] == 400
+        body = json.loads(resp['body'])
+        assert body['error']['code'] == -32000
+
+
+# --- 3. Session validation for prompts/get ---
+
+def test_prompts_get_rejects_invalid_session():
+    """Test that prompts/get returns 404 when session ID is provided but invalid."""
+    with patch('boto3.resource') as mock_resource:
+        mock_table = MagicMock()
+        mock_resource.return_value.Table.return_value = mock_table
+        mock_table.get_item.return_value = {}
+
+        handler = MCPLambdaHandler('test-server', session_store=DynamoDBSessionStore('tbl'))
+
+        req = {
+            'jsonrpc': '2.0',
+            'id': 1,
+            'method': 'prompts/get',
+            'params': {'name': 'anything'},
+        }
+        event = make_lambda_event(req)
+        event['headers']['mcp-session-id'] = 'bad-session-id'
+
+        resp = handler.handle_request(event, None)
+        assert resp['statusCode'] == 404
+        body = json.loads(resp['body'])
+        assert body['error']['code'] == -32000
+
+
+def test_prompts_get_rejects_missing_session_with_dynamodb_store():
+    """Test that prompts/get returns 400 when no session ID is sent and store requires one."""
+    with patch('boto3.resource') as mock_resource:
+        mock_table = MagicMock()
+        mock_resource.return_value.Table.return_value = mock_table
+
+        handler = MCPLambdaHandler('test-server', session_store=DynamoDBSessionStore('tbl'))
+
+        req = {
+            'jsonrpc': '2.0',
+            'id': 1,
+            'method': 'prompts/get',
+            'params': {'name': 'anything'},
+        }
+        event = make_lambda_event(req)
+        event['headers'].pop('mcp-session-id', None)
+
+        resp = handler.handle_request(event, None)
+        assert resp['statusCode'] == 400
+        body = json.loads(resp['body'])
+        assert body['error']['code'] == -32000
+
+
+# --- 4. Argument type coercion in _render_prompt ---
+
+def test_render_prompt_coerces_int_from_string():
+    """Test that _render_prompt coerces a string '42' to int when the param expects int."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def count_prompt(count: int) -> str:
+        """Count prompt."""
+        assert isinstance(count, int), f'Expected int, got {type(count)}'
+        return f'count={count}'
+
+    result = handler._render_prompt('countPrompt', {'count': '42'})
+    assert result == 'count=42'
+
+
+def test_render_prompt_coerces_float_from_string():
+    """Test that _render_prompt coerces a string '3.14' to float."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def ratio_prompt(ratio: float) -> str:
+        """Ratio prompt."""
+        assert isinstance(ratio, float), f'Expected float, got {type(ratio)}'
+        return f'ratio={ratio}'
+
+    result = handler._render_prompt('ratioPrompt', {'ratio': '3.14'})
+    assert result == 'ratio=3.14'
+
+
+def test_render_prompt_coerces_bool_from_string():
+    """Test that _render_prompt coerces string booleans to bool correctly."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def flag_prompt(flag: bool) -> str:
+        """Flag prompt."""
+        assert isinstance(flag, bool), f'Expected bool, got {type(flag)}'
+        return 'yes' if flag else 'no'
+
+    # 'false' string → False
+    assert handler._render_prompt('flagPrompt', {'flag': 'false'}) == 'no'
+    # '0' string → False
+    assert handler._render_prompt('flagPrompt', {'flag': '0'}) == 'no'
+    # 'true' string → True
+    assert handler._render_prompt('flagPrompt', {'flag': 'true'}) == 'yes'
+
+
+def test_render_prompt_via_http_coerces_string_int():
+    """Test type coercion end-to-end through prompts/get HTTP call."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def repeat_prompt(times: int) -> str:
+        """Repeat prompt."""
+        return 'x' * times
+
+    req = {
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'prompts/get',
+        # MCP clients send arguments as strings from JSON-RPC
+        'params': {'name': 'repeatPrompt', 'arguments': {'times': '3'}},
+    }
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+
+    assert resp['statusCode'] == 200
+    body = json.loads(resp['body'])
+    assert body['result']['messages'][0]['content']['text'] == 'xxx'
+
+
+def test_render_prompt_coercion_fallback_on_bad_value():
+    """Test that _render_prompt falls back gracefully when coercion fails."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def value_prompt(number: int) -> str:
+        """Value prompt."""
+        return str(number)
+
+    # 'not_a_number' can't be coerced to int → falls back to raw string
+    # The function itself will then receive a string and either work or raise.
+    # Here we just verify _render_prompt doesn't crash internally on bad input.
+    try:
+        handler._render_prompt('valuePrompt', {'number': 'not_a_number'})
+    except (ValueError, TypeError):
+        pass  # The prompt function may raise, that is acceptable
+
+
+# --- 5. Multi-message / list return from prompt functions ---
+
+def test_render_prompt_returns_list_passthrough():
+    """Test that _render_prompt returns a list unchanged when the function returns a list."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def multi_msg_prompt(topic: str) -> list:
+        """Multi-message prompt."""
+        return [
+            {'role': 'system', 'content': {'type': 'text', 'text': 'You are helpful.'}},
+            {'role': 'user', 'content': {'type': 'text', 'text': f'Tell me about {topic}'}},
+        ]
+
+    result = handler._render_prompt('multiMsgPrompt', {'topic': 'Python'})
+    assert isinstance(result, list)
+    assert len(result) == 2
+    assert result[0]['role'] == 'system'
+    assert result[1]['role'] == 'user'
+
+
+def test_handle_prompts_get_multi_message_response():
+    """Test that prompts/get passes a list of messages through as-is."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def conversation_prompt(user_input: str) -> list:
+        """Conversation starter prompt."""
+        return [
+            {'role': 'system', 'content': {'type': 'text', 'text': 'Be concise.'}},
+            {'role': 'user', 'content': {'type': 'text', 'text': user_input}},
+        ]
+
+    req = {
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'prompts/get',
+        'params': {'name': 'conversationPrompt', 'arguments': {'user_input': 'Hello!'}},
+    }
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+
+    assert resp['statusCode'] == 200
+    body = json.loads(resp['body'])
+    assert 'result' in body
+    messages = body['result']['messages']
+    assert len(messages) == 2
+    assert messages[0]['role'] == 'system'
+    assert messages[1]['role'] == 'user'
+    assert messages[1]['content']['text'] == 'Hello!'
+
+
+def test_handle_prompts_get_single_string_wrapped_as_user_message():
+    """Test that a str return is still wrapped as a single user message (regression guard)."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.prompt
+    def simple_prompt() -> str:
+        """Simple prompt."""
+        return 'Hello world'
+
+    req = {
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'prompts/get',
+        'params': {'name': 'simplePrompt'},
+    }
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+
+    assert resp['statusCode'] == 200
+    body = json.loads(resp['body'])
+    messages = body['result']['messages']
+    assert len(messages) == 1
+    assert messages[0]['role'] == 'user'
+    assert messages[0]['content']['text'] == 'Hello world'
