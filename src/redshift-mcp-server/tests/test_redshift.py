@@ -896,7 +896,7 @@ class TestDiscoverFunctions:
         assert cluster['identifier'] == 'no-dbname-cluster'
         assert cluster['type'] == 'provisioned'
         assert cluster['status'] == 'available'
-        assert cluster['database_name'] is None  # Should be None, not KeyError
+        assert cluster['database_name'] == 'dev'  # Should default to 'dev', not KeyError
         assert cluster['endpoint'] == 'no-db.redshift.amazonaws.com'
         assert cluster['port'] == 5439
         assert cluster['node_type'] == 'ra3.xlplus'
