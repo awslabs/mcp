@@ -14,9 +14,66 @@
 
 """Unit tests for the time_utils module."""
 
+import pytest
 from awslabs.billing_cost_management_mcp_server.utilities.time_utils import (
     epoch_seconds_to_utc_iso_string,
 )
+from datetime import datetime, timezone
+
+
+class TestUtcDatetimeStringToEpochSeconds:
+    """Tests for utc_datetime_string_to_epoch_seconds function."""
+
+    def test_date_only_format(self):
+        """Test conversion with date-only format YYYY-MM-DD."""
+        from awslabs.billing_cost_management_mcp_server.utilities.time_utils import (
+            utc_datetime_string_to_epoch_seconds,
+        )
+
+        result = utc_datetime_string_to_epoch_seconds('2024-01-01')
+        assert result == 1704067200  # 2024-01-01T00:00:00 UTC
+
+    def test_datetime_format(self):
+        """Test conversion with datetime format YYYY-MM-DDTHH:MM:SS."""
+        from awslabs.billing_cost_management_mcp_server.utilities.time_utils import (
+            utc_datetime_string_to_epoch_seconds,
+        )
+
+        result = utc_datetime_string_to_epoch_seconds('2024-01-31T23:59:59')
+        assert result == 1706745599  # 2024-01-31T23:59:59 UTC
+
+    def test_invalid_format_raises_error(self):
+        """Test that invalid format raises ValueError."""
+        from awslabs.billing_cost_management_mcp_server.utilities.time_utils import (
+            utc_datetime_string_to_epoch_seconds,
+        )
+
+        with pytest.raises(ValueError, match='Invalid datetime format'):
+            utc_datetime_string_to_epoch_seconds('not-a-date')
+
+
+class TestEpochSecondsToUtcIsoStringDatetime:
+    """Tests for epoch_seconds_to_utc_iso_string with datetime inputs."""
+
+    def test_datetime_with_timezone(self):
+        """Test conversion with timezone-aware datetime."""
+        from awslabs.billing_cost_management_mcp_server.utilities.time_utils import (
+            epoch_seconds_to_utc_iso_string,
+        )
+
+        dt = datetime(2023, 11, 14, 22, 13, 20, tzinfo=timezone.utc)
+        result = epoch_seconds_to_utc_iso_string(dt)
+        assert result == '2023-11-14T22:13:20'
+
+    def test_datetime_without_timezone(self):
+        """Test conversion with naive datetime (no timezone)."""
+        from awslabs.billing_cost_management_mcp_server.utilities.time_utils import (
+            epoch_seconds_to_utc_iso_string,
+        )
+
+        dt = datetime(2023, 11, 14, 22, 13, 20)
+        result = epoch_seconds_to_utc_iso_string(dt)
+        assert result == '2023-11-14T22:13:20'
 
 
 class TestEpochSecondsToUtcIsoString:
