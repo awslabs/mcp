@@ -86,6 +86,14 @@ async def generate_run_timeline(
             'verification. Only used when output_path is an S3 URI.'
         ),
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> str:
     """Generate a Gantt-style timeline visualization for an AWS HealthOmics workflow run.
 
@@ -114,6 +122,8 @@ async def generate_run_timeline(
         output_format: Output format (svg or base64)
         output_path: Optional file path or S3 URI to write SVG to
         expected_bucket_owner: AWS account ID for S3 bucket owner verification
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         SVG string, base64-encoded SVG, or JSON summary when output_path is provided
@@ -139,7 +149,7 @@ async def generate_run_timeline(
             return error_msg
 
         # Get the omics client
-        omics_client = get_omics_client()
+        omics_client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
         # Initialize cost analyzer for pricing lookups
         effective_region = region if region else DEFAULT_REGION
@@ -236,7 +246,9 @@ Please verify the run ID and ensure the run has completed successfully.
                     # Resolve expected_bucket_owner sentinel
                     resolved_owner = expected_bucket_owner
                     if resolved_owner == _SENTINEL_DEFAULT_OWNER:
-                        resolved_owner = get_account_id()
+                        resolved_owner = get_account_id(
+                            region_name=aws_region, profile_name=aws_profile
+                        )
                     # None means skip bucket owner check; string means use as-is
                     result_path = write_svg_to_s3(svg_output, output_path, resolved_owner)
                 else:

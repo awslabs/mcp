@@ -1,3 +1,5 @@
+> **⚠️ DEPRECATION NOTICE**: This server is deprecated and will no longer receive updates. This server only serves static React/Amplify documentation that modern AI assistants already have knowledge of. Consider using project-level documentation or [Kiro](https://kiro.dev) specs instead.
+
 # AWS Labs Frontend MCP Server
 
 [![smithery badge](https://smithery.ai/badge/@awslabs/frontend-mcp-server)](https://smithery.ai/server/@awslabs/frontend-mcp-server)
