@@ -1901,6 +1901,7 @@ def test_multiple_prompts_same_handler():
 
 # --- 1. required field on prompt arguments ---
 
+
 def test_prompt_argument_required_field_present():
     """Test that every prompt argument has a 'required' field."""
     handler = MCPLambdaHandler('test-server')
@@ -1947,6 +1948,7 @@ def test_prompt_argument_required_false_for_default():
 
 # --- 2. Session validation for prompts/list ---
 
+
 def test_prompts_list_rejects_invalid_session():
     """Test that prompts/list returns 404 when session ID is provided but invalid."""
     with patch('boto3.resource') as mock_resource:
@@ -1987,6 +1989,7 @@ def test_prompts_list_rejects_missing_session_with_dynamodb_store():
 
 
 # --- 3. Session validation for prompts/get ---
+
 
 def test_prompts_get_rejects_invalid_session():
     """Test that prompts/get returns 404 when session ID is provided but invalid."""
@@ -2036,6 +2039,7 @@ def test_prompts_get_rejects_missing_session_with_dynamodb_store():
 
 
 # --- 4. Argument type coercion in _render_prompt ---
+
 
 def test_render_prompt_coerces_int_from_string():
     """Test that _render_prompt coerces a string '42' to int when the param expects int."""
@@ -2126,6 +2130,7 @@ def test_render_prompt_coercion_fallback_on_bad_value():
 
 
 # --- 5. Multi-message / list return from prompt functions ---
+
 
 def test_render_prompt_returns_list_passthrough():
     """Test that _render_prompt returns a list unchanged when the function returns a list."""

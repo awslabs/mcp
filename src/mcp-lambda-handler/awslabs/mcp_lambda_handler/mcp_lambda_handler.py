@@ -372,8 +372,7 @@ class MCPLambdaHandler:
 
                 sig_param = sig.parameters.get(param_name)
                 is_required = (
-                    sig_param is not None
-                    and sig_param.default is inspect.Parameter.empty
+                    sig_param is not None and sig_param.default is inspect.Parameter.empty
                 )
 
                 args.append(
@@ -769,9 +768,7 @@ class MCPLambdaHandler:
                     if isinstance(result, list):
                         messages = result
                     else:
-                        messages = [
-                            {'role': 'user', 'content': {'type': 'text', 'text': result}}
-                        ]
+                        messages = [{'role': 'user', 'content': {'type': 'text', 'text': result}}]
                     return self._create_success_response(
                         {'messages': messages},
                         request.id,
