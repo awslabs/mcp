@@ -1,10 +1,12 @@
 """Tests for the AWS Bedrock Data Automation MCP Server."""
 
 import pytest
+import warnings
 from awslabs.aws_bedrock_data_automation_mcp_server.server import (
     analyze_asset_tool,
     get_project_details_tool,
     get_projects_tool,
+    main,
 )
 from unittest.mock import AsyncMock, patch
 
@@ -102,3 +104,14 @@ async def test_analyze_asset_tool_error():
     ):
         with pytest.raises(ValueError, match='Error analyzing asset: Test error'):
             await analyze_asset_tool(assetPath='/path/to/asset.pdf')
+
+
+def test_main_emits_deprecation_warning():
+    """Test that main() emits a FutureWarning deprecation notice."""
+    with patch('awslabs.aws_bedrock_data_automation_mcp_server.server.mcp.run'):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter('always')
+            main()
+            future_warnings = [x for x in w if issubclass(x.category, FutureWarning)]
+            assert len(future_warnings) >= 1
+            assert 'deprecated' in str(future_warnings[0].message).lower()
