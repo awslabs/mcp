@@ -83,19 +83,23 @@ async def read_documentation(
 
     ## Usage
 
-    This tool retrieves the content of an AWS China documentation page and converts it to markdown format.
-    For long documents, you can make multiple calls with different start_index values to retrieve
-    the entire content in chunks.
+    Supported domains:
+    - AWS China documentation:  https://docs.amazonaws.cn/...
+    - Kiro IDE/CLI docs:        https://kiro.dev/docs/...
+
+    For Kiro IDE/CLI topics, call this tool directly with the kiro.dev URL,
+    e.g. https://kiro.dev/docs/cli/custom-agents/creating/
 
     ## URL Requirements
 
-    - Must be from the docs.amazonaws.cn domain
-    - Must end with .html
+    - AWS China docs: Must end with .html
+    - Kiro docs: Any path under kiro.dev/docs/ (does not require .html)
 
     ## Example URLs
 
     - https://docs.amazonaws.cn/en_us/AmazonS3/latest/userguide/bucketnamingrules.html
     - https://docs.amazonaws.cn/en_us/lambda/latest/dg/lambda-invocation.html
+    - https://kiro.dev/docs/cli/custom-agents/creating/
 
     ## Output Format
 
@@ -120,14 +124,18 @@ async def read_documentation(
     Returns:
         Markdown content of the AWS China documentation
     """
-    # Validate that URL is from docs.amazonaws.cn and ends with .html
+    # Validate that URL is from a supported domain
     url_str = str(url)
-    if not re.match(r'^https?://docs\.amazonaws\.cn/', url_str):
-        error_msg = f'Invalid URL: {url_str}. URL must be from the docs.amazonaws.cn domain'
-        await ctx.error(error_msg)
-        return error_msg
-    if not url_str.endswith('.html'):
-        error_msg = f'Invalid URL: {url_str}. URL must end with .html'
+    
+    # Check if URL matches AWS China documentation or Kiro documentation
+    is_valid_aws_cn = re.match(r'^https?://docs\.amazonaws\.cn/.*\.html$', url_str)
+    is_valid_kiro = re.match(r'^https?://kiro\.dev(:\d+)?/docs/.*$', url_str)
+    
+    if not (is_valid_aws_cn or is_valid_kiro):
+        error_msg = (
+            f'Invalid URL: {url_str}. URL must be from docs.amazonaws.cn (ending in .html) '
+            f'or kiro.dev/docs/ (any path)'
+        )
         await ctx.error(error_msg)
         return error_msg
 
