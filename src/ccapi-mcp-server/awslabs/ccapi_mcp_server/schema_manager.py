@@ -14,6 +14,7 @@
 
 import json
 import os
+import tempfile
 from awslabs.ccapi_mcp_server.aws_client import get_aws_client
 from awslabs.ccapi_mcp_server.errors import ClientError
 from datetime import datetime, timedelta
@@ -31,8 +32,21 @@ class SchemaManager:
     """Responsible for keeping track of schemas, cacheing them locally, and updating them if they are outdated."""
 
     def __init__(self):
-        """Initialize the schema manager with the cache directory."""
-        cache_dir = os.path.join(os.path.dirname(__file__), '.schemas')
+        """Initialize the schema manager with the cache directory.
+
+        The cache directory is resolved in the following order:
+        1. CCAPI_SCHEMA_CACHE_DIR environment variable (if set)
+        2. .schemas directory relative to this file (original default)
+        3. A temp directory fallback if the default is not writable
+        """
+        cache_dir = os.environ.get('CCAPI_SCHEMA_CACHE_DIR')
+        if cache_dir is None:
+            default_dir = os.path.join(os.path.dirname(__file__), '.schemas')
+            try:
+                Path(default_dir).mkdir(exist_ok=True)
+                cache_dir = default_dir
+            except OSError:
+                cache_dir = os.path.join(tempfile.gettempdir(), '.ccapi_schemas')
         self.cache_dir = Path(cache_dir)
         self.metadata_file = self.cache_dir / SCHEMA_METADATA_FILE
         self.schema_registry: Dict[str, dict] = {}
