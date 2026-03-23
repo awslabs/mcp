@@ -92,9 +92,10 @@ def sign_websocket_headers(ws_url: str, region_name: str | None = None) -> dict[
 
     # Return only the auth-relevant headers
     return {
-        k: v for k, v in dict(request.headers).items()
-        if k.lower() in ('authorization', 'x-amz-date', 'x-amz-security-token',
-                         'x-amz-content-sha256', 'host')
+        k: v
+        for k, v in dict(request.headers).items()
+        if k.lower()
+        in ('authorization', 'x-amz-date', 'x-amz-security-token', 'x-amz-content-sha256', 'host')
     }
 
 

@@ -25,7 +25,9 @@ from unittest.mock import patch
 
 
 MOCK_HEADERS = {'Authorization': 'AWS4-HMAC-SHA256 ...', 'X-Amz-Date': '20260320T000000Z'}
-SIGN_WS_PATH = 'awslabs.amazon_bedrock_agentcore_browser_mcp_server.tools.sessions.sign_websocket_headers'
+SIGN_WS_PATH = (
+    'awslabs.amazon_bedrock_agentcore_browser_mcp_server.tools.sessions.sign_websocket_headers'
+)
 
 
 class TestStartBrowserSession:
@@ -124,6 +126,23 @@ class TestStartBrowserSession:
         assert result['message'] == 'Unexpected error'
         assert 'session_id' not in result
 
+    @patch(SIGN_WS_PATH, side_effect=RuntimeError('No credentials'))
+    @patch(
+        'awslabs.amazon_bedrock_agentcore_browser_mcp_server.tools.sessions.get_data_plane_client'
+    )
+    def test_start_browser_session_signing_failure(
+        self, mock_get_client, mock_sign, mock_start_browser_session_response
+    ):
+        """Test that session starts successfully even when SigV4 signing fails."""
+        mock_client = mock_get_client.return_value
+        mock_client.start_browser_session.return_value = mock_start_browser_session_response
+
+        result = start_browser_session()
+
+        assert result['session_id'] == 'test-session-123'
+        assert result['automation_headers'] == {}  # Empty due to signing failure
+        assert 'error' not in result
+
 
 class TestGetBrowserSession:
     """Test cases for get_browser_session."""
@@ -199,6 +218,23 @@ class TestGetBrowserSession:
 
         assert result['error'] == 'UnexpectedError'
         assert result['message'] == 'Database error'
+
+    @patch(SIGN_WS_PATH, side_effect=RuntimeError('No credentials'))
+    @patch(
+        'awslabs.amazon_bedrock_agentcore_browser_mcp_server.tools.sessions.get_data_plane_client'
+    )
+    def test_get_browser_session_signing_failure(
+        self, mock_get_client, mock_sign, mock_get_browser_session_response
+    ):
+        """Test that get session succeeds even when SigV4 signing fails."""
+        mock_client = mock_get_client.return_value
+        mock_client.get_browser_session.return_value = mock_get_browser_session_response
+
+        result = get_browser_session('test-session-123')
+
+        assert result['session_id'] == 'test-session-123'
+        assert result['automation_headers'] == {}  # Empty due to signing failure
+        assert 'error' not in result
 
 
 class TestListBrowserSessions:
