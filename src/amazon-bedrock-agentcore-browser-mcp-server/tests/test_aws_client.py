@@ -252,9 +252,9 @@ class TestSignWebsocketHeaders:
             mock_session = MagicMock()
             mock_credentials = MagicMock()
             mock_frozen_creds = MagicMock()
-            mock_frozen_creds.access_key = 'AKIAIOSFODNN7EXAMPLE'
-            mock_frozen_creds.secret_key = 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
-            mock_frozen_creds.token = 'session-token'
+            mock_frozen_creds.access_key = 'fake-access-key'
+            mock_frozen_creds.secret_key = 'fake-secret-key'  # noqa: S105
+            mock_frozen_creds.token = 'fake-token'
             mock_credentials.get_frozen_credentials.return_value = mock_frozen_creds
             mock_session.get_credentials.return_value = mock_credentials
             mock_get_session.return_value = (mock_session, 'us-west-2')
