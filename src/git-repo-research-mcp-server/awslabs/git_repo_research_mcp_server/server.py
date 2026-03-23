@@ -17,6 +17,7 @@ import json
 import mimetypes
 import os
 import sys
+import warnings
 from awslabs.git_repo_research_mcp_server.defaults import Constants
 from awslabs.git_repo_research_mcp_server.github_search import (
     github_repo_search_wrapper,
@@ -42,6 +43,7 @@ from datetime import datetime
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP, Image
 from mcp.types import ImageContent
+from pathlib import Path
 from pydantic import Field
 from typing import Dict, List, Optional, Union
 
@@ -50,11 +52,48 @@ from typing import Dict, List, Optional, Union
 logger.remove()
 logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'INFO'))
 
+
+def _resolve_and_validate_under_base(file_path: str, base_dir: str) -> Path:
+    """Resolve path and ensure it is under base_dir to prevent path traversal.
+
+    Args:
+        file_path: The requested file path (may contain ..).
+        base_dir: The allowed base directory (e.g. repository path).
+
+    Returns:
+        Resolved absolute Path that is under base_dir.
+
+    Raises:
+        ValueError: If the path is outside base_dir or invalid.
+    """
+    base = Path(base_dir).resolve()
+    try:
+        resolved = Path(file_path).resolve(strict=False)
+        if not resolved.exists():
+            raise ValueError(f'File or directory not found: {file_path}')
+        if not resolved.is_relative_to(base):
+            raise ValueError(f'Path traversal blocked: path must be under {base}')
+        return resolved
+    except (OSError, RuntimeError) as e:
+        raise ValueError(f'Invalid path: {file_path}') from e
+
+
+DEPRECATION_NOTICE = (
+    'git-repo-research-mcp-server is deprecated and will be removed in a future release. '
+    'For library documentation and code research, we recommend Context7 '
+    '(https://github.com/upstash/context7) which provides up-to-date docs for popular libraries '
+    'without requiring AWS credentials. For semantic search over private repositories, consider '
+    "using your IDE's built-in indexing or a general-purpose code search tool. "
+    'See the migration guide: '
+    'https://github.com/awslabs/mcp/blob/main/docs/migration-git-repo-research.md'
+)
+
+
 # Create the MCP server
 mcp = FastMCP(
     'Git Repository Research MCP Server',
-    instructions="""
-# Git Repository Research MCP Server
+    instructions=f'DEPRECATION NOTICE: {DEPRECATION_NOTICE}\n\n'
+    + """# Git Repository Research MCP Server
 
 This MCP server provides tools and resources for indexing and searching Git repositories using semantic search.
 
@@ -199,7 +238,7 @@ async def mcp_index_repository(
         description='Overlap between chunks in characters',
     ),
 ) -> Dict:
-    """Build a FAISS index for a Git repository.
+    """[DEPRECATED] Build a FAISS index for a Git repository.
 
     This tool indexes a Git repository (local or remote) using FAISS and Amazon Bedrock embeddings.
     The index can then be used for semantic search within the repository.
@@ -271,7 +310,7 @@ async def mcp_index_repository(
     mime_type='application/json',
 )
 async def repository_summary(repository_name: str) -> str:
-    """Get a summary of an indexed repository including structure and helpful files.
+    """[DEPRECATED] Get a summary of an indexed repository including structure and helpful files.
 
     This resource provides a summary of the repository including:
     - Directory tree structure of all files
@@ -419,7 +458,7 @@ async def repository_summary(repository_name: str) -> str:
 
 @mcp.resource(uri='repositories://', name='Indexed Repositories', mime_type='application/json')
 async def list_repositories() -> str:
-    """List all indexed repositories with detailed information.
+    """[DEPRECATED] List all indexed repositories with detailed information.
 
     This resource returns a list of all repositories that have been indexed and are available for searching.
     It provides detailed information about each index including file counts, chunk counts, file types, etc.
@@ -493,70 +532,80 @@ async def access_file_or_directory(filepath: str) -> Union[str, List[str], Image
             # Re-split the filepath with the normalized repository name
             parts = filepath.split('/')
 
-        if len(parts) >= 2 and parts[1] == 'repository':
-            repo_name = parts[0]
-            # Get the repository directory path
-            try:
-                # Get AWS credentials from environment variables
-                aws_region = os.environ.get('AWS_REGION')
-                aws_profile = os.environ.get('AWS_PROFILE')
-
-                # Get the repository searcher
-                searcher = get_repository_searcher(
-                    aws_region=aws_region,
-                    aws_profile=aws_profile,
-                )
-
-                # Get the repository directory path
-                index_path = searcher.repository_indexer._get_index_path(repo_name)
-                repo_path = os.path.join(index_path, 'repository')
-
-                # Construct the full path to the file
-                if len(parts) > 2:
-                    file_path = os.path.join(repo_path, *parts[2:])
-                else:
-                    file_path = repo_path
-
-                logger.info(f'Accessing repository file: {file_path}')
-                filepath = file_path
-            except Exception as e:
-                logger.error(f'Error resolving repository path: {e}')
-                return json.dumps(
-                    {
-                        'status': 'error',
-                        'message': f'Error resolving repository path: {str(e)}',
-                    }
-                )
-
-        # Check if the path exists
-        if not os.path.exists(filepath):
+        # Only allow repository format to prevent arbitrary file read (path confinement)
+        if len(parts) < 2 or parts[1] != 'repository':
             return json.dumps(
                 {
                     'status': 'error',
-                    'message': f'File or directory not found: {filepath}',
+                    'message': (
+                        'File path must use repository format: '
+                        'repository_name/repository/path/to/file'
+                    ),
                 }
             )
 
+        repo_name = parts[0]
+        try:
+            # Get AWS credentials from environment variables
+            aws_region = os.environ.get('AWS_REGION')
+            aws_profile = os.environ.get('AWS_PROFILE')
+
+            # Get the repository searcher
+            searcher = get_repository_searcher(
+                aws_region=aws_region,
+                aws_profile=aws_profile,
+            )
+
+            # Get the repository directory path
+            index_path = searcher.repository_indexer._get_index_path(repo_name)
+            repo_path = os.path.join(index_path, 'repository')
+
+            # Construct the full path to the file
+            if len(parts) > 2:
+                file_path = os.path.join(repo_path, *parts[2:])
+            else:
+                file_path = repo_path
+
+            logger.info(f'Accessing repository file: {file_path}')
+
+            # Resolve and validate path is under repo_path (prevents ../ traversal)
+            safe_path = _resolve_and_validate_under_base(file_path, repo_path)
+        except ValueError as e:
+            return json.dumps(
+                {'status': 'error', 'message': str(e)},
+            )
+        except Exception as e:
+            logger.error(f'Error resolving repository path: {e}')
+            return json.dumps(
+                {
+                    'status': 'error',
+                    'message': f'Error resolving repository path: {str(e)}',
+                }
+            )
+
+        # Use only the validated path for all file operations
+        resolved_path = safe_path
+
         # If it's a directory, return a listing of files
-        if os.path.isdir(filepath):
-            files = os.listdir(filepath)
+        if resolved_path.is_dir():
+            files = os.listdir(resolved_path)
             return json.dumps(
                 {
                     'status': 'success',
                     'type': 'directory',
-                    'path': filepath,
+                    'path': str(resolved_path),
                     'files': files,
                 }
             )
 
         # If it's a file, determine the mime type
-        mime_type, _ = mimetypes.guess_type(filepath)
+        mime_type, _ = mimetypes.guess_type(str(resolved_path))
 
         # If it's an image, return the image data
         if mime_type and mime_type.startswith('image/'):
             try:
                 # Read file directly as binary data
-                with open(filepath, 'rb') as f:
+                with open(resolved_path, 'rb') as f:
                     image_data = f.read()
 
                 # Extract format from mime_type (e.g., "image/png" -> "png")
@@ -575,7 +624,7 @@ async def access_file_or_directory(filepath: str) -> Union[str, List[str], Image
 
         # For text files, return the content as a string
         try:
-            with open(filepath, 'r', encoding='utf-8') as f:
+            with open(resolved_path, 'r', encoding='utf-8') as f:
                 content = f.read()
             return content
         except UnicodeDecodeError:
@@ -583,7 +632,7 @@ async def access_file_or_directory(filepath: str) -> Union[str, List[str], Image
             return json.dumps(
                 {
                     'status': 'error',
-                    'message': f'File appears to be binary and not an image: {filepath}',
+                    'message': f'File appears to be binary and not an image: {resolved_path!s}',
                 }
             )
 
@@ -607,7 +656,7 @@ async def mcp_search_repository(
         default=0.0, description='Minimum similarity score threshold (0.0 to 1.0)'
     ),
 ) -> Dict:
-    """Perform semantic search within an indexed repository.
+    """[DEPRECATED] Perform semantic search within an indexed repository.
 
     This tool searches an indexed repository using semantic search with Amazon Bedrock embeddings.
     It returns results ranked by relevance to the query.
@@ -672,7 +721,7 @@ async def mcp_search_github_repos(
     keywords: List[str] = Field(description='List of keywords to search for GitHub repositories'),
     num_results: int = Field(default=5, description='Number of results to return'),
 ) -> Dict:
-    """Search for GitHub repositories based on keywords, scoped to specific organizations.
+    """[DEPRECATED] Search for GitHub repositories based on keywords, scoped to specific organizations.
 
     This tool searches for GitHub repositories using the GitHub REST/GraphQL APIs, scoped to specific GitHub
     organizations (aws-samples, aws-solutions-library-samples, and awslabs).
@@ -767,7 +816,7 @@ async def mcp_access_file(
     ctx: Context,
     filepath: str = Field(description='Path to the file or directory to access'),
 ) -> Dict | ImageContent:
-    """Access file or directory contents.
+    """[DEPRECATED] Access file or directory contents.
 
     This tool provides access to file or directory contents:
     - If the filepath references a text file, returns the content as a string
@@ -829,7 +878,7 @@ async def mcp_delete_repository(
         description='Directory to look for indices (optional, uses default if not provided)',
     ),
 ) -> Dict:
-    """Delete an indexed repository.
+    """[DEPRECATED] Delete an indexed repository.
 
     This tool deletes an indexed repository and its associated files.
     It can be identified by repository name or the full path to the index.
@@ -896,6 +945,7 @@ async def mcp_delete_repository(
 
 def main():
     """Run the MCP server with CLI argument support."""
+    warnings.warn(DEPRECATION_NOTICE, FutureWarning, stacklevel=2)
     mcp.run()
 
 

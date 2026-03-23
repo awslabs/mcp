@@ -1,3 +1,5 @@
+> **⚠️ DEPRECATION NOTICE**: This server is deprecated and will no longer receive updates. The core functionality (generating synthetic data schemas and pandas code) is achievable natively by modern AI assistants without requiring an MCP server. For S3 uploads, use the [S3 MCP Server](https://github.com/awslabs/mcp/tree/main/src/s3-mcp-server) instead.
+
 # Synthetic Data MCP Server
 
 A Model Context Protocol (MCP) server for generating, validating, and managing synthetic data.
