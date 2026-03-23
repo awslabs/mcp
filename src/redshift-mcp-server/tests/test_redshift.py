@@ -786,28 +786,45 @@ class TestDiscoverFunctions:
 
     @pytest.mark.asyncio
     async def test_discover_clusters_provisioned(self, mocker):
-        """Test discover_clusters function with provisioned clusters."""
-        # Mock redshift client
+        """Test discover_clusters function with provisioned clusters.
+
+        Tests both complete cluster data and clusters with optional fields omitted
+        to ensure proper default handling (e.g., DBName defaults to 'dev').
+        Fixes: https://github.com/awslabs/mcp/issues/2331
+        """
+        # Define minimal cluster first (with defaults omitted)
+        minimal_cluster = {
+            'ClusterIdentifier': 'minimal-cluster',
+            'ClusterStatus': 'available',
+            # DBName intentionally omitted - tests .get('DBName', 'dev')
+            'Endpoint': {'Address': 'minimal.redshift.amazonaws.com', 'Port': 5439},
+            'VpcId': 'vpc-456',
+            'NodeType': 'ra3.xlplus',
+            'NumberOfNodes': 1,
+            'ClusterCreateTime': '2024-06-01T00:00:00Z',
+            'MasterUsername': 'admin',
+            'PubliclyAccessible': False,
+            'Encrypted': True,
+            'Tags': [],
+        }
+
+        # Full cluster extends minimal (avoids code duplication)
+        full_cluster = {
+            **minimal_cluster,
+            'ClusterIdentifier': 'test-cluster',
+            'DBName': 'dev',
+            'Endpoint': {'Address': 'test.redshift.amazonaws.com', 'Port': 5439},
+            'VpcId': 'vpc-123',
+            'NodeType': 'dc2.large',
+            'NumberOfNodes': 2,
+            'ClusterCreateTime': '2024-01-01T00:00:00Z',
+            'Tags': [{'Key': 'env', 'Value': 'test'}],
+        }
+
+        # Mock redshift client with both clusters
         mock_redshift_client = mocker.Mock()
         mock_redshift_client.get_paginator.return_value.paginate.return_value = [
-            {
-                'Clusters': [
-                    {
-                        'ClusterIdentifier': 'test-cluster',
-                        'ClusterStatus': 'available',
-                        'DBName': 'dev',
-                        'Endpoint': {'Address': 'test.redshift.amazonaws.com', 'Port': 5439},
-                        'VpcId': 'vpc-123',
-                        'NodeType': 'dc2.large',
-                        'NumberOfNodes': 2,
-                        'ClusterCreateTime': '2024-01-01T00:00:00Z',
-                        'MasterUsername': 'admin',
-                        'PubliclyAccessible': False,
-                        'Encrypted': True,
-                        'Tags': [{'Key': 'env', 'Value': 'test'}],
-                    }
-                ]
-            }
+            {'Clusters': [full_cluster, minimal_cluster]}
         ]
 
         # Mock serverless client (empty response)
@@ -828,7 +845,9 @@ class TestDiscoverFunctions:
 
         result = await discover_clusters()
 
-        assert len(result) == 1
+        assert len(result) == 2
+
+        # Verify full cluster (with all fields)
         cluster = result[0]
         assert cluster['identifier'] == 'test-cluster'
         assert cluster['type'] == 'provisioned'
@@ -840,68 +859,17 @@ class TestDiscoverFunctions:
         assert cluster['number_of_nodes'] == 2
         assert cluster['tags'] == {'env': 'test'}
 
-    @pytest.mark.asyncio
-    async def test_discover_clusters_provisioned_missing_dbname(self, mocker):
-        """Test discover_clusters handles clusters without DBName field.
-
-        Some Redshift clusters may not have the DBName field present in the
-        describe_clusters response. The function should handle this gracefully
-        by returning None for database_name instead of raising KeyError.
-
-        Fixes: https://github.com/awslabs/mcp/issues/2331
-        """
-        # Mock redshift client with cluster missing DBName
-        mock_redshift_client = mocker.Mock()
-        mock_redshift_client.get_paginator.return_value.paginate.return_value = [
-            {
-                'Clusters': [
-                    {
-                        'ClusterIdentifier': 'no-dbname-cluster',
-                        'ClusterStatus': 'available',
-                        # DBName is intentionally omitted
-                        'Endpoint': {'Address': 'no-db.redshift.amazonaws.com', 'Port': 5439},
-                        'VpcId': 'vpc-456',
-                        'NodeType': 'ra3.xlplus',
-                        'NumberOfNodes': 1,
-                        'ClusterCreateTime': '2024-06-01T00:00:00Z',
-                        'MasterUsername': 'admin',
-                        'PubliclyAccessible': False,
-                        'Encrypted': True,
-                        'Tags': [],
-                    }
-                ]
-            }
-        ]
-
-        # Mock serverless client (empty response)
-        mock_serverless_client = mocker.Mock()
-        mock_serverless_client.get_paginator.return_value.paginate.return_value = [
-            {'workgroups': []}
-        ]
-
-        # Mock client manager
-        mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_client',
-            return_value=mock_redshift_client,
-        )
-        mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_serverless_client',
-            return_value=mock_serverless_client,
-        )
-
-        result = await discover_clusters()
-
-        assert len(result) == 1
-        cluster = result[0]
-        assert cluster['identifier'] == 'no-dbname-cluster'
-        assert cluster['type'] == 'provisioned'
-        assert cluster['status'] == 'available'
-        assert cluster['database_name'] == 'dev'  # Should default to 'dev', not KeyError
-        assert cluster['endpoint'] == 'no-db.redshift.amazonaws.com'
-        assert cluster['port'] == 5439
-        assert cluster['node_type'] == 'ra3.xlplus'
-        assert cluster['number_of_nodes'] == 1
-        assert cluster['tags'] == {}
+        # Verify minimal cluster (with defaults applied)
+        minimal = result[1]
+        assert minimal['identifier'] == 'minimal-cluster'
+        assert minimal['type'] == 'provisioned'
+        assert minimal['status'] == 'available'
+        assert minimal['database_name'] == 'dev'  # Should default to 'dev', not KeyError
+        assert minimal['endpoint'] == 'minimal.redshift.amazonaws.com'
+        assert minimal['port'] == 5439
+        assert minimal['node_type'] == 'ra3.xlplus'
+        assert minimal['number_of_nodes'] == 1
+        assert minimal['tags'] == {}
 
     @pytest.mark.asyncio
     async def test_discover_clusters_provisioned_error(self, mocker):
