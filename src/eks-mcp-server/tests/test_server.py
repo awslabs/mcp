@@ -14,6 +14,7 @@
 # ruff: noqa: D101, D102, D103
 """Tests for the EKS MCP Server."""
 
+import os
 import pytest
 from awslabs.eks_mcp_server.cloudwatch_handler import CloudWatchHandler
 from awslabs.eks_mcp_server.eks_kb_handler import EKSKnowledgeBaseHandler
@@ -628,3 +629,54 @@ async def test_get_cloudwatch_logs_blocked():
         'Access to CloudWatch logs requires --allow-sensitive-data-access flag'
         in result.content[0].text
     )
+
+
+@pytest.mark.asyncio
+async def test_auth_mode_cli_arg_overrides_env():
+    """Test that --auth-mode CLI arg sets EKS_AUTH_MODE env var."""
+    import argparse
+    from awslabs.eks_mcp_server.server import main
+
+    with patch.object(argparse.ArgumentParser, 'parse_args') as mock_parse_args:
+        mock_parse_args.return_value = argparse.Namespace(
+            allow_write=False, allow_sensitive_data_access=False, auth_mode='kubeconfig'
+        )
+
+        mock_server = MagicMock()
+        with patch('awslabs.eks_mcp_server.server.create_server', return_value=mock_server):
+            with patch('awslabs.eks_mcp_server.server.K8sHandler'):
+                with patch.dict(os.environ, {}, clear=False):
+                    main()
+                    assert os.environ.get('EKS_AUTH_MODE') == 'kubeconfig'
+
+
+@pytest.mark.asyncio
+async def test_kubeconfig_mode_skips_aws_handlers():
+    """Test that kubeconfig mode skips AWS-dependent handlers."""
+    import argparse
+    from awslabs.eks_mcp_server.server import main
+
+    with patch.object(argparse.ArgumentParser, 'parse_args') as mock_parse_args:
+        mock_parse_args.return_value = argparse.Namespace(
+            allow_write=False, allow_sensitive_data_access=False, auth_mode='kubeconfig'
+        )
+
+        mock_server = MagicMock()
+        with patch('awslabs.eks_mcp_server.server.create_server', return_value=mock_server):
+            with patch('awslabs.eks_mcp_server.server.K8sHandler') as mock_k8s:
+                with patch('awslabs.eks_mcp_server.server.CloudWatchHandler') as mock_cw:
+                    with patch('awslabs.eks_mcp_server.server.EksStackHandler') as mock_eks:
+                        with patch('awslabs.eks_mcp_server.server.IAMHandler') as mock_iam:
+                            with patch(
+                                'awslabs.eks_mcp_server.server.EKSKnowledgeBaseHandler'
+                            ) as mock_kb:
+                                main()
+
+                                # K8sHandler should still be initialized
+                                mock_k8s.assert_called_once()
+
+                                # AWS-dependent handlers should NOT be initialized
+                                mock_cw.assert_not_called()
+                                mock_eks.assert_not_called()
+                                mock_iam.assert_not_called()
+                                mock_kb.assert_not_called()
