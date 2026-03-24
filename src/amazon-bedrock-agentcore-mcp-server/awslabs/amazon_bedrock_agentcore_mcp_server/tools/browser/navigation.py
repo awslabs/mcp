@@ -26,6 +26,7 @@ from .snapshot_manager import (
 from loguru import logger
 from mcp.server.fastmcp import Context
 from os import getenv
+from playwright.async_api import Error as PlaywrightError
 from pydantic import Field
 from typing import Annotated
 from urllib.parse import urlparse
@@ -87,7 +88,8 @@ class NavigationTools:
         """Navigate to a URL in the browser.
 
         Loads the specified URL and returns an accessibility tree snapshot
-        of the loaded page. Use the element refs in the snapshot for
+        of the loaded page, including pages that return non-2xx HTTP status
+        codes (e.g., 404, 500). Use the element refs in the snapshot for
         subsequent interaction tools.
         """
         parsed = urlparse(url)
@@ -101,12 +103,36 @@ class NavigationTools:
         page = None
         try:
             page = await self._connection_manager.get_page(session_id)
-            response = await page.goto(
-                url, wait_until='domcontentloaded', timeout=NAVIGATION_TIMEOUT_MS
-            )
 
-            status = response.status if response else 'unknown'
-            title = await page.title()
+            status: int | str = 'unknown'
+            try:
+                response = await page.goto(
+                    url, wait_until='domcontentloaded', timeout=NAVIGATION_TIMEOUT_MS
+                )
+                status = response.status if response else 'unknown'
+            except PlaywrightError as nav_err:
+                error_str = str(nav_err)
+                if 'net::ERR_HTTP_RESPONSE_CODE_FAILURE' in error_str:
+                    # AgentCore Browser's Chromium
+                    # configuration converts non-2xx HTTP responses (404, 500,
+                    # etc.) into network-level errors.  Standard Playwright
+                    # does NOT throw on non-2xx.  We catch this
+                    # specific error and recover so the agent sees the page
+                    # content instead of a failure message.  The page content
+                    # is loaded; only the Response object is unavailable.
+                    logger.warning(f'Non-2xx HTTP response navigating to {url}: {nav_err}')
+                    status = 'non-2xx (error page loaded)'
+                else:
+                    # Other Playwright navigation errors (network failure, DNS, etc.)
+                    raise
+
+            # page.title() can fail if the browser replaced the page with its
+            # own error screen, destroying the original execution context.
+            # The snapshot (captured via CDP) still works regardless.
+            try:
+                title = await page.title()
+            except Exception:
+                title = '(title unavailable)'
             final_url = page.url
             snapshot = await self._snapshot_manager.capture(page, session_id)
 
