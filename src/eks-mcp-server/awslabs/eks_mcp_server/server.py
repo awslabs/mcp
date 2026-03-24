@@ -169,14 +169,17 @@ def main():
     mcp = create_server()
 
     # Initialize handlers - all tools are always registered, access control is handled within tools
-    CloudWatchHandler(mcp, allow_sensitive_data_access)
-    EKSKnowledgeBaseHandler(mcp)
-    EksStackHandler(mcp, allow_write)
     K8sHandler(mcp, allow_write, allow_sensitive_data_access)
-    IAMHandler(mcp, allow_write)
-    CloudWatchMetricsHandler(mcp)
-    VpcConfigHandler(mcp, allow_sensitive_data_access)
-    InsightsHandler(mcp, allow_sensitive_data_access)
+    EKSKnowledgeBaseHandler(mcp)
+
+    # AWS-dependent handlers require AWS credentials and are skipped in kubeconfig mode
+    if auth_mode != 'kubeconfig':
+        CloudWatchHandler(mcp, allow_sensitive_data_access)
+        EksStackHandler(mcp, allow_write)
+        IAMHandler(mcp, allow_write)
+        CloudWatchMetricsHandler(mcp)
+        VpcConfigHandler(mcp, allow_sensitive_data_access)
+        InsightsHandler(mcp, allow_sensitive_data_access)
 
     # Run server
     mcp.run()
