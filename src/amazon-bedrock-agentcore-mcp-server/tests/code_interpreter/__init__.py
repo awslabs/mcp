@@ -11,10 +11,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""Cost Explorer MCP Server module.
-
-This module provides MCP tools for analyzing AWS costs and usage data through the AWS Cost Explorer API.
-"""
-
-__version__ = '0.0.22'
