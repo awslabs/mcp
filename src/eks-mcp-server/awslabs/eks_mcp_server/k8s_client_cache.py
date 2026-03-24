@@ -66,8 +66,7 @@ class K8sClientCache:
         self._auth_mode = os.environ.get('EKS_AUTH_MODE', DEFAULT_AUTH_MODE).lower()
         if self._auth_mode not in (AUTH_MODE_IAM, AUTH_MODE_KUBECONFIG):
             logger.warning(
-                f'Invalid EKS_AUTH_MODE: {self._auth_mode}. '
-                f'Falling back to {DEFAULT_AUTH_MODE}.'
+                f'Invalid EKS_AUTH_MODE: {self._auth_mode}. Falling back to {DEFAULT_AUTH_MODE}.'
             )
             self._auth_mode = DEFAULT_AUTH_MODE
 

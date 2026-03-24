@@ -481,7 +481,8 @@ class K8sHandler:
         self,
         ctx: Context,
         cluster_name: str = Field(
-            ..., description='Name of the EKS cluster (or kubeconfig context name when EKS_AUTH_MODE=kubeconfig) where the resources are located.'
+            ...,
+            description='Name of the EKS cluster (or kubeconfig context name when EKS_AUTH_MODE=kubeconfig) where the resources are located.',
         ),
         kind: str = Field(
             ...,
@@ -838,7 +839,8 @@ class K8sHandler:
         self,
         ctx: Context,
         cluster_name: str = Field(
-            ..., description='Name of the EKS cluster (or kubeconfig context name when EKS_AUTH_MODE=kubeconfig) where the pod is running.'
+            ...,
+            description='Name of the EKS cluster (or kubeconfig context name when EKS_AUTH_MODE=kubeconfig) where the pod is running.',
         ),
         namespace: str = Field(..., description='Kubernetes namespace where the pod is located.'),
         pod_name: str = Field(..., description='Name of the pod to retrieve logs from.'),
@@ -977,7 +979,8 @@ class K8sHandler:
         self,
         ctx: Context,
         cluster_name: str = Field(
-            ..., description='Name of the EKS cluster (or kubeconfig context name when EKS_AUTH_MODE=kubeconfig) where the resource is located.'
+            ...,
+            description='Name of the EKS cluster (or kubeconfig context name when EKS_AUTH_MODE=kubeconfig) where the resource is located.',
         ),
         kind: str = Field(
             ...,
@@ -1111,7 +1114,8 @@ class K8sHandler:
         self,
         ctx: Context,
         cluster_name: str = Field(
-            ..., description='Name of the EKS cluster (or kubeconfig context name when EKS_AUTH_MODE=kubeconfig) to query for available API versions.'
+            ...,
+            description='Name of the EKS cluster (or kubeconfig context name when EKS_AUTH_MODE=kubeconfig) to query for available API versions.',
         ),
     ) -> CallToolResult:
         """List all available API versions in the Kubernetes cluster.

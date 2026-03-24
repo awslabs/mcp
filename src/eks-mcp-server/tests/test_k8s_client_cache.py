@@ -503,10 +503,13 @@ class TestK8sClientCacheKubeconfigMode:
                     assert client is mock_k8s_apis
 
     def test_get_client_kubeconfig_mode_with_kubeconfig_env(self):
-        with patch.dict(os.environ, {
-            'EKS_AUTH_MODE': 'kubeconfig',
-            'KUBECONFIG': '/custom/path/kubeconfig',
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                'EKS_AUTH_MODE': 'kubeconfig',
+                'KUBECONFIG': '/custom/path/kubeconfig',
+            },
+        ):
             cache = K8sClientCache()
             with patch('kubernetes.config.new_client_from_config') as mock_new_client:
                 mock_api_client = MagicMock()
@@ -558,8 +561,6 @@ class TestK8sClientCacheKubeconfigMode:
             ):
                 with patch('awslabs.eks_mcp_server.k8s_client_cache.K8sApis') as mock_cls:
                     mock_cls.return_value = MagicMock()
-                    with patch(
-                        'kubernetes.config.new_client_from_config'
-                    ) as mock_kube_config:
+                    with patch('kubernetes.config.new_client_from_config') as mock_kube_config:
                         cache.get_client('my-cluster')
                         mock_kube_config.assert_not_called()
