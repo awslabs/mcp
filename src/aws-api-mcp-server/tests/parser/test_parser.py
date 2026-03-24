@@ -372,7 +372,7 @@ def test_plural_singular_params(command):
     'command',
     [
         'aws s3api get-bucket-location --bucket=deploymentloggingbucke-9c88ebe0707be65d2518510c64917283d761bf03',
-        "aws ec2 describe-availability-zones --query='AvailabilityZones[?ZoneName==`us-east-1a`]'",
+        'aws ec2 describe-availability-zones --query=\'AvailabilityZones[?ZoneName=="us-east-1a"]\'',
         'aws s3api get-bucket-lifecycle --bucket my-s3-bucket',
         'aws --region=us-east-1 ec2 get-subnet-cidr-reservations --subnet-id subnet-012 --color=on',
         "aws apigateway get-export --parameters extensions='postman' --rest-api-id a1b2c3d4e5 --stage-name dev --export-type swagger -",
@@ -573,7 +573,8 @@ def test_client_side_filter_error():
     """Test that a malformed client-side filter raises an error."""
     command = 'aws ec2 describe-instances --query "Reservations[[]"'
     with pytest.raises(
-        ClientSideFilterError, match="Error parsing client-side filter 'Reservations[[]'*"
+        ClientSideFilterError,
+        match=re.escape("Error parsing client-side filter 'Reservations[[]'") + '.*',
     ):
         parse(command)
 

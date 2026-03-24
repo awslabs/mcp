@@ -14,6 +14,7 @@
 
 """AWS Bedrock Data Automation MCP Server implementation."""
 
+import warnings
 from awslabs.aws_bedrock_data_automation_mcp_server.helpers import (
     get_project,
     invoke_data_automation_and_get_results,
@@ -25,9 +26,19 @@ from pydantic import Field
 from typing import Annotated
 
 
+DEPRECATION_NOTICE = (
+    'aws-bedrock-data-automation-mcp-server is deprecated and will be removed in a future release. '
+    'Amazon Bedrock Data Automation capabilities are evolving rapidly. Please refer to the '
+    'Amazon Bedrock documentation for the latest data automation APIs and tooling. '
+    'See the migration guide: '
+    'https://github.com/awslabs/mcp/blob/main/docs/migration-bedrock-data-automation.md'
+)
+
+
 mcp = FastMCP(
     'awslabs.aws-bedrock-data-automation-mcp-server',
-    instructions="""
+    instructions=f'DEPRECATION NOTICE: {DEPRECATION_NOTICE}\n\n'
+    + """
     AWS Bedrock Data Automation MCP Server provides tools to interact with Amazon Bedrock Data Automation.
 
     This server enables you to:
@@ -47,7 +58,7 @@ mcp = FastMCP(
 
 @mcp.tool(name='getprojects')
 async def get_projects_tool() -> dict:
-    """Get a list of data automation projects.
+    """[DEPRECATED] Get a list of data automation projects.
 
     ## Usage
 
@@ -87,7 +98,7 @@ async def get_projects_tool() -> dict:
 async def get_project_details_tool(
     projectArn: Annotated[str, Field(description='The ARN of the project')],
 ) -> dict:
-    """Get details of a data automation project.
+    """[DEPRECATED] Get details of a data automation project.
 
     ## Usage
 
@@ -134,7 +145,7 @@ async def analyze_asset_tool(
         Field(description='The ARN of the project. Uses default public project if not provided'),
     ] = None,
 ) -> dict:
-    """Analyze an asset using a data automation project.
+    """[DEPRECATED] Analyze an asset using a data automation project.
 
     This tool extracts insights from unstructured content (documents, images, videos, audio)
     using Amazon Bedrock Data Automation.
@@ -189,6 +200,7 @@ async def analyze_asset_tool(
 
 def main():
     """Run the MCP server with CLI argument support."""
+    warnings.warn(DEPRECATION_NOTICE, FutureWarning, stacklevel=2)
     logger.info('Starting AWS Bedrock Data Automation MCP Server')
     mcp.run()
 

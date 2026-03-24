@@ -43,9 +43,7 @@ def task_strategy(draw, base_time: datetime | None = None):
         st.text(
             min_size=1,
             max_size=50,
-            alphabet=st.characters(
-                whitelist_categories=('L', 'N', 'P', 'S'), blacklist_characters='<>&"\''
-            ),
+            alphabet=st.characters(categories=('L', 'N', 'P', 'S'), exclude_characters='<>&"\''),
         )
     )
 
@@ -278,14 +276,12 @@ class TestGanttGeneratorPropertyBased:
     @given(tasks=tasks_list_strategy(min_tasks=1, max_tasks=50))
     @settings(max_examples=100)
     def test_property_svg_contains_required_visual_elements(self, tasks: list[dict]):
-        """Property 7: SVG Contains Required Visual Elements.
+        """Property: SVG Contains Required Visual Elements.
 
         For any task in the timeline, the SVG SHALL contain exactly two rectangle
         elements for that task (pending phase and running phase), and the running
         phase rectangle SHALL have a fill color matching the task's status.
-
-        **Validates: Requirements 5.2, 5.3, 5.4**
-        **Feature: run-analyzer-enhancement, Property 7: SVG Contains Required Visual Elements**
+        **Feature: run-analyzer-enhancement, Property: SVG Contains Required Visual Elements**
         """
         generator = GanttGenerator()
         run_info = {'runName': 'TestRun'}
@@ -337,9 +333,7 @@ class TestGanttGeneratorPropertyBased:
 
         For any valid time unit and dimensions, the generated SVG should be
         well-formed and contain the correct dimensions.
-
-        **Validates: Requirements 5.5, 5.7**
-        **Feature: run-analyzer-enhancement, Property 7: SVG Contains Required Visual Elements**
+        **Feature: run-analyzer-enhancement, Property: SVG Contains Required Visual Elements**
         """
         generator = GanttGenerator()
         base_time = datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
@@ -378,9 +372,7 @@ class TestGanttGeneratorPropertyBased:
 
         For any task status, the running phase rectangle SHALL have the
         correct fill color as defined in STATUS_COLORS.
-
-        **Validates: Requirements 5.3**
-        **Feature: run-analyzer-enhancement, Property 7: SVG Contains Required Visual Elements**
+        **Feature: run-analyzer-enhancement, Property: SVG Contains Required Visual Elements**
         """
         generator = GanttGenerator()
         base_time = datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
