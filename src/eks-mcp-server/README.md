@@ -274,7 +274,12 @@ In this mode:
 * The `cluster_name` parameter in all Kubernetes tools is interpreted as a **kubeconfig context name** (e.g., `"my-oidc-cluster"`).
 * The kubernetes Python client handles all authentication via the exec plugin, certificate, or token method configured in your kubeconfig.
 * Token refresh (e.g., for OIDC) is handled automatically by the kubernetes client.
-* AWS-specific tools (CloudWatch logs/metrics, IAM, CloudFormation stacks) will not be available unless AWS credentials are also configured.
+* **Important**: AWS-specific tools are **not registered** in kubeconfig mode. The following tools require IAM authentication mode and will only be available when `EKS_AUTH_MODE=iam` (the default):
+  * `manage_eks_stacks` (CloudFormation-based cluster management)
+  * `get_cloudwatch_logs` and `get_cloudwatch_metrics` (CloudWatch integration)
+  * `get_eks_vpc_config` (VPC configuration)
+  * `get_eks_insights` (EKS cluster insights)
+  * `get_policies_for_role` and `add_inline_policy` (IAM integration)
 
 ### Environment variables
 
@@ -332,7 +337,7 @@ When using kubeconfig mode:
 * The `cluster_name` parameter in Kubernetes tools is interpreted as a kubeconfig context name.
 * The `KUBECONFIG` environment variable or `~/.kube/config` is used to locate the kubeconfig file.
 * All authentication methods supported by kubeconfig are available (OIDC exec plugins, client certificates, bearer tokens, etc.).
-* AWS-only tools (CloudWatch, IAM, CloudFormation) still require AWS credentials and will return an error if they are not present.
+* AWS-specific tools (CloudWatch, IAM, VPC config, EKS insights, CloudFormation) are not registered in kubeconfig mode and will not appear in the tool list.
 
 #### `KUBECONFIG` (optional)
 
