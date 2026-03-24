@@ -31,6 +31,10 @@ AGENTCORE_MCP_INSTRUCTIONS = (
     'Use this MCP server to access Amazon Bedrock AgentCore services — '
     'agent runtime, code interpreter sandboxes, cloud browser sessions, '
     'memory, gateway, identity, policy, evaluations, and documentation.\n\n'
+    '## Code Interpreter Tools\n'
+    'Use start_code_interpreter_session to create a sandbox, then execute_code, '
+    'execute_command, or install_packages to run code. Use upload_file and '
+    'download_file to transfer data. Stop sessions when done to release resources.\n\n'
     '## Browser Tools\n'
     'Start a browser session with start_browser_session, then use browser '
     'interaction tools (browser_navigate, browser_snapshot, browser_click, '
@@ -88,10 +92,13 @@ def _is_service_enabled(name: str) -> bool:
 _browser_cm = None
 _browser_sm = None
 
+# Code interpreter cleanup function — set during registration, used by lifespan
+_code_interpreter_cleanup = None
+
 
 @asynccontextmanager
 async def server_lifespan(server: FastMCP) -> AsyncIterator[None]:
-    """Manage server lifecycle — browser cleanup task and graceful shutdown."""
+    """Manage server lifecycle — browser cleanup task, code interpreter cleanup, and graceful shutdown."""
     if _browser_cm is not None and _browser_sm is not None:
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGTERM, signal.SIGINT):
@@ -111,8 +118,14 @@ async def server_lifespan(server: FastMCP) -> AsyncIterator[None]:
             except asyncio.CancelledError:
                 pass
             await _browser_cm.cleanup()
+            if _code_interpreter_cleanup is not None:
+                await _code_interpreter_cleanup()
     else:
-        yield
+        try:
+            yield
+        finally:
+            if _code_interpreter_cleanup is not None:
+                await _code_interpreter_cleanup()
 
 
 mcp = FastMCP(APP_NAME, instructions=AGENTCORE_MCP_INSTRUCTIONS, lifespan=server_lifespan)
@@ -143,6 +156,27 @@ if _is_service_enabled('browser'):
         logger.error(
             f'Browser tools disabled — initialization failed: {e}. '
             f'Set AGENTCORE_DISABLE_TOOLS=browser to suppress.'
+        )
+
+if _is_service_enabled('code_interpreter'):
+    try:
+        from .tools.code_interpreter import (
+            cleanup_code_interpreter,
+            register_code_interpreter_tools,
+        )
+
+        register_code_interpreter_tools(mcp)
+        _code_interpreter_cleanup = cleanup_code_interpreter
+        logger.info('Code interpreter tools registered (9 tools)')
+    except ImportError as e:
+        logger.error(
+            f'Code interpreter tools disabled — failed to import dependencies: {e}. '
+            f'Ensure bedrock-agentcore is installed.'
+        )
+    except Exception as e:
+        logger.error(
+            f'Code interpreter tools disabled — initialization failed: {e}. '
+            f'Set AGENTCORE_DISABLE_TOOLS=code_interpreter to suppress.'
         )
 
 
