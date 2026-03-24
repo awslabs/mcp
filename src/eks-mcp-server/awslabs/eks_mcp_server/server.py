@@ -170,10 +170,10 @@ def main():
 
     # Initialize handlers - all tools are always registered, access control is handled within tools
     K8sHandler(mcp, allow_write, allow_sensitive_data_access)
-    EKSKnowledgeBaseHandler(mcp)
 
     # AWS-dependent handlers require AWS credentials and are skipped in kubeconfig mode
     if auth_mode != 'kubeconfig':
+        EKSKnowledgeBaseHandler(mcp)
         CloudWatchHandler(mcp, allow_sensitive_data_access)
         EksStackHandler(mcp, allow_write)
         IAMHandler(mcp, allow_write)

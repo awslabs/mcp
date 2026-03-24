@@ -280,6 +280,7 @@ In this mode:
   * `get_eks_vpc_config` (VPC configuration)
   * `get_eks_insights` (EKS cluster insights)
   * `get_policies_for_role` and `add_inline_policy` (IAM integration)
+  * `search_eks_troubleshoot_guide` (EKS Knowledge Base, requires AWS SigV4 auth)
 
 ### Environment variables
 
