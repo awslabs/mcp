@@ -367,13 +367,11 @@ dependencies = [
     { name = "awslabs-aws-api-mcp-server" },
     { name = "awslabs-mysql-mcp-server" },
     { name = "boto3" },
-    { name = "dspy-ai" },
     { name = "jinja2" },
     { name = "loguru" },
     { name = "mcp", extra = ["cli"] },
     { name = "psutil" },
     { name = "pydantic" },
-    { name = "strands-agents" },
     { name = "typing-extensions" },
 ]
 
@@ -381,6 +379,7 @@ dependencies = [
 dev = [
     { name = "boto3" },
     { name = "commitizen" },
+    { name = "dspy-ai" },
     { name = "hypothesis" },
     { name = "moto" },
     { name = "pre-commit" },
@@ -390,6 +389,7 @@ dev = [
     { name = "pytest-cov" },
     { name = "pytest-mock" },
     { name = "ruff" },
+    { name = "strands-agents" },
 ]
 
 [package.metadata]
@@ -397,14 +397,11 @@ requires-dist = [
     { name = "awslabs-aws-api-mcp-server", specifier = ">=1.3.19" },
     { name = "awslabs-mysql-mcp-server", specifier = "==1.0.9" },
     { name = "boto3", specifier = ">=1.40.5" },
-    { name = "dspy-ai", specifier = ">=2.6.27" },
-    { name = "jinja2", specifier = ">=3.1.0" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "loguru", specifier = "==0.7.3" },
     { name = "mcp", extras = ["cli"], specifier = ">=1.23.0" },
     { name = "psutil", specifier = "==7.1.1" },
     { name = "pydantic", specifier = "==2.11.7" },
-    { name = "strands-agents", specifier = ">=1.5.0" },
     { name = "typing-extensions", specifier = ">=4.14.1" },
 ]
 
@@ -412,6 +409,7 @@ requires-dist = [
 dev = [
     { name = "boto3", specifier = ">=1.38.14" },
     { name = "commitizen", specifier = ">=4.2.2" },
+    { name = "dspy-ai", specifier = ">=2.6.27" },
     { name = "hypothesis", specifier = ">=6.100.0" },
     { name = "moto", specifier = ">=5.1.4" },
     { name = "pre-commit", specifier = ">=4.1.0" },
@@ -421,6 +419,7 @@ dev = [
     { name = "pytest-cov", specifier = ">=4.1.0" },
     { name = "pytest-mock", specifier = ">=3.12.0" },
     { name = "ruff", specifier = ">=0.9.7" },
+    { name = "strands-agents", specifier = ">=1.5.0" },
 ]
 
 [[package]]
