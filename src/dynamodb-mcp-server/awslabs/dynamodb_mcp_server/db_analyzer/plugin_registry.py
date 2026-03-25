@@ -16,6 +16,7 @@
 
 from awslabs.dynamodb_mcp_server.db_analyzer.base_plugin import DatabasePlugin
 from awslabs.dynamodb_mcp_server.db_analyzer.mysql import MySQLPlugin
+from awslabs.dynamodb_mcp_server.db_analyzer.oracle import OraclePlugin
 from awslabs.dynamodb_mcp_server.db_analyzer.postgresql import PostgreSQLPlugin
 from awslabs.dynamodb_mcp_server.db_analyzer.sqlserver import SQLServerPlugin
 from typing import Dict, Type
@@ -26,6 +27,7 @@ class PluginRegistry:
 
     _plugins: Dict[str, Type[DatabasePlugin]] = {
         'mysql': MySQLPlugin,
+        'oracle': OraclePlugin,
         'postgresql': PostgreSQLPlugin,
         'sqlserver': SQLServerPlugin,
     }
@@ -35,7 +37,7 @@ class PluginRegistry:
         """Get plugin instance for the specified database type.
 
         Args:
-            db_type: Database type ('mysql', 'postgresql', 'sqlserver')
+            db_type: Database type ('mysql', 'postgresql', 'sqlserver', 'oracle')
 
         Returns:
             Plugin instance for the database type

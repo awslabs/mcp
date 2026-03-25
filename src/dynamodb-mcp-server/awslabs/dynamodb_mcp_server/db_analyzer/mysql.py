@@ -14,7 +14,7 @@
 
 """MySQL database analyzer plugin."""
 
-from awslabs.dynamodb_mcp_server.common import validate_database_name
+from awslabs.dynamodb_mcp_server.common import validate_source_identifier
 from awslabs.dynamodb_mcp_server.db_analyzer.base_plugin import DatabasePlugin
 from awslabs.mysql_mcp_server.connection.asyncmy_pool_connection import AsyncmyPoolConnection
 from awslabs.mysql_mcp_server.connection.rds_data_api_connection import RDSDataAPIConnection
@@ -301,6 +301,20 @@ class MySQLPlugin(DatabasePlugin):
         """Get the display name of the database type."""
         return 'MySQL'
 
+    def get_recommended_command(self, source_identifier: str, output_file: str) -> str:
+        """Get MySQL-specific command."""
+        return f'mysql -u user -p -D {source_identifier} --table < {output_file} > results.txt'
+
+    def get_run_instructions(
+        self, source_identifier: str, output_file: str, source_db_type: str
+    ) -> str:
+        """Get MySQL-specific run instructions with --table flag reminder."""
+        instructions = super().get_run_instructions(source_identifier, output_file, source_db_type)
+        return instructions + (
+            '\nIMPORTANT: The --table flag is required to produce '
+            'pipe-separated output that can be parsed correctly.'
+        )
+
     # write_queries_to_file and apply_result_limit are inherited from DatabasePlugin base class
 
     # parse_results_from_file is inherited from DatabasePlugin base class
@@ -372,7 +386,7 @@ class MySQLPlugin(DatabasePlugin):
         max_results = connection_params['max_results']
 
         # Validate database name
-        validate_database_name(database)
+        validate_source_identifier(database)
 
         # Create appropriate connection type based on available parameters
         if cluster_arn:
