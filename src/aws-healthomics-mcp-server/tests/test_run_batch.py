@@ -645,7 +645,7 @@ class TestListBatches:
         """Test successful listing with filters."""
         mock_ctx = AsyncMock()
         mock_client = MagicMock()
-        mock_client.list_batches.return_value = sample_list_batches_response
+        mock_client.list_batch.return_value = sample_list_batches_response
 
         with patch(
             'awslabs.aws_healthomics_mcp_server.tools.run_batch.get_omics_client',
@@ -659,7 +659,7 @@ class TestListBatches:
                 max_results=50,
             )
 
-        call_kwargs = mock_client.list_batches.call_args[1]
+        call_kwargs = mock_client.list_batch.call_args[1]
         assert call_kwargs['status'] == 'INPROGRESS'
         assert call_kwargs['name'] == 'batch'
         assert call_kwargs['runGroupId'] == 'rg-123'
@@ -673,7 +673,7 @@ class TestListBatches:
         """Test pagination with nextToken."""
         mock_ctx = AsyncMock()
         mock_client = MagicMock()
-        mock_client.list_batches.return_value = sample_list_batches_response
+        mock_client.list_batch.return_value = sample_list_batches_response
 
         with patch(
             'awslabs.aws_healthomics_mcp_server.tools.run_batch.get_omics_client',
@@ -684,7 +684,7 @@ class TestListBatches:
                 next_token='previous-token',
             )
 
-        call_kwargs = mock_client.list_batches.call_args[1]
+        call_kwargs = mock_client.list_batch.call_args[1]
         assert call_kwargs['startingToken'] == 'previous-token'
         assert 'nextToken' in result
 
@@ -693,7 +693,7 @@ class TestListBatches:
         """Test nextToken is not included when absent from API response."""
         mock_ctx = AsyncMock()
         mock_client = MagicMock()
-        mock_client.list_batches.return_value = {'items': []}
+        mock_client.list_batch.return_value = {'items': []}
 
         with patch(
             'awslabs.aws_healthomics_mcp_server.tools.run_batch.get_omics_client',
@@ -727,7 +727,7 @@ class TestListBatches:
             )
 
         mock_handle_error.assert_called_once()
-        mock_client.list_batches.assert_not_called()
+        mock_client.list_batch.assert_not_called()
         assert 'error' in result
 
     @pytest.mark.asyncio
@@ -735,7 +735,7 @@ class TestListBatches:
         """Test datetime fields are converted to ISO format in list results."""
         mock_ctx = AsyncMock()
         mock_client = MagicMock()
-        mock_client.list_batches.return_value = sample_list_batches_response
+        mock_client.list_batch.return_value = sample_list_batches_response
 
         with patch(
             'awslabs.aws_healthomics_mcp_server.tools.run_batch.get_omics_client',
@@ -753,7 +753,7 @@ class TestListBatches:
         """Test error handling for API failures."""
         mock_ctx = AsyncMock()
         mock_client = MagicMock()
-        mock_client.list_batches.side_effect = Exception('Access denied')
+        mock_client.list_batch.side_effect = Exception('Access denied')
 
         with (
             patch(
@@ -776,7 +776,7 @@ class TestListBatches:
         """Test aws_profile and aws_region are passed to get_omics_client."""
         mock_ctx = AsyncMock()
         mock_client = MagicMock()
-        mock_client.list_batches.return_value = sample_list_batches_response
+        mock_client.list_batch.return_value = sample_list_batches_response
 
         with patch(
             'awslabs.aws_healthomics_mcp_server.tools.run_batch.get_omics_client',
@@ -797,7 +797,7 @@ class TestListBatches:
         """Test all valid batch status values are accepted."""
         mock_ctx = AsyncMock()
         mock_client = MagicMock()
-        mock_client.list_batches.return_value = {'items': []}
+        mock_client.list_batch.return_value = {'items': []}
 
         for status in BATCH_STATUSES:
             with patch(
