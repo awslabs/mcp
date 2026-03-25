@@ -48,6 +48,14 @@ async def list_workflows(
         None,
         description='Token for pagination from a previous response',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """List available HealthOmics workflows.
 
@@ -55,11 +63,13 @@ async def list_workflows(
         ctx: MCP context for error reporting
         max_results: Maximum number of results to return (default: 10)
         next_token: Token for pagination
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing workflow information and next token if available
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     params: dict[str, Any] = {'maxResults': max_results}
     if next_token:
@@ -104,9 +114,9 @@ async def create_workflow(
         ...,
         description='Name of the workflow',
     ),
-    definition_zip_base64: Optional[str] = Field(
+    definition_source: Optional[str] = Field(
         None,
-        description='Base64-encoded workflow definition ZIP file. Cannot be used together with definition_uri or definition_repository',
+        description='Workflow definition content: a local ZIP file path, S3 URI (s3://bucket/key.zip), or base64-encoded ZIP content. Cannot be used together with definition_uri or definition_repository.',
     ),
     description: Optional[str] = Field(
         None,
@@ -126,7 +136,7 @@ async def create_workflow(
     ),
     definition_uri: Optional[str] = Field(
         None,
-        description='S3 URI of the workflow definition ZIP file. Cannot be used together with definition_zip_base64 or definition_repository',
+        description='S3 URI of the workflow definition ZIP file. Cannot be used together with definition_source or definition_repository',
     ),
     path_to_main: Annotated[
         Optional[str],
@@ -140,7 +150,7 @@ async def create_workflow(
     ),
     definition_repository: Optional[Dict[str, Any]] = Field(
         None,
-        description='Git repository configuration with connection_arn, full_repository_id, source_reference (type and value), and optional exclude_file_patterns. Cannot be used together with definition_zip_base64 or definition_uri',
+        description='Git repository configuration with connection_arn, full_repository_id, source_reference (type and value), and optional exclude_file_patterns. Cannot be used together with definition_source or definition_uri',
     ),
     parameter_template_path: Optional[str] = Field(
         None,
@@ -150,23 +160,41 @@ async def create_workflow(
         None,
         description='Path to README markdown file within the repository (only valid with definition_repository)',
     ),
+    definition_zip_base64: Optional[str] = Field(
+        None,
+        description='[Deprecated: use definition_source] Base64-encoded workflow definition ZIP file.',
+    ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Create a new HealthOmics workflow.
 
     Args:
         ctx: MCP context for error reporting
         name: Name of the workflow
-        definition_zip_base64: Base64-encoded workflow definition ZIP file. Cannot be used together with definition_uri or definition_repository
+        definition_source: Workflow definition content — a local ZIP file path,
+            S3 URI (s3://bucket/key.zip), or base64-encoded ZIP content.
+            Cannot be used together with definition_uri or definition_repository
         description: Optional description of the workflow
         parameter_template: Optional parameter template for the workflow
         container_registry_map: Optional container registry map with registryMappings (upstreamRegistryUrl, ecrRepositoryPrefix, upstreamRepositoryPrefix, ecrAccountId) and imageMappings (sourceImage, destinationImage) arrays
         container_registry_map_uri: Optional S3 URI pointing to a JSON file containing container registry mappings. Cannot be used together with container_registry_map
-        definition_uri: S3 URI of the workflow definition ZIP file. Cannot be used together with definition_zip_base64 or definition_repository
+        definition_uri: S3 URI of the workflow definition ZIP file. Cannot be used together with definition_source or definition_repository
         path_to_main: Path to the main file in the workflow definition ZIP file. Not required if there is a top level main.wdl, main.cwl or main.nf files in the workflow package. Not required if there is only a single top level workflow file.
         readme: README documentation - can be markdown content, local .md file path, or S3 URI (s3://bucket/key)
         definition_repository: Git repository configuration with connection_arn, full_repository_id, source_reference, and optional exclude_file_patterns
         parameter_template_path: Path to parameter template JSON file within the repository (only valid with definition_repository)
         readme_path: Path to README markdown file within the repository (only valid with definition_repository)
+        definition_zip_base64: **Deprecated** — use definition_source instead.
+            Base64-encoded workflow definition ZIP file.
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing the created workflow information or error dict
@@ -178,9 +206,9 @@ async def create_workflow(
             validated_definition_uri,
             validated_repository,
         ) = await validate_definition_sources(
-            ctx, definition_zip_base64, definition_uri, definition_repository
+            ctx, definition_source, definition_uri, definition_repository, definition_zip_base64
         )
-        await validate_container_registry_params(
+        validated_container_registry_map = await validate_container_registry_params(
             ctx, container_registry_map, container_registry_map_uri
         )
 
@@ -198,7 +226,7 @@ async def create_workflow(
         # Validate and process README input
         readme_markdown, readme_uri = await validate_readme_input(ctx, readme)
 
-        client = get_omics_client()
+        client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
         params: Dict[str, Any] = {
             'name': name,
@@ -218,8 +246,8 @@ async def create_workflow(
         if parameter_template:
             params['parameterTemplate'] = parameter_template
 
-        if container_registry_map:
-            params['containerRegistryMap'] = container_registry_map
+        if validated_container_registry_map is not None:
+            params['containerRegistryMap'] = validated_container_registry_map
 
         if container_registry_map_uri:
             params['containerRegistryMapUri'] = container_registry_map_uri
@@ -263,6 +291,14 @@ async def get_workflow(
         False,
         description='Whether to include a presigned URL for downloading the workflow definition ZIP file',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Get details about a specific workflow.
 
@@ -270,12 +306,14 @@ async def get_workflow(
         ctx: MCP context for error reporting
         workflow_id: ID of the workflow to retrieve
         export_definition: Whether to include a presigned URL for downloading the workflow definition ZIP file
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing workflow details. When export_definition=True, includes a 'definition'
         field with a presigned URL for downloading the workflow definition ZIP file.
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     params: dict[str, Any] = {'id': workflow_id}
 
@@ -326,9 +364,9 @@ async def create_workflow_version(
         ...,
         description='Name for the new version',
     ),
-    definition_zip_base64: Optional[str] = Field(
+    definition_source: Optional[str] = Field(
         None,
-        description='Base64-encoded workflow definition ZIP file. Cannot be used together with definition_uri or definition_repository',
+        description='Workflow definition content: a local ZIP file path, S3 URI (s3://bucket/key.zip), or base64-encoded ZIP content. Cannot be used together with definition_uri or definition_repository.',
     ),
     description: Optional[str] = Field(
         None,
@@ -357,7 +395,7 @@ async def create_workflow_version(
     ),
     definition_uri: Optional[str] = Field(
         None,
-        description='S3 URI of the workflow definition ZIP file. Cannot be used together with definition_zip_base64 or definition_repository',
+        description='S3 URI of the workflow definition ZIP file. Cannot be used together with definition_source or definition_repository',
     ),
     path_to_main: Annotated[
         Optional[str],
@@ -371,7 +409,7 @@ async def create_workflow_version(
     ),
     definition_repository: Optional[Dict[str, Any]] = Field(
         None,
-        description='Git repository configuration with connection_arn, full_repository_id, source_reference (type and value), and optional exclude_file_patterns. Cannot be used together with definition_zip_base64 or definition_uri',
+        description='Git repository configuration with connection_arn, full_repository_id, source_reference (type and value), and optional exclude_file_patterns. Cannot be used together with definition_source or definition_uri',
     ),
     parameter_template_path: Optional[str] = Field(
         None,
@@ -381,6 +419,18 @@ async def create_workflow_version(
         None,
         description='Path to README markdown file within the repository (only valid with definition_repository)',
     ),
+    definition_zip_base64: Optional[str] = Field(
+        None,
+        description='[Deprecated: use definition_source] Base64-encoded workflow definition ZIP file.',
+    ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Create a new version of an existing workflow.
 
@@ -388,19 +438,25 @@ async def create_workflow_version(
         ctx: MCP context for error reporting
         workflow_id: ID of the workflow
         version_name: Name for the new version
-        definition_zip_base64: Base64-encoded workflow definition ZIP file. Cannot be used together with definition_uri or definition_repository
+        definition_source: Workflow definition content — a local ZIP file path,
+            S3 URI (s3://bucket/key.zip), or base64-encoded ZIP content.
+            Cannot be used together with definition_uri or definition_repository
         description: Optional description of the workflow version
         parameter_template: Optional parameter template for the workflow
         storage_type: Storage type (STATIC or DYNAMIC)
         storage_capacity: Storage capacity in GB (required for STATIC)
         container_registry_map: Optional container registry map with registryMappings (upstreamRegistryUrl, ecrRepositoryPrefix, upstreamRepositoryPrefix, ecrAccountId) and imageMappings (sourceImage, destinationImage) arrays
         container_registry_map_uri: Optional S3 URI pointing to a JSON file containing container registry mappings. Cannot be used together with container_registry_map
-        definition_uri: S3 URI of the workflow definition ZIP file. Cannot be used together with definition_zip_base64 or definition_repository
+        definition_uri: S3 URI of the workflow definition ZIP file. Cannot be used together with definition_source or definition_repository
         path_to_main: Path to the main file in the workflow definition ZIP file. Not required if there is a top level main.wdl, main.cwl or main.nf files in the workflow package. Not required if there is only a single top level workflow file.
         readme: README documentation - can be markdown content, local .md file path, or S3 URI (s3://bucket/key)
         definition_repository: Git repository configuration with connection_arn, full_repository_id, source_reference, and optional exclude_file_patterns
         parameter_template_path: Path to parameter template JSON file within the repository (only valid with definition_repository)
         readme_path: Path to README markdown file within the repository (only valid with definition_repository)
+        definition_zip_base64: **Deprecated** — use definition_source instead.
+            Base64-encoded workflow definition ZIP file.
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing the created workflow version information
@@ -412,9 +468,9 @@ async def create_workflow_version(
             validated_definition_uri,
             validated_repository,
         ) = await validate_definition_sources(
-            ctx, definition_zip_base64, definition_uri, definition_repository
+            ctx, definition_source, definition_uri, definition_repository, definition_zip_base64
         )
-        await validate_container_registry_params(
+        validated_container_registry_map = await validate_container_registry_params(
             ctx, container_registry_map, container_registry_map_uri
         )
 
@@ -440,7 +496,7 @@ async def create_workflow_version(
         # Validate and process README input
         readme_markdown, readme_uri = await validate_readme_input(ctx, readme)
 
-        client = get_omics_client()
+        client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
         params: Dict[str, Any] = {
             'workflowId': workflow_id,
@@ -465,8 +521,8 @@ async def create_workflow_version(
         if storage_type == 'STATIC':
             params['storageCapacity'] = storage_capacity
 
-        if container_registry_map:
-            params['containerRegistryMap'] = container_registry_map
+        if validated_container_registry_map is not None:
+            params['containerRegistryMap'] = validated_container_registry_map
 
         if container_registry_map_uri:
             params['containerRegistryMapUri'] = container_registry_map_uri
@@ -517,6 +573,14 @@ async def list_workflow_versions(
         None,
         description='Token for pagination from a previous response',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """List versions of a workflow.
 
@@ -525,11 +589,13 @@ async def list_workflow_versions(
         workflow_id: ID of the workflow
         max_results: Maximum number of results to return (default: 10)
         next_token: Token for pagination
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing workflow version information and next token if available
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     params: Dict[str, Any] = {
         'workflowId': workflow_id,
