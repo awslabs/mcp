@@ -91,7 +91,7 @@ For write operations, we recommend the following IAM policies to ensure successf
 
 If you encounter authorization errors when using Kubernetes API operations, verify that an access entry has been properly configured for your principal.
 
-**Kubeconfig mode (`EKS_AUTH_MODE=kubeconfig`):** Kubernetes API access is determined by the credentials in your kubeconfig file (OIDC tokens, certificates, etc.) and the RBAC policies configured in the cluster. The `cluster_name` parameter in Kubernetes tools is interpreted as a kubeconfig context name.
+**Kubeconfig mode (`EKS_AUTH_MODE=kubeconfig`):** Kubernetes API access is determined by the credentials in your kubeconfig file (OIDC tokens, certificates, etc.) and the RBAC policies configured in the cluster. The `cluster_name` parameter accepts EKS cluster names, which are automatically resolved to the matching kubeconfig context.
 
 ## Quickstart
 
@@ -271,7 +271,7 @@ For environments where users access Kubernetes through OIDC authentication or ot
 
 In this mode:
 
-* The `cluster_name` parameter in all Kubernetes tools is interpreted as a **kubeconfig context name** (e.g., `"my-oidc-cluster"`).
+* The `cluster_name` parameter accepts EKS cluster names, which are automatically resolved to the matching kubeconfig context.
 * The kubernetes Python client handles all authentication via the exec plugin, certificate, or token method configured in your kubeconfig.
 * Token refresh (e.g., for OIDC) is handled automatically by the kubernetes client.
 * **Important**: AWS-specific tools are **not registered** in kubeconfig mode. The following tools require IAM authentication mode and will only be available when `EKS_AUTH_MODE=iam` (the default):
@@ -335,7 +335,7 @@ Specifies the authentication mode for Kubernetes API access.
 * Example: `"EKS_AUTH_MODE": "kubeconfig"`
 
 When using kubeconfig mode:
-* The `cluster_name` parameter in Kubernetes tools is interpreted as a kubeconfig context name.
+* The `cluster_name` parameter accepts EKS cluster names, which are resolved to the matching kubeconfig context.
 * The `KUBECONFIG` environment variable or `~/.kube/config` is used to locate the kubeconfig file.
 * All authentication methods supported by kubeconfig are available (OIDC exec plugins, client certificates, bearer tokens, etc.).
 * AWS-specific tools (CloudWatch, IAM, VPC config, EKS insights, CloudFormation) are not registered in kubeconfig mode and will not appear in the tool list.

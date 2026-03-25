@@ -151,14 +151,63 @@ class K8sClientCache:
 
         return endpoint, token, ca_data
 
-    def _get_kubeconfig_client(self, context_name: str) -> K8sApis:
+    def _resolve_kubeconfig_context(self, cluster_name: str) -> str:
+        """Resolve an EKS cluster name to a kubeconfig context name.
+
+        Searches kubeconfig contexts for one whose cluster field matches
+        the given cluster_name. Falls back to using cluster_name as-is
+        if it matches a context directly.
+
+        Args:
+            cluster_name: Name of the EKS cluster.
+
+        Returns:
+            The matching kubeconfig context name.
+
+        Raises:
+            ValueError: If no matching context is found or multiple matches exist.
+        """
+        from kubernetes.config import list_kube_config_contexts
+
+        kubeconfig_path = os.environ.get('KUBECONFIG', None)
+        contexts, active_context = list_kube_config_contexts(config_file=kubeconfig_path)
+
+        # First, try exact context name match
+        for ctx in contexts:
+            if ctx['name'] == cluster_name:
+                return cluster_name
+
+        # Search for a context whose cluster field contains the cluster name
+        matches = []
+        for ctx in contexts:
+            ctx_cluster = ctx.get('context', {}).get('cluster', '')
+            if ctx_cluster.endswith(f'/{cluster_name}') or ctx_cluster == cluster_name:
+                matches.append(ctx['name'])
+
+        if len(matches) == 1:
+            logger.info(f'Resolved cluster name "{cluster_name}" to context "{matches[0]}"')
+            return matches[0]
+        elif len(matches) > 1:
+            raise ValueError(
+                f'Multiple kubeconfig contexts match cluster "{cluster_name}": {matches}. '
+                f'Please specify the full context name.'
+            )
+        else:
+            available = [ctx['name'] for ctx in contexts]
+            raise ValueError(
+                f'No kubeconfig context found for cluster "{cluster_name}". '
+                f'Available contexts: {available}'
+            )
+
+    def _get_kubeconfig_client(self, cluster_name: str) -> K8sApis:
         """Get a K8sApis instance using kubeconfig authentication.
 
-        Uses kubernetes.config.new_client_from_config() which handles
+        Resolves the cluster name to a kubeconfig context, then uses
+        kubernetes.config.new_client_from_config() which handles
         all auth methods: OIDC exec plugins, certificates, tokens, etc.
 
         Args:
-            context_name: The kubeconfig context name to use.
+            cluster_name: Name of the EKS cluster.
 
         Returns:
             K8sApis instance configured from kubeconfig.
@@ -168,6 +217,7 @@ class K8sClientCache:
         """
         from kubernetes import config
 
+        context_name = self._resolve_kubeconfig_context(cluster_name)
         kubeconfig_path = os.environ.get('KUBECONFIG', None)
 
         logger.debug(
@@ -188,10 +238,10 @@ class K8sClientCache:
         This is the only public method to access K8s API clients.
 
         In IAM mode, cluster_name is the EKS cluster name.
-        In kubeconfig mode, cluster_name is interpreted as a kubeconfig context name.
+        In kubeconfig mode, cluster_name is resolved to a matching kubeconfig context.
 
         Args:
-            cluster_name: Name of the EKS cluster (IAM mode) or kubeconfig context name (kubeconfig mode)
+            cluster_name: Name of the EKS cluster
 
         Returns:
             K8sApis instance

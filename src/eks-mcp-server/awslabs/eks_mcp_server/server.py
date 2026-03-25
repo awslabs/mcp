@@ -53,8 +53,8 @@ DO NOT use standard EKS and Kubernetes CLI commands (aws eks, eksctl, kubectl). 
 
 - By default, the server uses IAM authentication (EKS_AUTH_MODE=iam), which requires AWS credentials.
 - Set EKS_AUTH_MODE=kubeconfig to use kubeconfig-based authentication (OIDC, certificates, exec plugins).
-- In kubeconfig mode, the cluster_name parameter in tools is interpreted as a kubeconfig context name.
-- AWS-only tools (CloudWatch, IAM, CloudFormation) still require AWS credentials regardless of auth mode.
+- In kubeconfig mode, the cluster_name parameter accepts EKS cluster names, which are resolved to the matching kubeconfig context automatically.
+- AWS-specific tools (CloudWatch, IAM, CloudFormation) are only available in IAM mode.
 
 ## Usage Notes
 

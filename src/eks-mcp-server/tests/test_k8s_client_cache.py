@@ -483,24 +483,95 @@ class TestK8sClientCacheKubeconfigMode:
         yield
         K8sClientCache._instance = None
 
+    def test_resolve_context_exact_match(self):
+        """Test that exact context name match works."""
+        with patch.dict(os.environ, {'EKS_AUTH_MODE': 'kubeconfig'}):
+            cache = K8sClientCache()
+            mock_contexts = [
+                {'name': 'my-context', 'context': {'cluster': 'some-cluster'}},
+            ]
+            with patch(
+                'kubernetes.config.list_kube_config_contexts',
+                return_value=(mock_contexts, mock_contexts[0]),
+            ):
+                result = cache._resolve_kubeconfig_context('my-context')
+                assert result == 'my-context'
+
+    def test_resolve_context_by_cluster_name(self):
+        """Test that cluster name is resolved to matching context."""
+        with patch.dict(os.environ, {'EKS_AUTH_MODE': 'kubeconfig'}):
+            cache = K8sClientCache()
+            mock_contexts = [
+                {
+                    'name': 'arn:aws:eks:us-east-1:123456:cluster/my-cluster',
+                    'context': {
+                        'cluster': 'arn:aws:eks:us-east-1:123456:cluster/my-cluster',
+                    },
+                },
+            ]
+            with patch(
+                'kubernetes.config.list_kube_config_contexts',
+                return_value=(mock_contexts, mock_contexts[0]),
+            ):
+                result = cache._resolve_kubeconfig_context('my-cluster')
+                assert result == 'arn:aws:eks:us-east-1:123456:cluster/my-cluster'
+
+    def test_resolve_context_no_match(self):
+        """Test that ValueError is raised when no context matches."""
+        with patch.dict(os.environ, {'EKS_AUTH_MODE': 'kubeconfig'}):
+            cache = K8sClientCache()
+            mock_contexts = [
+                {'name': 'other-context', 'context': {'cluster': 'other-cluster'}},
+            ]
+            with patch(
+                'kubernetes.config.list_kube_config_contexts',
+                return_value=(mock_contexts, mock_contexts[0]),
+            ):
+                with pytest.raises(ValueError, match='No kubeconfig context found'):
+                    cache._resolve_kubeconfig_context('nonexistent')
+
+    def test_resolve_context_multiple_matches(self):
+        """Test that ValueError is raised when multiple contexts match."""
+        with patch.dict(os.environ, {'EKS_AUTH_MODE': 'kubeconfig'}):
+            cache = K8sClientCache()
+            mock_contexts = [
+                {
+                    'name': 'ctx1',
+                    'context': {'cluster': 'arn:aws:eks:us-east-1:111:cluster/my-cluster'},
+                },
+                {
+                    'name': 'ctx2',
+                    'context': {'cluster': 'arn:aws:eks:us-west-2:222:cluster/my-cluster'},
+                },
+            ]
+            with patch(
+                'kubernetes.config.list_kube_config_contexts',
+                return_value=(mock_contexts, mock_contexts[0]),
+            ):
+                with pytest.raises(ValueError, match='Multiple kubeconfig contexts match'):
+                    cache._resolve_kubeconfig_context('my-cluster')
+
     def test_get_client_kubeconfig_mode(self):
         with patch.dict(os.environ, {'EKS_AUTH_MODE': 'kubeconfig'}):
             cache = K8sClientCache()
-            with patch('kubernetes.config.new_client_from_config') as mock_new_client:
-                mock_api_client = MagicMock()
-                mock_new_client.return_value = mock_api_client
-                with patch.object(K8sApis, 'from_api_client') as mock_from_api_client:
-                    mock_k8s_apis = MagicMock()
-                    mock_from_api_client.return_value = mock_k8s_apis
+            with patch.object(
+                cache, '_resolve_kubeconfig_context', return_value='resolved-context'
+            ):
+                with patch('kubernetes.config.new_client_from_config') as mock_new_client:
+                    mock_api_client = MagicMock()
+                    mock_new_client.return_value = mock_api_client
+                    with patch.object(K8sApis, 'from_api_client') as mock_from_api_client:
+                        mock_k8s_apis = MagicMock()
+                        mock_from_api_client.return_value = mock_k8s_apis
 
-                    client = cache.get_client('my-context')
+                        client = cache.get_client('my-cluster')
 
-                    mock_new_client.assert_called_once_with(
-                        config_file=None,
-                        context='my-context',
-                    )
-                    mock_from_api_client.assert_called_once_with(mock_api_client)
-                    assert client is mock_k8s_apis
+                        mock_new_client.assert_called_once_with(
+                            config_file=None,
+                            context='resolved-context',
+                        )
+                        mock_from_api_client.assert_called_once_with(mock_api_client)
+                        assert client is mock_k8s_apis
 
     def test_get_client_kubeconfig_mode_with_kubeconfig_env(self):
         with patch.dict(
@@ -511,45 +582,50 @@ class TestK8sClientCacheKubeconfigMode:
             },
         ):
             cache = K8sClientCache()
-            with patch('kubernetes.config.new_client_from_config') as mock_new_client:
-                mock_api_client = MagicMock()
-                mock_new_client.return_value = mock_api_client
-                with patch.object(K8sApis, 'from_api_client') as mock_from_api_client:
-                    mock_from_api_client.return_value = MagicMock()
+            with patch.object(cache, '_resolve_kubeconfig_context', return_value='my-context'):
+                with patch('kubernetes.config.new_client_from_config') as mock_new_client:
+                    mock_api_client = MagicMock()
+                    mock_new_client.return_value = mock_api_client
+                    with patch.object(K8sApis, 'from_api_client') as mock_from_api_client:
+                        mock_from_api_client.return_value = MagicMock()
 
-                    cache.get_client('my-context')
+                        cache.get_client('my-cluster')
 
-                    mock_new_client.assert_called_once_with(
-                        config_file='/custom/path/kubeconfig',
-                        context='my-context',
-                    )
+                        mock_new_client.assert_called_once_with(
+                            config_file='/custom/path/kubeconfig',
+                            context='my-context',
+                        )
 
     def test_get_client_kubeconfig_mode_caches_client(self):
         with patch.dict(os.environ, {'EKS_AUTH_MODE': 'kubeconfig'}):
             cache = K8sClientCache()
-            with patch('kubernetes.config.new_client_from_config') as mock_new_client:
-                mock_api_client = MagicMock()
-                mock_new_client.return_value = mock_api_client
-                with patch.object(K8sApis, 'from_api_client') as mock_from_api_client:
-                    mock_k8s_apis = MagicMock()
-                    mock_from_api_client.return_value = mock_k8s_apis
+            with patch.object(
+                cache, '_resolve_kubeconfig_context', return_value='resolved-context'
+            ):
+                with patch('kubernetes.config.new_client_from_config') as mock_new_client:
+                    mock_api_client = MagicMock()
+                    mock_new_client.return_value = mock_api_client
+                    with patch.object(K8sApis, 'from_api_client') as mock_from_api_client:
+                        mock_k8s_apis = MagicMock()
+                        mock_from_api_client.return_value = mock_k8s_apis
 
-                    client1 = cache.get_client('my-context')
-                    client2 = cache.get_client('my-context')
+                        client1 = cache.get_client('my-cluster')
+                        client2 = cache.get_client('my-cluster')
 
-                    # Should only call new_client_from_config once
-                    mock_new_client.assert_called_once()
-                    assert client1 is client2
+                        # Should only call new_client_from_config once
+                        mock_new_client.assert_called_once()
+                        assert client1 is client2
 
     def test_get_client_kubeconfig_mode_error_handling(self):
         with patch.dict(os.environ, {'EKS_AUTH_MODE': 'kubeconfig'}):
             cache = K8sClientCache()
-            with patch(
-                'kubernetes.config.new_client_from_config',
-                side_effect=Exception('Context not found'),
-            ):
-                with pytest.raises(Exception, match='Failed to get cluster credentials'):
-                    cache.get_client('nonexistent-context')
+            with patch.object(cache, '_resolve_kubeconfig_context', return_value='bad-context'):
+                with patch(
+                    'kubernetes.config.new_client_from_config',
+                    side_effect=Exception('Context not found'),
+                ):
+                    with pytest.raises(Exception, match='Failed to get cluster credentials'):
+                        cache.get_client('nonexistent-cluster')
 
     def test_iam_mode_does_not_call_kubeconfig(self):
         with patch.dict(os.environ, {'EKS_AUTH_MODE': 'iam'}):
