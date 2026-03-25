@@ -39,7 +39,7 @@ class TestBuildConnectionParams:
             'mysql',
             aws_cluster_arn='test-cluster',
             aws_secret_arn='test-secret',  # pragma: allowlist secret
-            database_name='test_db',
+            source_identifier='test_db',
             aws_region='us-east-1',
             max_query_results=1000,
             pattern_analysis_days=30,
@@ -69,7 +69,7 @@ class TestBuildConnectionParams:
         with pytest.raises(ValueError, match='Unsupported database type: postgresql'):
             analyzer_utils.build_connection_params(
                 'postgresql',
-                database_name='test_db',
+                source_identifier='test_db',
                 output_dir=str(tmp_path),
             )
 
@@ -101,7 +101,7 @@ class TestBuildConnectionParams:
             'mysql',
             aws_cluster_arn='explicit-cluster',
             aws_secret_arn='explicit-secret',  # pragma: allowlist secret
-            database_name='explicit_db',
+            source_identifier='explicit_db',
             aws_region='explicit-region',
             output_dir=str(tmp_path),
         )
@@ -241,13 +241,13 @@ class TestGenerateQueryFile:
             result = analyzer_utils.generate_query_file(
                 plugin, None, 500, 'queries.sql', tmpdir, 'mysql'
             )
-            assert 'database_name is required' in result
+            assert 'source_identifier is required' in result
 
             # Test 4: Empty database name
             result = analyzer_utils.generate_query_file(
                 plugin, '', 500, 'queries.sql', tmpdir, 'mysql'
             )
-            assert 'database_name is required' in result
+            assert 'source_identifier is required' in result
 
             # Test 5: Path traversal rejected
             with pytest.raises(ValueError, match='Path traversal detected'):
@@ -259,9 +259,9 @@ class TestGenerateQueryFile:
             result = analyzer_utils.generate_query_file(
                 plugin, 'airline_db', 1000, 'queries.sql', tmpdir, 'mysql'
             )
-            assert 'Example commands:' in result
+            assert 'Recommended command:' in result
             assert '--table' in result
-            assert 'IMPORTANT for MySQL' in result
+            assert 'IMPORTANT' in result
 
 
 class TestParseResultsAndGenerateAnalysis:
