@@ -39,6 +39,7 @@ async def test_server_initialization():
 
     # Test kubeconfig mode appends the addendum
     server_kc = create_server(auth_mode='kubeconfig')
+    assert server_kc.instructions is not None
     assert 'Kubeconfig Authentication Mode (Active)' in server_kc.instructions
     assert 'Only Kubernetes tools are available' in server_kc.instructions
     # Test that the server has the correct dependencies

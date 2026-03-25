@@ -170,19 +170,21 @@ class K8sClientCache:
         from kubernetes.config import list_kube_config_contexts
 
         kubeconfig_path = os.environ.get('KUBECONFIG', None)
-        contexts, active_context = list_kube_config_contexts(config_file=kubeconfig_path)
+        raw_contexts, _ = list_kube_config_contexts(config_file=kubeconfig_path)
+        contexts: list[dict] = [dict(ctx) for ctx in raw_contexts]
 
         # First, try exact context name match
         for ctx in contexts:
-            if ctx['name'] == cluster_name:
+            if ctx.get('name') == cluster_name:
                 return cluster_name
 
         # Search for a context whose cluster field contains the cluster name
-        matches = []
+        matches: list[str] = []
         for ctx in contexts:
-            ctx_cluster = ctx.get('context', {}).get('cluster', '')
+            ctx_detail = ctx.get('context', {})
+            ctx_cluster = ctx_detail.get('cluster', '') if isinstance(ctx_detail, dict) else ''
             if ctx_cluster.endswith(f'/{cluster_name}') or ctx_cluster == cluster_name:
-                matches.append(ctx['name'])
+                matches.append(str(ctx.get('name', '')))
 
         if len(matches) == 1:
             logger.info(f'Resolved cluster name "{cluster_name}" to context "{matches[0]}"')
@@ -193,7 +195,7 @@ class K8sClientCache:
                 f'Please specify the full context name.'
             )
         else:
-            available = [ctx['name'] for ctx in contexts]
+            available = [str(ctx.get('name', '')) for ctx in contexts]
             raise ValueError(
                 f'No kubeconfig context found for cluster "{cluster_name}". '
                 f'Available contexts: {available}'
