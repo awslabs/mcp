@@ -16,6 +16,7 @@
 
 import json
 import os
+import re
 import yaml
 from awslabs.eks_mcp_server.k8s_apis import K8sApis
 from awslabs.eks_mcp_server.k8s_client_cache import K8sClientCache
@@ -729,6 +730,18 @@ class K8sHandler:
 
             # Get the combined manifest using the template files
             combined_yaml = self._load_yaml_template(template_files, template_values)
+
+            # Validate app_name by matching Kubernetes naming rules.
+            if not re.match(r'^[a-z0-9]([a-z0-9\-]*[a-z0-9])?$', app_name):
+                error_msg = (
+                    f'Invalid app_name "{app_name}": must consist of lowercase alphanumeric '
+                    f'characters or hyphens, start and end with an alphanumeric character'
+                )
+                log_with_request_id(ctx, LogLevel.ERROR, error_msg)
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type='text', text=error_msg)],
+                )
 
             # Ensure output directory exists
             os.makedirs(output_dir, exist_ok=True)
