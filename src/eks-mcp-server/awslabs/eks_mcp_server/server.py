@@ -49,13 +49,6 @@ This MCP server provides tools for managing Amazon EKS clusters and is the prefe
 
 DO NOT use standard EKS and Kubernetes CLI commands (aws eks, eksctl, kubectl). Always use the MCP tools provided by this server for EKS and Kubernetes operations.
 
-## Authentication Modes
-
-- By default, the server uses IAM authentication (EKS_AUTH_MODE=iam), which requires AWS credentials.
-- Set EKS_AUTH_MODE=kubeconfig to use kubeconfig-based authentication (OIDC, certificates, exec plugins).
-- In kubeconfig mode, the cluster_name parameter accepts EKS cluster names, which are resolved to the matching kubeconfig context automatically.
-- AWS-specific tools (CloudWatch, IAM, CloudFormation) are only available in IAM mode.
-
 ## Usage Notes
 
 - By default, the server runs in read-only mode. Use the `--allow-write` flag to enable write operations.
@@ -92,6 +85,17 @@ DO NOT use standard EKS and Kubernetes CLI commands (aws eks, eksctl, kubectl). 
 - Always verify API versions with list_api_versions before creating resources.
 """
 
+# Appended to instructions when running in kubeconfig mode
+_KUBECONFIG_ADDENDUM = """
+## Kubeconfig Authentication Mode (Active)
+
+This server is running in kubeconfig authentication mode. Note the following:
+- Only Kubernetes tools are available. AWS-specific tools (CloudWatch, IAM, CloudFormation, EKS Insights) are not registered.
+- Authentication is handled via your kubeconfig file (OIDC, certificates, exec plugins).
+- The cluster_name parameter accepts EKS cluster names, which are resolved to the matching kubeconfig context automatically.
+- Ignore any references to AWS-specific tools (manage_eks_stacks, get_cloudwatch_metrics, get_cloudwatch_logs, search_eks_troubleshoot_guide) in the workflows above — they are not available in this mode.
+"""
+
 SERVER_DEPENDENCIES = [
     'pydantic',
     'loguru',
@@ -107,11 +111,15 @@ SERVER_DEPENDENCIES = [
 mcp = None
 
 
-def create_server():
+def create_server(auth_mode: str = 'iam'):
     """Create and configure the MCP server instance."""
+    instructions = SERVER_INSTRUCTIONS
+    if auth_mode == 'kubeconfig':
+        instructions += _KUBECONFIG_ADDENDUM
+
     return FastMCP(
         'awslabs.eks-mcp-server',
-        instructions=SERVER_INSTRUCTIONS,
+        instructions=instructions,
         dependencies=SERVER_DEPENDENCIES,
     )
 
@@ -166,7 +174,7 @@ def main():
     logger.info(f'Starting EKS MCP Server{mode_str}')
 
     # Create the MCP server instance
-    mcp = create_server()
+    mcp = create_server(auth_mode)
 
     # Initialize handlers - all tools are always registered, access control is handled within tools
     K8sHandler(mcp, allow_write, allow_sensitive_data_access)

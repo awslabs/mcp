@@ -28,13 +28,19 @@ async def test_server_initialization():
     # Test the server initialization by creating a server instance
     from awslabs.eks_mcp_server.server import create_server
 
-    # Create a server instance
+    # Create a server instance (default IAM mode)
     server = create_server()
 
     # Test that the server is initialized with the correct name
     assert server.name == 'awslabs.eks-mcp-server'
     # Test that the server has the correct instructions
     assert server.instructions is not None and 'EKS MCP Server' in server.instructions
+    assert 'Kubeconfig Authentication Mode' not in server.instructions
+
+    # Test kubeconfig mode appends the addendum
+    server_kc = create_server(auth_mode='kubeconfig')
+    assert 'Kubeconfig Authentication Mode (Active)' in server_kc.instructions
+    assert 'Only Kubernetes tools are available' in server_kc.instructions
     # Test that the server has the correct dependencies
     assert 'pydantic' in server.dependencies
     assert 'loguru' in server.dependencies
