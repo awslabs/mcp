@@ -88,6 +88,7 @@ dependencies = [
     { name = "rsa" },
     { name = "s3transfer" },
 ]
+sdist = { url = "https://files.pythonhosted.org/packages/6c/92/10fa65e0c451b8994ab25849ccd7c6be4b91c828634645d59373b49a5f36/awscli-1.44.65.tar.gz", hash = "sha256:cb7195d6b529824bdd0f027ace81ca2d0aa62fcec334bb7a972b9e86607e682f", size = 1886550, upload-time = "2026-03-24T21:13:55.941Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/53/65/b2b94338ca00150ae8c121b91e25fde962227514333afbb37d77d20b59a9/awscli-1.44.65-py3-none-any.whl", hash = "sha256:12cff1f479ab38fcae303e5545eb0ec6ce0e75639e1cb525231a4bae6a299f43", size = 4624338, upload-time = "2026-03-24T21:13:52.913Z" },
 ]
@@ -123,7 +124,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-aws-api-mcp-server"
-version = "1.3.22"
+version = "1.3.23"
 source = { editable = "." }
 dependencies = [
     { name = "awscli" },
