@@ -244,6 +244,7 @@ class K8sHandler:
             return [self.filter_null_values(item) for item in data if item is not None]
         else:
             return data
+
     @staticmethod
     def _validate_app_name(app_name: str) -> Optional[str]:
         """Validate app_name against Kubernetes RFC 1123 DNS label rules.
@@ -269,8 +270,6 @@ class K8sHandler:
                 f'characters or hyphens, start and end with an alphanumeric character'
             )
         return None
-
-
 
     def remove_managed_fields(self, resource: Dict[str, Any]) -> Dict[str, Any]:
         """Remove metadata.managed_fields from a Kubernetes resource.
