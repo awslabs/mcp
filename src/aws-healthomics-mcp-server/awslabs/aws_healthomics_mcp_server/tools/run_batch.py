@@ -25,28 +25,16 @@ from awslabs.aws_healthomics_mcp_server.consts import (
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
     get_omics_client,
 )
+from awslabs.aws_healthomics_mcp_server.utils.datetime_utils import (
+    datetime_to_iso,
+)
 from awslabs.aws_healthomics_mcp_server.utils.error_utils import (
     handle_tool_error,
 )
-from datetime import datetime
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import Field
 from typing import Any, Dict, List, Optional
-
-
-def _datetime_to_iso(dt: Optional[datetime]) -> Optional[str]:
-    """Convert datetime to ISO format string.
-
-    Args:
-        dt: Datetime object or None
-
-    Returns:
-        ISO format string or None if input is None
-    """
-    if dt is None:
-        return None
-    return dt.isoformat()
 
 
 def _validate_batch_run_settings(batch_run_settings: Dict[str, Any]) -> Optional[str]:
@@ -238,9 +226,9 @@ async def get_batch(
             'defaultRunSetting': response.get('defaultRunSetting'),
             'submissionSummary': response.get('submissionSummary'),
             'runSummary': response.get('runSummary'),
-            'creationTime': _datetime_to_iso(response.get('creationTime')),
-            'startTime': _datetime_to_iso(response.get('startTime')),
-            'stopTime': _datetime_to_iso(response.get('stopTime')),
+            'creationTime': datetime_to_iso(response.get('creationTime')),
+            'startTime': datetime_to_iso(response.get('startTime')),
+            'stopTime': datetime_to_iso(response.get('stopTime')),
             'tags': response.get('tags'),
         }
 
@@ -328,9 +316,9 @@ async def list_batches(
                 'arn': item.get('arn'),
                 'name': item.get('name'),
                 'status': item.get('status'),
-                'creationTime': _datetime_to_iso(item.get('creationTime')),
-                'startTime': _datetime_to_iso(item.get('startTime')),
-                'stopTime': _datetime_to_iso(item.get('stopTime')),
+                'creationTime': datetime_to_iso(item.get('creationTime')),
+                'startTime': datetime_to_iso(item.get('startTime')),
+                'stopTime': datetime_to_iso(item.get('stopTime')),
             }
             batches.append(batch_info)
 

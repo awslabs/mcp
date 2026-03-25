@@ -21,7 +21,6 @@ from awslabs.aws_healthomics_mcp_server.consts import (
     SUBMISSION_STATUSES,
 )
 from awslabs.aws_healthomics_mcp_server.tools.run_batch import (
-    _datetime_to_iso,
     _validate_batch_run_settings,
     cancel_run_batch,
     delete_batch,
@@ -30,6 +29,9 @@ from awslabs.aws_healthomics_mcp_server.tools.run_batch import (
     list_batches,
     list_runs_in_batch,
     start_run_batch,
+)
+from awslabs.aws_healthomics_mcp_server.utils.datetime_utils import (
+    datetime_to_iso,
 )
 from datetime import datetime, timezone
 from tests.test_helpers import MCPToolTestWrapper
@@ -216,23 +218,23 @@ def sample_s3_batch_run_settings():
 
 
 class TestDatetimeToIso:
-    """Tests for _datetime_to_iso helper function."""
+    """Tests for datetime_to_iso helper function."""
 
-    def test_converts_datetime_to_iso(self):
+    def test_convertsdatetime_to_iso(self):
         """Test datetime conversion to ISO format."""
         dt = datetime(2024, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
-        result = _datetime_to_iso(dt)
+        result = datetime_to_iso(dt)
         assert result == '2024-01-15T10:30:00+00:00'
 
     def test_returns_none_for_none_input(self):
         """Test None input returns None."""
-        result = _datetime_to_iso(None)
+        result = datetime_to_iso(None)
         assert result is None
 
     def test_handles_naive_datetime(self):
         """Test naive datetime conversion."""
         dt = datetime(2024, 6, 20, 14, 45, 30)
-        result = _datetime_to_iso(dt)
+        result = datetime_to_iso(dt)
         assert result == '2024-06-20T14:45:30'
 
 
