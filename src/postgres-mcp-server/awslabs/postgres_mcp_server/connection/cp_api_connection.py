@@ -122,6 +122,64 @@ def internal_get_cluster_properties(cluster_identifier: str, region: str) -> Dic
         raise
 
 
+def internal_create_express_cluster(cluster_identifier: str) -> Dict[str, Any]:
+    """Create an Aurora PostgreSQL Express cluster.
+
+    Args:
+        cluster_identifier: Unique name for the cluster
+
+    Returns:
+        Dict[str, Any]: Cluster properties
+
+    Raises:
+        ValueError: If cluster_identifier is invalid
+        ClientError: If AWS API call fails
+    """
+    rds_client = internal_create_rds_client(region)
+
+    # Add default tags
+    tags = []
+    tags.append({'Key': 'CreatedBy', 'Value': 'MCP'})
+
+    logger.info(f'Create express clsuter with cluster_identifier:{cluster_identifier}')
+
+    try:
+        cluster_create_start_time = time.time()
+        rds_client.create_db_cluster(
+            DBClusterIdentifier=cluster_identifier,
+            Engine='aurora-postgresql',
+            Tags=tags,
+            WithExpressConfiguration=True,
+        )
+
+        result = rds_client.describe_db_clusters(DBClusterIdentifier=cluster_identifier)[
+            'DBClusters'
+        ][0]
+
+        logger.info('Waiting for cluster to become available...')
+        waiter = rds_client.get_waiter('db_cluster_available')
+        waiter.wait(
+            DBClusterIdentifier=cluster_identifier, WaiterConfig={'Delay': 1, 'MaxAttempts': 1800}
+        )
+
+        cluster_create_stop_time = time.time()
+        elapsed_time = cluster_create_stop_time - cluster_create_start_time
+        logger.info(
+            f'Express Cluster {cluster_identifier} created successfully and took {elapsed_time:.2f} seconds'
+        )
+        return result
+
+    except ClientError as e:
+        logger.error(
+            f"AWS error creating express cluster '{cluster_identifier}': "
+            f'{e.response["Error"]["Code"]} - {e.response["Error"]["Message"]}'
+        )
+        raise
+    except Exception as e:
+        logger.error(f"Error creating cluster '{cluster_identifier}': {type(e).__name__}: {e}")
+        raise
+
+
 def internal_create_serverless_cluster(
     region: str,
     cluster_identifier: str,

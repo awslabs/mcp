@@ -99,6 +99,7 @@ class TestConnectToDatabaseErrorHandling:
                 db_endpoint='test.endpoint.com',
                 port=5432,
                 database='testdb',
+                with_express_configuration=False,
             )
 
             result_dict = json.loads(result)
@@ -129,6 +130,7 @@ class TestConnectToDatabaseErrorHandling:
                 db_endpoint='test.endpoint.com',
                 port=5432,
                 database='testdb',
+                with_express_configuration=False,
             )
 
             assert 'test-cluster' in result
