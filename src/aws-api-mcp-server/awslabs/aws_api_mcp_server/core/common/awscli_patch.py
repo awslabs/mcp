@@ -22,8 +22,7 @@ from .errors import sanitized_exceptions
 
 
 # Patch AWS CLI functions that call os.path.expandvars under the hood when
-# processing file path arguments. If these functions raise exceptions, the
-# expanded environment variables could be leaked in error messages.
+# processing file path arguments.
 awscli.argprocess.unpack_scalar_cli_arg = sanitized_exceptions(
     awscli.argprocess.unpack_scalar_cli_arg
 )
