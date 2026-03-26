@@ -17,6 +17,7 @@ import asyncio
 import importlib
 import os
 import pytest
+import warnings
 from awslabs.core_mcp_server import server
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -1070,3 +1071,29 @@ class TestMainFunction:
                 asyncio.run = original_asyncio_run
                 server.setup = original_setup
                 server.mcp.run = original_mcp_run
+
+
+def test_main_emits_deprecation_warning():
+    """Test that main() emits a FutureWarning deprecation notice."""
+    with patch.dict('sys.modules', mock_modules):
+        from awslabs.core_mcp_server import server as srv
+
+        original_asyncio_run = asyncio.run
+        original_setup = srv.setup
+        original_mcp_run = srv.mcp.run
+
+        try:
+            asyncio.run = MagicMock()
+            srv.setup = AsyncMock()
+            srv.mcp.run = MagicMock()
+
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter('always')
+                srv.main()
+                future_warnings = [x for x in w if issubclass(x.category, FutureWarning)]
+                assert len(future_warnings) >= 1
+                assert any('deprecated' in str(fw.message).lower() for fw in future_warnings)
+        finally:
+            asyncio.run = original_asyncio_run
+            srv.setup = original_setup
+            srv.mcp.run = original_mcp_run

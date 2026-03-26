@@ -340,7 +340,7 @@ class TestCreateAwsClient:
 
         result = create_aws_client('s3')
 
-        mock_get_session.assert_called_once_with()
+        mock_get_session.assert_called_once_with(region_name=None, profile_name=None)
         mock_session.client.assert_called_once_with('s3')
         assert result == mock_client
 
@@ -475,7 +475,7 @@ class TestGetLogsClient:
 
         result = get_logs_client()
 
-        mock_create_client.assert_called_once_with('logs')
+        mock_create_client.assert_called_once_with('logs', region_name=None, profile_name=None)
         assert result == mock_client
 
     @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.create_aws_client')
@@ -498,7 +498,9 @@ class TestGetCodeconnectionsClient:
 
         result = get_codeconnections_client()
 
-        mock_create_client.assert_called_once_with('codeconnections')
+        mock_create_client.assert_called_once_with(
+            'codeconnections', region_name=None, profile_name=None
+        )
         assert result == mock_client
 
     @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.create_aws_client')
@@ -604,15 +606,15 @@ class TestRegionResolution:
         mock_session.client.return_value = mock_client
         mock_get_session.return_value = mock_session
 
-        # Test each client function
+        # Test each client function with no overrides
         get_omics_client()
         get_logs_client()
         create_aws_client('s3')
 
-        # Verify all calls used no region parameter (centralized)
-        expected_calls = [(), (), ()]  # All calls should have no arguments
-        actual_calls = [call.args for call in mock_get_session.call_args_list]
-        assert actual_calls == expected_calls
+        # Verify all calls passed None for region/profile (centralized defaults)
+        for call in mock_get_session.call_args_list:
+            assert call.kwargs.get('region_name') is None
+            assert call.kwargs.get('profile_name') is None
 
     @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
     @patch.dict(os.environ, {'AWS_REGION': 'eu-west-2'})
@@ -623,15 +625,15 @@ class TestRegionResolution:
         mock_session.client.return_value = mock_client
         mock_get_session.return_value = mock_session
 
-        # Test each client function
+        # Test each client function with no overrides
         get_omics_client()
         get_logs_client()
         create_aws_client('dynamodb')
 
-        # Verify all calls used no region parameter (centralized)
-        expected_calls = [(), (), ()]  # All calls should have no arguments
-        actual_calls = [call.args for call in mock_get_session.call_args_list]
-        assert actual_calls == expected_calls
+        # Verify all calls passed None for region/profile (centralized defaults)
+        for call in mock_get_session.call_args_list:
+            assert call.kwargs.get('region_name') is None
+            assert call.kwargs.get('profile_name') is None
 
 
 class TestServiceNameAndEndpointConfiguration:
@@ -1085,3 +1087,131 @@ class TestAgentUserAgentIntegration:
         assert 'agent/' not in user_agent, (
             f'agent/ should not be in User-Agent header: {user_agent}'
         )
+
+
+class TestProfileAndRegionOverride:
+    """Test cases for per-call profile and region override support."""
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.botocore.session.Session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.boto3.Session')
+    def test_get_aws_session_with_profile_override(self, mock_boto3_session, mock_bc_session):
+        """Test get_aws_session passes profile_name to boto3.Session when provided."""
+        mock_bc_session.return_value = MagicMock()
+
+        get_aws_session(profile_name='my-prod-profile')
+
+        call_kwargs = mock_boto3_session.call_args.kwargs
+        assert call_kwargs['profile_name'] == 'my-prod-profile'
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.botocore.session.Session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.boto3.Session')
+    def test_get_aws_session_with_region_override(self, mock_boto3_session, mock_bc_session):
+        """Test get_aws_session uses region_name override instead of env var default."""
+        mock_bc_session.return_value = MagicMock()
+
+        get_aws_session(region_name='eu-west-1')
+
+        call_kwargs = mock_boto3_session.call_args.kwargs
+        assert call_kwargs['region_name'] == 'eu-west-1'
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.botocore.session.Session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.boto3.Session')
+    def test_get_aws_session_with_both_overrides(self, mock_boto3_session, mock_bc_session):
+        """Test get_aws_session passes both profile and region overrides."""
+        mock_bc_session.return_value = MagicMock()
+
+        get_aws_session(region_name='ap-southeast-1', profile_name='staging')
+
+        call_kwargs = mock_boto3_session.call_args.kwargs
+        assert call_kwargs['region_name'] == 'ap-southeast-1'
+        assert call_kwargs['profile_name'] == 'staging'
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.botocore.session.Session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.boto3.Session')
+    def test_get_aws_session_no_profile_in_kwargs_when_none(
+        self, mock_boto3_session, mock_bc_session
+    ):
+        """Test get_aws_session does not pass profile_name when it is None."""
+        mock_bc_session.return_value = MagicMock()
+
+        get_aws_session()
+
+        call_kwargs = mock_boto3_session.call_args.kwargs
+        assert 'profile_name' not in call_kwargs
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    def test_get_omics_client_threads_profile_and_region(self, mock_get_session):
+        """Test get_omics_client passes profile/region to get_aws_session."""
+        mock_session = MagicMock()
+        mock_session.client.return_value = MagicMock()
+        mock_get_session.return_value = mock_session
+
+        get_omics_client(region_name='us-west-2', profile_name='prod')
+
+        mock_get_session.assert_called_once_with(region_name='us-west-2', profile_name='prod')
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    def test_create_aws_client_threads_profile_and_region(self, mock_get_session):
+        """Test create_aws_client passes profile/region to get_aws_session."""
+        mock_session = MagicMock()
+        mock_session.client.return_value = MagicMock()
+        mock_get_session.return_value = mock_session
+
+        create_aws_client('logs', region_name='eu-central-1', profile_name='dev')
+
+        mock_get_session.assert_called_once_with(region_name='eu-central-1', profile_name='dev')
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.create_aws_client')
+    def test_get_logs_client_threads_profile_and_region(self, mock_create_client):
+        """Test get_logs_client passes profile/region to create_aws_client."""
+        mock_create_client.return_value = MagicMock()
+
+        get_logs_client(region_name='us-west-2', profile_name='prod')
+
+        mock_create_client.assert_called_once_with(
+            'logs', region_name='us-west-2', profile_name='prod'
+        )
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    def test_get_account_id_threads_profile_and_region(self, mock_get_session):
+        """Test get_account_id passes profile/region to get_aws_session."""
+        mock_session = MagicMock()
+        mock_sts = MagicMock()
+        mock_sts.get_caller_identity.return_value = {'Account': '111222333444'}
+        mock_session.client.return_value = mock_sts
+        mock_get_session.return_value = mock_session
+
+        result = get_account_id(region_name='us-east-1', profile_name='cross-account')
+
+        assert result == '111222333444'
+        mock_get_session.assert_called_once_with(
+            region_name='us-east-1', profile_name='cross-account'
+        )
+
+    def test_get_partition_caches_by_profile_and_region(self):
+        """Test get_partition caches results per (region, profile) combination."""
+        get_partition.cache_clear()
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session'
+        ) as mock_get_session:
+            mock_session = MagicMock()
+            mock_sts = MagicMock()
+            mock_sts.get_caller_identity.return_value = {
+                'Arn': 'arn:aws:sts::123456789012:user/test'
+            }
+            mock_session.client.return_value = mock_sts
+            mock_get_session.return_value = mock_session
+
+            # First call for profile=None
+            result1 = get_partition()
+            # Second call with same args should be cached
+            result2 = get_partition()
+            # Third call with different profile should NOT be cached
+            result3 = get_partition(profile_name='other')
+
+            assert result1 == result2 == result3 == 'aws'
+            # Should have 2 AWS calls: one for (None, None), one for (None, 'other')
+            assert mock_get_session.call_count == 2
+
+        get_partition.cache_clear()

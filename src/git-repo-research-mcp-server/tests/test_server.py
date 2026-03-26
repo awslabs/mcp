@@ -18,6 +18,7 @@ import os
 import pytest
 import subprocess
 import tempfile
+import warnings
 from awslabs.git_repo_research_mcp_server.models import (
     EmbeddingModel,
 )
@@ -788,9 +789,22 @@ def test_main():
     with (
         patch('awslabs.git_repo_research_mcp_server.server.mcp.run') as mock_run,
     ):
-        # Test with default arguments
-        main()
-        mock_run.assert_called_once()
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            # Test with default arguments
+            main()
+            mock_run.assert_called_once()
 
-        # Reset mocks
-        mock_run.reset_mock()
+            # Reset mocks
+            mock_run.reset_mock()
+
+
+def test_main_emits_deprecation_warning():
+    """Test that main() emits a FutureWarning deprecation notice."""
+    with patch('awslabs.git_repo_research_mcp_server.server.mcp.run'):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter('always')
+            main()
+            future_warnings = [x for x in w if issubclass(x.category, FutureWarning)]
+            assert len(future_warnings) >= 1
+            assert 'deprecated' in str(future_warnings[0].message).lower()

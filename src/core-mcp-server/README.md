@@ -1,5 +1,7 @@
 # Core MCP Server
 
+> **⚠️ DEPRECATION NOTICE**: This server is deprecated and will no longer receive updates. Modern MCP clients (Kiro, Cursor, VS Code) support multi-server configurations natively, making the proxy/orchestration pattern unnecessary. Please configure the individual MCP servers you need directly. See the [migration guide](https://github.com/awslabs/mcp/blob/main/docs/migration-core.md) for a role-to-server mapping.
+
 MCP server that provides a starting point for using MCP servers for AWS through a dynamic proxy server strategy based on role-based environment variables.
 
 ## Features

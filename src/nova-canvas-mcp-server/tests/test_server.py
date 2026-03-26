@@ -14,7 +14,9 @@
 """Tests for the server module of the nova-canvas-mcp-server."""
 
 import pytest
+import warnings
 from awslabs.nova_canvas_mcp_server.server import (
+    main,
     mcp_generate_image,
     mcp_generate_image_with_colors,
 )
@@ -299,3 +301,17 @@ class TestServerIntegration:
             and 'Generate an image using Amazon Nova Canvas with color guidance'
             in mcp_generate_image_with_colors.__doc__
         )
+
+
+class TestDeprecation:
+    """Tests for deprecation notices."""
+
+    def test_main_emits_deprecation_warning(self):
+        """Test that main() emits a FutureWarning deprecation notice."""
+        with patch('awslabs.nova_canvas_mcp_server.server.mcp.run'):
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter('always')
+                main()
+                future_warnings = [x for x in w if issubclass(x.category, FutureWarning)]
+                assert len(future_warnings) >= 1
+                assert 'deprecated' in str(future_warnings[0].message).lower()

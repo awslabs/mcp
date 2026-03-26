@@ -1,5 +1,7 @@
 # Git Repo Research MCP Server
 
+> **⚠️ DEPRECATION NOTICE**: This server is deprecated and will no longer receive updates. For library documentation and code research, we recommend [Context7](https://github.com/upstash/context7) which provides up-to-date docs without requiring AWS credentials. See the [migration guide](https://github.com/awslabs/mcp/blob/main/docs/migration-git-repo-research.md) for details.
+
 Model Context Protocol (MCP) server for researching Git repositories using semantic search
 
 This MCP server enables developers to research external Git repositories and influence their code generation without having to clone repositories to local projects. It provides tools to index, search, and explore Git repositories using semantic search powered by Amazon Bedrock and FAISS.
