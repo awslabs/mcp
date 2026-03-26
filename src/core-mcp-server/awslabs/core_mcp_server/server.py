@@ -17,9 +17,20 @@ import loguru
 import os
 import pathlib
 import sys
+import warnings
 from fastmcp import FastMCP
 from fastmcp.server.proxy import ProxyClient
 from typing import List, TypedDict
+
+
+DEPRECATION_NOTICE = (
+    'core-mcp-server is deprecated and will be removed in a future release. '
+    'Modern MCP clients (Kiro, Cursor, VS Code) support multi-server configurations natively, '
+    'making the proxy/orchestration pattern unnecessary. Please configure the individual MCP '
+    'servers you need directly in your client. '
+    'See the migration guide: '
+    'https://github.com/awslabs/mcp/blob/main/docs/migration-core.md'
+)
 
 
 current_dir = pathlib.Path(__file__).parent
@@ -68,12 +79,13 @@ logger.add(sys.stderr, level='DEBUG')
 
 mcp = FastMCP(
     'mcp-core MCP server.  This is the starting point for all solutions created',
+    instructions=f'DEPRECATION NOTICE: {DEPRECATION_NOTICE}',
 )
 
 
 @mcp.tool(name='prompt_understanding')
 def get_prompt_understanding() -> str:
-    """MCP-CORE Prompt Understanding.
+    """[DEPRECATED] MCP-CORE Prompt Understanding.
 
     ALWAYS Use this tool first to understand the user's query and translate it into AWS expert advice.
     """
@@ -546,6 +558,7 @@ async def setup():
 
 def main() -> None:
     """Run the MCP server."""
+    warnings.warn(DEPRECATION_NOTICE, FutureWarning, stacklevel=2)
     asyncio.run(setup())
     mcp.run()
 

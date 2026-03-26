@@ -16,6 +16,7 @@
 
 import json
 import os
+import re
 import yaml
 from awslabs.eks_mcp_server.k8s_apis import K8sApis
 from awslabs.eks_mcp_server.k8s_client_cache import K8sClientCache
@@ -243,6 +244,32 @@ class K8sHandler:
             return [self.filter_null_values(item) for item in data if item is not None]
         else:
             return data
+
+    @staticmethod
+    def _validate_app_name(app_name: str) -> Optional[str]:
+        """Validate app_name against Kubernetes RFC 1123 DNS label rules.
+
+        Rules (see https://kubernetes.io/docs/concepts/overview/working-with-objects/names/):
+        - At most 63 characters
+        - Lowercase alphanumeric characters or hyphens
+        - Must start and end with an alphanumeric character
+
+        This also prevents path traversal and injection via app_name.
+
+        Args:
+            app_name: The application name to validate
+
+        Returns:
+            An error message string if invalid, or None if valid
+        """
+        if len(app_name) > 63:
+            return f'Invalid app_name "{app_name}": must be at most 63 characters long'
+        if not re.match(r'^[a-z0-9]([a-z0-9\-]*[a-z0-9])?$', app_name):
+            return (
+                f'Invalid app_name "{app_name}": must consist of lowercase alphanumeric '
+                f'characters or hyphens, start and end with an alphanumeric character'
+            )
+        return None
 
     def remove_managed_fields(self, resource: Dict[str, Any]) -> Dict[str, Any]:
         """Remove metadata.managed_fields from a Kubernetes resource.
@@ -729,6 +756,15 @@ class K8sHandler:
 
             # Get the combined manifest using the template files
             combined_yaml = self._load_yaml_template(template_files, template_values)
+
+            # Validate app_name against Kubernetes naming rules.
+            app_name_error = self._validate_app_name(app_name)
+            if app_name_error:
+                log_with_request_id(ctx, LogLevel.ERROR, app_name_error)
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type='text', text=app_name_error)],
+                )
 
             # Ensure output directory exists
             os.makedirs(output_dir, exist_ok=True)
