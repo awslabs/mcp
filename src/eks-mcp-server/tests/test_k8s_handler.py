@@ -957,6 +957,52 @@ metadata:
             assert 'relative/path/to/output' in result.content[0].text
 
     @pytest.mark.asyncio
+    async def test_generate_app_manifest_path_traversal(
+        self, mock_context, mock_mcp, mock_client_cache
+    ):
+        """Test generate_app_manifest rejects path traversal in app_name."""
+        with patch(
+            'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
+        ):
+            handler = K8sHandler(mock_mcp, allow_write=True)
+
+        with patch.object(handler, '_load_yaml_template', return_value='yaml content'):
+            with patch('os.makedirs'):
+                result = await handler.generate_app_manifest(
+                    mock_context,
+                    app_name='../forced_path_traversal',
+                    image_uri='123456789012.dkr.ecr.region.amazonaws.com/repo:tag',
+                    output_dir='/safe/output/dir',
+                )
+
+        assert result.isError
+        assert isinstance(result.content[0], TextContent)
+        assert 'Invalid app_name' in result.content[0].text
+
+    @pytest.mark.asyncio
+    async def test_generate_app_manifest_app_name_too_long(
+        self, mock_context, mock_mcp, mock_client_cache
+    ):
+        """Test generate_app_manifest rejects app_name longer than 63 characters."""
+        with patch(
+            'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
+        ):
+            handler = K8sHandler(mock_mcp, allow_write=True)
+
+        with patch.object(handler, '_load_yaml_template', return_value='yaml content'):
+            with patch('os.makedirs'):
+                result = await handler.generate_app_manifest(
+                    mock_context,
+                    app_name='a' * 64,
+                    image_uri='123456789012.dkr.ecr.region.amazonaws.com/repo:tag',
+                    output_dir='/safe/output/dir',
+                )
+
+        assert result.isError
+        assert isinstance(result.content[0], TextContent)
+        assert 'at most 63 characters' in result.content[0].text
+
+    @pytest.mark.asyncio
     async def test_generate_app_manifest_success(self, mock_context, mock_mcp, mock_client_cache):
         """Test generate_app_manifest with successful creation."""
         # Initialize the K8s handler with write access enabled

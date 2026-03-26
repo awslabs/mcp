@@ -17,7 +17,7 @@ The DynamoDB MCP server provides eight tools for data modeling, validation, cost
 
   **Example invocation:** "Validate my DynamoDB data model"
 
-- `source_db_analyzer` - Analyzes existing MySQL databases to extract schema structure, access patterns from Performance Schema, and generates timestamped analysis files for use with dynamodb_data_modeling. Supports both RDS Data API-based access and connection-based access.
+- `source_db_analyzer` - Analyzes existing databases (MySQL, PostgreSQL, SQL Server, Oracle) to extract schema structure, access patterns, and generates timestamped analysis files for use with dynamodb_data_modeling. Supports both RDS Data API-based access and connection-based access for MySQL.
 
   **Example invocation:** "Analyze my MySQL database and help me design a DynamoDB data model"
 
@@ -188,14 +188,15 @@ The tool supports two connection methods for MySQL:
 - MySQL / Aurora MySQL
 - PostgreSQL
 - SQL Server
+- Oracle
 
 **Execution Modes:**
-- **Self-Service Mode**: Generate SQL queries, run them yourself, provide results (MYSQL, PSQL, MSSQL)
+- **Self-Service Mode**: Generate SQL queries, run them yourself, provide results (MySQL, PostgreSQL, SQL Server, Oracle)
 - **Managed Mode**: Direct connection via AWS RDS Data API (MySQL only)
 
 We recommend running this tool against a non-production database instance.
 
-### Self-Service Mode (MYSQL, PSQL, MSSQL)
+### Self-Service Mode (MySQL, PostgreSQL, SQL Server, Oracle)
 
 Self-service mode allows you to analyze any database without AWS connectivity:
 
@@ -203,9 +204,9 @@ Self-service mode allows you to analyze any database without AWS connectivity:
 2. **Run Queries**: You execute queries against your database
 3. **Provide Results**: Tool parses results and generates analysis
 
-### Managed Mode (MYSQL, PSQL, MSSQL)
+### Managed Mode (MySQL only)
 
-Managed mode allow you to connect tool, to AWS RDS Data API, to analyzes existing MySQL/Aurora databases to extract schema and access patterns for DynamoDB modeling.
+Managed mode allows you to connect the tool to AWS RDS Data API to analyze existing MySQL/Aurora databases to extract schema and access patterns for DynamoDB modeling.
 
 #### Prerequisites for MySQL Integration (Managed Mode)
 
