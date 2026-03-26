@@ -29,6 +29,7 @@ from awslabs.aws_pricing_mcp_server.server import (
     get_pricing_service_attributes,
     get_pricing_service_codes,
 )
+from pydantic import ValidationError
 from unittest.mock import patch
 
 
@@ -139,6 +140,18 @@ class TestGetPricing:
         assert filter_dict['Field'] == 'instanceType'
         assert filter_dict['Value'] == 't3.medium'
         assert filter_dict['Type'] == 'EQUALS'
+
+    @pytest.mark.asyncio
+    async def test_pricing_filter_rejects_empty_field(self):
+        """Test that PricingFilter rejects empty string for Field."""
+        with pytest.raises(ValidationError):
+            PricingFilter(Field='', Value='t3.medium')
+
+    @pytest.mark.asyncio
+    async def test_pricing_filter_rejects_empty_type(self):
+        """Test that PricingFilter rejects empty string for Type."""
+        with pytest.raises(ValidationError):
+            PricingFilter(Field='instanceType', Value='t3.medium', Type='')
 
     @pytest.mark.asyncio
     async def test_new_filter_types_validation(self):
