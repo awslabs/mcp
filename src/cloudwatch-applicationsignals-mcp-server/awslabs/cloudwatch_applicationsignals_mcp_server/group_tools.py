@@ -25,7 +25,7 @@ Tools:
 - list_grouping_attribute_definitions: List all custom grouping attribute definitions
 """
 
-from .aws_clients import AWS_REGION, applicationsignals_client, cloudwatch_client
+from .aws_clients import get_client, get_region
 from .sli_report_client import AWSConfig, SLIReportClient
 from .utils import (
     ERROR_THRESHOLD_CRITICAL,
@@ -179,7 +179,7 @@ def _build_group_header(
     return (
         f'{emoji} **{title}: {group_name}**\n'
         f'⏰ Time Range: {start_dt.strftime("%Y-%m-%d %H:%M")} to {end_dt.strftime("%Y-%m-%d %H:%M")} UTC\n'
-        f'🌎 Region: {AWS_REGION}\n'
+        f'🌎 Region: {get_region()}\n'
         f'📊 Services in group: {service_count}\n\n'
     )
 
@@ -455,7 +455,7 @@ async def audit_group_health(
             sli_data_available = False
             try:
                 config = AWSConfig(
-                    region=AWS_REGION,
+                    region=get_region(),
                     period_in_hours=period_hours,
                     service_name=svc_name,
                     key_attributes=key_attrs,
@@ -1223,7 +1223,7 @@ async def list_grouping_attribute_definitions() -> str:
 
         # Build result
         result = '📋 **GROUPING ATTRIBUTE DEFINITIONS**\n'
-        result += f'🌎 Region: {AWS_REGION}\n'
+        result += f'🌎 Region: {get_region()}\n'
         if updated_at:
             if hasattr(updated_at, 'strftime'):
                 result += f'🕐 Last Updated: {updated_at.strftime("%Y-%m-%d %H:%M:%S")} UTC\n'
