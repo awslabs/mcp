@@ -624,3 +624,58 @@ class FileParameterError(CommandValidationError):
                 'reason': self._reason,
             },
         )
+
+
+class OperationIsNotSupportedInTheRegionError(CommandValidationError):
+    """Thrown when an operation is not supported in a specific region."""
+
+    _message = 'The operation {service}:{operation} is not supported in the {region} region.'
+
+    def __init__(self, service: str, operation: str, region: str):
+        """Initialize UnknownFiltersError with service and invalid filters."""
+        message = self._message.format(service=service, operation=operation, region=region)
+        self._operation = operation
+        self._service = service
+        self._region = region
+        super().__init__(message)
+
+    def as_failure(self) -> Failure:
+        """Return a Failure object representing this error."""
+        return Failure(
+            reason=str(self),
+            context={
+                'service': self._service,
+                'operation': self._operation,
+                'region': self._region,
+            },
+        )
+
+
+class AwsRegionResolutionError(AwsApiMcpError):
+    """Raised when active AWS regions cannot be retrieved.
+
+    This error occurs during multi-region command expansion when the agent
+    attempts to call the AWS Account API to list available regions.
+
+    Common causes and fixes:
+    - Missing "account:ListRegions" IAM permission → grant this permission to the IAM principal in use
+    - Invalid or missing AWS profile → check ~/.aws/credentials and ~/.aws/config
+    - Invalid credentials → ensure credentials are not expired
+    - Account service not accessible → check network connectivity and VPC endpoint configuration
+
+    When handling this error, inform the user that multi-region expansion failed
+    and suggest running the command against specific regions explicitly instead.
+    """
+
+    def __init__(self, reason: str, profile_name: str | None = None):
+        """Initialize AwsRegionResolutionError with error reason and profile name."""
+        self.reason = reason
+        self.profile_name = profile_name
+        profile_info = f'(profile: "{profile_name or "default"}")'
+        message = (
+            f'Failed to retrieve active AWS regions {profile_info}. '
+            f'Multi-region command expansion is unavailable. '
+            f'Check the error reason and fix it, or consider specifying regions explicitly. '
+            f'Reason: {reason}'
+        )
+        super().__init__(message)

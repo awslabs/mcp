@@ -22,13 +22,18 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: "category",
-      label: "Available AWS MCP Servers",
+      label: "Available MCP Servers for AWS",
       collapsed: false,
       items: [
         {
           type: "category",
           label: "Getting Started",
           items: [
+            {
+              type: 'link',
+              label: 'AWS MCP',
+              href: 'https://docs.aws.amazon.com/aws-mcp/latest/userguide/what-is-mcp-server.html',
+            },
             "servers/aws-api-mcp-server",
             "servers/aws-knowledge-mcp-server",
           ],
@@ -107,7 +112,7 @@ const sidebars: SidebarsConfig = {
             "servers/code-doc-gen-mcp-server",
             "servers/frontend-mcp-server",
             "servers/iam-mcp-server",
-            "servers/kendra-index-mcp-server",
+            "servers/amazon-kendra-index-mcp-server",
             "servers/syntheticdata-mcp-server",
             "servers/aws-bedrock-data-automation-mcp-server",
             "servers/aws-location-mcp-server",
@@ -140,6 +145,7 @@ const sidebars: SidebarsConfig = {
           label: "Healthcare & Lifesciences",
           items: [
             "servers/aws-healthomics-mcp-server",
+            "servers/healthimaging-mcp-server",
             "servers/healthlake-mcp-server",
           ],
         },

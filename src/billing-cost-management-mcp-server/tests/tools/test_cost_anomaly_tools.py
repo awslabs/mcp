@@ -486,10 +486,18 @@ class TestCostAnomalyFastMCP:
 
             from datetime import datetime, timedelta
 
-            old_date = (datetime.now() - timedelta(days=100)).strftime('%Y-%m-%d')
-            recent_date = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+            now = datetime.now()
+            recent_date = now - timedelta(days=1)
 
-            res = await real_fn(mock_context, start_date=old_date, end_date=recent_date)  # type: ignore[reportCallIssue]
+            # Avoid early January dates (Jan 1-15) which trigger a separate warning
+            if recent_date.month == 1 and recent_date.day <= 15:
+                # Move back to December of previous year to avoid the early January warning
+                recent_date = recent_date.replace(year=recent_date.year - 1, month=12, day=20)
+
+            old_date = (recent_date - timedelta(days=100)).strftime('%Y-%m-%d')
+            recent_date_str = recent_date.strftime('%Y-%m-%d')
+
+            res = await real_fn(mock_context, start_date=old_date, end_date=recent_date_str)  # type: ignore[reportCallIssue]
             assert res['status'] == 'success'
             # Check that warning was logged
             mock_logger.warning.assert_called_once()

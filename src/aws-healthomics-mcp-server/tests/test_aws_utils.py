@@ -18,22 +18,27 @@ import base64
 import io
 import os
 import pytest
+import string
 import zipfile
+from awslabs.aws_healthomics_mcp_server.consts import AGENT_ENV
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
     create_aws_client,
     create_zip_file,
     decode_from_base64,
     encode_to_base64,
     get_account_id,
+    get_agent_value,
     get_aws_session,
+    get_codeconnections_client,
     get_logs_client,
     get_omics_client,
     get_omics_endpoint_url,
     get_omics_service_name,
     get_partition,
     get_region,
-    get_ssm_client,
 )
+from hypothesis import given, settings
+from hypothesis import strategies as st
 from unittest.mock import MagicMock, patch
 
 
@@ -235,7 +240,9 @@ class TestGetAwsSession:
             region_name='eu-west-1', botocore_session=mock_botocore_instance
         )
         assert result == mock_boto3_instance
-        assert 'awslabs/mcp/aws-healthomics-mcp-server/' in mock_botocore_instance.user_agent_extra
+        assert (
+            'md/awslabs#mcp#aws-healthomics-mcp-server#' in mock_botocore_instance.user_agent_extra
+        )
 
     @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.boto3.Session')
     @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.botocore.session.Session')
@@ -255,6 +262,71 @@ class TestGetAwsSession:
         assert result == mock_boto3_instance
 
 
+class TestGetAwsSessionAgentHeader:
+    """Test cases for agent user-agent injection in get_aws_session."""
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.boto3.Session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.botocore.session.Session')
+    @patch.dict(os.environ, {}, clear=True)
+    def test_no_agent_in_user_agent_when_not_set(self, mock_botocore_session, mock_boto3_session):
+        """Test get_aws_session does not append agent/ to user_agent_extra when AGENT is not set."""
+        mock_botocore_instance = MagicMock()
+        mock_botocore_session.return_value = mock_botocore_instance
+        mock_boto3_instance = MagicMock()
+        mock_boto3_session.return_value = mock_boto3_instance
+
+        get_aws_session()
+
+        assert 'agent/' not in mock_botocore_instance.user_agent_extra
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.boto3.Session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.botocore.session.Session')
+    @patch.dict(os.environ, {'AGENT': 'test-agent'})
+    def test_agent_appended_to_user_agent_when_set(
+        self, mock_botocore_session, mock_boto3_session
+    ):
+        """Test get_aws_session appends agent/<value> to user_agent_extra when AGENT is set."""
+        mock_botocore_instance = MagicMock()
+        mock_botocore_session.return_value = mock_botocore_instance
+        mock_boto3_instance = MagicMock()
+        mock_boto3_session.return_value = mock_boto3_instance
+
+        get_aws_session()
+
+        assert 'agent/test-agent' in mock_botocore_instance.user_agent_extra
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.boto3.Session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.botocore.session.Session')
+    @patch.dict(os.environ, {'AGENT': 'TEST'})
+    def test_agent_value_lowercased_in_user_agent(self, mock_botocore_session, mock_boto3_session):
+        """Test get_aws_session lowercases the agent value in user_agent_extra."""
+        mock_botocore_instance = MagicMock()
+        mock_botocore_session.return_value = mock_botocore_instance
+        mock_boto3_instance = MagicMock()
+        mock_boto3_session.return_value = mock_boto3_instance
+
+        get_aws_session()
+
+        assert 'agent/test' in mock_botocore_instance.user_agent_extra
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.boto3.Session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.botocore.session.Session')
+    @patch.dict(os.environ, {'AGENT': 'KIRO'})
+    def test_user_agent_extra_still_has_server_id_when_agent_configured(
+        self, mock_botocore_session, mock_boto3_session
+    ):
+        """Test user_agent_extra still contains the server identifier when AGENT is configured."""
+        mock_botocore_instance = MagicMock()
+        mock_botocore_session.return_value = mock_botocore_instance
+        mock_boto3_instance = MagicMock()
+        mock_boto3_session.return_value = mock_boto3_instance
+
+        get_aws_session()
+
+        assert 'aws-healthomics-mcp-server' in mock_botocore_instance.user_agent_extra
+        assert 'agent/kiro' in mock_botocore_instance.user_agent_extra
+
+
 class TestCreateAwsClient:
     """Test cases for create_aws_client function."""
 
@@ -268,7 +340,7 @@ class TestCreateAwsClient:
 
         result = create_aws_client('s3')
 
-        mock_get_session.assert_called_once_with()
+        mock_get_session.assert_called_once_with(region_name=None, profile_name=None)
         mock_session.client.assert_called_once_with('s3')
         assert result == mock_client
 
@@ -403,7 +475,7 @@ class TestGetLogsClient:
 
         result = get_logs_client()
 
-        mock_create_client.assert_called_once_with('logs')
+        mock_create_client.assert_called_once_with('logs', region_name=None, profile_name=None)
         assert result == mock_client
 
     @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.create_aws_client')
@@ -415,27 +487,29 @@ class TestGetLogsClient:
             get_logs_client()
 
 
-class TestGetSsmClient:
-    """Test cases for get_ssm_client function."""
+class TestGetCodeconnectionsClient:
+    """Test cases for get_codeconnections_client function."""
 
     @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.create_aws_client')
-    def test_get_ssm_client_success(self, mock_create_client):
-        """Test successful SSM client creation."""
+    def test_get_codeconnections_client_success(self, mock_create_client):
+        """Test successful CodeConnections client creation."""
         mock_client = MagicMock()
         mock_create_client.return_value = mock_client
 
-        result = get_ssm_client()
+        result = get_codeconnections_client()
 
-        mock_create_client.assert_called_once_with('ssm')
+        mock_create_client.assert_called_once_with(
+            'codeconnections', region_name=None, profile_name=None
+        )
         assert result == mock_client
 
     @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.create_aws_client')
-    def test_get_ssm_client_failure(self, mock_create_client):
-        """Test SSM client creation failure."""
-        mock_create_client.side_effect = Exception('SSM access denied')
+    def test_get_codeconnections_client_failure(self, mock_create_client):
+        """Test CodeConnections client creation failure."""
+        mock_create_client.side_effect = Exception('CodeConnections service unavailable')
 
-        with pytest.raises(Exception, match='SSM access denied'):
-            get_ssm_client()
+        with pytest.raises(Exception, match='CodeConnections service unavailable'):
+            get_codeconnections_client()
 
 
 class TestUtilityFunctions:
@@ -532,16 +606,15 @@ class TestRegionResolution:
         mock_session.client.return_value = mock_client
         mock_get_session.return_value = mock_session
 
-        # Test each client function
+        # Test each client function with no overrides
         get_omics_client()
         get_logs_client()
-        get_ssm_client()
         create_aws_client('s3')
 
-        # Verify all calls used no region parameter (centralized)
-        expected_calls = [(), (), (), ()]  # All calls should have no arguments
-        actual_calls = [call.args for call in mock_get_session.call_args_list]
-        assert actual_calls == expected_calls
+        # Verify all calls passed None for region/profile (centralized defaults)
+        for call in mock_get_session.call_args_list:
+            assert call.kwargs.get('region_name') is None
+            assert call.kwargs.get('profile_name') is None
 
     @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
     @patch.dict(os.environ, {'AWS_REGION': 'eu-west-2'})
@@ -552,16 +625,15 @@ class TestRegionResolution:
         mock_session.client.return_value = mock_client
         mock_get_session.return_value = mock_session
 
-        # Test each client function
+        # Test each client function with no overrides
         get_omics_client()
         get_logs_client()
-        get_ssm_client()
         create_aws_client('dynamodb')
 
-        # Verify all calls used no region parameter (centralized)
-        expected_calls = [(), (), (), ()]  # All calls should have no arguments
-        actual_calls = [call.args for call in mock_get_session.call_args_list]
-        assert actual_calls == expected_calls
+        # Verify all calls passed None for region/profile (centralized defaults)
+        for call in mock_get_session.call_args_list:
+            assert call.kwargs.get('region_name') is None
+            assert call.kwargs.get('profile_name') is None
 
 
 class TestServiceNameAndEndpointConfiguration:
@@ -813,3 +885,333 @@ class TestGetPartition:
         mock_get_session.assert_called_once()
         mock_session.client.assert_called_once_with('sts')
         mock_sts_client.get_caller_identity.assert_called_once()
+
+
+class TestGetAgentValue:
+    """Test cases for get_agent_value function."""
+
+    def test_get_agent_value_not_set(self):
+        """Test get_agent_value returns None when AGENT env var is not set."""
+        env = os.environ.copy()
+        env.pop(AGENT_ENV, None)
+        with patch.dict(os.environ, env, clear=True):
+            result = get_agent_value()
+        assert result is None
+
+    @patch.dict(os.environ, {AGENT_ENV: 'my-agent'})
+    def test_get_agent_value_valid_string(self):
+        """Test get_agent_value returns value when AGENT is set to a valid string."""
+        result = get_agent_value()
+        assert result == 'my-agent'
+
+    @patch.dict(os.environ, {AGENT_ENV: ''})
+    def test_get_agent_value_empty_string(self):
+        """Test get_agent_value returns None for empty string."""
+        result = get_agent_value()
+        assert result is None
+
+    @patch.dict(os.environ, {AGENT_ENV: '\x01\x02\x03'})
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.logger')
+    def test_get_agent_value_warning_on_empty_after_sanitization(self, mock_logger):
+        """Test get_agent_value logs warning when value becomes empty after sanitization."""
+        result = get_agent_value()
+        assert result is None
+        mock_logger.warning.assert_called_once_with(
+            f'{AGENT_ENV} environment variable value became empty after sanitization. '
+            'Treating as unset.'
+        )
+
+
+class TestGetAgentValueProperties:
+    """Property-based tests for get_agent_value()."""
+
+    @given(
+        value=st.text(
+            alphabet=st.characters(
+                exclude_characters='\x00',
+                exclude_categories=('Cs',),
+            )
+        )
+    )
+    @settings(max_examples=100)
+    def test_sanitization_invariant(self, value):
+        """Property: Sanitization invariant.
+
+        For any string set as the AGENT env var, get_agent_value() returns
+        either None or a non-empty string containing only visible ASCII
+        characters (0x20-0x7E).
+        """
+        with patch.dict(os.environ, {AGENT_ENV: value}):
+            result = get_agent_value()
+
+        if result is not None:
+            assert len(result) > 0, 'Result must be non-empty when not None'
+            for c in result:
+                assert 0x20 <= ord(c) <= 0x7E, (
+                    f'Character {c!r} (ord={ord(c)}) is outside visible ASCII range'
+                )
+
+    @given(value=st.text(alphabet=string.whitespace))
+    @settings(max_examples=100)
+    def test_whitespace_only_strings_are_rejected(self, value):
+        """Property: Whitespace-only strings are rejected.
+
+        For any string composed entirely of whitespace characters,
+        get_agent_value() returns None.
+        """
+        with patch.dict(os.environ, {AGENT_ENV: value}):
+            result = get_agent_value()
+
+        assert result is None, f'Expected None for whitespace-only input {value!r}, got {result!r}'
+
+
+class TestUserAgentInjectionProperties:
+    """Property-based tests for agent user-agent injection."""
+
+    @given(
+        agent_value=st.text(
+            alphabet=st.characters(min_codepoint=0x21, max_codepoint=0x7E),
+            min_size=1,
+        ),
+    )
+    @settings(max_examples=100)
+    def test_user_agent_contains_agent_suffix_and_server_id(self, agent_value):
+        """Property: User-agent string contains both server ID and agent/<value>.
+
+        For any non-empty visible ASCII agent string, get_aws_session() should
+        produce a user_agent_extra that contains the server identifier AND
+        the agent/<lowercased_value> suffix.
+        """
+        with (
+            patch.dict(os.environ, {AGENT_ENV: agent_value}),
+            patch(
+                'awslabs.aws_healthomics_mcp_server.utils.aws_utils.botocore.session.Session'
+            ) as mock_bc,
+            patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.boto3.Session'),
+        ):
+            mock_bc_instance = MagicMock()
+            mock_bc.return_value = mock_bc_instance
+
+            get_aws_session()
+
+            ua = mock_bc_instance.user_agent_extra
+            assert 'aws-healthomics-mcp-server' in ua, (
+                f'Server identifier missing from user_agent_extra: {ua}'
+            )
+            assert f'agent/{agent_value.lower()}' in ua, (
+                f'Expected agent/{agent_value.lower()} in user_agent_extra: {ua}'
+            )
+
+
+class TestAgentUserAgentIntegration:
+    """Integration test verifying agent/ appears in User-Agent header in botocore HTTP requests."""
+
+    @staticmethod
+    def _make_fake_sts_response():
+        """Create a fake STS GetCallerIdentity HTTP response."""
+        from botocore.awsrequest import AWSResponse
+        from unittest.mock import MagicMock
+
+        xml_body = b"""<GetCallerIdentityResponse>
+            <GetCallerIdentityResult>
+                <Arn>arn:aws:iam::123456789012:user/test</Arn>
+                <UserId>AIDEXAMPLE</UserId>
+                <Account>123456789012</Account>
+            </GetCallerIdentityResult>
+        </GetCallerIdentityResponse>"""
+
+        raw = MagicMock()
+        raw.stream.return_value = iter([xml_body])
+        raw.read.return_value = xml_body
+
+        def make_send(captured):
+            def mock_send(request):
+                captured.update(request.headers)
+                response = AWSResponse(
+                    url=request.url,
+                    status_code=200,
+                    headers={'Content-Type': 'text/xml'},
+                    raw=raw,
+                )
+                response._content = xml_body
+                return response
+
+            return mock_send
+
+        return make_send
+
+    @patch.dict(
+        os.environ,
+        {
+            'AGENT': 'KIRO',
+            'AWS_REGION': 'us-east-1',
+            # Mock credentials to prevent boto3 from trying to find them in build system
+            'AWS_ACCESS_KEY_ID': 'testing',  # pragma: allowlist secret
+            'AWS_SECRET_ACCESS_KEY': 'testing',  # pragma: allowlist secret
+            'AWS_SECURITY_TOKEN': 'testing',  # pragma: allowlist secret
+        },
+    )
+    def test_agent_in_user_agent_on_real_pipeline(self):
+        """Verify agent/kiro appears in User-Agent header after full botocore pipeline."""
+        session = get_aws_session()
+        sts = session.client('sts', region_name='us-east-1')
+
+        captured_headers = {}
+        sts._endpoint.http_session.send = self._make_fake_sts_response()(captured_headers)
+
+        sts.get_caller_identity()
+
+        user_agent = captured_headers.get('User-Agent', b'').decode('utf-8')
+        assert 'agent/kiro' in user_agent, (
+            f'agent/kiro not found in User-Agent header: {user_agent}'
+        )
+        assert 'aws-healthomics-mcp-server' in user_agent
+
+    def test_no_agent_in_user_agent_when_not_set(self):
+        """Verify agent/ is absent from User-Agent when AGENT env var is not set."""
+        env = os.environ.copy()
+        env.pop('AGENT', None)
+        env['AWS_ACCESS_KEY_ID'] = 'testing'  # pragma: allowlist secret
+        env['AWS_SECRET_ACCESS_KEY'] = 'testing'  # pragma: allowlist secret
+        env['AWS_SECURITY_TOKEN'] = 'testing'  # pragma: allowlist secret
+        with patch.dict(os.environ, env, clear=True):
+            session = get_aws_session()
+            sts = session.client('sts', region_name='us-east-1')
+
+            captured_headers = {}
+            sts._endpoint.http_session.send = self._make_fake_sts_response()(captured_headers)
+
+            sts.get_caller_identity()
+
+        user_agent = captured_headers.get('User-Agent', b'').decode('utf-8')
+        assert 'agent/' not in user_agent, (
+            f'agent/ should not be in User-Agent header: {user_agent}'
+        )
+
+
+class TestProfileAndRegionOverride:
+    """Test cases for per-call profile and region override support."""
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.botocore.session.Session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.boto3.Session')
+    def test_get_aws_session_with_profile_override(self, mock_boto3_session, mock_bc_session):
+        """Test get_aws_session passes profile_name to boto3.Session when provided."""
+        mock_bc_session.return_value = MagicMock()
+
+        get_aws_session(profile_name='my-prod-profile')
+
+        call_kwargs = mock_boto3_session.call_args.kwargs
+        assert call_kwargs['profile_name'] == 'my-prod-profile'
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.botocore.session.Session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.boto3.Session')
+    def test_get_aws_session_with_region_override(self, mock_boto3_session, mock_bc_session):
+        """Test get_aws_session uses region_name override instead of env var default."""
+        mock_bc_session.return_value = MagicMock()
+
+        get_aws_session(region_name='eu-west-1')
+
+        call_kwargs = mock_boto3_session.call_args.kwargs
+        assert call_kwargs['region_name'] == 'eu-west-1'
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.botocore.session.Session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.boto3.Session')
+    def test_get_aws_session_with_both_overrides(self, mock_boto3_session, mock_bc_session):
+        """Test get_aws_session passes both profile and region overrides."""
+        mock_bc_session.return_value = MagicMock()
+
+        get_aws_session(region_name='ap-southeast-1', profile_name='staging')
+
+        call_kwargs = mock_boto3_session.call_args.kwargs
+        assert call_kwargs['region_name'] == 'ap-southeast-1'
+        assert call_kwargs['profile_name'] == 'staging'
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.botocore.session.Session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.boto3.Session')
+    def test_get_aws_session_no_profile_in_kwargs_when_none(
+        self, mock_boto3_session, mock_bc_session
+    ):
+        """Test get_aws_session does not pass profile_name when it is None."""
+        mock_bc_session.return_value = MagicMock()
+
+        get_aws_session()
+
+        call_kwargs = mock_boto3_session.call_args.kwargs
+        assert 'profile_name' not in call_kwargs
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    def test_get_omics_client_threads_profile_and_region(self, mock_get_session):
+        """Test get_omics_client passes profile/region to get_aws_session."""
+        mock_session = MagicMock()
+        mock_session.client.return_value = MagicMock()
+        mock_get_session.return_value = mock_session
+
+        get_omics_client(region_name='us-west-2', profile_name='prod')
+
+        mock_get_session.assert_called_once_with(region_name='us-west-2', profile_name='prod')
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    def test_create_aws_client_threads_profile_and_region(self, mock_get_session):
+        """Test create_aws_client passes profile/region to get_aws_session."""
+        mock_session = MagicMock()
+        mock_session.client.return_value = MagicMock()
+        mock_get_session.return_value = mock_session
+
+        create_aws_client('logs', region_name='eu-central-1', profile_name='dev')
+
+        mock_get_session.assert_called_once_with(region_name='eu-central-1', profile_name='dev')
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.create_aws_client')
+    def test_get_logs_client_threads_profile_and_region(self, mock_create_client):
+        """Test get_logs_client passes profile/region to create_aws_client."""
+        mock_create_client.return_value = MagicMock()
+
+        get_logs_client(region_name='us-west-2', profile_name='prod')
+
+        mock_create_client.assert_called_once_with(
+            'logs', region_name='us-west-2', profile_name='prod'
+        )
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    def test_get_account_id_threads_profile_and_region(self, mock_get_session):
+        """Test get_account_id passes profile/region to get_aws_session."""
+        mock_session = MagicMock()
+        mock_sts = MagicMock()
+        mock_sts.get_caller_identity.return_value = {'Account': '111222333444'}
+        mock_session.client.return_value = mock_sts
+        mock_get_session.return_value = mock_session
+
+        result = get_account_id(region_name='us-east-1', profile_name='cross-account')
+
+        assert result == '111222333444'
+        mock_get_session.assert_called_once_with(
+            region_name='us-east-1', profile_name='cross-account'
+        )
+
+    def test_get_partition_caches_by_profile_and_region(self):
+        """Test get_partition caches results per (region, profile) combination."""
+        get_partition.cache_clear()
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session'
+        ) as mock_get_session:
+            mock_session = MagicMock()
+            mock_sts = MagicMock()
+            mock_sts.get_caller_identity.return_value = {
+                'Arn': 'arn:aws:sts::123456789012:user/test'
+            }
+            mock_session.client.return_value = mock_sts
+            mock_get_session.return_value = mock_session
+
+            # First call for profile=None
+            result1 = get_partition()
+            # Second call with same args should be cached
+            result2 = get_partition()
+            # Third call with different profile should NOT be cached
+            result3 = get_partition(profile_name='other')
+
+            assert result1 == result2 == result3 == 'aws'
+            # Should have 2 AWS calls: one for (None, None), one for (None, 'other')
+            assert mock_get_session.call_count == 2
+
+        get_partition.cache_clear()

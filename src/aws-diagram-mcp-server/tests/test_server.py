@@ -19,8 +19,12 @@
 import os
 import pytest
 import tempfile
+import warnings
 from awslabs.aws_diagram_mcp_server.models import DiagramType
 from awslabs.aws_diagram_mcp_server.server import (
+    DEPRECATION_NOTICE,
+    main,
+    mcp,
     mcp_generate_diagram,
     mcp_get_diagram_examples,
     mcp_list_diagram_icons,
@@ -315,6 +319,52 @@ class TestMcpListDiagramIcons:
         assert args[1] == 'compute'
 
 
+class TestMcpGetDiagramExamplesStringInput:
+    """Tests for mcp_get_diagram_examples with plain string input."""
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aws_diagram_mcp_server.server.get_diagram_examples')
+    async def test_string_input_all(self, mock_get_diagram_examples):
+        """Test that plain string 'all' is accepted and converted to DiagramType."""
+        mock_get_diagram_examples.return_value = MagicMock(
+            model_dump=MagicMock(return_value={'examples': {}})
+        )
+        await mcp_get_diagram_examples(diagram_type='all')
+        mock_get_diagram_examples.assert_called_once_with(DiagramType.ALL)
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aws_diagram_mcp_server.server.get_diagram_examples')
+    async def test_string_input_aws(self, mock_get_diagram_examples):
+        """Test that plain string 'aws' is accepted and converted to DiagramType."""
+        mock_get_diagram_examples.return_value = MagicMock(
+            model_dump=MagicMock(return_value={'examples': {}})
+        )
+        await mcp_get_diagram_examples(diagram_type='aws')
+        mock_get_diagram_examples.assert_called_once_with(DiagramType.AWS)
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aws_diagram_mcp_server.server.get_diagram_examples')
+    async def test_invalid_string_falls_back_to_all(self, mock_get_diagram_examples):
+        """Test that an invalid diagram type string falls back to ALL."""
+        mock_get_diagram_examples.return_value = MagicMock(
+            model_dump=MagicMock(return_value={'examples': {}})
+        )
+        await mcp_get_diagram_examples(diagram_type='nonexistent')
+        mock_get_diagram_examples.assert_called_once_with(DiagramType.ALL)
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aws_diagram_mcp_server.server.get_diagram_examples')
+    async def test_each_valid_diagram_type_string(self, mock_get_diagram_examples):
+        """Test that each valid DiagramType string value is accepted."""
+        mock_get_diagram_examples.return_value = MagicMock(
+            model_dump=MagicMock(return_value={'examples': {}})
+        )
+        for dt in list(DiagramType):
+            mock_get_diagram_examples.reset_mock()
+            await mcp_get_diagram_examples(diagram_type=dt.value)
+            mock_get_diagram_examples.assert_called_once_with(dt)
+
+
 class TestServerIntegration:
     """Integration tests for the server module."""
 
@@ -342,3 +392,29 @@ class TestServerIntegration:
             and 'List available icons from the diagrams package, with optional filtering'
             in mcp_list_diagram_icons.__doc__
         )
+
+    @pytest.mark.asyncio
+    async def test_deprecation_notices(self):
+        """Test that deprecation notices are present in instructions and tool docstrings."""
+        migration_url = 'https://github.com/awslabs/agent-plugins/tree/main/plugins/deploy-on-aws'
+
+        # Verify full DEPRECATION_NOTICE is in instructions
+        assert mcp.instructions is not None
+        assert DEPRECATION_NOTICE in mcp.instructions
+
+        # Verify each tool docstring contains deprecation tag and migration URL
+        for func in (mcp_generate_diagram, mcp_get_diagram_examples, mcp_list_diagram_icons):
+            assert func.__doc__ is not None
+            assert '[DEPRECATED]' in func.__doc__
+            assert migration_url in func.__doc__
+
+    @patch('awslabs.aws_diagram_mcp_server.server.mcp')
+    def test_main_emits_deprecation_warning(self, mock_mcp):
+        """Test that main() emits a DeprecationWarning."""
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter('always')
+            main()
+            assert len(w) == 1
+            assert issubclass(w[0].category, DeprecationWarning)
+            assert DEPRECATION_NOTICE in str(w[0].message)
+        mock_mcp.run.assert_called_once()

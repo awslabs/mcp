@@ -32,7 +32,7 @@ except ValueError:
     DEFAULT_MAX_RESULTS = 100
 
 # Supported regions (as of June 2025)
-# These are hardcoded as a fallback in case the SSM parameter store query fails
+# These are hardcoded as a fallback in case the boto3 session region query fails
 HEALTHOMICS_SUPPORTED_REGIONS = [
     'ap-southeast-1',
     'eu-central-1',
@@ -43,6 +43,18 @@ HEALTHOMICS_SUPPORTED_REGIONS = [
     'us-west-2',
 ]
 
+
+# ECR Constants
+HEALTHOMICS_PRINCIPAL = 'omics.amazonaws.com'
+ECR_REQUIRED_REGISTRY_ACTIONS = ['ecr:CreateRepository', 'ecr:BatchImportUpstreamImage']
+ECR_REQUIRED_REPOSITORY_ACTIONS = ['ecr:BatchGetImage', 'ecr:GetDownloadUrlForLayer']
+
+# Default ECR repository prefixes
+DEFAULT_ECR_PREFIXES = {
+    'docker-hub': 'docker-hub',
+    'quay': 'quay',
+    'ecr-public': 'ecr-public',
+}
 
 # Storage types
 STORAGE_TYPE_STATIC = 'STATIC'
@@ -72,6 +84,9 @@ RUN_STATUSES = [
 
 # Export types
 EXPORT_TYPE_DEFINITION = 'DEFINITION'
+
+# Agent identification
+AGENT_ENV = 'AGENT'
 
 # Genomics file search configuration
 GENOMICS_SEARCH_S3_BUCKETS_ENV = 'GENOMICS_SEARCH_S3_BUCKETS'
@@ -212,3 +227,84 @@ FASTQ_PAIR_PATTERNS = [
 
 # FASTQ file extensions
 FASTQ_EXTENSIONS = ['fastq', 'fq', 'fastq.gz', 'fq.gz']
+
+# Run group constants
+RUN_GROUP_MAX_NAME_LENGTH = 128
+RUN_GROUP_MAX_RESOURCE_LIMIT = 100000
+RUN_GROUP_ID_MAX_LENGTH = 18
+
+# Content resolution defaults
+CONTENT_RESOLVER_MAX_FILE_SIZE_ENV = 'CONTENT_RESOLVER_MAX_FILE_SIZE_MB'
+DEFAULT_CONTENT_RESOLVER_MAX_FILE_SIZE_MB = 100  # 100 MB default
+
+
+# Batch status constants
+BATCH_STATUS_PENDING = 'PENDING'
+BATCH_STATUS_SUBMITTING = 'SUBMITTING'
+BATCH_STATUS_INPROGRESS = 'INPROGRESS'
+BATCH_STATUS_STOPPING = 'STOPPING'
+BATCH_STATUS_CANCELLED = 'CANCELLED'
+BATCH_STATUS_PROCESSED = 'PROCESSED'
+BATCH_STATUS_FAILED = 'FAILED'
+BATCH_STATUS_RUNS_DELETING = 'RUNS_DELETING'
+BATCH_STATUS_RUNS_DELETED = 'RUNS_DELETED'
+
+BATCH_STATUSES = [
+    BATCH_STATUS_PENDING,
+    BATCH_STATUS_SUBMITTING,
+    BATCH_STATUS_INPROGRESS,
+    BATCH_STATUS_STOPPING,
+    BATCH_STATUS_CANCELLED,
+    BATCH_STATUS_PROCESSED,
+    BATCH_STATUS_FAILED,
+    BATCH_STATUS_RUNS_DELETING,
+    BATCH_STATUS_RUNS_DELETED,
+]
+
+# Cancellable batch statuses
+BATCH_CANCELLABLE_STATUSES = [
+    BATCH_STATUS_PENDING,
+    BATCH_STATUS_SUBMITTING,
+    BATCH_STATUS_INPROGRESS,
+]
+
+# Deletable batch statuses (for DeleteRunBatch)
+BATCH_RUN_DELETABLE_STATUSES = [
+    BATCH_STATUS_PROCESSED,
+    BATCH_STATUS_CANCELLED,
+]
+
+# Terminal batch statuses (for DeleteBatch)
+BATCH_TERMINAL_STATUSES = [
+    BATCH_STATUS_PROCESSED,
+    BATCH_STATUS_FAILED,
+    BATCH_STATUS_CANCELLED,
+    BATCH_STATUS_RUNS_DELETED,
+]
+
+# Submission status constants
+SUBMISSION_STATUS_SUCCESS = 'SUCCESS'
+SUBMISSION_STATUS_FAILED = 'FAILED'
+SUBMISSION_STATUS_CANCEL_SUCCESS = 'CANCEL_SUCCESS'
+SUBMISSION_STATUS_CANCEL_FAILED = 'CANCEL_FAILED'
+SUBMISSION_STATUS_DELETE_SUCCESS = 'DELETE_SUCCESS'
+SUBMISSION_STATUS_DELETE_FAILED = 'DELETE_FAILED'
+
+SUBMISSION_STATUSES = [
+    SUBMISSION_STATUS_SUCCESS,
+    SUBMISSION_STATUS_FAILED,
+    SUBMISSION_STATUS_CANCEL_SUCCESS,
+    SUBMISSION_STATUS_CANCEL_FAILED,
+    SUBMISSION_STATUS_DELETE_SUCCESS,
+    SUBMISSION_STATUS_DELETE_FAILED,
+]
+
+# Error messages for batch operations
+ERROR_INVALID_BATCH_STATUS = 'Invalid batch status. Must be one of: {}'
+ERROR_INVALID_SUBMISSION_STATUS = 'Invalid submission status. Must be one of: {}'
+ERROR_BATCH_NOT_CANCELLABLE = 'Batch cannot be cancelled. Status must be one of: {}'
+ERROR_BATCH_RUNS_NOT_DELETABLE = 'Batch runs cannot be deleted. Status must be one of: {}'
+ERROR_BATCH_NOT_DELETABLE = 'Batch cannot be deleted. Status must be one of: {}'
+ERROR_INVALID_BATCH_RUN_SETTINGS = (
+    'batchRunSettings must contain either inlineSettings or s3UriSettings, but not both'
+)

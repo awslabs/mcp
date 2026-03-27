@@ -1,6 +1,8 @@
 # AWS Labs Aurora DSQL MCP Server
 
 An AWS Labs Model Context Protocol (MCP) server for Aurora DSQL
+and corresponding AI rules that can be used for additional model
+steering while developing.
 
 ## Features
 
@@ -13,8 +15,13 @@ An AWS Labs Model Context Protocol (MCP) server for Aurora DSQL
 
 ### Database Operations
 
+[IMPORTANT]
+The MCP Server requires a valid configuration for --cluster_endpoint, --database_user, and --region to enable database operations.
+
 - **readonly_query** - Execute read-only SQL queries against your DSQL cluster
-- **transact** - Execute write operations in a transaction (requires `--allow-writes`)
+- **transact** - Execute SQL statements in a transaction
+  - In read-only mode: Supports read operations with transactional consistency
+  - With `--allow-writes`: Supports all write operations too
 - **get_schema** - Retrieve table schema information
 
 ### Documentation and Recommendations
@@ -36,16 +43,16 @@ An AWS Labs Model Context Protocol (MCP) server for Aurora DSQL
 
 ## Installation
 
-|                                                                                                                                                                                                                                                                        Cursor                                                                                                                                                                                                                                                                         |                                                                                                                                                                                                                                                                                                                                                      VS Code                                                                                                                                                                                                                                                                                                                                                       |
-| :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
-| [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.aurora-dsql-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYXVyb3JhLWRzcWwtbWNwLXNlcnZlckBsYXRlc3QgLS1jbHVzdGVyX2VuZHBvaW50IFt5b3VyIGRzcWwgY2x1c3RlciBlbmRwb2ludF0gLS1yZWdpb24gW3lvdXIgZHNxbCBjbHVzdGVyIHJlZ2lvbiwgZS5nLiB1cy1lYXN0LTFdIC0tZGF0YWJhc2VfdXNlciBbeW91ciBkc3FsIHVzZXJuYW1lXSAtLXByb2ZpbGUgZGVmYXVsdCIsImVudiI6eyJGQVNUTUNQX0xPR19MRVZFTCI6IkVSUk9SIn0sImRpc2FibGVkIjpmYWxzZSwiYXV0b0FwcHJvdmUiOltdfQ%3D%3D) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=Aurora%20DSQL%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.aurora-dsql-mcp-server%40latest%22%2C%22--cluster_endpoint%22%2C%22%5Byour%20dsql%20cluster%20endpoint%5D%22%2C%22--region%22%2C%22%5Byour%20dsql%20cluster%20region%2C%20e.g.%20us-east-1%5D%22%2C%22--database_user%22%2C%22%5Byour%20dsql%20username%5D%22%2C%22--profile%22%2C%22default%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
+| Kiro | Cursor | VS Code |
+|:----:|:------:|:-------:|
+| [![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=awslabs.aurora-dsql-mcp-server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.aurora-dsql-mcp-server%40latest%22%2C%22--cluster_endpoint%22%2C%22%5Byour%20dsql%20cluster%20endpoint%5D%22%2C%22--region%22%2C%22%5Byour%20dsql%20cluster%20region%2C%20e.g.%20us-east-1%5D%22%2C%22--database_user%22%2C%22%5Byour%20dsql%20username%5D%22%2C%22--profile%22%2C%22default%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%7D) | [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.aurora-dsql-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYXVyb3JhLWRzcWwtbWNwLXNlcnZlckBsYXRlc3QgLS1jbHVzdGVyX2VuZHBvaW50IFt5b3VyIGRzcWwgY2x1c3RlciBlbmRwb2ludF0gLS1yZWdpb24gW3lvdXIgZHNxbCBjbHVzdGVyIHJlZ2lvbiwgZS5nLiB1cy1lYXN0LTFdIC0tZGF0YWJhc2VfdXNlciBbeW91ciBkc3FsIHVzZXJuYW1lXSAtLXByb2ZpbGUgZGVmYXVsdCIsImVudiI6eyJGQVNUTUNQX0xPR19MRVZFTCI6IkVSUk9SIn0sImRpc2FibGVkIjpmYWxzZSwiYXV0b0FwcHJvdmUiOltdfQ%3D%3D) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=Aurora%20DSQL%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.aurora-dsql-mcp-server%40latest%22%2C%22--cluster_endpoint%22%2C%22%5Byour%20dsql%20cluster%20endpoint%5D%22%2C%22--region%22%2C%22%5Byour%20dsql%20cluster%20region%2C%20e.g.%20us-east-1%5D%22%2C%22--database_user%22%2C%22%5Byour%20dsql%20username%5D%22%2C%22--profile%22%2C%22default%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
 
 ### Using `uv`
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
 2. Install Python using `uv python install 3.10`
 
-Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
+Configure the MCP server in your MCP client configuration (e.g., for Kiro, edit `~/.kiro/settings/mcp.json`):
 
 ```json
 {
@@ -152,9 +159,20 @@ aws configure export-credentials --profile your-profile-name --format env > temp
 
 ### `--allow-writes`
 
-By default, the dsql mcp server does not allow write operations ("read-only mode"). Any invocations of transact tool will fail in this mode. To use transact tool, allow writes by passing `--allow-writes` parameter.
+By default, the DSQL MCP server operates in read-only mode. In this mode:
 
-We recommend using least-privilege access when connecting to DSQL. For example, users should use a role that is read-only when possible. The read-only mode has a best-effort client-side enforcement to reject mutations.
+- **readonly_query**: Executes single read-only queries
+- **transact**: Executes read-only transactions with point-in-time consistency
+  - Useful for multiple queries that need to see data at the same point in time
+  - All statements are validated to ensure they are read-only operations
+  - Write operations (INSERT, UPDATE, DELETE, CREATE, DROP, ALTER, etc.) are rejected
+
+To enable write operations, pass the `--allow-writes` parameter. In read-write mode:
+
+- **readonly_query**: Same behavior (read-only queries)
+- **transact**: Supports all DDL and DML operations (CREATE, INSERT, UPDATE, DELETE, etc.)
+
+We recommend using least-privilege access when connecting to DSQL. For example, users should use a role that is read-only when possible. The read-only mode provides best-effort client-side validation to reject mutations.
 
 ### `--cluster_endpoint`
 
@@ -286,3 +304,93 @@ To test the MCP server locally using Docker:
    ```
 
 **Note:** Replace the placeholder values with your actual DSQL cluster endpoint, username, and region.
+
+## AI Rules
+
+This repository also contains AI Rules (Steering). These markdown files serve as simple
+context and guidance for best practices and patterns that AI assistants automatically apply
+when generating code to improve the quality of agentic development.
+
+Recommended paths:
+* [Skills CLI for Agent-Agnostic Installation](#skills-cli)
+* [Kiro Power](#kiro-power) - button-click installation
+* [Claude Skill](#claude-skill) - installation instructions in [claude_skill_setup.md](https://github.com/awslabs/mcp/blob/main/src/aurora-dsql-mcp-server/skills/claude_skill_setup.md)
+* [Gemini Skill](#gemini-skill) - use Gemini's github subrepo skill installation with `--path`
+* [Codex Skill](#codex-skill) - use Codex's `$skill-installer` skill.
+
+Alternative:
+The [dsql-skill](https://github.com/awslabs/mcp/tree/main/src/aurora-dsql-mcp-server/skills/dsql-skill) can also be cloned into your tool's respective `rules` directory
+for use with other coding assistants.
+
+### Skills CLI
+The [DSQL skill](https://skills.sh/awslabs/mcp/dsql) can also be installed using the [Skills CLI](https://skills.sh/docs/cli).
+
+```bash
+npx skills add awslabs/mcp --skill dsql
+```
+
+The CLI will guide you through:
+* Selecting the agents you'd like to install to (Kiro, Claude Code, Cursor, Copilot, Gemini, Codex, Roo, Cline, OpenCode, Windsurf, etc.)
+* Installation scope
+  - Project: Install in current directory (committed with your project)
+  - Global: Install in home directory (available across all projects)
+*  Installation method
+   - Symlink (Recommended): Single source of truth, easy updates
+   - Copy to all agents: Independent copies for each agent
+
+Check and update skills at any time using:
+```bash
+npx skills check
+npx skills update
+```
+
+### Kiro Power
+
+To setup the Kiro power:
+1. Install directly from the [Kiro Powers Registry](https://kiro.dev/launch/powers/amazon-aurora-dsql/)
+2. Once redirected to the Power in the IDE either:
+   1. Select the **`Try Power`** button. Suggested for people who want:
+      - The AI to guide MCP server setup
+      - An interactive onboarding experience with DSQL to create a new cluster
+   2. Open a new Kiro chat and ask anything related to DSQL
+      - **Optionally update the MCP Config:** Add your existing cluster details and test the MCP server connection
+        so the MCP server can be used out of the box with the power.
+      - The Kiro agent will automatically activate the power if it identifies the power as valuable for completing
+        the user's task.
+
+### Claude Skill
+**Simple Setup with the Skills CLI**:
+As outlined, the skill can be installed to Claude Code with the [Skills CLI](#skills-cli). To specify
+only Claude Code as the agent to install to, use:
+
+```bash
+npx skills add awslabs/mcp --skill dsql --agent claude-code
+```
+
+**Direct Setup using a Git Clone**:
+The alternative setup is outlined in [claude_skill_setup.md](https://github.com/awslabs/mcp/blob/main/src/aurora-dsql-mcp-server/skills/claude_skill_setup.md).
+
+The method outlines taking a sparse clone of the dsql-skill directory and symlinking this clone
+into the `.claude/skills/` folder. This allows changes to the skill to be pulled whenever the skill
+needs to be updated.
+
+### Gemini Skill
+
+To add the skill directly in Gemini, decide on a scope `workspace` (contained to project) or `user` (default, global)\
+and use the `skills` installer.
+
+```bash
+gemini skills install https://github.com/awslabs/mcp.git --path src/aurora-dsql-mcp-server/skills/dsql-skill --scope $SCOPE
+```
+
+You can then use the `/dsql` skill command with Gemini, and Gemini will automatically detect when the skill should be used.
+
+### Codex Skill
+
+Use the skill installer from the Codex CLI or TUI using the `$skill-installer` skill.
+
+```bash
+$skill-installer install dsql skill: https://github.com/awslabs/mcp/tree/main/src/aurora-dsql-mcp-server/skills/dsql-skill
+```
+
+Restart codex to pick up the skill. The skill can then be activated using `$dsql`.

@@ -20,7 +20,7 @@ from os import environ
 
 
 session_config = botocore.config.Config(
-    user_agent_extra=f'ccapi-mcp-server/{__version__}',
+    user_agent_extra=f'md/awslabs#mcp#ccapi-mcp-server#{__version__}',
 )
 
 

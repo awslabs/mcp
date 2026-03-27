@@ -13,6 +13,7 @@
 # limitations under the License.
 
 
+import json
 import pytest
 from awslabs.aws_dataprocessing_mcp_server.handlers.athena.athena_data_catalog_handler import (
     AthenaDataCatalogHandler,
@@ -20,6 +21,14 @@ from awslabs.aws_dataprocessing_mcp_server.handlers.athena.athena_data_catalog_h
 from botocore.exceptions import ClientError
 from mcp.server.fastmcp import Context
 from unittest.mock import Mock, patch
+
+
+def get_response_data(response):
+    """Helper function to extract data from CallToolResult response."""
+    if response.isError:
+        return None
+    # The data is in the second content item as JSON
+    return json.loads(response.content[1].text)
 
 
 @pytest.fixture
@@ -106,8 +115,9 @@ async def test_create_data_catalog_success(handler, mock_athena_client):
     )
 
     assert not response.isError
-    assert response.name == 'test-catalog'
-    assert response.operation == 'create-data-catalog'
+    data = get_response_data(response)
+    assert data['name'] == 'test-catalog'
+    assert data['operation'] == 'create-data-catalog'
     mock_athena_client.create_data_catalog.assert_called_once()
     # Verify parameters were passed correctly
     call_args = mock_athena_client.create_data_catalog.call_args[1]
@@ -154,8 +164,9 @@ async def test_delete_data_catalog_success(handler, mock_athena_client):
     )
 
     assert not response.isError
-    assert response.name == 'test-catalog'
-    assert response.operation == 'delete-data-catalog'
+    data = get_response_data(response)
+    assert data['name'] == 'test-catalog'
+    assert data['operation'] == 'delete-data-catalog'
     mock_athena_client.delete_data_catalog.assert_called_once_with(
         Name='test-catalog', DeleteCatalogOnly='true'
     )
@@ -175,8 +186,7 @@ async def test_delete_data_catalog_failure(handler, mock_athena_client):
     )
 
     assert response.isError
-    assert response.name == 'test-catalog'
-    assert response.operation == 'delete-data-catalog'
+    # For error cases, data is None since the operation failed
     assert 'Data Catalog delete operation failed' in response.content[0].text
 
 
@@ -221,9 +231,10 @@ async def test_get_data_catalog_success(handler, mock_athena_client):
     )
 
     assert not response.isError
-    assert response.operation == 'get-data-catalog'
-    assert response.data_catalog['Name'] == 'test-catalog'
-    assert response.data_catalog['Type'] == 'GLUE'
+    data = get_response_data(response)
+    assert data['operation'] == 'get-data-catalog'
+    assert data['data_catalog']['Name'] == 'test-catalog'
+    assert data['data_catalog']['Type'] == 'GLUE'
     mock_athena_client.get_data_catalog.assert_called_once_with(
         Name='test-catalog', WorkGroup='primary'
     )
@@ -259,10 +270,11 @@ async def test_list_data_catalogs_success(handler, mock_athena_client):
     )
 
     assert not response.isError
-    assert response.operation == 'list-data-catalogs'
-    assert len(response.data_catalogs) == 2
-    assert response.count == 2
-    assert response.next_token == 'next-token'
+    data = get_response_data(response)
+    assert data['operation'] == 'list-data-catalogs'
+    assert len(data['data_catalogs']) == 2
+    assert data['count'] == 2
+    assert data['next_token'] == 'next-token'
     mock_athena_client.list_data_catalogs.assert_called_once_with(
         MaxResults=10, NextToken='token', WorkGroup='primary'
     )
@@ -284,8 +296,9 @@ async def test_update_data_catalog_success(handler, mock_athena_client):
     )
 
     assert not response.isError
-    assert response.name == 'test-catalog'
-    assert response.operation == 'update-data-catalog'
+    data = get_response_data(response)
+    assert data['name'] == 'test-catalog'
+    assert data['operation'] == 'update-data-catalog'
     mock_athena_client.update_data_catalog.assert_called_once()
     # Verify parameters were passed correctly
     call_args = mock_athena_client.update_data_catalog.call_args[1]
@@ -370,8 +383,9 @@ async def test_get_database_success(handler, mock_athena_client):
     )
 
     assert not response.isError
-    assert response.operation == 'get-database'
-    assert response.database['Name'] == 'test-db'
+    data = get_response_data(response)
+    assert data['operation'] == 'get-database'
+    assert data['database']['Name'] == 'test-db'
     mock_athena_client.get_database.assert_called_once_with(
         CatalogName='test-catalog', DatabaseName='test-db', WorkGroup='primary'
     )
@@ -412,9 +426,10 @@ async def test_get_table_metadata_success(handler, mock_athena_client):
     )
 
     assert not response.isError
-    assert response.operation == 'get-table-metadata'
-    assert response.table_metadata['Name'] == 'test-table'
-    assert len(response.table_metadata['Columns']) == 2
+    data = get_response_data(response)
+    assert data['operation'] == 'get-table-metadata'
+    assert data['table_metadata']['Name'] == 'test-table'
+    assert len(data['table_metadata']['Columns']) == 2
     mock_athena_client.get_table_metadata.assert_called_once_with(
         CatalogName='test-catalog',
         DatabaseName='test-db',
@@ -469,10 +484,11 @@ async def test_list_databases_success(handler, mock_athena_client):
     )
 
     assert not response.isError
-    assert response.operation == 'list-databases'
-    assert len(response.database_list) == 2
-    assert response.count == 2
-    assert response.next_token == 'next-token'
+    data = get_response_data(response)
+    assert data['operation'] == 'list-databases'
+    assert len(data['database_list']) == 2
+    assert data['count'] == 2
+    assert data['next_token'] == 'next-token'
     mock_athena_client.list_databases.assert_called_once_with(
         CatalogName='test-catalog', MaxResults=10, NextToken='token', WorkGroup='primary'
     )
@@ -503,10 +519,11 @@ async def test_list_table_metadata_success(handler, mock_athena_client):
     )
 
     assert not response.isError
-    assert response.operation == 'list-table-metadata'
-    assert len(response.table_metadata_list) == 2
-    assert response.count == 2
-    assert response.next_token == 'next-token'
+    data = get_response_data(response)
+    assert data['operation'] == 'list-table-metadata'
+    assert len(data['table_metadata_list']) == 2
+    assert data['count'] == 2
+    assert data['next_token'] == 'next-token'
     mock_athena_client.list_table_metadata.assert_called_once_with(
         CatalogName='test-catalog',
         DatabaseName='test-db',
@@ -613,9 +630,10 @@ async def test_list_data_catalogs_with_no_parameters(handler, mock_athena_client
     response = await handler.manage_aws_athena_data_catalogs(ctx, operation='list-data-catalogs')
 
     assert not response.isError
-    assert len(response.data_catalogs) == 1
-    assert response.count == 1
-    assert response.next_token is None
+    data = get_response_data(response)
+    assert len(data['data_catalogs']) == 1
+    assert data['count'] == 1
+    assert data['next_token'] is None
     mock_athena_client.list_data_catalogs.assert_called_once_with()
 
 
@@ -633,9 +651,10 @@ async def test_list_databases_with_no_optional_parameters(handler, mock_athena_c
     )
 
     assert not response.isError
-    assert len(response.database_list) == 1
-    assert response.count == 1
-    assert response.next_token is None
+    data = get_response_data(response)
+    assert len(data['database_list']) == 1
+    assert data['count'] == 1
+    assert data['next_token'] is None
     mock_athena_client.list_databases.assert_called_once_with(CatalogName='test-catalog')
 
 
@@ -656,9 +675,10 @@ async def test_list_table_metadata_with_minimal_parameters(handler, mock_athena_
     )
 
     assert not response.isError
-    assert len(response.table_metadata_list) == 1
-    assert response.count == 1
-    assert response.next_token is None
+    data = get_response_data(response)
+    assert len(data['table_metadata_list']) == 1
+    assert data['count'] == 1
+    assert data['next_token'] is None
     mock_athena_client.list_table_metadata.assert_called_once_with(
         CatalogName='test-catalog', DatabaseName='test-db'
     )
@@ -685,4 +705,5 @@ async def test_get_query_results_with_all_parameters(handler, mock_athena_client
     )
 
     assert not response.isError
-    assert response.operation == 'get-table-metadata'
+    data = get_response_data(response)
+    assert data['operation'] == 'get-table-metadata'

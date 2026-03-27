@@ -1,12 +1,3 @@
----
-inclusion: always
----
-<!------------------------------------------------------------------------------------
-   Add rules to this file or a short description that will apply across all your workspaces.
-
-   Learn about inclusion modes: https://kiro.dev/docs/steering/#inclusion-modes
-------------------------------------------------------------------------------------->
-
 # Aurora PostgreSQL Development Guide
 
 Best practices for Aurora PostgreSQL development using MCP server. Covers provisioned instances and Aurora Serverless v2.

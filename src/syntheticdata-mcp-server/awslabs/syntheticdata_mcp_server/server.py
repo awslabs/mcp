@@ -107,9 +107,18 @@ class LoadToStorageInput(BaseModel):
     )
 
 
+DEPRECATION_NOTICE = (
+    'DEPRECATION NOTICE: The Synthetic Data MCP Server (awslabs.syntheticdata-mcp-server) is '
+    'deprecated and will no longer receive updates, bug fixes, or new features. '
+    'The core functionality (generating synthetic data schemas and pandas code) is achievable '
+    'natively by modern AI assistants without requiring an MCP server. '
+    'For S3 uploads, use the S3 MCP Server (awslabs.s3-mcp-server) instead.'
+)
+
 mcp = FastMCP(
     'awslabs.syntheticdata-mcp-server',
-    instructions="""
+    instructions=DEPRECATION_NOTICE
+    + """
     # awslabs Synthetic Data MCP Server
 
     This MCP server provides tools for generating high-quality synthetic data based on business use cases.
@@ -152,7 +161,7 @@ async def get_data_gen_instructions(
         description='A detailed description of the business domain and use case. The more specific and comprehensive the description, the better the data generation instructions will be.',
     ),
 ) -> Dict:
-    """Get instructions for generating synthetic data based on a business description.
+    """[DEPRECATED] Get instructions for generating synthetic data based on a business description.
 
     This tool analyzes a business description and provides detailed instructions
     for generating synthetic data in JSON Lines format.
@@ -215,7 +224,7 @@ async def get_data_gen_instructions(
 
 @mcp.tool(name='validate_and_save_data')
 async def validate_and_save_data(input_data: ValidateAndSaveDataInput) -> Dict:
-    """Validate JSON Lines data and save it as CSV files.
+    """[DEPRECATED] Validate JSON Lines data and save it as CSV files.
 
     This tool validates the structure of JSON Lines data and saves it as CSV files
     using pandas.
@@ -294,7 +303,7 @@ async def validate_and_save_data(input_data: ValidateAndSaveDataInput) -> Dict:
 
 @mcp.tool(name='load_to_storage')
 async def load_to_storage(input_data: LoadToStorageInput) -> Dict:
-    """Load data to one or more storage targets.
+    """[DEPRECATED] Load data to one or more storage targets.
 
     This tool uses the UnifiedDataLoader to load data to configured storage targets.
     Currently supports:
@@ -336,7 +345,7 @@ async def load_to_storage(input_data: LoadToStorageInput) -> Dict:
 
 @mcp.tool(name='execute_pandas_code')
 async def execute_pandas_code(input_data: ExecutePandasCodeInput) -> Dict:
-    """Execute pandas code to generate synthetic data and save it as CSV files.
+    """[DEPRECATED] Execute pandas code to generate synthetic data and save it as CSV files.
 
     This tool runs pandas code in a restricted environment to generate synthetic data.
     It then saves any generated DataFrames as CSV files.
@@ -758,6 +767,9 @@ def _validate_table_data(table_name: str, records: List[Dict]) -> Dict:
 
 def main():
     """Run the MCP server with CLI argument support."""
+    import warnings
+
+    warnings.warn(DEPRECATION_NOTICE, FutureWarning, stacklevel=2)
     mcp.run()
 
 

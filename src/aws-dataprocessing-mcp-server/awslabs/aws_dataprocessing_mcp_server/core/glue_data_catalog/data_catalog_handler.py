@@ -19,24 +19,25 @@ in the AWS Glue Data Catalog, including creating, updating, retrieving, listing,
 deleting these resources.
 """
 
+import json
 from awslabs.aws_dataprocessing_mcp_server.models.data_catalog_models import (
     ConnectionSummary,
-    CreateCatalogResponse,
-    CreateConnectionResponse,
-    CreatePartitionResponse,
-    DeleteCatalogResponse,
-    DeleteConnectionResponse,
-    DeletePartitionResponse,
-    GetCatalogResponse,
-    GetConnectionResponse,
-    GetPartitionResponse,
-    ImportCatalogResponse,
-    ListCatalogsResponse,
-    ListConnectionsResponse,
-    ListPartitionsResponse,
+    CreateCatalogData,
+    CreateConnectionData,
+    CreatePartitionData,
+    DeleteCatalogData,
+    DeleteConnectionData,
+    DeletePartitionData,
+    GetCatalogData,
+    GetConnectionData,
+    GetPartitionData,
+    ImportCatalogData,
+    ListCatalogsData,
+    ListConnectionsData,
+    ListPartitionsData,
     PartitionSummary,
-    UpdateConnectionResponse,
-    UpdatePartitionResponse,
+    UpdateConnectionData,
+    UpdatePartitionData,
 )
 from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper
 from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
@@ -45,7 +46,7 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
 )
 from botocore.exceptions import ClientError
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from typing import Any, Dict, List, Optional
 
 
@@ -75,7 +76,7 @@ class DataCatalogManager:
         connection_input: Dict[str, Any],
         catalog_id: Optional[str] = '',
         tags: Optional[Dict[str, str]] = None,
-    ) -> CreateConnectionResponse:
+    ) -> CallToolResult:
         """Create a new connection in the AWS Glue Data Catalog.
 
         Creates a new connection with the specified name and properties. The connection
@@ -118,12 +119,18 @@ class DataCatalogManager:
             )
 
             success_msg = f'Successfully created connection: {connection_name}'
-            return CreateConnectionResponse(
-                isError=False,
+            data = CreateConnectionData(
                 connection_name=connection_name,
-                catalog_id=catalog_id,
+                catalog_id=catalog_id or '',
                 operation='create-connection',
-                content=[TextContent(type='text', text=success_msg)],
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_msg),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
 
         except ClientError as e:
@@ -131,17 +138,14 @@ class DataCatalogManager:
             error_message = f'Failed to create connection {connection_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CreateConnectionResponse(
+            return CallToolResult(
                 isError=True,
-                connection_name=connection_name,
-                catalog_id=catalog_id,
-                operation='create-connection',
                 content=[TextContent(type='text', text=error_message)],
             )
 
     async def delete_connection(
         self, ctx: Context, connection_name: str, catalog_id: Optional[str] = None
-    ) -> DeleteConnectionResponse:
+    ) -> CallToolResult:
         """Delete a connection from the AWS Glue Data Catalog.
 
         Deletes the specified connection if it exists and is managed by the MCP server.
@@ -175,22 +179,16 @@ class DataCatalogManager:
                 if not AwsHelper.is_resource_mcp_managed(self.glue_client, connection_arn):
                     error_message = f'Cannot delete connection {connection_name} - it is not managed by the MCP server (missing required tags)'
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return DeleteConnectionResponse(
+                    return CallToolResult(
                         isError=True,
-                        connection_name=connection_name,
-                        catalog_id=catalog_id,
-                        operation='delete-connection',
                         content=[TextContent(type='text', text=error_message)],
                     )
             except ClientError as e:
                 if e.response['Error']['Code'] == 'EntityNotFoundException':
                     error_message = f'Connection {connection_name} not found'
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return DeleteConnectionResponse(
+                    return CallToolResult(
                         isError=True,
-                        connection_name=connection_name,
-                        catalog_id=catalog_id,
-                        operation='delete-connection',
                         content=[TextContent(type='text', text=error_message)],
                     )
                 else:
@@ -210,12 +208,18 @@ class DataCatalogManager:
             )
 
             success_msg = f'Successfully deleted connection: {connection_name}'
-            return DeleteConnectionResponse(
-                isError=False,
+            data = DeleteConnectionData(
                 connection_name=connection_name,
-                catalog_id=catalog_id,
+                catalog_id=catalog_id or '',
                 operation='delete-connection',
-                content=[TextContent(type='text', text=success_msg)],
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_msg),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
 
         except ClientError as e:
@@ -223,11 +227,8 @@ class DataCatalogManager:
             error_message = f'Failed to delete connection {connection_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return DeleteConnectionResponse(
+            return CallToolResult(
                 isError=True,
-                connection_name=connection_name,
-                catalog_id=catalog_id,
-                operation='delete-connection',
                 content=[TextContent(type='text', text=error_message)],
             )
 
@@ -238,7 +239,7 @@ class DataCatalogManager:
         catalog_id: Optional[str] = None,
         hide_password: Optional[bool] = None,
         apply_override_for_compute_environment: Optional[str] = None,
-    ) -> GetConnectionResponse:
+    ) -> CallToolResult:
         """Get details of a connection from the AWS Glue Data Catalog.
 
         Retrieves detailed information about the specified connection, including
@@ -275,8 +276,7 @@ class DataCatalogManager:
             )
 
             success_msg = f'Successfully retrieved connection: {connection_name}'
-            return GetConnectionResponse(
-                isError=False,
+            data = GetConnectionData(
                 connection_name=connection['Name'],
                 connection_type=connection.get('ConnectionType', ''),
                 connection_properties=connection.get('ConnectionProperties', {}),
@@ -301,9 +301,16 @@ class DataCatalogManager:
                     if connection.get('LastConnectionValidationTime')
                     else ''
                 ),
-                catalog_id=catalog_id,
+                catalog_id=catalog_id or '',
                 operation='get-connection',
-                content=[TextContent(type='text', text=success_msg)],
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_msg),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
 
         except ClientError as e:
@@ -311,20 +318,8 @@ class DataCatalogManager:
             error_message = f'Failed to get connection {connection_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return GetConnectionResponse(
+            return CallToolResult(
                 isError=True,
-                connection_name=connection_name,
-                connection_type='',
-                connection_properties={},
-                physical_connection_requirements=None,
-                creation_time='',
-                last_updated_time='',
-                last_updated_by='',
-                status='',
-                status_reason='',
-                last_connection_validation_time='',
-                catalog_id=catalog_id,
-                operation='get-connection',
                 content=[TextContent(type='text', text=error_message)],
             )
 
@@ -336,7 +331,7 @@ class DataCatalogManager:
         hide_password: Optional[bool] = None,
         next_token: Optional[str] = None,
         max_results: Optional[int] = None,
-    ) -> ListConnectionsResponse:
+    ) -> CallToolResult:
         """List connections in the AWS Glue Data Catalog.
 
         Retrieves a list of connections with their basic properties. Supports
@@ -377,8 +372,7 @@ class DataCatalogManager:
             )
 
             success_msg = f'Successfully listed {len(connections)} connections'
-            return ListConnectionsResponse(
-                isError=False,
+            data = ListConnectionsData(
                 connections=[
                     ConnectionSummary(
                         name=conn['Name'],
@@ -401,10 +395,17 @@ class DataCatalogManager:
                     for conn in connections
                 ],
                 count=len(connections),
-                catalog_id=catalog_id,
+                catalog_id=catalog_id or '',
                 next_token=next_token_response,
                 operation='list-connections',
-                content=[TextContent(type='text', text=success_msg)],
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_msg),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
 
         except ClientError as e:
@@ -414,13 +415,8 @@ class DataCatalogManager:
             )
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return ListConnectionsResponse(
+            return CallToolResult(
                 isError=True,
-                connections=[],
-                count=0,
-                catalog_id=catalog_id,
-                next_token=None,
-                operation='list-connections',
                 content=[TextContent(type='text', text=error_message)],
             )
 
@@ -430,7 +426,7 @@ class DataCatalogManager:
         connection_name: str,
         connection_input: Dict[str, Any],
         catalog_id: Optional[str] = None,
-    ) -> UpdateConnectionResponse:
+    ) -> CallToolResult:
         """Update an existing connection in the AWS Glue Data Catalog.
 
         Updates the properties of the specified connection if it exists and is managed
@@ -464,11 +460,8 @@ class DataCatalogManager:
                 if not AwsHelper.is_resource_mcp_managed(self.glue_client, connection_arn):
                     error_message = f'Cannot update connection {connection_name} - it is not managed by the MCP server (missing required tags)'
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return UpdateConnectionResponse(
+                    return CallToolResult(
                         isError=True,
-                        connection_name=connection_name,
-                        catalog_id=catalog_id,
-                        operation='update-connection',
                         content=[TextContent(type='text', text=error_message)],
                     )
 
@@ -476,11 +469,8 @@ class DataCatalogManager:
                 if e.response['Error']['Code'] == 'EntityNotFoundException':
                     error_message = f'Connection {connection_name} not found'
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return UpdateConnectionResponse(
+                    return CallToolResult(
                         isError=True,
-                        connection_name=connection_name,
-                        catalog_id=catalog_id,
-                        operation='update-connection',
                         content=[TextContent(type='text', text=error_message)],
                     )
                 else:
@@ -501,12 +491,18 @@ class DataCatalogManager:
             )
 
             success_msg = f'Successfully updated connection: {connection_name}'
-            return UpdateConnectionResponse(
-                isError=False,
+            data = UpdateConnectionData(
                 connection_name=connection_name,
-                catalog_id=catalog_id,
+                catalog_id=catalog_id or '',
                 operation='update-connection',
-                content=[TextContent(type='text', text=success_msg)],
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_msg),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
 
         except ClientError as e:
@@ -514,11 +510,8 @@ class DataCatalogManager:
             error_message = f'Failed to update connection {connection_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return UpdateConnectionResponse(
+            return CallToolResult(
                 isError=True,
-                connection_name=connection_name,
-                catalog_id=catalog_id,
-                operation='update-connection',
                 content=[TextContent(type='text', text=error_message)],
             )
 
@@ -530,7 +523,7 @@ class DataCatalogManager:
         partition_values: List[str],
         partition_input: Dict[str, Any],
         catalog_id: Optional[str] = None,
-    ) -> CreatePartitionResponse:
+    ) -> CallToolResult:
         """Create a new partition in a table in the AWS Glue Data Catalog.
 
         Creates a new partition with the specified values and properties. The partition
@@ -576,13 +569,19 @@ class DataCatalogManager:
             )
 
             success_msg = f'Successfully created partition in table: {database_name}.{table_name}'
-            return CreatePartitionResponse(
-                isError=False,
+            data = CreatePartitionData(
                 database_name=database_name,
                 table_name=table_name,
                 partition_values=partition_values,
                 operation='create-partition',
-                content=[TextContent(type='text', text=success_msg)],
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_msg),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
 
         except ClientError as e:
@@ -590,12 +589,8 @@ class DataCatalogManager:
             error_message = f'Failed to create partition in table {database_name}.{table_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CreatePartitionResponse(
+            return CallToolResult(
                 isError=True,
-                database_name=database_name,
-                table_name=table_name,
-                partition_values=partition_values,
-                operation='create-partition',
                 content=[TextContent(type='text', text=error_message)],
             )
 
@@ -606,7 +601,7 @@ class DataCatalogManager:
         table_name: str,
         partition_values: List[str],
         catalog_id: Optional[str] = None,
-    ) -> DeletePartitionResponse:
+    ) -> CallToolResult:
         """Delete a partition from a table in the AWS Glue Data Catalog.
 
         Deletes the specified partition if it exists and is managed by the MCP server.
@@ -650,24 +645,16 @@ class DataCatalogManager:
                 ):
                     error_message = f'Cannot delete partition in table {database_name}.{table_name} - it is not managed by the MCP server (missing required tags)'
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return DeletePartitionResponse(
+                    return CallToolResult(
                         isError=True,
-                        database_name=database_name,
-                        table_name=table_name,
-                        partition_values=partition_values,
-                        operation='delete-partition',
                         content=[TextContent(type='text', text=error_message)],
                     )
             except ClientError as e:
                 if e.response['Error']['Code'] == 'EntityNotFoundException':
                     error_message = f'Partition in table {database_name}.{table_name} not found'
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return DeletePartitionResponse(
+                    return CallToolResult(
                         isError=True,
-                        database_name=database_name,
-                        table_name=table_name,
-                        partition_values=partition_values,
-                        operation='delete-partition',
                         content=[TextContent(type='text', text=error_message)],
                     )
                 else:
@@ -693,13 +680,19 @@ class DataCatalogManager:
             success_msg = (
                 f'Successfully deleted partition from table: {database_name}.{table_name}'
             )
-            return DeletePartitionResponse(
-                isError=False,
+            data = DeletePartitionData(
                 database_name=database_name,
                 table_name=table_name,
                 partition_values=partition_values,
                 operation='delete-partition',
-                content=[TextContent(type='text', text=success_msg)],
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_msg),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
 
         except ClientError as e:
@@ -707,12 +700,8 @@ class DataCatalogManager:
             error_message = f'Failed to delete partition from table {database_name}.{table_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return DeletePartitionResponse(
+            return CallToolResult(
                 isError=True,
-                database_name=database_name,
-                table_name=table_name,
-                partition_values=partition_values,
-                operation='delete-partition',
                 content=[TextContent(type='text', text=error_message)],
             )
 
@@ -723,7 +712,7 @@ class DataCatalogManager:
         table_name: str,
         partition_values: List[str],
         catalog_id: Optional[str] = None,
-    ) -> GetPartitionResponse:
+    ) -> CallToolResult:
         """Get details of a partition from the AWS Glue Data Catalog.
 
         Retrieves detailed information about the specified partition, including
@@ -760,12 +749,39 @@ class DataCatalogManager:
             success_msg = (
                 f'Successfully retrieved partition from table: {database_name}.{table_name}'
             )
-            return GetPartitionResponse(
-                isError=False,
+
+            # Convert datetime objects in partition_definition to strings
+            partition_definition = partition.copy()
+            if 'CreationTime' in partition_definition and partition_definition['CreationTime']:
+                creation_time_obj = partition_definition['CreationTime']
+                if hasattr(creation_time_obj, 'isoformat'):
+                    partition_definition['CreationTime'] = creation_time_obj.isoformat()
+                else:
+                    partition_definition['CreationTime'] = str(creation_time_obj)
+
+            if 'LastAccessTime' in partition_definition and partition_definition['LastAccessTime']:
+                last_access_time_obj = partition_definition['LastAccessTime']
+                if hasattr(last_access_time_obj, 'isoformat'):
+                    partition_definition['LastAccessTime'] = last_access_time_obj.isoformat()
+                else:
+                    partition_definition['LastAccessTime'] = str(last_access_time_obj)
+
+            # Also check for any other datetime objects in the partition definition
+            if (
+                'LastAnalyzedTime' in partition_definition
+                and partition_definition['LastAnalyzedTime']
+            ):
+                last_analyzed_time_obj = partition_definition['LastAnalyzedTime']
+                if hasattr(last_analyzed_time_obj, 'isoformat'):
+                    partition_definition['LastAnalyzedTime'] = last_analyzed_time_obj.isoformat()
+                else:
+                    partition_definition['LastAnalyzedTime'] = str(last_analyzed_time_obj)
+
+            data = GetPartitionData(
                 database_name=database_name,
                 table_name=table_name,
                 partition_values=partition['Values'],
-                partition_definition=partition,
+                partition_definition=partition_definition,
                 creation_time=(
                     partition.get('CreationTime', '').isoformat()
                     if partition.get('CreationTime')
@@ -779,7 +795,14 @@ class DataCatalogManager:
                 storage_descriptor=partition.get('StorageDescriptor', {}),
                 parameters=partition.get('Parameters', {}),
                 operation='get-partition',
-                content=[TextContent(type='text', text=success_msg)],
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_msg),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
 
         except ClientError as e:
@@ -787,15 +810,8 @@ class DataCatalogManager:
             error_message = f'Failed to get partition from table {database_name}.{table_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return GetPartitionResponse(
+            return CallToolResult(
                 isError=True,
-                database_name=database_name,
-                table_name=table_name,
-                partition_values=partition_values,
-                partition_definition={},
-                creation_time='',
-                last_access_time='',
-                operation='get-partitionet',
                 content=[TextContent(type='text', text=error_message)],
             )
 
@@ -812,7 +828,7 @@ class DataCatalogManager:
         exclude_column_schema: Optional[bool] = None,
         transaction_id: Optional[str] = None,
         query_as_of_time: Optional[str] = None,
-    ) -> ListPartitionsResponse:
+    ) -> CallToolResult:
         """List partitions in a table in the AWS Glue Data Catalog.
 
         Retrieves a list of partitions with their basic properties. Supports
@@ -867,8 +883,7 @@ class DataCatalogManager:
             )
 
             success_msg = f'Successfully listed {len(partitions)} partitions in table {database_name}.{table_name}'
-            return ListPartitionsResponse(
-                isError=False,
+            data = ListPartitionsData(
                 database_name=database_name,
                 table_name=table_name,
                 partitions=[
@@ -895,7 +910,14 @@ class DataCatalogManager:
                 next_token=next_token_response,
                 expression=expression,
                 operation='list-partitions',
-                content=[TextContent(type='text', text=success_msg)],
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_msg),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
 
         except ClientError as e:
@@ -903,15 +925,8 @@ class DataCatalogManager:
             error_message = f'Failed to list partitions in table {database_name}.{table_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return ListPartitionsResponse(
+            return CallToolResult(
                 isError=True,
-                database_name=database_name,
-                table_name=table_name,
-                partitions=[],
-                count=0,
-                next_token=None,
-                expression=None,
-                operation='list-partitions',
                 content=[TextContent(type='text', text=error_message)],
             )
 
@@ -923,7 +938,7 @@ class DataCatalogManager:
         partition_values: List[str],
         partition_input: Dict[str, Any],
         catalog_id: Optional[str] = None,
-    ) -> UpdatePartitionResponse:
+    ) -> CallToolResult:
         """Update an existing partition in the AWS Glue Data Catalog.
 
         Updates the properties of the specified partition if it exists and is managed
@@ -967,12 +982,8 @@ class DataCatalogManager:
                 ):
                     error_message = f'Cannot update partition in table {database_name}.{table_name} - it is not managed by the MCP server (missing required tags)'
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return UpdatePartitionResponse(
+                    return CallToolResult(
                         isError=True,
-                        database_name=database_name,
-                        table_name=table_name,
-                        partition_values=partition_values,
-                        operation='update-partition',
                         content=[TextContent(type='text', text=error_message)],
                     )
 
@@ -990,12 +1001,8 @@ class DataCatalogManager:
                 if e.response['Error']['Code'] == 'EntityNotFoundException':
                     error_message = f'Partition in table {database_name}.{table_name} not found'
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return UpdatePartitionResponse(
+                    return CallToolResult(
                         isError=True,
-                        database_name=database_name,
-                        table_name=table_name,
-                        partition_values=partition_values,
-                        operation='update-partition',
                         content=[TextContent(type='text', text=error_message)],
                     )
                 else:
@@ -1021,13 +1028,19 @@ class DataCatalogManager:
             )
 
             success_msg = f'Successfully updated partition in table: {database_name}.{table_name}'
-            return UpdatePartitionResponse(
-                isError=False,
+            data = UpdatePartitionData(
                 database_name=database_name,
                 table_name=table_name,
                 partition_values=partition_values,
                 operation='update-partition',
-                content=[TextContent(type='text', text=success_msg)],
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_msg),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
 
         except ClientError as e:
@@ -1035,12 +1048,8 @@ class DataCatalogManager:
             error_message = f'Failed to update partition in table {database_name}.{table_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return UpdatePartitionResponse(
+            return CallToolResult(
                 isError=True,
-                database_name=database_name,
-                table_name=table_name,
-                partition_values=partition_values,
-                operation='update-partition',
                 content=[TextContent(type='text', text=error_message)],
             )
 
@@ -1050,7 +1059,7 @@ class DataCatalogManager:
         catalog_name: str,
         catalog_input: Dict[str, Any],
         tags: Optional[Dict[str, str]] = None,
-    ) -> CreateCatalogResponse:
+    ) -> CallToolResult:
         """Create a new catalog in AWS Glue.
 
         Creates a new catalog with the specified name and properties. The catalog
@@ -1095,11 +1104,17 @@ class DataCatalogManager:
             )
 
             success_msg = f'Successfully created catalog: {catalog_name}'
-            return CreateCatalogResponse(
-                isError=False,
+            data = CreateCatalogData(
                 catalog_id=catalog_name,
                 operation='create-catalog',
-                content=[TextContent(type='text', text=success_msg)],
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_msg),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
 
         except ClientError as e:
@@ -1107,14 +1122,12 @@ class DataCatalogManager:
             error_message = f'Failed to create catalog {catalog_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CreateCatalogResponse(
+            return CallToolResult(
                 isError=True,
-                catalog_id=catalog_name,
-                operation='create-catalog',
                 content=[TextContent(type='text', text=error_message)],
             )
 
-    async def delete_catalog(self, ctx: Context, catalog_id: str) -> DeleteCatalogResponse:
+    async def delete_catalog(self, ctx: Context, catalog_id: str) -> CallToolResult:
         """Delete a catalog from AWS Glue.
 
         Deletes the specified catalog if it exists and is managed by the MCP server.
@@ -1149,20 +1162,16 @@ class DataCatalogManager:
                 ):
                     error_message = f'Cannot delete catalog {catalog_id} - it is not managed by the MCP server (missing required tags)'
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return DeleteCatalogResponse(
+                    return CallToolResult(
                         isError=True,
-                        catalog_id=catalog_id,
-                        operation='delete-catalog',
                         content=[TextContent(type='text', text=error_message)],
                     )
             except ClientError as e:
                 if e.response['Error']['Code'] == 'EntityNotFoundException':
                     error_message = f'Catalog {catalog_id} not found'
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return DeleteCatalogResponse(
+                    return CallToolResult(
                         isError=True,
-                        catalog_id=catalog_id,
-                        operation='delete-catalog',
                         content=[TextContent(type='text', text=error_message)],
                     )
                 else:
@@ -1176,11 +1185,17 @@ class DataCatalogManager:
             log_with_request_id(ctx, LogLevel.INFO, f'Successfully deleted catalog: {catalog_id}')
 
             success_msg = f'Successfully deleted catalog: {catalog_id}'
-            return DeleteCatalogResponse(
-                isError=False,
+            data = DeleteCatalogData(
                 catalog_id=catalog_id,
                 operation='delete-catalog',
-                content=[TextContent(type='text', text=success_msg)],
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_msg),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
 
         except ClientError as e:
@@ -1188,14 +1203,12 @@ class DataCatalogManager:
             error_message = f'Failed to delete catalog {catalog_id}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return DeleteCatalogResponse(
+            return CallToolResult(
                 isError=True,
-                catalog_id=catalog_id,
-                operation='delete-catalog',
                 content=[TextContent(type='text', text=error_message)],
             )
 
-    async def get_catalog(self, ctx: Context, catalog_id: str) -> GetCatalogResponse:
+    async def get_catalog(self, ctx: Context, catalog_id: str) -> CallToolResult:
         """Get details of a catalog from AWS Glue.
 
         Retrieves detailed information about the specified catalog, including
@@ -1219,44 +1232,64 @@ class DataCatalogManager:
             )
 
             success_msg = f'Successfully retrieved catalog: {catalog_id}'
-            return GetCatalogResponse(
-                isError=False,
+
+            # Convert datetime objects to ISO strings
+            create_time_str = ''
+            if catalog.get('CreateTime'):
+                create_time_obj = catalog.get('CreateTime')
+                if hasattr(create_time_obj, 'isoformat'):
+                    create_time_str = create_time_obj.isoformat()
+                else:
+                    create_time_str = str(create_time_obj)
+
+            update_time_str = ''
+            if catalog.get('UpdateTime'):
+                update_time_obj = catalog.get('UpdateTime')
+                if hasattr(update_time_obj, 'isoformat'):
+                    update_time_str = update_time_obj.isoformat()
+                else:
+                    update_time_str = str(update_time_obj)
+
+            # Create a copy of catalog with datetime objects converted to strings
+            catalog_definition = catalog.copy()
+            if 'CreateTime' in catalog_definition:
+                catalog_definition['CreateTime'] = create_time_str
+            if 'UpdateTime' in catalog_definition:
+                catalog_definition['UpdateTime'] = update_time_str
+
+            data = GetCatalogData(
                 catalog_id=catalog_id,
-                catalog_definition=catalog,
+                catalog_definition=catalog_definition,
                 name=catalog.get('Name', ''),
                 description=catalog.get('Description', ''),
                 parameters=catalog.get('Parameters', {}),
-                create_time=(
-                    catalog.get('CreateTime', '').isoformat() if catalog.get('CreateTime') else ''
-                ),
-                update_time=(
-                    catalog.get('UpdateTime', '').isoformat() if catalog.get('UpdateTime') else ''
-                ),
+                create_time=create_time_str,
+                update_time=update_time_str,
                 operation='get-catalog',
-                content=[TextContent(type='text', text=success_msg)],
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_msg),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
         except ClientError as e:
             error_code = e.response['Error']['Code']
             error_message = f'Failed to get catalog {catalog_id}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return GetCatalogResponse(
+            return CallToolResult(
                 isError=True,
-                catalog_id=catalog_id,
-                catalog_definition={},
-                operation='get-catalog',
                 content=[TextContent(type='text', text=error_message)],
-                name='',
-                description='',
-                create_time='',
-                update_time='',
             )
 
     async def import_catalog_to_glue(
         self,
         ctx: Context,
         catalog_id: str,
-    ) -> ImportCatalogResponse:
+    ) -> CallToolResult:
         """Import metadata from an external source into the AWS Glue Data Catalog.
 
         Imports metadata from external sources such as Hive metastores, Apache Spark,
@@ -1286,11 +1319,17 @@ class DataCatalogManager:
             )
 
             success_msg = f'Successfully initiated catalog import from Athena Data Catalog {catalog_id} to Glue'
-            return ImportCatalogResponse(
-                isError=False,
+            data = ImportCatalogData(
                 catalog_id=catalog_id,
                 operation='import-catalog-to-glue',
-                content=[TextContent(type='text', text=success_msg)],
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_msg),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
 
         except ClientError as e:
@@ -1298,10 +1337,8 @@ class DataCatalogManager:
             error_message = f'Failed to import Athena data catalog {catalog_id} to Glue: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return ImportCatalogResponse(
+            return CallToolResult(
                 isError=True,
-                catalog_id=catalog_id,
-                operation='import-catalog-to-glue',
                 content=[TextContent(type='text', text=error_message)],
             )
 
@@ -1311,7 +1348,7 @@ class DataCatalogManager:
         max_results: Optional[int] = None,
         next_token: Optional[str] = None,
         parent_catalog_id: Optional[str] = None,
-    ) -> ListCatalogsResponse:
+    ) -> CallToolResult:
         """List all catalogs in AWS Glue.
 
         Retrieves a list of all catalogs with their basic properties. Supports
@@ -1346,8 +1383,7 @@ class DataCatalogManager:
             )
 
             success_msg = f'Successfully listed {len(catalogs)} catalogs'
-            return ListCatalogsResponse(
-                isError=False,
+            data = ListCatalogsData(
                 catalogs=[
                     {
                         'catalog_id': catalog.get('CatalogId', ''),
@@ -1370,7 +1406,14 @@ class DataCatalogManager:
                 count=len(catalogs),
                 next_token=next_token_response,
                 operation='list-catalogs',
-                content=[TextContent(type='text', text=success_msg)],
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_msg),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
 
         except ClientError as e:
@@ -1380,11 +1423,7 @@ class DataCatalogManager:
             )
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return ListCatalogsResponse(
+            return CallToolResult(
                 isError=True,
-                catalogs=[],
-                count=0,
-                next_token=None,
-                operation='list-catalogs',
                 content=[TextContent(type='text', text=error_message)],
             )

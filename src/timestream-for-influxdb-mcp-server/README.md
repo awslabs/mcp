@@ -8,7 +8,8 @@ An AWS Labs Model Context Protocol (MCP) server for Timestream for InfluxDB. Thi
 - Create, update, list, describe, and delete Timestream for InfluxDB database clusters
 - Manage DB parameter groups
 - Tag management for Timestream for InfluxDB resources
-- Write and query data using InfluxDB's APIs
+- Manage InfluxDB 2 buckets and organizations
+- Write and query data using InfluxDB 2 APIs
 
 
 ## Pre-requisites
@@ -21,11 +22,11 @@ An AWS Labs Model Context Protocol (MCP) server for Timestream for InfluxDB. Thi
 
 ## Installation
 
-| Cursor | VS Code |
-|:------:|:-------:|
-| [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.timestream-for-influxdb-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMudGltZXN0cmVhbS1mb3ItaW5mbHV4ZGItbWNwLXNlcnZlckBsYXRlc3QiLCJlbnYiOnsiQVdTX1BST0ZJTEUiOiJ5b3VyLWF3cy1wcm9maWxlIiwiQVdTX1JFR0lPTiI6InVzLWVhc3QtMSIsIkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IifSwiZGlzYWJsZWQiOmZhbHNlLCJhdXRvQXBwcm92ZSI6W119) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=Timestream%20for%20InfluxDB%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.timestream-for-influxdb-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22us-east-1%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
+| Kiro | Cursor | VS Code |
+|:----:|:------:|:-------:|
+| [![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=awslabs.timestream-for-influxdb-mcp-server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.timestream-for-influxdb-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22us-east-1%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%7D) | [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.timestream-for-influxdb-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMudGltZXN0cmVhbS1mb3ItaW5mbHV4ZGItbWNwLXNlcnZlckBsYXRlc3QiLCJlbnYiOnsiQVdTX1BST0ZJTEUiOiJ5b3VyLWF3cy1wcm9maWxlIiwiQVdTX1JFR0lPTiI6InVzLWVhc3QtMSIsIkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IifSwiZGlzYWJsZWQiOmZhbHNlLCJhdXRvQXBwcm92ZSI6W119) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=Timestream%20for%20InfluxDB%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.timestream-for-influxdb-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22us-east-1%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
 
-You can modify the settings of your MCP client to run your local server (e.g. for Amazon Q Developer CLI MCP, `~/.aws/amazonq/mcp.json`)
+You can modify the settings of your MCP client to run your local server (e.g. for Kiro, `~/.kiro/settings/mcp.json`)
 
 ```json
 {
@@ -36,6 +37,9 @@ You can modify the settings of your MCP client to run your local server (e.g. fo
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1",
+        "INFLUXDB_URL": "https://your-influxdb-endpoint:8086",
+        "INFLUXDB_TOKEN": "your-influxdb-token",
+        "INFLUXDB_ORG": "your-influxdb-org",
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
       "disabled": false,
@@ -64,9 +68,12 @@ For Windows users, the MCP server configuration format is slightly different:
         "awslabs.timestream-for-influxdb-mcp-server.exe"
       ],
       "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR",
         "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1"
+        "AWS_REGION": "us-east-1",
+        "INFLUXDB_URL": "https://your-influxdb-endpoint:8086",
+        "INFLUXDB_TOKEN": "your-influxdb-token",
+        "INFLUXDB_ORG": "your-influxdb-org",
+        "FASTMCP_LOG_LEVEL": "ERROR"
       }
     }
   }
@@ -116,3 +123,11 @@ The Timestream for InfluxDB MCP server provides the following tools:
 
 ##### Query API
 - `InfluxDBQuery`: Query data from InfluxDB using Flux query language
+
+##### Bucket Management
+- `InfluxDBListBuckets`: List all buckets in InfluxDB
+- `InfluxDBCreateBucket`: Create a new bucket in InfluxDB
+
+##### Organization Management
+- `InfluxDBListOrgs`: List all organizations in InfluxDB
+- `InfluxDBCreateOrg`: Create a new organization in InfluxDB

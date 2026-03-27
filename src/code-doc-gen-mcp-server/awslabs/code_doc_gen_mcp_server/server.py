@@ -25,6 +25,7 @@ Key capabilities:
 import subprocess
 import sys
 import time
+import warnings
 from awslabs.code_doc_gen_mcp_server.utils.doc_generator import DocumentGenerator
 from awslabs.code_doc_gen_mcp_server.utils.models import (
     DocStructure,
@@ -167,6 +168,9 @@ async def prepare_repository(
 ) -> ProjectAnalysis:
     """Prepare repository for the MCP client's analysis.
 
+    DEPRECATION WARNING: This MCP server is deprecated and will be archived.
+    See https://github.com/awslabs/mcp/issues/2004 for details.
+
     This tool:
     1. Extracts directory structure from the repository
     2. Returns an EMPTY ProjectAnalysis for you to fill out
@@ -184,6 +188,12 @@ async def prepare_repository(
     NOTE: This tool does NOT analyze the code - that's your job!
     The tool only extracts the directory structure and statistics to help you identify important files.
     """
+    warnings.warn(
+        'prepare_repository tool is deprecated and will be archived. See https://github.com/awslabs/mcp/issues/2004',
+        DeprecationWarning,
+        stacklevel=1,
+    )
+
     try:
         # Set up output paths
         project_path = Path(project_root)
@@ -297,6 +307,9 @@ async def create_context(
 ) -> DocumentationContext:
     """Create a DocumentationContext from a ProjectAnalysis.
 
+    DEPRECATION WARNING: This MCP server is deprecated and will be archived.
+    See https://github.com/awslabs/mcp/issues/2004 for details.
+
     This tool simplifies the creation of a DocumentationContext for use with
     plan_documentation and generate_documentation tools.
 
@@ -308,6 +321,12 @@ async def create_context(
     Returns:
         A DocumentationContext ready for use with other tools
     """
+    warnings.warn(
+        'create_context tool is deprecated and will be archived. See https://github.com/awslabs/mcp/issues/2004',
+        DeprecationWarning,
+        stacklevel=1,
+    )
+
     start_time = time.time()
     logger.debug(f'CONTEXT TIMING: Starting create_context at {start_time}')
 
@@ -340,6 +359,9 @@ async def plan_documentation(
 ) -> DocumentationPlan:
     """Third step: Create documentation plan using analysis.
 
+    DEPRECATION WARNING: This MCP server is deprecated and will be archived.
+    See https://github.com/awslabs/mcp/issues/2004 for details.
+
     Using your analysis from prepare_repository and the DocumentationContext from create_context:
     1. Review the ProjectAnalysis in doc_context containing:
        - Project type and purpose
@@ -350,6 +372,12 @@ async def plan_documentation(
     3. Create appropriate documentation structure
     4. Return documentation plan
     """
+    warnings.warn(
+        'plan_documentation tool is deprecated and will be archived. See https://github.com/awslabs/mcp/issues/2004',
+        DeprecationWarning,
+        stacklevel=1,
+    )
+
     start_time = time.time()
     logger.debug(f'PLAN TIMING: Starting plan_documentation at {start_time}')
 
@@ -410,6 +438,9 @@ async def generate_documentation(
 ) -> List[GeneratedDocument]:
     """Final step: Generate documentation content.
 
+    DEPRECATION WARNING: This MCP server is deprecated and will be archived.
+    See https://github.com/awslabs/mcp/issues/2004 for details.
+
     Using your analysis and documentation plan:
     1. Generate document structures with empty sections
     2. YOU (MCP Client) MUST then:
@@ -428,6 +459,12 @@ async def generate_documentation(
     to write comprehensive content for each section. Do not leave sections empty
     or wait for further instructions - YOU must fill them in!
     """
+    warnings.warn(
+        'generate_documentation tool is deprecated and will be archived. See https://github.com/awslabs/mcp/issues/2004',
+        DeprecationWarning,
+        stacklevel=1,
+    )
+
     start_time = time.time()
     logger.debug(f'GENERATE TIMING: Starting generate_documentation at {start_time}')
 

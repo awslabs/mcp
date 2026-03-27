@@ -21,7 +21,11 @@ import io
 import os
 import zipfile
 from awslabs.aws_healthomics_mcp_server import __version__
-from awslabs.aws_healthomics_mcp_server.consts import DEFAULT_OMICS_SERVICE_NAME, DEFAULT_REGION
+from awslabs.aws_healthomics_mcp_server.consts import (
+    AGENT_ENV,
+    DEFAULT_OMICS_SERVICE_NAME,
+    DEFAULT_REGION,
+)
 from functools import lru_cache
 from loguru import logger
 from typing import Any, Dict
@@ -88,8 +92,47 @@ def get_omics_endpoint_url() -> str | None:
     return endpoint_url
 
 
-def get_aws_session() -> boto3.Session:
+def get_agent_value() -> str | None:
+    """Get the agent identifier from the AGENT environment variable.
+
+    Reads the value, strips whitespace, sanitizes by removing characters
+    not permitted in HTTP header values (outside visible ASCII 0x20-0x7E),
+    and returns None if the result is empty.
+
+    Returns:
+        str | None: The sanitized agent value if valid, None otherwise.
+    """
+    raw = os.environ.get(AGENT_ENV)
+    if raw is None:
+        return None
+
+    stripped = raw.strip()
+    if not stripped:
+        return None
+
+    sanitized = ''.join(c for c in stripped if 0x20 <= ord(c) <= 0x7E)
+
+    if not sanitized:
+        logger.warning(
+            f'{AGENT_ENV} environment variable value became empty after sanitization. '
+            'Treating as unset.'
+        )
+        return None
+
+    return sanitized
+
+
+def get_aws_session(
+    region_name: str | None = None,
+    profile_name: str | None = None,
+) -> boto3.Session:
     """Get an AWS session with the centralized region configuration.
+
+    Args:
+        region_name: Optional region override. If not specified, falls back to
+            AWS_REGION environment variable or default region.
+        profile_name: Optional AWS profile override. If not specified, falls back to
+            the default credential chain.
 
     Returns:
         boto3.Session: Configured AWS session
@@ -97,10 +140,29 @@ def get_aws_session() -> boto3.Session:
     Raises:
         ImportError: If boto3 is not available
     """
+    # Handle FieldInfo objects from Pydantic (FastMCP compatibility)
+    if not isinstance(region_name, (str, type(None))):
+        region_name = None
+    if not isinstance(profile_name, (str, type(None))):
+        profile_name = None
+
     botocore_session = botocore.session.Session()
-    user_agent_extra = f'awslabs/mcp/aws-healthomics-mcp-server/{__version__}'
+    user_agent_extra = f'md/awslabs#mcp#aws-healthomics-mcp-server#{__version__}'
+
+    agent_value = get_agent_value()
+    if agent_value:
+        user_agent_extra += f' agent/{agent_value.lower()}'
+
     botocore_session.user_agent_extra = user_agent_extra
-    return boto3.Session(region_name=get_region(), botocore_session=botocore_session)
+
+    kwargs: dict[str, Any] = {
+        'region_name': region_name or get_region(),
+        'botocore_session': botocore_session,
+    }
+    if profile_name:
+        kwargs['profile_name'] = profile_name
+
+    return boto3.Session(**kwargs)
 
 
 def create_zip_file(files: Dict[str, str]) -> bytes:
@@ -145,11 +207,17 @@ def decode_from_base64(data: str) -> bytes:
     return base64.b64decode(data)
 
 
-def create_aws_client(service_name: str) -> Any:
+def create_aws_client(
+    service_name: str,
+    region_name: str | None = None,
+    profile_name: str | None = None,
+) -> Any:
     """Generic AWS client factory for any service.
 
     Args:
-        service_name: Name of the AWS service (e.g., 'omics', 'logs', 'ssm')
+        service_name: Name of the AWS service (e.g., 'omics', 'logs', 's3')
+        region_name: Optional region override
+        profile_name: Optional AWS profile override
 
     Returns:
         boto3.client: Configured AWS service client
@@ -157,16 +225,25 @@ def create_aws_client(service_name: str) -> Any:
     Raises:
         Exception: If client creation fails
     """
-    session = get_aws_session()
+    session = get_aws_session(region_name=region_name, profile_name=profile_name)
     try:
         return session.client(service_name)
     except Exception as e:
-        logger.error(f'Failed to create {service_name} client in region {get_region()}: {str(e)}')
+        logger.error(
+            f'Failed to create {service_name} client in region {region_name or get_region()}: {str(e)}'
+        )
         raise
 
 
-def get_omics_client() -> Any:
+def get_omics_client(
+    region_name: str | None = None,
+    profile_name: str | None = None,
+) -> Any:
     """Get an AWS HealthOmics client.
+
+    Args:
+        region_name: Optional region override
+        profile_name: Optional AWS profile override
 
     Returns:
         boto3.client: Configured HealthOmics client
@@ -174,7 +251,7 @@ def get_omics_client() -> Any:
     Raises:
         Exception: If client creation fails
     """
-    session = get_aws_session()
+    session = get_aws_session(region_name=region_name, profile_name=profile_name)
     service_name = get_omics_service_name()
     endpoint_url = get_omics_endpoint_url()
 
@@ -184,12 +261,21 @@ def get_omics_client() -> Any:
         else:
             return session.client(service_name)
     except Exception as e:
-        logger.error(f'Failed to create {service_name} client in region {get_region()}: {str(e)}')
+        logger.error(
+            f'Failed to create {service_name} client in region {region_name or get_region()}: {str(e)}'
+        )
         raise
 
 
-def get_logs_client() -> Any:
+def get_logs_client(
+    region_name: str | None = None,
+    profile_name: str | None = None,
+) -> Any:
     """Get an AWS CloudWatch Logs client.
+
+    Args:
+        region_name: Optional region override
+        profile_name: Optional AWS profile override
 
     Returns:
         boto3.client: Configured CloudWatch Logs client
@@ -197,23 +283,94 @@ def get_logs_client() -> Any:
     Raises:
         Exception: If client creation fails
     """
-    return create_aws_client('logs')
+    return create_aws_client('logs', region_name=region_name, profile_name=profile_name)
 
 
-def get_ssm_client() -> Any:
-    """Get an AWS SSM client.
+def get_codeconnections_client(
+    region_name: str | None = None,
+    profile_name: str | None = None,
+) -> Any:
+    """Get an AWS CodeConnections client.
+
+    Args:
+        region_name: Optional region override
+        profile_name: Optional AWS profile override
 
     Returns:
-        boto3.client: Configured SSM client
+        boto3.client: Configured CodeConnections client
 
     Raises:
         Exception: If client creation fails
     """
-    return create_aws_client('ssm')
+    return create_aws_client('codeconnections', region_name=region_name, profile_name=profile_name)
 
 
-def get_account_id() -> str:
+def get_ecr_client(
+    region_name: str | None = None,
+    profile_name: str | None = None,
+) -> Any:
+    """Get an AWS ECR client.
+
+    Args:
+        region_name: Optional region override
+        profile_name: Optional AWS profile override
+
+    Returns:
+        boto3.client: Configured ECR client
+
+    Raises:
+        Exception: If client creation fails
+    """
+    return create_aws_client('ecr', region_name=region_name, profile_name=profile_name)
+
+
+def get_codebuild_client(
+    region_name: str | None = None,
+    profile_name: str | None = None,
+) -> Any:
+    """Get an AWS CodeBuild client.
+
+    Args:
+        region_name: Optional region override
+        profile_name: Optional AWS profile override
+
+    Returns:
+        boto3.client: Configured CodeBuild client
+
+    Raises:
+        Exception: If client creation fails
+    """
+    return create_aws_client('codebuild', region_name=region_name, profile_name=profile_name)
+
+
+def get_iam_client(
+    region_name: str | None = None,
+    profile_name: str | None = None,
+) -> Any:
+    """Get an AWS IAM client.
+
+    Args:
+        region_name: Optional region override
+        profile_name: Optional AWS profile override
+
+    Returns:
+        boto3.client: Configured IAM client
+
+    Raises:
+        Exception: If client creation fails
+    """
+    return create_aws_client('iam', region_name=region_name, profile_name=profile_name)
+
+
+def get_account_id(
+    region_name: str | None = None,
+    profile_name: str | None = None,
+) -> str:
     """Get the current AWS account ID.
+
+    Args:
+        region_name: Optional region override
+        profile_name: Optional AWS profile override
 
     Returns:
         str: AWS account ID
@@ -222,7 +379,7 @@ def get_account_id() -> str:
         Exception: If unable to retrieve account ID
     """
     try:
-        session = get_aws_session()
+        session = get_aws_session(region_name=region_name, profile_name=profile_name)
         sts_client = session.client('sts')
         response = sts_client.get_caller_identity()
         return response['Account']
@@ -231,9 +388,16 @@ def get_account_id() -> str:
         raise
 
 
-@lru_cache(maxsize=1)
-def get_partition() -> str:
-    """Get the current AWS partition (memoized).
+@lru_cache
+def get_partition(
+    region_name: str | None = None,
+    profile_name: str | None = None,
+) -> str:
+    """Get the current AWS partition (cached by region/profile).
+
+    Args:
+        region_name: Optional region override
+        profile_name: Optional AWS profile override
 
     Returns:
         str: AWS partition (e.g., 'aws', 'aws-cn', 'aws-us-gov')
@@ -242,7 +406,7 @@ def get_partition() -> str:
         Exception: If unable to retrieve partition
     """
     try:
-        session = get_aws_session()
+        session = get_aws_session(region_name=region_name, profile_name=profile_name)
         sts_client = session.client('sts')
         response = sts_client.get_caller_identity()
         # Extract partition from the ARN: arn:partition:sts::account-id:assumed-role/...

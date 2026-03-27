@@ -15,7 +15,6 @@
 """Data models for the EKS MCP Server."""
 
 from enum import Enum
-from mcp.types import CallToolResult
 from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Optional, Union
 
@@ -54,8 +53,8 @@ class Operation(str, Enum):
     READ = 'read'
 
 
-class ApplyYamlResponse(CallToolResult):
-    """Response model for apply_yaml tool."""
+class ApplyYamlData(BaseModel):
+    """Data model for apply_yaml response."""
 
     force_applied: bool = Field(
         False, description='Whether force option was used to update existing resources'
@@ -64,8 +63,8 @@ class ApplyYamlResponse(CallToolResult):
     resources_updated: int = Field(0, description='Number of resources updated (when force=True)')
 
 
-class KubernetesResourceResponse(CallToolResult):
-    """Response model for single Kubernetes resource operations."""
+class KubernetesResourceData(BaseModel):
+    """Data model for single Kubernetes resource operations."""
 
     kind: str = Field(..., description='Kind of the Kubernetes resource')
     name: str = Field(..., description='Name of the Kubernetes resource')
@@ -89,8 +88,8 @@ class ResourceSummary(BaseModel):
     annotations: Optional[Dict[str, str]] = Field(None, description='Resource annotations')
 
 
-class KubernetesResourceListResponse(CallToolResult):
-    """Response model for list_resources tool."""
+class KubernetesResourceListData(BaseModel):
+    """Data model for list_resources response."""
 
     kind: str = Field(..., description='Kind of the Kubernetes resources')
     api_version: str = Field(..., description='API version of the Kubernetes resources')
@@ -99,22 +98,22 @@ class KubernetesResourceListResponse(CallToolResult):
     items: List[ResourceSummary] = Field(..., description='List of resources')
 
 
-class ApiVersionsResponse(CallToolResult):
-    """Response model for list_api_versions tool."""
+class ApiVersionsData(BaseModel):
+    """Data model for list_api_versions response."""
 
     cluster_name: str = Field(..., description='Name of the EKS cluster')
     api_versions: List[str] = Field(..., description='List of available API versions')
     count: int = Field(..., description='Number of API versions')
 
 
-class GenerateAppManifestResponse(CallToolResult):
-    """Response model for generate_app_manifest tool."""
+class GenerateAppManifestData(BaseModel):
+    """Data model for generate_app_manifest response."""
 
     output_file_path: str = Field(..., description='Path to the output manifest file')
 
 
-class PodLogsResponse(CallToolResult):
-    """Response model for get_pod_logs tool."""
+class PodLogsData(BaseModel):
+    """Data model for get_pod_logs response."""
 
     pod_name: str = Field(..., description='Name of the pod')
     namespace: str = Field(..., description='Namespace of the pod')
@@ -122,8 +121,8 @@ class PodLogsResponse(CallToolResult):
     log_lines: List[str] = Field(..., description='Pod log lines')
 
 
-class EventsResponse(CallToolResult):
-    """Response model for get_k8s_events tool."""
+class EventsData(BaseModel):
+    """Data model for get_k8s_events response."""
 
     involved_object_kind: str = Field(..., description='Kind of the involved object')
     involved_object_name: str = Field(..., description='Name of the involved object')
@@ -145,10 +144,10 @@ class CloudWatchLogEntry(BaseModel):
     message: str = Field(..., description='Log message content')
 
 
-class CloudWatchLogsResponse(CallToolResult):
-    """Response model for get_cloudwatch_logs tool.
+class CloudWatchLogsData(BaseModel):
+    """Data model for CloudWatch logs response.
 
-    This model contains the response from a CloudWatch logs query,
+    This model contains the structured data from a CloudWatch logs query,
     including resource information, time range, and log entries.
     """
 
@@ -177,10 +176,10 @@ class CloudWatchDataPoint(BaseModel):
     value: float = Field(..., description='Metric value')
 
 
-class CloudWatchMetricsResponse(CallToolResult):
-    """Response model for get_cloudwatch_metrics tool.
+class CloudWatchMetricsData(BaseModel):
+    """Data model for CloudWatch metrics response.
 
-    This model contains the response from a CloudWatch metrics query,
+    This model contains the structured data from a CloudWatch metrics query,
     including metric details, time range, and data points.
     """
 
@@ -205,41 +204,32 @@ class StackSummary(BaseModel):
     description: Optional[str] = Field(None, description='Description of the stack')
 
 
-class GenerateTemplateResponse(CallToolResult):
-    """Response model for generate operation of manage_eks_stacks tool."""
+class ManageEksStacksData(BaseModel):
+    """Data model for manage_eks_stacks response."""
 
-    template_path: str = Field(..., description='Path to the generated template')
-    content: list = Field(..., description='Content blocks for the response')
+    operation: str = Field(
+        ..., description='Operation performed (generate, deploy, describe, delete)'
+    )
 
+    # Fields for generate operation
+    template_path: str = Field(
+        '', description='Path to the generated template (generate operation)'
+    )
 
-class DeployStackResponse(CallToolResult):
-    """Response model for deploy operation of manage_eks_stacks tool."""
+    # Fields for deploy operation
+    stack_arn: str = Field('', description='ARN of the CloudFormation stack (deploy operation)')
 
-    stack_name: str = Field(..., description='Name of the CloudFormation stack')
-    stack_arn: str = Field(..., description='ARN of the CloudFormation stack')
-    cluster_name: str = Field(..., description='Name of the EKS cluster')
-    content: list = Field(..., description='Content blocks for the response')
+    # Fields for describe operation
+    creation_time: str = Field('', description='Creation time of the stack (describe operation)')
+    stack_status: str = Field('', description='Current status of the stack (describe operation)')
+    outputs: Dict[str, str] = Field(
+        default_factory=dict, description='Stack outputs (describe operation)'
+    )
 
-
-class DescribeStackResponse(CallToolResult):
-    """Response model for describe operation of manage_eks_stacks tool."""
-
-    stack_name: str = Field(..., description='Name of the CloudFormation stack')
-    stack_id: str = Field(..., description='ID of the CloudFormation stack')
-    cluster_name: str = Field(..., description='Name of the EKS cluster')
-    creation_time: str = Field(..., description='Creation time of the stack')
-    stack_status: str = Field(..., description='Current status of the stack')
-    outputs: Dict[str, str] = Field(..., description='Stack outputs')
-    content: list = Field(..., description='Content blocks for the response')
-
-
-class DeleteStackResponse(CallToolResult):
-    """Response model for delete operation of manage_eks_stacks tool."""
-
-    stack_name: str = Field(..., description='Name of the deleted CloudFormation stack')
-    stack_id: str = Field(..., description='ID of the deleted CloudFormation stack')
-    cluster_name: str = Field(..., description='Name of the EKS cluster')
-    content: list = Field(..., description='Content blocks for the response')
+    # Common fields
+    stack_name: str = Field('', description='Name of the CloudFormation stack')
+    stack_id: str = Field('', description='ID of the CloudFormation stack')
+    cluster_name: str = Field('', description='Name of the EKS cluster')
 
 
 class PolicySummary(BaseModel):
@@ -250,8 +240,8 @@ class PolicySummary(BaseModel):
     policy_document: Optional[Dict[str, Any]] = Field(None, description='Policy document')
 
 
-class RoleDescriptionResponse(CallToolResult):
-    """Response model for get_policies_for_role tool."""
+class RoleDescriptionData(BaseModel):
+    """Data model for get_policies_for_role response."""
 
     role_arn: str = Field(..., description='ARN of the IAM role')
     assume_role_policy_document: Dict[str, Any] = Field(
@@ -266,8 +256,8 @@ class RoleDescriptionResponse(CallToolResult):
     )
 
 
-class AddInlinePolicyResponse(CallToolResult):
-    """Response model for add_inline_policy tool."""
+class AddInlinePolicyData(BaseModel):
+    """Data model for add_inline_policy response."""
 
     policy_name: str = Field(..., description='Name of the inline policy to create')
     role_name: str = Field(..., description='Name of the role to add the policy to')
@@ -276,10 +266,10 @@ class AddInlinePolicyResponse(CallToolResult):
     )
 
 
-class MetricsGuidanceResponse(CallToolResult):
-    """Response model for get_eks_metrics_guidance tool.
+class MetricsGuidanceData(BaseModel):
+    """Data model for get_eks_metrics_guidance response.
 
-    This model contains the response from a metrics guidance query,
+    This model contains the structured data from a metrics guidance query,
     including resource type and available metrics with their details.
     """
 
@@ -289,8 +279,8 @@ class MetricsGuidanceResponse(CallToolResult):
     metrics: List[Dict[str, Any]] = Field(..., description='List of metrics with their details')
 
 
-class EksVpcConfigResponse(CallToolResult):
-    """Response model for get_eks_vpc_config tool.
+class EksVpcConfigData(BaseModel):
+    """Data model for get_eks_vpc_config response.
 
     This model contains comprehensive VPC configuration details for any EKS cluster,
     including CIDR blocks and route tables which are essential for understanding
@@ -356,8 +346,8 @@ class EksInsightItem(BaseModel):
     )
 
 
-class EksInsightsResponse(CallToolResult):
-    """Response model for get_eks_insights tool."""
+class EksInsightsData(BaseModel):
+    """Data model for get_eks_insights response."""
 
     cluster_name: str = Field(..., description='Name of the EKS cluster')
     insights: List[EksInsightItem] = Field(..., description='List of insights')

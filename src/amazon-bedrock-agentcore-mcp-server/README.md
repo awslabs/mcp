@@ -8,6 +8,7 @@ This MCP server provides comprehensive access to Amazon Bedrock AgentCore docume
 
 - **Search Documentation**: Search through curated AgentCore documentation with ranked results and contextual snippets
 - **Fetch Full Documents**: Retrieve complete documentation pages for in-depth understanding
+- **Browser Automation**: 25 cloud-based browser tools for web navigation, interaction, and data extraction — no local browser installation required
 - **Comprehensive Coverage**: Access documentation for all AgentCore services including Runtime, Memory, Code Interpreter, Browser, Gateway, Observability, and Identity
 - **Smart Caching**: Efficient document caching with on-demand content loading for optimal performance
 - **Curated Documentation List**: Uses llm.txt as a curated list of relevant AgentCore documentations, always fetching the latest version of the file
@@ -21,13 +22,17 @@ This MCP server provides comprehensive access to Amazon Bedrock AgentCore docume
 
 ## Installation
 
-| Cursor | VS Code |
-|:------:|:-------:|
-| [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=bedrock-agentcore-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYW1hem9uLWJlZHJvY2stYWdlbnRjb3JlLW1jcC1zZXJ2ZXJAbGF0ZXN0IiwiZW52Ijp7IkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IifSwiZGlzYWJsZWQiOmZhbHNlLCJhdXRvQXBwcm92ZSI6WyJzZWFyY2hfYWdlbnRjb3JlX2RvY3MiLCJmZXRjaF9hZ2VudGNvcmVfZG9jIl19) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=Bedrock%20AgentCore%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.amazon-bedrock-agentcore-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%22search_agentcore_docs%22%2C%22fetch_agentcore_doc%22%5D%7D) |
+| Kiro | Cursor | VS Code |
+|:----:|:------:|:-------:|
+| [![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=bedrock-agentcore-mcp-server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.amazon-bedrock-agentcore-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%7D) | [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=bedrock-agentcore-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYW1hem9uLWJlZHJvY2stYWdlbnRjb3JlLW1jcC1zZXJ2ZXJAbGF0ZXN0IiwiZW52Ijp7IkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IifSwiZGlzYWJsZWQiOmZhbHNlLCJhdXRvQXBwcm92ZSI6WyJzZWFyY2hfYWdlbnRjb3JlX2RvY3MiLCJmZXRjaF9hZ2VudGNvcmVfZG9jIl19) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=Bedrock%20AgentCore%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.amazon-bedrock-agentcore-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%22search_agentcore_docs%22%2C%22fetch_agentcore_doc%22%5D%7D) |
 
 Configure the MCP server in your MCP client configuration:
 
-For [Kiro](https://kiro.dev/), add at the project level `.kiro/settings/mcp.json`
+For [Kiro](https://kiro.dev/), see the [Kiro IDE documentation](https://kiro.dev/docs/mcp/configuration/) or the [Kiro CLI documentation](https://kiro.dev/docs/cli/mcp/configuration/) for details.
+
+For global configuration, edit `~/.kiro/settings/mcp.json`. For project-specific configuration, edit `.kiro/settings/mcp.json` in your project directory.
+
+Example configuration for Kiro (`~/.kiro/settings/mcp.json`):
 
 ```json
 {
@@ -42,30 +47,6 @@ For [Kiro](https://kiro.dev/), add at the project level `.kiro/settings/mcp.json
       "autoApprove": []
     }
   }
-}
-```
-
-For [Amazon Q Developer CLI](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line.html), add the MCP client configuration and tool command to the agent file in `~/.aws/amazonq/cli-agents`.
-
-Example, `~/.aws/amazonq/cli-agents/default.json`
-
-```json
-{
-  "mcpServers": {
-    "bedrock-agentcore-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.amazon-bedrock-agentcore-mcp-server@latest"],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      },
-      "disabled": false,
-      "autoApprove": []
-    }
-  },
-  "tools": [
-    // .. other existing tools
-    "@awslabs.amazon-bedrock-agentcore-mcp-server"
-  ]
 }
 ```
 
@@ -145,6 +126,45 @@ Example queries:
 - "Show me examples of using the Code Interpreter service"
 - "What are the deployment options for AgentCore Runtime?"
 - "How do I integrate AgentCore Browser with my application?"
+- "Start a browser session and navigate to docs.aws.amazon.com"
+- "Take a screenshot of the current page and extract all links"
+
+## Browser Tools
+
+The server includes 25 browser automation tools powered by Amazon Bedrock AgentCore. Each session runs in an isolated Firecracker microVM — no local browser installation is needed.
+
+### Quick Start
+
+```python
+# 1. Start a session
+start_browser_session(timeout_seconds=300)
+
+# 2. Navigate and interact
+browser_navigate(session_id="...", url="https://example.com")
+browser_snapshot(session_id="...")       # accessibility tree with element refs
+browser_click(session_id="...", ref="e3")
+browser_type(session_id="...", ref="e5", text="search query")
+
+# 3. Clean up
+stop_browser_session(session_id="...")
+```
+
+### Tool Categories
+
+| Category | Tools | Description |
+|----------|-------|-------------|
+| **Session** (4) | `start_browser_session`, `get_browser_session`, `list_browser_sessions`, `stop_browser_session` | Create, inspect, list, and terminate sessions |
+| **Navigation** (3) | `browser_navigate`, `browser_navigate_back`, `browser_navigate_forward` | URL navigation and history |
+| **Observation** (6) | `browser_snapshot`, `browser_take_screenshot`, `browser_evaluate`, `browser_wait_for`, `browser_console_messages`, `browser_network_requests` | Page state, screenshots, JS execution, network |
+| **Interaction** (9) | `browser_click`, `browser_type`, `browser_fill_form`, `browser_select_option`, `browser_hover`, `browser_press_key`, `browser_upload_file`, `browser_handle_dialog`, `browser_mouse_wheel` | Click, type, forms, keyboard, dialogs |
+| **Management** (3) | `browser_tabs`, `browser_resize`, `browser_close` | Tab management, viewport, page lifecycle |
+
+### Tips
+
+- **Use DuckDuckGo or Bing** instead of Google — Google blocks cloud browser IPs with CAPTCHAs.
+- **Prefer `browser_evaluate` for data extraction** — snapshots show page structure; `browser_evaluate` with `querySelectorAll` extracts actual data efficiently.
+- **Use `browser_evaluate` for long text** — `browser_type` types character-by-character. For long inputs, use `document.querySelector("selector").value = "text"` instead.
+- **Idle timeout, not absolute** — `timeout_seconds` on `start_browser_session` resets on each tool call, not wall-clock duration.
 
 ## Tools
 

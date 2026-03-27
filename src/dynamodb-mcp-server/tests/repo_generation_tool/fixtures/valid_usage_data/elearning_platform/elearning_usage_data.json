@@ -1,0 +1,275 @@
+{
+  "entities": {
+    "TenantCertificate": {
+      "access_pattern_data": {
+        "certificate_id": "sample_certificate_id",
+        "certificate_url": "sample_certificate_url",
+        "completion_date": 0,
+        "course_id": "sample_course_id",
+        "course_title": "sample_course_title",
+        "expiry_date": 0,
+        "final_grade": "sample_final_grade",
+        "instructor_name": "sample_instructor_name",
+        "issued_date": 0,
+        "status": "sample_status",
+        "tenant_id": "sample_tenant_id",
+        "user_id": "sample_user_id",
+        "user_name": "sample_user_name",
+        "verification_code": "sample_verification_code"
+      },
+      "sample_data": {
+        "certificate_id": "cert-22222",
+        "certificate_url": "https://example.com/certificates/cert-22222.pdf",
+        "completion_date": 1705651200,
+        "course_id": "course-11111",
+        "course_title": "JavaScript Fundamentals",
+        "expiry_date": 1737273600,
+        "final_grade": "A",
+        "instructor_name": "Jane Smith",
+        "issued_date": 1705737600,
+        "status": "active",
+        "tenant_id": "tenant-12345",
+        "user_id": "user-67890",
+        "user_name": "John Doe",
+        "verification_code": "VERIFY-12345"
+      },
+      "update_data": {
+        "certificate_url": "https://example.com/certificates/cert-22222-updated.pdf",
+        "course_title": "Advanced JavaScript Fundamentals",
+        "final_grade": "A+",
+        "status": "renewed"
+      }
+    },
+    "TenantCourse": {
+      "access_pattern_data": {
+        "category": "sample_category",
+        "course_id": "sample_course_id",
+        "created_at": 0,
+        "description": "sample_description",
+        "difficulty_level": "sample_difficulty_level",
+        "duration_hours": 0,
+        "instructor_id": "sample_instructor_id",
+        "instructor_name": "sample_instructor_name",
+        "max_enrollments": 0,
+        "prerequisites": [
+          "sample_prerequisite"
+        ],
+        "status": "sample_status",
+        "tags": [
+          "sample_tag"
+        ],
+        "tenant_id": "sample_tenant_id",
+        "title": "sample_title",
+        "updated_at": 0
+      },
+      "sample_data": {
+        "category": "Programming",
+        "course_id": "course-11111",
+        "created_at": 1704067200,
+        "description": "Learn the basics of JavaScript programming language",
+        "difficulty_level": "beginner",
+        "duration_hours": 40,
+        "instructor_id": "instructor-001",
+        "instructor_name": "John Smith",
+        "max_enrollments": 100,
+        "prerequisites": [
+          "Basic Computer Skills"
+        ],
+        "status": "active",
+        "tags": [
+          "javascript",
+          "programming",
+          "web-development"
+        ],
+        "tenant_id": "tenant-12345",
+        "title": "JavaScript Fundamentals",
+        "updated_at": 1705737600
+      },
+      "update_data": {
+        "description": "Master the fundamentals and advanced concepts of JavaScript programming",
+        "difficulty_level": "intermediate",
+        "duration_hours": 60,
+        "title": "Advanced JavaScript Fundamentals",
+        "updated_at": 1705824000
+      }
+    },
+    "TenantEnrollment": {
+      "access_pattern_data": {
+        "certificate_issued": false,
+        "completion_date": null,
+        "course_id": "sample_course_id",
+        "course_title": "sample_course_title",
+        "current_lesson": "sample_current_lesson",
+        "enrollment_date": 0,
+        "grade": "sample_grade",
+        "instructor_name": "sample_instructor_name",
+        "progress_percentage": 0,
+        "status": "sample_status",
+        "tenant_id": "sample_tenant_id",
+        "user_id": "sample_user_id"
+      },
+      "sample_data": {
+        "certificate_issued": false,
+        "completion_date": null,
+        "course_id": "course-11111",
+        "course_title": "JavaScript Fundamentals",
+        "current_lesson": "lesson-33333",
+        "enrollment_date": 1705305600,
+        "grade": null,
+        "instructor_name": "John Smith",
+        "progress_percentage": 75,
+        "status": "active",
+        "tenant_id": "tenant-12345",
+        "user_id": "user-67890"
+      },
+      "update_data": {
+        "certificate_issued": true,
+        "completion_date": 1705824000,
+        "current_lesson": "lesson-99999",
+        "grade": "A",
+        "progress_percentage": 100,
+        "status": "completed"
+      }
+    },
+    "TenantLesson": {
+      "access_pattern_data": {
+        "content_type": "sample_content_type",
+        "content_url": "sample_content_url",
+        "course_id": "sample_course_id",
+        "created_at": 0,
+        "description": "sample_description",
+        "duration_minutes": 0,
+        "is_mandatory": false,
+        "lesson_id": "sample_lesson_id",
+        "lesson_order": 0,
+        "passing_score": 0,
+        "quiz_required": false,
+        "tenant_id": "sample_tenant_id",
+        "title": "sample_title",
+        "updated_at": 0
+      },
+      "sample_data": {
+        "content_type": "video",
+        "content_url": "https://example.com/videos/lesson-33333.mp4",
+        "course_id": "course-11111",
+        "created_at": 1704067200,
+        "description": "Learn about JavaScript variables and data types",
+        "duration_minutes": 25,
+        "is_mandatory": true,
+        "lesson_id": "lesson-33333",
+        "lesson_order": 1,
+        "passing_score": 80,
+        "quiz_required": true,
+        "tenant_id": "tenant-12345",
+        "title": "Introduction to Variables",
+        "updated_at": 1705737600
+      },
+      "update_data": {
+        "description": "Comprehensive guide to JavaScript variables, data types, and scope",
+        "duration_minutes": 35,
+        "title": "Introduction to Variables and Data Types",
+        "updated_at": 1705824000
+      }
+    },
+    "TenantOrganization": {
+      "access_pattern_data": {
+        "admin_email": "sample_admin_email",
+        "created_at": 0,
+        "domain": "sample_domain",
+        "max_courses": 0,
+        "max_users": 0,
+        "organization_name": "sample_organization_name",
+        "status": "sample_status",
+        "subscription_plan": "sample_subscription_plan",
+        "tenant_id": "sample_tenant_id"
+      },
+      "sample_data": {
+        "admin_email": "admin@techcorp.com",
+        "created_at": 1704067200,
+        "domain": "techcorp.com",
+        "max_courses": 100,
+        "max_users": 500,
+        "organization_name": "TechCorp Learning",
+        "status": "active",
+        "subscription_plan": "enterprise",
+        "tenant_id": "tenant-12345"
+      },
+      "update_data": {
+        "admin_email": "learning-admin@techcorp.com",
+        "max_courses": 200,
+        "max_users": 1000,
+        "organization_name": "TechCorp Learning Solutions",
+        "subscription_plan": "premium"
+      }
+    },
+    "TenantProgress": {
+      "access_pattern_data": {
+        "attempt_date": 0,
+        "completion_status": "sample_completion_status",
+        "course_id": "sample_course_id",
+        "last_accessed": 0,
+        "lesson_id": "sample_lesson_id",
+        "notes": "sample_notes",
+        "quiz_passed": false,
+        "quiz_score": 0,
+        "tenant_id": "sample_tenant_id",
+        "time_spent_minutes": 0,
+        "user_id": "sample_user_id"
+      },
+      "sample_data": {
+        "attempt_date": 1705737600,
+        "completion_status": "completed",
+        "course_id": "course-11111",
+        "last_accessed": 1705824000,
+        "lesson_id": "lesson-33333",
+        "notes": "Great progress on variables concept",
+        "quiz_passed": true,
+        "quiz_score": 92,
+        "tenant_id": "tenant-12345",
+        "time_spent_minutes": 30,
+        "user_id": "user-67890"
+      },
+      "update_data": {
+        "completion_status": "mastered",
+        "last_accessed": 1705910400,
+        "notes": "Excellent understanding demonstrated",
+        "quiz_score": 98,
+        "time_spent_minutes": 45
+      }
+    },
+    "TenantUser": {
+      "access_pattern_data": {
+        "department": "sample_department",
+        "email": "sample_email",
+        "enrollment_date": 0,
+        "first_name": "sample_first_name",
+        "job_title": "sample_job_title",
+        "last_login": 0,
+        "last_name": "sample_last_name",
+        "role": "sample_role",
+        "status": "sample_status",
+        "tenant_id": "sample_tenant_id",
+        "user_id": "sample_user_id"
+      },
+      "sample_data": {
+        "department": "Engineering",
+        "email": "john.doe@techcorp.com",
+        "enrollment_date": 1704931200,
+        "first_name": "John",
+        "job_title": "Software Developer",
+        "last_login": 1705737600,
+        "last_name": "Doe",
+        "role": "learner",
+        "status": "active",
+        "tenant_id": "tenant-12345",
+        "user_id": "user-67890"
+      },
+      "update_data": {
+        "department": "Engineering - Senior",
+        "job_title": "Senior Software Developer",
+        "last_login": 1705824000,
+        "role": "instructor"
+      }
+    }
+  }
+}

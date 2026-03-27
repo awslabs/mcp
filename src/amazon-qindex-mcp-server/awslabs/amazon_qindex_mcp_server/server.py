@@ -20,14 +20,25 @@ import sys
 from awslabs.amazon_qindex_mcp_server.clients import QBusinessClient, QBusinessClientError
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
-from mypy_boto3_qbusiness.type_defs import SearchRelevantContentResponseTypeDef
-from pydantic import BaseModel, Field
-from typing import Dict, List, Optional
+from pydantic import BaseModel, ConfigDict, Field
+from typing import Any, Dict, List, Optional
 
 
 # Configure logging
-logger.remove(0)
+logger.remove()
 logger.add(sys.stderr, level='INFO')
+
+
+class SearchRelevantContentResponse(BaseModel):
+    """Wrapper model for SearchRelevantContent response compatible with Pydantic.
+
+    This replaces the mypy_boto3_qbusiness TypedDict which uses NotRequired,
+    which is incompatible with Pydantic v2 and FastMCP schema generation.
+    """
+
+    model_config = ConfigDict(extra='allow')
+    nextToken: Optional[str] = None
+    relevantContent: Optional[List[Dict[str, Any]]] = None
 
 
 class DocumentAttributeValue(BaseModel):
@@ -330,7 +341,7 @@ async def search_relevant_content(
     aws_session_token: Optional[str] = Field(
         default=None, description='AWS session token from temporary credentials'
     ),
-) -> SearchRelevantContentResponseTypeDef:
+) -> SearchRelevantContentResponse:
     """Search for relevant content in an Amazon Q Business application.
 
     This operation searches for content within a Q Business application based on the provided
@@ -415,7 +426,7 @@ async def search_relevant_content(
         max_results_int = int(max_results) if max_results is not None else None
 
         # Perform the search
-        return client.search_relevant_content(
+        response = client.search_relevant_content(
             application_id=str(application_id),
             query_text=str(query_text),
             attribute_filter=attribute_filter_dict,
@@ -423,6 +434,12 @@ async def search_relevant_content(
             max_results=max_results_int,
             next_token=str(next_token) if next_token else None,
         )
+        # Convert the response to our Pydantic model, extracting only relevant fields
+        filtered_response = {
+            'nextToken': response.get('nextToken'),
+            'relevantContent': response.get('relevantContent'),
+        }
+        return SearchRelevantContentResponse(**filtered_response)
     except Exception as e:
         logger.error(f'Error searching Q Business content: {str(e)}')
         if not aws_access_key_id or not aws_secret_access_key or not aws_session_token:

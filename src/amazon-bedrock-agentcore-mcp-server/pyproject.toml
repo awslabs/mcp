@@ -2,16 +2,17 @@
 name = "awslabs.amazon-bedrock-agentcore-mcp-server"
 
 # NOTE: "Patch"=9223372036854775807 bumps next release to zero.
-version = "0.0.7"
+version = "0.0.16"
 
 description = "Model Context Protocol (MCP) server for Amazon Bedrock AgentCore services"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "loguru>=0.7.0",
-    "mcp[cli]>=1.11.0",
-    "fastmcp>=2.13.0",
+    "mcp[cli]>=1.23.0",
     "pydantic>=2.10.6",
+    "bedrock-agentcore>=1.1.0,<2.0.0",
+    "playwright>=1.40.0",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
@@ -124,8 +125,10 @@ python_classes = "Test*"
 python_functions = "test_*"
 testpaths = [ "tests"]
 asyncio_mode = "auto"
+addopts = "-m 'not live and not local_browser'"
 markers = [
     "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
+    "local_browser: marks tests that launch a local Chromium browser (deselect with '-m \"not local_browser\"')",
     "asyncio: marks tests that use asyncio"
 ]
 

@@ -15,7 +15,7 @@ All types of contributions are encouraged and valued. See the [Table of Contents
 ### Reporting Bugs
 - Before reporting bugs, please make sure you are on the latest commit.
 - Go through existing issues and check no users have reported the same bug.
-- Submit a Github Issue with detailed steps on how to reproduce this bug, as well as your system information such as your MCP client used, LLM agent, operating system etc.
+- Submit a GitHub Issue with detailed steps on how to reproduce this bug, as well as your system information such as your MCP client used, LLM agent, operating system etc.
 
 
 ### Feature Enhancement
@@ -48,7 +48,7 @@ uv sync
 
 
 5. Run the server:
-Add the following code to your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`). Configuration is similar to "Installation" in README.md.
+Add the following code to your MCP client configuration (e.g., for Kiro, edit `~/.kiro/settings/mcp.json`). Configuration is similar to "Installation" in README.md.
 
 ```
 {
