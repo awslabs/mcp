@@ -215,7 +215,7 @@ class TestInternalGetClusterProperties:
         # Verify
         assert result['DBClusterIdentifier'] == 'test-cluster'
         assert result['Status'] == 'available'
-        mock_create_client.assert_called_once_with('us-west-2', False)
+        mock_create_client.assert_called_once_with('us-west-2')
         mock_rds_client.describe_db_clusters.assert_called_once_with(
             DBClusterIdentifier='test-cluster'
         )
@@ -233,7 +233,7 @@ class TestInternalGetClusterProperties:
             'test-cluster', 'us-west-2'
         )
 
-        mock_create_client.assert_called_once_with('us-west-2', True)
+        mock_create_client.assert_called_once_with('us-west-2')
 
     @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
     def test_get_cluster_properties_client_error(self, mock_create_client):
@@ -279,13 +279,11 @@ class TestInternalCreateExpressCluster:
         mock_rds_client.get_waiter.return_value = mock_waiter
 
         # Execute
-        result = internal_create_express_cluster('express-cluster')
+        result = internal_create_express_cluster('express-cluster', 'us-east-2')
 
         # Verify
         assert result['DBClusterIdentifier'] == 'express-cluster'
-        mock_create_client.assert_called_once_with(
-            region='us-east-2'
-        )
+        mock_create_client.assert_called_once_with('us-east-2')
 
         # Verify create_db_cluster was called with correct parameters
         mock_rds_client.create_db_cluster.assert_called_once()
@@ -317,7 +315,7 @@ class TestInternalCreateExpressCluster:
         )
 
         with pytest.raises(ClientError) as exc_info:
-            internal_create_express_cluster('express-cluster')
+            internal_create_express_cluster('express-cluster', 'us-east-2')
 
         assert exc_info.value.response['Error']['Code'] == 'DBClusterAlreadyExistsFault'
 
@@ -337,7 +335,7 @@ class TestInternalCreateExpressCluster:
         mock_rds_client.get_waiter.return_value = mock_waiter
 
         with pytest.raises(WaiterError):
-            internal_create_express_cluster('express-cluster')
+            internal_create_express_cluster('express-cluster', 'us-east-2')
 
     @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
     def test_create_express_cluster_unexpected_error(self, mock_create_client):
@@ -347,7 +345,7 @@ class TestInternalCreateExpressCluster:
         mock_rds_client.create_db_cluster.side_effect = Exception('Unexpected error')
 
         with pytest.raises(Exception) as exc_info:
-            internal_create_express_cluster('express-cluster')
+            internal_create_express_cluster('express-cluster', 'us-east-2')
 
         assert 'Unexpected error' in str(exc_info.value)
 

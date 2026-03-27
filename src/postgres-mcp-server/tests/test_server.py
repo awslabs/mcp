@@ -37,7 +37,6 @@ from awslabs.postgres_mcp_server.server import (
     is_database_connected,
     main,
     run_query,
-    unexpected_error_key,
     write_query_prohibited_key,
 )
 from conftest import DummyCtx, Mock_DBConnection, Mock_PsycopgPoolConnection, MockException
@@ -617,7 +616,6 @@ async def test_run_query_throw_unexpected_error():
     assert len(response) == 1
     assert len(response[0]) == 1
     assert 'error' in response[0]
-    assert response[0].get('error') == unexpected_error_key
 
 
 @pytest.mark.asyncio

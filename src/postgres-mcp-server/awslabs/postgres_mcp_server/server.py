@@ -59,7 +59,6 @@ db_connection_map = DBConnectionMap()
 async_job_status: Dict[str, dict] = {}
 async_job_status_lock = threading.Lock()
 client_error_code_key = 'run_query ClientError code'
-unexpected_error_key = 'run_query unexpected error'
 write_query_prohibited_key = 'Your MCP tool only allows readonly query. If you want to write, change the MCP configuration per README.md'
 query_comment_prohibited_key = 'The comment in query is prohibited because of injection risk'
 query_injection_risk_key = 'Your query contains risky injection patterns'
@@ -143,7 +142,6 @@ async def run_query(
         List of dictionary that contains query response rows
     """
     global client_error_code_key
-    global unexpected_error_key
     global write_query_prohibited_key
     global db_connection_map
 
@@ -206,16 +204,16 @@ async def run_query(
         logger.success(f'run_query successfully executed query:{sql}')
         return parse_execute_response(response)
     except ClientError as e:
-        logger.exception(client_error_code_key)
+        logger.exception(e)
         await ctx.error(
             str({'code': e.response['Error']['Code'], 'message': e.response['Error']['Message']})
         )
         return [{'error': client_error_code_key}]
     except Exception as e:
-        logger.exception(unexpected_error_key)
+        logger.exception(e)
         error_details = f'{type(e).__name__}: {str(e)}'
         await ctx.error(str({'message': error_details}))
-        return [{'error': unexpected_error_key}]
+        return [{'error': error_details}]
 
 
 @mcp.tool(name='get_table_schema', description='Fetch table columns and comments from Postgres')
@@ -283,7 +281,7 @@ async def get_table_schema(
     name='connect_to_database',
     description='Connect to a specific database and save the connection internally',
 )
-def connect_to_database(
+async def connect_to_database(
     region: Annotated[str, Field(description='region')],
     database_type: Annotated[DatabaseType, Field(description='database type')],
     connection_method: Annotated[ConnectionMethod, Field(description='connection method')],
@@ -327,6 +325,11 @@ def connect_to_database(
             port=port,
             database=database
         )
+
+        # Eagerly initialize the connection pool so it's ready for queries
+        # and created_time is set at connect time, not at first query time
+        if isinstance(db_connection, PsycopgPoolConnection):
+            await db_connection.initialize_pool()
 
         return str(llm_response)
 
@@ -422,7 +425,7 @@ def create_cluster(
         connection_method = ConnectionMethod.RDS_API
 
     if with_express_configuration:
-        internal_create_express_cluster(cluster_identifier)
+        internal_create_express_cluster(cluster_identifier, region)
 
         properties = internal_get_cluster_properties(
             cluster_identifier=cluster_identifier,

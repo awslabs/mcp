@@ -8,7 +8,7 @@ dependencies = [
     "loguru>=0.7.0",
     "mcp[cli]>=1.23.0",
     "pydantic>=2.10.6",
-    "boto3>=1.42.75",
+    "boto3>=1.42.76",
     "botocore>=1.42.75",
     "psycopg[binary,pool]>=3.1.12",
     "aiorwlock"

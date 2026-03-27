@@ -64,7 +64,7 @@ class TestInternalGetInstanceProperties:
         assert result['MasterUsername'] == 'postgres'
         assert result['Endpoint']['Port'] == 5432
         mock_create_client.assert_called_once_with(
-            region='us-east-1', with_express_configuration=False
+            region='us-east-1'
         )
 
     @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
