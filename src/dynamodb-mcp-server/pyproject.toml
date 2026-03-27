@@ -56,8 +56,6 @@ dev = [
     "moto>=5.1.4",
     "boto3>=1.38.14",
     "hypothesis>=6.100.0",
-    "strands-agents>=1.5.0",
-    "dspy-ai>=2.6.27",
 ]
 
 [build-system]
