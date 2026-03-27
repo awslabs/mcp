@@ -84,14 +84,15 @@ class TestRunQueryErrorHandling:
 class TestConnectToDatabaseErrorHandling:
     """Tests for connect_to_database error handling."""
 
-    def test_connect_to_database_exception_handling(self):
+    @pytest.mark.asyncio
+    async def test_connect_to_database_exception_handling(self):
         """Test connect_to_database handles exceptions properly."""
         with patch(
             'awslabs.postgres_mcp_server.server.internal_connect_to_database'
         ) as mock_connect:
             mock_connect.side_effect = ValueError('Connection failed')
 
-            result = connect_to_database(
+            result = await connect_to_database(
                 region='us-east-1',
                 database_type=DatabaseType.APG,
                 connection_method=ConnectionMethod.RDS_API,
@@ -105,7 +106,8 @@ class TestConnectToDatabaseErrorHandling:
             assert result_dict['status'] == 'Failed'
             assert 'Connection failed' in result_dict['error']
 
-    def test_connect_to_database_success(self):
+    @pytest.mark.asyncio
+    async def test_connect_to_database_success(self):
         """Test connect_to_database success path."""
         mock_connection = MagicMock()
         mock_response = {
@@ -121,7 +123,7 @@ class TestConnectToDatabaseErrorHandling:
         ) as mock_connect:
             mock_connect.return_value = (mock_connection, json.dumps(mock_response))
 
-            result = connect_to_database(
+            result = await connect_to_database(
                 region='us-east-1',
                 database_type=DatabaseType.APG,
                 connection_method=ConnectionMethod.RDS_API,

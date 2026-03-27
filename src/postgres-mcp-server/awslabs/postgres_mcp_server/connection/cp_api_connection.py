@@ -122,6 +122,65 @@ def internal_get_cluster_properties(cluster_identifier: str, region: str) -> Dic
         raise
 
 
+def internal_create_express_cluster(cluster_identifier: str, region: str) -> Dict[str, Any]:
+    """Create an Aurora PostgreSQL Express cluster.
+
+    Args:
+        cluster_identifier: Unique name for the cluster
+        region: AWS region where the cluster is located
+
+    Returns:
+        Dict[str, Any]: Cluster properties
+
+    Raises:
+        ValueError: If cluster_identifier is invalid
+        ClientError: If AWS API call fails
+    """
+    rds_client = internal_create_rds_client(region)
+
+    # Add default tags
+    tags = []
+    tags.append({'Key': 'CreatedBy', 'Value': 'MCP'})
+
+    logger.info(f'Creating Aurora Express cluster: {cluster_identifier}')
+
+    try:
+        cluster_create_start_time = time.time()
+        rds_client.create_db_cluster(
+            DBClusterIdentifier=cluster_identifier,
+            Engine='aurora-postgresql',
+            WithExpressConfiguration=True,
+            Tags=tags,
+        )
+
+        result = rds_client.describe_db_clusters(DBClusterIdentifier=cluster_identifier)[
+            'DBClusters'
+        ][0]
+
+        logger.info('Waiting for cluster to become available...')
+        waiter = rds_client.get_waiter('db_cluster_available')
+        waiter.wait(
+            DBClusterIdentifier=cluster_identifier, WaiterConfig={'Delay': 5, 'MaxAttempts': 120}
+        )
+
+        cluster_create_stop_time = time.time()
+        elapsed_time = cluster_create_stop_time - cluster_create_start_time
+        logger.info(
+            f'Express Cluster {cluster_identifier} created successfully and took {elapsed_time:.2f} seconds'
+        )
+        return result
+
+    except ClientError as e:
+        logger.error(
+            f"AWS error creating express cluster '{cluster_identifier}': "
+            f'{e.response["Error"]["Code"]} - {e.response["Error"]["Message"]}'
+        )
+        raise
+    except Exception as e:
+        logger.error(f"Error creating cluster '{cluster_identifier}': {type(e).__name__}: {e}")
+        raise
+
+
 def internal_create_serverless_cluster(
     region: str,
     cluster_identifier: str,
@@ -590,3 +649,112 @@ def setup_aurora_iam_policy_for_current_user(
         trace_msg = traceback.format_exc()
         logger.error(f'Traceback: {trace_msg}')
         raise
+
+
+def internal_delete_cluster(region: str, cluster_id: str) -> None:
+    """Delete an existing Amazon RDS (Aurora) cluster.
+
+    Args:
+        region: AWS region where the cluster is located
+        cluster_id: The DB cluster identifier
+
+    Raises:
+        ClientError: If deletion fails or the cluster is not found
+        Exception: If cluster was not created by MCP tool (safety check)
+    """
+    rds = boto3.client('rds', region_name=region)
+
+    # Check cluster exists and verify it was created by MCP
+    try:
+        resp = rds.describe_db_clusters(DBClusterIdentifier=cluster_id)
+        cluster = resp['DBClusters'][0]
+        status = cluster['Status']
+        arn = cluster['DBClusterArn']
+
+        tag_resp = rds.list_tags_for_resource(ResourceName=arn)
+        tags = tag_resp.get('TagList', [])
+        created_by_mcp = False
+        if tags:
+            for tag in tags:
+                if tag['Key'] == 'CreatedBy' and tag['Value'] == 'MCP':
+                    created_by_mcp = True
+        logger.info(f"Found cluster '{cluster_id}' (status={status})")
+
+        if not created_by_mcp:
+            logger.error('Can only delete clusters created by MCP tool')
+            raise Exception('Can only delete clusters created by MCP tool')
+
+    except ClientError as e:
+        if e.response['Error']['Code'] == 'DBClusterNotFoundFault':
+            logger.info(f"Cluster '{cluster_id}' does not exist")
+            return
+        raise
+
+    # Delete all DB instances in the cluster
+    members = cluster.get('DBClusterMembers', [])
+    instance_ids = [m['DBInstanceIdentifier'] for m in members]
+
+    if instance_ids:
+        logger.info(f'Deleting {len(instance_ids)} instance(s): {", ".join(instance_ids)}')
+
+    for inst_id in instance_ids:
+        try:
+            rds.delete_db_instance(
+                DBInstanceIdentifier=inst_id,
+                SkipFinalSnapshot=True,
+                DeleteAutomatedBackups=True,
+            )
+            logger.info(f"Deletion of instance '{inst_id}' initiated")
+        except ClientError as e:
+            code = e.response['Error']['Code']
+            if code in ('DBInstanceNotFound', 'DBInstanceNotFoundFault'):
+                logger.info(f"Instance '{inst_id}' already deleted")
+            else:
+                logger.error(f"Error deleting instance '{inst_id}': {e}")
+                raise
+
+    # Wait for all instances to be fully deleted
+    if instance_ids:
+        logger.info('Waiting for instances to be deleted...')
+    remaining = set(instance_ids)
+
+    while remaining:
+        done = []
+        for inst_id in list(remaining):
+            try:
+                rds.describe_db_instances(DBInstanceIdentifier=inst_id)
+                # still exists
+            except ClientError as e:
+                if e.response['Error']['Code'] in ('DBInstanceNotFound', 'DBInstanceNotFoundFault'):
+                    logger.info(f"Instance '{inst_id}' deleted")
+                    done.append(inst_id)
+                else:
+                    raise
+        for d in done:
+            remaining.discard(d)
+        if remaining:
+            time.sleep(5)
+
+    # Delete cluster
+    try:
+        rds.delete_db_cluster(
+            DBClusterIdentifier=cluster_id,
+            SkipFinalSnapshot=True,
+        )
+        logger.info(f"Deletion of cluster '{cluster_id}' initiated")
+    except ClientError as e:
+        logger.error(f"Error deleting cluster '{cluster_id}': {e}")
+        raise
+
+    # Poll for deletion
+    logger.info('Waiting for cluster to be deleted...')
+    while True:
+        try:
+            rds.describe_db_clusters(DBClusterIdentifier=cluster_id)
+            time.sleep(5)
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'DBClusterNotFoundFault':
+                logger.info(f"Cluster '{cluster_id}' deleted successfully")
+                break
+            else:
+                raise

@@ -22,6 +22,7 @@ import threading
 import traceback
 from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection
 from awslabs.postgres_mcp_server.connection.cp_api_connection import (
+    internal_create_express_cluster,
     internal_create_serverless_cluster,
     internal_get_cluster_properties,
     internal_get_instance_properties,
@@ -58,7 +59,6 @@ db_connection_map = DBConnectionMap()
 async_job_status: Dict[str, dict] = {}
 async_job_status_lock = threading.Lock()
 client_error_code_key = 'run_query ClientError code'
-unexpected_error_key = 'run_query unexpected error'
 write_query_prohibited_key = 'Your MCP tool only allows readonly query. If you want to write, change the MCP configuration per README.md'
 query_comment_prohibited_key = 'The comment in query is prohibited because of injection risk'
 query_injection_risk_key = 'Your query contains risky injection patterns'
@@ -142,7 +142,6 @@ async def run_query(
         List of dictionary that contains query response rows
     """
     global client_error_code_key
-    global unexpected_error_key
     global write_query_prohibited_key
     global db_connection_map
 
@@ -205,16 +204,16 @@ async def run_query(
         logger.success(f'run_query successfully executed query:{sql}')
         return parse_execute_response(response)
     except ClientError as e:
-        logger.exception(client_error_code_key)
+        logger.exception(e)
         await ctx.error(
             str({'code': e.response['Error']['Code'], 'message': e.response['Error']['Message']})
         )
         return [{'error': client_error_code_key}]
     except Exception as e:
-        logger.exception(unexpected_error_key)
+        logger.exception(e)
         error_details = f'{type(e).__name__}: {str(e)}'
         await ctx.error(str({'message': error_details}))
-        return [{'error': unexpected_error_key}]
+        return [{'error': error_details}]
 
 
 @mcp.tool(name='get_table_schema', description='Fetch table columns and comments from Postgres')
@@ -282,14 +281,14 @@ async def get_table_schema(
     name='connect_to_database',
     description='Connect to a specific database and save the connection internally',
 )
-def connect_to_database(
+async def connect_to_database(
     region: Annotated[str, Field(description='region')],
     database_type: Annotated[DatabaseType, Field(description='database type')],
     connection_method: Annotated[ConnectionMethod, Field(description='connection method')],
     cluster_identifier: Annotated[str, Field(description='cluster identifier')],
     db_endpoint: Annotated[str, Field(description='database endpoint')],
     port: Annotated[int, Field(description='Postgres port')],
-    database: Annotated[str, Field(description='database name')],
+    database: Annotated[str, Field(description='database name')]
 ) -> str:
     """Connect to a specific database save the connection internally.
 
@@ -324,8 +323,13 @@ def connect_to_database(
             cluster_identifier=cluster_identifier,
             db_endpoint=db_endpoint,
             port=port,
-            database=database,
+            database=database
         )
+
+        # Eagerly initialize the connection pool so it's ready for queries
+        # and created_time is set at connect time, not at first query time
+        if isinstance(db_connection, PsycopgPoolConnection):
+            await db_connection.initialize_pool()
 
         return str(llm_response)
 
@@ -390,6 +394,9 @@ def create_cluster(
     cluster_identifier: Annotated[str, Field(description='cluster identifier')],
     database: Annotated[str, Field(description='default database name')] = 'postgres',
     engine_version: Annotated[str, Field(description='engine version')] = '17.5',
+    with_express_configuration: Annotated[
+        bool, Field(description='with express configuration')
+    ] = False,
 ) -> str:
     """Create an RDS/Aurora cluster.
 
@@ -398,6 +405,7 @@ def create_cluster(
         cluster_identifier: cluster identifier
         database: database name
         engine_version: engine version
+        with_express_configuration: create the cluster with express configuration
 
     Returns:
         result
@@ -406,11 +414,48 @@ def create_cluster(
         f'Entered create_cluster with region:{region}, '
         f'cluster_identifier:{cluster_identifier} '
         f'database:{database} '
-        f'engine_version:{engine_version}'
+        f'engine_version:{engine_version} '
+        f'with_express_configuration:{with_express_configuration}'
     )
 
     database_type = DatabaseType.APG
-    connection_method = ConnectionMethod.RDS_API
+    if with_express_configuration:
+        connection_method = ConnectionMethod.PG_WIRE_IAM_PROTOCOL
+    else:
+        connection_method = ConnectionMethod.RDS_API
+
+    if with_express_configuration:
+        internal_create_express_cluster(cluster_identifier, region)
+
+        properties = internal_get_cluster_properties(
+            cluster_identifier=cluster_identifier,
+            region=region
+        )
+
+        setup_aurora_iam_policy_for_current_user(
+            db_user=properties['MasterUsername'],
+            cluster_resource_id=properties['DbClusterResourceId'],
+            cluster_region=region,
+        )
+
+        internal_connect_to_database(
+            region=region,
+            database_type=database_type,
+            connection_method=connection_method,
+            cluster_identifier=cluster_identifier,
+            db_endpoint=properties['Endpoint'],
+            port=5432,
+            database=database
+        )
+
+        result = {
+            'status': 'Completed',
+            'cluster_identifier': cluster_identifier,
+            'db_endpoint': properties['Endpoint'],
+            'message': 'Express cluster creation completed successfully',
+        }
+
+        return json.dumps(result, indent=2)
 
     job_id = (
         f'create-cluster-{cluster_identifier}-{datetime.now().isoformat(timespec="milliseconds")}'
@@ -483,7 +528,17 @@ def create_cluster_worker(
     engine_version: str,
     database: str,
 ):
-    """Background worker to create a cluster asynchronously."""
+    """Background worker for cluster creation.
+
+    Args:
+        job_id: Unique job identifier
+        region: AWS region
+        database_type: Database type (APG or RPG)
+        connection_method: Connection method
+        cluster_identifier: Cluster identifier
+        engine_version: Engine version
+        database: Database name
+    """
     global db_connection_map
     global async_job_status
     global async_job_status_lock
@@ -535,7 +590,7 @@ def internal_connect_to_database(
     cluster_identifier: Annotated[str, Field(description='cluster identifier')],
     db_endpoint: Annotated[str, Field(description='database endpoint')],
     port: Annotated[int, Field(description='Postgres port')],
-    database: Annotated[str, Field(description='database name')] = 'postgres',
+    database: Annotated[str, Field(description='database name')] = 'postgres'
 ) -> Tuple:
     """Connect to a specific database save the connection internally.
 
@@ -599,7 +654,8 @@ def internal_connect_to_database(
     if cluster_identifier:
         # Can be either APG (APG always requires cluster) or RPG multi-AZ cluster deployment case
         cluster_properties = internal_get_cluster_properties(
-            cluster_identifier=cluster_identifier, region=region
+            cluster_identifier=cluster_identifier,
+            region=region
         )
 
         enable_data_api = cluster_properties.get('HttpEndpointEnabled', False)
