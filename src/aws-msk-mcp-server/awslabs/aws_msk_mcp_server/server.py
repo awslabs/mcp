@@ -21,6 +21,7 @@ It exposes the abstracted APIs via the MCP protocol.
 import argparse
 import os
 import signal
+import sys
 from anyio import create_task_group, open_signal_receiver, run
 from anyio.abc import CancelScope
 from awslabs.aws_msk_mcp_server.tools import (
@@ -51,14 +52,23 @@ async def signal_handler(scope: CancelScope):
     The anyio.open_signal_receiver returns an async generator that yields
     signal numbers whenever a specified signal is received. The async for
     loop waits for signals and processes them as they arrive.
+    
+    Note: Signal handlers are not supported on all platforms (e.g., Windows).
+    If not supported, this function returns immediately.
     """
-    with open_signal_receiver(signal.SIGINT, signal.SIGTERM) as signals:
-        async for _ in signals:  # Shutting down regardless of the signal type
-            print('Shutting down MCP server...')
-            # Force immediate exit since MCP blocks on stdio.
-            # You can also use scope.cancel(), but it means after Ctrl+C, you need to press another
-            # 'Enter' to unblock the stdio.
-            os._exit(0)
+    try:
+        with open_signal_receiver(signal.SIGINT, signal.SIGTERM) as signals:
+            async for _ in signals:  # Shutting down regardless of the signal type
+                logger.info('Shutting down MCP server...')
+                sys.stdout.flush()
+                sys.stderr.flush()
+                # Force immediate exit since MCP blocks on stdio.
+                # You can also use scope.cancel(), but it means after Ctrl+C, you need to press another
+                # 'Enter' to unblock the stdio.
+                os._exit(0)
+    except NotImplementedError:
+        logger.info('Signal handlers not supported on this platform - skipping signal handler setup')
+        return
 
 
 async def run_server():
