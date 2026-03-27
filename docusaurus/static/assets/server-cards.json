@@ -1309,6 +1309,28 @@
       ]
     },
     {
+      "category": "Cost & Operations",
+      "description": "Read-only GuardDuty finding retrieval for security triage and LLM-assisted analysis",
+      "icon": "\ud83d\udcb0",
+      "id": "aws-guardduty-mcp-server",
+      "name": "AWS GuardDuty MCP Server",
+      "source_path": "src/aws-guardduty-mcp-server/",
+      "subcategory": "Security Operations",
+      "tags": [
+        "cost-operations",
+        "security",
+        "guardduty",
+        "findings",
+        "incident-response",
+        "triage",
+        "read-only",
+        "conversational"
+      ],
+      "workflows": [
+        "conversational"
+      ]
+    },
+    {
       "category": "Developer Tools & Support",
       "description": "Comprehensive IAM user, role, group, and policy management with security best practices",
       "icon": "\ud83d\udee0\ufe0f",
