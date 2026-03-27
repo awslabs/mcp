@@ -186,3 +186,42 @@ For getting started with development on the AWS Documentation MCP server, please
 
 Unit tests: `uv run --frozen pytest --cov --cov-branch --cov-report=term-missing`
 Unit tests with integration tests: `uv run --frozen pytest --cov --cov-branch --cov-report=term-missing --run-live`
+
+## Scope
+
+This server searches AWS documentation via the official AWS Docs Search API, and
+`read_documentation` supports AWS docs plus selected additional domains.
+
+- `search_documentation`: scoped to AWS docs search (not Kiro docs)
+- `read_documentation` supports:
+  - `docs.aws.amazon.com` (requires `.html`)
+  - `awsdocs-neuron.readthedocs-hosted.com` (requires `.html`)
+  - `kiro.dev/docs/` (any path)
+
+### What this server can NOT search
+
+The `search_documentation` tool calls the official AWS Documentation Search API,
+which does not index third-party or product-specific documentation sites.
+
+| Documentation | Site | Workaround |
+|---|---|---|
+| Kiro IDE | `kiro.dev/docs/` | Use `read_documentation` with the direct URL |
+| Kiro CLI | `kiro.dev/docs/cli/` | Use `read_documentation` with the direct URL |
+
+### Accessing Kiro documentation
+
+For Kiro IDE/CLI topics, skip `search_documentation` and call `read_documentation`
+directly with the relevant URL:
+```
+# Kiro CLI custom agents
+read_documentation("https://kiro.dev/docs/cli/custom-agents/creating/")
+
+# Kiro CLI MCP configuration
+read_documentation("https://kiro.dev/docs/cli/mcp/")
+
+# Kiro CLI steering files
+read_documentation("https://kiro.dev/docs/cli/steering/")
+
+# Kiro IDE overview
+read_documentation("https://kiro.dev/docs/")
+```

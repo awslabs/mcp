@@ -126,8 +126,18 @@ class TestReadDocumentation:
         url = 'https://docs.aws.amazon.com/test.pdf'
         ctx = MockContext()
 
-        with pytest.raises(ValueError, match='URL must end with .html'):
+        with pytest.raises(ValueError, match='URL must be from list of supported domains'):
             await read_documentation(ctx, url=url, max_length=10000, start_index=0)
+
+    @pytest.mark.live  # only runs with --run-live flag
+    @pytest.mark.asyncio
+    async def test_read_documentation_works_for_kiro_url(self):
+        """read_documentation should fetch kiro.dev docs, not just docs.aws.amazon.com."""
+        ctx = MockContext()
+        result = await read_documentation(ctx, url="https://kiro.dev/docs/cli/custom-agents/creating/", max_length=10000, start_index=0)
+        assert result is not None
+        assert len(result) > 100  # got actual content back
+        assert "agent" in result.lower()
 
 
 class TestReadSections:
@@ -818,6 +828,12 @@ class TestSearchDocumentation:
             assert second_result.sections is None
 
             mock_post.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_search_documentation_docstring_mentions_kiro(self):
+        """search_documentation tool description should warn about Kiro scope limitation."""
+        assert "kiro" in search_documentation.__doc__.lower()
+        assert "read_documentation" in search_documentation.__doc__
 
 
 class TestRecommend:

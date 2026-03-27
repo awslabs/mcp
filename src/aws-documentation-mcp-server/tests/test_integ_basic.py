@@ -64,6 +64,7 @@ class TestAWSDocumentationMCPServer:
             asyncio.run(self.test_instance.teardown())
 
     @pytest.mark.asyncio
+    @pytest.mark.requires_uv
     async def test_basic_protocol(self):
         """Test basic MCP protocol functionality."""
         # Create test instance
@@ -102,6 +103,7 @@ class TestAWSDocumentationMCPServer:
         assert_test_results(results, expected_success_count=6)  # 6 basic protocol tests
 
     @pytest.mark.asyncio
+    @pytest.mark.requires_uv
     async def test_search_documentation_tool(self):
         """Test the search documentation tool."""
         # Create test instance
@@ -131,6 +133,7 @@ class TestAWSDocumentationMCPServer:
         assert 'result' in result.details, 'Response should contain result field'
 
     @pytest.mark.asyncio
+    @pytest.mark.requires_uv
     async def test_read_documentation_tool(self):
         """Test the read documentation tool."""
         # Create test instance

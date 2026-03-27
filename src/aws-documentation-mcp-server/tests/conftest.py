@@ -29,12 +29,25 @@ def pytest_addoption(parser):
 def pytest_configure(config):
     """Configure pytest."""
     config.addinivalue_line('markers', 'live: mark test as making live API calls')
+    config.addinivalue_line(
+        'markers', 'requires_uv: mark test as requiring uv package manager'
+    )
 
 
 def pytest_collection_modifyitems(config, items):
-    """Skip live tests unless --run-live is specified."""
+    """Skip live tests unless --run-live is specified, and skip requires_uv tests if uv is unavailable."""
+    import shutil
+    
+    uv_available = shutil.which('uv') is not None
+    
     if not config.getoption('--run-live'):
         skip_live = pytest.mark.skip(reason='need --run-live option to run')
         for item in items:
             if 'live' in item.keywords:
                 item.add_marker(skip_live)
+    
+    if not uv_available:
+        skip_uv = pytest.mark.skip(reason="Requires 'uv' package manager to be installed")
+        for item in items:
+            if 'requires_uv' in item.keywords:
+                item.add_marker(skip_uv)
