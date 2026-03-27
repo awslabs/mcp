@@ -15,7 +15,7 @@
 """CloudWatch Application Signals MCP Server - SLO-related tools."""
 
 import json
-from .aws_clients import applicationsignals_client
+from .aws_clients import get_client
 from botocore.exceptions import ClientError
 from loguru import logger
 from pydantic import Field
@@ -62,7 +62,7 @@ async def get_slo(
     logger.info(f'Starting get_service_level_objective request for SLO: {slo_id}')
 
     try:
-        response = applicationsignals_client.get_service_level_objective(Id=slo_id)
+        response = get_client('application-signals').get_service_level_objective(Id=slo_id)
         slo = response.get('Slo', {})
 
         if not slo:
@@ -333,7 +333,7 @@ async def list_slos(
         logger.debug(f'Listing SLOs with parameters: {request_params}')
 
         # Call the Application Signals API
-        response = applicationsignals_client.list_service_level_objectives(**request_params)
+        response = get_client('application-signals').list_service_level_objectives(**request_params)
         slo_summaries = response.get('SloSummaries', [])
 
         logger.debug(f'Retrieved {len(slo_summaries)} SLO summaries')

@@ -949,6 +949,43 @@ Without Transaction Search, you'll only have access to 5% sampled trace data thr
 
 This server is part of the AWS Labs MCP collection. For development and contribution guidelines, please see the main repository documentation.
 
+### AWS Client Usage (Important)
+
+All AWS API calls **must** go through the `get_client()` function in `aws_clients.py`. Do **not** call `boto3.client()` or `boto3.Session()` directly in tool modules.
+
+```python
+# ✅ Correct
+from .aws_clients import get_client
+
+client = get_client('application-signals')
+response = client.list_services()
+```
+
+```python
+# ❌ Wrong — bypasses credential injection in remote/Lambda mode
+import boto3
+
+client = boto3.client('application-signals')
+```
+
+Similarly, use `get_region()` instead of reading `AWS_REGION` directly:
+
+```python
+# ✅ Correct
+from .aws_clients import get_region
+
+region = get_region()
+```
+
+```python
+# ❌ Wrong — won't pick up per-request region overrides
+from .aws_clients import AWS_REGION
+```
+
+**Why?** `get_client()` and `get_region()` support a pluggable factory/override that allows consumers of this package to inject custom credentials and region. Direct `boto3` calls bypass this and would ignore any overrides registered via `set_client_factory()` or `set_region_override()`.
+
+You can run `scripts/check_direct_boto3.sh` to verify no direct `boto3.client()`/`boto3.Session()` calls exist in tool modules.
+
 ### Running Tests
 
 To run the comprehensive test suite that validates all use case examples and tool functionality:
