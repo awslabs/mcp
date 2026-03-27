@@ -705,7 +705,7 @@ valid_source_types = st.sampled_from(['COMMIT_ID', 'BRANCH', 'TAG'])
 valid_source_values = st.text(
     min_size=1,
     max_size=100,
-    alphabet=st.characters(whitelist_categories=('L', 'N'), whitelist_characters='-_./'),
+    alphabet=st.characters(categories=('L', 'N'), include_characters='-_./'),
 ).filter(lambda x: x.strip())
 
 # Valid base64 content generator
@@ -732,14 +732,12 @@ class TestWorkflowRepositoryIntegrationPropertyBased:
         self,
         definition_zip_base64: str,
     ):
-        """Property 7: Backward Compatibility - ZIP source.
+        """Property: Backward Compatibility - ZIP source.
 
         For any valid workflow creation request using definition_zip_base64
         (without definition_repository), the function SHALL process the request
         identically to the previous implementation.
-
-        **Validates: Requirements 6.1, 6.2, 6.3, 6.4**
-        **Feature: workflow-repository-integration, Property 7: Backward Compatibility**
+        **Feature: workflow-repository-integration, Property: Backward Compatibility**
         """
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_definition_sources,
@@ -747,12 +745,13 @@ class TestWorkflowRepositoryIntegrationPropertyBased:
 
         mock_ctx = AsyncMock()
 
-        # Call validate_definition_sources with only definition_zip_base64
+        # Call validate_definition_sources with only definition_zip_base64 (deprecated alias)
         result = await validate_definition_sources(
             mock_ctx,
-            definition_zip_base64=definition_zip_base64,
+            definition_source=None,
             definition_uri=None,
             definition_repository=None,
+            definition_zip_base64=definition_zip_base64,
         )
 
         # Property: Returns a 3-tuple
@@ -780,14 +779,12 @@ class TestWorkflowRepositoryIntegrationPropertyBased:
         self,
         s3_uri: str,
     ):
-        """Property 7: Backward Compatibility - URI source.
+        """Property: Backward Compatibility - URI source.
 
         For any valid workflow creation request using definition_uri
         (without definition_repository), the function SHALL process the request
         identically to the previous implementation.
-
-        **Validates: Requirements 6.1, 6.2, 6.3, 6.4**
-        **Feature: workflow-repository-integration, Property 7: Backward Compatibility**
+        **Feature: workflow-repository-integration, Property: Backward Compatibility**
         """
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_definition_sources,
@@ -798,7 +795,7 @@ class TestWorkflowRepositoryIntegrationPropertyBased:
         # Call validate_definition_sources with only definition_uri
         result = await validate_definition_sources(
             mock_ctx,
-            definition_zip_base64=None,
+            definition_source=None,
             definition_uri=s3_uri,
             definition_repository=None,
         )
@@ -836,14 +833,12 @@ class TestWorkflowRepositoryIntegrationPropertyBased:
         source_value: str,
         exclude_patterns: list,
     ):
-        """Property 8: API Parameter Mapping Round-Trip.
+        """Property: API Parameter Mapping Round-Trip.
 
         For any valid repository configuration with snake_case field names,
         the transformation to API format SHALL produce a dictionary with
         camelCase field names that correctly maps all input fields.
-
-        **Validates: Requirements 8.1, 8.2, 8.3, 8.4, 8.5, 8.6**
-        **Feature: workflow-repository-integration, Property 8: API Parameter Mapping Round-Trip**
+        **Feature: workflow-repository-integration, Property: API Parameter Mapping Round-Trip**
         """
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_repository_definition,
@@ -915,14 +910,12 @@ class TestWorkflowRepositoryIntegrationPropertyBased:
         source_type: str,
         source_value: str,
     ):
-        """Property 9: Error Message Context Inclusion - Invalid ARN.
+        """Property: Error Message Context Inclusion - Invalid ARN.
 
         For any validation error raised during repository configuration validation
         due to invalid connection_arn, the error message SHALL contain the specific
         invalid ARN value that caused the failure.
-
-        **Validates: Requirements 7.1, 7.2, 7.3**
-        **Feature: workflow-repository-integration, Property 9: Error Message Context Inclusion**
+        **Feature: workflow-repository-integration, Property: Error Message Context Inclusion**
         """
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_repository_definition,
@@ -968,14 +961,12 @@ class TestWorkflowRepositoryIntegrationPropertyBased:
         invalid_source_type: str,
         source_value: str,
     ):
-        """Property 9: Error Message Context Inclusion - Invalid Source Type.
+        """Property: Error Message Context Inclusion - Invalid Source Type.
 
         For any validation error raised during repository configuration validation
         due to invalid source_reference.type, the error message SHALL contain
         information about the valid types.
-
-        **Validates: Requirements 7.1, 7.2, 7.3**
-        **Feature: workflow-repository-integration, Property 9: Error Message Context Inclusion**
+        **Feature: workflow-repository-integration, Property: Error Message Context Inclusion**
         """
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_repository_definition,
@@ -1019,14 +1010,12 @@ class TestWorkflowRepositoryIntegrationPropertyBased:
         source_type: str,
         empty_value: str,
     ):
-        """Property 9: Error Message Context Inclusion - Empty Source Value.
+        """Property: Error Message Context Inclusion - Empty Source Value.
 
         For any validation error raised during repository configuration validation
         due to empty source_reference.value, the error message SHALL indicate
         that the value cannot be empty.
-
-        **Validates: Requirements 7.1, 7.2, 7.3**
-        **Feature: workflow-repository-integration, Property 9: Error Message Context Inclusion**
+        **Feature: workflow-repository-integration, Property: Error Message Context Inclusion**
         """
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_repository_definition,
@@ -1060,10 +1049,7 @@ class TestWorkflowRepositoryIntegrationPropertyBased:
 
 
 class TestValidateProviderType:
-    """Test cases for validate_provider_type function.
-
-    **Validates: Requirements 4.1, 4.2, 4.3, 7.3**
-    """
+    """Test cases for validate_provider_type function."""
 
     @pytest.mark.asyncio
     async def test_validate_provider_type_none_input(self):
@@ -1160,10 +1146,7 @@ class TestValidateProviderType:
 
     @pytest.mark.asyncio
     async def test_validate_provider_type_invalid_lowercase(self):
-        """Test validation rejects lowercase provider types (case-sensitive).
-
-        **Validates: Requirements 4.3**
-        """
+        """Test validation rejects lowercase provider types (case-sensitive)."""
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_provider_type,
         )
@@ -1179,10 +1162,7 @@ class TestValidateProviderType:
 
     @pytest.mark.asyncio
     async def test_validate_provider_type_invalid_uppercase(self):
-        """Test validation rejects uppercase provider types (case-sensitive).
-
-        **Validates: Requirements 4.3**
-        """
+        """Test validation rejects uppercase provider types (case-sensitive)."""
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_provider_type,
         )
@@ -1198,10 +1178,7 @@ class TestValidateProviderType:
 
     @pytest.mark.asyncio
     async def test_validate_provider_type_invalid_unknown(self):
-        """Test validation rejects unknown provider types.
-
-        **Validates: Requirements 4.2**
-        """
+        """Test validation rejects unknown provider types."""
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_provider_type,
         )
@@ -1217,10 +1194,7 @@ class TestValidateProviderType:
 
     @pytest.mark.asyncio
     async def test_validate_provider_type_invalid_empty_string(self):
-        """Test validation rejects empty string provider type.
-
-        **Validates: Requirements 4.2**
-        """
+        """Test validation rejects empty string provider type."""
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_provider_type,
         )
@@ -1236,10 +1210,7 @@ class TestValidateProviderType:
 
     @pytest.mark.asyncio
     async def test_validate_provider_type_error_lists_valid_types(self):
-        """Test that error message lists all valid provider types.
-
-        **Validates: Requirements 4.2**
-        """
+        """Test that error message lists all valid provider types."""
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_provider_type,
         )
@@ -1259,10 +1230,7 @@ class TestValidateProviderType:
 
     @pytest.mark.asyncio
     async def test_validate_provider_type_logs_error(self):
-        """Test that validation errors are logged before raising.
-
-        **Validates: Requirements 7.3**
-        """
+        """Test that validation errors are logged before raising."""
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_provider_type,
         )
@@ -1281,10 +1249,7 @@ class TestValidateProviderType:
 
     @pytest.mark.asyncio
     async def test_validate_provider_type_reports_to_context(self):
-        """Test that validation errors are reported to MCP context.
-
-        **Validates: Requirements 7.3**
-        """
+        """Test that validation errors are reported to MCP context."""
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_provider_type,
         )
@@ -1303,17 +1268,11 @@ class TestValidateProviderType:
 
 
 class TestValidateConnectionArn:
-    """Test cases for validate_connection_arn function.
-
-    **Validates: Requirements 5.1, 5.2, 5.3, 5.4, 7.3**
-    """
+    """Test cases for validate_connection_arn function."""
 
     @pytest.mark.asyncio
     async def test_validate_connection_arn_valid_codeconnections_prefix(self):
-        """Test validation with valid codeconnections ARN prefix.
-
-        **Validates: Requirements 5.1, 5.2**
-        """
+        """Test validation with valid codeconnections ARN prefix."""
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_connection_arn,
         )
@@ -1326,10 +1285,7 @@ class TestValidateConnectionArn:
 
     @pytest.mark.asyncio
     async def test_validate_connection_arn_valid_codestar_prefix(self):
-        """Test validation with valid codestar-connections ARN prefix (legacy format).
-
-        **Validates: Requirements 5.1, 5.3**
-        """
+        """Test validation with valid codestar-connections ARN prefix (legacy format)."""
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_connection_arn,
         )
@@ -1342,10 +1298,7 @@ class TestValidateConnectionArn:
 
     @pytest.mark.asyncio
     async def test_validate_connection_arn_valid_various_regions(self):
-        """Test validation with valid ARNs from various regions.
-
-        **Validates: Requirements 5.1, 5.2, 5.3**
-        """
+        """Test validation with valid ARNs from various regions."""
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_connection_arn,
         )
@@ -1366,10 +1319,7 @@ class TestValidateConnectionArn:
 
     @pytest.mark.asyncio
     async def test_validate_connection_arn_invalid_prefix(self):
-        """Test validation rejects ARNs with invalid prefix.
-
-        **Validates: Requirements 5.4**
-        """
+        """Test validation rejects ARNs with invalid prefix."""
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_connection_arn,
         )
@@ -1386,10 +1336,7 @@ class TestValidateConnectionArn:
 
     @pytest.mark.asyncio
     async def test_validate_connection_arn_invalid_empty_string(self):
-        """Test validation rejects empty string.
-
-        **Validates: Requirements 5.4**
-        """
+        """Test validation rejects empty string."""
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_connection_arn,
         )
@@ -1404,10 +1351,7 @@ class TestValidateConnectionArn:
 
     @pytest.mark.asyncio
     async def test_validate_connection_arn_invalid_random_string(self):
-        """Test validation rejects random strings.
-
-        **Validates: Requirements 5.4**
-        """
+        """Test validation rejects random strings."""
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_connection_arn,
         )
@@ -1424,10 +1368,7 @@ class TestValidateConnectionArn:
 
     @pytest.mark.asyncio
     async def test_validate_connection_arn_invalid_partial_prefix(self):
-        """Test validation rejects ARNs with partial prefix.
-
-        **Validates: Requirements 5.4**
-        """
+        """Test validation rejects ARNs with partial prefix."""
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_connection_arn,
         )
@@ -1444,10 +1385,7 @@ class TestValidateConnectionArn:
 
     @pytest.mark.asyncio
     async def test_validate_connection_arn_error_message_format(self):
-        """Test that error message includes expected format guidance.
-
-        **Validates: Requirements 5.4**
-        """
+        """Test that error message includes expected format guidance."""
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_connection_arn,
         )
@@ -1468,10 +1406,7 @@ class TestValidateConnectionArn:
 
     @pytest.mark.asyncio
     async def test_validate_connection_arn_logs_error(self):
-        """Test that validation errors are logged before raising.
-
-        **Validates: Requirements 7.3**
-        """
+        """Test that validation errors are logged before raising."""
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_connection_arn,
         )
@@ -1492,10 +1427,7 @@ class TestValidateConnectionArn:
 
     @pytest.mark.asyncio
     async def test_validate_connection_arn_reports_to_context(self):
-        """Test that validation errors are reported to MCP context.
-
-        **Validates: Requirements 7.3**
-        """
+        """Test that validation errors are reported to MCP context."""
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_connection_arn,
         )
@@ -1513,10 +1445,7 @@ class TestValidateConnectionArn:
 
     @pytest.mark.asyncio
     async def test_validate_connection_arn_invalid_similar_service(self):
-        """Test validation rejects ARNs from similar but different services.
-
-        **Validates: Requirements 5.4**
-        """
+        """Test validation rejects ARNs from similar but different services."""
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_connection_arn,
         )
@@ -1669,7 +1598,7 @@ class TestValidateDefinitionSourcesWithRepository:
 
         result = await validate_definition_sources(
             mock_ctx,
-            definition_zip_base64=None,
+            definition_source=None,
             definition_uri=None,
             definition_repository=definition_repository,
         )
@@ -1701,7 +1630,7 @@ class TestValidateDefinitionSourcesWithRepository:
 
         result = await validate_definition_sources(
             mock_ctx,
-            definition_zip_base64=None,
+            definition_source=None,
             definition_uri=None,
             definition_repository=definition_repository,
         )
@@ -1882,12 +1811,16 @@ class TestValidateDefinitionSources:
         class MockField:
             default = None
 
-        result = await validate_definition_sources(
-            mock_ctx,
-            definition_zip_base64='dGVzdA==',
-            definition_uri=cast(None, MockField()),
-            definition_repository=None,
-        )
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.utils.validation_utils.resolve_single_content',
+        ) as mock_resolve:
+            mock_resolve.return_value = AsyncMock(content=b'zipdata')
+            result = await validate_definition_sources(
+                mock_ctx,
+                definition_source='dGVzdA==',
+                definition_uri=cast(None, MockField()),
+                definition_repository=None,
+            )
         assert result[0] is not None  # decoded zip bytes
         assert result[1] is None
         assert result[2] is None
@@ -1904,12 +1837,16 @@ class TestValidateDefinitionSources:
         class MockField:
             default = None
 
-        result = await validate_definition_sources(
-            mock_ctx,
-            definition_zip_base64='dGVzdA==',
-            definition_uri=None,
-            definition_repository=cast(None, MockField()),
-        )
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.utils.validation_utils.resolve_single_content',
+        ) as mock_resolve:
+            mock_resolve.return_value = AsyncMock(content=b'zipdata')
+            result = await validate_definition_sources(
+                mock_ctx,
+                definition_source='dGVzdA==',
+                definition_uri=None,
+                definition_repository=cast(None, MockField()),
+            )
         assert result[0] is not None
         assert result[1] is None
         assert result[2] is None
@@ -1926,6 +1863,7 @@ class TestValidateDefinitionSources:
         with pytest.raises(ValueError, match='Cannot specify multiple definition sources'):
             await validate_definition_sources(
                 mock_ctx,
+                definition_source=None,
                 definition_zip_base64='dGVzdA==',
                 definition_uri='s3://bucket/key.zip',
                 definition_repository=None,
@@ -1944,6 +1882,7 @@ class TestValidateDefinitionSources:
         with pytest.raises(ValueError, match='Must specify one definition source'):
             await validate_definition_sources(
                 mock_ctx,
+                definition_source=None,
                 definition_zip_base64=None,
                 definition_uri=None,
                 definition_repository=None,
@@ -1952,7 +1891,7 @@ class TestValidateDefinitionSources:
 
     @pytest.mark.asyncio
     async def test_base64_decode_failure(self):
-        """Test error when base64 decoding fails."""
+        """Test error when resolving definition source fails."""
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_definition_sources,
         )
@@ -1960,13 +1899,13 @@ class TestValidateDefinitionSources:
         mock_ctx = AsyncMock()
 
         with patch(
-            'awslabs.aws_healthomics_mcp_server.utils.validation_utils.decode_from_base64',
-            side_effect=Exception('Invalid base64'),
+            'awslabs.aws_healthomics_mcp_server.utils.validation_utils.resolve_single_content',
+            side_effect=ValueError('Invalid content'),
         ):
-            with pytest.raises(Exception, match='Invalid base64'):
+            with pytest.raises(ValueError, match='Failed to resolve definition source'):
                 await validate_definition_sources(
                     mock_ctx,
-                    definition_zip_base64='not-valid-base64!!!',
+                    definition_source='not-valid-content!!!',
                     definition_uri=None,
                     definition_repository=None,
                 )

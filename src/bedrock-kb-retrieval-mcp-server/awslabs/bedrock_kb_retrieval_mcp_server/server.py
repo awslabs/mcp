@@ -192,7 +192,7 @@ async def query_knowledge_bases_tool(
 
 
 def main():
-    """Run the MCP server with CLI argument support."""
+    """Run the MCP server."""
     mcp.run()
 
 

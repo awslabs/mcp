@@ -3344,8 +3344,7 @@ class TestPropertyOrchestratorBucketUnion:
     """Property-based tests for orchestrator bucket union.
 
     Feature: s3-adhoc-bucket-search-fix
-    Property 2: Orchestrator searches union of configured and adhoc buckets
-    Validates: Requirements 2.1, 2.2, 3.2
+    Property: Orchestrator searches union of configured and adhoc buckets
     """
 
     @given(data=st.data())
@@ -3358,8 +3357,6 @@ class TestPropertyOrchestratorBucketUnion:
         adhoc S3 bucket paths (possibly empty), _get_all_s3_bucket_paths() returns
         the deduplicated union of both sets. When the union is non-empty, the search
         should proceed without error.
-
-        **Validates: Requirements 2.1, 2.2, 3.2**
         """
         # Draw unique configured bucket indices (0-5 unique paths)
         configured_indices = data.draw(

@@ -8,16 +8,16 @@ import pytest
 import tempfile
 from awslabs.dynamodb_mcp_server.common import (
     handle_exceptions,
-    validate_database_name,
     validate_path_within_directory,
+    validate_source_identifier,
 )
 
 
-class TestValidateDatabaseName:
-    """Test database name validation."""
+class TestValidateSourceIdentifier:
+    """Test source identifier validation."""
 
-    def test_database_name_validation(self):
-        """Test database name validation with valid and invalid inputs."""
+    def test_source_identifier_validation(self):
+        """Test source identifier validation with valid and invalid inputs."""
         # Arrange - Valid names
         valid_names = [
             'test_db',
@@ -31,7 +31,7 @@ class TestValidateDatabaseName:
 
         # Act & Assert - Valid names should not raise
         for name in valid_names:
-            validate_database_name(name)
+            validate_source_identifier(name)
 
         # Arrange - Invalid names
         invalid_names = [
@@ -55,7 +55,7 @@ class TestValidateDatabaseName:
         # Act & Assert - Invalid names should raise ValueError
         for name in invalid_names:
             with pytest.raises(ValueError, match='Invalid database name'):
-                validate_database_name(name)
+                validate_source_identifier(name)
 
 
 class TestValidatePathWithinDirectory:
