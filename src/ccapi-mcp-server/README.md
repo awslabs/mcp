@@ -139,6 +139,7 @@ The server uses boto3's standard credential chain automatically:
 | ------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `FASTMCP_LOG_LEVEL` | _(not set)_ | Logging level (ERROR, WARN, INFO, DEBUG)                                                                                                    |
 | `SECURITY_SCANNING` | `enabled`   | Enable/disable Checkov security scanning (`enabled` or `disabled`). When disabled, shows warning but allows resource operations to proceed. |
+| `CCAPI_SCHEMA_CACHE_DIR` | _(auto)_ | Override the schema cache directory. Defaults to `.schemas` relative to the package, with a temp directory fallback for read-only filesystems. |
 
 ### Default Tagging
 
