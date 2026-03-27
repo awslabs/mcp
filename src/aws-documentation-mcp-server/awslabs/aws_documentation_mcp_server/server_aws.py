@@ -15,6 +15,7 @@
 
 import httpx
 import json
+import os
 import re
 import uuid
 
@@ -56,6 +57,10 @@ SEARCH_TERM_DOMAIN_MODIFIERS = [
     }
 ]
 
+# Read FastMCP settings from environment variables
+FASTMCP_HOST = os.getenv('FASTMCP_HOST', '127.0.0.1')
+FASTMCP_PORT = int(os.getenv('FASTMCP_PORT', '8000'))
+FASTMCP_STATELESS_HTTP = os.getenv('FASTMCP_STATELESS_HTTP', 'false').lower() == 'true'
 
 mcp = FastMCP(
     'awslabs.aws-documentation-mcp-server',
@@ -568,8 +573,22 @@ async def recommend(
 
 def main():
     """Run the MCP server with CLI argument support."""
-    logger.info('Starting AWS Documentation MCP Server')
-    mcp.run()
+    
+    transport = os.getenv('FASTMCP_TRANSPORT', 'stdio')
+    logger.info(f'Starting AWS Documentation MCP Server with {transport} transport')
+    
+    # Only set host and port for streamable-http transport
+    if transport == "streamable-http":
+        mcp.settings.host = FASTMCP_HOST
+        mcp.settings.port = FASTMCP_PORT
+        mcp.settings.stateless_http = FASTMCP_STATELESS_HTTP
+        # Only disable DNS rebinding protection for non-localhost deployments
+        # (e.g., ECS behind ALB). Keep it enabled for localhost to prevent
+        # DNS rebinding attacks (CVE-2025-66416).
+        if FASTMCP_HOST not in ("127.0.0.1", "localhost", "::1"):
+            mcp.settings.transport_security = None
+    
+    mcp.run(transport=transport)
 
 
 if __name__ == '__main__':
