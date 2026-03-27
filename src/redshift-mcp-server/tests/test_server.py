@@ -16,6 +16,7 @@
 
 import pytest
 from awslabs.redshift_mcp_server.models import (
+    ExecutionPlan,
     QueryResult,
     RedshiftCluster,
     RedshiftColumn,
@@ -24,6 +25,7 @@ from awslabs.redshift_mcp_server.models import (
     RedshiftTable,
 )
 from awslabs.redshift_mcp_server.server import (
+    describe_execution_plan_tool,
     execute_query_tool,
     list_clusters_tool,
     list_columns_tool,
@@ -286,7 +288,7 @@ class TestListTablesTool:
 
     @pytest.mark.asyncio
     async def test_list_tables_tool_success(self, mocker):
-        """Test successful table discovery."""
+        """Test successful table discovery including external tables."""
         mock_discover_tables = mocker.patch('awslabs.redshift_mcp_server.server.discover_tables')
         mock_discover_tables.return_value = [
             {
@@ -296,6 +298,22 @@ class TestListTablesTool:
                 'table_acl': 'user=admin',
                 'table_type': 'TABLE',
                 'remarks': 'User data table',
+                'redshift_diststyle': 'KEY',
+                'redshift_estimated_row_count': 50000,
+                'stats_sequential_scans': 120,
+                'stats_sequential_tuples_read': 6000000,
+                'stats_rows_inserted': 5000,
+                'stats_rows_updated': 200,
+                'stats_rows_deleted': 50,
+                'stats_live_row_count': 49950,
+                'stats_dead_row_count': 50,
+                'stats_last_analyze_time': '2024-01-15 10:00:00',
+                'stats_last_autoanalyze_time': '2024-01-16 12:00:00',
+                'stats_analyze_count': 3,
+                'stats_autoanalyze_count': 7,
+                'stats_rows_modified_since_analyze': 25,
+                'external_location': None,
+                'external_parameters': None,
             },
             {
                 'database_name': 'dev',
@@ -304,6 +322,46 @@ class TestListTablesTool:
                 'table_acl': 'user=admin',
                 'table_type': 'VIEW',
                 'remarks': 'User view',
+                'redshift_diststyle': None,
+                'redshift_estimated_row_count': None,
+                'stats_sequential_scans': None,
+                'stats_sequential_tuples_read': None,
+                'stats_rows_inserted': None,
+                'stats_rows_updated': None,
+                'stats_rows_deleted': None,
+                'stats_live_row_count': None,
+                'stats_dead_row_count': None,
+                'stats_last_analyze_time': None,
+                'stats_last_autoanalyze_time': None,
+                'stats_analyze_count': None,
+                'stats_autoanalyze_count': None,
+                'stats_rows_modified_since_analyze': None,
+                'external_location': None,
+                'external_parameters': None,
+            },
+            {
+                'database_name': 'dev',
+                'schema_name': 'public',
+                'table_name': 'ext_events',
+                'table_acl': None,
+                'table_type': 'EXTERNAL TABLE',
+                'remarks': None,
+                'redshift_diststyle': None,
+                'redshift_estimated_row_count': None,
+                'stats_sequential_scans': None,
+                'stats_sequential_tuples_read': None,
+                'stats_rows_inserted': None,
+                'stats_rows_updated': None,
+                'stats_rows_deleted': None,
+                'stats_live_row_count': None,
+                'stats_dead_row_count': None,
+                'stats_last_analyze_time': None,
+                'stats_last_autoanalyze_time': None,
+                'stats_analyze_count': None,
+                'stats_autoanalyze_count': None,
+                'stats_rows_modified_since_analyze': None,
+                'external_location': 's3://my-bucket/events/',
+                'external_parameters': '{"partition_columns": ["year", "month"]}',
             },
         ]
 
@@ -311,15 +369,32 @@ class TestListTablesTool:
 
         # Verify return type and structure
         assert isinstance(result, list)
-        assert len(result) == 2
+        assert len(result) == 3
         assert all(isinstance(table, RedshiftTable) for table in result)
 
-        # Verify table properties
+        # Verify regular table properties and stats
         assert result[0].table_name == 'users'
         assert result[0].table_type == 'TABLE'
         assert result[0].schema_name == 'public'
+        assert result[0].redshift_diststyle == 'KEY'
+        assert result[0].redshift_estimated_row_count == 50000
+        assert result[0].stats_sequential_scans == 120
+        assert result[0].stats_rows_inserted == 5000
+        assert result[0].stats_last_analyze_time == '2024-01-15 10:00:00'
+        assert result[0].external_location is None
+
+        # Verify view
         assert result[1].table_name == 'user_view'
         assert result[1].table_type == 'VIEW'
+        assert result[1].redshift_diststyle is None
+
+        # Verify external table
+        assert result[2].table_name == 'ext_events'
+        assert result[2].table_type == 'EXTERNAL TABLE'
+        assert result[2].external_location == 's3://my-bucket/events/'
+        assert result[2].external_parameters == '{"partition_columns": ["year", "month"]}'
+        assert result[2].redshift_diststyle is None
+        assert result[2].stats_sequential_scans is None
 
     @pytest.mark.asyncio
     async def test_list_tables_tool_empty(self, mocker):
@@ -527,4 +602,94 @@ class TestExecuteQueryTool:
 
         mock_ctx.error.assert_called_once_with(
             'Failed to execute query on cluster test-cluster in database test-db: Query error'
+        )
+
+
+class TestDescribeExecutionPlanTool:
+    """Tests for the describe_execution_plan MCP tool."""
+
+    @pytest.mark.asyncio
+    async def test_describe_execution_plan_tool_success(self, mocker):
+        """Test successful execution plan generation with structured output."""
+        from awslabs.redshift_mcp_server.models import ExecutionPlanNode
+
+        mock_describe_execution_plan = mocker.patch(
+            'awslabs.redshift_mcp_server.server.describe_execution_plan'
+        )
+        mock_describe_execution_plan.return_value = {
+            'query_id': 'explain-123',
+            'explained_query': 'SELECT * FROM users LIMIT 5',
+            'planning_time_ms': 50,
+            'plan_nodes': [
+                {
+                    'node_id': 1,
+                    'parent_node_id': None,
+                    'level': 0,
+                    'operation': 'Limit',
+                    'cost_startup': 0.00,
+                    'cost_total': 0.07,
+                    'rows': 5,
+                    'width': 27,
+                },
+                {
+                    'node_id': 2,
+                    'parent_node_id': 1,
+                    'level': 1,
+                    'operation': 'Seq Scan',
+                    'cost_startup': 0.00,
+                    'cost_total': 1.00,
+                    'rows': 100,
+                    'width': 27,
+                    'distribution_type': 'DS_DIST_NONE',
+                },
+            ],
+            'table_designs': [],
+            'human_readable_plan': 'XN Limit  (cost=0.00..0.07 rows=5 width=27)\n  ->  XN Seq Scan on users  (cost=0.00..1.00 rows=100 width=27)',
+            'rule_based_suggestions': [
+                'Consider adding a SORTKEY on frequently filtered columns.'
+            ],
+        }
+
+        result = await describe_execution_plan_tool(
+            Context(),
+            cluster_identifier='test-cluster',
+            database_name='dev',
+            sql='SELECT * FROM users LIMIT 5',
+        )
+
+        assert isinstance(result, ExecutionPlan)
+        assert len(result.plan_nodes) == 2
+        assert result.explained_query == 'SELECT * FROM users LIMIT 5'
+        assert result.query_id == 'explain-123'
+        assert result.planning_time_ms == 50
+        assert result.human_readable_plan is not None
+        assert 'XN Limit' in result.human_readable_plan
+
+        assert all(isinstance(node, ExecutionPlanNode) for node in result.plan_nodes)
+        assert result.plan_nodes[0].operation == 'Limit'
+        assert result.plan_nodes[1].operation == 'Seq Scan'
+        assert result.plan_nodes[1].distribution_type == 'DS_DIST_NONE'
+
+        # Verify rule_based_suggestions are included
+        assert isinstance(result.rule_based_suggestions, list)
+        assert len(result.rule_based_suggestions) == 1
+
+    @pytest.mark.asyncio
+    async def test_describe_execution_plan_tool_error(self, mocker):
+        """Test describe_execution_plan_tool error handling."""
+        from unittest.mock import AsyncMock, Mock
+
+        mock_ctx = Mock()
+        mock_ctx.error = AsyncMock()
+
+        mocker.patch(
+            'awslabs.redshift_mcp_server.server.describe_execution_plan',
+            side_effect=Exception('Invalid SQL syntax'),
+        )
+
+        with pytest.raises(Exception, match='Invalid SQL syntax'):
+            await describe_execution_plan_tool(mock_ctx, 'test-cluster', 'test-db', 'INVALID SQL')
+
+        mock_ctx.error.assert_called_once_with(
+            'Failed to get execution plan on cluster test-cluster in database test-db: Invalid SQL syntax'
         )
