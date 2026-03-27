@@ -67,7 +67,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-amazon-keyspaces-mcp-server"
-version = "0.0.13"
+version = "0.0.14"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },
