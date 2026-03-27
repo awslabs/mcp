@@ -16,6 +16,10 @@ jobs:
         with:
           # https://github.com/actions/dependency-review-action/issues/944
           allow-dependencies-licenses: 'pkg:pypi/uv@0.8.10'
+          # Allow known vulnerabilities that have been reviewed and accepted
+          # diskcache pickle deserialization - transitive dep from fastmcp,
+          # no fix available, cache is internal and not exposed to untrusted input
+          allow-ghsas: GHSA-w8v5-vhqr-4h9v
           deny-licenses: |
             AGPL-1.0,AGPL-1.0-only,AGPL-1.0-or-later,AGPL-3.0,AGPL-3.0-only,AGPL-3.0-or-later,
             AML,
