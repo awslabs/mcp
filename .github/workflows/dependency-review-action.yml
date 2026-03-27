@@ -16,6 +16,8 @@ jobs:
         with:
           # https://github.com/actions/dependency-review-action/issues/944
           allow-dependencies-licenses: 'pkg:pypi/uv@0.8.10'
+          # pygments 2.19.2 ReDoS (low severity) — no patched version available yet
+          allow-ghsas: 'GHSA-5239-wwwm-4pmq'
           deny-licenses: |
             AGPL-1.0,AGPL-1.0-only,AGPL-1.0-or-later,AGPL-3.0,AGPL-3.0-only,AGPL-3.0-or-later,
             AML,
