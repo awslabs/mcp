@@ -17,6 +17,9 @@
 import pytest
 from awslabs.prometheus_mcp_server.server import (
     DANGEROUS_PATTERNS,
+    ExecuteQueryInput,
+    ExecuteRangeQueryInput,
+    GetAvailableWorkspacesInput,
     PrometheusClient,
     SecurityValidator,
     execute_query,
@@ -128,7 +131,11 @@ class TestServerCoverage:
         ):
             with pytest.raises(ValueError, match='Query validation failed'):
                 await execute_query(
-                    ctx=mock_context, workspace_id='ws-12345', query='dangerous;query'
+                    input=ExecuteQueryInput(
+                        workspace_id='ws-12345',
+                        query='dangerous;query',
+                    ),
+                    ctx=mock_context,
                 )
 
     @pytest.mark.asyncio
@@ -156,12 +163,14 @@ class TestServerCoverage:
         ):
             with pytest.raises(ValueError, match='Query validation failed'):
                 await execute_range_query(
+                    input=ExecuteRangeQueryInput(
+                        workspace_id='ws-12345',
+                        query='dangerous;query',
+                        start='2023-01-01T00:00:00Z',
+                        end='2023-01-01T01:00:00Z',
+                        step='5m',
+                    ),
                     ctx=mock_context,
-                    workspace_id='ws-12345',
-                    query='dangerous;query',
-                    start='2023-01-01T00:00:00Z',
-                    end='2023-01-01T01:00:00Z',
-                    step='5m',
                 )
 
     @pytest.mark.asyncio
@@ -178,7 +187,10 @@ class TestServerCoverage:
             patch('awslabs.prometheus_mcp_server.server.DEFAULT_AWS_REGION', 'us-east-1'),
             patch('awslabs.prometheus_mcp_server.server.logger'),
         ):
-            result = await get_available_workspaces(ctx=mock_context, region=None)
+            result = await get_available_workspaces(
+                input=GetAvailableWorkspacesInput(region=None),
+                ctx=mock_context,
+            )
 
             assert result['region'] == 'us-east-1'
             mock_client.list_workspaces.assert_called_once()
@@ -212,7 +224,12 @@ class TestServerCoverage:
             patch('awslabs.prometheus_mcp_server.server.logger'),
         ):
             result = await execute_query(
-                ctx=mock_context, workspace_id='ws-12345', query='up', time='2023-01-01T00:00:00Z'
+                input=ExecuteQueryInput(
+                    workspace_id='ws-12345',
+                    query='up',
+                    time='2023-01-01T00:00:00Z',
+                ),
+                ctx=mock_context,
             )
 
             assert result == {'resultType': 'vector', 'result': []}

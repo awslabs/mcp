@@ -17,6 +17,11 @@
 import os
 import pytest
 from awslabs.prometheus_mcp_server.server import (
+    ExecuteQueryInput,
+    ExecuteRangeQueryInput,
+    GetAvailableWorkspacesInput,
+    GetServerInfoInput,
+    ListMetricsInput,
     MetricsList,
     ServerInfo,
     execute_query,
@@ -61,12 +66,14 @@ class TestTools:
             patch('awslabs.prometheus_mcp_server.server.logger'),
         ):
             result = await execute_query(
+                input=ExecuteQueryInput(
+                    workspace_id='ws-12345',
+                    query='up',
+                    time='2023-01-01T00:00:00Z',
+                    region='us-east-1',
+                    profile='test-profile',
+                ),
                 ctx=mock_context,
-                workspace_id='ws-12345',
-                query='up',
-                time='2023-01-01T00:00:00Z',
-                region='us-east-1',
-                profile='test-profile',
             )
 
             assert result == {'resultType': 'vector', 'result': []}
@@ -102,11 +109,13 @@ class TestTools:
         ):
             with pytest.raises(ValueError, match='Query validation failed'):
                 await execute_query(
+                    input=ExecuteQueryInput(
+                        workspace_id='ws-12345',
+                        query='dangerous;query',
+                        region='us-east-1',
+                        profile='test-profile',
+                    ),
                     ctx=mock_context,
-                    workspace_id='ws-12345',
-                    query='dangerous;query',
-                    region='us-east-1',
-                    profile='test-profile',
                 )
 
     @pytest.mark.asyncio
@@ -140,11 +149,13 @@ class TestTools:
         ):
             with pytest.raises(Exception, match='Test error'):
                 await execute_query(
+                    input=ExecuteQueryInput(
+                        workspace_id='ws-12345',
+                        query='up',
+                        region='us-east-1',
+                        profile='test-profile',
+                    ),
                     ctx=mock_context,
-                    workspace_id='ws-12345',
-                    query='up',
-                    region='us-east-1',
-                    profile='test-profile',
                 )
 
             mock_context.error.assert_called_once()
@@ -179,14 +190,16 @@ class TestTools:
             patch('awslabs.prometheus_mcp_server.server.logger'),
         ):
             result = await execute_range_query(
+                input=ExecuteRangeQueryInput(
+                    workspace_id='ws-12345',
+                    query='rate(http_requests_total[5m])',
+                    start='2023-01-01T00:00:00Z',
+                    end='2023-01-01T01:00:00Z',
+                    step='5m',
+                    region='us-east-1',
+                    profile='test-profile',
+                ),
                 ctx=mock_context,
-                workspace_id='ws-12345',
-                query='rate(http_requests_total[5m])',
-                start='2023-01-01T00:00:00Z',
-                end='2023-01-01T01:00:00Z',
-                step='5m',
-                region='us-east-1',
-                profile='test-profile',
             )
 
             assert result == {'resultType': 'matrix', 'result': []}
@@ -221,10 +234,12 @@ class TestTools:
             patch('awslabs.prometheus_mcp_server.server.logger'),
         ):
             result = await list_metrics(
+                input=ListMetricsInput(
+                    workspace_id='ws-12345',
+                    region='us-east-1',
+                    profile='test-profile',
+                ),
                 ctx=mock_context,
-                workspace_id='ws-12345',
-                region='us-east-1',
-                profile='test-profile',
             )
 
             assert isinstance(result, MetricsList)
@@ -254,10 +269,12 @@ class TestTools:
             patch('awslabs.prometheus_mcp_server.server.logger'),
         ):
             result = await get_server_info(
+                input=GetServerInfoInput(
+                    workspace_id='ws-12345',
+                    region='us-east-1',
+                    profile='test-profile',
+                ),
                 ctx=mock_context,
-                workspace_id='ws-12345',
-                region='us-east-1',
-                profile='test-profile',
             )
 
             assert isinstance(result, ServerInfo)
@@ -320,7 +337,11 @@ class TestTools:
             patch.dict(os.environ, {'AWS_REGION': '', 'AWS_PROFILE': ''}, clear=True),
         ):
             result = await get_available_workspaces(
-                ctx=mock_context, region='us-east-1', profile='test-profile'
+                input=GetAvailableWorkspacesInput(
+                    region='us-east-1',
+                    profile='test-profile',
+                ),
+                ctx=mock_context,
             )
 
             assert result['count'] == 2
@@ -374,7 +395,11 @@ class TestTools:
             patch.dict(os.environ, {'AWS_REGION': '', 'AWS_PROFILE': ''}, clear=True),
         ):
             result = await get_available_workspaces(
-                ctx=mock_context, region='us-east-1', profile='test-profile'
+                input=GetAvailableWorkspacesInput(
+                    region='us-east-1',
+                    profile='test-profile',
+                ),
+                ctx=mock_context,
             )
 
             assert result['count'] == 2
@@ -439,7 +464,11 @@ class TestTools:
             patch.dict(os.environ, {'AWS_REGION': '', 'AWS_PROFILE': ''}, clear=True),
         ):
             result = await get_available_workspaces(
-                ctx=mock_context, region='us-east-1', profile='test-profile'
+                input=GetAvailableWorkspacesInput(
+                    region='us-east-1',
+                    profile='test-profile',
+                ),
+                ctx=mock_context,
             )
 
             assert result['count'] == 1  # Only one workspace successfully retrieved
@@ -507,7 +536,11 @@ class TestTools:
             patch('awslabs.prometheus_mcp_server.server.logger'),
         ):
             result = await get_available_workspaces(
-                ctx=mock_context, region='us-east-1', profile='test-profile'
+                input=GetAvailableWorkspacesInput(
+                    region='us-east-1',
+                    profile='test-profile',
+                ),
+                ctx=mock_context,
             )
 
             assert result['count'] == 2
@@ -571,7 +604,11 @@ class TestTools:
             patch('awslabs.prometheus_mcp_server.server.logger'),
         ):
             result = await get_available_workspaces(
-                ctx=mock_context, region='us-east-1', profile='test-profile'
+                input=GetAvailableWorkspacesInput(
+                    region='us-east-1',
+                    profile='test-profile',
+                ),
+                ctx=mock_context,
             )
 
             assert (
