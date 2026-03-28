@@ -113,3 +113,85 @@ For Neptune Database:
 
 For Neptune Analytics:
 `neptune-graph://<graph identifier>`
+
+## Security
+
+### Read-Only Mode (Default)
+
+The server runs in **read-only mode by default**, blocking mutating queries (e.g. `CREATE`, `DELETE`, `DROP`, `MERGE`, `SET`, `REMOVE`, `CALL` for openCypher and `addV`, `addE`, `mergeV`, `mergeE`, `drop`, `property`, `sideEffect` for Gremlin). To allow write operations, pass the `--allow-writes` flag:
+
+```json
+{
+  "mcpServers": {
+    "Neptune Query": {
+      "command": "uvx",
+      "args": ["awslabs.amazon-neptune-mcp-server@latest", "--allow-writes"],
+      "env": {
+        "NEPTUNE_ENDPOINT": "neptune-db://<Cluster Endpoint>"
+      }
+    }
+  }
+}
+```
+
+### IAM-Based Access Control (Recommended)
+
+For the strongest protection, use an IAM role that only grants read access to Neptune. This enforces restrictions at the service level — Neptune itself rejects any mutating query regardless of what the MCP server sends.
+
+**Neptune Database — read-only IAM policy:**
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "neptune-db:ReadDataViaQuery",
+        "neptune-db:GetQueryStatus",
+        "neptune-db:CancelQuery",
+        "neptune-db:GetGraphSummary"
+      ],
+      "Resource": "arn:aws:neptune-db:<region>:<account-id>:<cluster-resource-id>/*"
+    }
+  ]
+}
+```
+
+**Neptune Analytics — read-only IAM policy:**
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "neptune-graph:ReadDataViaQuery",
+        "neptune-graph:GetGraph",
+        "neptune-graph:GetGraphSummary"
+      ],
+      "Resource": "arn:aws:neptune-graph:<region>:<account-id>:graph/<graph-id>"
+    }
+  ]
+}
+```
+
+Configure the MCP server to use the read-only profile via `AWS_PROFILE`:
+
+```json
+{
+  "mcpServers": {
+    "Neptune Query": {
+      "command": "uvx",
+      "args": ["awslabs.amazon-neptune-mcp-server@latest"],
+      "env": {
+        "NEPTUNE_ENDPOINT": "neptune-db://<Cluster Endpoint>",
+        "AWS_PROFILE": "neptune-readonly"
+      }
+    }
+  }
+}
+```
+
+For best results, combine both layers: the `--allow-writes` flag controls application-level validation, while the IAM policy provides service-level enforcement that cannot be bypassed.

@@ -24,6 +24,10 @@ from awslabs.amazon_neptune_mcp_server.models import (
     Relationship,
     RelationshipPattern,
 )
+from awslabs.amazon_neptune_mcp_server.query_validator import (
+    validate_gremlin_query,
+    validate_opencypher_query,
+)
 from loguru import logger
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -293,6 +297,7 @@ class NeptuneDatabase(NeptuneGraph):
         Returns:
             Any: The query results, either as a single result or a list of results
         """
+        validate_opencypher_query(query)
         if params:
             resp = self.client.execute_open_cypher_query(
                 openCypherQuery=query,
@@ -312,5 +317,6 @@ class NeptuneDatabase(NeptuneGraph):
         Returns:
             Any: The query results, either as a single result or a list of results
         """
+        validate_gremlin_query(query)
         resp = self.client.execute_gremlin_query(gremlinQuery=query)
         return resp['result'] if 'result' in resp else resp['results']

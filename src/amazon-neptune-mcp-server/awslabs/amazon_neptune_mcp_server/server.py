@@ -18,6 +18,11 @@ import os
 import sys
 from awslabs.amazon_neptune_mcp_server.models import GraphSchema
 from awslabs.amazon_neptune_mcp_server.neptune import NeptuneServer
+from awslabs.amazon_neptune_mcp_server.query_validator import (
+    set_read_only,
+    validate_gremlin_query,
+    validate_opencypher_query,
+)
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
 from typing import Optional
@@ -101,17 +106,34 @@ def get_schema() -> GraphSchema:
 @mcp.tool(name='run_opencypher_query')
 def run_opencypher_query(query: str, parameters: Optional[dict] = None) -> dict:
     """Executes the provided openCypher against the graph."""
+    validate_opencypher_query(query)
     return get_graph().query_opencypher(query, parameters)
 
 
 @mcp.tool(name='run_gremlin_query')
 def run_gremlin_query(query: str) -> dict:
     """Executes the provided Tinkerpop Gremlin against the graph."""
+    validate_gremlin_query(query)
     return get_graph().query_gremlin(query)
 
 
 def main():
     """Run the MCP server with CLI argument support."""
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Amazon Neptune MCP Server')
+    parser.add_argument(
+        '--allow-writes',
+        action='store_true',
+        help='Allow mutating queries. Without this flag the server runs in read-only mode.',
+    )
+    args, _ = parser.parse_known_args()
+
+    set_read_only(not args.allow_writes)
+
+    mode = 'READ-WRITE' if args.allow_writes else 'READ-ONLY'
+    logger.info(f'Starting Neptune MCP server in {mode} mode')
+
     mcp.run()
 
 
