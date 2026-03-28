@@ -9,7 +9,7 @@ description: |
 on:
   push:
     tags:
-      - '[0-9][0-9][0-9][0-9].[0-9]+.[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]'
+      - "[0-9][0-9][0-9][0-9].[0-9]+.[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]"
 permissions:
   actions: none
   attestations: none
@@ -82,7 +82,7 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: write
-    needs: [validate-repository,look-for-changes]
+    needs: [validate-repository, look-for-changes]
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -294,7 +294,7 @@ jobs:
         changed-directory: ${{ fromJson(needs.look-for-changes.outputs.python-changed-directories) }}
       max-parallel: 10
     runs-on: ubuntu-latest
-    timeout-minutes: 240  # allow time for large packages but prevent hanging
+    timeout-minutes: 240 # allow time for large packages but prevent hanging
     permissions:
       contents: read
       id-token: write
@@ -351,6 +351,8 @@ jobs:
           echo "::debug::Directory validated: $FULL_PATH"
       - name: Install uv
         uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b # v7.3.0
+        with:
+          version: "0.11.1"
       - name: Build package
         working-directory: ${{ env.SRC_DIRECTORY }}/${{ matrix.changed-directory }}
         run: |
@@ -414,7 +416,13 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: write
-    needs: [validate-repository, draft_release_when_tagged, publish-pypi, publish-npmjs]
+    needs:
+      [
+        validate-repository,
+        draft_release_when_tagged,
+        publish-pypi,
+        publish-npmjs,
+      ]
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
