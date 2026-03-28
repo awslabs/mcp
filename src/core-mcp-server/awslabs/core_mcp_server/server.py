@@ -405,7 +405,7 @@ async def setup():
         )
         imported_servers = await call_import_server(
             billing_cost_management_server,
-            'billing_cost_management',
+            'bcm',
             'billing_cost_management_server',
             imported_servers,
         )
