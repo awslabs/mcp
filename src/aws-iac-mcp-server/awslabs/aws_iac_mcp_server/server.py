@@ -47,8 +47,8 @@ mcp = FastMCP(
                 ## Tool Selection Guide
 
                 - Use `validate_cloudformation_template` when: You need to validate CloudFormation template syntax, schema, and resource properties using cfn-lint
-                - Use `check_cloudformation_template_compliance` when: You need to validate templates against security and compliance rules using cfn-guard
-                - Use `cloudformation_pre_deploy_validation` when: You need instructions for pre-deployment validation using CloudFormation change sets to catch account-level issues
+                - Use `check_cfn_template_compliance` when: You need to validate templates against security and compliance rules using cfn-guard
+                - Use `get_cfn_predeploy_validation_guide` when: You need instructions for pre-deployment validation using CloudFormation change sets to catch account-level issues
                 - Use `troubleshoot_cloudformation_deployment` when: You need to diagnose CloudFormation deployment failures with root cause analysis and CloudTrail integration
                 - Use `search_cdk_documentation` when: You need specific CDK construct APIs, properties, or official documentation from AWS CDK knowledge bases
                 - Use `search_cdk_samples_and_constructs` when: You need working code examples, implementation patterns, or community constructs
@@ -142,7 +142,7 @@ def validate_cloudformation_template(
 
 
 @mcp.tool()
-def check_cloudformation_template_compliance(
+def check_cfn_template_compliance(
     template_content: str, rules_file_path: str = 'default_guard_rules.guard'
 ) -> str:
     """Validate CloudFormation template against security and compliance rules using cfn-guard.
@@ -261,7 +261,7 @@ def troubleshoot_cloudformation_deployment(
 
 
 @mcp.tool()
-def get_cloudformation_pre_deploy_validation_instructions() -> str:
+def get_cfn_predeploy_validation_guide() -> str:
     """Get instructions for CloudFormation pre-deployment validation.
 
     Returns structured JSON guidance for using CloudFormation's pre-deployment validation feature
