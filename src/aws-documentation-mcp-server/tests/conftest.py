@@ -14,6 +14,19 @@
 """Configuration for pytest."""
 
 import pytest
+from awslabs.aws_documentation_mcp_server.server_utils import get_http_client
+
+
+@pytest.fixture(autouse=True)
+def _reset_http_client_cache():
+    """Reset the cached httpx.AsyncClient between tests.
+
+    Without this, a mock client from one test leaks into subsequent tests
+    via the cached singleton, causing spurious failures.
+    """
+    get_http_client.cache_clear()
+    yield
+    get_http_client.cache_clear()
 
 
 def pytest_addoption(parser):
