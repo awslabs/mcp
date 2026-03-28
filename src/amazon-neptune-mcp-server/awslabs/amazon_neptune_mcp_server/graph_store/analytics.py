@@ -14,6 +14,7 @@
 
 import boto3
 import json
+from botocore.config import Config
 from awslabs.amazon_neptune_mcp_server.constants import USER_AGENT_CONFIG
 from awslabs.amazon_neptune_mcp_server.exceptions import NeptuneException
 from awslabs.amazon_neptune_mcp_server.graph_store import NeptuneGraph
@@ -28,11 +29,21 @@ from loguru import logger
 from typing import Optional
 
 
+import re
+
+GRAPH_ID_PATTERN = re.compile(r'^g-[a-z0-9]{10}$')
+
+
 class NeptuneAnalytics(NeptuneGraph):
     """Neptune Analytics wrapper for graph operations.
 
     Args:
         graph_identifier: the graph identifier for a Neptune Analytics graph
+        credentials_profile_name: optional AWS profile name
+        endpoint_url: optional custom endpoint URL for the Neptune Analytics
+            service endpoint (e.g., for VPC endpoints or non-standard configurations).
+            When set, inject_host_prefix is disabled to avoid boto3 prepending
+            the graph identifier to the endpoint hostname.
 
     Example:
         .. code-block:: python
@@ -45,7 +56,10 @@ class NeptuneAnalytics(NeptuneGraph):
     schema: Optional[GraphSchema] = None
 
     def __init__(
-        self, graph_identifier: str, credentials_profile_name: Optional[str] = None
+        self,
+        graph_identifier: str,
+        credentials_profile_name: Optional[str] = None,
+        endpoint_url: Optional[str] = None,
     ) -> None:
         """Create a new Neptune Analytics graph wrapper instance."""
         self.graph_identifier = graph_identifier
@@ -56,7 +70,15 @@ class NeptuneAnalytics(NeptuneGraph):
             else:
                 session = boto3.Session(profile_name=credentials_profile_name)
 
-            self.client = session.client('neptune-graph', config=USER_AGENT_CONFIG)
+            client_params = {}
+            config = USER_AGENT_CONFIG
+            if endpoint_url:
+                client_params['endpoint_url'] = endpoint_url
+                config = Config(inject_host_prefix=False).merge(USER_AGENT_CONFIG)
+
+            self.client = session.client(
+                'neptune-graph', config=config, **client_params
+            )
 
         except Exception as e:
             logger.exception(
