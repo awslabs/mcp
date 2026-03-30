@@ -322,8 +322,8 @@ class PsycopgPoolConnection(AbstractDBConnection):
                 logger.error('Secret does not contain a SecretString')
                 raise ValueError('Secret does not contain a SecretString')
         except Exception as e:
-            logger.exception(f'Failed to retrive credentials from Secrets Manager: {str(e)}')
-            raise
+            logger.exception(f'Failed to retrieve credentials from Secrets Manager: {str(e)}')
+            raise ValueError(f'Failed to retrieve credentials from Secrets Manager: {str(e)}')
 
     async def close(self) -> None:
         """Close all connections in the pool."""
