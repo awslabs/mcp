@@ -1,4 +1,4 @@
-"""End-to-end integration test for postgres MCP server.
+r"""End-to-end integration test for postgres MCP server.
 
 Runs against real Aurora PostgreSQL clusters created during the test.
 Creates one Express cluster and one Serverless cluster:
@@ -23,11 +23,12 @@ import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime
-from loguru import logger
 
-# Import MCP tool functions and supporting types directly from server
 import awslabs.postgres_mcp_server.server as server
+from awslabs.postgres_mcp_server.connection.cp_api_connection import internal_delete_cluster
+from awslabs.postgres_mcp_server.connection.db_connection_map import ConnectionMethod, DatabaseType
 from awslabs.postgres_mcp_server.server import (
+    DummyCtx,
     connect_to_database,
     create_cluster,
     get_database_connection_info,
@@ -35,10 +36,8 @@ from awslabs.postgres_mcp_server.server import (
     get_table_schema,
     is_database_connected,
     run_query,
-    DummyCtx,
 )
-from awslabs.postgres_mcp_server.connection.cp_api_connection import internal_delete_cluster
-from awslabs.postgres_mcp_server.connection.db_connection_map import ConnectionMethod, DatabaseType
+from loguru import logger
 
 
 @dataclass
@@ -326,9 +325,6 @@ async def run_test_suite(config: ClusterConfig, table_suffix: str) -> TestResult
     # 10. Manual cleanup - delete table directly via psycopg (bypass MCP restrictions)
     step = f'Manual cleanup: DROP TABLE {table_name}'
     try:
-        from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import PsycopgPoolConnection
-        from awslabs.postgres_mcp_server.connection.rds_api_connection import RDSDataAPIConnection
-
         # Get the connection from the map
         from awslabs.postgres_mcp_server.server import db_connection_map
         db_conn = db_connection_map.get(
