@@ -36,7 +36,12 @@ The MCP server provides tools for:
 - **Cluster Management**: Create clusters, monitor job status
    -- database cluster creation take about 5 to 10 minutes after create_cluster tool call
    -- get_job_status tool should be run every minute or so. Running it every few seconds is excessive and may feel like a stuck loop.
+   -- use with_express_configuration: true for fast dev/test setup
+   -- if use with_express_configuration:false, a regular cluster with serverless instance will be created. Its creation time is much longer than with_express_configuration:true
 - **Database Connections**: Connect to databases, manage multiple connections
+   -- for cluster created with with_express_configuration=true, use pgwire_iam connection_method only
+   -- to use pgwire or pgwire_iam connection_method on regular cluster, It normally equires additional setup on VPC network security group to work because MCP is not in the same VPC as the cluster and the cluster by default doesn't allow public access over the internet
+   -- use rdsapi connection_method by default for regular cluster that is not created by with_express_configuration; it requires the cluster enable RDSAPI.
 - **Query Execution**: Run SQL queries with safety guardrails
 - **Schema Exploration**: Get table schemas and metadata
 
