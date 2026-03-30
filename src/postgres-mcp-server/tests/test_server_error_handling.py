@@ -139,7 +139,9 @@ class TestConnectToDatabaseErrorHandling:
     @pytest.mark.asyncio
     async def test_connect_to_database_initializes_pool_for_psycopg(self):
         """Test connect_to_database eagerly initializes pool for PsycopgPoolConnection."""
-        from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import PsycopgPoolConnection
+        from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import (
+            PsycopgPoolConnection,
+        )
 
         mock_pool_conn = MagicMock(spec=PsycopgPoolConnection)
         mock_pool_conn.initialize_pool = AsyncMock()
@@ -172,7 +174,9 @@ class TestConnectToDatabaseErrorHandling:
     @pytest.mark.asyncio
     async def test_connect_to_database_pool_init_failure(self):
         """Test connect_to_database returns error and removes connection from map when pool init fails."""
-        from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import PsycopgPoolConnection
+        from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import (
+            PsycopgPoolConnection,
+        )
         from awslabs.postgres_mcp_server.server import db_connection_map
 
         mock_pool_conn = MagicMock(spec=PsycopgPoolConnection)

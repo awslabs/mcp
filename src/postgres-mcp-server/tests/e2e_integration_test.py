@@ -18,13 +18,10 @@ Usage:
 
 import argparse
 import asyncio
+import awslabs.postgres_mcp_server.server as server
 import json
 import sys
 import time
-from dataclasses import dataclass
-from datetime import datetime
-
-import awslabs.postgres_mcp_server.server as server
 from awslabs.postgres_mcp_server.connection.cp_api_connection import internal_delete_cluster
 from awslabs.postgres_mcp_server.connection.db_connection_map import ConnectionMethod, DatabaseType
 from awslabs.postgres_mcp_server.server import (
@@ -37,6 +34,8 @@ from awslabs.postgres_mcp_server.server import (
     is_database_connected,
     run_query,
 )
+from dataclasses import dataclass
+from datetime import datetime
 from loguru import logger
 
 
@@ -133,7 +132,9 @@ def create_serverless_cluster_and_wait(
         raise RuntimeError(f'Serverless cluster creation timed out after {max_attempts} attempts')
 
     # Retrieve endpoint from cluster properties
-    from awslabs.postgres_mcp_server.connection.cp_api_connection import internal_get_cluster_properties
+    from awslabs.postgres_mcp_server.connection.cp_api_connection import (
+        internal_get_cluster_properties,
+    )
     props = internal_get_cluster_properties(cluster_identifier, region)
     endpoint = props['Endpoint']
     log_step('create_cluster (serverless)', 'PASS', f'endpoint={endpoint}')
