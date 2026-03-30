@@ -52,9 +52,7 @@ def internal_get_instance_properties(target_endpoint: str, region: str) -> Dict[
         )
         raise
 
-    not_found_error = (
-        f"Instance with endpoint '{target_endpoint}' in region:{region} not found when getting its properties"
-    )
+    not_found_error = f"Instance with endpoint '{target_endpoint}' in region:{region} not found when getting its properties"
     logger.error(not_found_error)
     raise ValueError(not_found_error)
 
@@ -176,7 +174,9 @@ def internal_create_express_cluster(cluster_identifier: str, region: str) -> Dic
         )
         raise
     except Exception as e:
-        logger.exception(f"Error creating express cluster '{cluster_identifier}': {type(e).__name__}: {e}")
+        logger.exception(
+            f"Error creating express cluster '{cluster_identifier}': {type(e).__name__}: {e}"
+        )
         raise
 
 
@@ -597,7 +597,9 @@ def setup_aurora_iam_policy_for_current_user(
 
             except iam.exceptions.AccessDeniedException:
                 # 🔵 MODIFIED: Graceful handling of permission denied
-                logger.exception(f"\n❌ Access Denied: Cannot attach policy to role '{current_role}'")
+                logger.exception(
+                    f"\n❌ Access Denied: Cannot attach policy to role '{current_role}'"
+                )
                 logger.error("   Your session does not have 'iam:AttachRolePolicy' permission")
                 logger.info(f'\n✓ Policy created successfully: {policy_arn}')
                 logger.info('   But could not be attached automatically.')
@@ -718,7 +720,10 @@ def internal_delete_cluster(region: str, cluster_id: str) -> None:
                 rds.describe_db_instances(DBInstanceIdentifier=inst_id)
                 # still exists
             except ClientError as e:
-                if e.response['Error']['Code'] in ('DBInstanceNotFound', 'DBInstanceNotFoundFault'):
+                if e.response['Error']['Code'] in (
+                    'DBInstanceNotFound',
+                    'DBInstanceNotFoundFault',
+                ):
                     logger.info(f"Instance '{inst_id}' deleted")
                     done.append(inst_id)
                 else:

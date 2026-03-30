@@ -230,9 +230,7 @@ class TestInternalGetClusterProperties:
             'DBClusters': [{'DBClusterIdentifier': 'test-cluster'}]
         }
 
-        internal_get_cluster_properties(
-            'test-cluster', 'us-west-2'
-        )
+        internal_get_cluster_properties('test-cluster', 'us-west-2')
 
         mock_create_client.assert_called_once_with('us-west-2')
 
@@ -1028,16 +1026,23 @@ class TestInternalDeleteCluster:
 
         mock_rds.describe_db_clusters.side_effect = [
             # First call: cluster exists
-            {'DBClusters': [{
-                'DBClusterIdentifier': 'test-cluster',
-                'Status': 'available',
-                'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
-                'DBClusterMembers': [{'DBInstanceIdentifier': 'test-instance-1'}],
-            }]},
+            {
+                'DBClusters': [
+                    {
+                        'DBClusterIdentifier': 'test-cluster',
+                        'Status': 'available',
+                        'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
+                        'DBClusterMembers': [{'DBInstanceIdentifier': 'test-instance-1'}],
+                    }
+                ]
+            },
             # Second call (polling): cluster still exists
             {'DBClusters': [{'DBClusterIdentifier': 'test-cluster'}]},
             # Third call (polling): cluster gone
-            ClientError({'Error': {'Code': 'DBClusterNotFoundFault', 'Message': 'Not found'}}, 'DescribeDBClusters'),
+            ClientError(
+                {'Error': {'Code': 'DBClusterNotFoundFault', 'Message': 'Not found'}},
+                'DescribeDBClusters',
+            ),
         ]
 
         mock_rds.list_tags_for_resource.return_value = {
@@ -1046,7 +1051,10 @@ class TestInternalDeleteCluster:
 
         # Instance polling: first call exists, second call gone
         mock_rds.describe_db_instances.side_effect = [
-            ClientError({'Error': {'Code': 'DBInstanceNotFoundFault', 'Message': 'Not found'}}, 'DescribeDBInstances'),
+            ClientError(
+                {'Error': {'Code': 'DBInstanceNotFoundFault', 'Message': 'Not found'}},
+                'DescribeDBInstances',
+            ),
         ]
 
         internal_delete_cluster('us-east-1', 'test-cluster')
@@ -1085,12 +1093,14 @@ class TestInternalDeleteCluster:
         mock_boto3.client.return_value = mock_rds
 
         mock_rds.describe_db_clusters.return_value = {
-            'DBClusters': [{
-                'DBClusterIdentifier': 'test-cluster',
-                'Status': 'available',
-                'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
-                'DBClusterMembers': [],
-            }]
+            'DBClusters': [
+                {
+                    'DBClusterIdentifier': 'test-cluster',
+                    'Status': 'available',
+                    'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
+                    'DBClusterMembers': [],
+                }
+            ]
         }
 
         mock_rds.list_tags_for_resource.return_value = {
@@ -1110,12 +1120,14 @@ class TestInternalDeleteCluster:
         mock_boto3.client.return_value = mock_rds
 
         mock_rds.describe_db_clusters.return_value = {
-            'DBClusters': [{
-                'DBClusterIdentifier': 'test-cluster',
-                'Status': 'available',
-                'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
-                'DBClusterMembers': [],
-            }]
+            'DBClusters': [
+                {
+                    'DBClusterIdentifier': 'test-cluster',
+                    'Status': 'available',
+                    'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
+                    'DBClusterMembers': [],
+                }
+            ]
         }
 
         mock_rds.list_tags_for_resource.return_value = {'TagList': []}
@@ -1144,14 +1156,21 @@ class TestInternalDeleteCluster:
         mock_boto3.client.return_value = mock_rds
 
         mock_rds.describe_db_clusters.side_effect = [
-            {'DBClusters': [{
-                'DBClusterIdentifier': 'test-cluster',
-                'Status': 'available',
-                'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
-                'DBClusterMembers': [{'DBInstanceIdentifier': 'test-instance-1'}],
-            }]},
+            {
+                'DBClusters': [
+                    {
+                        'DBClusterIdentifier': 'test-cluster',
+                        'Status': 'available',
+                        'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
+                        'DBClusterMembers': [{'DBInstanceIdentifier': 'test-instance-1'}],
+                    }
+                ]
+            },
             # Polling: cluster gone
-            ClientError({'Error': {'Code': 'DBClusterNotFoundFault', 'Message': 'Not found'}}, 'DescribeDBClusters'),
+            ClientError(
+                {'Error': {'Code': 'DBClusterNotFoundFault', 'Message': 'Not found'}},
+                'DescribeDBClusters',
+            ),
         ]
 
         mock_rds.list_tags_for_resource.return_value = {
@@ -1183,12 +1202,14 @@ class TestInternalDeleteCluster:
         mock_boto3.client.return_value = mock_rds
 
         mock_rds.describe_db_clusters.return_value = {
-            'DBClusters': [{
-                'DBClusterIdentifier': 'test-cluster',
-                'Status': 'available',
-                'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
-                'DBClusterMembers': [{'DBInstanceIdentifier': 'test-instance-1'}],
-            }]
+            'DBClusters': [
+                {
+                    'DBClusterIdentifier': 'test-cluster',
+                    'Status': 'available',
+                    'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
+                    'DBClusterMembers': [{'DBInstanceIdentifier': 'test-instance-1'}],
+                }
+            ]
         }
 
         mock_rds.list_tags_for_resource.return_value = {
@@ -1210,12 +1231,14 @@ class TestInternalDeleteCluster:
         mock_boto3.client.return_value = mock_rds
 
         mock_rds.describe_db_clusters.return_value = {
-            'DBClusters': [{
-                'DBClusterIdentifier': 'test-cluster',
-                'Status': 'available',
-                'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
-                'DBClusterMembers': [],
-            }]
+            'DBClusters': [
+                {
+                    'DBClusterIdentifier': 'test-cluster',
+                    'Status': 'available',
+                    'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
+                    'DBClusterMembers': [],
+                }
+            ]
         }
 
         mock_rds.list_tags_for_resource.return_value = {
@@ -1223,7 +1246,12 @@ class TestInternalDeleteCluster:
         }
 
         mock_rds.delete_db_cluster.side_effect = ClientError(
-            {'Error': {'Code': 'InvalidDBClusterStateFault', 'Message': 'Cluster is not in a valid state'}},
+            {
+                'Error': {
+                    'Code': 'InvalidDBClusterStateFault',
+                    'Message': 'Cluster is not in a valid state',
+                }
+            },
             'DeleteDBCluster',
         )
 
@@ -1238,14 +1266,21 @@ class TestInternalDeleteCluster:
         mock_boto3.client.return_value = mock_rds
 
         mock_rds.describe_db_clusters.side_effect = [
-            {'DBClusters': [{
-                'DBClusterIdentifier': 'test-cluster',
-                'Status': 'available',
-                'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
-                'DBClusterMembers': [],
-            }]},
+            {
+                'DBClusters': [
+                    {
+                        'DBClusterIdentifier': 'test-cluster',
+                        'Status': 'available',
+                        'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
+                        'DBClusterMembers': [],
+                    }
+                ]
+            },
             # Polling: cluster gone
-            ClientError({'Error': {'Code': 'DBClusterNotFoundFault', 'Message': 'Not found'}}, 'DescribeDBClusters'),
+            ClientError(
+                {'Error': {'Code': 'DBClusterNotFoundFault', 'Message': 'Not found'}},
+                'DescribeDBClusters',
+            ),
         ]
 
         mock_rds.list_tags_for_resource.return_value = {

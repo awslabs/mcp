@@ -145,13 +145,15 @@ class TestConnectToDatabaseErrorHandling:
 
         mock_pool_conn = MagicMock(spec=PsycopgPoolConnection)
         mock_pool_conn.initialize_pool = AsyncMock()
-        mock_response = json.dumps({
-            'connection_method': 'pgwire_iam',
-            'cluster_identifier': 'test-cluster',
-            'db_endpoint': 'test.endpoint.com',
-            'database': 'testdb',
-            'port': 5432,
-        })
+        mock_response = json.dumps(
+            {
+                'connection_method': 'pgwire_iam',
+                'cluster_identifier': 'test-cluster',
+                'db_endpoint': 'test.endpoint.com',
+                'database': 'testdb',
+                'port': 5432,
+            }
+        )
 
         with patch(
             'awslabs.postgres_mcp_server.server.internal_create_connection'
@@ -183,13 +185,15 @@ class TestConnectToDatabaseErrorHandling:
         mock_pool_conn.initialize_pool = AsyncMock(
             side_effect=Exception('pool initialization incomplete after 30 sec')
         )
-        mock_response = json.dumps({
-            'connection_method': 'pgwire_iam',
-            'cluster_identifier': 'test-cluster',
-            'db_endpoint': 'test.endpoint.com',
-            'database': 'testdb',
-            'port': 5432,
-        })
+        mock_response = json.dumps(
+            {
+                'connection_method': 'pgwire_iam',
+                'cluster_identifier': 'test-cluster',
+                'db_endpoint': 'test.endpoint.com',
+                'database': 'testdb',
+                'port': 5432,
+            }
+        )
 
         with patch(
             'awslabs.postgres_mcp_server.server.internal_create_connection'

@@ -287,7 +287,7 @@ async def connect_to_database(
     cluster_identifier: Annotated[str, Field(description='cluster identifier')],
     db_endpoint: Annotated[str, Field(description='database endpoint')],
     port: Annotated[int, Field(description='Postgres port')],
-    database: Annotated[str, Field(description='database name')]
+    database: Annotated[str, Field(description='database name')],
 ) -> str:
     """Connect to a specific database save the connection internally.
 
@@ -322,7 +322,7 @@ async def connect_to_database(
             cluster_identifier=cluster_identifier,
             db_endpoint=db_endpoint,
             port=port,
-            database=database
+            database=database,
         )
 
         # Eagerly initialize the connection pool so it's ready for queries
@@ -433,8 +433,7 @@ def create_cluster(
         internal_create_express_cluster(cluster_identifier, region)
 
         properties = internal_get_cluster_properties(
-            cluster_identifier=cluster_identifier,
-            region=region
+            cluster_identifier=cluster_identifier, region=region
         )
 
         setup_aurora_iam_policy_for_current_user(
@@ -450,7 +449,7 @@ def create_cluster(
             cluster_identifier=cluster_identifier,
             db_endpoint=properties['Endpoint'],
             port=5432,
-            database=database
+            database=database,
         )
 
         result = {
@@ -595,7 +594,7 @@ def internal_create_connection(
     cluster_identifier: Annotated[str, Field(description='cluster identifier')],
     db_endpoint: Annotated[str, Field(description='database endpoint')],
     port: Annotated[int, Field(description='Postgres port')],
-    database: Annotated[str, Field(description='database name')] = 'postgres'
+    database: Annotated[str, Field(description='database name')] = 'postgres',
 ) -> Tuple:
     """Connect to a specific database save the connection internally.
 
@@ -659,8 +658,7 @@ def internal_create_connection(
     if cluster_identifier:
         # Can be either APG (APG always requires cluster) or RPG multi-AZ cluster deployment case
         cluster_properties = internal_get_cluster_properties(
-            cluster_identifier=cluster_identifier,
-            region=region
+            cluster_identifier=cluster_identifier, region=region
         )
 
         enable_data_api = cluster_properties.get('HttpEndpointEnabled', False)

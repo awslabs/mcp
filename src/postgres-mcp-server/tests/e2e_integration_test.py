@@ -81,7 +81,9 @@ def log_step(step: str, status: str, detail: str = ''):
         logger.info(msg)
 
 
-def create_express_cluster(cluster_identifier: str, region: str, database: str, engine_version: str) -> str:
+def create_express_cluster(
+    cluster_identifier: str, region: str, database: str, engine_version: str
+) -> str:
     """Create express cluster synchronously. Returns db_endpoint."""
     log_step('create_cluster (express)', 'INFO', cluster_identifier)
     result_json = create_cluster(
@@ -101,8 +103,12 @@ def create_express_cluster(cluster_identifier: str, region: str, database: str, 
 
 
 def create_serverless_cluster_and_wait(
-    cluster_identifier: str, region: str, database: str, engine_version: str,
-    poll_interval: int = 30, max_attempts: int = 40
+    cluster_identifier: str,
+    region: str,
+    database: str,
+    engine_version: str,
+    poll_interval: int = 30,
+    max_attempts: int = 40,
 ) -> str:
     """Create serverless cluster async, poll until done. Returns db_endpoint."""
     log_step('create_cluster (serverless)', 'INFO', cluster_identifier)
@@ -135,6 +141,7 @@ def create_serverless_cluster_and_wait(
     from awslabs.postgres_mcp_server.connection.cp_api_connection import (
         internal_get_cluster_properties,
     )
+
     props = internal_get_cluster_properties(cluster_identifier, region)
     endpoint = props['Endpoint']
     log_step('create_cluster (serverless)', 'PASS', f'endpoint={endpoint}')
@@ -145,6 +152,7 @@ def create_serverless_cluster_and_wait(
 def wait_for_dns(endpoint: str, max_wait: int = 120, interval: int = 10):
     """Wait until the endpoint DNS resolves."""
     import socket
+
     logger.info(f'  Waiting for DNS resolution of {endpoint} (max {max_wait}s)...')
     elapsed = 0
     while elapsed < max_wait:
@@ -172,9 +180,9 @@ async def run_test_suite(config: ClusterConfig, table_suffix: str) -> TestResult
     # Always use 'postgres' database for testing
     test_database = 'postgres'
 
-    logger.info(f'\n{"="*60}')
+    logger.info(f'\n{"=" * 60}')
     logger.info(f'Running test suite on {cluster_display} cluster: {config.cluster_identifier}')
-    logger.info(f'{"="*60}')
+    logger.info(f'{"=" * 60}')
 
     def record(step, ok, detail=''):
         """Record a test step result as passed or failed."""
@@ -319,7 +327,9 @@ async def run_test_suite(config: ClusterConfig, table_suffix: str) -> TestResult
         )
         # Expect error because DROP is a risky command
         ok = rows and 'error' in rows[0]
-        record(step, ok, 'Correctly rejected DROP command' if ok else 'DROP should have been rejected')
+        record(
+            step, ok, 'Correctly rejected DROP command' if ok else 'DROP should have been rejected'
+        )
     except Exception as e:
         record(step, False, str(e))
 
@@ -328,12 +338,13 @@ async def run_test_suite(config: ClusterConfig, table_suffix: str) -> TestResult
     try:
         # Get the connection from the map
         from awslabs.postgres_mcp_server.server import db_connection_map
+
         db_conn = db_connection_map.get(
             config.connection_method,
             config.cluster_identifier,
             config.db_endpoint,
             test_database,
-            config.port
+            config.port,
         )
 
         if db_conn:
@@ -357,9 +368,9 @@ async def run_test_suite(config: ClusterConfig, table_suffix: str) -> TestResult
 
 def print_summary(results: list[TestResult]):
     """Print a formatted summary of all test results. Returns True if all passed."""
-    logger.info(f'\n{"="*60}')
+    logger.info(f'\n{"=" * 60}')
     logger.info('TEST SUMMARY')
-    logger.info(f'{"="*60}')
+    logger.info(f'{"=" * 60}')
     all_passed = True
     for r in results:
         status = 'PASSED' if r.success else 'FAILED'
@@ -372,9 +383,9 @@ def print_summary(results: list[TestResult]):
                 logger.error(f'      Error: {error}')
         if not r.success:
             all_passed = False
-    logger.info(f'\n{"="*60}')
+    logger.info(f'\n{"=" * 60}')
     logger.info(f'Overall: {"ALL PASSED" if all_passed else "SOME FAILED"}')
-    logger.info(f'{"="*60}\n')
+    logger.info(f'{"=" * 60}\n')
     return all_passed
 
 
@@ -426,10 +437,12 @@ async def main_async(args):
         ]
 
         if args.test_pgwire:
-            connection_methods.extend([
-                (ConnectionMethod.PG_WIRE_IAM_PROTOCOL, 'PG_WIRE_IAM_PROTOCOL'),
-                (ConnectionMethod.PG_WIRE_PROTOCOL, 'PG_WIRE_PROTOCOL'),
-            ])
+            connection_methods.extend(
+                [
+                    (ConnectionMethod.PG_WIRE_IAM_PROTOCOL, 'PG_WIRE_IAM_PROTOCOL'),
+                    (ConnectionMethod.PG_WIRE_PROTOCOL, 'PG_WIRE_PROTOCOL'),
+                ]
+            )
 
         for conn_method, conn_name in connection_methods:
             config = ClusterConfig(
@@ -447,6 +460,7 @@ async def main_async(args):
     except Exception as e:
         logger.error(f'Test suite failed with error: {e}')
         import traceback
+
         traceback.print_exc()
 
     # Print summary before cleanup
@@ -475,12 +489,25 @@ def main():
         description='End-to-end integration test for postgres MCP server'
     )
     parser.add_argument('--region', required=True, help='AWS region (e.g. us-east-1)')
-    parser.add_argument('--engine-version', required=True, help='Aurora PostgreSQL engine version (e.g. 16.4)')
-    parser.add_argument('--database', default='mcp_test_db', help='Database name (default: mcp_test_db)')
+    parser.add_argument(
+        '--engine-version', required=True, help='Aurora PostgreSQL engine version (e.g. 16.4)'
+    )
+    parser.add_argument(
+        '--database', default='mcp_test_db', help='Database name (default: mcp_test_db)'
+    )
     parser.add_argument('--port', type=int, default=5432, help='Database port (default: 5432)')
-    parser.add_argument('--no-cleanup', action='store_true', default=False, help='Skip cluster deletion after test (default: False)')
-    parser.add_argument('--test-pgwire', action='store_true', default=False,
-                        help='Also test PG_WIRE_IAM_PROTOCOL and PG_WIRE_PROTOCOL (requires VPC access, default: False)')
+    parser.add_argument(
+        '--no-cleanup',
+        action='store_true',
+        default=False,
+        help='Skip cluster deletion after test (default: False)',
+    )
+    parser.add_argument(
+        '--test-pgwire',
+        action='store_true',
+        default=False,
+        help='Also test PG_WIRE_IAM_PROTOCOL and PG_WIRE_PROTOCOL (requires VPC access, default: False)',
+    )
     args = parser.parse_args()
 
     asyncio.run(main_async(args))
