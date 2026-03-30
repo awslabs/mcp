@@ -5,6 +5,7 @@ from awslabs.postgres_mcp_server.connection.cp_api_connection import (
     internal_create_express_cluster,
     internal_create_rds_client,
     internal_create_serverless_cluster,
+    internal_delete_cluster,
     internal_get_cluster_properties,
 )
 from botocore.exceptions import ClientError, WaiterError
@@ -1008,3 +1009,250 @@ class TestSetupAuroraIamPolicy:
         mock_iam.delete_policy_version.assert_called_once()
         delete_call = mock_iam.delete_policy_version.call_args
         assert delete_call[1]['VersionId'] == 'v1'  # Oldest non-default version
+
+
+# =============================================================================
+# TESTS FOR: internal_delete_cluster
+# =============================================================================
+
+
+class TestInternalDeleteCluster:
+    """Tests for internal_delete_cluster function."""
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.time')
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.boto3')
+    def test_delete_cluster_success(self, mock_boto3, mock_time):
+        """Test successful cluster deletion with one instance."""
+        mock_rds = MagicMock()
+        mock_boto3.client.return_value = mock_rds
+
+        mock_rds.describe_db_clusters.side_effect = [
+            # First call: cluster exists
+            {'DBClusters': [{
+                'DBClusterIdentifier': 'test-cluster',
+                'Status': 'available',
+                'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
+                'DBClusterMembers': [{'DBInstanceIdentifier': 'test-instance-1'}],
+            }]},
+            # Second call (polling): cluster still exists
+            {'DBClusters': [{'DBClusterIdentifier': 'test-cluster'}]},
+            # Third call (polling): cluster gone
+            ClientError({'Error': {'Code': 'DBClusterNotFoundFault', 'Message': 'Not found'}}, 'DescribeDBClusters'),
+        ]
+
+        mock_rds.list_tags_for_resource.return_value = {
+            'TagList': [{'Key': 'CreatedBy', 'Value': 'MCP'}]
+        }
+
+        # Instance polling: first call exists, second call gone
+        mock_rds.describe_db_instances.side_effect = [
+            ClientError({'Error': {'Code': 'DBInstanceNotFoundFault', 'Message': 'Not found'}}, 'DescribeDBInstances'),
+        ]
+
+        internal_delete_cluster('us-east-1', 'test-cluster')
+
+        mock_rds.delete_db_instance.assert_called_once_with(
+            DBInstanceIdentifier='test-instance-1',
+            SkipFinalSnapshot=True,
+            DeleteAutomatedBackups=True,
+        )
+        mock_rds.delete_db_cluster.assert_called_once_with(
+            DBClusterIdentifier='test-cluster',
+            SkipFinalSnapshot=True,
+        )
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.boto3')
+    def test_delete_cluster_not_found(self, mock_boto3):
+        """Test deletion when cluster doesn't exist — should return silently."""
+        mock_rds = MagicMock()
+        mock_boto3.client.return_value = mock_rds
+
+        mock_rds.describe_db_clusters.side_effect = ClientError(
+            {'Error': {'Code': 'DBClusterNotFoundFault', 'Message': 'Not found'}},
+            'DescribeDBClusters',
+        )
+
+        # Should not raise
+        internal_delete_cluster('us-east-1', 'nonexistent-cluster')
+
+        mock_rds.delete_db_instance.assert_not_called()
+        mock_rds.delete_db_cluster.assert_not_called()
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.boto3')
+    def test_delete_cluster_not_created_by_mcp(self, mock_boto3):
+        """Test deletion is rejected when cluster was not created by MCP."""
+        mock_rds = MagicMock()
+        mock_boto3.client.return_value = mock_rds
+
+        mock_rds.describe_db_clusters.return_value = {
+            'DBClusters': [{
+                'DBClusterIdentifier': 'test-cluster',
+                'Status': 'available',
+                'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
+                'DBClusterMembers': [],
+            }]
+        }
+
+        mock_rds.list_tags_for_resource.return_value = {
+            'TagList': [{'Key': 'Environment', 'Value': 'prod'}]
+        }
+
+        with pytest.raises(Exception, match='Can only delete clusters created by MCP tool'):
+            internal_delete_cluster('us-east-1', 'test-cluster')
+
+        mock_rds.delete_db_instance.assert_not_called()
+        mock_rds.delete_db_cluster.assert_not_called()
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.boto3')
+    def test_delete_cluster_no_tags(self, mock_boto3):
+        """Test deletion is rejected when cluster has no tags."""
+        mock_rds = MagicMock()
+        mock_boto3.client.return_value = mock_rds
+
+        mock_rds.describe_db_clusters.return_value = {
+            'DBClusters': [{
+                'DBClusterIdentifier': 'test-cluster',
+                'Status': 'available',
+                'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
+                'DBClusterMembers': [],
+            }]
+        }
+
+        mock_rds.list_tags_for_resource.return_value = {'TagList': []}
+
+        with pytest.raises(Exception, match='Can only delete clusters created by MCP tool'):
+            internal_delete_cluster('us-east-1', 'test-cluster')
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.boto3')
+    def test_delete_cluster_describe_error(self, mock_boto3):
+        """Test deletion when describe_db_clusters returns unexpected error."""
+        mock_rds = MagicMock()
+        mock_boto3.client.return_value = mock_rds
+
+        mock_rds.describe_db_clusters.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}},
+            'DescribeDBClusters',
+        )
+
+        with pytest.raises(ClientError):
+            internal_delete_cluster('us-east-1', 'test-cluster')
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.boto3')
+    def test_delete_cluster_instance_already_deleted(self, mock_boto3):
+        """Test deletion when instance is already gone."""
+        mock_rds = MagicMock()
+        mock_boto3.client.return_value = mock_rds
+
+        mock_rds.describe_db_clusters.side_effect = [
+            {'DBClusters': [{
+                'DBClusterIdentifier': 'test-cluster',
+                'Status': 'available',
+                'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
+                'DBClusterMembers': [{'DBInstanceIdentifier': 'test-instance-1'}],
+            }]},
+            # Polling: cluster gone
+            ClientError({'Error': {'Code': 'DBClusterNotFoundFault', 'Message': 'Not found'}}, 'DescribeDBClusters'),
+        ]
+
+        mock_rds.list_tags_for_resource.return_value = {
+            'TagList': [{'Key': 'CreatedBy', 'Value': 'MCP'}]
+        }
+
+        # delete_db_instance returns "already deleted"
+        mock_rds.delete_db_instance.side_effect = ClientError(
+            {'Error': {'Code': 'DBInstanceNotFoundFault', 'Message': 'Not found'}},
+            'DeleteDBInstance',
+        )
+
+        # Instance polling: already gone
+        mock_rds.describe_db_instances.side_effect = ClientError(
+            {'Error': {'Code': 'DBInstanceNotFoundFault', 'Message': 'Not found'}},
+            'DescribeDBInstances',
+        )
+
+        internal_delete_cluster('us-east-1', 'test-cluster')
+
+        # delete_db_instance was called but instance was already gone — that's OK
+        mock_rds.delete_db_instance.assert_called_once()
+        mock_rds.delete_db_cluster.assert_called_once()
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.boto3')
+    def test_delete_cluster_instance_delete_error(self, mock_boto3):
+        """Test deletion when instance deletion fails with unexpected error."""
+        mock_rds = MagicMock()
+        mock_boto3.client.return_value = mock_rds
+
+        mock_rds.describe_db_clusters.return_value = {
+            'DBClusters': [{
+                'DBClusterIdentifier': 'test-cluster',
+                'Status': 'available',
+                'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
+                'DBClusterMembers': [{'DBInstanceIdentifier': 'test-instance-1'}],
+            }]
+        }
+
+        mock_rds.list_tags_for_resource.return_value = {
+            'TagList': [{'Key': 'CreatedBy', 'Value': 'MCP'}]
+        }
+
+        mock_rds.delete_db_instance.side_effect = ClientError(
+            {'Error': {'Code': 'InternalFailure', 'Message': 'Internal error'}},
+            'DeleteDBInstance',
+        )
+
+        with pytest.raises(ClientError):
+            internal_delete_cluster('us-east-1', 'test-cluster')
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.boto3')
+    def test_delete_cluster_delete_cluster_error(self, mock_boto3):
+        """Test deletion when delete_db_cluster fails."""
+        mock_rds = MagicMock()
+        mock_boto3.client.return_value = mock_rds
+
+        mock_rds.describe_db_clusters.return_value = {
+            'DBClusters': [{
+                'DBClusterIdentifier': 'test-cluster',
+                'Status': 'available',
+                'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
+                'DBClusterMembers': [],
+            }]
+        }
+
+        mock_rds.list_tags_for_resource.return_value = {
+            'TagList': [{'Key': 'CreatedBy', 'Value': 'MCP'}]
+        }
+
+        mock_rds.delete_db_cluster.side_effect = ClientError(
+            {'Error': {'Code': 'InvalidDBClusterStateFault', 'Message': 'Cluster is not in a valid state'}},
+            'DeleteDBCluster',
+        )
+
+        with pytest.raises(ClientError):
+            internal_delete_cluster('us-east-1', 'test-cluster')
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.time')
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.boto3')
+    def test_delete_cluster_no_instances(self, mock_boto3, mock_time):
+        """Test deletion of cluster with no instances."""
+        mock_rds = MagicMock()
+        mock_boto3.client.return_value = mock_rds
+
+        mock_rds.describe_db_clusters.side_effect = [
+            {'DBClusters': [{
+                'DBClusterIdentifier': 'test-cluster',
+                'Status': 'available',
+                'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
+                'DBClusterMembers': [],
+            }]},
+            # Polling: cluster gone
+            ClientError({'Error': {'Code': 'DBClusterNotFoundFault', 'Message': 'Not found'}}, 'DescribeDBClusters'),
+        ]
+
+        mock_rds.list_tags_for_resource.return_value = {
+            'TagList': [{'Key': 'CreatedBy', 'Value': 'MCP'}]
+        }
+
+        internal_delete_cluster('us-east-1', 'test-cluster')
+
+        mock_rds.delete_db_instance.assert_not_called()
+        mock_rds.delete_db_cluster.assert_called_once()

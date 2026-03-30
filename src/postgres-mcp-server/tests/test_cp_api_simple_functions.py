@@ -87,7 +87,7 @@ class TestInternalGetInstanceProperties:
             }
         ]
 
-        with pytest.raises(ValueError, match='AWS error fetching instance by endpoint'):
+        with pytest.raises(ValueError, match='Instance not found by endpoint'):
             internal_get_instance_properties(
                 'nonexistent.us-east-1.rds.amazonaws.com', 'us-east-1'
             )

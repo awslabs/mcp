@@ -724,7 +724,7 @@ def test_main_with_valid_parameters(monkeypatch, capsys):
     # Add mock response for the validation query
     mock_connection.data_client.add_mock_response(get_mock_normal_query_response())
 
-    # Store connection in map and mock the internal_connect_to_database function
+    # Store connection in map and mock the internal_create_connection function
     db_connection_map.set(
         ConnectionMethod.RDS_API,
         'example-cluster-name',
@@ -1112,7 +1112,7 @@ async def test_create_cluster_express():
                 'awslabs.postgres_mcp_server.server.setup_aurora_iam_policy_for_current_user'
             ) as mock_setup_iam:
                 with patch(
-                    'awslabs.postgres_mcp_server.server.internal_connect_to_database'
+                    'awslabs.postgres_mcp_server.server.internal_create_connection'
                 ) as mock_connect:
                     mock_get_props.return_value = {
                         'Endpoint': 'test-endpoint.amazonaws.com',
@@ -1230,7 +1230,7 @@ async def test_create_cluster_minimal_parameters():
                 'awslabs.postgres_mcp_server.server.setup_aurora_iam_policy_for_current_user'
             ):
                 with patch(
-                    'awslabs.postgres_mcp_server.server.internal_connect_to_database'
+                    'awslabs.postgres_mcp_server.server.internal_create_connection'
                 ) as mock_connect:
                     mock_get_props.return_value = {
                         'Endpoint': 'minimal-endpoint.amazonaws.com',

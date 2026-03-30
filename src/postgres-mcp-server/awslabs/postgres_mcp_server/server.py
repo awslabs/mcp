@@ -204,13 +204,13 @@ async def run_query(
         logger.success(f'run_query successfully executed query:{sql}')
         return parse_execute_response(response)
     except ClientError as e:
-        logger.exception(e)
+        logger.exception(f'run_query ClientError: {e.response["Error"]["Code"]}')
         await ctx.error(
             str({'code': e.response['Error']['Code'], 'message': e.response['Error']['Message']})
         )
         return [{'error': client_error_code_key}]
     except Exception as e:
-        logger.exception(e)
+        logger.exception(f'run_query failed: {type(e).__name__}')
         error_details = f'{type(e).__name__}: {str(e)}'
         await ctx.error(str({'message': error_details}))
         return [{'error': error_details}]
@@ -316,7 +316,7 @@ async def connect_to_database(
             db_endpoint must be set
     """
     try:
-        db_connection, llm_response = internal_connect_to_database(
+        db_connection, llm_response = internal_create_connection(
             region=region,
             database_type=database_type,
             connection_method=connection_method,
@@ -329,14 +329,20 @@ async def connect_to_database(
         # Eagerly initialize the connection pool so it's ready for queries
         # and created_time is set at connect time, not at first query time
         if isinstance(db_connection, PsycopgPoolConnection):
-            await db_connection.initialize_pool()
+            try:
+                await db_connection.initialize_pool()
+            except Exception:
+                # Pool failed to open — remove the broken connection from the map
+                # so the next connect attempt creates a fresh one
+                db_connection_map.remove(
+                    connection_method, cluster_identifier, db_endpoint, database, port
+                )
+                raise
 
         return str(llm_response)
 
     except Exception as e:
-        logger.error(f'connect_to_database failed with error: {str(e)}')
-        trace_msg = traceback.format_exc()
-        logger.error(f'Trace:{trace_msg}')
+        logger.exception(f'connect_to_database failed with error: {str(e)}')
         llm_response = {'status': 'Failed', 'error': str(e)}
         return json.dumps(llm_response, indent=2)
 
@@ -438,7 +444,7 @@ def create_cluster(
             cluster_region=region,
         )
 
-        internal_connect_to_database(
+        internal_create_connection(
             region=region,
             database_type=database_type,
             connection_method=connection_method,
@@ -558,7 +564,7 @@ def create_cluster_worker(
             cluster_region=region,
         )
 
-        internal_connect_to_database(
+        internal_create_connection(
             region=region,
             database_type=database_type,
             connection_method=connection_method,
@@ -574,7 +580,7 @@ def create_cluster_worker(
         finally:
             async_job_status_lock.release()
     except Exception as e:
-        logger.error(f'create_cluster_worker failed with {e}')
+        logger.exception(f'create_cluster_worker failed with {e}')
         try:
             async_job_status_lock.acquire()
             async_job_status[job_id]['state'] = 'failed'
@@ -583,7 +589,7 @@ def create_cluster_worker(
             async_job_status_lock.release()
 
 
-def internal_connect_to_database(
+def internal_create_connection(
     region: Annotated[str, Field(description='region')],
     database_type: Annotated[DatabaseType, Field(description='database type')],
     connection_method: Annotated[ConnectionMethod, Field(description='connection method')],
@@ -607,7 +613,7 @@ def internal_connect_to_database(
     global readonly_query
 
     logger.info(
-        f'Enter internal_connect_to_database\n'
+        f'Enter internal_create_connection\n'
         f'region:{region}\n'
         f'database_type:{database_type}\n'
         f'connection_method:{connection_method}\n'
@@ -912,7 +918,7 @@ def main():
             db_connection: Optional[AbstractDBConnection] = None
 
             cluster_identifier = args.db_cluster_arn.split(':')[-1]
-            db_connection, llm_response = internal_connect_to_database(
+            db_connection, llm_response = internal_create_connection(
                 region=args.region,
                 database_type=DatabaseType[args.db_type],
                 connection_method=ConnectionMethod[args.connection_method],

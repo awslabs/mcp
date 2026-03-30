@@ -42,19 +42,19 @@ def internal_get_instance_properties(target_endpoint: str, region: str) -> Dict[
                     return instance
     except ClientError as e:
         error_code = e.response['Error']['Code']
-        logger.error(
+        logger.exception(
             f'AWS error fetching all instances in region:{region} '
             f'{error_code} - {e.response["Error"]["Message"]}'
         )
         raise
     except Exception as e:
-        logger.error(
-            f'Error fetchingall instances in region:{region}.  Error: {type(e).__name__}: {e}'
+        logger.exception(
+            f'Error fetching all instances in region:{region}.  Error: {type(e).__name__}: {e}'
         )
         raise
 
     not_found_error = (
-        f"AWS error fetching instance by endpoint: '{target_endpoint}' in region:{region}"
+        f"Instance not found by endpoint when get its properties: '{target_endpoint}' in region:{region}"
     )
     logger.error(not_found_error)
     raise ValueError(not_found_error)
@@ -112,13 +112,13 @@ def internal_get_cluster_properties(cluster_identifier: str, region: str) -> Dic
 
     except ClientError as e:
         error_code = e.response['Error']['Code']
-        logger.error(
+        logger.exception(
             f"AWS error fetching cluster '{cluster_identifier}': "
             f'{error_code} - {e.response["Error"]["Message"]}'
         )
         raise
     except Exception as e:
-        logger.error(f'Error fetching cluster properties: {type(e).__name__}: {e}')
+        logger.exception(f'Error fetching cluster properties: {type(e).__name__}: {e}')
         raise
 
 
@@ -171,13 +171,13 @@ def internal_create_express_cluster(cluster_identifier: str, region: str) -> Dic
         return result
 
     except ClientError as e:
-        logger.error(
+        logger.exception(
             f"AWS error creating express cluster '{cluster_identifier}': "
             f'{e.response["Error"]["Code"]} - {e.response["Error"]["Message"]}'
         )
         raise
     except Exception as e:
-        logger.error(f"Error creating cluster '{cluster_identifier}': {type(e).__name__}: {e}")
+        logger.exception(f"Error creating cluster '{cluster_identifier}': {type(e).__name__}: {e}")
         raise
 
 
@@ -319,13 +319,13 @@ def internal_create_serverless_cluster(
         return final_cluster
 
     except ClientError as e:
-        logger.error(
+        logger.exception(
             f"AWS error creating serverless cluster '{cluster_identifier}': "
             f'{e.response["Error"]["Code"]} - {e.response["Error"]["Message"]}'
         )
         raise
     except Exception as e:
-        logger.error(
+        logger.exception(
             f"Error creating serverless cluster '{cluster_identifier}': {type(e).__name__}: {e}"
         )
         raise
@@ -378,7 +378,7 @@ def setup_aurora_iam_policy_for_current_user(
         logger.info(f'  UserID: {user_id}')
 
     except Exception as e:
-        logger.error(f'❌ Error getting caller identity: {e}')
+        logger.exception(f'❌ Error getting caller identity: {e}')
         raise
 
     # ============================================================================
@@ -536,13 +536,11 @@ def setup_aurora_iam_policy_for_current_user(
             logger.info('✓ Policy was just created by another process')
 
         except Exception as e:
-            logger.error(f'\n❌ Error creating policy: {e}')
+            logger.exception(f'\n❌ Error creating policy: {e}')
             raise
 
     except Exception as e:
-        logger.error(f'\n❌ Error checking/updating policy: {e}')
-        trace_msg = traceback.format_exc()
-        logger.error(f'Traceback: {trace_msg}')
+        logger.exception(f'\n❌ Error checking/updating policy: {e}')
         raise
 
     # ============================================================================
@@ -600,7 +598,7 @@ def setup_aurora_iam_policy_for_current_user(
 
             except iam.exceptions.AccessDeniedException:
                 # 🔵 MODIFIED: Graceful handling of permission denied
-                logger.error(f"\n❌ Access Denied: Cannot attach policy to role '{current_role}'")
+                logger.exception(f"\n❌ Access Denied: Cannot attach policy to role '{current_role}'")
                 logger.error("   Your session does not have 'iam:AttachRolePolicy' permission")
                 logger.info(f'\n✓ Policy created successfully: {policy_arn}')
                 logger.info('   But could not be attached automatically.')
@@ -622,8 +620,7 @@ def setup_aurora_iam_policy_for_current_user(
                 return policy_arn
 
             except iam.exceptions.NoSuchEntityException:
-                logger.error(f"\n❌ Role '{current_role}' not found")
-                logger.error("   This is unexpected - the role should exist since you're using it")
+                logger.exception(f"\n❌ Role '{current_role}' not found")
                 raise
 
         return policy_arn
@@ -631,23 +628,19 @@ def setup_aurora_iam_policy_for_current_user(
     except iam.exceptions.NoSuchEntityException:
         entity_name = current_user if identity_type == 'user' else current_role
         entity_type = 'User' if identity_type == 'user' else 'Role'
-        logger.error(f"\n❌ Error: {entity_type} '{entity_name}' not found")
+        logger.exception(f"\n❌ Error: {entity_type} '{entity_name}' not found")
         raise
 
     except iam.exceptions.LimitExceededException:
         entity_name = current_user if identity_type == 'user' else current_role
         entity_type = 'user' if identity_type == 'user' else 'role'
-        logger.error(
+        logger.exception(
             f"\n❌ Error: Managed policy limit exceeded for {entity_type} '{entity_name}'"
         )
-        logger.error('Maximum 10 managed policies can be attached to a user or role')
-        logger.error('Consider using inline policies or consolidating existing policies')
         raise
 
     except Exception as e:
-        logger.error(f'\n❌ Error attaching policy: {e}')
-        trace_msg = traceback.format_exc()
-        logger.error(f'Traceback: {trace_msg}')
+        logger.exception(f'\n❌ Error attaching policy: {e}')
         raise
 
 
@@ -688,6 +681,7 @@ def internal_delete_cluster(region: str, cluster_id: str) -> None:
         if e.response['Error']['Code'] == 'DBClusterNotFoundFault':
             logger.info(f"Cluster '{cluster_id}' does not exist")
             return
+        logger.exception(f"Error checking cluster '{cluster_id}' for deletion")
         raise
 
     # Delete all DB instances in the cluster
@@ -710,7 +704,7 @@ def internal_delete_cluster(region: str, cluster_id: str) -> None:
             if code in ('DBInstanceNotFound', 'DBInstanceNotFoundFault'):
                 logger.info(f"Instance '{inst_id}' already deleted")
             else:
-                logger.error(f"Error deleting instance '{inst_id}': {e}")
+                logger.exception(f"Error deleting instance '{inst_id}': {e}")
                 raise
 
     # Wait for all instances to be fully deleted
@@ -743,7 +737,7 @@ def internal_delete_cluster(region: str, cluster_id: str) -> None:
         )
         logger.info(f"Deletion of cluster '{cluster_id}' initiated")
     except ClientError as e:
-        logger.error(f"Error deleting cluster '{cluster_id}': {e}")
+        logger.exception(f"Error deleting cluster '{cluster_id}': {e}")
         raise
 
     # Poll for deletion
