@@ -54,7 +54,7 @@ def internal_get_instance_properties(target_endpoint: str, region: str) -> Dict[
         raise
 
     not_found_error = (
-        f"Instance not found by endpoint when get its properties: '{target_endpoint}' in region:{region}"
+        f"Instance with endpoint '{target_endpoint}' in region:{region} not found when getting its properties"
     )
     logger.error(not_found_error)
     raise ValueError(not_found_error)
@@ -142,7 +142,7 @@ def internal_create_express_cluster(cluster_identifier: str, region: str) -> Dic
     tags = []
     tags.append({'Key': 'CreatedBy', 'Value': 'MCP'})
 
-    logger.info(f'Creating Aurora Express cluster: {cluster_identifier}')
+    logger.info(f'Creating Aurora Postgres Express cluster: {cluster_identifier}')
 
     try:
         cluster_create_start_time = time.time()
@@ -177,7 +177,7 @@ def internal_create_express_cluster(cluster_identifier: str, region: str) -> Dic
         )
         raise
     except Exception as e:
-        logger.exception(f"Error creating cluster '{cluster_identifier}': {type(e).__name__}: {e}")
+        logger.exception(f"Error creating express cluster '{cluster_identifier}': {type(e).__name__}: {e}")
         raise
 
 
