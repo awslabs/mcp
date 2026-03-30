@@ -15,7 +15,6 @@
 import boto3
 import json
 import time
-import traceback
 from awslabs.postgres_mcp_server import __user_agent__
 from botocore.config import Config
 from botocore.exceptions import ClientError

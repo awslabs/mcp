@@ -133,14 +133,14 @@ class RDSDataAPIConnection(AbstractDBConnection):
                 transactionId=tx_id,
             )
             return result
-        except Exception as e:
+        except Exception:
             if tx_id:
                 self.data_client.rollback_transaction(
                     resourceArn=self.cluster_arn,
                     secretArn=self.secret_arn,
                     transactionId=tx_id,
                 )
-            logger.exception(f'RDS Data API query failed, transaction rolled back')
+            logger.exception('RDS Data API query failed, transaction rolled back')
             raise
 
     async def close(self) -> None:

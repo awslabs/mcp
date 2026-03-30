@@ -19,7 +19,6 @@ import asyncio
 import json
 import sys
 import threading
-import traceback
 from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection
 from awslabs.postgres_mcp_server.connection.cp_api_connection import (
     internal_create_express_cluster,
