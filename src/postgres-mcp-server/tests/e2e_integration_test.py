@@ -43,6 +43,8 @@ from awslabs.postgres_mcp_server.connection.db_connection_map import ConnectionM
 
 @dataclass
 class ClusterConfig:
+    """Configuration for connecting to and testing an Aurora cluster."""
+
     cluster_identifier: str
     region: str
     database: str
@@ -55,6 +57,8 @@ class ClusterConfig:
 
 @dataclass
 class TestResult:
+    """Result of running a test suite against one cluster with one connection method."""
+
     cluster_identifier: str
     connection_method_name: str
     passed: list
@@ -62,11 +66,12 @@ class TestResult:
 
     @property
     def success(self) -> bool:
+        """Return True if all test steps passed."""
         return len(self.failed) == 0
 
 
 def log_step(step: str, status: str, detail: str = ''):
-    marker = '✓' if status == 'PASS' else '✗' if status == 'FAIL' else '→'
+    """Log a test step with a status marker (✓ PASS, ✗ FAIL, → INFO)."""
     msg = f'  [{status}] {step}'
     if detail:
         msg += f': {detail}'
@@ -172,6 +177,7 @@ async def run_test_suite(config: ClusterConfig, table_suffix: str) -> TestResult
     logger.info(f'{"="*60}')
 
     def record(step, ok, detail=''):
+        """Record a test step result as passed or failed."""
         log_step(step, 'PASS' if ok else 'FAIL', detail)
         if ok:
             result.passed.append(step)
@@ -322,7 +328,7 @@ async def run_test_suite(config: ClusterConfig, table_suffix: str) -> TestResult
     try:
         from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import PsycopgPoolConnection
         from awslabs.postgres_mcp_server.connection.rds_api_connection import RDSDataAPIConnection
-        
+
         # Get the connection from the map
         from awslabs.postgres_mcp_server.server import db_connection_map
         db_conn = db_connection_map.get(
@@ -332,17 +338,17 @@ async def run_test_suite(config: ClusterConfig, table_suffix: str) -> TestResult
             test_database,
             config.port
         )
-        
+
         if db_conn:
             # Temporarily disable readonly to allow cleanup
             original_readonly = db_conn.readonly_query
             db_conn._readonly = False
-            
-            cleanup_rows = await db_conn.execute_query(f'DROP TABLE IF EXISTS {table_name}')
-            
+
+            await db_conn.execute_query(f'DROP TABLE IF EXISTS {table_name}')
+
             # Restore readonly setting
             db_conn._readonly = original_readonly
-            
+
             record(step, True, 'Table cleaned up')
         else:
             record(step, False, 'Could not get database connection for cleanup')
@@ -353,6 +359,7 @@ async def run_test_suite(config: ClusterConfig, table_suffix: str) -> TestResult
 
 
 def print_summary(results: list[TestResult]):
+    """Print a formatted summary of all test results. Returns True if all passed."""
     logger.info(f'\n{"="*60}')
     logger.info('TEST SUMMARY')
     logger.info(f'{"="*60}')
@@ -375,7 +382,7 @@ def print_summary(results: list[TestResult]):
 
 
 async def main_async(args):
-    # Set write mode globally
+    """Main async entry point. Creates clusters, runs test suites, prints summary, and cleans up."""
     server.readonly_query = False
 
     ts = datetime.now().strftime('%Y%m%d%H%M%S')
@@ -420,7 +427,7 @@ async def main_async(args):
         connection_methods = [
             (ConnectionMethod.RDS_API, 'RDS_API'),
         ]
-        
+
         if args.test_pgwire:
             connection_methods.extend([
                 (ConnectionMethod.PG_WIRE_IAM_PROTOCOL, 'PG_WIRE_IAM_PROTOCOL'),
@@ -447,24 +454,26 @@ async def main_async(args):
 
     # Print summary before cleanup
     all_passed = print_summary(results)
-    
+
     # Cleanup clusters
     logger.info('Cleaning up clusters...')
-    
+
     async def delete_cluster_safe(cluster_id: str):
+        """Delete a cluster, logging errors instead of raising."""
         try:
             logger.info(f'Deleting cluster: {cluster_id}')
             await asyncio.to_thread(internal_delete_cluster, args.region, cluster_id)
             logger.success(f'Deleted cluster: {cluster_id}')
         except Exception as e:
             logger.warning(f'Failed to delete {cluster_id}: {e}')
-    
+
     await asyncio.gather(*[delete_cluster_safe(cid) for cid in clusters_to_delete])
-    
+
     sys.exit(0 if all_passed else 1)
 
 
 def main():
+    """Parse CLI arguments and run the e2e integration test."""
     parser = argparse.ArgumentParser(
         description='End-to-end integration test for postgres MCP server'
     )
