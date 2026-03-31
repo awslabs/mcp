@@ -133,14 +133,15 @@ class RDSDataAPIConnection(AbstractDBConnection):
                 transactionId=tx_id,
             )
             return result
-        except Exception as e:
+        except Exception:
             if tx_id:
                 self.data_client.rollback_transaction(
                     resourceArn=self.cluster_arn,
                     secretArn=self.secret_arn,
                     transactionId=tx_id,
                 )
-            raise e
+            logger.exception('RDS Data API query failed, transaction rolled back')
+            raise
 
     async def close(self) -> None:
         """Close the database connection asynchronously."""
@@ -157,5 +158,5 @@ class RDSDataAPIConnection(AbstractDBConnection):
             result = await self.execute_query('SELECT 1')
             return len(result.get('records', [])) > 0
         except Exception as e:
-            logger.error(f'RDS Data API connection health check failed: {str(e)}')
+            logger.exception(f'RDS Data API connection health check failed: {str(e)}')
             return False
