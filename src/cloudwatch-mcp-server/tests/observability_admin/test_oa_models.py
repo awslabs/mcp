@@ -18,7 +18,6 @@ from awslabs.cloudwatch_mcp_server.observability_admin.models import (
     DestinationConfiguration,
     GetTelemetryRuleResponse,
     ListResourceTelemetryResponse,
-    ListTelemetryRulesResponse,
     TelemetryConfiguration,
     TelemetryEvaluationStatusResponse,
     TelemetryRuleDetail,
@@ -30,11 +29,13 @@ class TestTelemetryEvaluationStatusResponse:
     """Tests for TelemetryEvaluationStatusResponse model."""
 
     def test_basic_creation(self):
+        """Test test_basic_creation."""
         resp = TelemetryEvaluationStatusResponse(status='RUNNING')
         assert resp.status == 'RUNNING'
         assert resp.failure_reason is None
 
     def test_with_failure_reason(self):
+        """Test test_with_failure_reason."""
         resp = TelemetryEvaluationStatusResponse(
             status='FAILED_START', failure_reason='Insufficient permissions'
         )
@@ -46,6 +47,7 @@ class TestTelemetryConfiguration:
     """Tests for TelemetryConfiguration model."""
 
     def test_basic_creation(self):
+        """Test test_basic_creation."""
         config = TelemetryConfiguration(
             account_identifier='123456789012',
             resource_type='AWS::EC2::Instance',
@@ -60,6 +62,7 @@ class TestTelemetryConfiguration:
         assert config.telemetry_source_type is None
 
     def test_with_all_fields(self):
+        """Test test_with_all_fields."""
         config = TelemetryConfiguration(
             account_identifier='123456789012',
             resource_type='AWS::EC2::VPC',
@@ -78,12 +81,14 @@ class TestListResourceTelemetryResponse:
     """Tests for ListResourceTelemetryResponse model."""
 
     def test_empty_response(self):
+        """Test test_empty_response."""
         resp = ListResourceTelemetryResponse()
         assert resp.telemetry_configurations == []
         assert resp.has_more_results is False
         assert resp.message is None
 
     def test_with_configurations(self):
+        """Test test_with_configurations."""
         config = TelemetryConfiguration(
             account_identifier='123456789012',
             resource_type='AWS::Lambda::Function',
@@ -103,6 +108,7 @@ class TestTelemetryRuleSummary:
     """Tests for TelemetryRuleSummary model."""
 
     def test_basic_creation(self):
+        """Test test_basic_creation."""
         summary = TelemetryRuleSummary(
             rule_name='vpc-flow-logs-rule',
             rule_arn='arn:aws:observabilityadmin:us-east-1:123456789012:rule/vpc-flow-logs-rule',
@@ -114,6 +120,7 @@ class TestTelemetryRuleSummary:
         assert summary.created_timestamp is None
 
     def test_with_source_types(self):
+        """Test test_with_source_types."""
         summary = TelemetryRuleSummary(
             rule_name='eks-rule',
             rule_arn='arn:aws:observabilityadmin:us-east-1:123456789012:rule/eks-rule',
@@ -129,12 +136,14 @@ class TestDestinationConfiguration:
     """Tests for DestinationConfiguration model."""
 
     def test_basic_creation(self):
+        """Test test_basic_creation."""
         dest = DestinationConfiguration()
         assert dest.destination_type is None
         assert dest.destination_pattern is None
         assert dest.retention_in_days is None
 
     def test_with_all_fields(self):
+        """Test test_with_all_fields."""
         dest = DestinationConfiguration(
             destination_type='cloud-watch-logs',
             destination_pattern='/aws/telemetry/<resourceId>',
@@ -155,6 +164,7 @@ class TestTelemetryRuleDetail:
     """Tests for TelemetryRuleDetail model."""
 
     def test_basic_creation(self):
+        """Test test_basic_creation."""
         detail = TelemetryRuleDetail(
             resource_type='AWS::EC2::VPC',
             telemetry_type='Logs',
@@ -166,6 +176,7 @@ class TestTelemetryRuleDetail:
         assert detail.selection_criteria is None
 
     def test_with_vpc_flow_log_params(self):
+        """Test test_with_vpc_flow_log_params."""
         detail = TelemetryRuleDetail(
             resource_type='AWS::EC2::VPC',
             telemetry_type='Logs',
@@ -186,6 +197,7 @@ class TestGetTelemetryRuleResponse:
     """Tests for GetTelemetryRuleResponse model."""
 
     def test_basic_creation(self):
+        """Test test_basic_creation."""
         resp = GetTelemetryRuleResponse(
             rule_name='test-rule',
             rule_arn='arn:aws:observabilityadmin:us-east-1:123456789012:rule/test-rule',
@@ -194,6 +206,7 @@ class TestGetTelemetryRuleResponse:
         assert resp.telemetry_rule is None
 
     def test_with_full_rule(self):
+        """Test test_with_full_rule."""
         resp = GetTelemetryRuleResponse(
             rule_name='test-rule',
             rule_arn='arn:aws:observabilityadmin:us-east-1:123456789012:rule/test-rule',

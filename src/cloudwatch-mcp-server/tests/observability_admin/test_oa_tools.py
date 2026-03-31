@@ -40,6 +40,7 @@ class TestRegistration:
     """Test tool registration."""
 
     def test_all_tools_registered(self):
+        """Test test_all_tools_registered."""
         tools = ObservabilityAdminTools()
         mock_mcp = Mock()
         tools.register(mock_mcp)
@@ -69,6 +70,7 @@ class TestGetTelemetryEvaluationStatus:
     """Tests for get_telemetry_evaluation_status."""
 
     async def test_success(self, mock_context, oa_tools):
+        """Test test_success."""
         mock_client = Mock()
         mock_client.get_telemetry_evaluation_status.return_value = {
             'Status': 'RUNNING',
@@ -83,6 +85,7 @@ class TestGetTelemetryEvaluationStatus:
         assert result.failure_reason is None
 
     async def test_with_failure(self, mock_context, oa_tools):
+        """Test test_with_failure."""
         mock_client = Mock()
         mock_client.get_telemetry_evaluation_status.return_value = {
             'Status': 'FAILED_START',
@@ -98,6 +101,7 @@ class TestGetTelemetryEvaluationStatus:
         assert result.failure_reason == 'Insufficient permissions'
 
     async def test_api_error(self, mock_context, oa_tools):
+        """Test test_api_error."""
         mock_client = Mock()
         mock_client.get_telemetry_evaluation_status.side_effect = Exception('API Error')
         with patch(
@@ -109,6 +113,7 @@ class TestGetTelemetryEvaluationStatus:
         mock_context.error.assert_called_once()
 
     async def test_region_parameter(self, mock_context, oa_tools):
+        """Test test_region_parameter."""
         mock_client = Mock()
         mock_client.get_telemetry_evaluation_status.return_value = {'Status': 'RUNNING'}
         with patch(
@@ -126,6 +131,7 @@ class TestStartTelemetryEvaluation:
     """Tests for start_telemetry_evaluation."""
 
     async def test_success(self, mock_context, oa_tools):
+        """Test test_success."""
         mock_client = Mock()
         mock_client.start_telemetry_evaluation.return_value = {}
         mock_client.get_telemetry_evaluation_status.return_value = {'Status': 'STARTING'}
@@ -139,6 +145,7 @@ class TestStartTelemetryEvaluation:
         mock_client.start_telemetry_evaluation.assert_called_once()
 
     async def test_api_error(self, mock_context, oa_tools):
+        """Test test_api_error."""
         mock_client = Mock()
         mock_client.start_telemetry_evaluation.side_effect = Exception('Access denied')
         with patch(
@@ -155,6 +162,7 @@ class TestGetTelemetryEvaluationStatusForOrganization:
     """Tests for get_telemetry_evaluation_status_for_organization."""
 
     async def test_success(self, mock_context, oa_tools):
+        """Test test_success."""
         mock_client = Mock()
         mock_client.get_telemetry_evaluation_status_for_organization.return_value = {
             'Status': 'RUNNING',
@@ -168,6 +176,7 @@ class TestGetTelemetryEvaluationStatusForOrganization:
         assert result.status == 'RUNNING'
 
     async def test_api_error(self, mock_context, oa_tools):
+        """Test test_api_error."""
         mock_client = Mock()
         mock_client.get_telemetry_evaluation_status_for_organization.side_effect = Exception(
             'Not a management account'
@@ -186,6 +195,7 @@ class TestStartTelemetryEvaluationForOrganization:
     """Tests for start_telemetry_evaluation_for_organization."""
 
     async def test_success(self, mock_context, oa_tools):
+        """Test test_success."""
         mock_client = Mock()
         mock_client.start_telemetry_evaluation_for_organization.return_value = {}
         mock_client.get_telemetry_evaluation_status_for_organization.return_value = {
@@ -201,6 +211,7 @@ class TestStartTelemetryEvaluationForOrganization:
         mock_client.start_telemetry_evaluation_for_organization.assert_called_once()
 
     async def test_api_error(self, mock_context, oa_tools):
+        """Test test_api_error."""
         mock_client = Mock()
         mock_client.start_telemetry_evaluation_for_organization.side_effect = Exception(
             'Org error'
@@ -226,6 +237,7 @@ class TestListResourceTelemetry:
     """Tests for list_resource_telemetry."""
 
     async def test_success(self, mock_context, oa_tools):
+        """Test test_success."""
         items = [
             {
                 'AccountIdentifier': '123456789012',
@@ -253,6 +265,7 @@ class TestListResourceTelemetry:
         assert result.has_more_results is False
 
     async def test_empty_results(self, mock_context, oa_tools):
+        """Test test_empty_results."""
         mock_client = Mock()
         mock_client.get_paginator.return_value = _make_paginator(
             'TelemetryConfigurations', []
@@ -267,6 +280,7 @@ class TestListResourceTelemetry:
         assert result.message == 'No resource telemetry configurations found. Ensure telemetry evaluation is running.'
 
     async def test_has_more_results(self, mock_context, oa_tools):
+        """Test test_has_more_results."""
         # Create max_items + 1 items to trigger has_more
         items = [
             {
@@ -292,6 +306,7 @@ class TestListResourceTelemetry:
         assert result.has_more_results is True
 
     async def test_with_filters(self, mock_context, oa_tools):
+        """Test test_with_filters."""
         mock_client = Mock()
         mock_paginator = Mock()
         mock_paginator.paginate.return_value = [{'TelemetryConfigurations': []}]
@@ -315,6 +330,7 @@ class TestListResourceTelemetry:
         assert call_kwargs[1]['ResourceTags'] == {'Env': 'prod'}
 
     async def test_none_max_items_defaults(self, mock_context, oa_tools):
+        """Test test_none_max_items_defaults."""
         mock_client = Mock()
         mock_client.get_paginator.return_value = _make_paginator(
             'TelemetryConfigurations', []
@@ -328,6 +344,7 @@ class TestListResourceTelemetry:
         assert result is not None  # Should not crash
 
     async def test_api_error(self, mock_context, oa_tools):
+        """Test test_api_error."""
         mock_client = Mock()
         mock_client.get_paginator.side_effect = Exception('Throttling')
         with patch(
@@ -344,6 +361,7 @@ class TestListTelemetryRules:
     """Tests for list_telemetry_rules."""
 
     async def test_success(self, mock_context, oa_tools):
+        """Test test_success."""
         items = [
             {
                 'RuleName': 'vpc-flow-rule',
@@ -370,6 +388,7 @@ class TestListTelemetryRules:
         assert result.telemetry_rule_summaries[0].telemetry_source_types == ['VPC_FLOW_LOGS']
 
     async def test_empty_results(self, mock_context, oa_tools):
+        """Test test_empty_results."""
         mock_client = Mock()
         mock_client.get_paginator.return_value = _make_paginator(
             'TelemetryRuleSummaries', []
@@ -383,6 +402,7 @@ class TestListTelemetryRules:
         assert result.message == 'No telemetry rules found'
 
     async def test_with_prefix_filter(self, mock_context, oa_tools):
+        """Test test_with_prefix_filter."""
         mock_client = Mock()
         mock_paginator = Mock()
         mock_paginator.paginate.return_value = [{'TelemetryRuleSummaries': []}]
@@ -397,6 +417,7 @@ class TestListTelemetryRules:
         assert call_kwargs[1]['RuleNamePrefix'] == 'vpc-'
 
     async def test_api_error(self, mock_context, oa_tools):
+        """Test test_api_error."""
         mock_client = Mock()
         mock_client.get_paginator.side_effect = Exception('Service unavailable')
         with patch(
@@ -413,6 +434,7 @@ class TestGetTelemetryRule:
     """Tests for get_telemetry_rule."""
 
     async def test_success(self, mock_context, oa_tools):
+        """Test test_success."""
         mock_client = Mock()
         mock_client.get_telemetry_rule.return_value = {
             'RuleName': 'vpc-flow-rule',
@@ -448,6 +470,7 @@ class TestGetTelemetryRule:
         assert result.telemetry_rule.scope == 'ACCOUNT'
 
     async def test_without_destination_config(self, mock_context, oa_tools):
+        """Test test_without_destination_config."""
         mock_client = Mock()
         mock_client.get_telemetry_rule.return_value = {
             'RuleName': 'simple-rule',
@@ -466,6 +489,7 @@ class TestGetTelemetryRule:
         assert result.telemetry_rule.destination_configuration is None
 
     async def test_without_telemetry_rule(self, mock_context, oa_tools):
+        """Test test_without_telemetry_rule."""
         mock_client = Mock()
         mock_client.get_telemetry_rule.return_value = {
             'RuleName': 'empty-rule',
@@ -480,6 +504,7 @@ class TestGetTelemetryRule:
         assert result.telemetry_rule is None
 
     async def test_api_error(self, mock_context, oa_tools):
+        """Test test_api_error."""
         mock_client = Mock()
         mock_client.get_telemetry_rule.side_effect = Exception('Rule not found')
         with patch(
@@ -496,6 +521,7 @@ class TestListResourceTelemetryForOrganization:
     """Tests for list_resource_telemetry_for_organization."""
 
     async def test_success(self, mock_context, oa_tools):
+        """Test test_success."""
         items = [
             {
                 'AccountIdentifier': '111111111111',
@@ -520,6 +546,7 @@ class TestListResourceTelemetryForOrganization:
         assert result.telemetry_configurations[0].account_identifier == '111111111111'
 
     async def test_with_account_filter(self, mock_context, oa_tools):
+        """Test test_with_account_filter."""
         mock_client = Mock()
         mock_paginator = Mock()
         mock_paginator.paginate.return_value = [{'TelemetryConfigurations': []}]
@@ -539,6 +566,7 @@ class TestListResourceTelemetryForOrganization:
         assert call_kwargs[1]['ResourceTypes'] == ['AWS::EC2::Instance']
 
     async def test_empty_results(self, mock_context, oa_tools):
+        """Test test_empty_results."""
         mock_client = Mock()
         mock_client.get_paginator.return_value = _make_paginator(
             'TelemetryConfigurations', []
@@ -552,6 +580,7 @@ class TestListResourceTelemetryForOrganization:
         assert result.message == 'No resource telemetry configurations found for the organization.'
 
     async def test_api_error(self, mock_context, oa_tools):
+        """Test test_api_error."""
         mock_client = Mock()
         mock_client.get_paginator.side_effect = Exception('Not authorized')
         with patch(
@@ -568,6 +597,7 @@ class TestListTelemetryRulesForOrganization:
     """Tests for list_telemetry_rules_for_organization."""
 
     async def test_success(self, mock_context, oa_tools):
+        """Test test_success."""
         items = [
             {
                 'RuleName': 'org-vpc-rule',
@@ -591,6 +621,7 @@ class TestListTelemetryRulesForOrganization:
         assert result.telemetry_rule_summaries[0].rule_name == 'org-vpc-rule'
 
     async def test_with_org_filters(self, mock_context, oa_tools):
+        """Test test_with_org_filters."""
         mock_client = Mock()
         mock_paginator = Mock()
         mock_paginator.paginate.return_value = [{'TelemetryRuleSummaries': []}]
@@ -612,6 +643,7 @@ class TestListTelemetryRulesForOrganization:
         assert call_kwargs[1]['SourceOrganizationUnitIds'] == ['ou-xxxx-12345678']
 
     async def test_empty_results(self, mock_context, oa_tools):
+        """Test test_empty_results."""
         mock_client = Mock()
         mock_client.get_paginator.return_value = _make_paginator(
             'TelemetryRuleSummaries', []
@@ -625,6 +657,7 @@ class TestListTelemetryRulesForOrganization:
         assert result.message == 'No organization telemetry rules found'
 
     async def test_api_error(self, mock_context, oa_tools):
+        """Test test_api_error."""
         mock_client = Mock()
         mock_client.get_paginator.side_effect = Exception('Org access denied')
         with patch(
@@ -641,6 +674,7 @@ class TestGetTelemetryRuleForOrganization:
     """Tests for get_telemetry_rule_for_organization."""
 
     async def test_success(self, mock_context, oa_tools):
+        """Test test_success."""
         mock_client = Mock()
         mock_client.get_telemetry_rule_for_organization.return_value = {
             'RuleName': 'org-rule',
@@ -672,6 +706,7 @@ class TestGetTelemetryRuleForOrganization:
         )
 
     async def test_api_error(self, mock_context, oa_tools):
+        """Test test_api_error."""
         mock_client = Mock()
         mock_client.get_telemetry_rule_for_organization.side_effect = Exception(
             'Rule not found'
@@ -692,6 +727,7 @@ class TestStopTelemetryEvaluation:
     """Tests for stop_telemetry_evaluation."""
 
     async def test_success(self, mock_context, oa_tools):
+        """Test test_success."""
         mock_client = Mock()
         mock_client.stop_telemetry_evaluation.return_value = {}
         mock_client.get_telemetry_evaluation_status.return_value = {'Status': 'STOPPING'}
@@ -705,6 +741,7 @@ class TestStopTelemetryEvaluation:
         mock_client.stop_telemetry_evaluation.assert_called_once()
 
     async def test_api_error(self, mock_context, oa_tools):
+        """Test test_api_error."""
         mock_client = Mock()
         mock_client.stop_telemetry_evaluation.side_effect = Exception('Cannot stop')
         with patch(
@@ -721,6 +758,7 @@ class TestStopTelemetryEvaluationForOrganization:
     """Tests for stop_telemetry_evaluation_for_organization."""
 
     async def test_success(self, mock_context, oa_tools):
+        """Test test_success."""
         mock_client = Mock()
         mock_client.stop_telemetry_evaluation_for_organization.return_value = {}
         mock_client.get_telemetry_evaluation_status_for_organization.return_value = {
@@ -736,6 +774,7 @@ class TestStopTelemetryEvaluationForOrganization:
         mock_client.stop_telemetry_evaluation_for_organization.assert_called_once()
 
     async def test_api_error(self, mock_context, oa_tools):
+        """Test test_api_error."""
         mock_client = Mock()
         mock_client.stop_telemetry_evaluation_for_organization.side_effect = Exception(
             'Org stop error'
