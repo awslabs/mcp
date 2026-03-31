@@ -1,0 +1,4 @@
+This package is deprecated. Do not publish new releases to PyPI.
+
+Replacement: bedrock-image-mcp-server (https://github.com/kalleeh/bedrock-image-mcp-server)
+Migration guide: docs/migration-nova-canvas.md

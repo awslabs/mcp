@@ -1,0 +1,6 @@
+This package is deprecated. Do not publish new releases to PyPI.
+
+Replacement: None — modern LLMs handle documentation generation natively.
+Simply prompt your AI assistant to generate documentation.
+
+See https://github.com/awslabs/mcp/issues/2004 for details.

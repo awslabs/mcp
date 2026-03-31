@@ -1,0 +1,4 @@
+This package is deprecated. Do not publish new releases to PyPI.
+
+Replacement: AI assistants can generate test data natively
+Migration guide: docs/migration-syntheticdata.md

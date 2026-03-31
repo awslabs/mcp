@@ -1,6 +1,7 @@
+import os
 import pytest
 import requests
-from awslabs.aws_api_mcp_server.core.common.config import get_server_auth
+from awslabs.aws_api_mcp_server.core.common.config import FileAccessMode, get_server_auth
 from awslabs.aws_api_mcp_server.core.common.errors import AwsApiMcpError
 from awslabs.aws_api_mcp_server.core.common.help_command import generate_help_document
 from awslabs.aws_api_mcp_server.core.common.helpers import as_json
@@ -1369,3 +1370,27 @@ async def test_execute_single_command_error(mock_call_aws_helper):
     assert result.cli_command == 'aws s3 ls'
     assert result.response is None
     assert result.error == 'Test error'
+
+
+SECRET_VALUE = 's3cr3t'  # pragma: allowlist secret
+
+
+@patch.dict(os.environ, {'MY_SECRET': SECRET_VALUE})
+@patch(
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.FILE_ACCESS_MODE',
+    FileAccessMode.UNRESTRICTED,
+)
+@patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
+async def test_call_aws_ecs_deploy_error_sanitization():
+    """Test error sanitization."""
+    cli_command = (
+        'aws ecs deploy --service my-service --task-definition $MY_SECRET --codedeploy-appspec abc'
+    )
+
+    result = await call_aws(cli_command, DummyCtx())
+
+    assert len(result) == 1
+    assert result[0].cli_command == cli_command
+    assert result[0].response is None
+    assert result[0].error is not None
+    assert SECRET_VALUE not in result[0].error

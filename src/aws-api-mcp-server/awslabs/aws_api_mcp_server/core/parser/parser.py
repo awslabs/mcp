@@ -758,7 +758,6 @@ def _validate_s3_file_path(
         raise FileParameterError(
             service=service,
             operation=operation,
-            file_path=file_path,
             reason="streaming file on stdin ('-') is not allowed",
         )
 
@@ -818,7 +817,6 @@ def _validate_file_path(file_path: str, service: str, operation: str):
         raise FileParameterError(
             service=service,
             operation=operation,
-            file_path=file_path,
             reason=e._reason,
         )
 

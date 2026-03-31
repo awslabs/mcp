@@ -20,19 +20,19 @@ from awslabs.postgres_mcp_server.server import (
     MAX_IDENTIFIER_BYTES,
     _parse_identifier_parts,
     create_cluster_worker,
-    internal_connect_to_database,
+    internal_create_connection,
     validate_table_name,
 )
 from unittest.mock import MagicMock, patch
 
 
-class TestInternalConnectToDatabase:
-    """Tests for internal_connect_to_database function."""
+class TestInternalCreateConnection:
+    """Tests for internal_create_connection function."""
 
     def test_missing_region_raises_error(self):
         """Test that missing region raises ValueError."""
         with pytest.raises(ValueError, match="region can't be none or empty"):
-            internal_connect_to_database(
+            internal_create_connection(
                 region='',
                 database_type=DatabaseType.APG,
                 connection_method=ConnectionMethod.RDS_API,
@@ -45,7 +45,7 @@ class TestInternalConnectToDatabase:
     def test_missing_connection_method_raises_error(self):
         """Test that missing connection_method raises ValueError."""
         with pytest.raises(ValueError, match="connection_method can't be none or empty"):
-            internal_connect_to_database(
+            internal_create_connection(
                 region='us-east-1',
                 database_type=DatabaseType.APG,
                 connection_method=None,  # type: ignore
@@ -58,7 +58,7 @@ class TestInternalConnectToDatabase:
     def test_missing_database_type_raises_error(self):
         """Test that missing database_type raises ValueError."""
         with pytest.raises(ValueError, match="database_type can't be none or empty"):
-            internal_connect_to_database(
+            internal_create_connection(
                 region='us-east-1',
                 database_type=None,  # type: ignore
                 connection_method=ConnectionMethod.RDS_API,
@@ -74,7 +74,7 @@ class TestInternalConnectToDatabase:
             ValueError,
             match="cluster_identifier can't be none or empty for Aurora Postgres Database",
         ):
-            internal_connect_to_database(
+            internal_create_connection(
                 region='us-east-1',
                 database_type=DatabaseType.APG,
                 connection_method=ConnectionMethod.RDS_API,
@@ -91,7 +91,7 @@ class TestInternalConnectToDatabase:
         with patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map:
             mock_map.get.return_value = mock_connection
 
-            conn, response = internal_connect_to_database(
+            conn, response = internal_create_connection(
                 region='us-east-1',
                 database_type=DatabaseType.APG,
                 connection_method=ConnectionMethod.RDS_API,
@@ -127,7 +127,7 @@ class TestInternalConnectToDatabase:
             mock_connection = MagicMock()
             mock_rds_conn.return_value = mock_connection
 
-            conn, response = internal_connect_to_database(
+            conn, response = internal_create_connection(
                 region='us-east-1',
                 database_type=DatabaseType.APG,
                 connection_method=ConnectionMethod.RDS_API,
@@ -161,7 +161,7 @@ class TestInternalConnectToDatabase:
             mock_connection = MagicMock()
             mock_pg_conn.return_value = mock_connection
 
-            conn, response = internal_connect_to_database(
+            conn, response = internal_create_connection(
                 region='us-east-1',
                 database_type=DatabaseType.APG,
                 connection_method=ConnectionMethod.PG_WIRE_IAM_PROTOCOL,
@@ -197,7 +197,7 @@ class TestInternalConnectToDatabase:
             mock_connection = MagicMock()
             mock_pg_conn.return_value = mock_connection
 
-            conn, response = internal_connect_to_database(
+            conn, response = internal_create_connection(
                 region='us-east-1',
                 database_type=DatabaseType.APG,
                 connection_method=ConnectionMethod.PG_WIRE_PROTOCOL,
@@ -231,7 +231,7 @@ class TestInternalConnectToDatabase:
             mock_connection = MagicMock()
             mock_pg_conn.return_value = mock_connection
 
-            conn, response = internal_connect_to_database(
+            conn, response = internal_create_connection(
                 region='us-east-1',
                 database_type=DatabaseType.RPG,
                 connection_method=ConnectionMethod.PG_WIRE_PROTOCOL,
@@ -265,7 +265,7 @@ class TestInternalConnectToDatabase:
             mock_connection = MagicMock()
             mock_rds_conn.return_value = mock_connection
 
-            conn, response = internal_connect_to_database(
+            conn, response = internal_create_connection(
                 region='us-east-1',
                 database_type=DatabaseType.APG,
                 connection_method=ConnectionMethod.RDS_API,
@@ -290,7 +290,7 @@ class TestCreateClusterWorker:
                 'awslabs.postgres_mcp_server.server.internal_create_serverless_cluster'
             ) as mock_create,
             patch('awslabs.postgres_mcp_server.server.setup_aurora_iam_policy_for_current_user'),
-            patch('awslabs.postgres_mcp_server.server.internal_connect_to_database'),
+            patch('awslabs.postgres_mcp_server.server.internal_create_connection'),
             patch('awslabs.postgres_mcp_server.server.async_job_status'),
             patch('awslabs.postgres_mcp_server.server.async_job_status_lock') as mock_lock,
         ):
