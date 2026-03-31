@@ -65,6 +65,7 @@ include = [
 [dependency-groups]
 dev = [
     "bandit>=1.9.2",
+    "pygments>=2.20.0",
     "ruff>=0.14.8",
 ]
 
