@@ -156,7 +156,9 @@ class TestDestinationConfiguration:
         )
         assert dest.destination_type == 'cloud-watch-logs'
         assert dest.retention_in_days == 30
+        assert dest.vpc_flow_log_parameters is not None
         assert dest.vpc_flow_log_parameters['TrafficType'] == 'ALL'
+        assert dest.log_delivery_parameters is not None
         assert dest.log_delivery_parameters['LogTypes'] == ['APPLICATION_LOGS']
 
 
@@ -188,6 +190,8 @@ class TestTelemetryRuleDetail:
             scope='ACCOUNT',
             selection_criteria='ALL',
         )
+        assert detail.destination_configuration is not None
+        assert detail.destination_configuration.vpc_flow_log_parameters is not None
         assert detail.destination_configuration.vpc_flow_log_parameters['TrafficType'] == 'ALL'
         assert detail.destination_configuration.destination_type == 'cloud-watch-logs'
         assert detail.scope == 'ACCOUNT'

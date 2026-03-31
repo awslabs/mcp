@@ -43,15 +43,27 @@ class ObservabilityAdminTools:
         mcp.tool(name='get_telemetry_evaluation_status')(self.get_telemetry_evaluation_status)
         mcp.tool(name='start_telemetry_evaluation')(self.start_telemetry_evaluation)
         mcp.tool(name='stop_telemetry_evaluation')(self.stop_telemetry_evaluation)
-        mcp.tool(name='get_telemetry_evaluation_status_for_organization')(self.get_telemetry_evaluation_status_for_organization)
-        mcp.tool(name='start_telemetry_evaluation_for_organization')(self.start_telemetry_evaluation_for_organization)
-        mcp.tool(name='stop_telemetry_evaluation_for_organization')(self.stop_telemetry_evaluation_for_organization)
+        mcp.tool(name='get_telemetry_evaluation_status_for_organization')(
+            self.get_telemetry_evaluation_status_for_organization
+        )
+        mcp.tool(name='start_telemetry_evaluation_for_organization')(
+            self.start_telemetry_evaluation_for_organization
+        )
+        mcp.tool(name='stop_telemetry_evaluation_for_organization')(
+            self.stop_telemetry_evaluation_for_organization
+        )
         mcp.tool(name='list_resource_telemetry')(self.list_resource_telemetry)
         mcp.tool(name='list_telemetry_rules')(self.list_telemetry_rules)
         mcp.tool(name='get_telemetry_rule')(self.get_telemetry_rule)
-        mcp.tool(name='list_resource_telemetry_for_organization')(self.list_resource_telemetry_for_organization)
-        mcp.tool(name='list_telemetry_rules_for_organization')(self.list_telemetry_rules_for_organization)
-        mcp.tool(name='get_telemetry_rule_for_organization')(self.get_telemetry_rule_for_organization)
+        mcp.tool(name='list_resource_telemetry_for_organization')(
+            self.list_resource_telemetry_for_organization
+        )
+        mcp.tool(name='list_telemetry_rules_for_organization')(
+            self.list_telemetry_rules_for_organization
+        )
+        mcp.tool(name='get_telemetry_rule_for_organization')(
+            self.get_telemetry_rule_for_organization
+        )
 
     async def get_telemetry_evaluation_status(
         self,
@@ -332,15 +344,11 @@ class ObservabilityAdminTools:
         ] = None,
         resource_tags: Annotated[
             Optional[Dict[str, str]],
-            Field(
-                description='Filter by resource tags. Example: {"Environment": "Production"}'
-            ),
+            Field(description='Filter by resource tags. Example: {"Environment": "Production"}'),
         ] = None,
         max_items: Annotated[
             Optional[int],
-            Field(
-                description='Maximum number of results to return (default: 50).'
-            ),
+            Field(description='Maximum number of results to return (default: 50).'),
         ] = 50,
         region: Annotated[
             Optional[str],
@@ -434,15 +442,11 @@ class ObservabilityAdminTools:
         ctx: Context,
         rule_name_prefix: Annotated[
             Optional[str],
-            Field(
-                description='Filter rules whose names begin with this prefix.'
-            ),
+            Field(description='Filter rules whose names begin with this prefix.'),
         ] = None,
         max_items: Annotated[
             Optional[int],
-            Field(
-                description='Maximum number of results to return (default: 50).'
-            ),
+            Field(description='Maximum number of results to return (default: 50).'),
         ] = 50,
         region: Annotated[
             Optional[str],
@@ -523,9 +527,7 @@ class ObservabilityAdminTools:
         ctx: Context,
         rule_identifier: Annotated[
             str,
-            Field(
-                description='The identifier (name or ARN) of the telemetry rule to retrieve.'
-            ),
+            Field(description='The identifier (name or ARN) of the telemetry rule to retrieve.'),
         ],
         region: Annotated[
             Optional[str],
@@ -628,15 +630,11 @@ class ObservabilityAdminTools:
         ] = None,
         resource_tags: Annotated[
             Optional[Dict[str, str]],
-            Field(
-                description='Filter by resource tags. Example: {"Environment": "Production"}'
-            ),
+            Field(description='Filter by resource tags. Example: {"Environment": "Production"}'),
         ] = None,
         max_items: Annotated[
             Optional[int],
-            Field(
-                description='Maximum number of results to return (default: 50).'
-            ),
+            Field(description='Maximum number of results to return (default: 50).'),
         ] = 50,
         region: Annotated[
             Optional[str],
@@ -729,9 +727,7 @@ class ObservabilityAdminTools:
         ctx: Context,
         rule_name_prefix: Annotated[
             Optional[str],
-            Field(
-                description='Filter rules whose names begin with this prefix.'
-            ),
+            Field(description='Filter rules whose names begin with this prefix.'),
         ] = None,
         source_account_ids: Annotated[
             Optional[List[str]],
@@ -741,15 +737,11 @@ class ObservabilityAdminTools:
         ] = None,
         source_organization_unit_ids: Annotated[
             Optional[List[str]],
-            Field(
-                description='Filter by organizational unit IDs, e.g. ou-xxxx-xxxxxxxx.'
-            ),
+            Field(description='Filter by organizational unit IDs, e.g. ou-xxxx-xxxxxxxx.'),
         ] = None,
         max_items: Annotated[
             Optional[int],
-            Field(
-                description='Maximum number of results to return (default: 50).'
-            ),
+            Field(description='Maximum number of results to return (default: 50).'),
         ] = 50,
         region: Annotated[
             Optional[str],
@@ -863,9 +855,7 @@ class ObservabilityAdminTools:
         """
         try:
             client = get_aws_client('observabilityadmin', region, profile_name)
-            response = client.get_telemetry_rule_for_organization(
-                RuleIdentifier=rule_identifier
-            )
+            response = client.get_telemetry_rule_for_organization(RuleIdentifier=rule_identifier)
             return self._parse_telemetry_rule_response(response)
         except Exception as e:
             logger.error(f'Error in get_telemetry_rule_for_organization: {str(e)}')

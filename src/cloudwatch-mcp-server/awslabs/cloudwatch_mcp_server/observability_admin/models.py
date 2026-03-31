@@ -63,9 +63,7 @@ class ListResourceTelemetryResponse(BaseModel):
     telemetry_configurations: List[TelemetryConfiguration] = Field(
         default_factory=list, description='List of resource telemetry configurations'
     )
-    has_more_results: bool = Field(
-        default=False, description='Whether more results are available'
-    )
+    has_more_results: bool = Field(default=False, description='Whether more results are available')
     message: Optional[str] = Field(default=None, description='Status message')
 
 
@@ -75,9 +73,7 @@ class TelemetryRuleSummary(BaseModel):
     rule_name: str = Field(..., description='Name of the telemetry rule')
     rule_arn: str = Field(..., description='ARN of the telemetry rule')
     resource_type: str = Field(..., description='Resource type the rule applies to')
-    telemetry_type: str = Field(
-        ..., description='Telemetry type: Logs, Metrics, or Traces'
-    )
+    telemetry_type: str = Field(..., description='Telemetry type: Logs, Metrics, or Traces')
     telemetry_source_types: List[str] = Field(
         default_factory=list,
         description='Telemetry source types, e.g. VPC_FLOW_LOGS, EKS_AUDIT_LOGS',
@@ -96,9 +92,7 @@ class ListTelemetryRulesResponse(BaseModel):
     telemetry_rule_summaries: List[TelemetryRuleSummary] = Field(
         default_factory=list, description='List of telemetry rule summaries'
     )
-    has_more_results: bool = Field(
-        default=False, description='Whether more results are available'
-    )
+    has_more_results: bool = Field(default=False, description='Whether more results are available')
     message: Optional[str] = Field(default=None, description='Status message')
 
 
@@ -138,9 +132,7 @@ class TelemetryRuleDetail(BaseModel):
     resource_type: str = Field(
         ..., description='AWS resource type, e.g. AWS::EC2::VPC, AWS::EKS::Cluster'
     )
-    telemetry_type: str = Field(
-        ..., description='Telemetry type: Logs, Metrics, or Traces'
-    )
+    telemetry_type: str = Field(..., description='Telemetry type: Logs, Metrics, or Traces')
     telemetry_source_types: List[str] = Field(
         default_factory=list,
         description='Specific telemetry source types, e.g. VPC_FLOW_LOGS, EKS_AUDIT_LOGS',

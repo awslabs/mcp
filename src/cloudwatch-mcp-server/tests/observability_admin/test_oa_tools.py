@@ -250,9 +250,7 @@ class TestListResourceTelemetry:
             }
         ]
         mock_client = Mock()
-        mock_client.get_paginator.return_value = _make_paginator(
-            'TelemetryConfigurations', items
-        )
+        mock_client.get_paginator.return_value = _make_paginator('TelemetryConfigurations', items)
         with patch(
             'awslabs.cloudwatch_mcp_server.observability_admin.tools.get_aws_client',
             return_value=mock_client,
@@ -267,9 +265,7 @@ class TestListResourceTelemetry:
     async def test_empty_results(self, mock_context, oa_tools):
         """Test test_empty_results."""
         mock_client = Mock()
-        mock_client.get_paginator.return_value = _make_paginator(
-            'TelemetryConfigurations', []
-        )
+        mock_client.get_paginator.return_value = _make_paginator('TelemetryConfigurations', [])
         with patch(
             'awslabs.cloudwatch_mcp_server.observability_admin.tools.get_aws_client',
             return_value=mock_client,
@@ -277,7 +273,10 @@ class TestListResourceTelemetry:
             result = await oa_tools.list_resource_telemetry(mock_context)
 
         assert len(result.telemetry_configurations) == 0
-        assert result.message == 'No resource telemetry configurations found. Ensure telemetry evaluation is running.'
+        assert (
+            result.message
+            == 'No resource telemetry configurations found. Ensure telemetry evaluation is running.'
+        )
 
     async def test_has_more_results(self, mock_context, oa_tools):
         """Test test_has_more_results."""
@@ -293,9 +292,7 @@ class TestListResourceTelemetry:
             for i in range(3)
         ]
         mock_client = Mock()
-        mock_client.get_paginator.return_value = _make_paginator(
-            'TelemetryConfigurations', items
-        )
+        mock_client.get_paginator.return_value = _make_paginator('TelemetryConfigurations', items)
         with patch(
             'awslabs.cloudwatch_mcp_server.observability_admin.tools.get_aws_client',
             return_value=mock_client,
@@ -332,9 +329,7 @@ class TestListResourceTelemetry:
     async def test_none_max_items_defaults(self, mock_context, oa_tools):
         """Test test_none_max_items_defaults."""
         mock_client = Mock()
-        mock_client.get_paginator.return_value = _make_paginator(
-            'TelemetryConfigurations', []
-        )
+        mock_client.get_paginator.return_value = _make_paginator('TelemetryConfigurations', [])
         with patch(
             'awslabs.cloudwatch_mcp_server.observability_admin.tools.get_aws_client',
             return_value=mock_client,
@@ -374,9 +369,7 @@ class TestListTelemetryRules:
             }
         ]
         mock_client = Mock()
-        mock_client.get_paginator.return_value = _make_paginator(
-            'TelemetryRuleSummaries', items
-        )
+        mock_client.get_paginator.return_value = _make_paginator('TelemetryRuleSummaries', items)
         with patch(
             'awslabs.cloudwatch_mcp_server.observability_admin.tools.get_aws_client',
             return_value=mock_client,
@@ -390,9 +383,7 @@ class TestListTelemetryRules:
     async def test_empty_results(self, mock_context, oa_tools):
         """Test test_empty_results."""
         mock_client = Mock()
-        mock_client.get_paginator.return_value = _make_paginator(
-            'TelemetryRuleSummaries', []
-        )
+        mock_client.get_paginator.return_value = _make_paginator('TelemetryRuleSummaries', [])
         with patch(
             'awslabs.cloudwatch_mcp_server.observability_admin.tools.get_aws_client',
             return_value=mock_client,
@@ -459,14 +450,20 @@ class TestGetTelemetryRule:
             'awslabs.cloudwatch_mcp_server.observability_admin.tools.get_aws_client',
             return_value=mock_client,
         ):
-            result = await oa_tools.get_telemetry_rule(mock_context, rule_identifier='vpc-flow-rule')
+            result = await oa_tools.get_telemetry_rule(
+                mock_context, rule_identifier='vpc-flow-rule'
+            )
 
         assert result.rule_name == 'vpc-flow-rule'
         assert result.telemetry_rule is not None
         assert result.telemetry_rule.resource_type == 'AWS::EC2::VPC'
-        assert result.telemetry_rule.destination_configuration.destination_type == 'cloud-watch-logs'
+        assert (
+            result.telemetry_rule.destination_configuration.destination_type == 'cloud-watch-logs'
+        )
         assert result.telemetry_rule.destination_configuration.retention_in_days == 30
-        assert result.telemetry_rule.destination_configuration.vpc_flow_log_parameters == {'TrafficType': 'ALL'}
+        assert result.telemetry_rule.destination_configuration.vpc_flow_log_parameters == {
+            'TrafficType': 'ALL'
+        }
         assert result.telemetry_rule.scope == 'ACCOUNT'
 
     async def test_without_destination_config(self, mock_context, oa_tools):
@@ -533,9 +530,7 @@ class TestListResourceTelemetryForOrganization:
             }
         ]
         mock_client = Mock()
-        mock_client.get_paginator.return_value = _make_paginator(
-            'TelemetryConfigurations', items
-        )
+        mock_client.get_paginator.return_value = _make_paginator('TelemetryConfigurations', items)
         with patch(
             'awslabs.cloudwatch_mcp_server.observability_admin.tools.get_aws_client',
             return_value=mock_client,
@@ -568,9 +563,7 @@ class TestListResourceTelemetryForOrganization:
     async def test_empty_results(self, mock_context, oa_tools):
         """Test test_empty_results."""
         mock_client = Mock()
-        mock_client.get_paginator.return_value = _make_paginator(
-            'TelemetryConfigurations', []
-        )
+        mock_client.get_paginator.return_value = _make_paginator('TelemetryConfigurations', [])
         with patch(
             'awslabs.cloudwatch_mcp_server.observability_admin.tools.get_aws_client',
             return_value=mock_client,
@@ -608,9 +601,7 @@ class TestListTelemetryRulesForOrganization:
             }
         ]
         mock_client = Mock()
-        mock_client.get_paginator.return_value = _make_paginator(
-            'TelemetryRuleSummaries', items
-        )
+        mock_client.get_paginator.return_value = _make_paginator('TelemetryRuleSummaries', items)
         with patch(
             'awslabs.cloudwatch_mcp_server.observability_admin.tools.get_aws_client',
             return_value=mock_client,
@@ -645,9 +636,7 @@ class TestListTelemetryRulesForOrganization:
     async def test_empty_results(self, mock_context, oa_tools):
         """Test test_empty_results."""
         mock_client = Mock()
-        mock_client.get_paginator.return_value = _make_paginator(
-            'TelemetryRuleSummaries', []
-        )
+        mock_client.get_paginator.return_value = _make_paginator('TelemetryRuleSummaries', [])
         with patch(
             'awslabs.cloudwatch_mcp_server.observability_admin.tools.get_aws_client',
             return_value=mock_client,
@@ -708,9 +697,7 @@ class TestGetTelemetryRuleForOrganization:
     async def test_api_error(self, mock_context, oa_tools):
         """Test test_api_error."""
         mock_client = Mock()
-        mock_client.get_telemetry_rule_for_organization.side_effect = Exception(
-            'Rule not found'
-        )
+        mock_client.get_telemetry_rule_for_organization.side_effect = Exception('Rule not found')
         with patch(
             'awslabs.cloudwatch_mcp_server.observability_admin.tools.get_aws_client',
             return_value=mock_client,
