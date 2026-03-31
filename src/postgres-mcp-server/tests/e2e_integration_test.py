@@ -497,12 +497,6 @@ def main():
     )
     parser.add_argument('--port', type=int, default=5432, help='Database port (default: 5432)')
     parser.add_argument(
-        '--no-cleanup',
-        action='store_true',
-        default=False,
-        help='Skip cluster deletion after test (default: False)',
-    )
-    parser.add_argument(
         '--test-pgwire',
         action='store_true',
         default=False,
