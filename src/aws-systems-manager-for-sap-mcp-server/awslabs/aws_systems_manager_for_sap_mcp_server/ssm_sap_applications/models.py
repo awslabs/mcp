@@ -49,6 +49,9 @@ class ApplicationDetail(BaseModel):
     components: Optional[List[Dict[str, Any]]] = Field(
         default=None, description='Application components'
     )
+    associated_application_arns: Optional[List[str]] = Field(
+        default=None, description='ARNs of associated applications'
+    )
     last_updated: Optional[str] = Field(default=None, description='Last updated timestamp')
 
 
@@ -83,6 +86,17 @@ class RegisterApplicationResponse(BaseModel):
     operation_id: Optional[str] = Field(default=None, description='Operation ID')
 
 
+class CascadeStopDetail(BaseModel):
+    """Details of a cascaded stop operation for an associated application."""
+
+    application_id: str = Field(..., description='Associated application ID')
+    application_type: str = Field(..., description='Application type (SAP_ABAP)')
+    operation_id: Optional[str] = Field(default=None, description='Stop operation ID')
+    status: str = Field(..., description='Stop operation status')
+    start_time: Optional[str] = Field(default=None, description='Stop operation start time')
+    end_time: Optional[str] = Field(default=None, description='Stop operation end time')
+
+
 class StartStopApplicationResponse(BaseModel):
     """Response from starting or stopping an SAP application."""
 
@@ -90,3 +104,6 @@ class StartStopApplicationResponse(BaseModel):
     message: str = Field(..., description='Status message')
     operation_id: Optional[str] = Field(default=None, description='Operation ID')
     application_id: str = Field(..., description='Application ID')
+    associated_app_stop_details: Optional[List[CascadeStopDetail]] = Field(
+        default=None, description='Details of associated applications stopped before this one'
+    )

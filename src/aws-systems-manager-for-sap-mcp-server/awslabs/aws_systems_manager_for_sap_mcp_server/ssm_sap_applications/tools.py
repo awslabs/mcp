@@ -14,12 +14,14 @@
 
 """SSM for SAP application management tools for MCP server."""
 
+import asyncio
 import json
 from awslabs.aws_systems_manager_for_sap_mcp_server.client_factory import get_aws_client
 from awslabs.aws_systems_manager_for_sap_mcp_server.common import format_datetime
 from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.models import (
     ApplicationDetail,
     ApplicationSummary,
+    CascadeStopDetail,
     ComponentDetail,
     ListApplicationsResponse,
     OperationDetail,
@@ -29,8 +31,41 @@ from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.models 
 from botocore.exceptions import ClientError
 from loguru import logger
 from mcp.server.fastmcp import Context
-from pydantic import Field
+from mcp.shared.exceptions import McpError
+from mcp.types import METHOD_NOT_FOUND
+from pydantic import BaseModel, Field
 from typing import Annotated, Any, Dict, List, Optional
+
+
+async def request_consent(operation_description: str, acknowledgment_text: str, ctx: Context):
+    """Request explicit user consent before executing a mutating application operation."""
+    try:
+        ConsentModel = type(
+            'Consent',
+            (BaseModel,),
+            {
+                '__annotations__': {'acknowledge': bool},
+                'acknowledge': Field(description=acknowledgment_text),
+            },
+        )
+
+        elicitation_result = await ctx.elicit(
+            message=(
+                f'{operation_description}\n\n'
+                'Please review and acknowledge the risk before proceeding.'
+            ),
+            schema=ConsentModel,
+        )
+
+        if elicitation_result.action != 'accept' or not elicitation_result.data.acknowledge:
+            raise ValueError('User rejected the operation.')
+    except McpError as e:
+        if e.error.code == METHOD_NOT_FOUND:
+            raise ValueError(
+                'Client does not support elicitation. '
+                'Cannot proceed without user confirmation for this operation.'
+            )
+        raise e
 
 
 class SSMSAPApplicationTools:
@@ -180,6 +215,7 @@ class SSMSAPApplicationTools:
                 discovery_status=app.get('DiscoveryStatus', 'UNKNOWN'),
                 status_message=app.get('StatusMessage'),
                 components=components if components else None,
+                associated_application_arns=app.get('AssociatedApplicationArns'),
                 last_updated=format_datetime(app.get('LastUpdatedTime')),
             )
         except ClientError as e:
@@ -472,6 +508,19 @@ class SSMSAPApplicationTools:
             StartStopApplicationResponse with operation status.
         """
         try:
+            await request_consent(
+                f"Start SAP application '{application_id}'.",
+                'I understand this will start my SAP application.',
+                ctx,
+            )
+        except ValueError as e:
+            return StartStopApplicationResponse(
+                status='error',
+                message=str(e),
+                application_id=application_id,
+            )
+
+        try:
             client = get_aws_client('ssm-sap', region_name=region, profile_name=profile_name)
             response = client.start_application(ApplicationId=application_id)
             return StartStopApplicationResponse(
@@ -518,6 +567,10 @@ class SSMSAPApplicationTools:
     ) -> StartStopApplicationResponse:
         """Stop an SAP application registered with AWS Systems Manager for SAP.
 
+        For HANA applications with associated NetWeaver (SAP_ABAP) applications,
+        this tool can optionally stop the NetWeaver applications first before
+        stopping the HANA database.
+
         Args:
             ctx: MCP context object.
             application_id: The application ID.
@@ -529,15 +582,185 @@ class SSMSAPApplicationTools:
         Returns:
             StartStopApplicationResponse with operation status.
         """
+        if stop_connected_entity and stop_connected_entity not in ('DBMS',):
+            return StartStopApplicationResponse(
+                status='error',
+                message=f"Invalid stop_connected_entity: '{stop_connected_entity}'. Valid: ['DBMS']",
+                application_id=application_id,
+            )
+
+        # Check application type and discover associated NetWeaver apps
+        associated_nw_apps: List[str] = []
         try:
-            if stop_connected_entity and stop_connected_entity not in ('DBMS',):
+            client = get_aws_client('ssm-sap', region_name=region, profile_name=profile_name)
+            app_response = client.get_application(ApplicationId=application_id)
+            app = app_response.get('Application', {})
+            app_type = app.get('Type', 'UNKNOWN')
+
+            if app_type == 'HANA':
+                for arn in app.get('AssociatedApplicationArns', []):
+                    # Extract app ID from ARN
+                    assoc_id = arn.split('/')[-1] if '/' in arn else None
+                    if not assoc_id:
+                        continue
+                    # Confirm it's a NetWeaver app via GetApplication
+                    try:
+                        assoc_resp = client.get_application(ApplicationId=assoc_id)
+                        assoc_app = assoc_resp.get('Application', {})
+                        if assoc_app.get('Type') == 'SAP_ABAP':
+                            associated_nw_apps.append(assoc_id)
+                    except Exception as e:
+                        logger.warning(f'Could not verify associated app {assoc_id}: {e}')
+        except Exception as e:
+            return StartStopApplicationResponse(
+                status='error',
+                message=f'Failed to retrieve application details: {e}',
+                application_id=application_id,
+            )
+
+        # Build consent dialog dynamically
+        cascade_stop = False
+        ec2_warning = ' EC2 instances will also be shut down.' if include_ec2_instance_shutdown else ''
+
+        if associated_nw_apps:
+            nw_list = ', '.join(associated_nw_apps)
+            try:
+                ConsentModel = type(
+                    'Consent',
+                    (BaseModel,),
+                    {
+                        '__annotations__': {
+                            'stop_associated_apps_first': bool,
+                            'acknowledge': bool,
+                        },
+                        'stop_associated_apps_first': Field(
+                            default=False,
+                            description=(
+                                f'Stop associated NetWeaver application(s) [{nw_list}] '
+                                'before stopping the HANA database. Recommended to avoid data inconsistency.'
+                            )
+                        ),
+                        'acknowledge': Field(
+                            description=(
+                                'I understand this will stop my SAP application. '
+                                'This will cause downtime and may affect dependent systems and users.'
+                            )
+                        ),
+                    },
+                )
+
+                elicitation_result = await ctx.elicit(
+                    message=(
+                        f"Stop HANA application '{application_id}'.{ec2_warning}\n\n"
+                        f'Associated NetWeaver application(s) found: {nw_list}\n\n'
+                        'Please review and acknowledge the risk before proceeding.'
+                    ),
+                    schema=ConsentModel,
+                )
+
+                if elicitation_result.action != 'accept' or not elicitation_result.data.acknowledge:
+                    return StartStopApplicationResponse(
+                        status='error',
+                        message='User rejected the operation.',
+                        application_id=application_id,
+                    )
+                cascade_stop = elicitation_result.data.stop_associated_apps_first
+            except McpError as e:
+                if e.error.code == METHOD_NOT_FOUND:
+                    return StartStopApplicationResponse(
+                        status='error',
+                        message='Client does not support elicitation. Cannot proceed without user confirmation.',
+                        application_id=application_id,
+                    )
+                raise e
+        else:
+            # No associated apps — standard consent
+            try:
+                await request_consent(
+                    f"Stop SAP application '{application_id}'.{ec2_warning}",
+                    'I understand this will stop my SAP application. '
+                    'This will cause downtime and may affect dependent systems and users.',
+                    ctx,
+                )
+            except ValueError as e:
                 return StartStopApplicationResponse(
                     status='error',
-                    message=f"Invalid stop_connected_entity: '{stop_connected_entity}'. Valid: ['DBMS']",
+                    message=str(e),
                     application_id=application_id,
                 )
 
-            client = get_aws_client('ssm-sap', region_name=region, profile_name=profile_name)
+        # Stop associated NetWeaver apps first if requested
+        cascade_details: List[CascadeStopDetail] = []
+        if cascade_stop and associated_nw_apps:
+            for nw_app_id in associated_nw_apps:
+                try:
+                    stop_resp = client.stop_application(ApplicationId=nw_app_id)
+                    op_id = stop_resp.get('OperationId')
+                    nw_start_time = None
+                    nw_end_time = None
+                    nw_status = 'UNKNOWN'
+                    if op_id:
+                        for _ in range(120):  # Max ~10 minutes
+                            await asyncio.sleep(5)
+                            op_resp = client.get_operation(OperationId=op_id)
+                            op = op_resp.get('Operation', {})
+                            nw_status = op.get('Status', '')
+                            nw_start_time = str(op.get('StartTime', ''))
+                            nw_end_time = str(op.get('EndTime', ''))
+                            if nw_status in ('SUCCESS', 'ERROR'):
+                                if nw_status == 'ERROR':
+                                    cascade_details.append(CascadeStopDetail(
+                                        application_id=nw_app_id,
+                                        application_type='SAP_ABAP',
+                                        operation_id=op_id,
+                                        status='ERROR',
+                                        start_time=nw_start_time,
+                                        end_time=nw_end_time,
+                                    ))
+                                    return StartStopApplicationResponse(
+                                        status='error',
+                                        message=f"Failed to stop associated NetWeaver app '{nw_app_id}': {op.get('StatusMessage', 'Unknown error')}",
+                                        application_id=application_id,
+                                        associated_app_stop_details=cascade_details,
+                                    )
+                                cascade_details.append(CascadeStopDetail(
+                                    application_id=nw_app_id,
+                                    application_type='SAP_ABAP',
+                                    operation_id=op_id,
+                                    status='SUCCESS',
+                                    start_time=nw_start_time,
+                                    end_time=nw_end_time,
+                                ))
+                                break
+                        else:
+                            cascade_details.append(CascadeStopDetail(
+                                application_id=nw_app_id,
+                                application_type='SAP_ABAP',
+                                operation_id=op_id,
+                                status='TIMED_OUT',
+                            ))
+                            return StartStopApplicationResponse(
+                                status='error',
+                                message=f"Timed out waiting for NetWeaver app '{nw_app_id}' to stop.",
+                                application_id=application_id,
+                                associated_app_stop_details=cascade_details,
+                            )
+                except ClientError as e:
+                    cascade_details.append(CascadeStopDetail(
+                        application_id=nw_app_id,
+                        application_type='SAP_ABAP',
+                        operation_id=None,
+                        status='ERROR',
+                    ))
+                    return StartStopApplicationResponse(
+                        status='error',
+                        message=f"Error stopping NetWeaver app '{nw_app_id}': {e.response['Error']['Message']}",
+                        application_id=application_id,
+                        associated_app_stop_details=cascade_details,
+                    )
+
+        # Now stop the target application
+        try:
             params: Dict[str, Any] = {'ApplicationId': application_id}
             if include_ec2_instance_shutdown:
                 params['IncludeEc2InstanceShutdown'] = True
@@ -545,11 +768,16 @@ class SSMSAPApplicationTools:
                 params['StopConnectedEntity'] = stop_connected_entity
 
             response = client.stop_application(**params)
+            message = f"Stop operation initiated for '{application_id}'"
+            if cascade_details:
+                stopped_names = ', '.join(d.application_id for d in cascade_details)
+                message += f" (after successfully stopping associated app(s): {stopped_names})"
             return StartStopApplicationResponse(
                 status='success',
-                message=f"Stop operation initiated for '{application_id}'",
+                message=message,
                 operation_id=response.get('OperationId'),
                 application_id=application_id,
+                associated_app_stop_details=cascade_details if cascade_details else None,
             )
         except ClientError as e:
             return StartStopApplicationResponse(

@@ -28,8 +28,50 @@ from botocore.exceptions import ClientError
 from datetime import datetime, timezone
 from loguru import logger
 from mcp.server.fastmcp import Context
-from pydantic import Field
+from mcp.shared.exceptions import McpError
+from mcp.types import METHOD_NOT_FOUND
+from pydantic import BaseModel, Field
 from typing import Annotated, Any, Dict, List, Optional
+
+
+class Consent(BaseModel):
+    """Represents the consent of the user for executing a scheduling operation."""
+
+    acknowledge: bool = Field(
+        description='I acknowledge the risk of this operation.'
+    )
+
+
+async def request_consent(operation_description: str, acknowledgment_text: str, ctx: Context):
+    """Request explicit user consent before executing a mutating scheduling operation."""
+    try:
+        # Dynamically create a consent model with the specific acknowledgment text
+        ConsentModel = type(
+            'Consent',
+            (BaseModel,),
+            {
+                '__annotations__': {'acknowledge': bool},
+                'acknowledge': Field(description=acknowledgment_text),
+            },
+        )
+
+        elicitation_result = await ctx.elicit(
+            message=(
+                f'{operation_description}\n\n'
+                'Please review and acknowledge the risk before proceeding.'
+            ),
+            schema=ConsentModel,
+        )
+
+        if elicitation_result.action != 'accept' or not elicitation_result.data.acknowledge:
+            raise ValueError('User rejected the operation.')
+    except McpError as e:
+        if e.error.code == METHOD_NOT_FOUND:
+            raise ValueError(
+                'Client does not support elicitation. '
+                'Cannot proceed without user confirmation for this operation.'
+            )
+        raise e
 
 
 # Mapping of SSM-SAP operations to EventBridge Scheduler target ARNs
@@ -193,6 +235,24 @@ class SSMSAPSchedulingTools:
         Returns:
             CreateScheduleResponse with schedule details.
         """
+        try:
+            await request_consent(
+                f"Schedule recurring configuration checks for SAP application '{application_id}' "
+                f"with expression '{schedule_expression}'.",
+                'I understand this will create a schedule that automatically runs configuration checks '
+                'against my SAP application on a recurring basis.',
+                ctx,
+            )
+        except ValueError as e:
+            return CreateScheduleResponse(
+                status='error',
+                message=str(e),
+                schedule_name=schedule_name or _generate_schedule_name('ssmsap-cc-', application_id),
+                schedule_arn=None,
+                application_id=application_id,
+                schedule_expression=schedule_expression,
+            )
+
         return await self._create_schedule(
             operation='config_checks',
             application_id=application_id,
@@ -267,6 +327,23 @@ class SSMSAPSchedulingTools:
         Returns:
             CreateScheduleResponse with schedule details.
         """
+        try:
+            await request_consent(
+                f"Schedule automatic START for SAP application '{application_id}' "
+                f"with expression '{schedule_expression}'.",
+                'I understand this will create a schedule that automatically starts my SAP application.',
+                ctx,
+            )
+        except ValueError as e:
+            return CreateScheduleResponse(
+                status='error',
+                message=str(e),
+                schedule_name=schedule_name or _generate_schedule_name('ssmsap-start-', application_id),
+                schedule_arn=None,
+                application_id=application_id,
+                schedule_expression=schedule_expression,
+            )
+
         return await self._create_schedule(
             operation='start_application',
             application_id=application_id,
@@ -357,6 +434,25 @@ class SSMSAPSchedulingTools:
             extra_input['IncludeEc2InstanceShutdown'] = True
         if stop_connected_entity:
             extra_input['StopConnectedEntity'] = stop_connected_entity
+
+        ec2_warning = ' EC2 instances will also be shut down.' if include_ec2_instance_shutdown else ''
+        try:
+            await request_consent(
+                f"Schedule automatic STOP for SAP application '{application_id}' "
+                f"with expression '{schedule_expression}'.{ec2_warning}",
+                'I understand this will create a schedule that automatically stops my SAP application. '
+                'This will cause downtime and may affect dependent systems and users.',
+                ctx,
+            )
+        except ValueError as e:
+            return CreateScheduleResponse(
+                status='error',
+                message=str(e),
+                schedule_name=schedule_name or _generate_schedule_name('ssmsap-stop-', application_id),
+                schedule_arn=None,
+                application_id=application_id,
+                schedule_expression=schedule_expression,
+            )
 
         return await self._create_schedule(
             operation='stop_application',
@@ -571,6 +667,20 @@ class SSMSAPSchedulingTools:
             DeleteScheduleResponse with deletion status.
         """
         try:
+            await request_consent(
+                f"Delete EventBridge schedule '{schedule_name}'. This action cannot be undone.",
+                'I understand this will permanently delete the schedule. '
+                'Any automated operations tied to this schedule will stop running.',
+                ctx,
+            )
+        except ValueError as e:
+            return DeleteScheduleResponse(
+                status='error',
+                message=str(e),
+                schedule_name=schedule_name,
+            )
+
+        try:
             scheduler = get_aws_client('scheduler', region_name=region, profile_name=profile_name)
             scheduler.delete_schedule(Name=schedule_name)
             return DeleteScheduleResponse(
@@ -623,6 +733,26 @@ class SSMSAPSchedulingTools:
             UpdateScheduleStateResponse with new state.
         """
         new_state = 'ENABLED' if enabled else 'DISABLED'
+        action_word = 'enable' if enabled else 'disable'
+        try:
+            await request_consent(
+                f"{'Enable' if enabled else 'Disable'} EventBridge schedule '{schedule_name}'.",
+                f'I understand this will {action_word} the schedule. '
+                + (
+                    'Enabling it will resume automated operations on my SAP application.'
+                    if enabled
+                    else 'Disabling it will pause automated operations until re-enabled.'
+                ),
+                ctx,
+            )
+        except ValueError as e:
+            return UpdateScheduleStateResponse(
+                status='error',
+                message=str(e),
+                schedule_name=schedule_name,
+                new_state=new_state,
+            )
+
         try:
             scheduler = get_aws_client('scheduler', region_name=region, profile_name=profile_name)
             detail = scheduler.get_schedule(Name=schedule_name)
