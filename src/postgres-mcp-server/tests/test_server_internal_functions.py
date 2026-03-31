@@ -26,7 +26,7 @@ from awslabs.postgres_mcp_server.server import (
 from unittest.mock import MagicMock, patch
 
 
-class TestInternalConnectToDatabase:
+class TestInternalCreateConnection:
     """Tests for internal_create_connection function."""
 
     def test_missing_region_raises_error(self):
