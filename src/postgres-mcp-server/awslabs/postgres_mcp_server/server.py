@@ -408,8 +408,8 @@ def create_cluster(
     Args:
         region: region
         cluster_identifier: cluster identifier
-        database: database name
-        engine_version: engine version
+        database: database name, ignored when with_express_configuration is set to true
+        engine_version: engine version, ignored when with_express_configuration is set to true
         with_express_configuration: create the cluster with express configuration
 
     Returns:
@@ -448,7 +448,7 @@ def create_cluster(
             connection_method=connection_method,
             cluster_identifier=cluster_identifier,
             db_endpoint=properties['Endpoint'],
-            port=5432,
+            port=properties.get('Port', 5432),,
             database=database,
         )
 

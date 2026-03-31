@@ -150,15 +150,15 @@ def internal_create_express_cluster(cluster_identifier: str, region: str) -> Dic
             Tags=tags,
         )
 
-        result = rds_client.describe_db_clusters(DBClusterIdentifier=cluster_identifier)[
-            'DBClusters'
-        ][0]
-
         logger.info('Waiting for cluster to become available...')
         waiter = rds_client.get_waiter('db_cluster_available')
         waiter.wait(
             DBClusterIdentifier=cluster_identifier, WaiterConfig={'Delay': 5, 'MaxAttempts': 120}
         )
+
+        result = rds_client.describe_db_clusters(DBClusterIdentifier=cluster_identifier)[
+            'DBClusters'
+        ][0]
 
         cluster_create_stop_time = time.time()
         elapsed_time = cluster_create_stop_time - cluster_create_start_time
@@ -656,7 +656,7 @@ def internal_delete_cluster(region: str, cluster_id: str) -> None:
         ClientError: If deletion fails or the cluster is not found
         Exception: If cluster was not created by MCP tool (safety check)
     """
-    rds = boto3.client('rds', region_name=region)
+    rds = internal_create_rds_client(region)
 
     # Check cluster exists and verify it was created by MCP
     try:
@@ -708,12 +708,19 @@ def internal_delete_cluster(region: str, cluster_id: str) -> None:
                 logger.exception(f"Error deleting instance '{inst_id}': {e}")
                 raise
 
-    # Wait for all instances to be fully deleted
+    # Wait for all instances to be fully deleted (max ~20 minutes)
+    max_instance_attempts = 240
     if instance_ids:
         logger.info('Waiting for instances to be deleted...')
     remaining = set(instance_ids)
+    instance_attempts = 0
 
     while remaining:
+        instance_attempts += 1
+        if instance_attempts > max_instance_attempts:
+            raise TimeoutError(
+                f'Timed out waiting for instance(s) to be deleted: {", ".join(remaining)}'
+            )
         done = []
         for inst_id in list(remaining):
             try:
@@ -744,9 +751,16 @@ def internal_delete_cluster(region: str, cluster_id: str) -> None:
         logger.exception(f"Error deleting cluster '{cluster_id}': {e}")
         raise
 
-    # Poll for deletion
+    # Poll for cluster deletion (max ~20 minutes)
+    max_cluster_attempts = 240
     logger.info('Waiting for cluster to be deleted...')
+    cluster_attempts = 0
     while True:
+        cluster_attempts += 1
+        if cluster_attempts > max_cluster_attempts:
+            raise TimeoutError(
+                f"Timed out waiting for cluster '{cluster_id}' to be deleted"
+            )
         try:
             rds.describe_db_clusters(DBClusterIdentifier=cluster_id)
             time.sleep(5)
