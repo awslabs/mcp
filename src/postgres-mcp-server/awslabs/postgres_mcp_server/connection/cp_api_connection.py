@@ -758,9 +758,7 @@ def internal_delete_cluster(region: str, cluster_id: str) -> None:
     while True:
         cluster_attempts += 1
         if cluster_attempts > max_cluster_attempts:
-            raise TimeoutError(
-                f"Timed out waiting for cluster '{cluster_id}' to be deleted"
-            )
+            raise TimeoutError(f"Timed out waiting for cluster '{cluster_id}' to be deleted")
         try:
             rds.describe_db_clusters(DBClusterIdentifier=cluster_id)
             time.sleep(5)

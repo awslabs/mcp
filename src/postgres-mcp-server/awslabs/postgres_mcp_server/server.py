@@ -448,7 +448,7 @@ def create_cluster(
             connection_method=connection_method,
             cluster_identifier=cluster_identifier,
             db_endpoint=properties['Endpoint'],
-            port=properties.get('Port', 5432),,
+            port=properties.get('Port', 5432),
             database=database,
         )
 
