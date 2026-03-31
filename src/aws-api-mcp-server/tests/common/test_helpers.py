@@ -13,6 +13,14 @@ from requests.adapters import HTTPAdapter
 from unittest.mock import MagicMock, patch
 
 
+@pytest.fixture(autouse=True)
+def _reset_requests_session():
+    """Reset the cached requests session between tests."""
+    get_requests_session.cache_clear()
+    yield
+    get_requests_session.cache_clear()
+
+
 @pytest.mark.parametrize(
     'valid_region',
     [

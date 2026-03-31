@@ -13,6 +13,14 @@ from awslabs.aws_api_mcp_server.core.common.config import (
 from unittest.mock import MagicMock, patch
 
 
+@pytest.fixture(autouse=True)
+def _clear_region_cache():
+    """Clear the region cache between tests."""
+    config_module._region_cache.clear()
+    yield
+    config_module._region_cache.clear()
+
+
 @pytest.mark.parametrize(
     'os_name,uname_sysname,expected_tempdir',
     [
