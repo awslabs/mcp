@@ -14,15 +14,29 @@
 """Configuration for pytest."""
 
 import pytest
+import pytest_asyncio
 from awslabs.aws_documentation_mcp_server.server_utils import get_http_client
 
 
-@pytest.fixture(autouse=True)
-def _reset_http_client_cache():
+async def _close_and_clear_http_client():
+    """Close the cached httpx client (if any) and clear the cache."""
+    if get_http_client.cache_info().currsize:
+        client = get_http_client()
+        aclose = getattr(client, 'aclose', None)
+        if aclose and callable(aclose):
+            try:
+                await aclose()
+            except TypeError:
+                pass  # mock objects can't be awaited
+    get_http_client.cache_clear()
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _reset_http_client_cache():
     """Reset the cached httpx client between tests."""
-    get_http_client.cache_clear()
+    await _close_and_clear_http_client()
     yield
-    get_http_client.cache_clear()
+    await _close_and_clear_http_client()
 
 
 def pytest_addoption(parser):

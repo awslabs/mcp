@@ -190,10 +190,22 @@ async def get_available_services(
         await ctx.error(error_msg)
         return error_msg
 
+    if toc_response.status_code >= 400:
+        error_msg = f'Failed to fetch AWS-CN TOC - status code {toc_response.status_code}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return error_msg
+
     page_raw = response.text
     content_type = response.headers.get('content-type', '')
 
-    page_toc_json = toc_response.json()
+    try:
+        page_toc_json = toc_response.json()
+    except ValueError as e:
+        error_msg = f'Failed to parse AWS-CN TOC JSON: {str(e)}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return error_msg
     # toc_response = { 'contents' : [ { 'title': '', 'href': '', 'contents': [] } ] }
     services_json = [
         toc_item.get('contents', [])
