@@ -44,6 +44,12 @@ CHUNK_SIZE = 4 * 1024 * 1024
 _client_cache: OrderedDict[tuple, Any] = OrderedDict()
 _MAX_CACHED_CLIENTS = 30
 
+
+def clear_client_cache() -> None:
+    """Clear the boto3 client cache. Intended for test fixtures."""
+    _client_cache.clear()
+
+
 _AUTH_ERROR_CODES = frozenset(
     {
         'ExpiredTokenException',
