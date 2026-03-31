@@ -30,7 +30,6 @@ from awslabs.amazon_neptune_mcp_server.graph_store.analytics import GRAPH_ID_PAT
 from awslabs.amazon_neptune_mcp_server.models import GraphSchema
 from loguru import logger
 from typing import Optional
-from urllib.parse import urlparse
 
 
 class NeptuneServer:

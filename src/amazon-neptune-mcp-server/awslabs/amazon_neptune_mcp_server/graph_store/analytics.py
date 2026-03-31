@@ -14,7 +14,7 @@
 
 import boto3
 import json
-from botocore.config import Config
+import re
 from awslabs.amazon_neptune_mcp_server.constants import USER_AGENT_CONFIG
 from awslabs.amazon_neptune_mcp_server.exceptions import NeptuneException
 from awslabs.amazon_neptune_mcp_server.graph_store import NeptuneGraph
@@ -25,11 +25,10 @@ from awslabs.amazon_neptune_mcp_server.models import (
     Relationship,
     RelationshipPattern,
 )
+from botocore.config import Config
 from loguru import logger
 from typing import Optional
 
-
-import re
 
 GRAPH_ID_PATTERN = re.compile(r'^g-[a-z0-9]{10}$')
 

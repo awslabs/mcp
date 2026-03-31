@@ -66,8 +66,9 @@ class TestNeptuneServer:
     @patch('awslabs.amazon_neptune_mcp_server.neptune.NeptuneAnalytics')
     async def test_init_neptune_analytics_custom_endpoint(self, mock_neptune_analytics):
         """Test initialization with a custom endpoint.
+
         Any non-graphId value is treated as a custom endpoint with a placeholder graph ID:
-        neptune-graph://localhost:9100 → graphId='g-1234567890', endpoint_url='http://localhost:9100'
+        neptune-graph://localhost:9100 → graphId='g-1234567890', endpoint_url='http://localhost:9100'.
         """
         mock_analytics_instance = MagicMock()
         mock_neptune_analytics.return_value = mock_analytics_instance
