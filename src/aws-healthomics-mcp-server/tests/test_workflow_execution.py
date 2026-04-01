@@ -1037,6 +1037,8 @@ async def test_start_run_success():
             cache_id=None,
             cache_behavior=None,
             run_group_id=None,
+            networking_mode=None,
+            configuration_name=None,
         )
 
     # Verify client was called correctly
@@ -1091,6 +1093,8 @@ async def test_start_run_with_static_storage():
             cache_id=None,
             cache_behavior=None,
             run_group_id=None,
+            networking_mode=None,
+            configuration_name=None,
         )
 
     # Verify client was called with static storage parameters
@@ -1123,6 +1127,8 @@ async def test_start_run_static_without_capacity():
         storage_capacity=None,
         cache_id=None,
         cache_behavior=None,
+        networking_mode=None,
+        configuration_name=None,
     )
     assert 'error' in result
 
@@ -1160,6 +1166,8 @@ async def test_start_run_with_cache():
             storage_capacity=None,
             cache_id='cache-12345',
             cache_behavior='CACHE_ALWAYS',
+            networking_mode=None,
+            configuration_name=None,
         )
 
     # Verify client was called with cache parameters
@@ -1192,6 +1200,8 @@ async def test_start_run_boto_error():
             storage_capacity=None,
             cache_id=None,
             cache_behavior=None,
+            networking_mode=None,
+            configuration_name=None,
         )
 
     # Verify error was reported to context and returned
@@ -1232,6 +1242,8 @@ async def test_start_run_client_error():
             storage_capacity=None,
             cache_id=None,
             cache_behavior=None,
+            networking_mode=None,
+            configuration_name=None,
         )
 
     # Verify error was reported to context and returned with the S3 error message
@@ -1438,6 +1450,8 @@ async def test_start_run_invalid_storage_type():
         storage_capacity=None,
         cache_id=None,
         cache_behavior=None,
+        networking_mode=None,
+        configuration_name=None,
     )
     assert 'error' in result
 
@@ -1459,6 +1473,8 @@ async def test_start_run_static_storage_without_capacity():
         storage_capacity=None,  # Missing capacity for STATIC storage
         cache_id=None,
         cache_behavior=None,
+        networking_mode=None,
+        configuration_name=None,
     )
     assert 'error' in result
 
@@ -1480,6 +1496,8 @@ async def test_start_run_invalid_cache_behavior():
         storage_capacity=None,
         cache_id=None,
         cache_behavior='INVALID_BEHAVIOR',  # Invalid cache behavior
+        networking_mode=None,
+        configuration_name=None,
     )
     assert 'error' in result
     assert 'Invalid cache behavior' in result['error']
@@ -1506,6 +1524,8 @@ async def test_start_run_cache_behavior_without_cache_id():
         storage_capacity=None,
         cache_id=None,  # No cache_id provided
         cache_behavior='CACHE_ALWAYS',  # But cache_behavior is provided
+        networking_mode=None,
+        configuration_name=None,
     )
     assert 'error' in result
 
@@ -1532,6 +1552,8 @@ async def test_start_run_invalid_s3_uri():
             storage_capacity=None,
             cache_id=None,
             cache_behavior=None,
+            networking_mode=None,
+            configuration_name=None,
         )
     assert 'error' in result
 
@@ -1563,6 +1585,8 @@ async def test_start_run_boto_error_new():
                 storage_capacity=None,
                 cache_id=None,
                 cache_behavior=None,
+                networking_mode=None,
+                configuration_name=None,
             )
 
     # Verify error was reported to context and returned
@@ -1598,6 +1622,8 @@ async def test_start_run_unexpected_error_new():
                 storage_capacity=None,
                 cache_id=None,
                 cache_behavior=None,
+                networking_mode=None,
+                configuration_name=None,
             )
 
     # Verify error was reported to context and returned
