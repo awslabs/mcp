@@ -169,6 +169,12 @@ Build, deploy, and manage cloud infrastructure with Infrastructure as Code best 
 
 
 
+#### Compute & Rendering
+
+| Server Name | Description | Install |
+|-------------|-------------|---------|
+| [AWS Deadline Cloud MCP Server](src/deadline-cloud-mcp-server) | Render farm management, job submission, and troubleshooting for AWS Deadline Cloud | See [README](src/deadline-cloud-mcp-server/README.md) |
+
 #### Serverless & Functions
 
 | Server Name | Description | Install |
