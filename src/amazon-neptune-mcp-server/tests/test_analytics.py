@@ -91,6 +91,33 @@ class TestNeptuneAnalytics:
             )
 
     @patch('boto3.Session')
+    async def test_init_with_endpoint_url(self, mock_session):
+        """Test initialization with a custom endpoint URL.
+
+        Verifies that endpoint_url is passed to the client and inject_host_prefix is disabled.
+        """
+        mock_session_instance = MagicMock()
+        mock_client = MagicMock()
+        mock_session_instance.client.return_value = mock_client
+        mock_session.return_value = mock_session_instance
+
+        with patch.object(
+            NeptuneAnalytics,
+            '_refresh_schema',
+            return_value=GraphSchema(nodes=[], relationships=[], relationship_patterns=[]),
+        ):
+            analytics = NeptuneAnalytics(
+                graph_identifier='g-1234567890',
+                endpoint_url='http://localhost:9100',
+            )
+
+            mock_session_instance.client.assert_called_once()
+            call_kwargs = mock_session_instance.client.call_args
+            assert call_kwargs[1]['endpoint_url'] == 'http://localhost:9100'
+            assert call_kwargs[1]['config'].inject_host_prefix is False
+            assert analytics.client == mock_client
+
+    @patch('boto3.Session')
     async def test_init_session_error(self, mock_session):
         """Test handling of session creation errors.
         This test verifies that:
