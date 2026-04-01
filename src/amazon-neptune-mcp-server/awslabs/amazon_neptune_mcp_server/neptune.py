@@ -79,9 +79,7 @@ class NeptuneServer:
                     graphId = 'g-1234567890'
                     endpoint_url = f'http://{value}'
 
-                self.graph = NeptuneAnalytics(
-                    graphId, endpoint_url=endpoint_url
-                )
+                self.graph = NeptuneAnalytics(graphId, endpoint_url=endpoint_url)
                 logger.debug('Creating Neptune Graph session for %s', endpoint)
             else:
                 raise ValueError(

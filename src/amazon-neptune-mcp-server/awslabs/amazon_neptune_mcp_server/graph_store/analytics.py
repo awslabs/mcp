@@ -75,9 +75,7 @@ class NeptuneAnalytics(NeptuneGraph):
                 client_params['endpoint_url'] = endpoint_url
                 config = Config(inject_host_prefix=False).merge(USER_AGENT_CONFIG)
 
-            self.client = session.client(
-                'neptune-graph', config=config, **client_params
-            )
+            self.client = session.client('neptune-graph', config=config, **client_params)
 
         except Exception as e:
             logger.exception(
