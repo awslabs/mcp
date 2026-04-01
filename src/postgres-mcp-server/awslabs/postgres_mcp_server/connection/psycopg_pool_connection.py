@@ -135,8 +135,20 @@ class PsycopgPoolConnection(AbstractDBConnection):
             )
 
             # wait up to 30 seconds to fill the pool with connections
-            await self.pool.open(True, 30)
-            logger.info('Connection pool initialized successfully')
+            try:
+                await self.pool.open(True, 30)
+            except Exception:
+                # Pool failed to open — psycopg marks it as closed internally.
+                # Set self.pool to None so callers don't try to use a closed pool.
+                logger.exception('Failed to open connection pool')
+                self.pool = None
+                raise
+            pool_name = getattr(self.pool, 'name', 'unknown')
+            logger.info(
+                f'Connection pool {pool_name} initialized at {self.created_time.isoformat()}, '
+                f'host={self.host}, db={self.database}, is_iam={self.is_iam_auth}, '
+                f'expiry_min={self.pool_expiry_min}'
+            )
 
     async def _get_connection(self):
         """Get a database connection from the pool."""
@@ -155,6 +167,13 @@ class PsycopgPoolConnection(AbstractDBConnection):
             ):
                 return
 
+        pool_name = getattr(self.pool, 'name', 'None') if self.pool else 'None'
+        age_seconds = (datetime.now() - self.created_time).total_seconds()
+        logger.warning(
+            f'check_expiry: pool {pool_name} expired or None. '
+            f'age={age_seconds:.1f}s, expiry={self.pool_expiry_min * 60}s, '
+            f'host={self.host}, db={self.database}'
+        )
         await self.close()
         await self.initialize_pool()
 
@@ -218,8 +237,8 @@ class PsycopgPoolConnection(AbstractDBConnection):
                             return {'columnMetadata': [], 'records': []}
 
         except Exception as e:
-            logger.error(f'Database connection error: {str(e)}')
-            raise e
+            logger.exception(f'Database connection error: {str(e)}')
+            raise
 
     def _convert_parameters(self, parameters: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Transform structured parameter format to psycopg's native parameter format."""
@@ -303,17 +322,18 @@ class PsycopgPoolConnection(AbstractDBConnection):
                 logger.error('Secret does not contain a SecretString')
                 raise ValueError('Secret does not contain a SecretString')
         except Exception as e:
-            logger.error(f'Error retrieving secret: {str(e)}')
+            logger.exception(f'Failed to retrieve credentials from Secrets Manager: {str(e)}')
             raise ValueError(f'Failed to retrieve credentials from Secrets Manager: {str(e)}')
 
     async def close(self) -> None:
         """Close all connections in the pool."""
         async with self.rw_lock.writer_lock:
             if self.pool is not None:
-                logger.info('Closing connection pool')
+                pool_name = getattr(self.pool, 'name', 'unknown')
+                logger.info(f'Closing connection pool {pool_name} at {datetime.now().isoformat()}')
                 await self.pool.close()
                 self.pool = None
-                logger.info('Connection pool closed successfully')
+                logger.info(f'Connection pool {pool_name} closed successfully')
 
     async def check_connection_health(self) -> bool:
         """Check if the connection is healthy."""
@@ -321,7 +341,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
             result = await self.execute_query('SELECT 1')
             return len(result.get('records', [])) > 0
         except Exception as e:
-            logger.error(f'Connection health check failed: {str(e)}')
+            logger.exception(f'Connection health check failed: {str(e)}')
             return False
 
     async def get_pool_stats(self) -> Dict[str, int]:
