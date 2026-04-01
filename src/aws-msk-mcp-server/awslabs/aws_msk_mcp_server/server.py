@@ -111,7 +111,7 @@ async def run_server():
 
 def main():
     """Entry point for the MCP server."""
-    warnings.warn(DEPRECATION_NOTICE, FutureWarning, stacklevel=2)
+    warnings.warn('DEPRECATION_NOTICE: ' + DEPRECATION_NOTICE, FutureWarning, stacklevel=2)
 
     # Parse command-line arguments
     parser = argparse.ArgumentParser(
