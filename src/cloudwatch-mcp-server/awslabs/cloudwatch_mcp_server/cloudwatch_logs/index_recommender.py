@@ -102,7 +102,7 @@ W_RECENCY = 0.15  # Time-decay: recent usage matters more
 W_SCAN_VOLUME = 0.15  # Log group size (bigger = more benefit from indexing)
 W_CARDINALITY = 0.15  # Field cardinality (higher = more benefit)
 
-if W_FREQUENCY + W_FILTER_EQUALITY + W_RECENCY + W_SCAN_VOLUME + W_CARDINALITY != 1.0:
+if not math.isclose(W_FREQUENCY + W_FILTER_EQUALITY + W_RECENCY + W_SCAN_VOLUME + W_CARDINALITY, 1.0):
     raise ValueError('Scoring weights must sum to 1.0')
 
 RECENCY_HALF_LIFE_DAYS = 7  # Exponential decay: queries from 7 days ago have 50% weight
@@ -613,11 +613,15 @@ async def _run_quick_query(
             limit=1,
         )
         query_id = resp['queryId']
-        for _ in range(timeout):
-            await asyncio.sleep(1)
+        delay = 0.2
+        elapsed = 0.0
+        while elapsed < timeout:
+            await asyncio.sleep(delay)
+            elapsed += delay
             result = logs_client.get_query_results(queryId=query_id)
             if result['status'] in ('Complete', 'Failed', 'Cancelled', 'Timeout'):
                 return [{f['field']: f['value'] for f in row} for row in result.get('results', [])]
+            delay = min(delay * 2, 2.0)
         return []
     except Exception as e:
         logger.warning(f'Quick query failed: {e}')
@@ -859,9 +863,10 @@ async def _analyze_log_group(
     # Check field existence (batched, chunked to avoid query length limits)
     existing_fields: Set[str] = set()
     candidate_names = list(candidates.keys())
-    # Chunk into batches of 50 to avoid query string length limits
-    for i in range(0, len(candidate_names), 50):
-        chunk = candidate_names[i : i + 50]
+    # Run all existence chunks concurrently
+    chunks = [candidate_names[i : i + 50] for i in range(0, len(candidate_names), 50)]
+
+    async def _check_chunk(chunk: List[str]) -> None:
         fields_clause = ', '.join(chunk)
         existence_results = await _run_quick_query(
             logs_client,
@@ -873,6 +878,8 @@ async def _analyze_log_group(
         if existence_results:
             row = existence_results[0]
             existing_fields.update(n for n in chunk if row.get(n) is not None)
+
+    await asyncio.gather(*[_check_chunk(chunk) for chunk in chunks])
 
     fields_not_found = [
         FieldNotFound(field_name=n, query_count=fu.total_count)
