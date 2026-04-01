@@ -64,8 +64,6 @@ body:
           required: false
         - label: amazon-qindex-mcp-server
           required: false
-        - label: amazon-rekognition-mcp-server
-          required: false
         - label: amazon-sns-sqs-mcp-server
           required: false
         - label: aurora-dsql-mcp-server
@@ -108,11 +106,7 @@ body:
           required: false
         - label: cloudwatch-applicationsignals-mcp-server
           required: false
-        - label: cloudwatch-logs-mcp-server
-          required: false
         - label: cloudwatch-mcp-server
-          required: false
-        - label: cost-analysis-mcp-server
           required: false
         - label: document-loader-mcp-server
           required: false
@@ -133,8 +127,6 @@ body:
         - label: healthlake-mcp-server
           required: false
         - label: iam-mcp-server
-          required: false
-        - label: lambda-mcp-server
           required: false
         - label: lambda-tool-mcp-server
           required: false

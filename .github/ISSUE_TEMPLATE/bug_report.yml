@@ -80,7 +80,6 @@ body:
         - amazon-neptune-mcp-server
         - amazon-qbusiness-anonymous-mcp-server
         - amazon-qindex-mcp-server
-        - amazon-rekognition-mcp-server
         - amazon-sns-sqs-mcp-server
         - aurora-dsql-mcp-server
         - aws-api-mcp-server
@@ -102,9 +101,7 @@ body:
         - ccapi-mcp-server
         - cloudtrail-mcp-server
         - cloudwatch-applicationsignals-mcp-server
-        - cloudwatch-logs-mcp-server
         - cloudwatch-mcp-server
-        - cost-analysis-mcp-server
         - document-loader-mcp-server
         - documentdb-mcp-server
         - dynamodb-mcp-server
@@ -115,7 +112,6 @@ body:
         - healthimaging-mcp-server
         - healthlake-mcp-server
         - iam-mcp-server
-        - lambda-mcp-server
         - lambda-tool-mcp-server
         - mcp-lambda-handler
         - memcached-mcp-server
