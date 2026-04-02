@@ -102,7 +102,9 @@ W_RECENCY = 0.15  # Time-decay: recent usage matters more
 W_SCAN_VOLUME = 0.15  # Log group size (bigger = more benefit from indexing)
 W_CARDINALITY = 0.15  # Field cardinality (higher = more benefit)
 
-if not math.isclose(W_FREQUENCY + W_FILTER_EQUALITY + W_RECENCY + W_SCAN_VOLUME + W_CARDINALITY, 1.0):
+if not math.isclose(
+    W_FREQUENCY + W_FILTER_EQUALITY + W_RECENCY + W_SCAN_VOLUME + W_CARDINALITY, 1.0
+):
     raise ValueError('Scoring weights must sum to 1.0')
 
 RECENCY_HALF_LIFE_DAYS = 7  # Exponential decay: queries from 7 days ago have 50% weight
