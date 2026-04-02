@@ -19,7 +19,7 @@ NOTICE                                                         @awslabs/mcp-admi
 ## Alphabetical listing of MCP servers
 
 /src/amazon-bedrock-agentcore-mcp-server                       @awslabs/mcp-admins @awslabs/mcp-maintainers  @theagenticguy @scottschreckengaust @theumbrella1 @Vivekbhadauria1 @jesseturner21 @AlexanderRichey @kevin-orellana @Bhavik-T @sundargthb
-/src/amazon-kendra-index-mcp-server                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @tomron-aws @krokoko @scottschreckengaust
+/src/amazon-kendra-index-mcp-server                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @tomron-aws
 /src/amazon-keyspaces-mcp-server                               @awslabs/mcp-admins @awslabs/mcp-maintainers  @jcshepherd
 /src/amazon-mq-mcp-server                                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @kenliao94 @hashimsharkh
 /src/amazon-neptune-mcp-server                                 @awslabs/mcp-admins @awslabs/mcp-maintainers  @cornerwings @krlawrence @thompsonbry
@@ -29,7 +29,7 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/aurora-dsql-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @gxjx-x @anwesham-lab @benjscho @pkale @amaksimo @praba2210
 /src/aws-api-mcp-server                                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @awslabs/aws-api-mcp @rshevchuk-git @PCManticore @iddv @arnewouters @bidesh
 /src/aws-appsync-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @phani-srikar @maxi114 @neelmurt
-/src/aws-bedrock-custom-model-import-mcp-server                @awslabs/mcp-admins @awslabs/mcp-maintainers  @krokoko @saidrhs
+/src/aws-bedrock-custom-model-import-mcp-server                @awslabs/mcp-admins @awslabs/mcp-maintainers  @saidrhs
 # DEPRECATED — use boto3 API or aws-api-mcp-server
 /src/aws-bedrock-data-automation-mcp-server                    @awslabs/mcp-admins
 /src/aws-dataprocessing-mcp-server                             @awslabs/mcp-admins @awslabs/mcp-maintainers  @naikvaib @LiyuanLD @ckha2000 @raghav1397 @chappidim @yuxiaorun
@@ -40,7 +40,7 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/aws-iac-mcp-server                                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @kdbrogan @vishaalmehrishi @aemada-aws @kumvprat
 /src/aws-iot-sitewise-mcp-server                               @awslabs/mcp-admins @awslabs/mcp-maintainers  @ychamare @ashuanand1226 @charlie-7 @ajain13
 /src/aws-knowledge-mcp-server                                  @awslabs/mcp-admins @awslabs/mcp-maintainers  @FaresYoussef94 @animebar @zdwheels @nihal712 @forerocf @deepankanbn @GuXiangTS
-/src/aws-location-mcp-server                                   @awslabs/mcp-admins @awslabs/mcp-maintainers  @scottschreckengaust @theagenticguy
+/src/aws-location-mcp-server                                   @awslabs/mcp-admins @awslabs/mcp-maintainers  @cgalvan @sethfitz @mojodna @saamzn @kmgrubbs
 /src/aws-msk-mcp-server                                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @dingyiheng @mehbey @isaurab007
 /src/aws-network-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @juhala-aws @NetDevAutomate
 /src/aws-pricing-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @nspring00 @aytech-in @s12v
@@ -63,7 +63,7 @@ NOTICE                                                         @awslabs/mcp-admi
 # DEPRECATED — use billing-cost-management-mcp-server
 /src/cost-explorer-mcp-server                                  @awslabs/mcp-admins
 /src/document-loader-mcp-server                                @awslabs/mcp-admins @awslabs/mcp-maintainers  @andywidjaja @hvital @HaoOliv
-/src/documentdb-mcp-server                                     @awslabs/mcp-admins @awslabs/mcp-maintainers  @theagenticguy
+/src/documentdb-mcp-server                                     @awslabs/mcp-admins @awslabs/mcp-maintainers  @nitinahuja89
 /src/dynamodb-mcp-server                                       @awslabs/mcp-admins @awslabs/mcp-maintainers  @akeyesamzn @ysunio @LeeroyHannigan @amzn-erdemkemer
 /src/ecs-mcp-server                                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @guitar80ep @matthewgoodman13 @nineonine @biagic @tusharbabbar @lewisct
 /src/eks-mcp-server                                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @patrick-yu-amzn @srhsrhsrhsrh
