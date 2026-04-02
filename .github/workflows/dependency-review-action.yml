@@ -12,7 +12,7 @@ jobs:
       - name: 'Checkout Repository'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
       - name: 'Dependency Review'
-        uses: actions/dependency-review-action@05fe4576374b728f0c523d6a13d64c25081e0803 #v4.8.3
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 #v4.9.0
         with:
           # https://github.com/actions/dependency-review-action/issues/944
           allow-dependencies-licenses: 'pkg:pypi/uv@0.8.10'
