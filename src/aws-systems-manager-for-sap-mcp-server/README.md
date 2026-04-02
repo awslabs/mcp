@@ -11,6 +11,7 @@ Use this MCP server to manage SAP applications registered with AWS Systems Manag
 - SAP Application Management — List, inspect, register, start, and stop SAP applications (HANA and SAP_ABAP) registered with AWS Systems Manager for SAP.
 - Configuration Checks — Discover available configuration check types, trigger checks against applications, and drill into sub-check and rule-level results.
 - Scheduling — Create, list, enable/disable, and delete EventBridge Scheduler schedules for recurring configuration checks, application start, and application stop operations.
+- Health Summary — Generate comprehensive Markdown-formatted health reports covering application status, component health, configuration checks, HANA log backup status, AWS Backup status, and CloudWatch metrics.
 
 ## Prerequisites
 
@@ -48,6 +49,9 @@ Use this MCP server to manage SAP applications registered with AWS Systems Manag
 * `update_schedule_state` - Enable or disable a schedule
 * `get_schedule_details` - Get detailed information about a specific schedule
 
+### Health Summary Tools
+* `get_sap_health_summary` - Generate a comprehensive Markdown health report for one or all SAP applications, including application/component status, configuration checks with subchecks and rule results, HANA log backup status, AWS Backup status, and CloudWatch EC2 metrics
+
 ### Required IAM Permissions
 
 #### SSM for SAP
@@ -78,6 +82,16 @@ Use this MCP server to manage SAP applications registered with AWS Systems Manag
 * `iam:CreateRole`
 * `iam:AttachRolePolicy`
 * `sts:GetCallerIdentity`
+
+#### SSM (for health summary log backup checks)
+* `ssm:DescribeInstanceInformation`
+
+#### AWS Backup (for health summary backup status)
+* `backup:ListBackupPlans`
+* `backup:ListBackupJobs`
+
+#### CloudWatch (for health summary EC2 metrics)
+* `cloudwatch:GetMetricStatistics`
 
 ## Installation
 

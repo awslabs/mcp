@@ -15,7 +15,7 @@
 """Common utilities for SSM for SAP MCP Server."""
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Dict
 
 

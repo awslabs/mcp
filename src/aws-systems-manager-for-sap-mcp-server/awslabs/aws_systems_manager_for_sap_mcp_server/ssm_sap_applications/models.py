@@ -14,7 +14,6 @@
 
 """Data models for SSM for SAP application tools."""
 
-from datetime import datetime
 from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Optional
 

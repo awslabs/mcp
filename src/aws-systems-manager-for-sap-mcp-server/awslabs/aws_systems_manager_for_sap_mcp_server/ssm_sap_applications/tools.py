@@ -15,7 +15,6 @@
 """SSM for SAP application management tools for MCP server."""
 
 import asyncio
-import json
 from awslabs.aws_systems_manager_for_sap_mcp_server.client_factory import get_aws_client
 from awslabs.aws_systems_manager_for_sap_mcp_server.common import format_datetime
 from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.models import (
@@ -34,7 +33,7 @@ from mcp.server.fastmcp import Context
 from mcp.shared.exceptions import McpError
 from mcp.types import METHOD_NOT_FOUND
 from pydantic import BaseModel, Field
-from typing import Annotated, Any, Dict, List, Optional
+from typing import Annotated, Any, Dict, List
 
 
 async def request_consent(operation_description: str, acknowledgment_text: str, ctx: Context):

@@ -27,7 +27,7 @@ from botocore.exceptions import ClientError
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import Field
-from typing import Annotated, Any, Dict, List, Optional
+from typing import Annotated, Any, Dict, List
 
 
 class SSMSAPConfigCheckTools:

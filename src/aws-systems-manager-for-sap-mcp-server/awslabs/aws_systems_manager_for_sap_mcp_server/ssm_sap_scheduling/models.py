@@ -15,7 +15,7 @@
 """Data models for SSM for SAP scheduling tools."""
 
 from pydantic import BaseModel, Field
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 
 class ScheduleDetail(BaseModel):

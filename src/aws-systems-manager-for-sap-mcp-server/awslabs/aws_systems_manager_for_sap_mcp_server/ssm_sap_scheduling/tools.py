@@ -25,13 +25,13 @@ from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.models im
     UpdateScheduleStateResponse,
 )
 from botocore.exceptions import ClientError
-from datetime import datetime, timezone
+from datetime import datetime
 from loguru import logger
 from mcp.server.fastmcp import Context
 from mcp.shared.exceptions import McpError
 from mcp.types import METHOD_NOT_FOUND
 from pydantic import BaseModel, Field
-from typing import Annotated, Any, Dict, List, Optional
+from typing import Annotated, Any, Dict, List
 
 
 class Consent(BaseModel):
@@ -526,7 +526,7 @@ class SSMSAPSchedulingTools:
             response = scheduler.create_schedule(**params)
             return CreateScheduleResponse(
                 status='success',
-                message=f'Schedule created successfully',
+                message='Schedule created successfully',
                 schedule_name=schedule_name,
                 schedule_arn=response.get('ScheduleArn'),
                 application_id=application_id,

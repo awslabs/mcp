@@ -14,7 +14,6 @@
 
 """Tests for server initialization and tool registration."""
 
-from unittest.mock import MagicMock, patch
 
 
 class TestServerInitialization:
