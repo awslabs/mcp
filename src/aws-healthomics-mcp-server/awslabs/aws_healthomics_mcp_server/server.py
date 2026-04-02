@@ -19,6 +19,12 @@ from awslabs.aws_healthomics_mcp_server.tools.codeconnections import (
     get_codeconnection,
     list_codeconnections,
 )
+from awslabs.aws_healthomics_mcp_server.tools.configuration_tools import (
+    create_configuration,
+    delete_configuration,
+    get_configuration,
+    list_configurations,
+)
 from awslabs.aws_healthomics_mcp_server.tools.ecr_tools import (
     check_container_availability,
     clone_container_to_ecr,
@@ -219,6 +225,12 @@ This MCP server provides tools for creating, managing, and analyzing genomic wor
 - **GetAHOReferenceImportJob**: Get status of a reference import job
 - **ListAHOReferenceImportJobs**: List import jobs for a reference store
 
+### Configuration Management
+- **CreateAHOConfiguration**: Create a new HealthOmics configuration for workflow runs
+- **GetAHOConfiguration**: Get details about a specific configuration
+- **ListAHOConfigurations**: List available configurations
+- **DeleteAHOConfiguration**: Delete a configuration
+
 ## Service Availability
 AWS HealthOmics is available in select AWS regions. Use the GetAHOSupportedRegions tool to get the current list of supported regions.
 """,
@@ -327,6 +339,12 @@ mcp.tool(name='GetAHOReferenceMetadata')(get_reference_metadata)
 mcp.tool(name='StartAHOReferenceImportJob')(start_reference_import_job)
 mcp.tool(name='GetAHOReferenceImportJob')(get_reference_import_job)
 mcp.tool(name='ListAHOReferenceImportJobs')(list_reference_import_jobs)
+
+# Register configuration tools
+mcp.tool(name='CreateAHOConfiguration')(create_configuration)
+mcp.tool(name='GetAHOConfiguration')(get_configuration)
+mcp.tool(name='ListAHOConfigurations')(list_configurations)
+mcp.tool(name='DeleteAHOConfiguration')(delete_configuration)
 
 
 def main():

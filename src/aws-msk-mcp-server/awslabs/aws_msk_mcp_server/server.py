@@ -21,6 +21,7 @@ It exposes the abstracted APIs via the MCP protocol.
 import argparse
 import os
 import signal
+import warnings
 from anyio import create_task_group, open_signal_receiver, run
 from anyio.abc import CancelScope
 from awslabs.aws_msk_mcp_server.tools import (
@@ -39,6 +40,12 @@ from awslabs.aws_msk_mcp_server.tools import (
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
 
+
+DEPRECATION_NOTICE = (
+    'aws-msk-mcp-server is deprecated and will be removed in a future release. '
+    'This server primarily wraps boto3 API calls that can be made directly. '
+    'Consider using aws-api-mcp-server or calling the MSK boto3 APIs directly.'
+)
 
 # Global variables
 read_only = True  # Default to read-only mode
@@ -65,7 +72,10 @@ async def run_server():
     """Run the MCP server with signal handling."""
     mcp = FastMCP(
         name='awslabs.aws-msk-mcp-server',
-        instructions="""
+        instructions='DEPRECATION NOTICE: '
+        + DEPRECATION_NOTICE
+        + """
+
         AWS MSK MCP Server providing tools to interact with MSK Clusters.
 
         This server enables you to:
@@ -101,6 +111,8 @@ async def run_server():
 
 def main():
     """Entry point for the MCP server."""
+    warnings.warn('DEPRECATION_NOTICE: ' + DEPRECATION_NOTICE, FutureWarning, stacklevel=2)
+
     # Parse command-line arguments
     parser = argparse.ArgumentParser(
         description='An AWS Labs Model Context Protocol (MCP) server for Amazon MSK'

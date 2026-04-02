@@ -414,7 +414,7 @@ async def discover_clusters() -> list[dict]:
                     'identifier': cluster['ClusterIdentifier'],
                     'type': 'provisioned',
                     'status': cluster['ClusterStatus'],
-                    'database_name': cluster['DBName'],
+                    'database_name': cluster.get('DBName', 'dev'),
                     'endpoint': cluster.get('Endpoint', {}).get('Address'),
                     'port': cluster.get('Endpoint', {}).get('Port'),
                     'vpc_id': cluster.get('VpcId'),
