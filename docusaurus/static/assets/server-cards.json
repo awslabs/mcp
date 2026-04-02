@@ -1468,6 +1468,27 @@
       "workflows": [
         "autonomous"
       ]
+    },
+    {
+      "category": "Data & Analytics",
+      "description": "Query Lake Formation permissions, data lake settings, and effective permissions for S3 paths",
+      "icon": "\ud83d\udcca",
+      "id": "lakeformation-mcp-server",
+      "name": "AWS Lake Formation MCP Server",
+      "source_path": "src/lakeformation-mcp-server/",
+      "subcategory": "Data Governance",
+      "tags": [
+        "data-analytics",
+        "lake-formation",
+        "permissions",
+        "data-governance",
+        "s3",
+        "data-lake",
+        "conversational"
+      ],
+      "workflows": [
+        "conversational"
+      ]
     }
   ],
   "workflows": [
