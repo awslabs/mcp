@@ -11,7 +11,6 @@ from awslabs.aws_api_mcp_server.core.common.models import (
     Consent,
     Credentials,
     InterpretationResponse,
-    ProgramInterpretationResponse,
 )
 from awslabs.aws_api_mcp_server.server import (
     _execute_single_command,
@@ -54,15 +53,9 @@ async def test_call_aws_success(
     mock_interpret,
 ):
     """Test call_aws returns success for a valid read-only command."""
-    # Create a proper ProgramInterpretationResponse mock
     mock_response = InterpretationResponse(error=None, json='{"Buckets": []}', status_code=200)
 
-    mock_result = ProgramInterpretationResponse(
-        response=mock_response,
-        metadata=None,
-        validation_failures=None,
-        missing_context_failures=None,
-    )
+    mock_result = mock_response
     mock_interpret.return_value = mock_result
 
     mock_is_operation_read_only.return_value = True
@@ -84,7 +77,7 @@ async def test_call_aws_success(
     # Execute
     result = await call_aws('aws s3api list-buckets', DummyCtx())
 
-    # Verify - the result should be the ProgramInterpretationResponse object
+    # Verify - the result should be the InterpretationResponse object
     assert result == [CallAWSResponse(cli_command='aws s3api list-buckets', response=mock_result)]
     mock_translate_cli_to_ir.assert_called_once_with('aws s3api list-buckets')
     mock_validate.assert_called_once_with(mock_ir)
@@ -224,12 +217,7 @@ async def test_call_aws_helper_passes_region_to_interpret(
     mock_translate_cli_to_ir.return_value = mock_ir
 
     mock_validate.return_value = MagicMock(validation_failed=False)
-    mock_interpret.return_value = ProgramInterpretationResponse(
-        response=InterpretationResponse(error=None, json='{}', status_code=200),
-        metadata=None,
-        validation_failures=None,
-        missing_context_failures=None,
-    )
+    mock_interpret.return_value = InterpretationResponse(error=None, json='{}', status_code=200)
 
     # Avoid policy gating
     with (
@@ -247,7 +235,7 @@ async def test_call_aws_helper_passes_region_to_interpret(
         )
 
     # Assert
-    assert isinstance(result, ProgramInterpretationResponse)
+    assert isinstance(result, InterpretationResponse)
     _, kwargs = mock_interpret.call_args
     assert kwargs.get('default_region_override') == 'eu-west-2'
 
@@ -265,15 +253,9 @@ async def test_call_aws_with_consent_and_accept(
     mock_interpret,
 ):
     """Test call_aws with mutating action and consent enabled."""
-    # Create a proper ProgramInterpretationResponse mock
     mock_response = InterpretationResponse(error=None, json='{"Buckets": []}', status_code=200)
 
-    mock_result = ProgramInterpretationResponse(
-        response=mock_response,
-        metadata=None,
-        validation_failures=None,
-        missing_context_failures=None,
-    )
+    mock_result = mock_response
     mock_interpret.return_value = mock_result
 
     mock_is_operation_read_only.return_value = False
@@ -366,15 +348,9 @@ async def test_call_aws_without_consent(
     mock_interpret,
 ):
     """Test call_aws with mutating action and with consent disabled."""
-    # Create a proper ProgramInterpretationResponse mock
     mock_response = InterpretationResponse(error=None, json='{"Buckets": []}', status_code=200)
 
-    mock_result = ProgramInterpretationResponse(
-        response=mock_response,
-        metadata=None,
-        validation_failures=None,
-        missing_context_failures=None,
-    )
+    mock_result = mock_response
     mock_interpret.return_value = mock_result
 
     mock_is_operation_read_only.return_value = False
@@ -957,12 +933,7 @@ async def test_call_aws_helper_without_credentials(mock_translate, mock_validate
 @patch('awslabs.aws_api_mcp_server.server.call_aws_helper')
 async def test_call_aws_delegates_to_helper(mock_call_aws_helper):
     """Test call_aws delegates to call_aws_helper with None credentials."""
-    mock_response = ProgramInterpretationResponse(
-        response=InterpretationResponse(error=None, json='{"Buckets": []}', status_code=200),
-        metadata=None,
-        validation_failures=None,
-        missing_context_failures=None,
-    )
+    mock_response = InterpretationResponse(error=None, json='{"Buckets": []}', status_code=200)
     mock_call_aws_helper.return_value = mock_response
 
     ctx = DummyCtx()
@@ -978,21 +949,15 @@ async def test_call_aws_delegates_to_helper(mock_call_aws_helper):
 @patch('awslabs.aws_api_mcp_server.server.call_aws_helper')
 async def test_call_aws_runs_multiple_commands(mock_call_aws_helper):
     """Test call_aws returns success for multiple commands."""
-    # Create a proper ProgramInterpretationResponse mock
     mock_response = InterpretationResponse(error=None, json='{"Buckets": []}', status_code=200)
 
-    mock_result = ProgramInterpretationResponse(
-        response=mock_response,
-        metadata=None,
-        validation_failures=None,
-        missing_context_failures=None,
-    )
+    mock_result = mock_response
     mock_call_aws_helper.return_value = mock_result
 
     # Execute
     result = await call_aws(['aws s3api list-buckets', 'aws ec2 describe-instances'], DummyCtx())
 
-    # Verify - the result should be the ProgramInterpretationResponse object
+    # Verify - the result should be the InterpretationResponse object
     assert len(result) == 2
     assert result[0] == CallAWSResponse(cli_command='aws s3api list-buckets', response=mock_result)
     assert result[1] == CallAWSResponse(
@@ -1007,12 +972,7 @@ async def test_call_aws_wildcard_region_expansion(mock_call_aws_helper, mock_get
     mock_get_active_regions.return_value = ['us-east-1', 'us-west-2']
 
     mock_response = InterpretationResponse(error=None, json='{"Buckets": []}', status_code=200)
-    mock_result = ProgramInterpretationResponse(
-        response=mock_response,
-        metadata=None,
-        validation_failures=None,
-        missing_context_failures=None,
-    )
+    mock_result = mock_response
     mock_call_aws_helper.return_value = mock_result
 
     result = await call_aws('aws s3api list-buckets --region *', DummyCtx())
@@ -1032,12 +992,7 @@ async def test_call_aws_mixed_valid_invalid_commands():
     def mock_helper_side_effect(cmd, ctx, max_results, credentials):
         if 'invalid-service' in cmd:
             raise ValueError('Invalid service name')
-        return ProgramInterpretationResponse(
-            response=InterpretationResponse(error=None, json='{"Buckets": []}', status_code=200),
-            metadata=None,
-            validation_failures=None,
-            missing_context_failures=None,
-        )
+        return InterpretationResponse(error=None, json='{"Buckets": []}', status_code=200)
 
     with patch(
         'awslabs.aws_api_mcp_server.server.call_aws_helper', side_effect=mock_helper_side_effect
@@ -1118,11 +1073,8 @@ async def test_call_aws_help_command_success(service, operation):
     """Test call_aws returns success response for help command."""
     help_document = generate_help_document(service, operation)
     assert help_document is not None
-    expected_response = ProgramInterpretationResponse(
-        response=InterpretationResponse(error=None, json=as_json(help_document), status_code=200),
-        metadata=None,
-        validation_failures=None,
-        missing_context_failures=None,
+    expected_response = InterpretationResponse(
+        error=None, json=as_json(help_document), status_code=200
     )
     result = await call_aws(f'aws {service} {operation} help', DummyCtx())
 
@@ -1262,9 +1214,7 @@ def test_get_server_auth_oauth_valid():
 @patch('awslabs.aws_api_mcp_server.server.call_aws_helper')
 async def test_execute_single_command_success(mock_call_aws_helper):
     """Test _execute_single_command with successful execution."""
-    mock_response = ProgramInterpretationResponse(
-        response=InterpretationResponse(error=None, json='{"Buckets": []}', status_code=200)
-    )
+    mock_response = InterpretationResponse(error=None, json='{"Buckets": []}', status_code=200)
     mock_call_aws_helper.return_value = mock_response
 
     result = await _execute_single_command('aws s3 ls', DummyCtx(), None)

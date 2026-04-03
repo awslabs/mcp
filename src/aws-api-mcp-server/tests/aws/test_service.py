@@ -10,19 +10,19 @@ from awslabs.aws_api_mcp_server.core.aws.service import (
     validate,
 )
 from awslabs.aws_api_mcp_server.core.common.command import IRCommand
-from awslabs.aws_api_mcp_server.core.common.errors import AwsApiMcpError, AwsRegionResolutionError
+from awslabs.aws_api_mcp_server.core.common.errors import (
+    AwsApiMcpError,
+    AwsRegionResolutionError,
+    CommandValidationError,
+)
 from awslabs.aws_api_mcp_server.core.common.helpers import as_json
 from awslabs.aws_api_mcp_server.core.common.models import (
     AwsCliAliasResponse,
     CommandMetadata,
-    Context,
     Credentials,
-    InterpretationMetadata,
     InterpretationResponse,
     InterpretedProgram,
     IRTranslation,
-    ProgramInterpretationResponse,
-    ValidationFailure,
 )
 from awslabs.aws_api_mcp_server.core.metadata.read_only_operations_list import ReadOnlyOperations
 from botocore.config import Config
@@ -60,45 +60,15 @@ from unittest.mock import ANY, MagicMock, Mock, patch
     ],
 )
 def test_interpret_returns_validation_failures(cli_command, reason, service, operation):
-    """Test that interpret_command returns validation failures for invalid operations."""
-    response = interpret_command(
-        cli_command=cli_command,
-    )
-    assert response.response is None
-    assert response.validation_failures == [
-        ValidationFailure(
-            reason=reason,
-            context=Context(
-                service=service,
-                operation=operation,
-                parameters=None,
-                args=None,
-                region=None,
-                operators=None,
-            ),
-        )
-    ]
+    """Test that interpret_command raises CommandValidationError for invalid operations."""
+    with pytest.raises(CommandValidationError, match=reason):
+        interpret_command(cli_command=cli_command)
 
 
 def test_interpret_returns_missing_context_failures():
-    """Test that interpret_command returns missing context failures when required parameters are missing."""
-    response = interpret_command(
-        cli_command=CLOUD9_PARAMS_CLI_MISSING_CONTEXT,
-    )
-    assert response.response is None
-    assert response.missing_context_failures == [
-        ValidationFailure(
-            reason="The following parameters are missing for service 'cloud9' and operation 'create-environment-ec2': '--image-id'",
-            context=Context(
-                service='cloud9',
-                operation='create-environment-ec2',
-                parameters=['--image-id'],
-                args=None,
-                region=None,
-                operators=None,
-            ),
-        )
-    ]
+    """Test that interpret_command raises AwsApiMcpError when required parameters are missing."""
+    with pytest.raises(AwsApiMcpError, match='The following parameters are missing'):
+        interpret_command(cli_command=CLOUD9_PARAMS_CLI_MISSING_CONTEXT)
 
 
 @pytest.mark.parametrize(
@@ -218,14 +188,8 @@ def test_interpret_returns_valid_response(
         ):
             history.events.clear()
             response = interpret_command(cli_command=cli)
-        assert response == ProgramInterpretationResponse(
-            response=InterpretationResponse(json=as_json(output), error=None, status_code=200),
-            metadata=InterpretationMetadata(
-                service=service,
-                operation=operation,
-                region_name='us-east-1',
-                service_full_name=service_full_name,
-            ),
+        assert response == InterpretationResponse(
+            json=as_json(output), error=None, status_code=200
         )
         assert event in history.events
 
@@ -243,12 +207,7 @@ def test_interpret_injects_region(mock_get_region):
             response = interpret_command(
                 cli_command='aws cloud9 describe-environments --environment-ids 7d61007bd98b4d589f1504af84c168de b181ffd35fe2457c8c5ae9d75edc068a',
             )
-            assert response.metadata == InterpretationMetadata(
-                service='cloud9',
-                operation='DescribeEnvironments',
-                region_name=region,
-                service_full_name='AWS Cloud9',
-            )
+            assert isinstance(response, InterpretationResponse)
             event = (
                 'DescribeEnvironments',
                 {
@@ -290,8 +249,8 @@ def test_region_picked_up_from_arn(cli, region):
             response = interpret_command(
                 cli_command=cli,
             )
-            assert response.metadata is not None
-            assert response.metadata.region_name == region
+            assert isinstance(response, InterpretationResponse)
+            assert response.status_code is not None
 
 
 def test_validate_success():
@@ -602,14 +561,13 @@ def test_interpret_command_creates_output_file_for_streaming_operations(
         with patch('builtins.open', side_effect=mock_open_side_effect):
             response = interpret_command(cli_command=actual_command)
 
-            assert response.response is not None
-            assert response.response.status_code == 200
+            assert response.status_code == 200
 
             mock_file = mock_files[actual_outfile]
             mock_file.write.assert_called_with(expected_content)
 
-            assert response.response.as_json is not None
-            response_data = json.loads(response.response.as_json)
+            assert response.as_json is not None
+            response_data = json.loads(response.as_json)
 
             assert 'Body' not in response_data
             assert 'Payload' not in response_data

@@ -6,7 +6,6 @@ from awslabs.aws_api_mcp_server.core.aws.service import (
 from awslabs.aws_api_mcp_server.core.common.models import (
     InterpretationResponse,
     IRTranslation,
-    ProgramInterpretationResponse,
 )
 from awslabs.aws_api_mcp_server.core.metadata.read_only_operations_list import ReadOnlyOperations
 from awslabs.aws_api_mcp_server.core.security.policy import (
@@ -566,12 +565,7 @@ async def test_call_aws_security_policy_elicit(
     mock_response = InterpretationResponse(
         error=None, json='{"result": "success"}', status_code=200
     )
-    mock_result = ProgramInterpretationResponse(
-        response=mock_response,
-        metadata=None,
-        validation_failures=None,
-        missing_context_failures=None,
-    )
+    mock_result = mock_response
     mock_interpret.return_value = mock_result
 
     ctx = DummyCtx()
@@ -584,7 +578,7 @@ async def test_call_aws_security_policy_elicit(
     )
     assert isinstance(result, list)
     assert len(result) == 1
-    assert isinstance(result[0].response, ProgramInterpretationResponse)
+    assert isinstance(result[0].response, InterpretationResponse)
 
 
 @pytest.mark.asyncio
