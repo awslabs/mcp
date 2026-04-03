@@ -70,11 +70,9 @@ def parse_metrics_table(html_content: str) -> List[Dict[str, Any]]:
     soup = BeautifulSoup(html_content, 'html.parser')
 
     # Find the metrics table
-    # Use a function that returns a boolean to avoid type issues
-    def table_id_matcher(x: str) -> bool:
-        return bool(x and 'w420aac24b7c33c15b7' in x)
-
-    table = soup.find('table', id=table_id_matcher)
+    # Use a regex pattern to match the table ID
+    table_id_pattern = re.compile(r'.*w420aac24b7c33c15b7.*')
+    table = soup.find('table', id=table_id_pattern)
     if not table:
         logger.error('Metrics table not found in the documentation page')
         raise ValueError('Metrics table not found')

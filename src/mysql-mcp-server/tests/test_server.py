@@ -20,6 +20,7 @@ import json
 import pytest
 import sys
 import uuid
+from awslabs.mysql_mcp_server.connection.asyncmy_pool_connection import AsyncmyPoolConnection
 from awslabs.mysql_mcp_server.server import (
     DBConnectionSingleton,
     client_error_code_key,
@@ -30,6 +31,7 @@ from awslabs.mysql_mcp_server.server import (
     write_query_prohibited_key,
 )
 from conftest import DummyCtx, Mock_DBConnection, MockException
+from unittest.mock import AsyncMock, Mock, patch
 
 
 SAFE_READONLY_QUERIES = [
@@ -494,7 +496,9 @@ def validate_normal_query_response(column_records):
 @pytest.mark.asyncio
 async def test_run_query_well_formatted_response():
     """Test that run_query correctly handles a well-formatted response from RDS Data API."""
-    DBConnectionSingleton.initialize('mock', 'mock', 'mock', 'mock', readonly=True, is_test=True)
+    DBConnectionSingleton.initialize(
+        'mock', 'mock', 'mock', resource_arn='mock', readonly=True, is_test=True
+    )
     mock_db_connection = Mock_DBConnection(readonly=True)
 
     sql_text = 'SELECT * FROM example_table'
@@ -518,7 +522,9 @@ async def test_run_query_well_formatted_response():
 @pytest.mark.asyncio
 async def test_run_query_safe_read_queries_on_redonly_settings():
     """Test that run_query accepts safe readonly queries when readonly setting is true."""
-    DBConnectionSingleton.initialize('mock', 'mock', 'mock', 'mock', readonly=True, is_test=True)
+    DBConnectionSingleton.initialize(
+        'mock', 'mock', 'mock', resource_arn='mock', readonly=True, is_test=True
+    )
     mock_db_connection = Mock_DBConnection(readonly=True)
 
     for sql_text in SAFE_READONLY_QUERIES:
@@ -542,7 +548,9 @@ async def test_run_query_safe_read_queries_on_redonly_settings():
 @pytest.mark.asyncio
 async def test_run_query_risky_queries_without_parameters():
     """Test that run_query rejects queries with potentially risky parameters regardless of readonly setting."""
-    DBConnectionSingleton.initialize('mock', 'mock', 'mock', 'mock', readonly=True, is_test=True)
+    DBConnectionSingleton.initialize(
+        'mock', 'mock', 'mock', resource_arn='mock', readonly=True, is_test=True
+    )
 
     # Under readonly = True
     mock_db_connection = Mock_DBConnection(readonly=True)
@@ -568,7 +576,9 @@ async def test_run_query_risky_queries_without_parameters():
 @pytest.mark.asyncio
 async def test_run_query_throw_client_error():
     """Test that run_query properly handles client errors from RDS Data API by mokcing the RDA API exception."""
-    DBConnectionSingleton.initialize('mock', 'mock', 'mock', 'mock', readonly=True, is_test=True)
+    DBConnectionSingleton.initialize(
+        'mock', 'mock', 'mock', resource_arn='mock', readonly=True, is_test=True
+    )
     mock_db_connection = Mock_DBConnection(readonly=True, error=MockException.Client)
     sql_text = r"""SELECT 1"""
 
@@ -584,7 +594,9 @@ async def test_run_query_throw_client_error():
 @pytest.mark.asyncio
 async def test_run_query_throw_unexpected_error():
     """Test that run_query properly handles unexpected exception by mokcing the exception."""
-    DBConnectionSingleton.initialize('mock', 'mock', 'mock', 'mock', readonly=True, is_test=True)
+    DBConnectionSingleton.initialize(
+        'mock', 'mock', 'mock', resource_arn='mock', readonly=True, is_test=True
+    )
     mock_db_connection = Mock_DBConnection(readonly=True, error=MockException.Unexpected)
     sql_text = r"""SELECT 1"""
 
@@ -600,7 +612,9 @@ async def test_run_query_throw_unexpected_error():
 @pytest.mark.asyncio
 async def test_run_query_write_queries_on_readonly_setting():
     """Test that run_query rejects write queries when in read-only mode."""
-    DBConnectionSingleton.initialize('mock', 'mock', 'mock', 'mock', readonly=True, is_test=True)
+    DBConnectionSingleton.initialize(
+        'mock', 'mock', 'mock', resource_arn='mock', readonly=True, is_test=True
+    )
 
     #    Set readonly to be true and send write query
     #    Expect  error is returned for each test query
@@ -622,7 +636,9 @@ async def test_run_query_write_queries_on_write_allowed_setting():
     """Test that run_query accepts safe write queries when read-only setting is false."""
     #    Set readonly to be false and send write query
     #    Expect no error is returned for every test query
-    DBConnectionSingleton.initialize('mock', 'mock', 'mock', 'mock', readonly=False, is_test=True)
+    DBConnectionSingleton.initialize(
+        'mock', 'mock', 'mock', resource_arn='mock', readonly=False, is_test=True
+    )
     mock_db_connection = Mock_DBConnection(readonly=False)
 
     for sql_text in SAFE_MUTATING_QUERIES:
@@ -647,7 +663,9 @@ async def test_run_query_write_queries_on_write_allowed_setting():
 @pytest.mark.asyncio
 async def test_get_table_schema():
     """Test test_get_table_schema call in a positive case."""
-    DBConnectionSingleton.initialize('mock', 'mock', 'mock', 'mock', readonly=False, is_test=True)
+    DBConnectionSingleton.initialize(
+        'mock', 'mock', 'mock', resource_arn='mock', readonly=False, is_test=True
+    )
     mock_db_connection = Mock_DBConnection(readonly=False)
     mock_db_connection.data_client.add_mock_response(get_mock_normal_query_response())
     DBConnectionSingleton._instance._db_connection = mock_db_connection  # type: ignore
@@ -697,7 +715,9 @@ def test_main_with_valid_parameters(monkeypatch, capsys):
     monkeypatch.setattr('awslabs.mysql_mcp_server.server.mcp.run', lambda: None)
 
     # Mock the connection so main can complete successfully
-    DBConnectionSingleton.initialize('mock', 'mock', 'mock', 'mock', readonly=False, is_test=True)
+    DBConnectionSingleton.initialize(
+        'mock', 'mock', 'mock', resource_arn='mock', readonly=False, is_test=True
+    )
     mock_db_connection = Mock_DBConnection(readonly=False)
     mock_db_connection.data_client.add_mock_response(get_mock_normal_query_response())
     DBConnectionSingleton._instance._db_connection = mock_db_connection  # type: ignore
@@ -743,11 +763,183 @@ def test_main_with_invalid_parameters(monkeypatch, capsys):
     assert excinfo.value.code == 1
 
 
+def test_main_with_invalid_asyncmy_parameters(monkeypatch, capsys):
+    """Test main function with invalid psycopg command line parameters."""
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--hostname',
+            'invalid',
+            '--port',
+            'invalid',  # Invalid port
+            '--secret_arn',
+            'invalid',
+            '--database',
+            'mysql',
+            '--region',
+            'invalid',
+            '--readonly',
+            'True',
+        ],
+    )
+    monkeypatch.setattr('awslabs.mysql_mcp_server.server.mcp.run', lambda: None)
+
+    # This test of main() will fail due to invalid port
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    assert excinfo.value.code == 2  # argparse exits with code 2 for invalid arguments
+
+
+def test_main_with_valid_asyncmy_parameters(monkeypatch, capsys):
+    """Test main function with valid command line parameters.
+
+    This test verifies that the main function correctly parses valid command line arguments
+    and attempts to initialize the database connection. The test expects a SystemExit
+    since we're not using real AWS credentials.
+
+    Args:
+        monkeypatch: pytest fixture for patching
+        capsys: pytest fixture for capturing stdout/stderr
+    """
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--hostname',
+            'host.amazon.com',
+            '--port',
+            '3306',  # Invalid port
+            '--secret_arn',
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:my-secret-name-abc123',
+            '--database',
+            'mysql',
+            '--region',
+            'us-west-2',
+            '--readonly',
+            'True',
+        ],
+    )
+    monkeypatch.setattr('awslabs.mysql_mcp_server.server.mcp.run', lambda: None)
+
+    # Mock the connection so main can complete successfully
+    DBConnectionSingleton.initialize(
+        'mock', 'mock', 'mock', resource_arn='mock', readonly=False, is_test=True
+    )
+    mock_db_connection = Mock_DBConnection(readonly=False)
+    mock_db_connection.data_client.add_mock_response(get_mock_normal_query_response())
+    DBConnectionSingleton._instance._db_connection = mock_db_connection  # type: ignore
+
+    # This test of main() will succeed in parsing parameters and create connection object.
+    main()
+
+
+@pytest.mark.asyncio
+async def test_get_table_schema_asyncmy_connection():
+    """Test get_table_schema with asyncmy connection type detection and SQL conversion."""
+    with patch(
+        'awslabs.mysql_mcp_server.connection.asyncmy_pool_connection._get_credentials_from_secret',
+        return_value=('user', 'pass'),
+    ):
+        DBConnectionSingleton.initialize(
+            'mock', 'mock', 'mock', hostname='mock', port=3306, readonly=False, is_test=True
+        )
+
+    # Replace the real asyncmy connection with a mock to avoid actual DB connection
+    mock_asyncmy_connection = Mock(spec=AsyncmyPoolConnection)
+    mock_asyncmy_connection.execute_query = AsyncMock(
+        return_value=get_mock_normal_query_response()
+    )
+    DBConnectionSingleton._instance._db_connection = mock_asyncmy_connection  # type: ignore
+
+    ctx = DummyCtx()
+    tool_response = await get_table_schema(table_name='table_name', database_name='mysql', ctx=ctx)
+
+    # Verify SQL was converted from :name to %s for asyncmy
+    call_args = mock_asyncmy_connection.execute_query.call_args
+    sql_used = call_args[0][0]  # First positional argument is the SQL
+
+    assert '%s' in sql_used
+    assert ':database_name' not in sql_used
+    assert ':table_name' not in sql_used
+
+    # validate tool_response
+    assert (
+        isinstance(tool_response, (list, tuple))
+        and len(tool_response) == 1
+        and isinstance(tool_response[0], dict)
+        and 'error' not in tool_response[0]
+    )
+    column_records = tool_response[0]
+    validate_normal_query_response(column_records)
+
+
 if __name__ == '__main__':
-    DBConnectionSingleton.initialize('mock', 'mock', 'mock', 'mock', readonly=True, is_test=True)
+    DBConnectionSingleton.initialize(
+        'mock', 'mock', 'mock', resource_arn='mock', readonly=True, is_test=True
+    )
     asyncio.run(test_run_query_well_formatted_response())
     asyncio.run(test_run_query_safe_read_queries_on_redonly_settings())
     asyncio.run(test_run_query_risky_queries_without_parameters())
     asyncio.run(test_run_query_throw_client_error())
     asyncio.run(test_run_query_write_queries_on_readonly_setting())
     asyncio.run(test_run_query_write_queries_on_readonly_setting())
+
+
+def test_main_parser_error_neither_connection_method(monkeypatch):
+    """Covers parser.error when neither --resource_arn nor --hostname provided (line ~115)."""
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--secret_arn',
+            'arn:aws:secretsmanager:us-west-2:123:secret:abc',
+            '--database',
+            'mysql',
+            '--region',
+            'us-west-2',
+            '--readonly',
+            'True',
+        ],
+    )
+    # prevent actual server run if parsing were to pass
+    monkeypatch.setattr('awslabs.mysql_mcp_server.server.mcp.run', lambda: None)
+
+    from awslabs.mysql_mcp_server.server import main
+
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    assert excinfo.value.code == 2  # argparse error exit
+
+
+def test_main_parser_error_both_connection_methods(monkeypatch):
+    """Covers parser.error when both --resource_arn and --hostname provided (line ~115 second branch)."""
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--resource_arn',
+            'arn:aws:rds:us-west-2:123:cluster:demo',
+            '--hostname',
+            'db.example.com',
+            '--secret_arn',
+            'arn:aws:secretsmanager:us-west-2:123:secret:abc',
+            '--database',
+            'mysql',
+            '--region',
+            'us-west-2',
+            '--readonly',
+            'True',
+        ],
+    )
+    monkeypatch.setattr('awslabs.mysql_mcp_server.server.mcp.run', lambda: None)
+
+    from awslabs.mysql_mcp_server.server import main
+
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    assert excinfo.value.code == 2  # argparse error exit

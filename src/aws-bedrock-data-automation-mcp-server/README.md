@@ -1,5 +1,7 @@
 # AWS Bedrock Data Automation MCP Server
 
+> **⚠️ DEPRECATION NOTICE**: This server is deprecated and will no longer receive updates. For Bedrock Data Automation capabilities, use the boto3 API directly or the [aws-api-mcp-server](https://github.com/awslabs/mcp/tree/main/src/aws-api-mcp-server). See the [migration guide](https://github.com/awslabs/mcp/blob/main/docs/migration-bedrock-data-automation.md) for details.
+
 A Model Context Protocol (MCP) server for Amazon Bedrock Data Automation that enables AI assistants to analyze documents, images, videos, and audio files using Amazon Bedrock Data Automation projects.
 
 ## Features
@@ -25,9 +27,11 @@ A Model Context Protocol (MCP) server for Amazon Bedrock Data Automation that en
 
 ## Installation
 
-[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=bedrock-data-automation-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYXdzLWJlZHJvY2stZGF0YS1hdXRvbWF0aW9uLW1jcC1zZXJ2ZXJAbGF0ZXN0IiwiZW52Ijp7IkFXU19QUk9GSUxFIjoieW91ci1hd3MtcHJvZmlsZSIsIkFXU19SRUdJT04iOiJ1cy1lYXN0LTEiLCJBV1NfQlVDS0VUX05BTUUiOiJ5b3VyLXMzLWJ1Y2tldC1uYW1lIiwiQkFTRV9ESVIiOiIvcGF0aC90by9iYXNlL2RpcmVjdG9yeSIsIkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IifSwiZGlzYWJsZWQiOmZhbHNlLCJhdXRvQXBwcm92ZSI6W119)
+| Kiro | Cursor | VS Code |
+|:----:|:------:|:-------:|
+| [![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=bedrock-data-automation-mcp-server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.aws-bedrock-data-automation-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22us-east-1%22%2C%22AWS_BUCKET_NAME%22%3A%22your-s3-bucket-name%22%2C%22BASE_DIR%22%3A%22/path/to/base/directory%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%7D) | [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=bedrock-data-automation-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYXdzLWJlZHJvY2stZGF0YS1hdXRvbWF0aW9uLW1jcC1zZXJ2ZXJAbGF0ZXN0IiwiZW52Ijp7IkFXU19QUk9GSUxFIjoieW91ci1hd3MtcHJvZmlsZSIsIkFXU19SRUdJT04iOiJ1cy1lYXN0LTEiLCJBV1NfQlVDS0VUX05BTUUiOiJ5b3VyLXMzLWJ1Y2tldC1uYW1lIiwiQkFTRV9ESVIiOiIvcGF0aC90by9iYXNlL2RpcmVjdG9yeSIsIkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IifSwiZGlzYWJsZWQiOmZhbHNlLCJhdXRvQXBwcm92ZSI6W119) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=Bedrock%20Data%20Automation%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.aws-bedrock-data-automation-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22us-east-1%22%2C%22AWS_BUCKET_NAME%22%3A%22your-s3-bucket-name%22%2C%22BASE_DIR%22%3A%22%2Fpath%2Fto%2Fbase%2Fdirectory%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
 
-Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
+Configure the MCP server in your MCP client configuration (e.g., for Kiro, edit `~/.kiro/settings/mcp.json`):
 
 ```json
 {
@@ -48,8 +52,47 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
   }
 }
 ```
+### Windows Installation
+
+For Windows users, the MCP server configuration format is slightly different:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.aws-bedrock-data-automation-mcp-server": {
+      "disabled": false,
+      "timeout": 60,
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "tool",
+        "run",
+        "--from",
+        "awslabs.aws-bedrock-data-automation-mcp-server@latest",
+        "awslabs.aws-bedrock-data-automation-mcp-server.exe"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1"
+      }
+    }
+  }
+}
+```
+
 
 or docker after a successful `docker build -t awslabs/aws-bedrock-data-automation-mcp-server .`:
+
+```file
+# fictitious `.env` file with AWS temporary credentials
+AWS_ACCESS_KEY_ID=<from the profile you set up>
+AWS_SECRET_ACCESS_KEY=<from the profile you set up>
+AWS_SESSION_TOKEN=<from the profile you set up>
+AWS_REGION=<your-region>
+AWS_BUCKET_NAME=<your-s3-bucket-name>
+BASE_DIR=/path/to/base/directory
+```
 
 ```json
 {
@@ -60,31 +103,18 @@ or docker after a successful `docker build -t awslabs/aws-bedrock-data-automatio
         "run",
         "--rm",
         "--interactive",
-        "--env",
-        "AWS_PROFILE",
-        "--env",
-        "AWS_REGION",
-        "--env",
-        "AWS_BUCKET_NAME",
-        "--env",
-        "BASE_DIR",
-        "--env",
-        "FASTMCP_LOG_LEVEL",
+        "--env-file",
+        "/full/path/to/file/above/.env",
         "awslabs/aws-bedrock-data-automation-mcp-server:latest"
       ],
-      "env": {
-        "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1",
-        "AWS_BUCKET_NAME": "your-s3-bucket-name",
-        "BASE_DIR": "/path/to/base/directory",
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      },
+      "env": {},
       "disabled": false,
       "autoApprove": []
     }
   }
 }
 ```
+NOTE: Your credentials will need to be kept refreshed from your host
 
 ## Environment Variables
 
@@ -170,4 +200,4 @@ results = await analyzeasset(
 
 ## License
 
-This project is licensed under the Apache License, Version 2.0. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache License, Version 2.0. See the [LICENSE](https://github.com/awslabs/mcp/blob/main/src/aws-bedrock-data-automation-mcp-server/LICENSE) file for details.

@@ -12,892 +12,989 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#!/usr/bin/env python3
-
-import boto3
 import json
 import os
-from awslabs.dynamodb_mcp_server.common import (
-    AttributeDefinition,
-    AttributeValue,
-    CreateTableInput,
-    DeleteItemInput,
-    GetItemInput,
-    GetResourcePolicyInput,
-    GlobalSecondaryIndex,
-    GlobalSecondaryIndexUpdate,
-    KeyAttributeValue,
-    KeySchemaElement,
-    OnDemandThroughput,
-    ProvisionedThroughput,
-    PutItemInput,
-    PutResourcePolicyInput,
-    QueryInput,
-    ReplicationGroupUpdate,
-    ScanInput,
-    Select,
-    SSESpecification,
-    StreamSpecification,
-    Tag,
-    TimeToLiveSpecification,
-    UpdateItemInput,
-    UpdateTableInput,
-    WarmThroughput,
-    handle_exceptions,
-    mutation_check,
+from awslabs.aws_api_mcp_server.server import call_aws
+from awslabs.dynamodb_mcp_server.cdk_generator.generator import CdkGenerator
+from awslabs.dynamodb_mcp_server.common import handle_exceptions
+from awslabs.dynamodb_mcp_server.cost_performance_calculator.calculator_runner import (
+    run_cost_calculator,
 )
-from botocore.config import Config
-from mcp.server.fastmcp import FastMCP
-from pydantic import Field
-from typing import Any, Dict, List, Literal, Union
-
-
-app = FastMCP(
-    name='dynamodb-server',
-    instructions="""The official MCP Server for interacting with AWS DynamoDB
-
-IMPORTANT: DynamoDB Attribute Value Format
------------------------------------------
-When working with DynamoDB, all attribute values must be specified with their data types.
-Each attribute value is represented as a dictionary with a single key-value pair where the key
-is the data type and the value is the data itself:
-
-- S: String
-  Example: {"S": "Hello"}
-
-- N: Number (sent as a string)
-  Example: {"N": "123.45"}
-
-- B: Binary data (Base64-encoded)
-  Example: {"B": "dGhpcyB0ZXh0IGlzIGJhc2U2NC1lbmNvZGVk"}
-
-- BOOL: Boolean value
-  Example: {"BOOL": true}
-
-- NULL: Null value
-  Example: {"NULL": true}
-
-- L: List of AttributeValue objects
-  Example: {"L": [{"S": "Cookies"}, {"S": "Coffee"}, {"N": "3.14159"}]}
-
-- M: Map of attribute name/value pairs
-  Example: {"M": {"Name": {"S": "Joe"}, "Age": {"N": "35"}}}
-
-- SS: String Set (array of strings)
-  Example: {"SS": ["Giraffe", "Hippo", "Zebra"]}
-
-- NS: Number Set (array of strings representing numbers)
-  Example: {"NS": ["42.2", "-19", "7.5", "3.14"]}
-
-- BS: Binary Set (array of Base64-encoded binary data objects)
-  Example: {"BS": ["U3Vubnk=", "UmFpbnk=", "U25vd3k="]}
-
-Common usage examples:
-- Primary key: {"userId": {"S": "user123"}}
-- Composite key: {"userId": {"S": "user123"}, "timestamp": {"N": "1612345678"}}
-- Expression attribute values: {":minScore": {"N": "100"}, ":active": {"BOOL": true}}
-- Complete item: {"userId": {"S": "user123"}, "score": {"N": "100"}, "data": {"B": "binarydata=="}}
-""",
-    version='0.1.2',
+from awslabs.dynamodb_mcp_server.cost_performance_calculator.data_model import (
+    AccessPattern,
+    DataModel,
+    Table,
+    format_validation_errors,
 )
-
-
-def get_dynamodb_client(region_name: str | None):
-    """Create a boto3 DynamoDB client using credentials from environment variables. Falls back to 'us-west-2' if no region is specified or found in environment."""
-    # Use provided region, or get from env, or fall back to us-west-2
-    region = region_name or os.getenv('AWS_REGION') or 'us-west-2'
-
-    # Configure custom user agent to identify requests from LLM/MCP
-    config = Config(user_agent_extra='MCP/DynamoDBServer')
-
-    # Create a new session to force credentials to reload
-    # so that if user changes credential, it will be reflected immediately in the next call
-    session = boto3.Session()
-
-    # boto3 will automatically load credentials from environment variables:
-    # AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN
-    return session.client('dynamodb', region_name=region, config=config)
-
-
-table_name = Field(description='Table Name or Amazon Resource Name (ARN)')
-index_name = Field(
-    default=None,
-    description='The name of a GSI',
+from awslabs.dynamodb_mcp_server.db_analyzer import analyzer_utils
+from awslabs.dynamodb_mcp_server.db_analyzer.plugin_registry import PluginRegistry
+from awslabs.dynamodb_mcp_server.model_validation_utils import (
+    DynamoDBClientConfig,
+    create_validation_resources,
+    get_validation_result_transform_prompt,
+    setup_dynamodb_local,
 )
-key: Dict[str, KeyAttributeValue] = Field(
-    description='The primary key of an item. Must use DynamoDB attribute value format (see IMPORTANT note about DynamoDB Attribute Value Format).'
-)
-filter_expression: str = Field(
-    default=None,
-    description='Filter conditions expression that DynamoDB applies to filter out data',
-)
-projection_expression: str = Field(
-    default=None,
-    description='Attributes to retrieve, can include scalars, sets, or elements of a JSON document.',
-)
-expression_attribute_names: Dict[str, str] = Field(
-    default=None, description='Substitution tokens for attribute names in an expression.'
-)
-expression_attribute_values: Dict[str, AttributeValue] = Field(
-    default=None,
-    description='Values that can be substituted in an expression. Must use DynamoDB attribute value format (see IMPORTANT note about DynamoDB Attribute Value Format).',
-)
-select: Select = Field(
-    default=None,
-    description='The attributes to be returned. Valid values: ALL_ATTRIBUTES, ALL_PROJECTED_ATTRIBUTES, SPECIFIC_ATTRIBUTES, COUNT',
-)
-limit: int = Field(default=None, description='The maximum number of items to evaluate', ge=1)
-exclusive_start_key: Dict[str, KeyAttributeValue] = Field(
-    default=None,
-    description='Use the LastEvaluatedKey from the previous call. Must use DynamoDB attribute value format (see IMPORTANT note about DynamoDB Attribute Value Format).',
-)
-
-billing_mode: Literal['PROVISIONED', 'PAY_PER_REQUEST'] = Field(
-    default=None,
-    description='Specifies if billing is PAY_PER_REQUEST or by provisioned throughput',
-)
-resource_arn: str = Field(description='The Amazon Resource Name (ARN) of the DynamoDB resource')
+from awslabs.dynamodb_mcp_server.repo_generation_tool.codegen import generate
+from loguru import logger
+from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.fastmcp.exceptions import ToolError
+from pathlib import Path
+from pydantic import Field, ValidationError
+from typing import Any, Dict, List, Optional
 
 
-@app.tool()
-@handle_exceptions
-@mutation_check
-async def put_resource_policy(
-    resource_arn: str = resource_arn,
-    policy: Union[str, Dict[str, Any]] = Field(
-        description='An AWS resource-based policy document in JSON format or dictionary.'
-    ),
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Attaches a resource-based policy document (max 20 KB) to a DynamoDB table or stream. You can control permissions for both tables and their indexes through the policy."""
-    client = get_dynamodb_client(region_name)
-    # Convert policy to string if it's a dictionary
-    policy_str = json.dumps(policy) if isinstance(policy, dict) else policy
-
-    params: PutResourcePolicyInput = {'ResourceArn': resource_arn, 'Policy': policy_str}
-
-    response = client.put_resource_policy(**params)
-    return {'RevisionId': response.get('RevisionId')}
+DATA_MODEL_JSON_FILE = 'dynamodb_data_model.json'
+DATA_MODEL_VALIDATION_RESULT_JSON_FILE = 'dynamodb_model_validation.json'
+GENERATED_DATA_ACCESS_LAYER_DIR = 'generated_dal'
 
 
-@app.tool()
-@handle_exceptions
-async def get_resource_policy(
-    resource_arn: str = resource_arn,
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Returns the resource-based policy document attached to a DynamoDB table or stream in JSON format."""
-    client = get_dynamodb_client(region_name)
-    params: GetResourcePolicyInput = {'ResourceArn': resource_arn}
+# Define server instructions and dependencies
+SERVER_INSTRUCTIONS = """The official MCP Server for AWS DynamoDB design and modeling guidance
 
-    response = client.get_resource_policy(**params)
-    return {'Policy': response.get('Policy'), 'RevisionId': response.get('RevisionId')}
+This server provides DynamoDB design and modeling expertise.
 
+Available Tools:
+--------------
+Use the `dynamodb_data_modeling` tool to access enterprise-level DynamoDB design expertise.
+This tool provides systematic methodology for creating multi-table design with
+advanced optimizations, cost analysis, and integration patterns.
 
-@app.tool()
-@handle_exceptions
-async def scan(
-    table_name: str = table_name,
-    index_name: str = index_name,
-    filter_expression: str = filter_expression,
-    projection_expression: str = projection_expression,
-    expression_attribute_names: Dict[str, str] = expression_attribute_names,
-    expression_attribute_values: Dict[str, AttributeValue] = expression_attribute_values,
-    select: Select = select,
-    limit: int = limit,
-    exclusive_start_key: Dict[str, KeyAttributeValue] = exclusive_start_key,
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Returns items and attributes by scanning a table or secondary index. Reads up to Limit items or 1 MB of data, with optional FilterExpression to reduce results."""
-    client = get_dynamodb_client(region_name)
-    params: ScanInput = {'TableName': table_name}
+Use the `source_db_analyzer` tool to analyze existing databases for DynamoDB Data Modeling:
+- Supports MySQL, PostgreSQL, SQL Server, and Oracle
+- Two execution modes:
+  * SELF_SERVICE: Generate SQL queries, user runs them, tool parses results
+  * MANAGED: Direct database connection (MySQL supports RDS Data API or connection-based access)
 
-    if index_name:
-        params['IndexName'] = index_name
-    if filter_expression:
-        params['FilterExpression'] = filter_expression
-    if projection_expression:
-        params['ProjectionExpression'] = projection_expression
-    if expression_attribute_names:
-        params['ExpressionAttributeNames'] = expression_attribute_names
-    if expression_attribute_values:
-        params['ExpressionAttributeValues'] = expression_attribute_values
-    if select:
-        params['Select'] = select
-    if limit:
-        params['Limit'] = limit
-    if exclusive_start_key:
-        params['ExclusiveStartKey'] = exclusive_start_key
-    params['ReturnConsumedCapacity'] = 'TOTAL'
+Managed Analysis Workflow:
+- Extracts schema structure (tables, columns, indexes, foreign keys)
+- Captures access patterns from query logs (when available)
+- Generates timestamped analysis files (Markdown format) for use with dynamodb_data_modeling
+- Safe for production use (read-only analysis)
 
-    response = client.scan(**params)
-    return {
-        'Items': response.get('Items', []),
-        'Count': response.get('Count'),
-        'ScannedCount': response.get('ScannedCount'),
-        'LastEvaluatedKey': response.get('LastEvaluatedKey'),
-        'ConsumedCapacity': response.get('ConsumedCapacity'),
-    }
+Self-Service Mode Workflow:
+1. User selects database type (mysql/postgresql/sqlserver/oracle)
+2. Tool generates SQL queries to file
+3. User runs queries against their database
+4. User provides result file path
+5. Tool generates analysis markdown files
 
+Use the `dynamodb_data_model_validation` tool to validate your DynamoDB data model:
+- Loads and validates dynamodb_data_model.json structure (checks required keys: tables, items, access_patterns)
+- Sets up DynamoDB Local environment automatically (tries containers first: Docker/Podman/Finch/nerdctl, falls back to Java)
+- Cleans up existing tables from previous validation runs
+- Creates tables and inserts test data from your model specification
+- Tests all defined access patterns by executing their AWS CLI implementations
+- Saves detailed validation results to dynamodb_model_validation.json with pattern responses
+- Transforms results to markdown format for comprehensive review
 
-@app.tool()
-@handle_exceptions
-async def query(
-    table_name: str = table_name,
-    key_condition_expression: str = Field(
-        description='Key condition expression. Must perform an equality test on partition key value.'
-    ),
-    index_name: str = index_name,
-    filter_expression: str = filter_expression,
-    projection_expression: str = projection_expression,
-    expression_attribute_names: Dict[str, str] = expression_attribute_names,
-    expression_attribute_values: Dict[str, AttributeValue] = expression_attribute_values,
-    select: Select = select,
-    limit: int = limit,
-    scan_index_forward: bool = Field(
-        default=None, description='Ascending (true) or descending (false).'
-    ),
-    exclusive_start_key: Dict[str, KeyAttributeValue] = exclusive_start_key,
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Returns items from a table or index matching a partition key value, with optional sort key filtering."""
-    client = get_dynamodb_client(region_name)
-    params: QueryInput = {
-        'TableName': table_name,
-        'KeyConditionExpression': key_condition_expression,
-    }
+Use the `generate_resources` tool to generate resources from your DynamoDB data model:
+- Supported resource types: 'cdk' for CDK app generation
+- Generates a standalone CDK app for deploying DynamoDB tables and GSIs
+- The CDK app reads dynamodb_data_model.json to create tables with proper configuration
+- Use after completing data model validation
+- Creates a 'cdk' directory with a ready-to-deploy CDK project
 
-    if index_name:
-        params['IndexName'] = index_name
-    if filter_expression:
-        params['FilterExpression'] = filter_expression
-    if projection_expression:
-        params['ProjectionExpression'] = projection_expression
-    if expression_attribute_names:
-        params['ExpressionAttributeNames'] = expression_attribute_names
-    if expression_attribute_values:
-        params['ExpressionAttributeValues'] = expression_attribute_values
-    if select:
-        params['Select'] = select
-    if limit:
-        params['Limit'] = limit
-    if scan_index_forward is not None:
-        params['ScanIndexForward'] = scan_index_forward
-    if exclusive_start_key:
-        params['ExclusiveStartKey'] = exclusive_start_key
-    params['ReturnConsumedCapacity'] = 'TOTAL'
+Use the `dynamodb_data_model_schema_converter` tool to convert data models to schema.json:
+- Converts dynamodb_data_model.md to structured JSON schema for code generation
+- Automatically validates schema using dynamodb_data_model_schema_validator (up to 8 iterations)
+- Creates isolated timestamped folder with validated schema.json
+- Returns specialized conversion prompt
 
-    response = client.query(**params)
-    return {
-        'Items': response.get('Items', []),
-        'Count': response.get('Count'),
-        'ScannedCount': response.get('ScannedCount'),
-        'LastEvaluatedKey': response.get('LastEvaluatedKey'),
-        'ConsumedCapacity': response.get('ConsumedCapacity'),
-    }
+Use the `dynamodb_data_model_schema_validator` tool to validate schema.json files:
+- Validates schema.json structure for code generation compatibility
+- Optionally validates usage_data.json if path is provided
+- Checks field types, operations, GSI mappings, and pattern IDs
+- Provides detailed error messages with fix suggestions
+- Returns validation status and errors
+
+Use the `generate_data_access_layer` tool to generate code from schema.json:
+- Generates type-safe entity classes and repository classes with CRUD operations
+- Implements all access patterns from schema
+- Creates usage examples and test cases
+- Returns implementation guidance for Python (TypeScript, Java support planned)
+
+Use the `compute_performances_and_costs` tool to calculate DynamoDB capacity and costs:
+- Analyzes access patterns to compute Read/Write Capacity Units (RCU/WCU)
+- Calculates monthly costs for on-demand pricing
+- Supports all DynamoDB operations (GetItem, Query, Scan, Batch, Transactions, etc.)
+- Tracks GSI additional writes for accurate cost projections
+- Optional storage cost calculation when table definitions provided
+- Returns comprehensive markdown report with capacity requirements and cost breakdown
+"""
 
 
-@app.tool()
-@handle_exceptions
-@mutation_check
-async def update_item(
-    table_name: str = table_name,
-    key: Dict[str, KeyAttributeValue] = key,
-    update_expression: str = Field(
-        default=None,
-        description="""Defines the attributes to be updated, the action to be performed on them, and new value(s) for them. The following actions are available:
-    * SET - Adds one or more attributes and values to an item. If any of these attributes already exist, they are replaced by the new values.
-    * REMOVE - Removes one or more attributes from an item.
-    * ADD - Only supports Number and Set data types. Adds a value to a number attribute or adds elements to a set.
-    * DELETE - Only supports Set data type. Removes elements from a set.
-    For example: 'SET a=:value1, b=:value2 DELETE :value3, :value4, :value5'""",
-    ),
-    condition_expression: str = Field(
-        default=None,
-        description='A condition that must be satisfied in order for a conditional update to succeed.',
-    ),
-    expression_attribute_names: Dict[str, str] = expression_attribute_names,
-    expression_attribute_values: Dict[str, AttributeValue] = expression_attribute_values,
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Edits an existing item's attributes, or adds a new item to the table if it does not already exist."""
-    client = get_dynamodb_client(region_name)
-    params: UpdateItemInput = {'TableName': table_name, 'Key': key}
-
-    if update_expression:
-        params['UpdateExpression'] = update_expression
-    if condition_expression:
-        params['ConditionExpression'] = condition_expression
-    if expression_attribute_names:
-        params['ExpressionAttributeNames'] = expression_attribute_names
-    if expression_attribute_values:
-        params['ExpressionAttributeValues'] = expression_attribute_values
-    params['ReturnConsumedCapacity'] = 'TOTAL'
-    params['ReturnValuesOnConditionCheckFailure'] = 'ALL_OLD'
-
-    response = client.update_item(**params)
-    return {
-        'Attributes': response.get('Attributes'),
-        'ConsumedCapacity': response.get('ConsumedCapacity'),
-    }
-
-
-@app.tool()
-@handle_exceptions
-async def get_item(
-    table_name: str = table_name,
-    key: Dict[str, KeyAttributeValue] = key,
-    expression_attribute_names: Dict[str, str] = expression_attribute_names,
-    projection_expression: str = projection_expression,
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Returns attributes for an item with the given primary key. Uses eventually consistent reads by default, or set ConsistentRead=true for strongly consistent reads."""
-    client = get_dynamodb_client(region_name)
-    params: GetItemInput = {'TableName': table_name, 'Key': key}
-
-    if expression_attribute_names:
-        params['ExpressionAttributeNames'] = expression_attribute_names
-    if projection_expression:
-        params['ProjectionExpression'] = projection_expression
-    params['ReturnConsumedCapacity'] = 'TOTAL'
-
-    response = client.get_item(**params)
-    return {'Item': response.get('Item'), 'ConsumedCapacity': response.get('ConsumedCapacity')}
-
-
-@app.tool()
-@handle_exceptions
-@mutation_check
-async def put_item(
-    table_name: str = table_name,
-    item: Dict[str, AttributeValue] = Field(
-        description='A map of attribute name/value pairs, one for each attribute. Must use DynamoDB attribute value format (see IMPORTANT note about DynamoDB Attribute Value Format).'
-    ),
-    condition_expression: str = Field(
-        default=None,
-        description='A condition that must be satisfied in order for a conditional put operation to succeed.',
-    ),
-    expression_attribute_names: Dict[str, str] = expression_attribute_names,
-    expression_attribute_values: Dict[str, Any] = expression_attribute_values,
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Creates a new item or replaces an existing item in a table. Use condition expressions to control whether to create new items or update existing ones."""
-    client = get_dynamodb_client(region_name)
-    params: PutItemInput = {'TableName': table_name, 'Item': item}
-
-    if condition_expression:
-        params['ConditionExpression'] = condition_expression
-    if expression_attribute_names:
-        params['ExpressionAttributeNames'] = expression_attribute_names
-    if expression_attribute_values:
-        params['ExpressionAttributeValues'] = expression_attribute_values
-    params['ReturnConsumedCapacity'] = 'TOTAL'
-
-    response = client.put_item(**params)
-    return {
-        'Attributes': response.get('Attributes'),
-        'ConsumedCapacity': response.get('ConsumedCapacity'),
-    }
-
-
-@app.tool()
-@handle_exceptions
-@mutation_check
-async def delete_item(
-    table_name: str = table_name,
-    key: Dict[str, KeyAttributeValue] = key,
-    condition_expression: str = Field(
-        default=None,
-        description='The condition that must be satisfied in order for delete to succeed.',
-    ),
-    expression_attribute_names: Dict[str, str] = expression_attribute_names,
-    expression_attribute_values: Dict[str, AttributeValue] = expression_attribute_values,
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Deletes a single item in a table by primary key. You can perform a conditional delete operation that deletes the item if it exists, or if it has an expected attribute value."""
-    client = get_dynamodb_client(region_name)
-    params: DeleteItemInput = {'TableName': table_name, 'Key': key}
-
-    if condition_expression:
-        params['ConditionExpression'] = condition_expression
-    if expression_attribute_names:
-        params['ExpressionAttributeNames'] = expression_attribute_names
-    if expression_attribute_values:
-        params['ExpressionAttributeValues'] = expression_attribute_values
-    params['ReturnConsumedCapacity'] = 'TOTAL'
-
-    response = client.delete_item(**params)
-    return {
-        'Attributes': response.get('Attributes'),
-        'ConsumedCapacity': response.get('ConsumedCapacity'),
-        'ItemCollectionMetrics': response.get('ItemCollectionMetrics'),
-    }
-
-
-@app.tool()
-@handle_exceptions
-@mutation_check
-async def update_time_to_live(
-    table_name: str = table_name,
-    time_to_live_specification: TimeToLiveSpecification = Field(
-        description='The new TTL settings'
-    ),
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Enables or disables Time to Live (TTL) for the specified table. Note: The epoch time format is the number of seconds elapsed since 12:00:00 AM January 1, 1970 UTC."""
-    client = get_dynamodb_client(region_name)
-    response = client.update_time_to_live(
-        TableName=table_name, TimeToLiveSpecification=time_to_live_specification
+def create_server():
+    """Create and configure the MCP server instance."""
+    return FastMCP(
+        name='dynamodb-mcp-server',
+        instructions=SERVER_INSTRUCTIONS,
     )
-    return response['TimeToLiveSpecification']
+
+
+app = create_server()
+
+_original_call_tool = app.call_tool
+
+
+async def _call_tool_with_formatted_errors(name, arguments):
+    try:
+        return await _original_call_tool(name, arguments)
+    except ToolError as e:
+        if name == 'compute_performances_and_costs' and isinstance(e.__cause__, ValidationError):
+            raise ToolError(format_validation_errors(e.__cause__)) from e.__cause__
+        raise
+
+
+app.call_tool = _call_tool_with_formatted_errors
 
 
 @app.tool()
 @handle_exceptions
-@mutation_check
-async def update_table(
-    table_name: str = table_name,
-    attribute_definitions: List[AttributeDefinition] = Field(
+async def dynamodb_data_modeling() -> str:
+    """Retrieves the complete DynamoDB Data Modeling Expert prompt.
+
+    This tool returns a prompt to help user with data modeling on DynamoDB.
+    The prompt guides through requirements gathering, access pattern analysis, and
+    schema design. The prompt contains:
+
+    - Structured 2-phase workflow (requirements → final design)
+    - Enterprise design patterns: hot partition analysis, write sharding, sparse GSIs, and more
+    - Cost optimization strategies and RPS-based capacity planning
+    - Multi-table design philosophy with advanced denormalization patterns
+    - Integration guidance for OpenSearch, Lambda, and analytics
+
+    Usage: Simply call this tool to get the expert prompt.
+
+    Returns: Complete expert system prompt as text (no parameters required)
+    """
+    prompt_file = Path(__file__).parent / 'prompts' / 'dynamodb_architect.md'
+    architect_prompt = prompt_file.read_text(encoding='utf-8')
+
+    # Add next steps guidance
+    next_steps_prompt = _load_next_steps_prompt('dynamodb_data_modeling_complete.md')
+
+    return architect_prompt + next_steps_prompt
+
+
+@app.tool()
+@handle_exceptions
+async def dynamodb_data_model_schema_converter(
+    generate_usage_data: bool = Field(
+        default=True,
+        description=(
+            'Set to False if user only wants schema.json without usage examples/sample data. '
+            'Set to True (default) to generate both schema.json and usage_data.json with realistic sample data for code generation'
+        ),
+    ),
+) -> str:
+    """Retrieves the DynamoDB Data Model Schema Converter Expert prompt.
+
+    This tool returns a specialized prompt for converting DynamoDB data models (dynamodb_data_model.md)
+    into schema.json - a structured JSON representation used for generating type-safe entities and repositories.
+    By default, also includes instructions for generating usage_data.json with realistic sample data.
+
+    The prompt guides through:
+    - Reading and parsing dynamodb_data_model.md files
+    - Converting table designs, GSIs, and access patterns into structured JSON format
+    - Validating generated schemas using the dynamodb_data_model_schema_validator tool
+    - Iteratively fixing validation errors (up to 8 iterations)
+    - Generating usage_data.json with realistic sample data from markdown tables (unless generate_usage_data=False)
+    - Creating isolated output folders with schema.json (and optionally usage_data.json)
+
+    When to set generate_usage_data=False:
+    - User explicitly asks for "schema only", "just schema", "without usage data", "without examples"
+    - User wants to skip sample data generation
+    - User only needs the schema structure for validation or review
+
+    Args:
+        generate_usage_data: If True (default), includes instructions for generating usage_data.json.
+                           If False, only generates schema.json.
+
+    Returns: Complete schema converter expert prompt as text
+    """
+    # Load the main schema generator prompt
+    prompt_file = Path(__file__).parent / 'prompts' / 'dynamodb_schema_generator.md'
+    schema_generator_prompt = prompt_file.read_text(encoding='utf-8')
+
+    if generate_usage_data:
+        usage_data_prompt = (
+            Path(__file__).parent / 'prompts' / 'usage_data_generator.md'
+        ).read_text(encoding='utf-8')
+        combined_prompt = f"""{schema_generator_prompt}
+
+# ADDITIONAL TASK: Generate Usage Data
+
+After schema.json validation succeeds, you MUST also generate usage_data.json with realistic sample data.
+
+{usage_data_prompt}"""
+    else:
+        combined_prompt = schema_generator_prompt
+
+    # Add next steps guidance (same for both cases)
+    next_steps_prompt = _load_next_steps_prompt('dynamodb_data_model_schema_converter_complete.md')
+
+    return combined_prompt + next_steps_prompt
+
+
+@app.tool()
+@handle_exceptions
+async def dynamodb_data_model_schema_validator(
+    schema_path: str = Field(description='Absolute path to the schema.json file to validate'),
+    usage_data_path: Optional[str] = Field(
         default=None,
-        description='Describe the key schema for the table and indexes. Required when adding a new GSI.',
+        description='Optional absolute path to the usage_data.json file to validate alongside the schema',
     ),
-    billing_mode: Literal['PROVISIONED', 'PAY_PER_REQUEST'] = billing_mode,
-    deletion_protection_enabled: bool = Field(
-        default=None, description='Indicates whether deletion protection is to be enabled'
-    ),
-    global_secondary_index_updates: List[GlobalSecondaryIndexUpdate] = Field(
-        default=None, description='List of GSIs to be added, updated or deleted.'
-    ),
-    on_demand_throughput: OnDemandThroughput = Field(
-        default=None, description='Set the max number of read and write units.'
-    ),
-    provisioned_throughput: ProvisionedThroughput = Field(
-        default=None, description='The new provisioned throughput settings.'
-    ),
-    replica_updates: List[ReplicationGroupUpdate] = Field(
-        default=None, description='A list of replica update actions (create, delete, or update).'
-    ),
-    sse_specification: SSESpecification = Field(
-        default=None, description='The new server-side encryption settings.'
-    ),
-    stream_specification: StreamSpecification = Field(
-        default=None, description='DynamoDB Streams configuration.'
-    ),
-    table_class: Literal['STANDARD', 'STANDARD_INFREQUENT_ACCESS'] = Field(
-        default=None, description='The new table class.'
-    ),
-    warm_throughput: WarmThroughput = Field(
-        default=None, description='The new warm throughput settings.'
-    ),
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Modifies table settings including provisioned throughput, global secondary indexes, and DynamoDB Streams configuration. This is an asynchronous operation."""
-    client = get_dynamodb_client(region_name)
-    params: UpdateTableInput = {'TableName': table_name}
+) -> str:
+    """Validates a schema.json file - the structured JSON representation of your DynamoDB data model.
 
-    if attribute_definitions:
-        params['AttributeDefinitions'] = attribute_definitions
-    if billing_mode:
-        params['BillingMode'] = billing_mode
-    if deletion_protection_enabled is not None:
-        params['DeletionProtectionEnabled'] = deletion_protection_enabled
-    if global_secondary_index_updates:
-        params['GlobalSecondaryIndexUpdates'] = global_secondary_index_updates
-    if on_demand_throughput:
-        params['OnDemandThroughput'] = on_demand_throughput
-    if provisioned_throughput:
-        params['ProvisionedThroughput'] = provisioned_throughput
-    if replica_updates:
-        params['ReplicaUpdates'] = replica_updates
-    if sse_specification:
-        params['SSESpecification'] = sse_specification
-    if stream_specification:
-        params['StreamSpecification'] = stream_specification
-    if table_class:
-        params['TableClass'] = table_class
-    if warm_throughput:
-        params['WarmThroughput'] = warm_throughput
+    This tool validates that your schema.json file is properly formatted and contains all required fields
+    for use with the repository generation tool and other automation tools. It provides detailed error
+    messages with suggestions for fixing any issues found.
 
-    response = client.update_table(**params)
-    return response['TableDescription']
+    Optionally, if usage_data_path is provided, it will also validate the usage_data.json file against
+    the schema to ensure consistency.
 
+    The validation checks:
+    - Required sections (table_config, entities) exist
+    - All required fields are present
+    - Field types are valid (string, integer, decimal, boolean, array, object, uuid)
+    - Enum values are correct (operation types, return types, etc.)
+    - Pattern IDs are unique across all entities
+    - GSI names match between gsi_list and gsi_mappings
+    - Fields referenced in templates exist in entity fields
+    - Range conditions are valid and have correct parameter counts
+    - Access patterns have valid operations and return types
+    - Usage data validation (if usage_data_path provided)
 
-@app.tool()
-@handle_exceptions
-async def list_tables(
-    exclusive_start_table_name: str = Field(
-        default=None,
-        description='The LastEvaluatedTableName value from the previous paginated call',
-    ),
-    limit: int = Field(
-        default=None,
-        description='Max number of table names to return',
-    ),
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Returns a paginated list of table names in your account."""
-    client = get_dynamodb_client(region_name)
-    params = {}
-    if exclusive_start_table_name:
-        params['ExclusiveStartTableName'] = exclusive_start_table_name
-    if limit:
-        params['Limit'] = limit
-    response = client.list_tables(**params)
-    return {
-        'TableNames': response['TableNames'],
-        'LastEvaluatedTableName': response.get('LastEvaluatedTableName'),
-    }
+    Security:
+    - Schema files must be within the current working directory or subdirectories
+    - Path traversal attempts (e.g., ../../../../etc/passwd) are blocked
 
+    Args:
+        schema_path: Absolute path to the schema.json file to validate
+        usage_data_path: Optional absolute path to the usage_data.json file to validate
 
-@app.tool()
-@handle_exceptions
-@mutation_check
-async def create_table(
-    table_name: str = Field(
-        description='The name of the table to create.',
-    ),
-    attribute_definitions: List[AttributeDefinition] = Field(
-        description='Describe the key schema for the table and indexes.'
-    ),
-    key_schema: List[KeySchemaElement] = Field(
-        description='Specifies primary key attributes of the table.'
-    ),
-    billing_mode: Literal['PROVISIONED', 'PAY_PER_REQUEST'] = billing_mode,
-    global_secondary_indexes: List[GlobalSecondaryIndex] = Field(
-        default=None, description='GSIs to be created on the table.'
-    ),
-    provisioned_throughput: ProvisionedThroughput = Field(
-        default=None,
-        description='Provisioned throughput settings. Required if BillingMode is PROVISIONED.',
-    ),
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Creates a new DynamoDB table with optional secondary indexes. This is an asynchronous operation."""
-    client = get_dynamodb_client(region_name)
-    params: CreateTableInput = {
-        'TableName': table_name,
-        'AttributeDefinitions': attribute_definitions,
-        'KeySchema': key_schema,
-    }
+    Returns:
+        Validation result with either success message or detailed error messages with suggestions
 
-    if billing_mode:
-        params['BillingMode'] = billing_mode
-    if global_secondary_indexes:
-        params['GlobalSecondaryIndexes'] = global_secondary_indexes
-    if provisioned_throughput:
-        params['ProvisionedThroughput'] = provisioned_throughput
+    Example Usage:
+        dynamodb_data_model_schema_validator("/path/to/schema.json")
+        dynamodb_data_model_schema_validator("/path/to/schema.json", "/path/to/usage_data.json")
 
-    response = client.create_table(**params)
-    return response['TableDescription']
+    Example Success Output:
+        "✅ Schema validation passed!"
+        or
+        "✅ Schema validation passed!
+         ✅ Usage data validation passed!"
 
+    Example Error Output:
+        "❌ Schema validation failed:
+          • entities.User.fields[0].type: Invalid type value 'strng'
+            💡 Did you mean 'string'? Valid options: string, integer, decimal, boolean, array, object, uuid"
+    """
+    try:
+        # Security: Resolve and validate path to prevent traversal attacks
+        schema_file = Path(schema_path).resolve()
+        schema_parent_dir = schema_file.parent
 
-@app.tool()
-@handle_exceptions
-async def describe_table(
-    table_name: str = table_name,
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Returns table information including status, creation time, key schema and indexes."""
-    client = get_dynamodb_client(region_name)
-    response = client.describe_table(TableName=table_name)
-    return response['Table']
+        # Security: Resolve and validate usage_data_path to prevent traversal attacks
+        if usage_data_path:
+            usage_data_path = str(Path(usage_data_path).resolve())
 
+        if not schema_file.exists():
+            return f'Error: Schema file not found at {schema_path}'
 
-@app.tool()
-@handle_exceptions
-@mutation_check
-async def create_backup(
-    table_name: str = table_name,
-    backup_name: str = Field(
-        description='Specified name for the backup.',
-    ),
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Creates a backup of a DynamoDB table."""
-    client = get_dynamodb_client(region_name)
-    response = client.create_backup(TableName=table_name, BackupName=backup_name)
-    return response['BackupDetails']
-
-
-@app.tool()
-@handle_exceptions
-async def describe_backup(
-    backup_arn: str = Field(
-        description='The Amazon Resource Name (ARN) associated with the backup.',
-    ),
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Describes an existing backup of a table."""
-    client = get_dynamodb_client(region_name)
-    response = client.describe_backup(BackupArn=backup_arn)
-    return response['BackupDescription']
-
-
-@app.tool()
-@handle_exceptions
-async def list_backups(
-    table_name: str = table_name,
-    backup_type: str = Field(
-        default=None,
-        description='Filter by backup type: USER (on-demand backup created by you), SYSTEM (automatically created by DynamoDB), AWS_BACKUP (created by AWS Backup), or ALL (all types).',
-        pattern='^(USER|SYSTEM|AWS_BACKUP|ALL)$',
-    ),
-    exclusive_start_backup_arn: str = Field(
-        default=None,
-        description='LastEvaluatedBackupArn from a previous paginated call.',
-    ),
-    limit: int = Field(
-        default=None, description='Maximum number of backups to return.', ge=1, le=100
-    ),
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Returns a list of table backups."""
-    client = get_dynamodb_client(region_name)
-    params = {}
-    if backup_type:
-        params['BackupType'] = backup_type
-    if exclusive_start_backup_arn:
-        params['ExclusiveStartBackupArn'] = exclusive_start_backup_arn
-    if limit:
-        params['Limit'] = limit
-    if table_name:
-        params['TableName'] = table_name
-
-    response = client.list_backups(**params)
-    return {
-        'BackupSummaries': response.get('BackupSummaries', []),
-        'LastEvaluatedBackupArn': response.get('LastEvaluatedBackupArn'),
-    }
-
-
-@app.tool()
-@handle_exceptions
-@mutation_check
-async def restore_table_from_backup(
-    backup_arn: str = Field(
-        description='The Amazon Resource Name (ARN) associated with the backup.',
-    ),
-    target_table_name: str = Field(
-        description='The name of the new table.',
-    ),
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Creates a new table from a backup."""
-    client = get_dynamodb_client(region_name)
-    params = {'BackupArn': backup_arn, 'TargetTableName': target_table_name}
-
-    response = client.restore_table_from_backup(**params)
-    return response['TableDescription']
-
-
-@app.tool()
-@handle_exceptions
-async def describe_limits(
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Returns the current provisioned-capacity quotas for your AWS account and tables in a Region."""
-    client = get_dynamodb_client(region_name)
-    response = client.describe_limits()
-    return {
-        'AccountMaxReadCapacityUnits': response['AccountMaxReadCapacityUnits'],
-        'AccountMaxWriteCapacityUnits': response['AccountMaxWriteCapacityUnits'],
-        'TableMaxReadCapacityUnits': response['TableMaxReadCapacityUnits'],
-        'TableMaxWriteCapacityUnits': response['TableMaxWriteCapacityUnits'],
-    }
-
-
-@app.tool()
-@handle_exceptions
-async def describe_time_to_live(
-    table_name: str = table_name,
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Returns the Time to Live (TTL) settings for a table."""
-    client = get_dynamodb_client(region_name)
-    response = client.describe_time_to_live(TableName=table_name)
-    return response['TimeToLiveDescription']
-
-
-@app.tool()
-@handle_exceptions
-async def describe_endpoints(
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Returns DynamoDB endpoints for the current region."""
-    client = get_dynamodb_client(region_name)
-    response = client.describe_endpoints()
-    return {'Endpoints': response['Endpoints']}
-
-
-@app.tool()
-@handle_exceptions
-async def describe_export(
-    export_arn: str = Field(
-        description='The Amazon Resource Name (ARN) associated with the export.',
-    ),
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Returns information about a table export."""
-    client = get_dynamodb_client(region_name)
-    response = client.describe_export(ExportArn=export_arn)
-    return response['ExportDescription']
-
-
-@app.tool()
-@handle_exceptions
-async def list_exports(
-    max_results: int = Field(
-        default=None,
-        description='Maximum number of results to return per page.',
-    ),
-    next_token: str = Field(default=None, description='Token to fetch the next page of results.'),
-    table_arn: str = Field(
-        default=None,
-        description='The Amazon Resource Name (ARN) associated with the exported table.',
-    ),
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Returns a list of table exports."""
-    client = get_dynamodb_client(region_name)
-    params = {}
-    if max_results:
-        params['MaxResults'] = max_results
-    if next_token:
-        params['NextToken'] = next_token
-    if table_arn:
-        params['TableArn'] = table_arn
-
-    response = client.list_exports(**params)
-    return {
-        'ExportSummaries': response.get('ExportSummaries', []),
-        'NextToken': response.get('NextToken'),
-    }
-
-
-@app.tool()
-@handle_exceptions
-async def describe_continuous_backups(
-    table_name: str = table_name,
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Returns continuous backup and point in time recovery status for a table."""
-    client = get_dynamodb_client(region_name)
-    response = client.describe_continuous_backups(TableName=table_name)
-    return response['ContinuousBackupsDescription']
-
-
-@app.tool()
-@handle_exceptions
-@mutation_check
-async def untag_resource(
-    resource_arn: str = resource_arn,
-    tag_keys: List[str] = Field(description='List of tags to remove.', min_length=1),
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Removes tags from a DynamoDB resource."""
-    client = get_dynamodb_client(region_name)
-    response = client.untag_resource(ResourceArn=resource_arn, TagKeys=tag_keys)
-    return response
-
-
-@app.tool()
-@handle_exceptions
-@mutation_check
-async def tag_resource(
-    resource_arn: str = resource_arn,
-    tags: List[Tag] = Field(description='Tags to be assigned.'),
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Adds tags to a DynamoDB resource."""
-    client = get_dynamodb_client(region_name)
-    response = client.tag_resource(ResourceArn=resource_arn, Tags=tags)
-    return response
-
-
-@app.tool()
-@handle_exceptions
-async def list_tags_of_resource(
-    resource_arn: str = resource_arn,
-    next_token: str = Field(
-        default=None, description='The NextToken from the previous paginated call'
-    ),
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Returns tags for a DynamoDB resource."""
-    client = get_dynamodb_client(region_name)
-    params = {'ResourceArn': resource_arn}
-    if next_token:
-        params['NextToken'] = next_token
-
-    response = client.list_tags_of_resource(**params)
-    return {'Tags': response.get('Tags', []), 'NextToken': response.get('NextToken')}
-
-
-@app.tool()
-@handle_exceptions
-@mutation_check
-async def delete_table(
-    table_name: str = table_name,
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """The DeleteTable operation deletes a table and all of its items. This is an asynchronous operation that puts the table into DELETING state until DynamoDB completes the deletion."""
-    client = get_dynamodb_client(region_name)
-    response = client.delete_table(TableName=table_name)
-    return response['TableDescription']
-
-
-@app.tool()
-@handle_exceptions
-async def update_continuous_backups(
-    table_name: str = table_name,
-    point_in_time_recovery_enabled: bool = Field(
-        description='Enable or disable point in time recovery.'
-    ),
-    recovery_period_in_days: int = Field(
-        default=None,
-        description='Number of days to retain point in time recovery backups.',
-    ),
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Enables or disables point in time recovery for the specified table."""
-    client = get_dynamodb_client(region_name)
-    params = {
-        'TableName': table_name,
-        'PointInTimeRecoverySpecification': {
-            'PointInTimeRecoveryEnabled': point_in_time_recovery_enabled
-        },
-    }
-    if recovery_period_in_days:
-        params['PointInTimeRecoverySpecification']['RecoveryPeriodInDays'] = (
-            recovery_period_in_days
+        # Pass usage_data_path to generate() for security validation
+        # generate() validates paths are within allowed_base_dirs before checking existence
+        result = generate(
+            schema_path=str(schema_file),
+            validate_only=True,
+            allowed_base_dirs=[schema_parent_dir],
+            usage_data_path=usage_data_path,
         )
 
-    response = client.update_continuous_backups(**params)
-    return response['ContinuousBackupsDescription']
+        # Return formatted output for MCP
+        return result.format_for_mcp()
+
+    except ValueError as e:
+        logger.error(f'Path validation error: {str(e)}')
+        return f'Security Error: {str(e)}'
+    except FileNotFoundError as e:
+        logger.error(f'Schema file not found: {str(e)}')
+        return f'Error: Schema file not found at {schema_path}'
+    except Exception as e:
+        logger.error(f'Schema validation failed with exception: {str(e)}')
+        return f'Error during schema validation: {str(e)}'
 
 
 @app.tool()
 @handle_exceptions
-async def list_imports(
-    next_token: str = Field(default=None, description='Token to fetch the next page of results.'),
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Lists imports completed within the past 90 days."""
-    client = get_dynamodb_client(region_name)
-    params = {}
-    if next_token:
-        params['NextToken'] = next_token
-    params['PageSize'] = 25
-    response = client.list_imports(**params)
-    return {
-        'ImportSummaryList': response.get('ImportSummaryList', []),
-        'NextToken': response.get('NextToken'),
-    }
+async def source_db_analyzer(
+    source_db_type: str = Field(
+        description="Database type: 'mysql', 'postgresql', 'sqlserver', or 'oracle'"
+    ),
+    source_identifier: Optional[str] = Field(
+        default=None,
+        description=(
+            'Identifier for the source to analyze. Accepts a database name (MySQL, PostgreSQL, SQL Server) '
+            'or a schema/owner name (Oracle, where objects are scoped by schema rather than database). '
+            'REQUIRED for self_service mode.'
+        ),
+    ),
+    execution_mode: str = Field(
+        default='self_service',
+        description=(
+            "'self_service': generates SQL for user to run, then parses results. "
+            "'managed' (MySQL only): RDS Data API-based access (aws_cluster_arn) "
+            'or Connection-based access (hostname+port).'
+        ),
+    ),
+    queries_file_path: Optional[str] = Field(
+        default=None,
+        description='[self_service] Output path for generated SQL queries (Step 1).',
+    ),
+    query_result_file_path: Optional[str] = Field(
+        default=None,
+        description='[self_service] Path to query results file for parsing (Step 2).',
+    ),
+    pattern_analysis_days: Optional[int] = Field(
+        default=30,
+        description='Days of query logs to analyze. Default: 30.',
+        ge=1,
+    ),
+    max_query_results: Optional[int] = Field(
+        default=None,
+        description='Max rows per query. Default: 500. Env: MYSQL_MAX_QUERY_RESULTS.',
+        ge=1,
+    ),
+    aws_cluster_arn: Optional[str] = Field(
+        default=None,
+        description='[managed/RDS Data API-based] Aurora cluster ARN. Use this OR hostname, not both. Env: MYSQL_CLUSTER_ARN.',
+    ),
+    aws_secret_arn: Optional[str] = Field(
+        default=None,
+        description='[managed] Secrets Manager ARN for DB credentials. REQUIRED. Env: MYSQL_SECRET_ARN.',
+    ),
+    aws_region: Optional[str] = Field(
+        default=None,
+        description='[managed] AWS region. REQUIRED. Env: AWS_REGION.',
+    ),
+    hostname: Optional[str] = Field(
+        default=None,
+        description='[managed/connection-based] MySQL hostname. Use this OR aws_cluster_arn, not both. Env: MYSQL_HOSTNAME.',
+    ),
+    port: Optional[int] = Field(
+        default=None,
+        description='[managed/connection-based] MySQL port. Default: 3306. Env: MYSQL_PORT.',
+    ),
+    output_dir: str = Field(
+        description='Absolute path for output folder. Must exist and be writable. REQUIRED.',
+    ),
+) -> str:
+    """Analyzes source database to extract schema and access patterns for DynamoDB modeling.
+
+    WHEN TO USE: Call this tool when the user selects "Existing Database Analysis" option
+    after invoking the `dynamodb_data_modeling` tool. This extracts schema and query patterns
+    from an existing relational database to accelerate DynamoDB data model design.
+
+    IMPORTANT: Always ask the user which execution mode they prefer before calling this tool.
+
+    Execution Modes:
+    - self_service: Generates SQL queries for user to run manually, then parses their results.
+    - managed (MySQL only): Database connection via RDS Data API or hostname.
+
+    Supported Databases: MySQL, PostgreSQL, SQL Server, Oracle
+
+    Output: Generates analysis files (schema structure, access patterns, relationships) in
+    Markdown format. These files feed into the DynamoDB data modeling workflow to inform
+    table design, GSI selection, and access pattern mapping.
+
+    Returns: Analysis summary with file locations and next steps.
+    """
+    # Validate execution mode
+    if execution_mode not in ['managed', 'self_service']:
+        return f'Invalid execution_mode: {execution_mode}. Must be "self_service" or "managed".'
+
+    # Get plugin for database type
+    try:
+        plugin = PluginRegistry.get_plugin(source_db_type)
+    except ValueError as e:
+        return f'{str(e)}. Supported types: {PluginRegistry.get_supported_types()}'
+
+    # Managed mode only supports MySQL
+    if execution_mode == 'managed' and source_db_type != 'mysql':
+        return (
+            f'Managed mode is not supported for {source_db_type}. Use self_service mode instead.'
+        )
+
+    max_results = max_query_results or 500
+
+    # Self-service mode - Step 1: Generate queries
+    if execution_mode == 'self_service' and queries_file_path and not query_result_file_path:
+        try:
+            return analyzer_utils.generate_query_file(
+                plugin,
+                source_identifier,
+                max_results,
+                queries_file_path,
+                output_dir,
+                source_db_type,
+            )
+        except Exception as e:
+            logger.error(f'Failed to write queries: {str(e)}')
+            return f'Failed to write queries: {str(e)}'
+
+    # Self-service mode - Step 2: Parse results and generate analysis
+    if execution_mode == 'self_service' and query_result_file_path:
+        try:
+            return analyzer_utils.parse_results_and_generate_analysis(
+                plugin,
+                query_result_file_path,
+                output_dir,
+                source_identifier,
+                pattern_analysis_days,
+                max_results,
+                source_db_type,
+            )
+        except FileNotFoundError as e:
+            logger.error(f'Query Result file not found: {str(e)}')
+            return str(e)
+        except Exception as e:
+            logger.error(f'Analysis failed: {str(e)}')
+            return f'Analysis failed: {str(e)}'
+
+    # Managed analysis mode
+    if execution_mode == 'managed':
+        connection_params = analyzer_utils.build_connection_params(
+            source_db_type,
+            source_identifier=source_identifier,
+            pattern_analysis_days=pattern_analysis_days,
+            max_query_results=max_results,
+            aws_cluster_arn=aws_cluster_arn,
+            aws_secret_arn=aws_secret_arn,
+            aws_region=aws_region,
+            hostname=hostname,
+            port=port,
+            output_dir=output_dir,
+        )
+
+        # Validate parameters
+        missing_params, param_descriptions = analyzer_utils.validate_connection_params(
+            source_db_type, connection_params
+        )
+        if missing_params:
+            missing_descriptions = [param_descriptions[param] for param in missing_params]
+            return f'To analyze your {source_db_type} database, I need: {", ".join(missing_descriptions)}'
+
+        logger.info(
+            f'Starting managed analysis for {source_db_type}: {connection_params.get("database")}'
+        )
+
+        try:
+            return await analyzer_utils.execute_managed_analysis(
+                plugin, connection_params, source_db_type
+            )
+        except NotImplementedError as e:
+            logger.error(f'Managed mode not supported: {str(e)}')
+            return str(e)
+        except Exception as e:
+            logger.error(f'Analysis failed: {str(e)}')
+            return f'Analysis failed: {str(e)}'
+
+    # Invalid mode combination
+    return 'Invalid parameter combination. For self-service mode, provide either queries_file_path (to generate queries) or query_result_file_path (to parse results).'
+
+
+async def _execute_dynamodb_command(
+    command: str,
+    endpoint_url: Optional[str] = None,
+):
+    """Execute AWS CLI DynamoDB commands (internal use only).
+
+    Args:
+        command: AWS CLI command string (must start with 'aws dynamodb')
+        endpoint_url: DynamoDB endpoint URL for local testing
+
+    Returns:
+        AWS CLI command execution results or error response
+
+    Raises:
+        ValueError: If command doesn't start with 'aws dynamodb'
+    """
+    # Validate command starts with 'aws dynamodb'
+    if not command.strip().startswith('aws dynamodb'):
+        raise ValueError("Command must start with 'aws dynamodb'")
+
+    # Configure environment with fake AWS credentials if endpoint_url is present
+    if endpoint_url:
+        os.environ['AWS_ACCESS_KEY_ID'] = (
+            DynamoDBClientConfig.DUMMY_ACCESS_KEY
+        )  # pragma: allowlist secret
+        os.environ['AWS_SECRET_ACCESS_KEY'] = (
+            DynamoDBClientConfig.DUMMY_SECRET_KEY
+        )  # pragma: allowlist secret
+        os.environ['AWS_DEFAULT_REGION'] = os.environ.get(
+            'AWS_REGION', DynamoDBClientConfig.DEFAULT_REGION
+        )
+        command += f' --endpoint-url {endpoint_url}'
+
+    try:
+        return await call_aws(command, Context())
+    except Exception as e:
+        return e
+
+
+@app.tool()
+@handle_exceptions
+async def dynamodb_data_model_validation(
+    workspace_dir: str = Field(description='Absolute path of the workspace directory'),
+) -> str:
+    """Validates and tests DynamoDB data models against DynamoDB Local.
+
+    Use this tool to validate, test, and verify your DynamoDB data model after completing the design phase.
+    This tool automatically checks that all access patterns work correctly by executing them against a local
+    DynamoDB instance.
+
+    WHEN TO USE:
+    - After completing data model design with dynamodb_data_modeling tool
+    - When user asks to "validate", "test", "check", or "verify" their DynamoDB data model
+    - To ensure all access patterns execute correctly before deploying to production
+
+    WHAT IT DOES:
+    1. If dynamodb_data_model.json doesn't exist:
+       - Returns complete JSON generation guide from json_generation_guide.md
+       - Follow the guide to create the JSON file with tables, items, and access_patterns
+       - Call this tool again after creating the JSON to validate
+
+    2. If dynamodb_data_model.json exists:
+       - Validates the JSON structure (checks for required keys: tables, items, access_patterns)
+       - Sets up DynamoDB Local environment (Docker/Podman/Finch/nerdctl or Java fallback)
+       - Cleans up existing tables from previous validation runs
+       - Creates tables and inserts test data from your model specification
+       - Tests all defined access patterns by executing their AWS CLI implementations
+       - Saves detailed validation results to dynamodb_model_validation.json
+       - Transforms results to markdown format for comprehensive review
+
+    WHAT TO DO ON SUCCESSFUL COMPLETION:
+    After validation completes, you MUST present the user with TWO options:
+    1. Deploy to AWS: Call `generate_resources` tool with resource_type='cdk' to create a CDK app for provisioning tables
+    2. Generate Python code: Call `dynamodb_data_model_schema_converter` to convert the model to schema.json, then generate code
+
+    The user can choose one or both options. If they choose CDK first, you can still generate Python code afterward.
+
+    Args:
+        workspace_dir: Absolute path of the workspace directory
+
+    Returns:
+        JSON generation guide (if file missing) or validation results with transformation prompt (if file exists)
+    """
+    try:
+        # Step 1: Get current working directory reliably
+        data_model_path = os.path.join(workspace_dir, DATA_MODEL_JSON_FILE)
+
+        if not os.path.exists(data_model_path):
+            # Return the JSON generation guide to help users create the required file
+            guide_path = Path(__file__).parent / 'prompts' / 'json_generation_guide.md'
+            try:
+                json_guide = guide_path.read_text(encoding='utf-8')
+                # Use string concatenation to avoid f-string interpreting {} in markdown
+                return (
+                    f'Error: {data_model_path} not found in your working directory.\n\n'
+                    + json_guide
+                )
+            except FileNotFoundError:
+                return f'Error: {data_model_path} not found. Please generate your data model with dynamodb_data_modeling tool first.'
+
+        # Step 2: Load and validate JSON structure
+        logger.info('Loading data model configuration')
+        try:
+            with open(data_model_path, 'r') as f:
+                data_model = json.load(f)
+        except json.JSONDecodeError as e:
+            return f'Error: Invalid JSON in {data_model_path}: {str(e)}'
+
+        # Validate required structure
+        required_keys = ['tables', 'items', 'access_patterns']
+        missing_keys = [key for key in required_keys if key not in data_model]
+        if missing_keys:
+            return f'Error: Missing required keys in data model: {missing_keys}'
+
+        # Step 3: Setup DynamoDB Local
+        logger.info('Setting up DynamoDB Local environment')
+        endpoint_url = setup_dynamodb_local()
+
+        # Step 4: Create resources
+        logger.info('Creating validation resources')
+        create_validation_resources(data_model, endpoint_url)
+
+        # Step 5: Execute access patterns
+        logger.info('Executing access patterns')
+        await _execute_access_patterns(
+            workspace_dir, data_model.get('access_patterns', []), endpoint_url
+        )
+
+        # Step 6: Transform validation results to markdown
+        validation_prompt = get_validation_result_transform_prompt()
+
+        # Add next steps guidance
+        next_steps_prompt = _load_next_steps_prompt('dynamodb_data_model_validation_complete.md')
+
+        return validation_prompt + next_steps_prompt
+
+    except FileNotFoundError as e:
+        logger.error(f'File not found: {e}')
+        return f'Error: Required file not found: {str(e)}'
+    except Exception as e:
+        logger.error(f'Data model validation failed: {e}')
+        return f'Data model validation failed: {str(e)}. Please check your data model JSON structure and try again.'
+
+
+@app.tool()
+@handle_exceptions
+async def compute_performances_and_costs(
+    access_pattern_list: List[AccessPattern] = Field(
+        description='List of access patterns with operation details (required)'
+    ),
+    table_list: List[Table] = Field(
+        description='List of table definitions for storage cost calculation (required)',
+    ),
+    workspace_dir: str = Field(
+        description='Absolute path of the workspace directory (required). Cost analysis will be appended to dynamodb_data_model.md',
+    ),
+) -> Dict[str, str]:
+    """Calculate DynamoDB capacity units and monthly costs from access patterns.
+
+    Call after completing data model design. Extracts patterns from Access Pattern Mapping
+    table and tables from Table Designs section in dynamodb_data_model.md.
+
+    Args:
+        access_pattern_list: Access patterns with fields:
+            - operation: GetItem|Query|Scan|PutItem|UpdateItem|DeleteItem|BatchGetItem|BatchWriteItem|TransactGetItems|TransactWriteItems
+            - pattern, description, table, rps (>0), item_size_bytes (1-409600)
+            - item_count: required for Query/Scan/Batch/Transact operations (>0)
+            - strongly_consistent: optional for GetItem/Query/Scan/BatchGetItem (default: false)
+            - gsi: optional for Query/Scan (target index name)
+            - gsi_list: optional for write operations (affected index names)
+        table_list: Tables with name, item_count (>0), item_size_bytes (1-409600), gsi_list (each GSI needs name, item_count, item_size_bytes)
+        workspace_dir: Absolute path to the folder containing dynamodb_data_model.md - report will be appended
+
+    Returns:
+        {'status': 'success', 'message': <success_message>} or {'status': 'error', 'message': <error_reason>}
+
+    Example:
+        {
+          "access_pattern_list": [
+            {
+              "operation": "GetItem",
+              "pattern": "get-user",
+              "description": "Get user by ID",
+              "table": "users",
+              "rps": 100,
+              "item_size_bytes": 2000
+            },
+            {
+              "operation": "Query",
+              "pattern": "query-by-email",
+              "description": "Query user by email",
+              "table": "users",
+              "rps": 50,
+              "item_size_bytes": 1500,
+              "item_count": 1,
+              "gsi": "email-index"
+            },
+            {
+              "operation": "PutItem",
+              "pattern": "put-user",
+              "description": "Create user",
+              "table": "users",
+              "rps": 20,
+              "item_size_bytes": 2000,
+              "gsi_list": ["email-index", "status-index"]
+            },
+            {
+              "operation": "Query",
+              "pattern": "query-orders",
+              "description": "Query user orders",
+              "table": "orders",
+              "rps": 50,
+              "item_size_bytes": 800,
+              "item_count": 10
+            }
+          ],
+          "table_list": [
+            {
+              "name": "users",
+              "item_size_bytes": 2500,
+              "item_count": 10000,
+              "gsi_list": [
+                {"name": "email-index", "item_size_bytes": 1500, "item_count": 10000},
+                {"name": "status-index", "item_size_bytes": 500, "item_count": 10000}
+              ]
+            },
+            {
+              "name": "orders",
+              "item_size_bytes": 1024,
+              "item_count": 50000
+            }
+          ],
+          "workspace_dir": "/absolute/path/to/workspace"
+        }
+    """
+    try:
+        data_model = DataModel(
+            access_pattern_list=access_pattern_list,
+            table_list=table_list,
+        )
+    except ValidationError as e:
+        return {'status': 'error', 'message': format_validation_errors(e)}
+
+    summary = run_cost_calculator(data_model, workspace_dir)
+
+    return {'status': 'success', 'message': summary}
+
+
+@app.tool()
+@handle_exceptions
+async def generate_resources(
+    dynamodb_data_model_json_file: str = Field(
+        description='Absolute path to the dynamodb_data_model.json file. Resources will be generated in the same directory.'
+    ),
+    resource_type: str = Field(description="Type of resource to generate: 'cdk' for CDK app"),
+) -> str:
+    """Generates resources from a DynamoDB data model JSON file (dynamodb_data_model.json).
+
+    This tool generates various resources based on the provided `dynamodb_data_model.json` file.
+    Currently supports generating a CDK app for deploying DynamoDB tables.
+
+    Supported resource types:
+    - cdk: CDK app for deploying DynamoDB tables.
+           Generates a CDK app that provisions DynamoDB tables and GSIs as defined in `dynamodb_data_model.json`.
+
+    WHEN TO USE:
+    - After completing data model validation with `dynamodb_data_model_validation` tool
+    - When user asks to "deploy", "create CDK app", "generate CDK", or "provision infrastructure"
+    - When user wants to deploy their DynamoDB tables and GSIs to AWS using a CDK app
+
+    WHEN NOT TO USE:
+    - Before completing data model validation with `dynamodb_data_model_validation` tool
+    - Before having created the `dynamodb_data_model.json` file
+    - When user only wants to generate Python code without deploying infrastructure
+
+    WHAT TO DO ON SUCCESSFUL COMPLETION:
+    After CDK generation completes, you MUST ask the user if they want to:
+    1. Deploy the CDK app now (provide deployment instructions)
+    2. Generate Python data access layer code to interact with the tables (call `dynamodb_data_model_schema_converter` then `generate_data_access_layer`)
+
+    Args:
+        dynamodb_data_model_json_file: Absolute path to the `dynamodb_data_model.json` file
+        resource_type: Type of resource to generate, possible values: cdk
+
+    Returns:
+        Success message with the destination path, or error message if generation fails
+    """
+    if resource_type == 'cdk':
+        logger.info(
+            f'Generating resources. resource_type: {resource_type}, dynamodb_data_model_json_file: {dynamodb_data_model_json_file}'
+        )
+        json_path = Path(dynamodb_data_model_json_file)
+        generator = CdkGenerator()
+        generator.generate(json_path)
+
+        # Generator returns None on success, so we construct the success message
+        cdk_dir = json_path.parent / 'cdk'
+        logger.info(f'CDK project generated successfully. cdk_dir: {cdk_dir}')
+
+        # Add next steps guidance
+        next_steps_prompt = _load_next_steps_prompt('generate_resources_complete.md')
+        return f"Successfully generated CDK project at '{cdk_dir}'\n{next_steps_prompt}"
+    else:
+        return f"Error: Unknown resource type '{resource_type}'. Supported types: cdk"
+
+
+@app.tool()
+@handle_exceptions
+async def generate_data_access_layer(
+    schema_path: str = Field(..., description='Path to the schema JSON file'),
+    language: str = Field('python', description='Target programming language (python)'),
+    generate_sample_usage: bool = Field(
+        True, description='Generate usage examples and test cases'
+    ),
+    usage_data_path: Optional[str] = Field(
+        default=None,
+        description='Path to usage_data.json file for realistic sample data (optional)',
+    ),
+) -> str:
+    """Generate Python code for a data access layer to interact with your DynamoDB tables.
+
+    🔴 PREREQUISITE: Before calling this tool, you MUST first call `dynamodb_data_model_schema_converter`
+    to generate schema.json from dynamodb_data_model.md. This tool ONLY accepts schema.json.
+
+    TYPICAL WORKFLOW:
+    1. Complete data modeling with `dynamodb_data_modeling` tool (creates dynamodb_data_model.md)
+    2. Validate with `dynamodb_data_model_validation` tool (optional but recommended)
+    3. Optionally deploy infrastructure with `generate_resources` tool (resource_type='cdk')
+    4. Convert to schema: Call `dynamodb_data_model_schema_converter` tool (creates schema.json)
+    5. Generate code: Call this `generate_data_access_layer` tool with the path to schema.json
+
+    This tool generates a complete data access layer from your schema including:
+    - Type-safe entity classes with field validation using Pydantic
+    - Repository classes with optimistic locking and error handling for all operations
+    - Fully implemented access patterns
+    - Working usage examples with realistic sample data (if usage_data_path provided)
+
+    Args:
+        schema_path: Path to the schema JSON file
+        language: Target programming language for generated code (currently only 'python' supported)
+        generate_sample_usage: Generate usage examples and test cases
+        usage_data_path: Path to usage_data.json file for realistic sample data (optional)
+
+    Returns:
+        Success message with output location and implementation guidance
+    """
+    try:
+        # Security: Resolve and validate path to prevent traversal attacks
+        schema_file = Path(schema_path).resolve()
+        schema_parent_dir = schema_file.parent
+
+        # Security: Resolve and validate usage_data_path to prevent traversal attacks
+        if usage_data_path:
+            usage_data_path = str(Path(usage_data_path).resolve())
+
+        # Check if schema file exists
+        if not Path(schema_path).exists():
+            return _load_next_steps_prompt(
+                'generate_data_access_layer_schema_not_found.md', schema_path=schema_path
+            )
+
+        # Set default output directory in same directory as schema.json
+        output_dir = str(schema_parent_dir / GENERATED_DATA_ACCESS_LAYER_DIR)
+
+        # Generate the data access layer code
+        # generate() validates usage_data_path is within allowed_base_dirs before checking existence
+        result = generate(
+            schema_path=schema_path,
+            output_dir=output_dir,
+            language=language,
+            generate_sample_usage=generate_sample_usage,
+            usage_data_path=usage_data_path,
+            no_lint=True,
+            allowed_base_dirs=[schema_parent_dir],
+        )
+
+        if not result.success:
+            return result.format_for_mcp()
+
+        # Load implementation prompt and instruct LLM to execute it
+        prompt_file = Path(__file__).parent / 'prompts' / 'dal_implementation' / f'{language}.md'
+        implementation_prompt = prompt_file.read_text(encoding='utf-8')
+
+        # Replace placeholders with actual example credentials for DynamoDB Local
+        implementation_prompt = implementation_prompt.replace(
+            '{{AWS_ACCESS_KEY_PLACEHOLDER}}', DynamoDBClientConfig.DUMMY_ACCESS_KEY
+        ).replace('{{AWS_SECRET_ACCESS_KEY_PLACEHOLDER}}', DynamoDBClientConfig.DUMMY_SECRET_KEY)
+
+        # Load workflow steps prompt
+        workflow_steps_file = (
+            Path(__file__).parent
+            / 'prompts'
+            / 'dal_implementation'
+            / 'generate_dal_workflow_steps.md'
+        )
+        workflow_steps = workflow_steps_file.read_text(encoding='utf-8').format(
+            output_dir=output_dir
+        )
+
+        # Load next steps prompt for README generation
+        next_steps_prompt = _load_next_steps_prompt(
+            'generate_data_access_layer_complete.md', output_dir=output_dir
+        )
+
+        return f"""Code generation completed successfully in: {output_dir}
+
+{workflow_steps}
+---
+IMPLEMENTATION REFERENCE:
+{implementation_prompt}
+---
+{next_steps_prompt}"""
+
+    except ValueError as e:
+        logger.error(f'Path validation error: {str(e)}')
+        return f'Security Error: {str(e)}'
+    except Exception as e:
+        logger.error(f'Analysis failed with exception: {str(e)}')
+        return f'Analysis failed: {str(e)}'
+
+
+def _load_next_steps_prompt(filename: str, **kwargs) -> str:
+    """Load next steps guidance from markdown file with optional variable substitution.
+
+    Args:
+        filename: Name of the markdown file in prompts/next_steps/ directory
+        **kwargs: Variables to substitute in the template (e.g., schema_path="...")
+
+    Returns:
+        Content of the next steps markdown file with variables substituted
+    """
+    prompt_file = Path(__file__).parent / 'prompts' / 'next_steps' / filename
+    content = prompt_file.read_text(encoding='utf-8')
+
+    # Substitute variables if provided
+    if kwargs:
+        content = content.format(**kwargs)
+
+    return content
 
 
 def main():
     """Main entry point for the MCP server application."""
     app.run()
+
+
+async def _execute_access_patterns(
+    workspace_dir: str,
+    access_patterns: List[Dict[str, Any]],
+    endpoint_url: Optional[str] = None,
+) -> dict:
+    """Execute all data model validation access patterns operations.
+
+    Args:
+        workspace_dir: Absolute path of the workspace directory
+        access_patterns: List of access patterns to test
+        endpoint_url: DynamoDB endpoint URL
+
+    Returns:
+        Dictionary with all execution results
+    """
+    try:
+        results = []
+        for pattern in access_patterns:
+            if 'implementation' not in pattern:
+                results.append(pattern)
+                continue
+
+            command = pattern['implementation']
+            result = await _execute_dynamodb_command(command, endpoint_url)
+            results.append(
+                {
+                    'pattern_id': pattern.get('pattern'),
+                    'description': pattern.get('description'),
+                    'dynamodb_operation': pattern.get('dynamodb_operation'),
+                    'command': command,
+                    'response': result if isinstance(result, dict) else str(result),
+                }
+            )
+
+        validation_response = {'validation_response': results}
+
+        output_file = os.path.join(workspace_dir, DATA_MODEL_VALIDATION_RESULT_JSON_FILE)
+        with open(output_file, 'w') as f:
+            json.dump(validation_response, f, indent=2)
+
+        return validation_response
+    except Exception as e:
+        logger.error(f'Failed to execute access patterns validation: {e}')
+        return {'validation_response': [], 'error': str(e)}
 
 
 if __name__ == '__main__':

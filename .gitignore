@@ -222,9 +222,6 @@ poetry.toml
 # ruff
 .ruff_cache/
 
-# LSP config files
-pyrightconfig.json
-
 ### VisualStudioCode ###
 .vscode/*
 !.vscode/settings.json
@@ -243,6 +240,10 @@ pyrightconfig.json
 # Ignore all local history of files
 .history
 .ionide
+
+### Kiro
+# Ignore Kiro config files
+.kiro/
 
 ### Windows ###
 # Windows thumbnail cache files

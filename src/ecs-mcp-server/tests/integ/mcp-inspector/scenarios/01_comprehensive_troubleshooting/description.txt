@@ -1,0 +1,1 @@
+Creates ECS cluster and service with network restrictions and invalid container images to generate multiple failure scenarios. Tests the troubleshooting tools via MCP Inspector CLI to validate they return proper JSON responses with diagnostic data. Expected outcome: All tools return success status with meaningful failure analysis.

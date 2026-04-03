@@ -14,9 +14,19 @@
 
 import ast
 import os
+import warnings
 from pydantic import BaseModel, Field
 from tempfile import NamedTemporaryFile
 from typing import Any, Dict, List, Optional, Tuple
+
+
+# Suppress AST deprecation warnings for Python 3.14 compatibility
+warnings.filterwarnings('ignore', category=DeprecationWarning, module='ast')
+# Suppress deprecation warnings from bandit and other libraries using deprecated AST features
+warnings.filterwarnings('ignore', category=DeprecationWarning, message=r'.*ast\.Bytes.*')
+warnings.filterwarnings(
+    'ignore', category=DeprecationWarning, message='.*Attribute n is deprecated.*'
+)
 
 
 class SecurityIssue(BaseModel):
@@ -52,7 +62,15 @@ class CodeScanResult(BaseModel):
 async def validate_syntax(code: str) -> Tuple[bool, Optional[str]]:
     """Validate Python code syntax using ast."""
     try:
-        ast.parse(code)
+        tree = ast.parse(code)
+
+        # Check for import statements
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                return False, f'Import statements are not allowed (line {node.lineno})'
+            elif isinstance(node, ast.ImportFrom):
+                return False, f'Import statements are not allowed (line {node.lineno})'
+
         return True, None
     except SyntaxError as e:
         error_msg = f'Syntax error at line {e.lineno}: {e.msg}'
@@ -178,20 +196,6 @@ async def scan_python_code(code: str) -> CodeScanResult:
     # Check security
     security_issues = await check_security(code)
 
-    # Check for dangerous functions explicitly
-    dangerous_functions = check_dangerous_functions(code)
-    if dangerous_functions:
-        for func in dangerous_functions:
-            security_issues.append(
-                SecurityIssue(
-                    severity='HIGH',
-                    confidence='HIGH',
-                    line=func['line'],
-                    issue_text=f"Dangerous function '{func['function']}' detected",
-                    issue_type='DangerousFunctionDetection',
-                )
-            )
-
     # Determine if there are errors
     has_errors = bool(security_issues)
 
@@ -210,31 +214,209 @@ async def scan_python_code(code: str) -> CodeScanResult:
     )
 
 
-def check_dangerous_functions(code: str) -> List[Dict[str, Any]]:
-    """Check for dangerous functions like exec, eval, etc."""
+def _get_attribute_name(node: ast.AST) -> Optional[str]:
+    """Build dotted name from an Attribute or Name node."""
+    parts: List[str] = []
+    current = node
+    while isinstance(current, ast.Attribute):
+        parts.append(current.attr)
+        current = current.value
+    if isinstance(current, ast.Name):
+        parts.append(current.id)
+        return '.'.join(reversed(parts))
+    return None
+
+
+def _check_dangerous_functions_string(code: str) -> List[Dict[str, Any]]:
+    """Fallback string-based check for dangerous functions when AST parsing fails."""
+    # Each tuple is (pattern_to_match, canonical_function_name)
     dangerous_patterns = [
-        'exec(',
-        'eval(',
-        'subprocess.',
-        'os.system',
-        'os.popen',
-        '__import__',
-        'pickle.loads',
+        ('exec(', 'exec'),
+        ('eval(', 'eval'),
+        ('compile(', 'compile'),
+        ('getattr(', 'getattr'),
+        ('setattr(', 'setattr'),
+        ('delattr(', 'delattr'),
+        ('vars(', 'vars'),
+        ('__import__(', '__import__'),
+        ('breakpoint(', 'breakpoint'),
+        ('open(', 'open'),
+        ('globals(', 'globals'),
+        ('locals(', 'locals'),
+        ('spawn(', 'spawn'),
+        ('subprocess.', 'subprocess'),
+        ('os.system(', 'os.system'),
+        ('os.popen(', 'os.popen'),
+        ('pickle.loads(', 'pickle.loads'),
+        ('pickle.load(', 'pickle.load'),
+        ('__dict__', '__dict__'),
+        ('__builtins__', '__builtins__'),
+        ('__class__', '__class__'),
+        ('__subclasses__', '__subclasses__'),
+        ('__bases__', '__bases__'),
+        ('__globals__', '__globals__'),
+        ('__mro__', '__mro__'),
+        # Frame traversal / code object attributes
+        ('__traceback__', '__traceback__'),
+        ('__code__', '__code__'),
+        ('__closure__', '__closure__'),
+        ('__func__', '__func__'),
+        ('__getattribute__', '__getattribute__'),
+        ('tb_frame', 'tb_frame'),
+        ('tb_next', 'tb_next'),
+        ('f_back', 'f_back'),
+        ('f_builtins', 'f_builtins'),
+        ('f_globals', 'f_globals'),
+        ('f_locals', 'f_locals'),
+        ('f_code', 'f_code'),
+        ('gi_frame', 'gi_frame'),
+        ('gi_code', 'gi_code'),
+        ('cr_frame', 'cr_frame'),
+        ('cr_code', 'cr_code'),
+        ('ag_frame', 'ag_frame'),
+        ('ag_code', 'ag_code'),
+        ('co_consts', 'co_consts'),
+        ('co_code', 'co_code'),
+        ('co_names', 'co_names'),
     ]
 
     results = []
     lines = code.splitlines()
 
     for i, line in enumerate(lines):
-        for pattern in dangerous_patterns:
+        for pattern, func_name in dangerous_patterns:
             if pattern in line:
                 results.append(
                     {
-                        'function': pattern.rstrip('('),
+                        'function': func_name,
                         'line': i + 1,
                         'code': line.strip(),
                     }
                 )
+
+    return results
+
+
+def check_dangerous_functions(code: str) -> List[Dict[str, Any]]:
+    """Check for dangerous functions using AST analysis.
+
+    Falls back to string matching if the code cannot be parsed.
+    """
+    dangerous_builtins = {
+        'exec',
+        'eval',
+        'compile',
+        'getattr',
+        'setattr',
+        'delattr',
+        'vars',
+        '__import__',
+        'breakpoint',
+        'open',
+        'globals',
+        'locals',
+        'spawn',
+    }
+
+    dangerous_attr_exact = {'os.system', 'os.popen', 'pickle.loads', 'pickle.load'}
+    dangerous_attr_modules = {'subprocess'}
+
+    dangerous_dunders = {
+        '__dict__',
+        '__builtins__',
+        '__class__',
+        '__subclasses__',
+        '__bases__',
+        '__globals__',
+        '__mro__',
+        # Frame traversal / code object attributes
+        '__traceback__',
+        '__code__',
+        '__closure__',
+        '__func__',
+        '__getattribute__',
+    }
+
+    # Non-dunder attributes related to frame traversal and code object inspection.
+    dangerous_frame_attrs = {
+        'tb_frame',
+        'tb_next',
+        'f_back',
+        'f_builtins',
+        'f_globals',
+        'f_locals',
+        'f_code',
+        'gi_frame',
+        'gi_code',
+        'cr_frame',
+        'cr_code',
+        'ag_frame',
+        'ag_code',
+        'co_consts',
+        'co_code',
+        'co_names',
+    }
+
+    try:
+        tree = ast.parse(code)
+    except Exception:
+        return _check_dangerous_functions_string(code)
+
+    results = []
+    lines = code.splitlines()
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            func = node.func
+            if isinstance(func, ast.Name) and func.id in dangerous_builtins:
+                lineno = node.lineno
+                code_line = lines[lineno - 1].strip() if lineno <= len(lines) else ''
+                results.append(
+                    {
+                        'function': func.id,
+                        'line': lineno,
+                        'code': code_line,
+                    }
+                )
+            elif isinstance(func, ast.Attribute):
+                full_name = _get_attribute_name(func)
+                if full_name and (
+                    full_name in dangerous_attr_exact
+                    or any(full_name.startswith(mod + '.') for mod in dangerous_attr_modules)
+                ):
+                    lineno = node.lineno
+                    code_line = lines[lineno - 1].strip() if lineno <= len(lines) else ''
+                    results.append(
+                        {
+                            'function': full_name,
+                            'line': lineno,
+                            'code': code_line,
+                        }
+                    )
+
+        # Check for dangerous dunder attribute access
+        if isinstance(node, ast.Attribute) and (
+            node.attr in dangerous_dunders or node.attr in dangerous_frame_attrs
+        ):
+            lineno = node.lineno
+            code_line = lines[lineno - 1].strip() if lineno <= len(lines) else ''
+            results.append(
+                {
+                    'function': node.attr,
+                    'line': lineno,
+                    'code': code_line,
+                }
+            )
+        elif isinstance(node, ast.Name) and node.id in dangerous_dunders:
+            lineno = node.lineno
+            code_line = lines[lineno - 1].strip() if lineno <= len(lines) else ''
+            results.append(
+                {
+                    'function': node.id,
+                    'line': lineno,
+                    'code': code_line,
+                }
+            )
 
     return results
 

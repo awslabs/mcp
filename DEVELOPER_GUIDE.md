@@ -6,7 +6,7 @@ At the moment, there is no dedicated development container, thus you need to con
 
 - [pre-commit](https://pre-commit.com/)
 - [uv](https://docs.astral.sh/uv/getting-started/installation/)
-- [Python](Python) 3.10. You can install it through uv using `uv python install 3.10`
+- [Python](https://www.python.org) 3.10. You can install it through uv using `uv python install 3.10`
 - [Git](https://git-scm.com/) (if using code repository)
 - (optional) [AWS CLI](https://aws.amazon.com/cli/). Some servers will require to use your AWS credentials to interact with your AWS account. Configure your credentials:
 
@@ -41,7 +41,7 @@ Default output format [None]: json
 | ```uv venv && uv sync --all-groups```                                                                                                    | Create a Python virtual environment and install the dependencies.                                                                                                                      |
 | (optional) Relative imports checks                                                                                                    | (Optional) If you are migrating your existing MCP server from another path, open two editors, one in the fork, one in your current MCP Server. Ensure your relative imports are correct.                                                                                                                      |
 | *Do all your code editing*                        | Open your code editor and edit the files for your server or perform your edits on an existing server. Your server code must be located in the src folder. Use an existing server as an example of the structure that is expected.                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| Create your MCP Server's documentation                       | Ensure your README conforms to the style of other READMEs, as these will be used for GitHub Pages. Add a new page for your MCP server under `docs/servers`. Edit `mkdocs.yml` and a your new page to the navigation list. Finally, you can run `mkdocs serve` to locally build and view the site.                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Create your MCP Server's documentation                       | Ensure your README conforms to the style of other READMEs, as these will be used for GitHub Pages. Add a new page for your MCP server under `docusaurus/docs/servers` with a .mdx extension. Update the following Docusaurus files: <br>1. Edit `docusaurus/sidebars.ts` to add your server to the appropriate category in the sidebar navigation.<br>2. Add your server to `docusaurus/static/assets/server-cards.json` following the existing format.<br>Finally, you can run `cd docusaurus && npm start` to locally build and view the site.                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `git commit -m 'chore(doc): update main README.md'`                                                                                                             | Commit to your fork using clear commit messages. We highly recommend using [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/) semantic. We do not enforce conventional commits on contributors to lower the entry bar. Pre-commit will run automatically before each commit. You can also run pre-commit manually on all files using `pre-commit run --all-files`. If any hook fails, the commit will be aborted, and you will need to fix the issues before committing again.                                                                                                           |
 
 ## Testing
@@ -90,16 +90,19 @@ where `<absolute path to your server code>` is the absolute path to the server c
 
 Inspector will run your server on locahost (for instance: http://127.0.0.1:6274). You can then open your browser and connect to the server. For up to date instructions on how to use Inspector, please refer to the [official documentation](https://modelcontextprotocol.io/docs/tools/inspector).
 
-### Unit tests
+### Tests
 
 ![Codecov](https://img.shields.io/codecov/c/github/awslabs/mcp?link=https%3A%2F%2Fapp.codecov.io%2Fgh%2Fawslabs%2Fmcp)
 
-Each MCP server is expected to have a `tests` folder containing unit tests that should meet or exceed merged our reported test coverage (see our "coverage" badge above). For instance, you can refer to an existing server like [AWS Documentation Server](src/aws-documentation-mcp-server/tests/).
+Each MCP server is expected to have a `tests` folder containing:
+
+- unit tests that should meet or exceed merged our reported test coverage (see our "coverage" badge above). For instance, you can refer to an existing server like [AWS Documentation Server](src/aws-documentation-mcp-server/tests/).
+- `integ` tests in the same folder, containing integration tests for the server. For this, you can use the utilities provided in the [testing folder](./testing/). The expected convention for naming is integ_<test-name>.py. You can look at examples [here](./src/aws-documentation-mcp-server/tests/test_integ_basic.py).
 
 | Action            | Explanation                                |
 | :------------------ | :------------------------------------------- |
 | `cd src/example-mcp-server` | This is the directory containing your server files. |
-| `uv run --frozen pytest --cov --cov-branch --cov-report=term-missing` | This will run all unit tests for the server and display code coverage. |
+| `uv run --frozen pytest --cov --cov-branch --cov-report=term-missing` | This will run all tests (unit+integ) for the server and display code coverage. |
 
 ## Opening your Pull Request
 

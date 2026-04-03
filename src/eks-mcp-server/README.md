@@ -17,7 +17,7 @@ Integrating the EKS MCP server into AI code assistants enhances development work
 
 * [Install Python 3.10+](https://www.python.org/downloads/release/python-3100/)
 * [Install the `uv` package manager](https://docs.astral.sh/uv/getting-started/installation/)
-* [Install and configure the AWS CLI with credentials](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html)
+* [Install and configure the AWS CLI with credentials](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html) (required for IAM authentication mode; not needed for kubeconfig mode)
 
 ## Setup
 
@@ -35,6 +35,11 @@ For read operations, the following permissions are required:
       "Effect": "Allow",
       "Action": [
         "eks:DescribeCluster",
+        "eks:DescribeInsight",
+        "eks:ListInsights",
+        "ec2:DescribeVpcs",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeRouteTables",
         "cloudformation:DescribeStacks",
         "cloudwatch:GetMetricData",
         "logs:StartQuery",
@@ -79,25 +84,32 @@ For write operations, we recommend the following IAM policies to ensure successf
 
 ### Kubernetes API Access Requirements
 
-All Kubernetes API operations will only work when one of the following conditions is met:
+**IAM mode (default):** All Kubernetes API operations will only work when one of the following conditions is met:
 
 1. The user's principal (IAM role/user) actually created the EKS cluster being accessed
 2. An EKS Access Entry has been configured for the user's principal
 
 If you encounter authorization errors when using Kubernetes API operations, verify that an access entry has been properly configured for your principal.
 
+**Kubeconfig mode (`EKS_AUTH_MODE=kubeconfig`):** Kubernetes API access is determined by the credentials in your kubeconfig file (OIDC tokens, certificates, etc.) and the RBAC policies configured in the cluster. The `cluster_name` parameter accepts EKS cluster names, which are automatically resolved to the matching kubeconfig context.
+
 ## Quickstart
 
-This quickstart guide walks you through the steps to configure the Amazon EKS MCP Server for use with both the [Cursor](https://www.cursor.com/en/downloads) IDE and the [Amazon Q Developer CLI](https://github.com/aws/amazon-q-developer-cli). By following these steps, you'll setup your development environment to leverage the EKS MCP Server's tools for managing your Amazon EKS clusters and Kubernetes resources.
+This quickstart guide walks you through the steps to configure the Amazon EKS MCP Server for use with Kiro, Cursor, and other AI coding assistants. By following these steps, you'll setup your development environment to leverage the EKS MCP Server's tools for managing your Amazon EKS clusters and Kubernetes resources.
 
-**Set up Cursor**
+**Set up your IDE**
 
-[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.eks-mcp-server&config=eyJhdXRvQXBwcm92ZSI6W10sImRpc2FibGVkIjpmYWxzZSwiY29tbWFuZCI6InV2eCBhd3NsYWJzLmVrcy1tY3Atc2VydmVyQGxhdGVzdCAtLWFsbG93LXdyaXRlIC0tYWxsb3ctc2Vuc2l0aXZlLWRhdGEtYWNjZXNzIiwiZW52Ijp7IkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IifSwidHJhbnNwb3J0VHlwZSI6InN0ZGlvIn0%3D)
+| Kiro | Cursor | VS Code |
+|:----:|:------:|:-------:|
+| [![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=awslabs.eks-mcp-server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.eks-mcp-server%40latest%22%2C%22--allow-write%22%2C%22--allow-sensitive-data-access%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%7D) | [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.eks-mcp-server&config=eyJhdXRvQXBwcm92ZSI6W10sImRpc2FibGVkIjpmYWxzZSwiY29tbWFuZCI6InV2eCBhd3NsYWJzLmVrcy1tY3Atc2VydmVyQGxhdGVzdCAtLWFsbG93LXdyaXRlIC0tYWxsb3ctc2Vuc2l0aXZlLWRhdGEtYWNjZXNzIiwiZW52Ijp7IkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IifSwidHJhbnNwb3J0VHlwZSI6InN0ZGlvIn0%3D) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=EKS%20MCP%20Server&config=%7B%22autoApprove%22%3A%5B%5D%2C%22disabled%22%3Afalse%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.eks-mcp-server%40latest%22%2C%22--allow-write%22%2C%22--allow-sensitive-data-access%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22transportType%22%3A%22stdio%22%7D) |
 
-**Set up the Amazon Q Developer CLI**
+**Set up Kiro**
 
-1. Install the [Amazon Q Developer CLI](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-installing.html) .
-2. The Q Developer CLI supports MCP servers for tools and prompts out-of-the-box. Edit your Q developer CLI's MCP configuration file named mcp.json following [these instructions](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-mcp-configuration.html).
+See the [Kiro IDE documentation](https://kiro.dev/docs/mcp/configuration/) or the [Kiro CLI documentation](https://kiro.dev/docs/cli/mcp/configuration/) for details.
+
+For global configuration, edit `~/.kiro/settings/mcp.json`. For project-specific configuration, edit `.kiro/settings/mcp.json` in your project directory.
+
+Verify your setup by running the `/tools` command in the Kiro CLI to see the available EKS MCP tools.
 
 The example below includes both the `--allow-write` flag for mutating operations and the `--allow-sensitive-data-access` flag for accessing logs and events (see the Arguments section for more details):
 
@@ -147,9 +159,7 @@ The example below includes both the `--allow-write` flag for mutating operations
 	}
 	```
 
-3. Verify your setup by running the `/tools` command in the Q Developer CLI to see the available EKS MCP tools.
-
-Note that this is a basic quickstart. You can enable additional capabilities, such as [running MCP servers in containers](https://github.com/awslabs/mcp?tab=readme-ov-file#running-mcp-servers-in-containers) or combining more MCP servers like the [AWS Documentation MCP Server](https://awslabs.github.io/mcp/servers/aws-documentation-mcp-server/) into a single MCP server definition. To view an example, see the [Installation and Setup](https://github.com/awslabs/mcp?tab=readme-ov-file#installation-and-setup) guide in AWS MCP Servers on GitHub. To view a real-world implementation with application code in context with an MCP server, see the [Server Developer](https://modelcontextprotocol.io/quickstart/server) guide in Anthropic documentation.
+Note that this is a basic quickstart. You can enable additional capabilities, such as [running MCP servers in containers](https://github.com/awslabs/mcp?tab=readme-ov-file#running-mcp-servers-in-containers) or combining more MCP servers like the [AWS Documentation MCP Server](https://awslabs.github.io/mcp/servers/aws-documentation-mcp-server/) into a single MCP server definition. To view an example, see the [Installation and Setup](https://github.com/awslabs/mcp?tab=readme-ov-file#installation-and-setup) guide in the open source MCP servers for AWS repository on GitHub. To view a real-world implementation with application code in context with an MCP server, see the [Server Developer](https://modelcontextprotocol.io/quickstart/server) guide in Anthropic documentation.
 
 ## Configurations
 
@@ -225,6 +235,53 @@ Enables access to sensitive data such as logs, events, and Kubernetes Secrets. T
 * Default: false (Access to sensitive data is restricted by default)
 * Example: Add `--allow-sensitive-data-access` to the `args` list in your MCP server definition.
 
+#### `--auth-mode` (optional)
+
+Specifies the authentication mode for Kubernetes API access. Can also be set via the `EKS_AUTH_MODE` environment variable. The CLI argument takes precedence over the environment variable.
+
+* Valid values: `iam` (default), `kubeconfig`
+* Default: `iam`
+* Example: Add `--auth-mode kubeconfig` to the `args` list in your MCP server definition.
+
+### Kubeconfig/OIDC Authentication
+
+For environments where users access Kubernetes through OIDC authentication or other kubeconfig-based methods (without AWS IAM credentials), the EKS MCP server supports a kubeconfig authentication mode.
+
+**Example configuration for OIDC/kubeconfig users:**
+
+```json
+{
+  "mcpServers": {
+    "awslabs.eks-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "awslabs.eks-mcp-server@latest",
+        "--allow-write",
+        "--allow-sensitive-data-access"
+      ],
+      "env": {
+        "EKS_AUTH_MODE": "kubeconfig",
+        "KUBECONFIG": "/home/user/.kube/config",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    }
+  }
+}
+```
+
+In this mode:
+
+* The `cluster_name` parameter accepts EKS cluster names, which are automatically resolved to the matching kubeconfig context.
+* The kubernetes Python client handles all authentication via the exec plugin, certificate, or token method configured in your kubeconfig.
+* Token refresh (e.g., for OIDC) is handled automatically by the kubernetes client.
+* **Important**: AWS-specific tools are **not registered** in kubeconfig mode. The following tools require IAM authentication mode and will only be available when `EKS_AUTH_MODE=iam` (the default):
+  * `manage_eks_stacks` (CloudFormation-based cluster management)
+  * `get_cloudwatch_logs` and `get_cloudwatch_metrics` (CloudWatch integration)
+  * `get_eks_vpc_config` (VPC configuration)
+  * `get_eks_insights` (EKS cluster insights)
+  * `get_policies_for_role` and `add_inline_policy` (IAM integration)
+  * `search_eks_troubleshoot_guide` (EKS Knowledge Base, requires AWS SigV4 auth)
+
 ### Environment variables
 
 The `env` field in the MCP server definition allows you to configure environment variables that control the behavior of the EKS MCP server.  For example:
@@ -236,7 +293,9 @@ The `env` field in the MCP server definition allows you to configure environment
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR",
         "AWS_PROFILE": "my-profile",
-        "AWS_REGION": "us-west-2"
+        "AWS_REGION": "us-west-2",
+        "HTTP_PROXY": "http://proxy.example.com:8080",
+        "HTTPS_PROXY": "https://proxy.example.com:8080"
       }
     }
   }
@@ -264,6 +323,37 @@ Specifies the AWS region where EKS clusters are managed, which will be used for 
 
 * Default: None (If not set, uses default AWS region).
 * Example: `"AWS_REGION": "us-west-2"`
+
+#### `EKS_AUTH_MODE` (optional)
+
+Specifies the authentication mode for Kubernetes API access.
+
+* Valid values: `iam` (default), `kubeconfig`
+* `iam`: Uses AWS IAM credentials with STS presigned URLs (existing behavior). Requires AWS credentials.
+* `kubeconfig`: Uses the local kubeconfig file for authentication. Supports OIDC, certificates, exec plugins, and service account tokens. Does not require AWS credentials for Kubernetes operations.
+* Default: `iam`
+* Example: `"EKS_AUTH_MODE": "kubeconfig"`
+
+When using kubeconfig mode:
+* The `cluster_name` parameter accepts EKS cluster names, which are resolved to the matching kubeconfig context.
+* The `KUBECONFIG` environment variable or `~/.kube/config` is used to locate the kubeconfig file.
+* All authentication methods supported by kubeconfig are available (OIDC exec plugins, client certificates, bearer tokens, etc.).
+* AWS-specific tools (CloudWatch, IAM, VPC config, EKS insights, CloudFormation) are not registered in kubeconfig mode and will not appear in the tool list.
+
+#### `KUBECONFIG` (optional)
+
+Specifies the path to the kubeconfig file. Used when `EKS_AUTH_MODE=kubeconfig`.
+
+* Default: `~/.kube/config`
+* Example: `"KUBECONFIG": "/path/to/my/kubeconfig"`
+
+#### `HTTP_PROXY` / `HTTPS_PROXY` (optional)
+
+Configures proxy settings for HTTP and HTTPS connections. These environment variables are used when the EKS MCP server needs to make outbound connections to the K8s API server through a proxy or firewall.
+
+* Default: None (Direct connections are used if not set).
+* Example: `"HTTP_PROXY": "http://proxy.example.com:8080"`, `"HTTPS_PROXY": "https://proxy.example.com:8080"`
+* Note: Both variables can be set to the same proxy server if it handles both HTTP and HTTPS traffic.
 
 ## Tools
 
@@ -371,7 +461,7 @@ Features:
 
 Parameters:
 
-* cluster_name, pod_name, namespace, container_name (optional), since_seconds (optional), tail_lines (optional), limit_bytes (optional)
+* cluster_name, pod_name, namespace, container_name (optional), since_seconds (optional), tail_lines (optional), limit_bytes (optional), previous (optional)
 
 #### `get_k8s_events`
 
@@ -386,6 +476,22 @@ Features:
 Parameters:
 
 * cluster_name, kind, name, namespace (optional)
+
+#### `get_eks_vpc_config`
+
+Retrieves comprehensive VPC configuration details for EKS clusters, with support for hybrid node setups.
+
+Features:
+
+* Returns detailed VPC configuration including CIDR blocks, route tables, and subnet information
+* Automatically identifies and includes remote node and pod CIDR configurations for hybrid node setups
+* Validates subnet capacity for EKS networking requirements
+* Flags subnets in disallowed availability zones that can't be used with EKS
+* Requires `--allow-sensitive-data-access` server flag to be enabled
+
+Parameters:
+
+* cluster_name, vpc_id (optional)
 
 ### CloudWatch Integration
 
@@ -490,6 +596,23 @@ Parameters:
 
 * query
 
+#### `get_eks_insights`
+
+Retrieves Amazon EKS Insights that identify potential issues with your EKS cluster configuration and upgrade readiness.
+
+Features:
+
+* Returns insights in two categories: MISCONFIGURATION and UPGRADE_READINESS (for upgrade blockers)
+* Supports both list mode (all insights) and detail mode (specific insight with recommendations)
+* Includes status, descriptions, and timestamps for each insight
+* Provides detailed recommendations for addressing identified issues when using detail mode
+* Supports optional filtering by insight category
+* Requires `--allow-sensitive-data-access` server flag to be enabled
+
+Parameters:
+
+* cluster_name, insight_id (optional), category (optional), next_token (optional)
+
 
 ## Security & permissions
 
@@ -521,7 +644,7 @@ When using the EKS MCP Server, consider the following:
 
 The EKS MCP Server can be used for production environments with proper security controls in place. The server runs in read-only mode by default, which is recommended and considered generally safer for production environments. Only explicitly enable write access when necessary. Below are the EKS MCP server tools available in read-only versus write-access mode:
 
-* **Read-only mode (default)**: `manage_eks_stacks` (with operation="describe"), `manage_k8s_resource` (with operation="read"), `list_k8s_resources`, `get_pod_logs`, `get_k8s_events`, `get_cloudwatch_logs`, `get_cloudwatch_metrics`, `get_policies_for_role`, `search_eks_troubleshoot_guide`, `list_api_versions`.
+* **Read-only mode (default)**: `manage_eks_stacks` (with operation="describe"), `manage_k8s_resource` (with operation="read"), `list_k8s_resources`, `get_pod_logs`, `get_k8s_events`, `get_cloudwatch_logs`, `get_cloudwatch_metrics`, `get_policies_for_role`, `search_eks_troubleshoot_guide`, `list_api_versions`, `get_eks_vpc_config`, `get_eks_insights`.
 * **Write-access mode**: (require `--allow-write`): `manage_eks_stacks` (with "generate", "deploy", "delete"), `manage_k8s_resource` (with "create", "replace", "patch", "delete"), `apply_yaml`, `generate_app_manifest`, `add_inline_policy`.
 
 #### `autoApprove` (optional)
@@ -652,7 +775,3 @@ In accordance with security best practices, we recommend the following:
 * **Log Level**: Increase the log level to DEBUG for more detailed logs.
 
 For general EKS issues, consult the [Amazon EKS documentation](https://docs.aws.amazon.com/eks/).
-
-## Version
-
-Current MCP server version: 0.1.0

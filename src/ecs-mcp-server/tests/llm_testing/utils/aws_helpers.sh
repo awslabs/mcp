@@ -6,7 +6,7 @@
 # Generate a random 5-letter ID for uniquely naming resources
 # Usage: resource_id=$(generate_random_id)
 generate_random_id() {
-    cat /dev/urandom | tr -dc 'a-z' | fold -w 5 | head -n 1
+    python3 -c "import uuid; print(str(uuid.uuid4()).replace('-', '')[:5])"
 }
 
 # Wait for CloudFormation stack to reach a specific status

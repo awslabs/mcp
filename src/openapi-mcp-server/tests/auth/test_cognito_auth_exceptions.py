@@ -51,6 +51,7 @@ class TestCognitoAuthExceptions:
         provider._auth_headers = {}
         provider._token = None
         provider._token_expires_at = 0
+        provider._grant_type = 'password'  # Add grant type
 
         # Test the _get_cognito_token method directly
         with pytest.raises(ConfigurationError) as excinfo:
@@ -97,6 +98,7 @@ class TestCognitoAuthExceptions:
         provider._auth_headers = {}
         provider._token = None
         provider._token_expires_at = 0
+        provider._grant_type = 'password'  # Add grant type
 
         # Test the _get_cognito_token method directly
         with pytest.raises(ConfigurationError) as excinfo:
@@ -141,6 +143,7 @@ class TestCognitoAuthExceptions:
         provider._auth_headers = {}
         provider._token = None
         provider._token_expires_at = 0
+        provider._grant_type = 'password'  # Add grant type
 
         # Test the _get_cognito_token method directly
         with pytest.raises(NetworkError):
@@ -190,6 +193,7 @@ class TestCognitoAuthExceptions:
         provider._auth_headers = {}
         provider._token = None
         provider._token_expires_at = 0
+        provider._grant_type = 'password'  # Add grant type
 
         # Test the _get_cognito_token method directly
         with pytest.raises(MissingCredentialsError) as excinfo:
@@ -242,6 +246,7 @@ class TestCognitoAuthExceptions:
         provider._auth_headers = {}
         provider._token = None
         provider._token_expires_at = 0
+        provider._grant_type = 'password'  # Add grant type
 
         # Test the _get_cognito_token method directly
         with pytest.raises(ConfigurationError) as excinfo:
@@ -294,6 +299,7 @@ class TestCognitoAuthExceptions:
         provider._auth_headers = {}
         provider._token = None
         provider._token_expires_at = 0
+        provider._grant_type = 'password'  # Add grant type
 
         # Test the _get_cognito_token method directly
         with pytest.raises(ConfigurationError) as excinfo:

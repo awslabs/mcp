@@ -4,6 +4,7 @@ import json
 import os
 import pytest
 from awslabs.aws_bedrock_data_automation_mcp_server.helpers import (
+    USER_AGENT_EXTRA,
     download_from_s3,
     get_account_id,
     get_aws_session,
@@ -22,7 +23,7 @@ from awslabs.aws_bedrock_data_automation_mcp_server.helpers import (
     upload_to_s3,
 )
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, mock_open, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, mock_open, patch
 
 
 def test_get_region():
@@ -46,7 +47,10 @@ def test_get_account_id():
         return_value=mock_session,
     ):
         assert get_account_id() == '123456789012'
-        mock_session.client.assert_called_once_with('sts', region_name=get_region())
+        mock_session.client.assert_called_once_with('sts', region_name=get_region(), config=ANY)
+        # Verify the config has the expected user agent
+        call_kwargs = mock_session.client.call_args.kwargs
+        assert call_kwargs['config'].user_agent_extra == USER_AGENT_EXTRA
         mock_sts_client.get_caller_identity.assert_called_once()
 
 
@@ -63,7 +67,7 @@ def test_get_account_id_exception():
     ):
         with pytest.raises(ValueError, match='Failed to get AWS account ID: Test error'):
             get_account_id()
-        mock_session.client.assert_called_once_with('sts', region_name=get_region())
+        mock_session.client.assert_called_once_with('sts', region_name=get_region(), config=ANY)
         mock_sts_client.get_caller_identity.assert_called_once()
 
 
@@ -143,7 +147,7 @@ def test_get_bedrock_data_automation_client():
     ):
         client = get_bedrock_data_automation_client()
         mock_session.client.assert_called_once_with(
-            'bedrock-data-automation', region_name=get_region()
+            'bedrock-data-automation', region_name=get_region(), config=ANY
         )
         assert client == mock_client
 
@@ -160,7 +164,7 @@ def test_get_bedrock_data_automation_runtime_client():
     ):
         client = get_bedrock_data_automation_runtime_client()
         mock_session.client.assert_called_once_with(
-            'bedrock-data-automation-runtime', region_name=get_region()
+            'bedrock-data-automation-runtime', region_name=get_region(), config=ANY
         )
         assert client == mock_client
 
@@ -176,7 +180,7 @@ def test_get_s3_client():
         return_value=mock_session,
     ):
         client = get_s3_client()
-        mock_session.client.assert_called_once_with('s3', region_name=get_region())
+        mock_session.client.assert_called_once_with('s3', region_name=get_region(), config=ANY)
         assert client == mock_client
 
 
@@ -258,6 +262,53 @@ async def test_upload_to_s3_file_not_exists():
                 ValueError, match='Asset at path /path/to/asset.pdf does not exist'
             ):
                 await upload_to_s3('/path/to/asset.pdf')
+
+
+@pytest.mark.asyncio
+async def test_upload_to_s3_uses_sanitized_path_not_raw_input():
+    """Test that upload_to_s3 opens the sanitized path, not the raw input (path traversal fix).
+
+    Ensures that open() is called with the Path returned by sanitize_path(), so that
+    a malicious input like '../../etc/passwd' cannot be used to read files outside
+    the base directory.
+    """
+    safe_path = Path('/allowed/base/safe.txt')
+    malicious_input = '../../etc/passwd'
+
+    with patch.dict(os.environ, {'AWS_BUCKET_NAME': 'test-bucket', 'BASE_DIR': '/allowed/base'}):
+        with patch(
+            'awslabs.aws_bedrock_data_automation_mcp_server.helpers.sanitize_path',
+            return_value=safe_path,
+        ):
+            with patch(
+                'awslabs.aws_bedrock_data_automation_mcp_server.helpers.Path.exists',
+                return_value=True,
+            ):
+                with patch(
+                    'builtins.open', mock_open(read_data=b'safe content')
+                ) as mock_file_open:
+                    with patch(
+                        'awslabs.aws_bedrock_data_automation_mcp_server.helpers.get_s3_client',
+                    ) as mock_get_client:
+                        mock_client = MagicMock()
+                        mock_get_client.return_value = mock_client
+
+                        await upload_to_s3(malicious_input)
+
+                        # Critical: open must be called with the sanitized Path, not the raw input
+                        mock_file_open.assert_called_once()
+                        call_args = mock_file_open.call_args
+                        opened_path = call_args[0][0]
+                        assert opened_path == safe_path, (
+                            'open() must be called with sanitized Path object, not raw user input. '
+                            'Path traversal would occur if open() received the original string.'
+                        )
+                        assert opened_path != malicious_input
+                        mock_client.put_object.assert_called_once_with(
+                            Bucket='test-bucket',
+                            Key=ANY,
+                            Body=b'safe content',
+                        )
 
 
 def test_get_bucket_and_key_from_s3_uri():
@@ -391,6 +442,7 @@ async def test_invoke_data_automation_and_get_results():
                             )
 
                             assert result == {
+                                'invocationArn': 'test-invocation-arn',
                                 'standardOutput': {'standard': 'output'},
                                 'customOutput': {'custom': 'output'},
                             }
@@ -464,6 +516,7 @@ async def test_invoke_data_automation_and_get_results_default_project():
                         result = await invoke_data_automation_and_get_results('/path/to/asset.pdf')
 
                         assert result == {
+                            'invocationArn': 'test-invocation-arn',
                             'standardOutput': {'standard': 'output'},
                             'customOutput': {'custom': 'output'},
                         }
@@ -745,6 +798,7 @@ async def test_invoke_data_automation_and_get_results_only_standard_output():
                     ):
                         result = await invoke_data_automation_and_get_results('/path/to/asset.pdf')
                         assert result == {
+                            'invocationArn': 'test-invocation-arn',
                             'standardOutput': {'standard': 'output'},
                             'customOutput': None,
                         }
@@ -800,6 +854,7 @@ async def test_invoke_data_automation_and_get_results_only_custom_output():
                     ):
                         result = await invoke_data_automation_and_get_results('/path/to/asset.pdf')
                         assert result == {
+                            'invocationArn': 'test-invocation-arn',
                             'standardOutput': None,
                             'customOutput': {'custom': 'output'},
                         }

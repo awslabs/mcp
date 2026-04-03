@@ -14,13 +14,11 @@
 """Error handling utilities for the AWS Support MCP Server."""
 
 import time
-from typing import Any, Dict, Optional, Union
-
+from awslabs.aws_support_mcp_server.consts import ERROR_CODE_MAP
 from botocore.exceptions import ClientError
 from loguru import logger
 from pydantic import ValidationError
-
-from awslabs.aws_support_mcp_server.consts import ERROR_CODE_MAP
+from typing import Any, Dict, Optional, Union
 
 
 async def handle_client_error(ctx: Any, e: ClientError, operation: str) -> Dict[str, Any]:
@@ -38,15 +36,15 @@ async def handle_client_error(ctx: Any, e: ClientError, operation: str) -> Dict[
         Exception: The original exception is re-raised after logging and
         reporting
     """
-    error_code = e.response["Error"]["Code"]
-    error_message = e.response["Error"]["Message"]
+    error_code = e.response['Error']['Code']
+    error_message = e.response['Error']['Message']
 
     if error_code in ERROR_CODE_MAP:
         message = ERROR_CODE_MAP[error_code]
     else:
-        message = f"AWS Support API error: {error_message}"
+        message = f'AWS Support API error: {error_message}'
 
-    logger.error(f"Error in {operation}: {error_code} - {error_message}")
+    logger.error(f'Error in {operation}: {error_code} - {error_message}')
     await ctx.error(message)
 
     return create_error_response(message, status_code=get_error_status_code(e))
@@ -68,10 +66,10 @@ async def handle_validation_error(ctx: Any, e: ValidationError, operation: str) 
     """
     errors = []
     for error in e.errors():
-        location = " -> ".join(str(loc) for loc in error["loc"])
-        errors.append(f"{location}: {error['msg']}")
+        location = ' -> '.join(str(loc) for loc in error['loc'])
+        errors.append(f'{location}: {error["msg"]}')
 
-    message = f"Validation error in {operation}: {'; '.join(errors)}"
+    message = f'Validation error in {operation}: {"; ".join(errors)}'
 
     logger.error(message)
     await ctx.error(message)
@@ -101,7 +99,7 @@ async def handle_general_error(ctx: Any, e: Exception, operation: str) -> Dict[s
 
     # Include error type in response for better error tracking
     return create_error_response(
-        message, details={"error_type": error_type}, status_code=get_error_status_code(e)
+        message, details={'error_type': error_type}, status_code=get_error_status_code(e)
     )
 
 
@@ -116,7 +114,7 @@ def format_error_message(error_code: str, error_message: str, operation: str) ->
     Returns:
         A formatted error message
     """
-    return f"Error in {operation}: {error_code} - {error_message}"
+    return f'Error in {operation}: {error_code} - {error_message}'
 
 
 def create_error_response(
@@ -127,19 +125,20 @@ def create_error_response(
     Args:
         message: The error message
         details: Additional error details (optional)
+        status_code: The HTTP status code (default is 500)
 
     Returns:
         A standardized error response
     """
     response = {
-        "status": "error",
-        "message": message,
-        "status_code": status_code,
-        "timestamp": time.time(),
+        'status': 'error',
+        'message': message,
+        'status_code': status_code,
+        'timestamp': time.time(),
     }
 
     if details:
-        response["details"] = details
+        response['details'] = details
 
     return response
 
@@ -154,12 +153,12 @@ def get_error_status_code(error: Union[ClientError, ValidationError, Exception])
         An HTTP status code
     """
     if isinstance(error, ClientError):
-        error_code = error.response["Error"]["Code"]
-        if error_code == "AccessDeniedException":
+        error_code = error.response['Error']['Code']
+        if error_code == 'AccessDeniedException':
             return 403
-        elif error_code == "CaseIdNotFound":
+        elif error_code == 'CaseIdNotFound':
             return 404
-        elif error_code == "ThrottlingException":
+        elif error_code == 'ThrottlingException':
             return 429
         return 400
     elif isinstance(error, ValidationError):

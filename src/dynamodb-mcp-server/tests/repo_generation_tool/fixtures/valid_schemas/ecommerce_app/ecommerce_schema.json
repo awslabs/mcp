@@ -1,0 +1,856 @@
+{
+  "tables": [
+    {
+      "entities": {
+        "User": {
+          "access_patterns": [
+            {
+              "description": "Get user profile by user ID",
+              "name": "get_user_by_id",
+              "operation": "GetItem",
+              "parameters": [
+                {
+                  "name": "user_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 1,
+              "return_type": "single_entity"
+            },
+            {
+              "description": "Create new user account",
+              "name": "create_user",
+              "operation": "PutItem",
+              "parameters": [
+                {
+                  "entity_type": "User",
+                  "name": "user",
+                  "type": "entity"
+                }
+              ],
+              "pattern_id": 2,
+              "return_type": "single_entity"
+            },
+            {
+              "description": "Update user profile information",
+              "name": "update_user_profile",
+              "operation": "UpdateItem",
+              "parameters": [
+                {
+                  "name": "user_id",
+                  "type": "string"
+                },
+                {
+                  "name": "email",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 3,
+              "return_type": "single_entity"
+            }
+          ],
+          "entity_type": "USER",
+          "fields": [
+            {
+              "name": "user_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "email",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "first_name",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "last_name",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "phone",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "name": "created_at",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "status",
+              "required": true,
+              "type": "string"
+            }
+          ],
+          "pk_template": "USER#{user_id}",
+          "sk_template": "PROFILE"
+        },
+        "UserAddress": {
+          "access_patterns": [
+            {
+              "description": "Get all addresses for a user",
+              "name": "get_user_addresses",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "user_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 4,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Add new address for user",
+              "name": "add_user_address",
+              "operation": "PutItem",
+              "parameters": [
+                {
+                  "entity_type": "UserAddress",
+                  "name": "address",
+                  "type": "entity"
+                }
+              ],
+              "pattern_id": 5,
+              "return_type": "single_entity"
+            }
+          ],
+          "entity_type": "ADDRESS",
+          "fields": [
+            {
+              "name": "user_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "address_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "address_type",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "street_address",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "city",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "state",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "postal_code",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "country",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "is_default",
+              "required": true,
+              "type": "boolean"
+            }
+          ],
+          "pk_template": "USER#{user_id}",
+          "sk_template": "ADDRESS#{address_id}"
+        }
+      },
+      "table_config": {
+        "partition_key": "pk",
+        "sort_key": "sk",
+        "table_name": "UserTable"
+      }
+    },
+    {
+      "entities": {
+        "Product": {
+          "access_patterns": [
+            {
+              "description": "Get product details by product ID",
+              "name": "get_product_by_id",
+              "operation": "GetItem",
+              "parameters": [
+                {
+                  "name": "product_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 6,
+              "return_type": "single_entity"
+            },
+            {
+              "description": "Create new product",
+              "name": "create_product",
+              "operation": "PutItem",
+              "parameters": [
+                {
+                  "entity_type": "Product",
+                  "name": "product",
+                  "type": "entity"
+                }
+              ],
+              "pattern_id": 7,
+              "return_type": "single_entity"
+            },
+            {
+              "description": "Update product stock quantity",
+              "name": "update_product_stock",
+              "operation": "UpdateItem",
+              "parameters": [
+                {
+                  "name": "product_id",
+                  "type": "string"
+                },
+                {
+                  "name": "stock_quantity",
+                  "type": "integer"
+                }
+              ],
+              "pattern_id": 8,
+              "return_type": "single_entity"
+            }
+          ],
+          "entity_type": "PRODUCT",
+          "fields": [
+            {
+              "name": "product_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "name",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "description",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "category",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "brand",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "price",
+              "required": true,
+              "type": "decimal"
+            },
+            {
+              "name": "currency",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "stock_quantity",
+              "required": true,
+              "type": "integer"
+            },
+            {
+              "name": "sku",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "weight",
+              "required": false,
+              "type": "decimal"
+            },
+            {
+              "name": "dimensions",
+              "required": false,
+              "type": "object"
+            },
+            {
+              "name": "created_at",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "updated_at",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "status",
+              "required": true,
+              "type": "string"
+            }
+          ],
+          "pk_template": "PRODUCT#{product_id}",
+          "sk_template": "DETAILS"
+        },
+        "ProductCategory": {
+          "access_patterns": [
+            {
+              "description": "Get all products in a specific category",
+              "name": "get_products_by_category",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "category_name",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 9,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Add product to category index",
+              "name": "add_product_to_category",
+              "operation": "PutItem",
+              "parameters": [
+                {
+                  "entity_type": "ProductCategory",
+                  "name": "category_item",
+                  "type": "entity"
+                }
+              ],
+              "pattern_id": 10,
+              "return_type": "single_entity"
+            },
+            {
+              "description": "Get category products after a specific product_id (Main Table Range Query)",
+              "name": "get_category_products_after_id",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "category_name",
+                  "type": "string"
+                },
+                {
+                  "name": "after_product_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 24,
+              "range_condition": ">",
+              "return_type": "entity_list"
+            }
+          ],
+          "entity_type": "CATEGORY",
+          "fields": [
+            {
+              "name": "category_name",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "product_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "product_name",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "price",
+              "required": true,
+              "type": "decimal"
+            },
+            {
+              "name": "stock_quantity",
+              "required": true,
+              "type": "integer"
+            }
+          ],
+          "pk_template": "CATEGORY#{category_name}",
+          "sk_template": "PRODUCT#{product_id}"
+        },
+        "ProductReview": {
+          "access_patterns": [
+            {
+              "description": "Get all reviews for a product",
+              "name": "get_product_reviews",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "product_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 11,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Create new product review with user reference",
+              "name": "create_product_review",
+              "operation": "PutItem",
+              "parameters": [
+                {
+                  "entity_type": "ProductReview",
+                  "name": "review",
+                  "type": "entity"
+                },
+                {
+                  "entity_type": "User",
+                  "name": "user",
+                  "type": "entity"
+                }
+              ],
+              "pattern_id": 12,
+              "return_type": "single_entity"
+            },
+            {
+              "description": "Get product reviews by review_id prefix (Main Table Range Query)",
+              "name": "get_product_reviews_by_id_prefix",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "product_id",
+                  "type": "string"
+                },
+                {
+                  "name": "review_id_prefix",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 23,
+              "range_condition": "begins_with",
+              "return_type": "entity_list"
+            }
+          ],
+          "entity_type": "REVIEW",
+          "fields": [
+            {
+              "name": "product_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "review_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "user_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "rating",
+              "required": true,
+              "type": "integer"
+            },
+            {
+              "name": "title",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "comment",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "name": "created_at",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "verified_purchase",
+              "required": true,
+              "type": "boolean"
+            }
+          ],
+          "pk_template": "PRODUCT#{product_id}",
+          "sk_template": "REVIEW#{review_id}"
+        }
+      },
+      "table_config": {
+        "partition_key": "pk",
+        "sort_key": "sk",
+        "table_name": "ProductTable"
+      }
+    },
+    {
+      "entities": {
+        "Order": {
+          "access_patterns": [
+            {
+              "description": "Get order details by order ID",
+              "name": "get_order_by_id",
+              "operation": "GetItem",
+              "parameters": [
+                {
+                  "name": "order_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 13,
+              "return_type": "single_entity"
+            },
+            {
+              "description": "Create new order with user reference",
+              "name": "create_order",
+              "operation": "PutItem",
+              "parameters": [
+                {
+                  "entity_type": "Order",
+                  "name": "order",
+                  "type": "entity"
+                },
+                {
+                  "entity_type": "User",
+                  "name": "user",
+                  "type": "entity"
+                }
+              ],
+              "pattern_id": 14,
+              "return_type": "single_entity"
+            },
+            {
+              "description": "Update order status and tracking information",
+              "name": "update_order_status",
+              "operation": "UpdateItem",
+              "parameters": [
+                {
+                  "name": "order_id",
+                  "type": "string"
+                },
+                {
+                  "name": "status",
+                  "type": "string"
+                },
+                {
+                  "name": "tracking_number",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 15,
+              "return_type": "single_entity"
+            }
+          ],
+          "entity_type": "ORDER",
+          "fields": [
+            {
+              "name": "order_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "user_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "order_date",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "status",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "total_amount",
+              "required": true,
+              "type": "decimal"
+            },
+            {
+              "name": "currency",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "shipping_address",
+              "required": true,
+              "type": "object"
+            },
+            {
+              "name": "billing_address",
+              "required": true,
+              "type": "object"
+            },
+            {
+              "name": "payment_method",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "shipping_method",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "tracking_number",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "name": "estimated_delivery",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "name": "created_at",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "updated_at",
+              "required": true,
+              "type": "string"
+            }
+          ],
+          "pk_template": "ORDER#{order_id}",
+          "sk_template": "DETAILS"
+        },
+        "OrderItem": {
+          "access_patterns": [
+            {
+              "description": "Get all items for an order",
+              "name": "get_order_items",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "order_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 16,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Add item to order with product reference",
+              "name": "add_order_item",
+              "operation": "PutItem",
+              "parameters": [
+                {
+                  "entity_type": "OrderItem",
+                  "name": "order_item",
+                  "type": "entity"
+                },
+                {
+                  "entity_type": "Product",
+                  "name": "product",
+                  "type": "entity"
+                }
+              ],
+              "pattern_id": 17,
+              "return_type": "single_entity"
+            }
+          ],
+          "entity_type": "ORDER_ITEM",
+          "fields": [
+            {
+              "name": "order_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "product_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "product_name",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "sku",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "quantity",
+              "required": true,
+              "type": "integer"
+            },
+            {
+              "name": "unit_price",
+              "required": true,
+              "type": "decimal"
+            },
+            {
+              "name": "total_price",
+              "required": true,
+              "type": "decimal"
+            },
+            {
+              "name": "currency",
+              "required": true,
+              "type": "string"
+            }
+          ],
+          "pk_template": "ORDER#{order_id}",
+          "sk_template": "ITEM#{product_id}"
+        },
+        "UserOrderHistory": {
+          "access_patterns": [
+            {
+              "description": "Get order history for a user (sorted by date)",
+              "name": "get_user_order_history",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "user_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 18,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Get recent orders for a user with date range",
+              "name": "get_user_recent_orders",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "user_id",
+                  "type": "string"
+                },
+                {
+                  "name": "start_date",
+                  "type": "string"
+                },
+                {
+                  "name": "end_date",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 19,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Add order to user's order history with cross-table references",
+              "name": "add_order_to_user_history",
+              "operation": "PutItem",
+              "parameters": [
+                {
+                  "entity_type": "UserOrderHistory",
+                  "name": "user_order",
+                  "type": "entity"
+                },
+                {
+                  "entity_type": "User",
+                  "name": "user",
+                  "type": "entity"
+                },
+                {
+                  "entity_type": "Order",
+                  "name": "order",
+                  "type": "entity"
+                }
+              ],
+              "pattern_id": 20,
+              "return_type": "single_entity"
+            },
+            {
+              "description": "Get user orders after a specific date (Main Table Range Query)",
+              "name": "get_user_orders_after_date",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "user_id",
+                  "type": "string"
+                },
+                {
+                  "name": "since_date",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 21,
+              "range_condition": ">=",
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Get user orders within date range (Main Table Range Query)",
+              "name": "get_user_orders_in_date_range",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "user_id",
+                  "type": "string"
+                },
+                {
+                  "name": "start_date",
+                  "type": "string"
+                },
+                {
+                  "name": "end_date",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 22,
+              "range_condition": "between",
+              "return_type": "entity_list"
+            }
+          ],
+          "entity_type": "USER_ORDER",
+          "fields": [
+            {
+              "name": "user_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "order_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "order_date",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "status",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "total_amount",
+              "required": true,
+              "type": "decimal"
+            },
+            {
+              "name": "currency",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "item_count",
+              "required": true,
+              "type": "integer"
+            }
+          ],
+          "pk_template": "USER#{user_id}",
+          "sk_template": "ORDER#{order_date}#{order_id}"
+        }
+      },
+      "table_config": {
+        "partition_key": "pk",
+        "sort_key": "sk",
+        "table_name": "OrderTable"
+      }
+    }
+  ]
+}

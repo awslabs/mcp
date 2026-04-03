@@ -1,0 +1,26 @@
+name: Check that GitHub Pages Builds
+
+permissions: {}
+
+on:
+  push:
+  pull_request:
+    branches:
+    - main
+jobs:
+  build:
+    name: Build Docusaurus
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: 'docusaurus/package-lock.json'
+      - name: Install dependencies
+        run: cd docusaurus && npm ci
+      - name: Build website
+        run: cd docusaurus && npm run build

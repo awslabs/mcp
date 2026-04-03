@@ -26,8 +26,8 @@ from awslabs.aws_serverless_mcp_server.resources.template_details import handle_
 from awslabs.aws_serverless_mcp_server.resources.template_list import handle_template_list
 
 __all__ = [
-    handle_deployment_details,
-    handle_deployments_list,
-    handle_template_details,
-    handle_template_list,
+    'handle_deployment_details',
+    'handle_deployments_list',
+    'handle_template_details',
+    'handle_template_list',
 ]

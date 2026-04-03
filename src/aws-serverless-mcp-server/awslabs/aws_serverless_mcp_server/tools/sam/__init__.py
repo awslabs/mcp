@@ -20,4 +20,4 @@ from awslabs.aws_serverless_mcp_server.tools.sam.sam_init import SamInitTool
 from awslabs.aws_serverless_mcp_server.tools.sam.sam_local_invoke import SamLocalInvokeTool
 from awslabs.aws_serverless_mcp_server.tools.sam.sam_logs import SamLogsTool
 
-__all__ = [SamBuildTool, SamDeployTool, SamInitTool, SamLocalInvokeTool, SamLogsTool]
+__all__ = ['SamBuildTool', 'SamDeployTool', 'SamInitTool', 'SamLocalInvokeTool', 'SamLogsTool']

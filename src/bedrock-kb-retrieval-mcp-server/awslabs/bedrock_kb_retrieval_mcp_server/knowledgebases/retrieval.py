@@ -46,7 +46,7 @@ async def query_knowledge_base(
         reranking_model_name (Literal['COHERE', 'AMAZON']): The name of the reranking model to use.
         data_source_ids (list[str] | None): The data source IDs to filter the knowledge base by.
 
-    ## Warning: You must use the `resource://knowledgebases` tool to get the knowledge base ID and optionally a data source ID first.
+    ## Warning: You must use the `ListKnowledgeBases` tool to get the knowledge base ID and optionally a data source ID first.
 
     ## Returns:
     - A string containing the results of the query.
@@ -56,6 +56,7 @@ async def query_knowledge_base(
         'us-east-1',
         'ap-northeast-1',
         'ca-central-1',
+        'eu-central-1',
     ]:
         raise ValueError(
             f'Reranking is not supported in region {kb_agent_client.meta.region_name}'

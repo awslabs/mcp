@@ -32,9 +32,9 @@ from typing import Dict, Optional
 class CognitoAuthProvider(BearerAuthProvider):
     """Cognito User Pool authentication provider.
 
-    This provider obtains ID tokens from AWS Cognito User Pools
+    This provider obtains tokens from AWS Cognito User Pools
     and delegates to BearerAuthProvider for adding Authorization headers
-    to all HTTP requests.
+    to all HTTP requests. Supports both password and client credentials flows.
     """
 
     def __init__(self, config: Config):
@@ -48,14 +48,34 @@ class CognitoAuthProvider(BearerAuthProvider):
         self._client_id = config.auth_cognito_client_id
         self._username = config.auth_cognito_username
         self._password = config.auth_cognito_password
+        self._client_secret = config.auth_cognito_client_secret
+        self._domain = config.auth_cognito_domain
+        self._scopes = config.auth_cognito_scopes.split(',') if config.auth_cognito_scopes else []
         self._user_pool_id = config.auth_cognito_user_pool_id
         self._region = config.auth_cognito_region
 
-        # Add debug log early in initialization
-        logger.debug(
-            f'Cognito auth configuration: Username={self._username}, ClientID={self._client_id}, '
-            f'Password={"SET" if self._password else "NOT SET"}, UserPoolID={self._user_pool_id or "NOT SET"}'
+        # Determine grant type based on provided credentials
+        self._grant_type = self._determine_grant_type()
+
+        # Log grant type selection at INFO level
+        logger.info(
+            f'Cognito auth using grant type: {self._grant_type} '
+            f'({"client_id and client_secret provided" if self._grant_type == "client_credentials" else "username and password provided"})'
         )
+
+        # Add debug log early in initialization
+        if self._grant_type == 'client_credentials':
+            logger.debug(
+                f'Cognito auth configuration: ClientID={self._client_id}, '
+                f'Client Secret={"SET" if self._client_secret else "NOT SET"}, '
+                f'Domain={self._domain or "NOT SET"}, '
+                f'Region={self._region}'
+            )
+        else:
+            logger.debug(
+                f'Cognito auth configuration: Username={self._username}, ClientID={self._client_id}, '
+                f'Password={"SET" if self._password else "NOT SET"}, UserPoolID={self._user_pool_id or "NOT SET"}'
+            )
 
         # Token management
         self._token_expires_at = 0
@@ -65,7 +85,17 @@ class CognitoAuthProvider(BearerAuthProvider):
         # Get initial token before parent initialization
         try:
             # Only try to get token if we have the minimum required credentials
-            if self._client_id and self._username and self._password:
+            if (
+                self._grant_type == 'client_credentials'
+                and self._client_id
+                and self._client_secret
+                and self._domain
+            ) or (
+                self._grant_type == 'password'
+                and self._client_id
+                and self._username
+                and self._password
+            ):
                 token = self._get_cognito_token()
                 if token:
                     # Set token in config for parent class to use
@@ -76,11 +106,27 @@ class CognitoAuthProvider(BearerAuthProvider):
                 )
         except Exception as e:
             logger.warning(f'Failed to get initial Cognito token: {e}')
-            # We'll let the parent validation handle this error
+            # Set a placeholder token to avoid parent validation errors
+            config.auth_token = 'PENDING_COGNITO_TOKEN'
 
         # Call parent initializer which will validate and initialize auth
         # This will set self._token from config.auth_token
         super().__init__(config)
+
+    def _determine_grant_type(self) -> str:
+        """Determine the grant type based on provided credentials.
+
+        Returns:
+            str: The grant type to use ('client_credentials' or 'password')
+
+        """
+        if self._client_id and self._client_secret and self._domain:
+            return 'client_credentials'
+        elif self._client_id and self._username and self._password:
+            return 'password'
+        else:
+            # Default to password flow for backward compatibility
+            return 'password'
 
     def _validate_config(self) -> bool:
         """Validate the configuration.
@@ -102,21 +148,38 @@ class CognitoAuthProvider(BearerAuthProvider):
                 },
             )
 
-        if not self._username:
-            raise MissingCredentialsError(
-                'Cognito authentication requires a username',
-                {
-                    'help': 'Provide username using --auth-cognito-username command line argument or AUTH_COGNITO_USERNAME environment variable'
-                },
-            )
+        # Validate based on grant type
+        if self._grant_type == 'client_credentials':
+            if not self._client_secret:
+                raise MissingCredentialsError(
+                    'Client credentials flow requires a client secret',
+                    {
+                        'help': 'Provide client secret using --auth-cognito-client-secret command line argument or AUTH_COGNITO_CLIENT_SECRET environment variable'
+                    },
+                )
+            if not self._domain:
+                raise MissingCredentialsError(
+                    'Client credentials flow requires a domain',
+                    {
+                        'help': 'Provide domain using --auth-cognito-domain command line argument or AUTH_COGNITO_DOMAIN environment variable'
+                    },
+                )
+        else:  # password grant type
+            if not self._username:
+                raise MissingCredentialsError(
+                    'Password flow requires a username',
+                    {
+                        'help': 'Provide username using --auth-cognito-username command line argument or AUTH_COGNITO_USERNAME environment variable'
+                    },
+                )
 
-        if not self._password:
-            raise MissingCredentialsError(
-                'Cognito authentication requires a password',
-                {
-                    'help': 'Provide password using --auth-cognito-password command line argument or AUTH_COGNITO_PASSWORD environment variable'
-                },
-            )
+            if not self._password:
+                raise MissingCredentialsError(
+                    'Password flow requires a password',
+                    {
+                        'help': 'Provide password using --auth-cognito-password command line argument or AUTH_COGNITO_PASSWORD environment variable'
+                    },
+                )
 
         # Let parent class validate the token
         return super()._validate_config()
@@ -193,10 +256,91 @@ class CognitoAuthProvider(BearerAuthProvider):
             raise ExpiredTokenError('Token refresh failed', {'error': str(e)})
 
     def _get_cognito_token(self) -> Optional[str]:
-        """Get a new token from Cognito using username/password.
+        """Get a new token from Cognito using username/password or client credentials.
 
         Returns:
-            str: Cognito ID token or None if authentication fails
+            str: Cognito token or None if authentication fails
+
+        Raises:
+            AuthenticationError: If authentication fails
+
+        """
+        if self._grant_type == 'client_credentials':
+            return self._get_token_client_credentials()
+        else:
+            return self._get_token_password()
+
+    def _get_token_client_credentials(self) -> Optional[str]:
+        """Get a token using the client credentials flow.
+
+        Returns:
+            str: Access token or None if authentication fails
+
+        Raises:
+            AuthenticationError: If authentication fails
+
+        """
+        try:
+            # Construct token endpoint using the provided domain
+            token_endpoint = (
+                f'https://{self._domain}.auth.{self._region}.amazoncognito.com/oauth2/token'
+            )
+            logger.debug(f'Using token endpoint: {token_endpoint}')
+
+            # Make the token request
+            import base64
+            import requests
+
+            # Create authorization header
+            auth_header = base64.b64encode(
+                f'{self._client_id}:{self._client_secret}'.encode('utf-8')
+            ).decode('utf-8')
+
+            headers = {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Authorization': f'Basic {auth_header}',
+            }
+
+            data = {'grant_type': 'client_credentials'}
+            if self._scopes:
+                data['scope'] = ' '.join(self._scopes)
+                logger.debug(f'Using scopes: {data["scope"]}')
+
+            logger.debug(f'Making token request to: {token_endpoint}')
+            response = requests.post(token_endpoint, headers=headers, data=data)
+
+            if response.status_code != 200:
+                logger.error(f'Token request failed: {response.status_code} {response.text}')
+                raise InvalidCredentialsError(
+                    'Failed to obtain token with client credentials',
+                    {
+                        'error': response.text,
+                        'help': 'Check your client ID, client secret, domain, and region',
+                    },
+                )
+
+            # Process the response
+            token_data = response.json()
+            access_token = token_data.get('access_token')
+            expires_in = token_data.get('expires_in', 3600)
+
+            if access_token:
+                self._token_expires_at = int(time.time()) + expires_in
+                logger.info(f'Successfully obtained access token (expires in {expires_in} seconds)')
+                return access_token
+            else:
+                logger.error('No access token in response')
+                return None
+
+        except Exception as e:
+            logger.error(f'Error in client credentials flow: {e}')
+            raise
+
+    def _get_token_password(self) -> Optional[str]:
+        """Get a token using the password flow.
+
+        Returns:
+            str: ID token or None if authentication fails
 
         Raises:
             AuthenticationError: If authentication fails

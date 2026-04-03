@@ -73,6 +73,9 @@ class K8sApis:
                     os.unlink(self._ca_cert_file_path)
                 raise e
 
+            # Configure HTTP proxy settings if environment variables are present
+            self._configure_proxy_settings(configuration)
+
             # Create base API client
             self.api_client = client.ApiClient(configuration)
 
@@ -85,6 +88,44 @@ class K8sApis:
         except ImportError:
             logger.error('kubernetes package not installed')
             raise
+
+    @classmethod
+    def from_api_client(cls, api_client):
+        """Create a K8sApis instance from a pre-configured kubernetes ApiClient.
+
+        This is used for kubeconfig-based authentication where the kubernetes
+        library handles all authentication (OIDC, exec plugins, certificates, etc.).
+
+        Args:
+            api_client: A pre-configured kubernetes.client.ApiClient instance.
+
+        Returns:
+            K8sApis instance with the provided ApiClient.
+        """
+        from kubernetes import dynamic
+
+        instance = cls.__new__(cls)
+        instance._ca_cert_file_path = None
+        instance.api_client = api_client
+        instance.api_client.user_agent = f'awslabs/mcp/eks-mcp-server/{__version__}'
+        instance.dynamic_client = dynamic.DynamicClient(api_client)
+        return instance
+
+    def _configure_proxy_settings(self, config):
+        """Configure proxy settings for Kubernetes client from environment variables."""
+        # Get proxy URL (HTTPS proxy takes precedence over HTTP proxy)
+        proxy_url = (
+            os.environ.get('HTTPS_PROXY')
+            or os.environ.get('https_proxy')
+            or os.environ.get('HTTP_PROXY')
+            or os.environ.get('http_proxy')
+        )
+
+        if not proxy_url:
+            return
+
+        logger.debug(f'Configuring proxy: {proxy_url}')
+        config.proxy = proxy_url
 
     def _patch_resource(
         self,
@@ -399,6 +440,7 @@ class K8sApis:
         since_seconds: Optional[int] = None,
         tail_lines: Optional[int] = None,
         limit_bytes: Optional[int] = None,
+        previous: Optional[bool] = None,
     ) -> str:
         """Get logs from a pod.
 
@@ -409,6 +451,7 @@ class K8sApis:
             since_seconds: Only return logs newer than this many seconds (optional)
             tail_lines: Number of lines to return from the end of the logs (optional)
             limit_bytes: Maximum number of bytes to return (optional)
+            previous: Return previous terminated container logs (optional)
 
         Returns:
             Pod logs as a string
@@ -429,6 +472,8 @@ class K8sApis:
                 params['tail_lines'] = tail_lines
             if limit_bytes:
                 params['limit_bytes'] = limit_bytes
+            if previous:
+                params['previous'] = previous
 
             # Call the read_namespaced_pod_log method
             logs_response = core_v1_api.read_namespaced_pod_log(

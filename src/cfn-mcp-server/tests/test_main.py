@@ -13,7 +13,8 @@
 # limitations under the License.
 """Tests for the main function in server.py."""
 
-from awslabs.cfn_mcp_server.server import main
+import warnings
+from awslabs.cfn_mcp_server.server import DEPRECATION_NOTICE, main
 from unittest.mock import patch
 
 
@@ -24,10 +25,23 @@ class TestMain:
     @patch('sys.argv', ['awslabs.cfn-mcp-server'])
     def test_main_default(self, mock_run):
         """Test main function with default arguments."""
-        # Call the main function
-        main()
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            main()
 
         # Check that mcp.run was called with the correct arguments
+        mock_run.assert_called_once()
+
+    @patch('awslabs.cfn_mcp_server.server.mcp.run')
+    @patch('sys.argv', ['awslabs.cfn-mcp-server'])
+    def test_main_emits_deprecation_warning(self, mock_run):
+        """Test that main() emits a FutureWarning."""
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter('always')
+            main()
+            future_warnings = [x for x in w if issubclass(x.category, FutureWarning)]
+            assert len(future_warnings) == 1
+            assert DEPRECATION_NOTICE in str(future_warnings[0].message)
         mock_run.assert_called_once()
 
     def test_module_execution(self):

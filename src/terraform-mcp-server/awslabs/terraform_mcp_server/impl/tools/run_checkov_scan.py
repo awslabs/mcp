@@ -15,10 +15,12 @@
 """Implementation of Checkov scan tools."""
 
 import json
-import os
 import re
 import subprocess
-from awslabs.terraform_mcp_server.impl.tools.utils import get_dangerous_patterns
+from awslabs.terraform_mcp_server.impl.tools.utils import (
+    get_dangerous_patterns,
+    validate_working_directory,
+)
 from awslabs.terraform_mcp_server.models import (
     CheckovScanRequest,
     CheckovScanResult,
@@ -92,7 +94,7 @@ def _ensure_checkov_installed() -> bool:
     """
     try:
         # Check if Checkov is already installed
-        subprocess.run(
+        subprocess.run(  # noqa: B603 - Safe: hardcoded command with no user input
             ['checkov', '--version'],
             capture_output=True,
             text=True,
@@ -104,7 +106,7 @@ def _ensure_checkov_installed() -> bool:
         logger.warning('Checkov not found, attempting to install')
         try:
             # Install Checkov using pip
-            subprocess.run(
+            subprocess.run(  # noqa: B603 - Safe: hardcoded pip install command with no user input
                 ['pip', 'install', 'checkov'],
                 capture_output=True,
                 text=True,
@@ -262,17 +264,21 @@ async def run_checkov_scan_impl(request: CheckovScanRequest) -> CheckovScanResul
                     )
 
     # Build the command
-    # Convert working_directory to absolute path if it's not already
-    working_dir = request.working_directory
-    if not os.path.isabs(working_dir):
-        # Get the current working directory of the MCP server
-        current_dir = os.getcwd()
-        # Go up to the project root directory (assuming we're in src/terraform-mcp-server/awslabs/terraform_mcp_server)
-        project_root = os.path.abspath(os.path.join(current_dir, '..', '..', '..', '..'))
-        # Join with the requested working directory
-        working_dir = os.path.abspath(os.path.join(project_root, working_dir))
+    # Validate and resolve working_directory
+    try:
+        working_dir = validate_working_directory(request.working_directory)
+    except ValueError as e:
+        logger.error(str(e))
+        return CheckovScanResult(
+            status='error',
+            working_directory=request.working_directory,
+            error_message=str(e),
+            vulnerabilities=[],
+            summary={},
+            raw_output=None,
+        )
 
-    logger.info(f'Using absolute working directory: {working_dir}')
+    logger.info(f'Using validated working directory: {working_dir}')
     cmd = ['checkov', '--quiet', '-d', working_dir]
 
     # Add framework if specified
@@ -293,7 +299,10 @@ async def run_checkov_scan_impl(request: CheckovScanRequest) -> CheckovScanResul
     # Execute command
     try:
         logger.info(f'Executing command: {" ".join(cmd)}')
-        process = subprocess.run(
+        # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit
+        # Safe: All user inputs are validated above - framework/output_format use allowlists,
+        # check_ids/skip_check_ids are validated for dangerous patterns, working_dir is path-normalized
+        process = subprocess.run(  # noqa: B603 - Safe: validated inputs, allowlisted commands, no shell injection
             cmd,
             capture_output=True,
             text=True,

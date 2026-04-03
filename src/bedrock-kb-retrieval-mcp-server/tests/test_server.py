@@ -17,7 +17,7 @@
 import json
 import pytest
 from awslabs.bedrock_kb_retrieval_mcp_server.server import (
-    knowledgebases_resource,
+    list_knowledge_bases_tool,
     main,
     mcp,
     query_knowledge_bases_tool,
@@ -39,17 +39,18 @@ class TestMCPServer:
         assert 'boto3' in mcp.dependencies
 
 
-class TestKnowledgebasesResource:
-    """Tests for the knowledgebases_resource function."""
+class TestListKnowledgeBasesTool:
+    """Tests for the list_knowledge_bases_tool function."""
 
     @pytest.mark.asyncio
     @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.discover_knowledge_bases')
-    async def test_knowledgebases_resource(self, mock_discover_knowledge_bases):
-        """Test the knowledgebases_resource function."""
+    async def test_list_knowledge_bases_tool(self, mock_discover_knowledge_bases):
+        """Test the list_knowledge_bases_tool function."""
         # Set up the mock
         mock_discover_knowledge_bases.return_value = {
             'kb-12345': {
                 'name': 'Test Knowledge Base',
+                'description': 'A test knowledge base for testing purposes',
                 'data_sources': [
                     {'id': 'ds-12345', 'name': 'Test Data Source'},
                     {'id': 'ds-67890', 'name': 'Another Data Source'},
@@ -57,6 +58,7 @@ class TestKnowledgebasesResource:
             },
             'kb-67890': {
                 'name': 'Another Knowledge Base',
+                'description': 'Another knowledge base for testing',
                 'data_sources': [
                     {'id': 'ds-12345', 'name': 'Test Data Source'},
                 ],
@@ -64,7 +66,7 @@ class TestKnowledgebasesResource:
         }
 
         # Call the function
-        result = await knowledgebases_resource()
+        result = await list_knowledge_bases_tool()
 
         # Parse the result as JSON
         kb_mapping = json.loads(result)
@@ -74,7 +76,11 @@ class TestKnowledgebasesResource:
         assert 'kb-12345' in kb_mapping
         assert 'kb-67890' in kb_mapping
         assert kb_mapping['kb-12345']['name'] == 'Test Knowledge Base'
+        assert (
+            kb_mapping['kb-12345']['description'] == 'A test knowledge base for testing purposes'
+        )
         assert kb_mapping['kb-67890']['name'] == 'Another Knowledge Base'
+        assert kb_mapping['kb-67890']['description'] == 'Another knowledge base for testing'
         assert len(kb_mapping['kb-12345']['data_sources']) == 2
         assert len(kb_mapping['kb-67890']['data_sources']) == 1
         assert kb_mapping['kb-12345']['data_sources'][0]['id'] == 'ds-12345'
@@ -160,6 +166,7 @@ class TestServerIntegration:
         mock_discover_knowledge_bases.return_value = {
             'kb-12345': {
                 'name': 'Test Knowledge Base',
+                'description': 'A test knowledge base for testing purposes',
                 'data_sources': [
                     {'id': 'ds-12345', 'name': 'Test Data Source'},
                 ],
@@ -173,14 +180,17 @@ class TestServerIntegration:
             }
         )
 
-        # Call the resource function
-        kb_result = await knowledgebases_resource()
+        # Call the list knowledge bases tool function
+        kb_result = await list_knowledge_bases_tool()
         kb_mapping = json.loads(kb_result)
 
-        # Check that the resource function returns the correct result
+        # Check that the list knowledge bases tool function returns the correct result
         assert len(kb_mapping) == 1
         assert 'kb-12345' in kb_mapping
         assert kb_mapping['kb-12345']['name'] == 'Test Knowledge Base'
+        assert (
+            kb_mapping['kb-12345']['description'] == 'A test knowledge base for testing purposes'
+        )
         assert len(kb_mapping['kb-12345']['data_sources']) == 1
         assert kb_mapping['kb-12345']['data_sources'][0]['id'] == 'ds-12345'
         assert kb_mapping['kb-12345']['data_sources'][0]['name'] == 'Test Data Source'

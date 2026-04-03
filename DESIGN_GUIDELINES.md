@@ -482,11 +482,61 @@ async def mcp_generate_image(
 
 Tool guidelines:
 
-1. Use descriptive tool names in `camelCase` or `snake_case` consistently
+1. Use descriptive tool names following the naming conventions below
 2. Include the Context parameter for error reporting
 3. Use detailed Field descriptions for all parameters
 4. Return structured responses using Pydantic models when possible
 5. Document the tool's purpose, inputs, and outputs comprehensively
+
+### 🔤 Tool Naming Conventions
+
+To maintain consistency and compatibility with the Model Context Protocol specification, tool names must follow these rules:
+
+#### Required Rules:
+- ✅ **Maximum of 64 characters** for the fully qualified name (including `awslabs` prefix, server name, and tool name)
+- ✅ Must start with a letter (a-z, A-Z)
+- ✅ Use only alphanumeric characters, underscores (`_`), or hyphens (`-`)
+- ✅ Tool names are **case-sensitive** (per MCP specification)
+- ✅ Tool names should be **unique within their namespace**
+- ❌ No spaces, commas, or special characters (e.g., `@`, `$`, `!`)
+- ❌ Do not start with a number
+
+#### Naming Style Recommendations:
+
+We **recommend snake_case** as it aligns with official MCP reference implementations and Python conventions, but we accept other styles for team consistency:
+
+**✅ Recommended: snake_case**
+- `read_file`, `create_entities`, `get_current_time`
+- Used by official MCP servers (filesystem, memory, time)
+- Best for Python-based tools
+
+**✅ Accepted: kebab-case**
+- `batch-apply-update-action`, `connect-jump-host`
+- Common in CLI tools and web APIs
+
+**✅ Accepted: PascalCase**
+- `ExecuteQuery`, `KendraQueryTool`, `QBusinessQueryTool`
+- Familiar to developers from other languages
+
+**Important:** Stay consistent within your MCP server. Don't mix naming styles.
+
+#### ✅ Valid Examples:
+- `read_file` (snake_case - recommended)
+- `create-bucket` (kebab-case - accepted)
+- `ExecuteQuery` (PascalCase - accepted)
+- `get_file_info` (snake_case with clear verb-noun pattern)
+
+#### ❌ Invalid Examples:
+- `123tool` (starts with number)
+- `tool!@#$` (special characters)
+- `read file` (contains space)
+- `name-that-is-way-too-long-and-goes-beyond-the-sixty-four-character-limit-including-server-prefix` (exceeds 64 chars)
+
+#### Best Practices:
+1. Use descriptive, action-oriented names (verb-noun pattern: `get_status`, `create_user`)
+2. Keep the fully qualified name under 64 characters (some MCP clients add prefixes/suffixes)
+3. Be consistent within your server - pick one style and stick to it
+4. Refer to the [MCP Tool Naming Specification (SEP-986)](https://modelcontextprotocol.io/community/seps/986-specify-format-for-tool-names.md) for official guidance
 
 ## Asynchronous Programming
 

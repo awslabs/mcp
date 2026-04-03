@@ -2,12 +2,12 @@
 Comprehensive unit tests for the fetch_task_failures function.
 
 This test suite achieves high coverage by testing the real code paths
-through EcsClient rather than using mock client implementations.
+through direct boto3 client mocking.
 """
 
 import datetime
 import unittest.mock as mock
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 from botocore.exceptions import ClientError
@@ -19,11 +19,28 @@ from awslabs.ecs_mcp_server.api.troubleshooting_tools.fetch_task_failures import
     _process_task_failure,
 )
 from tests.unit.utils.async_test_utils import (
-    AsyncIterator,
     create_mock_ecs_client,
     create_sample_cluster_data,
     create_sample_task_data,
 )
+
+
+class TestFetchTaskFailuresBase:
+    """Base class for fetch_task_failures tests."""
+
+    def setup_method(self, method):
+        """Clear AWS client cache before each test."""
+        from awslabs.ecs_mcp_server.utils.aws import _aws_clients
+
+        _aws_clients.clear()
+
+    def mock_aws_clients(self, mock_clients):
+        """Create a mock for boto3.client that returns specified clients."""
+
+        def mock_client_factory(service_name, **kwargs):
+            return mock_clients.get(service_name, MagicMock())
+
+        return mock.patch("boto3.client", side_effect=mock_client_factory)
 
 
 class TestHelperFunctions:
@@ -250,8 +267,8 @@ def mock_aws_client():
         yield mock_ecs
 
 
-class TestFetchTaskFailuresIntegration:
-    """Test the main fetch_task_failures function with real EcsClient integration."""
+class TestFetchTaskFailuresIntegration(TestFetchTaskFailuresBase):
+    """Test the main fetch_task_failures function with boto3 client integration."""
 
     @pytest.mark.anyio
     @pytest.mark.parametrize(
@@ -277,37 +294,39 @@ class TestFetchTaskFailuresIntegration:
     )
     async def test_fetch_task_failures_scenarios(self, cluster_exists, task_arns, expected_status):
         """Test different scenarios for fetch_task_failures with parameterization."""
-        # Create mock ECS client
         mock_ecs = MagicMock()
 
         # Set up cluster response
         if cluster_exists:
             cluster_data = create_sample_cluster_data("test-cluster")
-            mock_ecs.check_cluster_exists = AsyncMock(return_value=(True, cluster_data))
-        else:
-            mock_ecs.check_cluster_exists = AsyncMock(return_value=(False, None))
-
-        # Set up get_stopped_tasks and get_running_tasks_count methods
-        if cluster_exists:
+            mock_ecs.describe_clusters.return_value = {"clusters": [cluster_data]}
             if task_arns:
                 tasks = [
                     create_sample_task_data(task_id=task_id, exit_code=1) for task_id in task_arns
                 ]
-                mock_ecs.get_stopped_tasks = AsyncMock(return_value=tasks)
+                mock_ecs.list_tasks.return_value = {
+                    "taskArns": [f"arn:aws:ecs:task/{t}" for t in task_arns]
+                }
+                mock_ecs.describe_tasks.return_value = {"tasks": tasks}
             else:
-                mock_ecs.get_stopped_tasks = AsyncMock(return_value=[])
-            mock_ecs.get_running_tasks_count = AsyncMock(return_value=0)
+                mock_ecs.list_tasks.return_value = {"taskArns": []}
+                mock_ecs.describe_tasks.return_value = {"tasks": []}
+        else:
+            mock_ecs.describe_clusters.return_value = {"clusters": []}
 
-        # Call the function
-        result = await fetch_task_failures("test-app", "test-cluster", ecs_client=mock_ecs)
+        mock_clients = {"ecs": mock_ecs}
 
-        # Check basic status
-        assert result["status"] == expected_status["status"]
-        assert result["cluster_exists"] == expected_status["cluster_exists"]
+        with self.mock_aws_clients(mock_clients):
+            # Call the function (no ecs_client parameter)
+            result = await fetch_task_failures("test-cluster")
 
-        # Check task count if cluster exists
-        if cluster_exists:
-            assert len(result["failed_tasks"]) == expected_status["failed_tasks_count"]
+            # Check basic status
+            assert result["status"] == expected_status["status"]
+            assert result["cluster_exists"] == expected_status["cluster_exists"]
+
+            # Check task count if cluster exists
+            if cluster_exists:
+                assert len(result["failed_tasks"]) == expected_status["failed_tasks_count"]
 
     @pytest.mark.anyio
     @pytest.mark.parametrize(
@@ -322,28 +341,30 @@ class TestFetchTaskFailuresIntegration:
     )
     async def test_failure_categorization(self, exit_code, reason, expected_category):
         """Test that different failure types are properly categorized."""
-        # Create mock ECS client
         mock_ecs = MagicMock()
 
         # Set up cluster exists
         cluster_data = create_sample_cluster_data("test-cluster")
-        mock_ecs.check_cluster_exists = AsyncMock(return_value=(True, cluster_data))
+        mock_ecs.describe_clusters.return_value = {"clusters": [cluster_data]}
 
         # Create task with the specified failure type
         task_data = create_sample_task_data(task_id="task1", exit_code=exit_code, reason=reason)
 
-        # Set up get_stopped_tasks and get_running_tasks_count methods
-        mock_ecs.get_stopped_tasks = AsyncMock(return_value=[task_data])
-        mock_ecs.get_running_tasks_count = AsyncMock(return_value=0)
+        # Set up boto3 API responses
+        mock_ecs.list_tasks.return_value = {"taskArns": ["arn:aws:ecs:task/task1"]}
+        mock_ecs.describe_tasks.return_value = {"tasks": [task_data]}
 
-        # Call the function
-        result = await fetch_task_failures("test-app", "test-cluster", ecs_client=mock_ecs)
+        mock_clients = {"ecs": mock_ecs}
 
-        # Check that the failure was properly categorized
-        assert result["status"] == "success"
-        assert len(result["failed_tasks"]) == 1
-        assert expected_category in result["failure_categories"]
-        assert len(result["failure_categories"][expected_category]) == 1
+        with self.mock_aws_clients(mock_clients):
+            # Call the function (no ecs_client parameter)
+            result = await fetch_task_failures("test-cluster")
+
+            # Check that the failure was properly categorized
+            assert result["status"] == "success"
+            assert len(result["failed_tasks"]) == 1
+            assert expected_category in result["failure_categories"]
+            assert len(result["failure_categories"][expected_category]) == 1
 
     @pytest.mark.anyio
     @pytest.mark.parametrize(
@@ -371,7 +392,6 @@ class TestFetchTaskFailuresIntegration:
     )
     async def test_error_handling(self, error_type, error_location, expected_result):
         """Test error handling with parameterization."""
-        # Create mock ECS client
         mock_ecs = MagicMock()
 
         # Set up the error
@@ -385,128 +405,141 @@ class TestFetchTaskFailuresIntegration:
 
         # Apply the error to the specified location
         if error_location == "check_cluster_exists":
-            mock_ecs.check_cluster_exists = AsyncMock(side_effect=error)
+            mock_ecs.describe_clusters.side_effect = error
         elif error_location == "get_stopped_tasks":
-            mock_ecs.check_cluster_exists = AsyncMock(return_value=(True, {}))
-            mock_ecs.get_stopped_tasks = AsyncMock(side_effect=error)
-            mock_ecs.get_running_tasks_count = AsyncMock(return_value=0)
+            cluster_data = create_sample_cluster_data("test-cluster")
+            mock_ecs.describe_clusters.return_value = {"clusters": [cluster_data]}
+            mock_ecs.list_tasks.side_effect = error
 
-        # Call the function
-        result = await fetch_task_failures("test-app", "test-cluster", ecs_client=mock_ecs)
+        mock_clients = {"ecs": mock_ecs}
 
-        # Check the result
-        assert result["status"] == expected_result["status"]
+        with self.mock_aws_clients(mock_clients):
+            # Call the function (no ecs_client parameter)
+            result = await fetch_task_failures("test-cluster")
 
-        if "has_ecs_error" in expected_result and expected_result["has_ecs_error"]:
-            assert "ecs_error" in result
+            # Check the result
+            assert result["status"] == expected_result["status"]
 
-        if "has_error" in expected_result and expected_result["has_error"]:
-            assert "error" in result
+            if "has_ecs_error" in expected_result and expected_result["has_ecs_error"]:
+                assert "ecs_error" in result
 
-        if "failed_tasks_count" in expected_result:
-            assert len(result["failed_tasks"]) == expected_result["failed_tasks_count"]
+            if "has_error" in expected_result and expected_result["has_error"]:
+                assert "error" in result
+
+            if "failed_tasks_count" in expected_result:
+                assert len(result["failed_tasks"]) == expected_result["failed_tasks_count"]
 
     @pytest.mark.anyio
     async def test_cluster_not_found(self):
         """Test when cluster is not found."""
-        # Use MagicMock for the ECS client
         mock_ecs = MagicMock()
-        mock_ecs.check_cluster_exists = AsyncMock(return_value=(False, None))
+        mock_ecs.describe_clusters.return_value = {"clusters": []}
 
-        result = await fetch_task_failures("test-app", "nonexistent-cluster", ecs_client=mock_ecs)
+        mock_clients = {"ecs": mock_ecs}
 
-        assert result["status"] == "success"
-        assert result["cluster_exists"] is False
-        assert "message" in result
-        assert "does not exist" in result["message"]
-        mock_ecs.check_cluster_exists.assert_called_once_with("nonexistent-cluster")
+        with self.mock_aws_clients(mock_clients):
+            result = await fetch_task_failures("nonexistent-cluster")
+
+            assert result["status"] == "success"
+            assert result["cluster_exists"] is False
+            assert "message" in result
+            assert "does not exist" in result["message"]
+            mock_ecs.describe_clusters.assert_called_once_with(clusters=["nonexistent-cluster"])
 
     @pytest.mark.anyio
     async def test_successful_execution_no_failures(self):
         """Test successful execution with no failures."""
-        # Create mock ECS client
         mock_ecs = MagicMock()
 
         # Set up cluster exists
         cluster_data = create_sample_cluster_data("test-cluster")
-        mock_ecs.check_cluster_exists = AsyncMock(return_value=(True, cluster_data))
+        mock_ecs.describe_clusters.return_value = {"clusters": [cluster_data]}
+        mock_ecs.list_tasks.return_value = {"taskArns": []}
 
-        # Set up get_stopped_tasks and get_running_tasks_count methods
-        mock_ecs.get_stopped_tasks = AsyncMock(return_value=[])
-        mock_ecs.get_running_tasks_count = AsyncMock(return_value=0)
+        mock_clients = {"ecs": mock_ecs}
 
-        result = await fetch_task_failures("test-app", "test-cluster", ecs_client=mock_ecs)
+        with self.mock_aws_clients(mock_clients):
+            result = await fetch_task_failures("test-cluster")
 
-        assert result["status"] == "success"
-        assert result["cluster_exists"] is True
-        assert result["failed_tasks"] == []
-        assert result["failure_categories"] == {}
-        assert "raw_data" in result
-        assert result["raw_data"]["cluster"] == cluster_data
+            assert result["status"] == "success"
+            assert result["cluster_exists"] is True
+            assert result["failed_tasks"] == []
+            assert result["failure_categories"] == {}
+            assert "raw_data" in result
+            assert result["raw_data"]["cluster"] == cluster_data
 
     @pytest.mark.anyio
     async def test_successful_execution_with_failures(self):
         """Test successful execution with failures."""
-        # Create mock ECS client
         mock_ecs = MagicMock()
 
         # Set up cluster exists
         cluster_data = create_sample_cluster_data("test-cluster")
-        mock_ecs.check_cluster_exists = AsyncMock(return_value=(True, cluster_data))
+        mock_ecs.describe_clusters.return_value = {"clusters": [cluster_data]}
 
         # Create sample task data
         task_data = create_sample_task_data(
             task_id="task1", exit_code=1, reason="Application error"
         )
 
-        # Set up get_stopped_tasks and get_running_tasks_count methods
-        mock_ecs.get_stopped_tasks = AsyncMock(return_value=[task_data])
-        mock_ecs.get_running_tasks_count = AsyncMock(return_value=0)
+        # Set up boto3 API responses
+        mock_ecs.list_tasks.return_value = {"taskArns": ["arn:aws:ecs:task/task1"]}
+        mock_ecs.describe_tasks.return_value = {"tasks": [task_data]}
 
-        result = await fetch_task_failures("test-app", "test-cluster", ecs_client=mock_ecs)
+        mock_clients = {"ecs": mock_ecs}
 
-        assert result["status"] == "success"
-        assert result["cluster_exists"] is True
-        assert len(result["failed_tasks"]) == 1
-        assert "application_error" in result["failure_categories"]
-        assert result["failed_tasks"][0]["task_id"] == "task1"
+        with self.mock_aws_clients(mock_clients):
+            result = await fetch_task_failures("test-cluster")
+
+            assert result["status"] == "success"
+            assert result["cluster_exists"] is True
+            assert len(result["failed_tasks"]) == 1
+            assert "application_error" in result["failure_categories"]
+            assert result["failed_tasks"][0]["task_id"] == "task1"
 
     @pytest.mark.anyio
     async def test_multiple_pages_of_tasks(self):
         """Test handling multiple pages of task results."""
-        # Create mock ECS client
         mock_ecs = MagicMock()
 
         # Set up cluster exists
         cluster_data = create_sample_cluster_data("test-cluster")
-        mock_ecs.check_cluster_exists = AsyncMock(return_value=(True, cluster_data))
+        mock_ecs.describe_clusters.return_value = {"clusters": [cluster_data]}
 
         # Create sample task data
         task1_data = create_sample_task_data(task_id="task1", exit_code=1)
         task2_data = create_sample_task_data(task_id="task2", exit_code=137)
         task3_data = create_sample_task_data(task_id="task3", exit_code=139)
 
-        # Set up get_stopped_tasks to return all tasks
-        mock_ecs.get_stopped_tasks = AsyncMock(return_value=[task1_data, task2_data, task3_data])
-        mock_ecs.get_running_tasks_count = AsyncMock(return_value=0)
+        # Set up boto3 API responses
+        mock_ecs.list_tasks.return_value = {
+            "taskArns": [
+                "arn:aws:ecs:task/task1",
+                "arn:aws:ecs:task/task2",
+                "arn:aws:ecs:task/task3",
+            ]
+        }
+        mock_ecs.describe_tasks.return_value = {"tasks": [task1_data, task2_data, task3_data]}
 
-        result = await fetch_task_failures("test-app", "test-cluster", ecs_client=mock_ecs)
+        mock_clients = {"ecs": mock_ecs}
 
-        assert result["status"] == "success"
-        assert len(result["failed_tasks"]) == 3
-        assert "application_error" in result["failure_categories"]
-        assert "out_of_memory" in result["failure_categories"]
-        assert "segmentation_fault" in result["failure_categories"]
+        with self.mock_aws_clients(mock_clients):
+            result = await fetch_task_failures("test-cluster")
+
+            assert result["status"] == "success"
+            assert len(result["failed_tasks"]) == 3
+            assert "application_error" in result["failure_categories"]
+            assert "out_of_memory" in result["failure_categories"]
+            assert "segmentation_fault" in result["failure_categories"]
 
     @pytest.mark.anyio
     async def test_time_window_filtering(self):
         """Test that tasks are properly filtered by time window."""
-        # Create mock ECS client
         mock_ecs = MagicMock()
 
         # Set up cluster exists
         cluster_data = create_sample_cluster_data("test-cluster")
-        mock_ecs.check_cluster_exists = AsyncMock(return_value=(True, cluster_data))
+        mock_ecs.describe_clusters.return_value = {"clusters": [cluster_data]}
 
         now = datetime.datetime.now(datetime.timezone.utc)
 
@@ -514,33 +547,30 @@ class TestFetchTaskFailuresIntegration:
         recent_task = create_sample_task_data(
             task_id="recent_task", stopped_at=now - datetime.timedelta(minutes=30), exit_code=1
         )
-        # We don't need old_task since we're only returning recent_task in the mock
 
-        # Set up get_stopped_tasks to return ONLY the recent task
-        # Since the time filtering happens in the EcsClient.get_stopped_tasks method,
-        # we need to simulate that filtering here in our mock
-        mock_ecs.get_stopped_tasks = AsyncMock(return_value=[recent_task])
-        mock_ecs.get_running_tasks_count = AsyncMock(return_value=0)
+        # Set up boto3 API responses - return only recent task
+        mock_ecs.list_tasks.return_value = {"taskArns": ["arn:aws:ecs:task/recent_task"]}
+        mock_ecs.describe_tasks.return_value = {"tasks": [recent_task]}
 
-        # Test with 1 hour time window - should only include recent task
-        result = await fetch_task_failures(
-            "test-app", "test-cluster", time_window=3600, ecs_client=mock_ecs
-        )
+        mock_clients = {"ecs": mock_ecs}
 
-        assert result["status"] == "success"
-        # Only the recent task should be included since it's within the time window
-        assert len(result["failed_tasks"]) == 1
-        assert result["failed_tasks"][0]["task_id"] == "recent_task"
+        with self.mock_aws_clients(mock_clients):
+            # Test with 1 hour time window - should only include recent task
+            result = await fetch_task_failures("test-cluster", time_window=3600)
+
+            assert result["status"] == "success"
+            # Only the recent task should be included since it's within the time window
+            assert len(result["failed_tasks"]) == 1
+            assert result["failed_tasks"][0]["task_id"] == "recent_task"
 
     @pytest.mark.anyio
     async def test_explicit_time_window(self):
         """Test with explicit start_time and end_time parameters."""
-        # Create mock ECS client
         mock_ecs = MagicMock()
 
         # Set up cluster exists
         cluster_data = create_sample_cluster_data("test-cluster")
-        mock_ecs.check_cluster_exists = AsyncMock(return_value=(True, cluster_data))
+        mock_ecs.describe_clusters.return_value = {"clusters": [cluster_data]}
 
         now = datetime.datetime.now(datetime.timezone.utc)
         start_time = now - datetime.timedelta(hours=2)
@@ -551,156 +581,161 @@ class TestFetchTaskFailuresIntegration:
             task_id="task1", stopped_at=now - datetime.timedelta(minutes=90), exit_code=1
         )
 
-        # Set up get_stopped_tasks to return the task
-        mock_ecs.get_stopped_tasks = AsyncMock(return_value=[task_data])
-        mock_ecs.get_running_tasks_count = AsyncMock(return_value=0)
+        # Set up boto3 API responses
+        mock_ecs.list_tasks.return_value = {"taskArns": ["arn:aws:ecs:task/task1"]}
+        mock_ecs.describe_tasks.return_value = {"tasks": [task_data]}
 
-        result = await fetch_task_failures(
-            "test-app",
-            "test-cluster",
-            start_time=start_time,
-            end_time=end_time,
-            ecs_client=mock_ecs,
-        )
+        mock_clients = {"ecs": mock_ecs}
 
-        assert result["status"] == "success"
-        assert len(result["failed_tasks"]) == 1
+        with self.mock_aws_clients(mock_clients):
+            result = await fetch_task_failures(
+                "test-cluster",
+                start_time=start_time,
+                end_time=end_time,
+            )
+
+            assert result["status"] == "success"
+            assert len(result["failed_tasks"]) == 1
 
     @pytest.mark.anyio
     async def test_running_tasks_count(self):
         """Test that running tasks count is included in results."""
-        # Create mock ECS client
         mock_ecs = MagicMock()
 
-        # Set up cluster exists
+        # Set up cluster exists with 1 running task in cluster statistics
         cluster_data = create_sample_cluster_data("test-cluster")
-        mock_ecs.check_cluster_exists = AsyncMock(return_value=(True, cluster_data))
+        cluster_data["runningTasksCount"] = 1  # Set running tasks count in cluster data
+        mock_ecs.describe_clusters.return_value = {"clusters": [cluster_data]}
 
-        # Set up get_stopped_tasks to return no tasks
-        mock_ecs.get_stopped_tasks = AsyncMock(return_value=[])
+        # Set up boto3 API responses - no stopped tasks (only one call now)
+        mock_ecs.list_tasks.return_value = {"taskArns": []}
 
-        # Set up get_running_tasks_count to return 1
-        mock_ecs.get_running_tasks_count = AsyncMock(return_value=1)
+        mock_clients = {"ecs": mock_ecs}
 
-        result = await fetch_task_failures("test-app", "test-cluster", ecs_client=mock_ecs)
+        with self.mock_aws_clients(mock_clients):
+            result = await fetch_task_failures("test-cluster")
 
-        assert result["status"] == "success"
-        assert result["raw_data"]["running_tasks_count"] == 1
+            assert result["status"] == "success"
+            assert result["raw_data"]["running_tasks_count"] == 1
 
     @pytest.mark.anyio
     async def test_client_error_handling(self):
         """Test client error handling."""
-        # Create mock ECS client
         mock_ecs = MagicMock()
 
         # Set up cluster exists
         cluster_data = create_sample_cluster_data("test-cluster")
-        mock_ecs.check_cluster_exists = AsyncMock(return_value=(True, cluster_data))
+        mock_ecs.describe_clusters.return_value = {"clusters": [cluster_data]}
 
-        # Make get_stopped_tasks raise ClientError
-        mock_ecs.get_stopped_tasks = AsyncMock(
-            side_effect=ClientError(
+        # Make list_tasks raise ClientError for stopped tasks
+        mock_ecs.list_tasks.side_effect = [
+            ClientError(
                 {"Error": {"Code": "AccessDenied", "Message": "Access denied"}}, "ListTasks"
-            )
-        )
-        mock_ecs.get_running_tasks_count = AsyncMock(return_value=0)
+            ),  # First call (stopped tasks) fails
+            {"taskArns": []},  # Second call (running tasks) succeeds
+        ]
 
-        result = await fetch_task_failures("test-app", "test-cluster", ecs_client=mock_ecs)
+        mock_clients = {"ecs": mock_ecs}
 
-        assert result["status"] == "success"
-        # Since the error is caught in EcsClient methods, no ecs_error is added to the response
-        # Instead, we should have empty task lists since those methods return empty lists on error
-        assert result["failed_tasks"] == []
-        assert result["failure_categories"] == {}
+        with self.mock_aws_clients(mock_clients):
+            result = await fetch_task_failures("test-cluster")
+
+            assert result["status"] == "success"
+            # Since the error is caught, we should have empty task lists
+            assert result["failed_tasks"] == []
+            assert result["failure_categories"] == {}
 
     @pytest.mark.anyio
     async def test_cluster_describe_error(self):
         """Test error handling when describing clusters fails."""
-        # Create mock ECS client
         mock_ecs = MagicMock()
 
-        # Make check_cluster_exists raise ClientError
-        mock_ecs.check_cluster_exists = AsyncMock(
-            side_effect=ClientError(
-                {"Error": {"Code": "AccessDenied", "Message": "Access denied"}}, "DescribeClusters"
-            )
+        # Make describe_clusters raise ClientError
+        mock_ecs.describe_clusters.side_effect = ClientError(
+            {"Error": {"Code": "AccessDenied", "Message": "Access denied"}}, "DescribeClusters"
         )
 
-        result = await fetch_task_failures("test-app", "test-cluster", ecs_client=mock_ecs)
+        mock_clients = {"ecs": mock_ecs}
 
-        assert result["status"] == "success"
-        assert "ecs_error" in result
+        with self.mock_aws_clients(mock_clients):
+            result = await fetch_task_failures("test-cluster")
+
+            assert result["status"] == "success"
+            assert "ecs_error" in result
 
     @pytest.mark.anyio
     async def test_general_exception_handling(self):
         """Test general exception handling."""
-        # Create mock ECS client
         mock_ecs = MagicMock()
 
-        # Make check_cluster_exists raise unexpected error
-        mock_ecs.check_cluster_exists = AsyncMock(side_effect=Exception("Unexpected error"))
+        # Make describe_clusters raise unexpected error
+        mock_ecs.describe_clusters.side_effect = Exception("Unexpected error")
 
-        result = await fetch_task_failures("test-app", "test-cluster", ecs_client=mock_ecs)
+        mock_clients = {"ecs": mock_ecs}
 
-        assert result["status"] == "error"
-        assert "error" in result
+        with self.mock_aws_clients(mock_clients):
+            result = await fetch_task_failures("test-cluster")
+
+            assert result["status"] == "error"
+            assert "error" in result
 
     @pytest.mark.anyio
     async def test_empty_task_arns_page(self):
         """Test handling of empty taskArns in paginator response."""
-        # Create mock ECS client
         mock_ecs = MagicMock()
 
         # Set up cluster exists
         cluster_data = create_sample_cluster_data("test-cluster")
-        mock_ecs.check_cluster_exists = AsyncMock(return_value=(True, cluster_data))
+        mock_ecs.describe_clusters.return_value = {"clusters": [cluster_data]}
 
         # Create task data
         task_data = create_sample_task_data(task_id="task1", exit_code=1)
 
-        # Set up get_stopped_tasks to return one task
-        mock_ecs.get_stopped_tasks = AsyncMock(return_value=[task_data])
-        mock_ecs.get_running_tasks_count = AsyncMock(return_value=0)
+        # Set up boto3 API responses
+        mock_ecs.list_tasks.return_value = {"taskArns": ["arn:aws:ecs:task/task1"]}
+        mock_ecs.describe_tasks.return_value = {"tasks": [task_data]}
 
-        result = await fetch_task_failures("test-app", "test-cluster", ecs_client=mock_ecs)
+        mock_clients = {"ecs": mock_ecs}
 
-        assert result["status"] == "success"
-        assert len(result["failed_tasks"]) == 1
+        with self.mock_aws_clients(mock_clients):
+            result = await fetch_task_failures("test-cluster")
+
+            assert result["status"] == "success"
+            assert len(result["failed_tasks"]) == 1
 
     @pytest.mark.anyio
     async def test_tasks_without_stopped_at(self):
         """Test handling of tasks without stoppedAt timestamp."""
-        # Create mock ECS client
         mock_ecs = MagicMock()
 
         # Set up cluster exists
         cluster_data = create_sample_cluster_data("test-cluster")
-        mock_ecs.check_cluster_exists = AsyncMock(return_value=(True, cluster_data))
+        mock_ecs.describe_clusters.return_value = {"clusters": [cluster_data]}
 
-        # Create task without stoppedAt - this will be filtered out by get_stopped_tasks
         # Create task with stoppedAt
         task_with_stopped = create_sample_task_data(task_id="task2", exit_code=1)
 
-        # Set up get_stopped_tasks to return only the task with stoppedAt
-        # In the real implementation, tasks without stoppedAt would be filtered out
-        mock_ecs.get_stopped_tasks = AsyncMock(return_value=[task_with_stopped])
-        mock_ecs.get_running_tasks_count = AsyncMock(return_value=0)
+        # Set up boto3 API responses
+        mock_ecs.list_tasks.return_value = {"taskArns": ["arn:aws:ecs:task/task2"]}
+        mock_ecs.describe_tasks.return_value = {"tasks": [task_with_stopped]}
 
-        result = await fetch_task_failures("test-app", "test-cluster", ecs_client=mock_ecs)
+        mock_clients = {"ecs": mock_ecs}
 
-        assert result["status"] == "success"
-        assert len(result["failed_tasks"]) == 1
-        assert result["failed_tasks"][0]["task_id"] == "task2"
+        with self.mock_aws_clients(mock_clients):
+            result = await fetch_task_failures("test-cluster")
+
+            assert result["status"] == "success"
+            assert len(result["failed_tasks"]) == 1
+            assert result["failed_tasks"][0]["task_id"] == "task2"
 
     @pytest.mark.anyio
     async def test_timezone_handling(self):
         """Test proper timezone handling for datetime comparisons."""
-        # Create mock ECS client
         mock_ecs = MagicMock()
 
         # Set up cluster exists
         cluster_data = create_sample_cluster_data("test-cluster")
-        mock_ecs.check_cluster_exists = AsyncMock(return_value=(True, cluster_data))
+        mock_ecs.describe_clusters.return_value = {"clusters": [cluster_data]}
 
         now = datetime.datetime.now(datetime.timezone.utc)
 
@@ -709,26 +744,27 @@ class TestFetchTaskFailuresIntegration:
         # Make stoppedAt naive (no timezone)
         task_data["stoppedAt"] = now.replace(tzinfo=None)
 
-        # Set up get_stopped_tasks to return the task
-        mock_ecs.get_stopped_tasks = AsyncMock(return_value=[task_data])
-        mock_ecs.get_running_tasks_count = AsyncMock(return_value=0)
+        # Set up boto3 API responses
+        mock_ecs.list_tasks.return_value = {"taskArns": ["arn:aws:ecs:task/task1"]}
+        mock_ecs.describe_tasks.return_value = {"tasks": [task_data]}
 
-        # Use naive start_time as well
-        result = await fetch_task_failures(
-            "test-app", "test-cluster", time_window=3600, ecs_client=mock_ecs
-        )
+        mock_clients = {"ecs": mock_ecs}
 
-        assert result["status"] == "success"
-        assert len(result["failed_tasks"]) == 1
+        with self.mock_aws_clients(mock_clients):
+            # Use naive start_time as well
+            result = await fetch_task_failures("test-cluster", time_window=3600)
+
+            assert result["status"] == "success"
+            assert len(result["failed_tasks"]) == 1
 
     @pytest.mark.anyio
-    async def test_comprehensive_failure_categories(self, mock_aws_client):
+    async def test_comprehensive_failure_categories(self):
         """Test all failure categories are properly detected."""
+        mock_ecs = MagicMock()
+
         # Set up cluster exists
         cluster_data = create_sample_cluster_data("test-cluster")
-        mock_aws_client.describe_clusters.return_value = {"clusters": [cluster_data]}
-        # Add check_cluster_exists method to mock
-        mock_aws_client.check_cluster_exists = AsyncMock(return_value=(True, cluster_data))
+        mock_ecs.describe_clusters.return_value = {"clusters": [cluster_data]}
 
         # Create tasks with different failure types
         tasks = [
@@ -741,30 +777,27 @@ class TestFetchTaskFailuresIntegration:
             create_sample_task_data(task_id="task7", reason="Unknown failure type"),
         ]
 
-        # Set up mocks
-        mock_paginator = mock.Mock()
-        task_arns = [f"task{i}" for i in range(1, 8)]
-        mock_paginator.paginate.return_value = AsyncIterator([{"taskArns": task_arns}])
-        mock_aws_client.get_paginator.return_value = mock_paginator
-        mock_aws_client.describe_tasks.return_value = {"tasks": tasks}
-        # Add get_stopped_tasks method to mock
-        mock_aws_client.get_stopped_tasks = AsyncMock(return_value=tasks)
-        # Add get_running_tasks_count method to mock
-        mock_aws_client.get_running_tasks_count = AsyncMock(return_value=0)
+        # Set up boto3 API responses
+        task_arns = [f"arn:aws:ecs:task/task{i}" for i in range(1, 8)]
+        mock_ecs.list_tasks.return_value = {"taskArns": task_arns}
+        mock_ecs.describe_tasks.return_value = {"tasks": tasks}
 
-        result = await fetch_task_failures("test-app", "test-cluster", ecs_client=mock_aws_client)
+        mock_clients = {"ecs": mock_ecs}
 
-        assert result["status"] == "success"
-        assert len(result["failed_tasks"]) == 7
+        with self.mock_aws_clients(mock_clients):
+            result = await fetch_task_failures("test-cluster")
 
-        # Check all failure categories are present
-        expected_categories = {
-            "application_error",
-            "out_of_memory",
-            "segmentation_fault",
-            "image_pull_failure",
-            "resource_constraint",
-            "dependent_container_stopped",
-            "other",
-        }
-        assert set(result["failure_categories"].keys()) == expected_categories
+            assert result["status"] == "success"
+            assert len(result["failed_tasks"]) == 7
+
+            # Check all failure categories are present
+            expected_categories = {
+                "application_error",
+                "out_of_memory",
+                "segmentation_fault",
+                "image_pull_failure",
+                "resource_constraint",
+                "dependent_container_stopped",
+                "other",
+            }
+            assert set(result["failure_categories"].keys()) == expected_categories

@@ -11,4 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-MCP_SERVER_VERSION = '1.0.0'
+from awslabs.amazon_mq_mcp_server import __version__
+
+
+MCP_SERVER_VERSION = __version__

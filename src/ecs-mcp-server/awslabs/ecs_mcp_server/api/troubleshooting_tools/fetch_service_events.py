@@ -79,7 +79,7 @@ def _extract_filtered_events(
 async def _check_target_group_health(elb_client, target_group_arn: str) -> Optional[Dict[str, Any]]:
     """Check target group health and return any unhealthy targets."""
     try:
-        tg_health = await elb_client.describe_target_health(TargetGroupArn=target_group_arn)
+        tg_health = elb_client.describe_target_health(TargetGroupArn=target_group_arn)
 
         # Find unhealthy targets
         unhealthy_targets = [
@@ -105,7 +105,7 @@ async def _check_port_mismatch(
 ) -> Optional[Dict[str, Any]]:
     """Check if container port and target group port match."""
     try:
-        tg = await elb_client.describe_target_groups(TargetGroupArns=[target_group_arn])
+        tg = elb_client.describe_target_groups(TargetGroupArns=[target_group_arn])
         if tg["TargetGroups"] and tg["TargetGroups"][0]["Port"] != container_port:
             return {
                 "type": "port_mismatch",
@@ -152,7 +152,6 @@ async def _analyze_load_balancer_issues(
 
 
 async def fetch_service_events(
-    app_name: str,
     cluster_name: str,
     service_name: str,
     time_window: int = 3600,
@@ -166,12 +165,10 @@ async def fetch_service_events(
 
     Parameters
     ----------
-    app_name : str
-        The name of the application to analyze
     cluster_name : str
-        The name of the ECS cluster
+        The name of the ECS Cluster
     service_name : str
-        The name of the ECS service to analyze
+        The name of the ECS Service to analyze
     time_window : int, optional
         Time window in seconds to look back for events (default: 3600)
     start_time : datetime, optional
@@ -203,7 +200,7 @@ async def fetch_service_events(
 
         # Check if service exists
         try:
-            services = await ecs.describe_services(cluster=cluster_name, services=[service_name])
+            services = ecs.describe_services(cluster=cluster_name, services=[service_name])
 
             if not services["services"] or services["services"][0]["status"] == "INACTIVE":
                 response["message"] = (

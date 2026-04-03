@@ -8,20 +8,46 @@
       "**/*venv/**",
       "**/site-packages/**",
       ".github/**",
+      "docusaurus/**",
       "docs/**",
-      "**/*requirements.txt"
+      "**/*requirements.txt",
+      "**/*.pyc",
+      "**/trivy-results.sarif",
+      "**/py.typed",
+      "**/*.npz",
+      "**/*.template",
+      "**/*.java",
+      "**/*.js",
+      "**/*.ts",
+      "**/*.cs",
+      "**/*.properties",
+      "**/*.xml",
+      "**/dist/**"
     ],
     "include": [
       "**/*.py",
-      "**/Dockerfile",
-      "**/*.sh"
+      "**/*Dockerfile",
+      "**/*.sh",
+      "**/*.guard",
+      "**/ruff.toml"
     ],
     "license": "./.github/workflows/check-license-header-hash.txt"
   },
   {
+    "exclude": [
+      "docusaurus/**"
+    ],
+    "include": [
+      "**/*.java",
+      "**/*.js",
+      "**/*.ts",
+      "**/*.cs"
+    ],
+    "license": "./.github/workflows/check-license-header-slash.txt"
+  },
+  {
     "include": [
       "**/*.md",
-      "mkdocs.yml",
       "**/LICENSE",
       "**/NOTICE",
       "**/uv.lock",
@@ -36,7 +62,27 @@
       ".venv/**",
       ".github/**",
       "docs/**",
-      "**/*requirements.txt"
+      "docusaurus/**",
+      "**/*requirements.txt",
+      "**/*.js",
+      "**/*.html",
+      "**/*.tsx",
+      "**/*.ts",
+      "**/*.css",
+      "**/*.module.css",
+      "**/yarn.lock",
+      "**/*.pyc",
+      "**/trivy-results.sarif",
+      "**/py.typed",
+      "**/*.npz",
+      "**/*.template",
+      "**/*.properties",
+      "**/*.xml",
+      "**/dist/**",
+      "**/skills/*/scripts",
+      "**/skills/*/references",
+      "**/skills/*/mcp",
+      "**/DO_NOT_RELEASE"
     ]
   }
 ]

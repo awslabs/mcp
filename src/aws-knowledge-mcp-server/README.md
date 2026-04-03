@@ -1,0 +1,160 @@
+# AWS Knowledge MCP Server
+
+A fully managed remote MCP server that provides up-to-date documentation, code samples, agent Standard Operating Procedures (SOPs), knowledge about the regional availability of AWS APIs and CloudFormation resources, and other official AWS content.
+
+This MCP server is in general availability.
+
+**Important Note**: Not all MCP clients today support remote servers. Please make sure that your client supports remote MCP servers or that you have a suitable proxy setup to use this server.
+
+### Key Features
+
+- Real-time access to AWS documentation, API references, troubleshooting guidelines, and architectural guidance
+- Less local setup compared to client-hosted servers
+- Structured access to AWS knowledge for AI agents
+- Regional availability information for AWS APIs and CloudFormation resources
+- Full-stack development guidance including Amplify framework documentation, patterns, and best practices
+- Access the latest CDK and CloudFormation documentation, best practices, and high-quality examples to facilitate a better infrastructure-as-code development experience
+- Access to SOPs - step-by-step, tested guidance for common AWS tasks and workflows for AI agents
+
+### AWS Knowledge capabilities
+
+- **Best practices**: Discover best practices around using AWS APIs and services
+- **API documentation**: Learn about how to call APIs including required and optional parameters and flags
+- **Getting started**: Find out how to quickly get started using AWS services while following best practices
+- **The latest information**: Access the latest announcements about new AWS services and features
+- **Full-stack development**: Learn how to build complete applications using AWS Amplify with frontend and backend integration guidance
+- **Infrastructure as code development**: Access the latest CDK and CloudFormation guidance, best practices, and code examples to model your infrastructure in code
+- **Well-defined SOPs**: step-wise guidance for AI agents on actionable AWS tasks and workflows such as deployment, troubleshooting, security, infrastructure setup, and more
+
+### Tools
+
+1. `search_documentation`: Search across all AWS documentation and agent SOPs with optional topic-based filtering for more targeted result
+2. `read_documentation`: Retrieve and convert AWS documentation pages to markdown
+3. `recommend`: Get content recommendations for AWS documentation pages
+4. `list_regions`: Retrieve a list of all AWS regions, including their identifiers and names
+5. `get_regional_availability`: Retrieve AWS regional availability information for Services, Features, SDK service APIs and CloudFormation resources
+6. `retrieve_agent_sops`: Retrieve the complete workflow for a specific Agent SOP.
+
+### Current knowledge sources
+
+- The latest AWS docs
+- API references
+- What's New posts
+- Getting Started information
+- Blog posts
+- Architectural references
+- Well-Architected guidance
+- Troubleshooting guides and error solutions
+- AWS Amplify Documentation
+- CDK documentation, CLI guides, constructs, and patterns
+- CloudFormation templates and references
+- Agent SOPs for common AWS tasks
+
+### Learn about AWS with natural language
+
+- Ask questions about AWS APIs, best practices, new releases, or architectural guidance
+- Get instant answers from multiple sources of AWS information
+- Retrieve comprehensive guidance and information
+
+## Configuration
+
+You can configure the Knowledge MCP server for use with any MCP client that supports Streamable HTTP transport (HTTP) using the following URL:
+
+```url
+https://knowledge-mcp.global.api.aws
+```
+
+**Note:** The specific configuration format varies by MCP client. Below is an example for [Kiro CLI](https://kiro.dev/). If you are using a different client, refer to your client's documentation on how to add remote MCP servers using the URL above.
+
+**Kiro CLI**
+
+```json
+{
+  "mcpServers": {
+    "aws-knowledge-mcp-server": {
+      "url": "https://knowledge-mcp.global.api.aws",
+      "type": "http",
+      "disabled": false
+    }
+  }
+}
+```
+
+If the client you are using does not support HTTP transport for MCP or if it encounters issues during setup, you can use the [fastmcp](https://github.com/jlowin/fastmcp) utility to proxy from stdio to HTTP transport. Below is a configuration example for the fastmcp utility.
+
+**fastmcp**
+
+```json
+{
+  "mcpServers": {
+    "aws-knowledge-mcp-server": {
+      "command": "uvx",
+      "args": ["fastmcp", "run", "https://knowledge-mcp.global.api.aws"]
+    }
+  }
+}
+```
+
+### One-Click Installation
+
+|   IDE   |                                                                                                                                                   Install                                                                                                                                                   |
+| :-----: | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
+| Kiro | [![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=aws-knowledge-mcp&config=%7B%22url%22%3A%22https%3A//knowledge-mcp.global.api.aws%22%7D) |
+| Cursor  |                                                [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=aws-knowledge-mcp&config=eyJ1cmwiOiJodHRwczovL2tub3dsZWRnZS1tY3AuZ2xvYmFsLmFwaS5hd3MifQ==)                                                 |
+| VS Code | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=aws-knowledge-mcp&config=%7B%22type%22%3A%22http%22%2C%22url%22%3A%22https%3A%2F%2Fknowledge-mcp.global.api.aws%22%7D) |
+
+### MCP Registries
+
+The AWS Knowledge MCP Server is available in the following official MCP registries:
+
+- [Smithery](https://smithery.ai/server/@FaresYoussef94/aws-knowledge-mcp)
+- [Cursor](https://cursor.directory/mcp/aws-knowledge-mcp-1)
+
+We are actively working on onboarding to additional registries to make installation even easier.
+
+### Testing and Troubleshooting
+
+If you want to call the Knowledge MCP server directly, not through an LLM, you can use the [MCP Inspector](https://github.com/modelcontextprotocol/inspector) tool. It provides you with a UI where you can execute `tools/list` and `tools/call` with arbitrary parameters.
+You can use the following command to start MCP Inspector. It will output a URL that you can navigate to in your browser. If you are having trouble connecting to the server, ensure you click on the URL from the terminal because it contains a session token for using MCP Inspector.
+
+```
+npx @modelcontextprotocol/inspector https://knowledge-mcp.global.api.aws
+```
+
+### AWS Authentication
+
+The Knowledge MCP server does not require authentication but is subject to rate limits.
+
+### Data Usage
+
+Telemetry data collected through AWS Knowledge MCP server is not used for machine learning model training or improvement purposes.
+
+### FAQs
+
+#### 1. Should I use the local AWS Documentation MCP Server or the remote AWS Knowledge MCP Server?
+
+The Knowledge server indexes a variety of information sources in addition to AWS Documentation including What's New Posts, Getting Started Information, Blog posts, Architectural references, and Well-Architected guidance. If your MCP client supports remote servers you can easily try the Knowledge MCP server to see if it suits your needs.
+
+#### 2. Do I need network access to use the AWS Knowledge MCP Server?
+
+Yes, you will need to be able to access the public internet to access the AWS Knowledge MCP Server.
+
+#### 3. Do I need an AWS account?
+
+No. You can get started with the Knowledge MCP server without an AWS account. The Knowledge MCP is subject to the [AWS Site Terms](https://aws.amazon.com/terms/)
+
+#### 4. Can I use the AWS Knowledge MCP Server for application development on AWS?
+
+Yes. The Knowledge MCP server provides guidance for building mobile, web, and serverless applications with AWS Amplify, framework-specific examples for web (React/Vue/Angular), mobile (React Native/Android/Swift), and Flutter, and key AWS service patterns for Lambda and API Gateway, authentication with Cognito, GraphQL with AppSync, and CI/CD pipelines with CodePipeline and Amplify Hosting.
+
+#### 5. Can I use AWS Knowledge MCP Server for infrastructure-as-code development?
+
+Yes. The Knowledge MCP server provides comprehensive documentation, templates, and code examples for AWS CloudFormation and AWS CDK (Cloud Development Kit). You can find guidance on defining and deploying AWS resources programmatically across multiple languages, helping you build scalable and maintainable infrastructure automation.
+
+#### 6. Can I use AWS Knowledge MCP Server for AWS Management Console-based development?
+
+Yes. The Knowledge MCP server offers guidance for configuring and managing AWS services directly through the AWS Management Console. Whether you're exploring service capabilities, setting up resources visually, or learning how services work, the server provides the resources needed to effectively manage your AWS applications and infrastructure.
+
+#### 7. Can I use AWS Knowledge MCP Server to find agent-friendly guidance on complex, actionable AWS workflows?
+
+Yes. The Knowledge MCP server is now empowered by a list of high-quality SOPs that provide AI agents step-by-step guidance on complex, error-prone workflows. Such workflows include deployment, troubleshooting, security, infrastructure setup, and more. Leveraging agent SOPs would not only augment the quality of agent responses, but also significantly boost AI efficiency in terms of time and token usage.

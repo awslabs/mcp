@@ -8,6 +8,7 @@ This MCP server provides tools to access AWS documentation, search for content, 
 
 - **Read Documentation**: Fetch and convert AWS documentation pages to markdown format
 - **Search Documentation**: Search AWS documentation using the official search API (global only)
+- **Read Sections**: Fetches sections of AWS documentation page and converts it to markdown format.
 - **Recommendations**: Get content recommendations for AWS documentation pages (global only)
 - **Get Available Services List**: Get a list of available AWS services in China regions (China only)
 
@@ -20,9 +21,11 @@ This MCP server provides tools to access AWS documentation, search for content, 
 
 ## Installation
 
-[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.aws-documentation-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYXdzLWRvY3VtZW50YXRpb24tbWNwLXNlcnZlckBsYXRlc3QiLCJlbnYiOnsiRkFTVE1DUF9MT0dfTEVWRUwiOiJFUlJPUiIsIkFXU19ET0NVTUVOVEFUSU9OX1BBUlRJVElPTiI6ImF3cyJ9LCJkaXNhYmxlZCI6ZmFsc2UsImF1dG9BcHByb3ZlIjpbXX0%3D)
+| Kiro | Cursor | VS Code |
+|:----:|:------:|:-------:|
+| [![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=awslabs.aws-documentation-mcp-server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.aws-documentation-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%2C%22AWS_DOCUMENTATION_PARTITION%22%3A%22aws%22%7D%7D) | [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.aws-documentation-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYXdzLWRvY3VtZW50YXRpb24tbWNwLXNlcnZlckBsYXRlc3QiLCJlbnYiOnsiRkFTVE1DUF9MT0dfTEVWRUwiOiJFUlJPUiIsIkFXU19ET0NVTUVOVEFUSU9OX1BBUlRJVElPTiI6ImF3cyJ9LCJkaXNhYmxlZCI6ZmFsc2UsImF1dG9BcHByb3ZlIjpbXX0%3D) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=AWS%20Documentation%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.aws-documentation-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%2C%22AWS_DOCUMENTATION_PARTITION%22%3A%22aws%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
 
-Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
+Configure the MCP server in your MCP client configuration:
 
 ```json
 {
@@ -32,7 +35,8 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
       "args": ["awslabs.aws-documentation-mcp-server@latest"],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR",
-        "AWS_DOCUMENTATION_PARTITION": "aws"
+        "AWS_DOCUMENTATION_PARTITION": "aws",
+        "MCP_USER_AGENT": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
       },
       "disabled": false,
       "autoApprove": []
@@ -41,7 +45,42 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
 }
 ```
 
+For Kiro MCP configuration, see the [Kiro IDE documentation](https://kiro.dev/docs/mcp/configuration/) or the [Kiro CLI documentation](https://kiro.dev/docs/cli/mcp/configuration/) for details.
+
+For global configuration, edit `~/.kiro/settings/mcp.json`. For project-specific configuration, edit `.kiro/settings/mcp.json` in your project directory.
+
+### Windows Installation
+
+For Windows users, the MCP server configuration format is slightly different:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.aws-documentation-mcp-server": {
+      "disabled": false,
+      "timeout": 60,
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "tool",
+        "run",
+        "--from",
+        "awslabs.aws-documentation-mcp-server@latest",
+        "awslabs.aws-documentation-mcp-server.exe"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "AWS_DOCUMENTATION_PARTITION": "aws"
+      }
+    }
+  }
+}
+```
+
+
 > **Note**: Set `AWS_DOCUMENTATION_PARTITION` to `aws-cn` to query AWS China documentation instead of global AWS documentation.
+>
+> **Corporate Networks**: If you're behind a corporate proxy or firewall that blocks certain User-Agent strings, set `MCP_USER_AGENT` to match your browser's User-Agent to an allowable string.
 
 or docker after a successful `docker build -t mcp/aws-documentation .`:
 
@@ -64,6 +103,26 @@ or docker after a successful `docker build -t mcp/aws-documentation .`:
       "disabled": false,
       "autoApprove": []
     }
+  }
+}
+```
+
+## Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|----------|
+| `FASTMCP_LOG_LEVEL` | Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL) | `WARNING` |
+| `AWS_DOCUMENTATION_PARTITION` | AWS partition (`aws` or `aws-cn`) | `aws` |
+| `MCP_USER_AGENT` | Custom User-Agent string for HTTP requests | Chrome-based default |
+
+### Corporate Network Support
+
+For corporate environments with proxy servers or firewalls that block certain User-Agent strings:
+
+```json
+{
+  "env": {
+    "MCP_USER_AGENT": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
   }
 }
 ```
@@ -92,7 +151,15 @@ read_documentation(url: str) -> str
 Searches AWS documentation using the official AWS Documentation Search API.
 
 ```python
-search_documentation(search_phrase: str, limit: int) -> list[dict]
+search_documentation(ctx: Context, search_phrase: str, limit: int, product_types: Optional[List[str]], guide_types: Optional[List[str]]) -> SearchResponse
+```
+
+### read_sections (global only)
+
+Fetches sections of AWS documentation page and converts it to markdown format.
+
+```python
+read_sections(url: str, section: list[str]) -> list[dict]
 ```
 
 ### recommend (global only)
@@ -110,3 +177,12 @@ Gets a list of available AWS services in China regions.
 ```python
 get_available_services() -> str
 ```
+
+## Development
+
+For getting started with development on the AWS Documentation MCP server, please refer to the awslabs/mcp DEVELOPER_GUIDE first. Everything below this is specific to AWS Documentation MCP Server development.
+
+### Running tests
+
+Unit tests: `uv run --frozen pytest --cov --cov-branch --cov-report=term-missing`
+Unit tests with integration tests: `uv run --frozen pytest --cov --cov-branch --cov-report=term-missing --run-live`

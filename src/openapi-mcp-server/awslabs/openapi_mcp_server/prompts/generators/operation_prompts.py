@@ -20,7 +20,7 @@ from awslabs.openapi_mcp_server.prompts.models import (
 )
 from fastmcp.prompts.prompt import Prompt
 from fastmcp.prompts.prompt import PromptArgument as FastMCPPromptArgument
-from fastmcp.server.openapi import RouteType
+from fastmcp.server.openapi import MCPType
 from typing import Any, Dict, List, Optional
 
 
@@ -178,16 +178,16 @@ def determine_operation_type(server: Any, path: str, method: str) -> str:
         for route in routes:
             route_path = getattr(route, 'path', '')
             route_method = getattr(route, 'method', '')
-            route_type = getattr(route, 'route_type', None)
+            mcp_type = getattr(route, 'mcp_type', None)
 
             # Check if this route matches our operation
-            if route_path == path and route_method.upper() == method.upper() and route_type:
-                # Convert RouteType enum to string
-                if route_type == RouteType.RESOURCE:
+            if route_path == path and route_method.upper() == method.upper() and mcp_type:
+                # Convert MCPType enum to string
+                if mcp_type == MCPType.RESOURCE:
                     operation_type = 'resource'
-                elif route_type == RouteType.RESOURCE_TEMPLATE:
+                elif mcp_type == MCPType.RESOURCE_TEMPLATE:
                     operation_type = 'resource_template'
-                elif route_type == RouteType.TOOL:
+                elif mcp_type == MCPType.TOOL:
                     operation_type = 'tool'
                 break
 
@@ -551,6 +551,17 @@ def create_operation_prompt(
                 param_names = [p.name for p in inspect.signature(base_fn).parameters.values()]
                 named_args = dict(zip(param_names, args))
                 named_args.update(kwargs)
+
+                # Validate required parameters
+                missing_required = []
+                for arg in prompt_arguments:
+                    if arg.required and (
+                        arg.name not in named_args or named_args[arg.name] is None
+                    ):
+                        missing_required.append(arg.name)
+
+                if missing_required:
+                    raise TypeError(f'Missing required argument(s): {", ".join(missing_required)}')
 
                 # Extract the values in the correct order for handler_with_fixed_args
                 arg_values = []

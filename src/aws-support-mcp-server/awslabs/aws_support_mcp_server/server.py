@@ -16,13 +16,6 @@
 import argparse
 import os
 import sys
-from typing import Any, Dict, List, Optional
-
-from botocore.exceptions import ClientError
-from fastmcp import Context, FastMCP
-from loguru import logger
-from pydantic import Field, ValidationError
-
 from awslabs.aws_support_mcp_server.client import SupportClient
 from awslabs.aws_support_mcp_server.consts import (
     DEFAULT_ISSUE_TYPE,
@@ -54,14 +47,19 @@ from awslabs.aws_support_mcp_server.models import (
     AddCommunicationResponse,
     CreateCaseResponse,
     DescribeCasesResponse,
-    ResolveCaseRequest,
     ResolveCaseResponse,
     SupportCase,
 )
+from botocore.exceptions import ClientError
+from fastmcp import Context, FastMCP
+from loguru import logger
+from pydantic import Field, ValidationError
+from typing import Any, Dict, List, Optional
+
 
 # Initialize the MCP server
 mcp = FastMCP(
-    "awslabs_support_mcp_server",
+    'awslabs_support_mcp_server',
     instructions="""
     # AWS Support API MCP Server
 
@@ -206,21 +204,20 @@ mcp = FastMCP(
        - Include context about what the attachment shows
        - Use attachment sets within their 1-hour expiry window
     """,
-    dependencies=["pydantic", "boto3"],
 )
 
 # Initialize the AWS Support client
 try:
     support_client = SupportClient(
-        region_name=os.environ.get("AWS_REGION", DEFAULT_REGION),
-        profile_name=os.environ.get("AWS_PROFILE"),
+        region_name=os.environ.get('AWS_REGION', DEFAULT_REGION),
+        profile_name=os.environ.get('AWS_PROFILE'),
     )
 except Exception as e:
-    logger.error(f"Failed to initialize AWS Support client: {str(e)}")
+    logger.error(f'Failed to initialize AWS Support client: {str(e)}')
     raise
 
 
-@mcp.resource(uri="resource://diagnostics", name="Diagnostics", mime_type="application/json")
+@mcp.resource(uri='resource://diagnostics', name='Diagnostics', mime_type='application/json')
 async def diagnostics_resource() -> str:
     """Get diagnostics information about the server.
 
@@ -249,73 +246,31 @@ async def diagnostics_resource() -> str:
         }
     }
     ```
-
     """
     report = get_diagnostics_report()
-    if not report.get("diagnostics_enabled", False):
+    if not report.get('diagnostics_enabled', False):
         return format_json_response(
-            {"error": "Diagnostics not enabled. Start server with --diagnostics flag."}
+            {'error': 'Diagnostics not enabled. Start server with --diagnostics flag.'}
         )
     return format_json_response(report)
 
 
-@track_performance
-@track_errors
-@track_request("create_support_case")
-@mcp.tool(name="create_support_case")
-async def create_support_case(
+async def _create_support_case_logic(
     ctx: Context,
-    subject: str = Field(..., description="The subject of the support case"),
-    service_code: str = Field(
-        ..., description="The code for the AWS service. Use describe_services get valid codes."
-    ),
-    category_code: str = Field(
-        ...,
-        description="The category code for the issue. Use describe_services to get valid codes.",
-    ),
-    severity_code: str = Field(
-        ...,
-        description="The severity code for the issue. Use describe_severity_levels to get valid codes.",
-    ),
-    communication_body: str = Field(..., description="The initial communication for the case"),
-    cc_email_addresses: Optional[List[str]] = Field(
-        None, description="Email addresses to CC on the case"
-    ),
-    language: str = Field(
-        DEFAULT_LANGUAGE, description="The language of the case (ISO 639-1 code)"
-    ),
-    issue_type: str = Field(
-        DEFAULT_ISSUE_TYPE,
-        description="The type of issue: technical, account-and-billing, or service-limit",
-    ),
-    attachment_set_id: Optional[str] = Field(None, description="The ID of the attachment set"),
+    subject: str,
+    service_code: str,
+    category_code: str,
+    severity_code: str,
+    communication_body: str,
+    cc_email_addresses: Optional[List[str]] = None,
+    language: str = DEFAULT_LANGUAGE,
+    issue_type: str = DEFAULT_ISSUE_TYPE,
+    attachment_set_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Create a new AWS Support case.
-
-    ## Usage Requirements
-    - You must provide a clear subject and detailed communication body
-
-    ## Example
-    ```
-    create_support_case(
-        subject="EC2 instance not starting",
-        service_code="amazon-elastic-compute-cloud-linux",
-        category_code="using-aws",
-        severity_code="urgent",
-        communication_body="My EC2 instance i-1234567890abcdef0 is not starting."
-    )
-    ```
-
-    ## Severity Level Guidelines
-    - low (General guidance): You have a general development question or want to request a feature.
-    - normal (System impaired): Non-critical functions are behaving abnormally or you have a time-sensitive development question.
-    - high (Production system impaired): Important functions are impaired but a workaround exists.
-    - urgent (Production system down): Your business is significantly impacted and no workaround exists.
-    - critical (Business-critical system down): Your business is at risk and critical functions are unavailable.
-    """
+    """Business logic for creating a new AWS Support case."""
     try:
         # Create the case
-        logger.info(f"Creating support case: {subject}")
+        logger.info(f'Creating support case: {subject}')
         response = await support_client.create_case(
             subject=subject,
             service_code=service_code,
@@ -330,73 +285,105 @@ async def create_support_case(
 
         # Create a response model
         result = CreateCaseResponse(
-            caseId=response["caseId"],
-            status="success",
-            message=f"Support case created successfully with ID: {response['caseId']}",
+            caseId=response['caseId'],
+            status='success',
+            message=f'Support case created successfully with ID: {response["caseId"]}',
         )
 
-        return result.model_dump()
+        return result.model_dump(by_alias=True)
     except ValidationError as e:
-        return await handle_validation_error(ctx, e, "create_support_case")
+        return await handle_validation_error(ctx, e, 'create_support_case')
     except ClientError as e:
-        return await handle_client_error(ctx, e, "create_support_case")
+        return await handle_client_error(ctx, e, 'create_support_case')
     except Exception as e:
-        return await handle_general_error(ctx, e, "create_support_case")
+        return await handle_general_error(ctx, e, 'create_support_case')
 
 
+@mcp.tool(name='create_support_case')
 @track_performance
 @track_errors
-@track_request("describe_support_cases")
-@mcp.tool(name="describe_support_cases")
-async def describe_support_cases(
+@track_request('create_support_case')
+async def create_support_case(
     ctx: Context,
-    case_id_list: Optional[List[str]] = Field(None, description="List of case IDs to retrieve"),
-    display_id: Optional[str] = Field(None, description="The display ID of the case"),
-    after_time: Optional[str] = Field(
-        None, description="The start date for a filtered date search (ISO 8601 format)"
+    subject: str = Field(..., description='The subject of the support case'),
+    service_code: str = Field(
+        ..., description='The code for the AWS service. Use describe_services get valid codes.'
     ),
-    before_time: Optional[str] = Field(
-        None, description="The end date for a filtered date search (ISO 8601 format)"
+    category_code: str = Field(
+        ...,
+        description='The category code for the issue. Use describe_services to get valid codes.',
     ),
-    include_resolved_cases: bool = Field(
-        False, description="Include resolved cases in the results"
+    severity_code: str = Field(
+        ...,
+        description='The severity code for the issue. Use describe_severity_levels to get valid codes.',
     ),
-    include_communications: bool = Field(
-        True, description="Include communications in the results"
+    communication_body: str = Field(..., description='The initial communication for the case'),
+    cc_email_addresses: Optional[List[str]] = Field(
+        None, description='Email addresses to CC on the case'
     ),
     language: str = Field(
-        DEFAULT_LANGUAGE, description="The language of the case (ISO 639-1 code)"
+        DEFAULT_LANGUAGE, description='The language of the case (ISO 639-1 code)'
     ),
-    max_results: Optional[int] = Field(
-        None, description="The maximum number of results to return"
+    issue_type: str = Field(
+        DEFAULT_ISSUE_TYPE,
+        description='The type of issue: technical, account-and-billing, or service-limit',
     ),
-    next_token: Optional[str] = Field(None, description="A resumption point for pagination"),
-    format: str = Field("json", description="The format of the response (json or markdown)"),
+    attachment_set_id: Optional[str] = Field(None, description='The ID of the attachment set'),
 ) -> Dict[str, Any]:
-    """Retrieve information about support cases.
+    """Create a new AWS Support case.
 
-    ## Usage
-    - You can retrieve cases by ID, display ID, or date range
-    - You can include or exclude resolved cases and communications
-    - You can paginate through results using the next_token parameter
+    ## Usage Requirements
+    - You must provide a clear subject and detailed communication body
 
     ## Example
     ```
-    describe_support_cases(
-        case_id_list=["case-12345678910-2013-c4c1d2bf33c5cf47"],
-        include_communications=True
+    create_support_case(
+        subject='EC2 instance not starting',
+        service_code='amazon-elastic-compute-cloud-linux',
+        category_code='using-aws',
+        severity_code='urgent',
+        communication_body='My EC2 instance i-1234567890abcdef0 is not starting.',
     )
     ```
 
-    ## Date Format
-    Dates should be provided in ISO 8601 format (e.g., "2023-01-01T00:00:00Z")
-
-    ## Response Format
-    You can request the response in either JSON or Markdown format using the format parameter.
+    ## Severity Level Guidelines
+    - low (General guidance): You have a general development question or want to request a feature.
+    - normal (System impaired): Non-critical functions are behaving abnormally or you have a time-sensitive development question.
+    - high (Production system impaired): Important functions are impaired but a workaround exists.
+    - urgent (Production system down): Your business is significantly impacted and no workaround exists.
+    - critical (Business-critical system down): Your business is at risk and critical functions are unavailable.
     """
+    return await _create_support_case_logic(
+        ctx,
+        subject,
+        service_code,
+        category_code,
+        severity_code,
+        communication_body,
+        cc_email_addresses,
+        language,
+        issue_type,
+        attachment_set_id,
+    )
+
+
+async def _describe_support_cases_logic(
+    ctx: Context,
+    case_id_list: Optional[List[str]] = None,
+    display_id: Optional[str] = None,
+    after_time: Optional[str] = None,
+    before_time: Optional[str] = None,
+    include_resolved_cases: bool = False,
+    include_communications: bool = True,
+    language: str = DEFAULT_LANGUAGE,
+    max_results: Optional[int] = None,
+    next_token: Optional[str] = None,
+    format: str = 'json',
+) -> Dict[str, Any]:
+    """Business logic for retrieving information about support cases."""
     try:
         # Retrieve the cases
-        logger.info("Retrieving support cases")
+        logger.info('Retrieving support cases')
         response = await support_client.describe_cases(
             case_id_list=case_id_list,
             display_id=display_id,
@@ -409,34 +396,98 @@ async def describe_support_cases(
         )
 
         # Format the cases
-        cases = format_cases(response.get("cases", []))
+        cases = format_cases(response.get('cases', []))
 
         # Create a response model
         result = DescribeCasesResponse(
-            cases=[SupportCase(**case) for case in cases], nextToken=response.get("nextToken")
+            cases=[SupportCase(**case) for case in cases], nextToken=response.get('nextToken')
         )
 
         # Return the response in the requested format
-        if format.lower() == "markdown" and cases:
+        if format.lower() == 'markdown' and cases:
             # For markdown format, return a summary of the first case
-            return {"markdown": format_markdown_case_summary(cases[0])}
+            return {'markdown': format_markdown_case_summary(cases[0])}
         else:
             return result.model_dump()
     except ValidationError as e:
-        return await handle_validation_error(ctx, e, "describe_support_cases")
+        return await handle_validation_error(ctx, e, 'describe_support_cases')
     except ClientError as e:
-        return await handle_client_error(ctx, e, "describe_support_cases")
+        return await handle_client_error(ctx, e, 'describe_support_cases')
     except Exception as e:
-        return await handle_general_error(ctx, e, "describe_support_cases")
+        return await handle_general_error(ctx, e, 'describe_support_cases')
 
 
+@mcp.tool(name='describe_support_cases')
 @track_performance
 @track_errors
-@track_request("describe_severity_levels")
-@mcp.tool(name="describe_severity_levels")
+@track_request('describe_support_cases')
+async def describe_support_cases(
+    ctx: Context,
+    case_id_list: Optional[List[str]] = Field(None, description='List of case IDs to retrieve'),
+    display_id: Optional[str] = Field(None, description='The display ID of the case'),
+    after_time: Optional[str] = Field(
+        None, description='The start date for a filtered date search (ISO 8601 format)'
+    ),
+    before_time: Optional[str] = Field(
+        None, description='The end date for a filtered date search (ISO 8601 format)'
+    ),
+    include_resolved_cases: bool = Field(
+        False, description='Include resolved cases in the results'
+    ),
+    include_communications: bool = Field(
+        True, description='Include communications in the results'
+    ),
+    language: str = Field(
+        DEFAULT_LANGUAGE, description='The language of the case (ISO 639-1 code)'
+    ),
+    max_results: Optional[int] = Field(
+        None, description='The maximum number of results to return'
+    ),
+    next_token: Optional[str] = Field(None, description='A resumption point for pagination'),
+    format: str = Field('json', description='The format of the response (json or markdown)'),
+) -> Dict[str, Any]:
+    """Retrieve information about support cases.
+
+    ## Usage
+    - You can retrieve cases by ID, display ID, or date range
+    - You can include or exclude resolved cases and communications
+    - You can paginate through results using the next_token parameter
+
+    ## Example
+    ```
+    describe_support_cases(
+        case_id_list=['case-12345678910-2013-c4c1d2bf33c5cf47'], include_communications=True
+    )
+    ```
+
+    ## Date Format
+    Dates should be provided in ISO 8601 format (e.g., "2023-01-01T00:00:00Z")
+
+    ## Response Format
+    You can request the response in either JSON or Markdown format using the format parameter.
+    """
+    return await _describe_support_cases_logic(
+        ctx,
+        case_id_list,
+        display_id,
+        after_time,
+        before_time,
+        include_resolved_cases,
+        include_communications,
+        language,
+        max_results,
+        next_token,
+        format,
+    )
+
+
+@mcp.tool(name='describe_severity_levels')
+@track_performance
+@track_errors
+@track_request('describe_severity_levels')
 async def describe_severity_levels(
     ctx: Context,
-    format: str = Field("json", description="The format of the response in markdown or json"),
+    format: str = Field('json', description='The format of the response in markdown or json'),
 ) -> Dict[str, Any]:
     """Retrieve information about AWS Support severity levels. This tool provides details about the available severity levels for AWS Support cases, including their codes and descriptions.
 
@@ -451,7 +502,7 @@ async def describe_severity_levels(
     describe_severity_levels()
 
     # Get severity levels in Markdown format
-    describe_severity_levels(format="markdown")
+    describe_severity_levels(format='markdown')
     ```
     ## Severity Level Guidelines
     - low (General guidance): You have a general development question or want to request a feature
@@ -463,36 +514,70 @@ async def describe_severity_levels(
     """
     try:
         # Retrieve severity levels from the AWS Support API
-        logger.debug("Retrieving AWS severity levels")
+        logger.debug('Retrieving AWS severity levels')
         response = await support_client.describe_severity_levels()
 
         # Format the severity levels data
-        severity_levels = format_severity_levels(response.get("severityLevels", []))
+        severity_levels = format_severity_levels(response.get('severityLevels', []))
 
         # Return the response in the requested format
         return (
-            {"markdown": format_markdown_severity_levels(severity_levels)}
-            if format.lower() == "markdown"
+            {'markdown': format_markdown_severity_levels(severity_levels)}
+            if format.lower() == 'markdown'
             else severity_levels
         )
     except ClientError as e:
-        return await handle_client_error(ctx, e, "describe_severity_levels")
+        return await handle_client_error(ctx, e, 'describe_severity_levels')
     except Exception as e:
-        return await handle_general_error(ctx, e, "describe_severity_levels")
+        return await handle_general_error(ctx, e, 'describe_severity_levels')
 
 
+async def _add_communication_to_case_logic(
+    ctx: Context,
+    case_id: str,
+    communication_body: str,
+    cc_email_addresses: Optional[List[str]] = None,
+    attachment_set_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Business logic for adding communication to a support case."""
+    try:
+        # Add the communication
+        logger.info(f'Adding communication to support case: {case_id}')
+        response = await support_client.add_communication_to_case(
+            case_id=case_id,
+            communication_body=communication_body,
+            cc_email_addresses=cc_email_addresses,
+            attachment_set_id=attachment_set_id,
+        )
+
+        # Create a response model
+        result = AddCommunicationResponse(
+            result=response['result'],
+            status='success',
+            message=f'Communication added successfully to case: {case_id}',
+        )
+
+        return result.model_dump()
+    except ValidationError as e:
+        return await handle_validation_error(ctx, e, 'add_communication_to_case')
+    except ClientError as e:
+        return await handle_client_error(ctx, e, 'add_communication_to_case')
+    except Exception as e:
+        return await handle_general_error(ctx, e, 'add_communication_to_case')
+
+
+@mcp.tool(name='add_communication_to_case')
 @track_performance
 @track_errors
-@track_request("add_communication_to_case")
-@mcp.tool(name="add_communication_to_case")
+@track_request('add_communication_to_case')
 async def add_communication_to_case(
     ctx: Context,
-    case_id: str = Field(..., description="The ID of the support case"),
-    communication_body: str = Field(..., description="The text of the communication"),
+    case_id: str = Field(..., description='The ID of the support case'),
+    communication_body: str = Field(..., description='The text of the communication'),
     cc_email_addresses: Optional[List[str]] = Field(
-        None, description="Email addresses to CC on the communication"
+        None, description='Email addresses to CC on the communication'
     ),
-    attachment_set_id: Optional[str] = Field(None, description="The ID of the attachment set"),
+    attachment_set_id: Optional[str] = Field(None, description='The ID of the attachment set'),
 ) -> Dict[str, Any]:
     """Add communication to a support case.
 
@@ -505,44 +590,50 @@ async def add_communication_to_case(
     ## Example
     ```
     add_communication_to_case(
-        case_id="case-12345678910-2013-c4c1d2bf33c5cf47",
-        communication_body="Here is an update on my issue..."
+        case_id='case-12345678910-2013-c4c1d2bf33c5cf47',
+        communication_body='Here is an update on my issue...',
     )
     ```
     """
+    return await _add_communication_to_case_logic(
+        ctx, case_id, communication_body, cc_email_addresses, attachment_set_id
+    )
+
+
+async def _resolve_support_case_logic(
+    ctx: Context,
+    case_id: str,
+) -> Dict[str, Any]:
+    """Business logic for resolving a support case."""
     try:
-        # Add the communication
-        logger.info(f"Adding communication to support case: {case_id}")
-        response = await support_client.add_communication_to_case(
-            case_id=case_id,
-            communication_body=communication_body,
-            cc_email_addresses=cc_email_addresses,
-            attachment_set_id=attachment_set_id,
-        )
+        # Resolve the case
+        logger.info(f'Resolving support case: {case_id}')
+        response = await support_client.resolve_case(case_id=case_id)
 
         # Create a response model
-        result = AddCommunicationResponse(
-            result=response["result"],
-            status="success",
-            message=f"Communication added successfully to case: {case_id}",
+        result = ResolveCaseResponse(
+            initialCaseStatus=response['initialCaseStatus'],
+            finalCaseStatus=response['finalCaseStatus'],
+            status='success',
+            message=f'Support case resolved successfully: {case_id}',
         )
 
-        return result.model_dump()
+        return result.model_dump(by_alias=True)
     except ValidationError as e:
-        return await handle_validation_error(ctx, e, "add_communication_to_case")
+        return await handle_validation_error(ctx, e, 'resolve_support_case')
     except ClientError as e:
-        return await handle_client_error(ctx, e, "add_communication_to_case")
+        return await handle_client_error(ctx, e, 'resolve_support_case')
     except Exception as e:
-        return await handle_general_error(ctx, e, "add_communication_to_case")
+        return await handle_general_error(ctx, e, 'resolve_support_case')
 
 
+@mcp.tool(name='resolve_support_case')
 @track_performance
 @track_errors
-@track_request("resolve_support_case")
-@mcp.tool(name="resolve_support_case")
+@track_request('resolve_support_case')
 async def resolve_support_case(
     ctx: Context,
-    case_id: str = Field(..., description="The ID of the support case"),
+    case_id: str = Field(..., description='The ID of the support case'),
 ) -> Dict[str, Any]:
     """Resolve a support case.
 
@@ -552,52 +643,26 @@ async def resolve_support_case(
 
     ## Example
     ```
-    resolve_support_case(
-        case_id="case-12345678910-2013-c4c1d2bf33c5cf47"
-    )
+    resolve_support_case(case_id='case-12345678910-2013-c4c1d2bf33c5cf47')
     ```
     """
-    try:
-        # Create a request model
-        request = ResolveCaseRequest(
-            caseId=case_id,
-        )
-
-        # Resolve the case
-        logger.info(f"Resolving support case: {case_id}")
-        response = await support_client.resolve_case(**request.to_api_params())
-
-        # Create a response model
-        result = ResolveCaseResponse(
-            initialCaseStatus=response["initialCaseStatus"],
-            finalCaseStatus=response["finalCaseStatus"],
-            status="success",
-            message=f"Support case resolved successfully: {case_id}",
-        )
-
-        return result.model_dump()
-    except ValidationError as e:
-        return await handle_validation_error(ctx, e, "resolve_support_case")
-    except ClientError as e:
-        return await handle_client_error(ctx, e, "resolve_support_case")
-    except Exception as e:
-        return await handle_general_error(ctx, e, "resolve_support_case")
+    return await _resolve_support_case_logic(ctx, case_id)
 
 
+@mcp.tool(name='describe_services')
 @track_performance
 @track_errors
-@track_request("describe_services")
-@mcp.tool(name="describe_services")
+@track_request('describe_services')
 async def describe_services(
     ctx: Context,
     service_code_list: Optional[List[str]] = Field(
-        None, description="Optional list of service codes to filter results"
+        None, description='Optional list of service codes to filter results'
     ),
     language: str = Field(
         DEFAULT_LANGUAGE,
         description="The language code (e.g., 'en' for English, 'ja' for Japanese)",
     ),
-    format: str = Field("json", description="The format of the response (json or markdown)"),
+    format: str = Field('json', description='The format of the response (json or markdown)'),
 ) -> Dict[str, Any]:
     """Retrieve information about AWS services available for support cases.
 
@@ -616,15 +681,13 @@ async def describe_services(
     describe_services()
 
     # Get specific services
-    describe_services(
-        service_code_list=["amazon-elastic-compute-cloud-linux", "amazon-s3"]
-    )
+    describe_services(service_code_list=['amazon-elastic-compute-cloud-linux', 'amazon-s3'])
 
     # Get services in Japanese
-    describe_services(language="ja")
+    describe_services(language='ja')
 
     # Get services in Markdown format
-    describe_services(format="markdown")
+    describe_services(format='markdown')
     ```
 
     ## Response Format
@@ -642,36 +705,36 @@ async def describe_services(
     """
     try:
         # Retrieve services from the AWS Support API
-        logger.debug("Retrieving AWS services")
+        logger.debug('Retrieving AWS services')
         response = await support_client.describe_services(
             language=language, service_code_list=service_code_list
         )
 
         # Format the services data
-        services = format_services(response.get("services", []))
+        services = format_services(response.get('services', []))
 
         # Return the response in the requested format
         return (
-            {"markdown": format_markdown_services(services)}
-            if format.lower() == "markdown"
+            {'markdown': format_markdown_services(services)}
+            if format.lower() == 'markdown'
             else services
         )
     except ClientError as e:
-        return await handle_client_error(ctx, e, "describe_services")
+        return await handle_client_error(ctx, e, 'describe_services')
     except Exception as e:
-        return await handle_general_error(ctx, e, "describe_services")
+        return await handle_general_error(ctx, e, 'describe_services')
 
 
 def main():
     """Run the MCP server with CLI argument support."""
-    parser = argparse.ArgumentParser(description="AWS Support API MCP Server")
+    parser = argparse.ArgumentParser(description='AWS Support API MCP Server')
     parser.add_argument(
-        "--log-file",
+        '--log-file',
         type=str,
-        help="Path to save the log file. If not provided with --debug, logs to stderr only",
+        help='Path to save the log file. If not provided with --debug, logs to stderr only',
     )
-    parser.add_argument("--port", type=int, default=8888, help="Port to run the server on")
-    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
+    parser.add_argument('--debug', action='store_true', help='Enable debug logging')
 
     args = parser.parse_args()
 
@@ -680,20 +743,20 @@ def main():
     logger.remove()
 
     # Set up console logging with appropriate level
-    log_level = "DEBUG" if args.debug else "INFO"
+    log_level = 'DEBUG' if args.debug else 'INFO'
     logger.add(
         sys.stderr,
         level=log_level,
-        format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+        format='<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>',
     )
 
     # Set up file logging if debug mode is enabled and log file path is provided
     if args.debug:
         # Configure enhanced logging format for debug mode
-        diagnostics_format = "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} | {thread}:{process} | {extra} - {message}"
+        diagnostics_format = '{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} | {thread}:{process} | {extra} - {message}'
 
         # Configure logger with extra diagnostic info
-        logger.configure(extra={"diagnostics": True})
+        logger.configure(extra={'diagnostics': True})
 
         # Enable diagnostics tracking
         diagnostics.enable()
@@ -705,33 +768,33 @@ def main():
             log_dir = os.path.dirname(log_file)
             if not os.path.exists(log_dir):
                 os.makedirs(log_dir)
-                logger.info(f"Created log directory: {log_dir}")
+                logger.info(f'Created log directory: {log_dir}')
 
             logger.add(
                 log_file,
-                level="DEBUG",
-                rotation="10 MB",
-                retention="1 week",
+                level='DEBUG',
+                rotation='10 MB',
+                retention='1 week',
                 format=diagnostics_format,
             )
-            logger.info(f"AWS Support MCP Server starting up. Log file: {log_file}")
+            logger.info(f'AWS Support MCP Server starting up. Log file: {log_file}')
 
-    logger.info(f"Debug mode: {args.debug}")
+    logger.info(f'Debug mode: {args.debug}')
 
     if args.debug:
         # Enable more detailed error tracking and performance monitoring
-        logger.debug("Enabling detailed performance tracking and error monitoring")
+        logger.debug('Enabling detailed performance tracking and error monitoring')
         # Hook into FastMCP to track performance
         mcp.settings.debug = True
         # You could add more diagnostics setup here
 
-    logger.debug("Starting awslabs_support_mcp_server MCP server")
+    logger.debug('Starting awslabs_support_mcp_server MCP server')
 
     # Log the startup mode
-    logger.info("Starting AWS Support MCP Server with stdio transport")
+    logger.info('Starting AWS Support MCP Server with stdio transport')
     # Run with stdio transport
-    mcp.run(transport="stdio")
+    mcp.run(transport='stdio')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

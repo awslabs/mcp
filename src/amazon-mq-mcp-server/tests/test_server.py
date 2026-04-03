@@ -78,7 +78,8 @@ class TestCreateBrokerOverride:
         deployment_mode = 'SINGLE_INSTANCE'
         publicly_accessible = False
         auto_minor_version_upgrade = True
-        users = [{'Username': 'tu', 'Password': 'tp'}]  # pragma: allowlist secret
+        username = 'tu'
+        password = 'tp'  # pragma: allowlist secret
         region = 'us-west-2'
 
         # Call the function
@@ -90,7 +91,8 @@ class TestCreateBrokerOverride:
             deployment_mode=deployment_mode,
             publicly_accessible=publicly_accessible,
             auto_minor_version_upgrade=auto_minor_version_upgrade,
-            users=users,
+            username=username,
+            password=password,
             region=region,
         )
 
@@ -106,7 +108,73 @@ class TestCreateBrokerOverride:
             DeploymentMode=deployment_mode,
             PubliclyAccessible=publicly_accessible,
             AutoMinorVersionUpgrade=auto_minor_version_upgrade,
-            Users=users,
+            Users=[
+                {
+                    'ConsoleAccess': True,
+                    'Password': password,
+                    'Username': username,
+                }
+            ],
+            Tags={'mcp_server_version': MCP_SERVER_VERSION},
+        )
+
+    @patch('boto3.client')
+    def test_handle_create_broker_without_engine_version(self, mock_boto3_client):
+        """Test the handle_create_broker function without engine_version parameter."""
+        # Setup mock MCP
+        mock_mcp = MagicMock()
+        mock_tool_decorator = MagicMock()
+        mock_mcp.tool.return_value = mock_tool_decorator
+
+        # Setup mock client getter
+        mock_client = MagicMock()
+        mock_client_getter = MagicMock(return_value=mock_client)
+
+        # Call create_broker_override to get the decorated function
+        create_broker_override(mock_mcp, mock_client_getter, 'us-east-1')
+
+        # Get the decorated function
+        handle_create_broker = mock_tool_decorator.call_args[0][0]
+
+        # Test parameters without engine_version
+        broker_name = 'test-broker'
+        engine_type = 'RABBITMQ'
+        host_instance_type = 'mq.t3.micro'
+        deployment_mode = 'SINGLE_INSTANCE'
+        publicly_accessible = False
+        auto_minor_version_upgrade = True
+        username = 'tu'
+        password = 'tp'  # pragma: allowlist secret
+        region = 'us-west-2'
+
+        # Call the function without engine_version
+        handle_create_broker(
+            broker_name=broker_name,
+            engine_type=engine_type,
+            host_instance_type=host_instance_type,
+            deployment_mode=deployment_mode,
+            publicly_accessible=publicly_accessible,
+            auto_minor_version_upgrade=auto_minor_version_upgrade,
+            username=username,
+            password=password,
+            region=region,
+        )
+
+        # Check that create_broker was called without EngineVersion parameter
+        mock_client.create_broker.assert_called_once_with(
+            BrokerName=broker_name,
+            EngineType=engine_type,
+            HostInstanceType=host_instance_type,
+            DeploymentMode=deployment_mode,
+            PubliclyAccessible=publicly_accessible,
+            AutoMinorVersionUpgrade=auto_minor_version_upgrade,
+            Users=[
+                {
+                    'ConsoleAccess': True,
+                    'Password': password,
+                    'Username': username,
+                }
+            ],
             Tags={'mcp_server_version': MCP_SERVER_VERSION},
         )
 
