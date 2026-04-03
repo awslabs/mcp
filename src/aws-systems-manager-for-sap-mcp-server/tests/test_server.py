@@ -54,3 +54,27 @@ class TestServerInitialization:
         assert 'delete_schedule' in tool_names
         assert 'update_schedule_state' in tool_names
         assert 'get_schedule_details' in tool_names
+
+    def test_server_exception_handler(self):
+        """Test that server re-raises exceptions during tool registration (lines 165-167)."""
+        from unittest.mock import patch, MagicMock
+
+        # Patch one of the tool classes to raise during init
+        with patch(
+            'awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.SSMSAPApplicationTools'
+        ) as mock_app_tools:
+            mock_app_tools.side_effect = RuntimeError('Registration failed')
+            import importlib
+            import pytest
+            with pytest.raises(RuntimeError, match='Registration failed'):
+                import awslabs.aws_systems_manager_for_sap_mcp_server.server as server_mod
+                importlib.reload(server_mod)
+
+    def test_main_function(self):
+        """Test that main() calls mcp.run() (line 177)."""
+        from unittest.mock import patch
+        from awslabs.aws_systems_manager_for_sap_mcp_server.server import main
+
+        with patch('awslabs.aws_systems_manager_for_sap_mcp_server.server.mcp') as mock_mcp:
+            main()
+            mock_mcp.run.assert_called_once()
