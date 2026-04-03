@@ -571,7 +571,6 @@ async def test_call_aws_security_policy_elicit(
         metadata=None,
         validation_failures=None,
         missing_context_failures=None,
-        failed_constraints=None,
     )
     mock_interpret.return_value = mock_result
 

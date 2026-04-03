@@ -115,7 +115,6 @@ class ProgramInterpretationResponse(BaseModel):
     metadata: InterpretationMetadata | None = Field(default=None)
     validation_failures: list[ValidationFailure] | None = Field(default=None)
     missing_context_failures: list[ValidationFailure] | None = Field(default=None)
-    failed_constraints: list[str] | None = Field(default=None)
 
 
 class Consent(BaseModel):
@@ -194,9 +193,6 @@ class InterpretedProgram:
 
     """The pagination token returned by paginated APIs"""
     pagination_token: str | None = None
-
-    """List of constraints that failed validation on the underlying intermediate representation"""
-    failed_constraints: list[str] | None = None
 
     """The region where program is interpreted"""
     region_name: str | None = None

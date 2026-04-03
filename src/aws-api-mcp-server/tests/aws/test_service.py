@@ -220,7 +220,6 @@ def test_interpret_returns_valid_response(
             response = interpret_command(cli_command=cli)
         assert response == ProgramInterpretationResponse(
             response=InterpretationResponse(json=as_json(output), error=None, status_code=200),
-            failed_constraints=[],
             metadata=InterpretationMetadata(
                 service=service,
                 operation=operation,

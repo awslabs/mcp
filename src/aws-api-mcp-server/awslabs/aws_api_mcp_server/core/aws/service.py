@@ -209,13 +209,7 @@ def interpret_command(
         if not interpreted_program.translation.missing_context_failures
         else interpreted_program.translation.missing_context_failures
     )
-    failed_constraints = interpreted_program.failed_constraints or []
-
-    if (
-        not validation_failures
-        and not missing_context_failures
-        and not interpreted_program.failed_constraints
-    ):
+    if not validation_failures and not missing_context_failures:
         response = InterpretationResponse(
             json=interpreted_program.response,
             error=interpreted_program.service_error,
@@ -231,7 +225,6 @@ def interpret_command(
         metadata=_ir_metadata(interpreted_program),
         validation_failures=_to_validation_failures(validation_failures),
         missing_context_failures=_to_missing_context_failures(missing_context_failures),
-        failed_constraints=failed_constraints,
     )
 
 
