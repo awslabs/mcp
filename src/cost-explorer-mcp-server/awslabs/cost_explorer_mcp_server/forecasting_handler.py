@@ -62,7 +62,7 @@ async def get_cost_forecast(
         description=f'The confidence level for the forecast prediction interval. Valid values are {" and ".join(map(str, VALID_PREDICTION_INTERVALS))}. Higher values provide wider confidence ranges.',
     ),
 ) -> Dict[str, Any]:
-    """Retrieve AWS cost forecasts based on historical usage patterns.
+    """[DEPRECATED] Retrieve AWS cost forecasts based on historical usage patterns.
 
     This tool generates cost forecasts for future periods using AWS Cost Explorer's machine learning models.
     Forecasts are based on your historical usage patterns and can help with budget planning and cost optimization.

@@ -42,10 +42,11 @@ class MockFunctionTool:
 class MockFastMCP:
     """Mock implementation of the FastMCP class for testing purposes."""
 
-    def __init__(self, description=None, dependencies=None):
+    def __init__(self, description=None, dependencies=None, instructions=None):
         """Initialize the MockFastMCP with a description and dependencies."""
         self.description = description
         self.dependencies = dependencies or []
+        self.instructions = instructions
         self.tools = {}
         self.imported_servers = {}
 

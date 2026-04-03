@@ -12,18 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import awscli.argprocess
+import awscli.customizations.arguments
+import awscli.customizations.ecs.deploy
+import awscli.paramfile
 import os
 import pytest
 from awslabs.aws_api_mcp_server.core.common.command_metadata import CommandMetadata
 from awslabs.aws_api_mcp_server.core.common.config import WORKING_DIRECTORY, FileAccessMode
-from awslabs.aws_api_mcp_server.core.common.errors import FilePathValidationError
+from awslabs.aws_api_mcp_server.core.common.errors import (
+    FilePathValidationError,
+    SanitizedException,
+)
 from awslabs.aws_api_mcp_server.core.common.file_system_controls import (
     CUSTOM_FILE_PATH_ARGUMENTS,
     extract_file_paths_from_parameters,
     validate_file_path,
 )
 from awslabs.aws_api_mcp_server.core.parser.parser import ALLOWED_CUSTOM_OPERATIONS
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+
+
+SECRET_VALUE = 's3cr3t'  # pragma: allowlist secret
 
 
 def test_safe_path_allowed():
@@ -138,3 +148,48 @@ def test_extract_file_paths_parameter_none_value():
     result = extract_file_paths_from_parameters(command_metadata, parameters)
 
     assert result == []
+
+
+@patch.dict(os.environ, {'MY_SECRET': SECRET_VALUE})
+@patch('awscli.argprocess.os.path.isfile', return_value=True)
+@patch('awscli.argprocess.open', side_effect=OSError(f'No such file: {SECRET_VALUE}'))
+def test_unpack_scalar_cli_arg_is_patched(_mock_open, _mock_isfile):
+    """Test that unpack_scalar_cli_arg is patched and does not leak secrets."""
+    argument_model = MagicMock()
+    argument_model.type_name = 'blob'
+    argument_model.serialization = {'streaming': True}
+
+    with pytest.raises(SanitizedException) as exc_info:
+        awscli.argprocess.unpack_scalar_cli_arg(argument_model, '$MY_SECRET')
+    assert SECRET_VALUE not in str(exc_info.value)
+
+
+@patch.dict(os.environ, {'MY_SECRET': SECRET_VALUE})
+@patch('awscli.customizations.arguments.os.access', return_value=False)
+def test_resolve_given_outfile_path_is_patched(_mock_access):
+    """Test that resolve_given_outfile_path is patched and does not leak secrets."""
+    with pytest.raises(SanitizedException) as exc_info:
+        awscli.customizations.arguments.resolve_given_outfile_path('$MY_SECRET')
+    assert SECRET_VALUE not in str(exc_info.value)
+
+
+@patch.dict(os.environ, {'MY_SECRET': SECRET_VALUE})
+@patch('awscli.paramfile.compat_open', side_effect=OSError(f'No such file: {SECRET_VALUE}'))
+def test_paramfile_get_file_is_patched(_mock_open):
+    """Test that paramfile.get_file is patched and does not leak secrets."""
+    with pytest.raises(SanitizedException) as exc_info:
+        awscli.paramfile.get_file('file://', 'file://$MY_SECRET', 'r')
+    assert SECRET_VALUE not in str(exc_info.value)
+
+
+@patch.dict(os.environ, {'MY_SECRET': SECRET_VALUE})
+@patch(
+    'awscli.customizations.ecs.deploy.compat_open',
+    side_effect=OSError(f'No such file: {SECRET_VALUE}'),
+)
+def test_ecs_deploy_get_file_contents_is_patched(_mock_open):
+    """Test that ECSDeploy._get_file_contents is patched and does not leak secrets."""
+    instance = MagicMock(spec=awscli.customizations.ecs.deploy.ECSDeploy)
+    with pytest.raises(SanitizedException) as exc_info:
+        awscli.customizations.ecs.deploy.ECSDeploy._get_file_contents(instance, '$MY_SECRET')
+    assert SECRET_VALUE not in str(exc_info.value)
