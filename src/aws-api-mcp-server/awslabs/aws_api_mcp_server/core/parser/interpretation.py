@@ -29,6 +29,7 @@ from ..common.file_system_controls import validate_file_path
 from ..common.helpers import Boto3Encoder, operation_timer
 from botocore.config import Config
 from jmespath.parser import ParsedResult
+from loguru import logger
 from typing import Any
 
 
@@ -85,6 +86,7 @@ def interpret(
         else:
             operation = getattr(client, ir.operation_python_name)
             response = operation(**parameters)
+            logger.debug(f'Received response with metadata: {response.get("ResponseMetadata")}')
 
             if client_side_filter is not None:
                 response = _apply_filter(response, client_side_filter)
