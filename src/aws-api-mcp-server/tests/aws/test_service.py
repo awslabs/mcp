@@ -188,8 +188,9 @@ def test_interpret_returns_valid_response(
         ):
             history.events.clear()
             response = interpret_command(cli_command=cli)
+        expected_output = {k: v for k, v in output.items() if k != 'ResponseMetadata'}
         assert response == InterpretationResponse(
-            json=as_json(output), error=None, status_code=200
+            json=as_json(expected_output), error=None, status_code=200
         )
         assert event in history.events
 
