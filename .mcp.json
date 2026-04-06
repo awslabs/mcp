@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "mcp": {
+      "command": "npx",
+      "args": [
+        "awslabs-mcp"
+      ]
+    }
+  }
+}

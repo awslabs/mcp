@@ -1,0 +1,16 @@
+{
+  "name": "mcp",
+  "version": "0.1.0",
+  "description": "Official MCP Servers for AWS",
+  "author": {
+    "name": "awslabs",
+    "url": "https://github.com/awslabs"
+  },
+  "homepage": "https://github.com/awslabs/mcp",
+  "repository": "https://github.com/awslabs/mcp",
+  "keywords": [
+    "mcp",
+    "codex"
+  ],
+  "mcpServers": "./.mcp.json"
+}
