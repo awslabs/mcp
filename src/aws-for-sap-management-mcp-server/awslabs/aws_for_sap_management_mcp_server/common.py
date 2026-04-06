@@ -39,3 +39,46 @@ def format_datetime(dt: Any) -> str:
 def safe_json_serialize(obj: Any) -> str:
     """Serialize an object to JSON, handling datetime and other non-serializable types."""
     return json.dumps(obj, indent=2, default=str)
+
+
+async def request_consent(operation_description: str, acknowledgment_text: str, ctx) -> None:
+    """Request explicit user consent before executing a mutating operation.
+
+    Raises ValueError if the user rejects or the client doesn't support elicitation.
+
+    Args:
+        operation_description: Human-readable description of the operation.
+        acknowledgment_text: Text the user must acknowledge.
+        ctx: MCP context object supporting elicitation.
+    """
+    from mcp.shared.exceptions import McpError
+    from mcp.types import METHOD_NOT_FOUND
+    from pydantic import BaseModel, Field
+
+    try:
+        ConsentModel = type(
+            'Consent',
+            (BaseModel,),
+            {
+                '__annotations__': {'acknowledge': bool},
+                'acknowledge': Field(description=acknowledgment_text),
+            },
+        )
+
+        elicitation_result = await ctx.elicit(
+            message=(
+                f'{operation_description}\n\n'
+                'Please review and acknowledge the risk before proceeding.'
+            ),
+            schema=ConsentModel,
+        )
+
+        if elicitation_result.action != 'accept' or not elicitation_result.data.acknowledge:
+            raise ValueError('User rejected the operation.')
+    except McpError as e:
+        if e.error.code == METHOD_NOT_FOUND:
+            raise ValueError(
+                'Client does not support elicitation. '
+                'Cannot proceed without user confirmation for this operation.'
+            )
+        raise e

@@ -16,7 +16,7 @@
 
 import asyncio
 from awslabs.aws_for_sap_management_mcp_server.client_factory import get_aws_client
-from awslabs.aws_for_sap_management_mcp_server.common import format_datetime
+from awslabs.aws_for_sap_management_mcp_server.common import format_datetime, request_consent
 from awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.models import (
     ApplicationDetail,
     ApplicationSummary,
@@ -34,37 +34,6 @@ from mcp.shared.exceptions import McpError
 from mcp.types import METHOD_NOT_FOUND
 from pydantic import BaseModel, Field
 from typing import Annotated, Any, Dict, List
-
-
-async def request_consent(operation_description: str, acknowledgment_text: str, ctx: Context):
-    """Request explicit user consent before executing a mutating application operation."""
-    try:
-        ConsentModel = type(
-            'Consent',
-            (BaseModel,),
-            {
-                '__annotations__': {'acknowledge': bool},
-                'acknowledge': Field(description=acknowledgment_text),
-            },
-        )
-
-        elicitation_result = await ctx.elicit(
-            message=(
-                f'{operation_description}\n\n'
-                'Please review and acknowledge the risk before proceeding.'
-            ),
-            schema=ConsentModel,
-        )
-
-        if elicitation_result.action != 'accept' or not elicitation_result.data.acknowledge:
-            raise ValueError('User rejected the operation.')
-    except McpError as e:
-        if e.error.code == METHOD_NOT_FOUND:
-            raise ValueError(
-                'Client does not support elicitation. '
-                'Cannot proceed without user confirmation for this operation.'
-            )
-        raise e
 
 
 class SSMSAPApplicationTools:

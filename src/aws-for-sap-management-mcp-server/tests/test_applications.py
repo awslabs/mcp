@@ -491,9 +491,7 @@ class TestRequestConsent:
     @pytest.mark.asyncio
     async def test_consent_approved(self):
         """Test request_consent when user approves."""
-        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools import (
-            request_consent,
-        )
+        from awslabs.aws_for_sap_management_mcp_server.common import request_consent
         mock_ctx = MagicMock()
         mock_result = MagicMock()
         mock_result.action = 'accept'
@@ -506,9 +504,7 @@ class TestRequestConsent:
     @pytest.mark.asyncio
     async def test_consent_rejected(self):
         """Test request_consent when user rejects."""
-        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools import (
-            request_consent,
-        )
+        from awslabs.aws_for_sap_management_mcp_server.common import request_consent
         mock_ctx = MagicMock()
         mock_result = MagicMock()
         mock_result.action = 'reject'
@@ -521,9 +517,7 @@ class TestRequestConsent:
     @pytest.mark.asyncio
     async def test_consent_unchecked(self):
         """Test request_consent when user accepts but doesn't check acknowledge."""
-        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools import (
-            request_consent,
-        )
+        from awslabs.aws_for_sap_management_mcp_server.common import request_consent
         mock_ctx = MagicMock()
         mock_result = MagicMock()
         mock_result.action = 'accept'
@@ -536,9 +530,7 @@ class TestRequestConsent:
     @pytest.mark.asyncio
     async def test_consent_no_elicitation_support(self):
         """Test request_consent when client doesn't support elicitation."""
-        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools import (
-            request_consent,
-        )
+        from awslabs.aws_for_sap_management_mcp_server.common import request_consent
         from mcp.shared.exceptions import McpError
         from mcp.types import METHOD_NOT_FOUND, ErrorData
 
@@ -553,9 +545,7 @@ class TestRequestConsent:
     @pytest.mark.asyncio
     async def test_consent_other_mcp_error(self):
         """Test request_consent re-raises non-METHOD_NOT_FOUND McpError."""
-        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools import (
-            request_consent,
-        )
+        from awslabs.aws_for_sap_management_mcp_server.common import request_consent
         from mcp.shared.exceptions import McpError
         from mcp.types import ErrorData
 

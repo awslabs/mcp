@@ -17,6 +17,7 @@
 import json
 import uuid
 from awslabs.aws_for_sap_management_mcp_server.client_factory import get_aws_client
+from awslabs.aws_for_sap_management_mcp_server.common import request_consent
 from awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.models import (
     CreateScheduleResponse,
     DeleteScheduleResponse,
@@ -32,46 +33,6 @@ from mcp.shared.exceptions import McpError
 from mcp.types import METHOD_NOT_FOUND
 from pydantic import BaseModel, Field
 from typing import Annotated, Any, Dict, List
-
-
-class Consent(BaseModel):
-    """Represents the consent of the user for executing a scheduling operation."""
-
-    acknowledge: bool = Field(
-        description='I acknowledge the risk of this operation.'
-    )
-
-
-async def request_consent(operation_description: str, acknowledgment_text: str, ctx: Context):
-    """Request explicit user consent before executing a mutating scheduling operation."""
-    try:
-        # Dynamically create a consent model with the specific acknowledgment text
-        ConsentModel = type(
-            'Consent',
-            (BaseModel,),
-            {
-                '__annotations__': {'acknowledge': bool},
-                'acknowledge': Field(description=acknowledgment_text),
-            },
-        )
-
-        elicitation_result = await ctx.elicit(
-            message=(
-                f'{operation_description}\n\n'
-                'Please review and acknowledge the risk before proceeding.'
-            ),
-            schema=ConsentModel,
-        )
-
-        if elicitation_result.action != 'accept' or not elicitation_result.data.acknowledge:
-            raise ValueError('User rejected the operation.')
-    except McpError as e:
-        if e.error.code == METHOD_NOT_FOUND:
-            raise ValueError(
-                'Client does not support elicitation. '
-                'Cannot proceed without user confirmation for this operation.'
-            )
-        raise e
 
 
 # Mapping of SSM-SAP operations to EventBridge Scheduler target ARNs
