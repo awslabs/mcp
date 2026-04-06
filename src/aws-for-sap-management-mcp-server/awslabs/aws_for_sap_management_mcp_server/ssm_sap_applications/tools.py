@@ -16,7 +16,7 @@
 
 import asyncio
 from awslabs.aws_for_sap_management_mcp_server.client_factory import get_aws_client
-from awslabs.aws_for_sap_management_mcp_server.common import format_datetime, request_consent
+from awslabs.aws_for_sap_management_mcp_server.common import format_client_error, format_datetime, request_consent
 from awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.models import (
     ApplicationDetail,
     ApplicationSummary,
@@ -187,13 +187,12 @@ class SSMSAPApplicationTools:
                 last_updated=format_datetime(app.get('LastUpdatedTime')),
             )
         except ClientError as e:
-            error_code = e.response['Error']['Code']
             return ApplicationDetail(
                 id=application_id,
                 type='UNKNOWN',
                 status='ERROR',
                 discovery_status='ERROR',
-                status_message=f'{error_code}: {e.response["Error"]["Message"]}',
+                status_message=format_client_error(e),
             )
         except Exception as e:
             logger.error(f'Error getting application: {e}')
@@ -439,7 +438,7 @@ class SSMSAPApplicationTools:
         except ClientError as e:
             return RegisterApplicationResponse(
                 status='error',
-                message=f'{e.response["Error"]["Code"]}: {e.response["Error"]["Message"]}',
+                message=format_client_error(e),
                 application_id=application_id,
             )
         except Exception as e:
@@ -500,7 +499,7 @@ class SSMSAPApplicationTools:
         except ClientError as e:
             return StartStopApplicationResponse(
                 status='error',
-                message=f'{e.response["Error"]["Code"]}: {e.response["Error"]["Message"]}',
+                message=format_client_error(e),
                 application_id=application_id,
             )
         except Exception as e:
@@ -750,7 +749,7 @@ class SSMSAPApplicationTools:
         except ClientError as e:
             return StartStopApplicationResponse(
                 status='error',
-                message=f'{e.response["Error"]["Code"]}: {e.response["Error"]["Message"]}',
+                message=format_client_error(e),
                 application_id=application_id,
             )
         except Exception as e:

@@ -17,7 +17,7 @@
 import json
 import uuid
 from awslabs.aws_for_sap_management_mcp_server.client_factory import get_aws_client
-from awslabs.aws_for_sap_management_mcp_server.common import request_consent
+from awslabs.aws_for_sap_management_mcp_server.common import format_client_error, request_consent
 from awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.models import (
     CreateScheduleResponse,
     DeleteScheduleResponse,
@@ -496,7 +496,7 @@ class SSMSAPSchedulingTools:
         except ClientError as e:
             return CreateScheduleResponse(
                 status='error',
-                message=f'{e.response["Error"]["Code"]}: {e.response["Error"]["Message"]}',
+                message=format_client_error(e),
                 schedule_name=schedule_name,
                 application_id=application_id,
                 schedule_expression=schedule_expression,
@@ -652,7 +652,7 @@ class SSMSAPSchedulingTools:
         except ClientError as e:
             return DeleteScheduleResponse(
                 status='error',
-                message=f'{e.response["Error"]["Code"]}: {e.response["Error"]["Message"]}',
+                message=format_client_error(e),
                 schedule_name=schedule_name,
             )
         except Exception as e:
@@ -745,7 +745,7 @@ class SSMSAPSchedulingTools:
         except ClientError as e:
             return UpdateScheduleStateResponse(
                 status='error',
-                message=f'{e.response["Error"]["Code"]}: {e.response["Error"]["Message"]}',
+                message=format_client_error(e),
                 schedule_name=schedule_name,
                 new_state=new_state,
             )
@@ -815,7 +815,7 @@ class SSMSAPSchedulingTools:
             code = e.response['Error']['Code']
             if code == 'ResourceNotFoundException':
                 return {'status': 'error', 'message': f"Schedule '{schedule_name}' not found"}
-            return {'status': 'error', 'message': f'{code}: {e.response["Error"]["Message"]}'}
+            return {'status': 'error', 'message': format_client_error(e)}
         except Exception as e:
             logger.error(f'Error getting schedule details: {e}')
             return {'status': 'error', 'message': str(e)}

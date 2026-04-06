@@ -15,7 +15,7 @@
 """SSM for SAP configuration check tools for MCP server."""
 
 from awslabs.aws_for_sap_management_mcp_server.client_factory import get_aws_client
-from awslabs.aws_for_sap_management_mcp_server.common import format_datetime
+from awslabs.aws_for_sap_management_mcp_server.common import format_client_error, format_datetime
 from awslabs.aws_for_sap_management_mcp_server.ssm_sap_config_checks.models import (
     ConfigCheckDefinition,
     ConfigCheckOperation,
@@ -135,7 +135,7 @@ class SSMSAPConfigCheckTools:
         except ClientError as e:
             return StartConfigChecksResponse(
                 status='error',
-                message=f'{e.response["Error"]["Code"]}: {e.response["Error"]["Message"]}',
+                message=format_client_error(e),
             )
         except Exception as e:
             logger.error(f'Error starting config checks: {e}')

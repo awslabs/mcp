@@ -41,6 +41,11 @@ def safe_json_serialize(obj: Any) -> str:
     return json.dumps(obj, indent=2, default=str)
 
 
+def format_client_error(e) -> str:
+    """Format a botocore ClientError into a readable 'Code: Message' string."""
+    return f'{e.response["Error"]["Code"]}: {e.response["Error"]["Message"]}'
+
+
 async def request_consent(operation_description: str, acknowledgment_text: str, ctx) -> None:
     """Request explicit user consent before executing a mutating operation.
 
