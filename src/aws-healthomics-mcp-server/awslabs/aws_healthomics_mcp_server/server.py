@@ -19,6 +19,12 @@ from awslabs.aws_healthomics_mcp_server.tools.codeconnections import (
     get_codeconnection,
     list_codeconnections,
 )
+from awslabs.aws_healthomics_mcp_server.tools.configuration_tools import (
+    create_configuration,
+    delete_configuration,
+    get_configuration,
+    list_configurations,
+)
 from awslabs.aws_healthomics_mcp_server.tools.ecr_tools import (
     check_container_availability,
     clone_container_to_ecr,
@@ -47,6 +53,15 @@ from awslabs.aws_healthomics_mcp_server.tools.reference_store_tools import (
     start_reference_import_job,
 )
 from awslabs.aws_healthomics_mcp_server.tools.run_analysis import analyze_run_performance
+from awslabs.aws_healthomics_mcp_server.tools.run_batch import (
+    cancel_run_batch,
+    delete_batch,
+    delete_run_batch,
+    get_batch,
+    list_batches,
+    list_runs_in_batch,
+    start_run_batch,
+)
 from awslabs.aws_healthomics_mcp_server.tools.run_cache import (
     create_run_cache,
     get_run_cache,
@@ -139,6 +154,15 @@ This MCP server provides tools for creating, managing, and analyzing genomic wor
 - **ListAHORunCaches**: List available run caches with optional filtering by name, status, or cache behavior
 - **UpdateAHORunCache**: Update an existing run cache's behavior, name, or description
 
+### Run Batch Management
+- **StartAHORunBatch**: Submit multiple workflow runs in a single request (up to 100,000 runs)
+- **GetAHOBatch**: Get detailed information about a specific batch including status, run summaries, and failure reasons
+- **ListAHOBatches**: List batches with optional filtering by status, name, or run group
+- **ListAHORunsInBatch**: List individual runs within a batch with optional filtering by submission status
+- **CancelAHORunBatch**: Cancel all runs in a batch (only for batches in PENDING, SUBMITTING, or INPROGRESS state)
+- **DeleteAHORunBatch**: Delete all runs in a batch (only for batches in PROCESSED or CANCELLED state)
+- **DeleteAHOBatch**: Delete batch metadata (only for batches in terminal state: PROCESSED, FAILED, CANCELLED, or RUNS_DELETED)
+
 ### Workflow Analysis
 - **GetAHORunLogs**: Retrieve high-level run logs showing workflow execution events
 - **GetAHORunManifestLogs**: Retrieve run manifest logs with workflow summary
@@ -201,6 +225,12 @@ This MCP server provides tools for creating, managing, and analyzing genomic wor
 - **GetAHOReferenceImportJob**: Get status of a reference import job
 - **ListAHOReferenceImportJobs**: List import jobs for a reference store
 
+### Configuration Management
+- **CreateAHOConfiguration**: Create a new HealthOmics configuration for workflow runs
+- **GetAHOConfiguration**: Get details about a specific configuration
+- **ListAHOConfigurations**: List available configurations
+- **DeleteAHOConfiguration**: Delete a configuration
+
 ## Service Availability
 AWS HealthOmics is available in select AWS regions. Use the GetAHOSupportedRegions tool to get the current list of supported regions.
 """,
@@ -238,6 +268,15 @@ mcp.tool(name='CreateAHORunCache')(create_run_cache)
 mcp.tool(name='GetAHORunCache')(get_run_cache)
 mcp.tool(name='ListAHORunCaches')(list_run_caches)
 mcp.tool(name='UpdateAHORunCache')(update_run_cache)
+
+# Register run batch tools
+mcp.tool(name='StartAHORunBatch')(start_run_batch)
+mcp.tool(name='GetAHOBatch')(get_batch)
+mcp.tool(name='ListAHOBatches')(list_batches)
+mcp.tool(name='ListAHORunsInBatch')(list_runs_in_batch)
+mcp.tool(name='CancelAHORunBatch')(cancel_run_batch)
+mcp.tool(name='DeleteAHORunBatch')(delete_run_batch)
+mcp.tool(name='DeleteAHOBatch')(delete_batch)
 
 # Register workflow analysis tools
 mcp.tool(name='GetAHORunLogs')(get_run_logs)
@@ -300,6 +339,12 @@ mcp.tool(name='GetAHOReferenceMetadata')(get_reference_metadata)
 mcp.tool(name='StartAHOReferenceImportJob')(start_reference_import_job)
 mcp.tool(name='GetAHOReferenceImportJob')(get_reference_import_job)
 mcp.tool(name='ListAHOReferenceImportJobs')(list_reference_import_jobs)
+
+# Register configuration tools
+mcp.tool(name='CreateAHOConfiguration')(create_configuration)
+mcp.tool(name='GetAHOConfiguration')(get_configuration)
+mcp.tool(name='ListAHOConfigurations')(list_configurations)
+mcp.tool(name='DeleteAHOConfiguration')(delete_configuration)
 
 
 def main():
