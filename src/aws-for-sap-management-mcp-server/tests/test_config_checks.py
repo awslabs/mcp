@@ -22,7 +22,7 @@ from unittest.mock import MagicMock, patch
 @pytest.fixture
 def tools():
     """Create an SSMSAPConfigCheckTools instance."""
-    from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_config_checks.tools import (
+    from awslabs.aws_for_sap_management_mcp_server.ssm_sap_config_checks.tools import (
         SSMSAPConfigCheckTools,
     )
 
@@ -39,7 +39,7 @@ class TestListConfigCheckDefinitions:
     """Tests for list_config_check_definitions tool."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_config_checks.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_config_checks.tools.get_aws_client')
     async def test_success(self, mock_get_client, tools, ctx):
         """Test listing config check definitions."""
         mock_client = MagicMock()
@@ -59,7 +59,7 @@ class TestListConfigCheckDefinitions:
         assert result[1].id == 'CHECK_02'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_config_checks.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_config_checks.tools.get_aws_client')
     async def test_error(self, mock_get_client, tools, ctx):
         """Test listing config check definitions handles errors."""
         mock_get_client.side_effect = Exception('API error')
@@ -74,7 +74,7 @@ class TestStartConfigChecks:
     """Tests for start_config_checks tool."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_config_checks.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_config_checks.tools.get_aws_client')
     async def test_success(self, mock_get_client, tools, ctx):
         """Test starting config checks."""
         mock_client = MagicMock()
@@ -91,7 +91,7 @@ class TestStartConfigChecks:
         assert result.operations is not None
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_config_checks.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_config_checks.tools.get_aws_client')
     async def test_client_error(self, mock_get_client, tools, ctx):
         """Test starting config checks handles ClientError."""
         mock_client = MagicMock()
@@ -113,7 +113,7 @@ class TestGetConfigCheckSummary:
     """Tests for get_config_check_summary tool."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_config_checks.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_config_checks.tools.get_aws_client')
     async def test_success(self, mock_get_client, tools, ctx):
         """Test getting config check summary."""
         mock_client = MagicMock()
@@ -145,7 +145,7 @@ class TestGetConfigCheckSummary:
         assert len(result.checks) == 2
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_config_checks.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_config_checks.tools.get_aws_client')
     async def test_error(self, mock_get_client, tools, ctx):
         """Test getting config check summary handles errors."""
         mock_get_client.side_effect = Exception('API error')
@@ -161,7 +161,7 @@ class TestGetConfigCheckOperation:
     """Tests for get_config_check_operation tool."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_config_checks.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_config_checks.tools.get_aws_client')
     async def test_success(self, mock_get_client, tools, ctx):
         """Test getting config check operation details."""
         mock_client = MagicMock()
@@ -179,7 +179,7 @@ class TestGetConfigCheckOperation:
         assert result['Status'] == 'COMPLETED'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_config_checks.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_config_checks.tools.get_aws_client')
     async def test_error(self, mock_get_client, tools, ctx):
         """Test getting config check operation handles errors."""
         mock_get_client.side_effect = Exception('API error')
@@ -193,7 +193,7 @@ class TestListSubCheckResults:
     """Tests for list_sub_check_results tool."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_config_checks.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_config_checks.tools.get_aws_client')
     async def test_success(self, mock_get_client, tools, ctx):
         """Test listing sub-check results."""
         mock_client = MagicMock()
@@ -213,7 +213,7 @@ class TestListSubCheckResults:
         assert result[1].description == 'Failed'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_config_checks.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_config_checks.tools.get_aws_client')
     async def test_error(self, mock_get_client, tools, ctx):
         """Test listing sub-check results handles errors."""
         mock_get_client.side_effect = Exception('API error')
@@ -228,7 +228,7 @@ class TestListSubCheckRuleResults:
     """Tests for list_sub_check_rule_results tool."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_config_checks.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_config_checks.tools.get_aws_client')
     async def test_success(self, mock_get_client, tools, ctx):
         """Test listing sub-check rule results."""
         mock_client = MagicMock()
@@ -245,7 +245,7 @@ class TestListSubCheckRuleResults:
         assert result[0]['RuleId'] == 'rule-1'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_config_checks.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_config_checks.tools.get_aws_client')
     async def test_error(self, mock_get_client, tools, ctx):
         """Test listing sub-check rule results handles errors."""
         mock_get_client.side_effect = Exception('API error')

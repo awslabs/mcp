@@ -20,10 +20,10 @@ from unittest.mock import MagicMock, patch
 class TestGetAwsClient:
     """Test get_aws_client function."""
 
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.client_factory.Session')
+    @patch('awslabs.aws_for_sap_management_mcp_server.client_factory.Session')
     def test_with_explicit_profile(self, mock_session_class):
         """Test get_aws_client with explicit profile_name parameter."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.client_factory import get_aws_client
+        from awslabs.aws_for_sap_management_mcp_server.client_factory import get_aws_client
 
         mock_session = MagicMock()
         mock_session.region_name = 'us-west-2'
@@ -39,11 +39,11 @@ class TestGetAwsClient:
         assert call_args[1]['region_name'] == 'us-east-1'
         assert result == mock_client
 
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.client_factory.Session')
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.client_factory.getenv')
+    @patch('awslabs.aws_for_sap_management_mcp_server.client_factory.Session')
+    @patch('awslabs.aws_for_sap_management_mcp_server.client_factory.getenv')
     def test_with_aws_profile_env(self, mock_getenv, mock_session_class):
         """Test get_aws_client falls back to AWS_PROFILE env var."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.client_factory import get_aws_client
+        from awslabs.aws_for_sap_management_mcp_server.client_factory import get_aws_client
 
         mock_getenv.return_value = 'env-profile'
         mock_session = MagicMock()
@@ -58,11 +58,11 @@ class TestGetAwsClient:
         mock_session_class.assert_called_once_with(profile_name='env-profile')
         assert result == mock_client
 
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.client_factory.Session')
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.client_factory.getenv')
+    @patch('awslabs.aws_for_sap_management_mcp_server.client_factory.Session')
+    @patch('awslabs.aws_for_sap_management_mcp_server.client_factory.getenv')
     def test_without_profile(self, mock_getenv, mock_session_class):
         """Test get_aws_client without profile uses default credential chain."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.client_factory import get_aws_client
+        from awslabs.aws_for_sap_management_mcp_server.client_factory import get_aws_client
 
         mock_getenv.return_value = None
         mock_session = MagicMock()
@@ -76,11 +76,11 @@ class TestGetAwsClient:
         mock_session_class.assert_called_once_with()
         assert result == mock_client
 
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.client_factory.Session')
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.client_factory.getenv')
+    @patch('awslabs.aws_for_sap_management_mcp_server.client_factory.Session')
+    @patch('awslabs.aws_for_sap_management_mcp_server.client_factory.getenv')
     def test_region_fallback_to_session(self, mock_getenv, mock_session_class):
         """Test get_aws_client uses session region when region_name is None."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.client_factory import get_aws_client
+        from awslabs.aws_for_sap_management_mcp_server.client_factory import get_aws_client
 
         mock_getenv.return_value = None
         mock_session = MagicMock()
@@ -95,11 +95,11 @@ class TestGetAwsClient:
         assert call_args[1]['region_name'] == 'eu-central-1'
         assert result == mock_client
 
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.client_factory.Session')
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.client_factory.getenv')
+    @patch('awslabs.aws_for_sap_management_mcp_server.client_factory.Session')
+    @patch('awslabs.aws_for_sap_management_mcp_server.client_factory.getenv')
     def test_region_fallback_to_us_east_1(self, mock_getenv, mock_session_class):
         """Test get_aws_client falls back to us-east-1 when no region is available."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.client_factory import get_aws_client
+        from awslabs.aws_for_sap_management_mcp_server.client_factory import get_aws_client
 
         mock_getenv.return_value = None
         mock_session = MagicMock()
@@ -114,12 +114,12 @@ class TestGetAwsClient:
         assert call_args[1]['region_name'] == 'us-east-1'
         assert result == mock_client
 
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.client_factory.Session')
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.client_factory.getenv')
+    @patch('awslabs.aws_for_sap_management_mcp_server.client_factory.Session')
+    @patch('awslabs.aws_for_sap_management_mcp_server.client_factory.getenv')
     def test_user_agent_config(self, mock_getenv, mock_session_class):
         """Test get_aws_client sets proper user agent configuration."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server import MCP_SERVER_VERSION
-        from awslabs.aws_systems_manager_for_sap_mcp_server.client_factory import get_aws_client
+        from awslabs.aws_for_sap_management_mcp_server import MCP_SERVER_VERSION
+        from awslabs.aws_for_sap_management_mcp_server.client_factory import get_aws_client
 
         mock_getenv.return_value = None
         mock_session = MagicMock()
@@ -133,14 +133,14 @@ class TestGetAwsClient:
         call_args = mock_session.client.call_args
         config = call_args[1]['config']
         assert (
-            f'md/awslabs#mcp#aws-systems-manager-for-sap-mcp-server#{MCP_SERVER_VERSION}'
+            f'md/awslabs#mcp#aws-for-sap-management-mcp-server#{MCP_SERVER_VERSION}'
             in config.user_agent_extra
         )
 
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.client_factory.Session')
+    @patch('awslabs.aws_for_sap_management_mcp_server.client_factory.Session')
     def test_explicit_profile_takes_precedence(self, mock_session_class):
         """Test explicit profile_name takes precedence over AWS_PROFILE env var."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.client_factory import get_aws_client
+        from awslabs.aws_for_sap_management_mcp_server.client_factory import get_aws_client
 
         mock_session = MagicMock()
         mock_session.region_name = 'us-east-1'

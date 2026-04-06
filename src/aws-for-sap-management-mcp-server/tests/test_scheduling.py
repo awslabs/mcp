@@ -23,7 +23,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 @pytest.fixture
 def tools():
     """Create an SSMSAPSchedulingTools instance."""
-    from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools import (
+    from awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools import (
         SSMSAPSchedulingTools,
     )
 
@@ -39,7 +39,7 @@ def ctx():
 def _mock_ensure_role():
     """Return a patch for _ensure_scheduler_role."""
     return patch(
-        'awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools._ensure_scheduler_role',
+        'awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools._ensure_scheduler_role',
         return_value='arn:aws:iam::123456789012:role/EventBridgeSchedulerSSMSAPRole',
     )
 
@@ -47,7 +47,7 @@ def _mock_ensure_role():
 def _mock_consent():
     """Return a patch for request_consent in scheduling tools."""
     return patch(
-        'awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.request_consent',
+        'awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.request_consent',
         new_callable=AsyncMock,
     )
 
@@ -56,7 +56,7 @@ class TestScheduleConfigChecks:
     """Tests for schedule_config_checks tool."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
     async def test_success(self, mock_get_client, tools, ctx):
         """Test scheduling config checks."""
         with _mock_ensure_role(), _mock_consent():
@@ -78,7 +78,7 @@ class TestScheduleConfigChecks:
             assert result.application_id == 'app-1'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
     async def test_client_error(self, mock_get_client, tools, ctx):
         """Test scheduling config checks handles ClientError."""
         with _mock_ensure_role(), _mock_consent():
@@ -103,7 +103,7 @@ class TestScheduleStartApplication:
     """Tests for schedule_start_application tool."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
     async def test_success(self, mock_get_client, tools, ctx):
         """Test scheduling application start."""
         with _mock_ensure_role(), _mock_consent():
@@ -125,7 +125,7 @@ class TestScheduleStartApplication:
             assert call_args['ScheduleExpressionTimezone'] == 'America/New_York'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
     async def test_with_start_end_dates(self, mock_get_client, tools, ctx):
         """Test scheduling with start and end dates."""
         with _mock_ensure_role(), _mock_consent():
@@ -151,7 +151,7 @@ class TestScheduleStopApplication:
     """Tests for schedule_stop_application tool."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
     async def test_success(self, mock_get_client, tools, ctx):
         """Test scheduling application stop."""
         with _mock_ensure_role(), _mock_consent():
@@ -168,7 +168,7 @@ class TestScheduleStopApplication:
             assert result.status == 'success'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
     async def test_with_ec2_shutdown(self, mock_get_client, tools, ctx):
         """Test scheduling stop with EC2 shutdown."""
         with _mock_ensure_role(), _mock_consent():
@@ -195,7 +195,7 @@ class TestListAppSchedules:
     """Tests for list_app_schedules tool."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
     async def test_success(self, mock_get_client, tools, ctx):
         """Test listing schedules for an application."""
         mock_scheduler = MagicMock()
@@ -234,7 +234,7 @@ class TestListAppSchedules:
         assert result.disabled_count == 1
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
     async def test_exclude_disabled(self, mock_get_client, tools, ctx):
         """Test listing schedules excluding disabled ones."""
         mock_scheduler = MagicMock()
@@ -261,7 +261,7 @@ class TestListAppSchedules:
         assert result.total_schedules == 0
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
     async def test_filters_by_application_id(self, mock_get_client, tools, ctx):
         """Test that schedules are filtered by application ID."""
         mock_scheduler = MagicMock()
@@ -286,7 +286,7 @@ class TestListAppSchedules:
         assert result.total_schedules == 0
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
     async def test_error(self, mock_get_client, tools, ctx):
         """Test listing schedules handles errors."""
         mock_get_client.side_effect = Exception('API error')
@@ -301,7 +301,7 @@ class TestDeleteSchedule:
     """Tests for delete_schedule tool."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
     async def test_success(self, mock_get_client, tools, ctx):
         """Test deleting a schedule."""
         with _mock_consent():
@@ -314,7 +314,7 @@ class TestDeleteSchedule:
             mock_scheduler.delete_schedule.assert_called_once_with(Name='sched-1')
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
     async def test_not_found(self, mock_get_client, tools, ctx):
         """Test deleting a non-existent schedule."""
         with _mock_consent():
@@ -335,7 +335,7 @@ class TestUpdateScheduleState:
     """Tests for update_schedule_state tool."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
     async def test_enable(self, mock_get_client, tools, ctx):
         """Test enabling a schedule."""
         with _mock_consent():
@@ -357,7 +357,7 @@ class TestUpdateScheduleState:
             assert result.new_state == 'ENABLED'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
     async def test_already_in_desired_state(self, mock_get_client, tools, ctx):
         """Test updating when already in desired state."""
         with _mock_consent():
@@ -378,7 +378,7 @@ class TestUpdateScheduleState:
             mock_scheduler.update_schedule.assert_not_called()
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
     async def test_client_error(self, mock_get_client, tools, ctx):
         """Test updating schedule state handles ClientError."""
         with _mock_consent():
@@ -400,7 +400,7 @@ class TestGetScheduleDetails:
     """Tests for get_schedule_details tool."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
     async def test_success(self, mock_get_client, tools, ctx):
         """Test getting schedule details."""
         mock_scheduler = MagicMock()
@@ -425,7 +425,7 @@ class TestGetScheduleDetails:
         assert result['input']['ApplicationId'] == 'app-1'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
     async def test_not_found(self, mock_get_client, tools, ctx):
         """Test getting details for non-existent schedule."""
         mock_scheduler = MagicMock()
@@ -444,10 +444,10 @@ class TestGetScheduleDetails:
 class TestEnsureSchedulerRole:
     """Tests for _ensure_scheduler_role helper."""
 
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
     def test_role_exists(self, mock_get_client):
         """Test when role already exists."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools import (
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools import (
             _ensure_scheduler_role,
         )
 
@@ -461,10 +461,10 @@ class TestEnsureSchedulerRole:
 
         assert 'EventBridgeSchedulerSSMSAPRole' in result
 
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
     def test_role_created(self, mock_get_client):
         """Test creating the role when it doesn't exist."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools import (
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools import (
             _ensure_scheduler_role,
         )
 
@@ -490,7 +490,7 @@ class TestHelperFunctions:
 
     def test_determine_operation_type(self):
         """Test _determine_operation_type mapping."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools import (
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools import (
             _determine_operation_type,
         )
 
@@ -501,7 +501,7 @@ class TestHelperFunctions:
 
     def test_generate_schedule_name(self):
         """Test _generate_schedule_name produces valid names."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools import (
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools import (
             _generate_schedule_name,
         )
 
@@ -516,7 +516,7 @@ class TestSchedulingRequestConsent:
     @pytest.mark.asyncio
     async def test_consent_approved(self):
         """Test request_consent when user approves."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools import (
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools import (
             request_consent,
         )
         mock_ctx = MagicMock()
@@ -530,7 +530,7 @@ class TestSchedulingRequestConsent:
     @pytest.mark.asyncio
     async def test_consent_rejected(self):
         """Test request_consent when user rejects."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools import (
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools import (
             request_consent,
         )
         mock_ctx = MagicMock()
@@ -545,7 +545,7 @@ class TestSchedulingRequestConsent:
     @pytest.mark.asyncio
     async def test_consent_unchecked(self):
         """Test request_consent when user accepts but doesn't check acknowledge."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools import (
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools import (
             request_consent,
         )
         mock_ctx = MagicMock()
@@ -560,7 +560,7 @@ class TestSchedulingRequestConsent:
     @pytest.mark.asyncio
     async def test_consent_no_elicitation_support(self):
         """Test request_consent when client doesn't support elicitation."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools import (
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools import (
             request_consent,
         )
         from mcp.shared.exceptions import McpError
@@ -577,7 +577,7 @@ class TestSchedulingRequestConsent:
     @pytest.mark.asyncio
     async def test_consent_other_mcp_error(self):
         """Test request_consent re-raises non-METHOD_NOT_FOUND McpError."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools import (
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools import (
             request_consent,
         )
         from mcp.shared.exceptions import McpError
@@ -599,7 +599,7 @@ class TestSchedulingRejectionPaths:
     async def test_schedule_config_checks_rejected(self, tools, ctx):
         """Test schedule_config_checks when user rejects."""
         with patch(
-            'awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.request_consent',
+            'awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.request_consent',
             new_callable=AsyncMock,
             side_effect=ValueError('User rejected the operation.'),
         ):
@@ -613,7 +613,7 @@ class TestSchedulingRejectionPaths:
     async def test_schedule_start_rejected(self, tools, ctx):
         """Test schedule_start_application when user rejects."""
         with patch(
-            'awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.request_consent',
+            'awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.request_consent',
             new_callable=AsyncMock,
             side_effect=ValueError('User rejected the operation.'),
         ):
@@ -627,7 +627,7 @@ class TestSchedulingRejectionPaths:
     async def test_schedule_stop_rejected(self, tools, ctx):
         """Test schedule_stop_application when user rejects."""
         with patch(
-            'awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.request_consent',
+            'awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.request_consent',
             new_callable=AsyncMock,
             side_effect=ValueError('User rejected the operation.'),
         ):
@@ -641,7 +641,7 @@ class TestSchedulingRejectionPaths:
     async def test_delete_schedule_rejected(self, tools, ctx):
         """Test delete_schedule when user rejects."""
         with patch(
-            'awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.request_consent',
+            'awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.request_consent',
             new_callable=AsyncMock,
             side_effect=ValueError('User rejected the operation.'),
         ):
@@ -653,7 +653,7 @@ class TestSchedulingRejectionPaths:
     async def test_update_schedule_state_rejected(self, tools, ctx):
         """Test update_schedule_state when user rejects."""
         with patch(
-            'awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.request_consent',
+            'awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.request_consent',
             new_callable=AsyncMock,
             side_effect=ValueError('User rejected the operation.'),
         ):
@@ -667,10 +667,10 @@ class TestSchedulingRejectionPaths:
 class TestEnsureSchedulerRoleEdgeCases:
     """Tests for _ensure_scheduler_role edge cases."""
 
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
     def test_role_check_other_client_error(self, mock_get_client):
         """Test when get_role fails with non-NoSuchEntity error."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools import (
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools import (
             _ensure_scheduler_role,
         )
         mock_iam = MagicMock()
@@ -691,10 +691,10 @@ class TestEnsureSchedulerRoleEdgeCases:
         result = _ensure_scheduler_role()
         assert 'EventBridgeSchedulerSSMSAPRole' in result
 
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
     def test_role_create_already_exists(self, mock_get_client):
         """Test when create_role fails with EntityAlreadyExists."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools import (
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools import (
             _ensure_scheduler_role,
         )
         mock_iam = MagicMock()
@@ -719,10 +719,10 @@ class TestEnsureSchedulerRoleEdgeCases:
         result = _ensure_scheduler_role()
         assert 'EventBridgeSchedulerSSMSAPRole' in result
 
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
     def test_iam_client_creation_fails(self, mock_get_client):
         """Test when IAM client creation fails."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools import (
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools import (
             _ensure_scheduler_role,
         )
         mock_get_client.side_effect = Exception('Cannot create IAM client')
@@ -735,7 +735,7 @@ class TestCreateScheduleEdgeCases:
     """Tests for _create_schedule edge cases."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
     async def test_unknown_operation(self, mock_get_client, tools, ctx):
         """Test _create_schedule with unknown operation."""
         result = await tools._create_schedule(
@@ -749,7 +749,7 @@ class TestCreateScheduleEdgeCases:
         assert 'Unknown operation' in result.message
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
     async def test_generic_exception(self, mock_get_client, tools, ctx):
         """Test _create_schedule with generic exception."""
         with _mock_ensure_role():
@@ -769,7 +769,7 @@ class TestUpdateScheduleDisable:
     """Tests for update_schedule_state disable path."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
     async def test_disable(self, mock_get_client, tools, ctx):
         """Test disabling a schedule."""
         with _mock_consent():
@@ -791,7 +791,7 @@ class TestUpdateScheduleDisable:
             assert result.new_state == 'DISABLED'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
     async def test_generic_exception(self, mock_get_client, tools, ctx):
         """Test update_schedule_state with generic exception."""
         with _mock_consent():
@@ -809,7 +809,7 @@ class TestDeleteScheduleGenericError:
     """Tests for delete_schedule generic error path."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
     async def test_generic_exception(self, mock_get_client, tools, ctx):
         """Test delete_schedule with generic exception."""
         with _mock_consent():
@@ -825,7 +825,7 @@ class TestGetScheduleDetailsEdgeCases:
     """Tests for get_schedule_details edge cases."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
     async def test_generic_exception(self, mock_get_client, tools, ctx):
         """Test get_schedule_details with generic exception."""
         mock_get_client.side_effect = Exception('Connection error')
@@ -836,7 +836,7 @@ class TestGetScheduleDetailsEdgeCases:
         assert 'Connection error' in result['message']
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
     async def test_other_client_error(self, mock_get_client, tools, ctx):
         """Test get_schedule_details with non-ResourceNotFound ClientError."""
         mock_scheduler = MagicMock()
@@ -856,7 +856,7 @@ class TestListAppSchedulesEdgeCases:
     """Tests for list_app_schedules edge cases."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools.get_aws_client')
     async def test_invalid_json_input(self, mock_get_client, tools, ctx):
         """Test list_app_schedules when schedule has invalid JSON input."""
         mock_scheduler = MagicMock()

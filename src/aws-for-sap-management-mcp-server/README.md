@@ -106,12 +106,12 @@ Use this MCP server to manage SAP applications registered with AWS Systems Manag
 ```json
 {
   "mcpServers": {
-    "awslabs.aws-systems-manager-for-sap-mcp-server": {
+    "awslabs.aws-for-sap-management-mcp-server": {
       "autoApprove": [],
       "disabled": false,
       "command": "uvx",
       "args": [
-        "awslabs.aws-systems-manager-for-sap-mcp-server@latest"
+        "awslabs.aws-for-sap-management-mcp-server@latest"
       ],
       "env": {
         "AWS_PROFILE": "[The AWS Profile Name to use for AWS access]",
@@ -130,7 +130,7 @@ For Windows users, the MCP server configuration format is slightly different:
 ```json
 {
   "mcpServers": {
-    "awslabs.aws-systems-manager-for-sap-mcp-server": {
+    "awslabs.aws-for-sap-management-mcp-server": {
       "disabled": false,
       "timeout": 60,
       "type": "stdio",
@@ -139,8 +139,8 @@ For Windows users, the MCP server configuration format is slightly different:
         "tool",
         "run",
         "--from",
-        "awslabs.aws-systems-manager-for-sap-mcp-server@latest",
-        "awslabs.aws-systems-manager-for-sap-mcp-server.exe"
+        "awslabs.aws-for-sap-management-mcp-server@latest",
+        "awslabs.aws-for-sap-management-mcp-server.exe"
       ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR",
@@ -159,14 +159,14 @@ Please reference [AWS documentation](https://docs.aws.amazon.com/cli/v1/userguid
 Build and install docker image locally on the same host of your LLM client
 1. Install [Docker](https://docs.docker.com/desktop/)
 2. `git clone https://github.com/awslabs/mcp.git`
-3. Go to sub-directory `cd src/aws-systems-manager-for-sap-mcp-server/`
-4. Run `docker build -t awslabs/aws-systems-manager-for-sap-mcp-server:latest .`
+3. Go to sub-directory `cd src/aws-for-sap-management-mcp-server/`
+4. Run `docker build -t awslabs/aws-for-sap-management-mcp-server:latest .`
 
 #### MCP Config using Docker image (Kiro, Cline)
 ```json
 {
   "mcpServers": {
-    "awslabs.aws-systems-manager-for-sap-mcp-server": {
+    "awslabs.aws-for-sap-management-mcp-server": {
       "command": "docker",
       "args": [
         "run",
@@ -176,7 +176,7 @@ Build and install docker image locally on the same host of your LLM client
         "~/.aws:/root/.aws",
         "-e",
         "AWS_PROFILE=[The AWS Profile Name to use for AWS access]",
-        "awslabs/aws-systems-manager-for-sap-mcp-server:latest"
+        "awslabs/aws-for-sap-management-mcp-server:latest"
       ],
       "env": {},
       "disabled": false,
@@ -194,4 +194,4 @@ Contributions are welcome! Please see the [CONTRIBUTING.md](https://github.com/a
 
 ## Feedback and Issues
 
-We value your feedback! Submit your feedback, feature requests and any bugs at [GitHub issues](https://github.com/awslabs/mcp/issues) with prefix `aws-systems-manager-for-sap-mcp-server` in title.
+We value your feedback! Submit your feedback, feature requests and any bugs at [GitHub issues](https://github.com/awslabs/mcp/issues) with prefix `aws-for-sap-management-mcp-server` in title.

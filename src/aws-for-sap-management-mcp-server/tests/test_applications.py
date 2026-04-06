@@ -22,7 +22,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 def _mock_consent():
     """Return a patch for request_consent in applications tools."""
     return patch(
-        'awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.request_consent',
+        'awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.request_consent',
         new_callable=AsyncMock,
     )
 
@@ -35,7 +35,7 @@ def _hana_app_response():
 @pytest.fixture
 def tools():
     """Create an SSMSAPApplicationTools instance."""
-    from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools import (
+    from awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools import (
         SSMSAPApplicationTools,
     )
 
@@ -52,7 +52,7 @@ class TestListApplications:
     """Tests for list_applications tool."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_list_applications_success(self, mock_get_client, tools, ctx):
         """Test listing applications returns correct results."""
         mock_client = MagicMock()
@@ -73,7 +73,7 @@ class TestListApplications:
         assert 'Found 2' in result.message
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_list_applications_pagination(self, mock_get_client, tools, ctx):
         """Test listing applications handles pagination."""
         mock_client = MagicMock()
@@ -94,7 +94,7 @@ class TestListApplications:
         assert mock_client.list_applications.call_count == 2
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_list_applications_empty(self, mock_get_client, tools, ctx):
         """Test listing applications when none exist."""
         mock_client = MagicMock()
@@ -107,7 +107,7 @@ class TestListApplications:
         assert 'Found 0' in result.message
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_list_applications_error(self, mock_get_client, tools, ctx):
         """Test listing applications handles errors."""
         mock_get_client.side_effect = Exception('Connection error')
@@ -121,7 +121,7 @@ class TestGetApplication:
     """Tests for get_application tool."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_get_application_success(self, mock_get_client, tools, ctx):
         """Test getting application details."""
         mock_client = MagicMock()
@@ -155,7 +155,7 @@ class TestGetApplication:
         assert len(result.components) == 1
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_get_application_client_error(self, mock_get_client, tools, ctx):
         """Test getting application handles ClientError."""
         mock_client = MagicMock()
@@ -171,7 +171,7 @@ class TestGetApplication:
         assert 'ResourceNotFoundException' in result.status_message
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_get_application_component_error(self, mock_get_client, tools, ctx):
         """Test getting application handles component listing errors gracefully."""
         mock_client = MagicMock()
@@ -196,7 +196,7 @@ class TestGetComponent:
     """Tests for get_component tool."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_get_component_success(self, mock_get_client, tools, ctx):
         """Test getting component details."""
         mock_client = MagicMock()
@@ -226,7 +226,7 @@ class TestGetComponent:
         assert result.hosts[0]['hostname'] == 'host1'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_get_component_error(self, mock_get_client, tools, ctx):
         """Test getting component handles errors."""
         mock_get_client.side_effect = Exception('API error')
@@ -240,7 +240,7 @@ class TestGetOperation:
     """Tests for get_operation tool."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_get_operation_success(self, mock_get_client, tools, ctx):
         """Test getting operation details."""
         mock_client = MagicMock()
@@ -259,7 +259,7 @@ class TestGetOperation:
         assert result.status == 'SUCCESS'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_get_operation_error(self, mock_get_client, tools, ctx):
         """Test getting operation handles errors."""
         mock_get_client.side_effect = Exception('API error')
@@ -273,7 +273,7 @@ class TestRegisterApplication:
     """Tests for register_application tool."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_register_hana_success(self, mock_get_client, tools, ctx):
         """Test registering a HANA application."""
         mock_client = MagicMock()
@@ -372,7 +372,7 @@ class TestRegisterApplication:
         assert 'instance' in result.message.lower()
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_register_client_error(self, mock_get_client, tools, ctx):
         """Test registering handles ClientError."""
         mock_client = MagicMock()
@@ -399,7 +399,7 @@ class TestStartStopApplication:
     """Tests for start_application and stop_application tools."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_start_application_success(self, mock_get_client, tools, ctx):
         """Test starting an application."""
         with _mock_consent():
@@ -413,7 +413,7 @@ class TestStartStopApplication:
             assert result.operation_id == 'op-start-1'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_start_application_error(self, mock_get_client, tools, ctx):
         """Test starting an application handles errors."""
         with _mock_consent():
@@ -424,7 +424,7 @@ class TestStartStopApplication:
             assert result.status == 'error'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_stop_application_success(self, mock_get_client, tools, ctx):
         """Test stopping an application."""
         with _mock_consent():
@@ -439,7 +439,7 @@ class TestStartStopApplication:
             assert result.operation_id == 'op-stop-1'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_stop_application_with_ec2_shutdown(self, mock_get_client, tools, ctx):
         """Test stopping with EC2 shutdown flag."""
         with _mock_consent():
@@ -467,7 +467,7 @@ class TestStartStopApplication:
         assert 'INVALID' in result.message
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_stop_application_client_error(self, mock_get_client, tools, ctx):
         """Test stopping handles ClientError."""
         with _mock_consent():
@@ -491,7 +491,7 @@ class TestRequestConsent:
     @pytest.mark.asyncio
     async def test_consent_approved(self):
         """Test request_consent when user approves."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools import (
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools import (
             request_consent,
         )
         mock_ctx = MagicMock()
@@ -506,7 +506,7 @@ class TestRequestConsent:
     @pytest.mark.asyncio
     async def test_consent_rejected(self):
         """Test request_consent when user rejects."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools import (
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools import (
             request_consent,
         )
         mock_ctx = MagicMock()
@@ -521,7 +521,7 @@ class TestRequestConsent:
     @pytest.mark.asyncio
     async def test_consent_unchecked(self):
         """Test request_consent when user accepts but doesn't check acknowledge."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools import (
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools import (
             request_consent,
         )
         mock_ctx = MagicMock()
@@ -536,7 +536,7 @@ class TestRequestConsent:
     @pytest.mark.asyncio
     async def test_consent_no_elicitation_support(self):
         """Test request_consent when client doesn't support elicitation."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools import (
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools import (
             request_consent,
         )
         from mcp.shared.exceptions import McpError
@@ -553,7 +553,7 @@ class TestRequestConsent:
     @pytest.mark.asyncio
     async def test_consent_other_mcp_error(self):
         """Test request_consent re-raises non-METHOD_NOT_FOUND McpError."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools import (
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools import (
             request_consent,
         )
         from mcp.shared.exceptions import McpError
@@ -575,7 +575,7 @@ class TestStartApplicationConsent:
     async def test_start_rejected(self, tools, ctx):
         """Test start_application when user rejects consent."""
         with patch(
-            'awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.request_consent',
+            'awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.request_consent',
             new_callable=AsyncMock,
             side_effect=ValueError('User rejected the operation.'),
         ):
@@ -588,7 +588,7 @@ class TestStopApplicationCascade:
     """Tests for stop_application cascade stop with associated NW apps."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_cascade_stop_with_nw_apps(self, mock_get_client, tools, ctx):
         """Test stop with associated NW apps and cascade enabled."""
         mock_client = MagicMock()
@@ -615,7 +615,7 @@ class TestStopApplicationCascade:
         mock_result.data.stop_associated_apps_first = True
         ctx.elicit = AsyncMock(return_value=mock_result)
 
-        with patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.asyncio.sleep', new_callable=AsyncMock):
+        with patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.asyncio.sleep', new_callable=AsyncMock):
             result = await tools.stop_application(ctx, application_id='hana-1')
 
         assert result.status == 'success'
@@ -624,7 +624,7 @@ class TestStopApplicationCascade:
         assert result.associated_app_stop_details[0].application_id == 'nw-1'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_cascade_skip(self, mock_get_client, tools, ctx):
         """Test stop with NW apps but user skips cascade."""
         mock_client = MagicMock()
@@ -650,7 +650,7 @@ class TestStopApplicationCascade:
         assert result.associated_app_stop_details is None
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_cascade_user_rejects(self, mock_get_client, tools, ctx):
         """Test stop with NW apps but user rejects."""
         mock_client = MagicMock()
@@ -674,7 +674,7 @@ class TestStopApplicationCascade:
         assert 'rejected' in result.message.lower()
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_get_application_fails(self, mock_get_client, tools, ctx):
         """Test stop when get_application fails."""
         mock_client = MagicMock()
@@ -687,7 +687,7 @@ class TestStopApplicationCascade:
         assert 'Failed to retrieve' in result.message
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_nw_stop_client_error(self, mock_get_client, tools, ctx):
         """Test cascade stop when NW stop raises ClientError."""
         mock_client = MagicMock()
@@ -716,7 +716,7 @@ class TestStopApplicationCascade:
         assert result.associated_app_stop_details is not None
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_no_elicitation_support_with_nw_apps(self, mock_get_client, tools, ctx):
         """Test stop with NW apps when client doesn't support elicitation."""
         from mcp.shared.exceptions import McpError
@@ -742,7 +742,7 @@ class TestStopApplicationCascade:
         assert 'does not support elicitation' in result.message
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_nw_stop_operation_error(self, mock_get_client, tools, ctx):
         """Test cascade stop when NW stop operation returns ERROR."""
         mock_client = MagicMock()
@@ -765,7 +765,7 @@ class TestStopApplicationCascade:
         mock_result.data.stop_associated_apps_first = True
         ctx.elicit = AsyncMock(return_value=mock_result)
 
-        with patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.asyncio.sleep', new_callable=AsyncMock):
+        with patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.asyncio.sleep', new_callable=AsyncMock):
             result = await tools.stop_application(ctx, application_id='hana-1')
 
         assert result.status == 'error'
@@ -776,7 +776,7 @@ class TestGetApplicationEdgeCases:
     """Tests for get_application edge cases — individual component errors and generic exceptions."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_individual_get_component_error(self, mock_get_client, tools, ctx):
         """Test get_application when get_component fails for one component (lines 201-202)."""
         mock_client = MagicMock()
@@ -803,7 +803,7 @@ class TestGetApplicationEdgeCases:
         assert result.components[1].get('error') == 'get_component failed for comp-bad'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_generic_exception(self, mock_get_client, tools, ctx):
         """Test get_application generic exception path (lines 229-231)."""
         mock_client = MagicMock()
@@ -820,7 +820,7 @@ class TestRegisterApplicationOptionalParams:
     """Tests for register_application with optional credentials, tags, database_arn."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_with_credentials_and_tags(self, mock_get_client, tools, ctx):
         """Test register_application passes credentials and tags (lines 456, 460)."""
         mock_client = MagicMock()
@@ -846,7 +846,7 @@ class TestRegisterApplicationOptionalParams:
         assert call_kwargs['Tags'] == {'env': 'prod'}
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_abap_with_database_arn(self, mock_get_client, tools, ctx):
         """Test register_application SAP_ABAP with database_arn (line 458)."""
         mock_client = MagicMock()
@@ -870,7 +870,7 @@ class TestRegisterApplicationOptionalParams:
         assert call_kwargs['DatabaseArn'] == 'arn:aws:ssm-sap:us-east-1:123:HANA/hana-db'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_register_generic_exception(self, mock_get_client, tools, ctx):
         """Test register_application generic exception (lines 476-478)."""
         mock_client = MagicMock()
@@ -894,7 +894,7 @@ class TestStartApplicationClientError:
     """Tests for start_application ClientError path."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_start_client_error(self, mock_get_client, tools, ctx):
         """Test start_application ClientError (line 532)."""
         with _mock_consent():
@@ -915,7 +915,7 @@ class TestStopApplicationEdgeCases:
     """Tests for stop_application edge cases."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_associated_app_verification_error(self, mock_get_client, tools, ctx):
         """Test stop when verifying associated app raises exception (lines 611-612)."""
         mock_client = MagicMock()
@@ -936,7 +936,7 @@ class TestStopApplicationEdgeCases:
         assert result.status == 'success'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_associated_arn_without_slash(self, mock_get_client, tools, ctx):
         """Test stop when associated ARN has no slash (line 604)."""
         mock_client = MagicMock()
@@ -955,7 +955,7 @@ class TestStopApplicationEdgeCases:
         assert result.status == 'success'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_cascade_nw_stop_timeout(self, mock_get_client, tools, ctx):
         """Test cascade stop when NW stop operation times out (lines 735-741)."""
         mock_client = MagicMock()
@@ -979,7 +979,7 @@ class TestStopApplicationEdgeCases:
         mock_result.data.stop_associated_apps_first = True
         ctx.elicit = AsyncMock(return_value=mock_result)
 
-        with patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.asyncio.sleep', new_callable=AsyncMock):
+        with patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.asyncio.sleep', new_callable=AsyncMock):
             result = await tools.stop_application(ctx, application_id='hana-1')
 
         assert result.status == 'error'
@@ -988,7 +988,7 @@ class TestStopApplicationEdgeCases:
         assert result.associated_app_stop_details[0].status == 'TIMED_OUT'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_stop_with_connected_entity_dbms(self, mock_get_client, tools, ctx):
         """Test stop_application with stop_connected_entity='DBMS' (line 767)."""
         with _mock_consent():
@@ -1006,7 +1006,7 @@ class TestStopApplicationEdgeCases:
             assert call_kwargs['StopConnectedEntity'] == 'DBMS'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_stop_generic_exception_during_final_stop(self, mock_get_client, tools, ctx):
         """Test stop_application generic exception during final stop call (lines 787-789)."""
         with _mock_consent():
@@ -1021,7 +1021,7 @@ class TestStopApplicationEdgeCases:
             assert 'Unexpected stop error' in result.message
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_cascade_elicitation_other_mcp_error(self, mock_get_client, tools, ctx):
         """Test stop with NW apps when elicitation raises non-METHOD_NOT_FOUND McpError (lines 674, 684-685)."""
         from mcp.shared.exceptions import McpError

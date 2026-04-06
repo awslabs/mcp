@@ -79,4 +79,4 @@ COPY ./docker-healthcheck.sh /usr/local/bin/docker-healthcheck.sh
 USER app
 
 HEALTHCHECK --interval=60s --timeout=10s --start-period=10s --retries=3 CMD ["docker-healthcheck.sh"]
-ENTRYPOINT ["awslabs.aws-systems-manager-for-sap-mcp-server"]
+ENTRYPOINT ["awslabs.aws-for-sap-management-mcp-server"]

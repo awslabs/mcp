@@ -14,7 +14,7 @@
 
 """AWS client factory for SSM for SAP MCP Server with multi-profile support."""
 
-from awslabs.aws_systems_manager_for_sap_mcp_server import MCP_SERVER_VERSION
+from awslabs.aws_for_sap_management_mcp_server import MCP_SERVER_VERSION
 from boto3 import Session
 from botocore.config import Config
 from os import getenv
@@ -40,7 +40,7 @@ def get_aws_client(
         profile_name = getenv('AWS_PROFILE', None)
 
     config = Config(
-        user_agent_extra=f'md/awslabs#mcp#aws-systems-manager-for-sap-mcp-server#{MCP_SERVER_VERSION}'
+        user_agent_extra=f'md/awslabs#mcp#aws-for-sap-management-mcp-server#{MCP_SERVER_VERSION}'
     )
 
     if profile_name:

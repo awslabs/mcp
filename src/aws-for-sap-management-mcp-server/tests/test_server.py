@@ -21,14 +21,14 @@ class TestServerInitialization:
 
     def test_mcp_server_created(self):
         """Test that the FastMCP server instance is created."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.server import mcp
+        from awslabs.aws_for_sap_management_mcp_server.server import mcp
 
         assert mcp is not None
-        assert mcp.name == 'awslabs.aws-systems-manager-for-sap-mcp-server'
+        assert mcp.name == 'awslabs.aws-for-sap-management-mcp-server'
 
     def test_tools_registered(self):
         """Test that all tool modules are registered on the server."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.server import mcp
+        from awslabs.aws_for_sap_management_mcp_server.server import mcp
 
         tool_names = [t.name for t in mcp._tool_manager.list_tools()]
         # Application tools
@@ -61,20 +61,20 @@ class TestServerInitialization:
 
         # Patch one of the tool classes to raise during init
         with patch(
-            'awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools.SSMSAPApplicationTools'
+            'awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.SSMSAPApplicationTools'
         ) as mock_app_tools:
             mock_app_tools.side_effect = RuntimeError('Registration failed')
             import importlib
             import pytest
             with pytest.raises(RuntimeError, match='Registration failed'):
-                import awslabs.aws_systems_manager_for_sap_mcp_server.server as server_mod
+                import awslabs.aws_for_sap_management_mcp_server.server as server_mod
                 importlib.reload(server_mod)
 
     def test_main_function(self):
         """Test that main() calls mcp.run() (line 177)."""
         from unittest.mock import patch
-        from awslabs.aws_systems_manager_for_sap_mcp_server.server import main
+        from awslabs.aws_for_sap_management_mcp_server.server import main
 
-        with patch('awslabs.aws_systems_manager_for_sap_mcp_server.server.mcp') as mock_mcp:
+        with patch('awslabs.aws_for_sap_management_mcp_server.server.mcp') as mock_mcp:
             main()
             mock_mcp.run.assert_called_once()

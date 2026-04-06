@@ -20,10 +20,10 @@ from unittest.mock import patch
 class TestMain:
     """Tests for the main function."""
 
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.server.mcp')
+    @patch('awslabs.aws_for_sap_management_mcp_server.server.mcp')
     def test_main_calls_run(self, mock_mcp):
         """Test main function calls mcp.run()."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.server import main
+        from awslabs.aws_for_sap_management_mcp_server.server import main
 
         main()
         mock_mcp.run.assert_called_once()
@@ -31,7 +31,7 @@ class TestMain:
     def test_module_has_main_guard(self):
         """Test the module has the if __name__ == '__main__' block."""
         import inspect
-        from awslabs.aws_systems_manager_for_sap_mcp_server import server
+        from awslabs.aws_for_sap_management_mcp_server import server
 
         source = inspect.getsource(server)
         assert "if __name__ == '__main__':" in source

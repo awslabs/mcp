@@ -15,9 +15,9 @@
 """SSM for SAP health summary and report tools for MCP server."""
 
 import asyncio
-from awslabs.aws_systems_manager_for_sap_mcp_server.client_factory import get_aws_client
-from awslabs.aws_systems_manager_for_sap_mcp_server.common import format_datetime
-from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.models import (
+from awslabs.aws_for_sap_management_mcp_server.client_factory import get_aws_client
+from awslabs.aws_for_sap_management_mcp_server.common import format_datetime
+from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.models import (
     ApplicationHealthEntry,
     BackupStatusEntry,
     CloudWatchMetricsEntry,

@@ -16,8 +16,8 @@
 
 import json
 import uuid
-from awslabs.aws_systems_manager_for_sap_mcp_server.client_factory import get_aws_client
-from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.models import (
+from awslabs.aws_for_sap_management_mcp_server.client_factory import get_aws_client
+from awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.models import (
     CreateScheduleResponse,
     DeleteScheduleResponse,
     ListSchedulesResponse,

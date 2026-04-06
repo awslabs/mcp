@@ -53,7 +53,7 @@ wheels = [
 ]
 
 [[package]]
-name = "awslabs-aws-systems-manager-for-sap-mcp-server"
+name = "awslabs-aws-for-sap-management-mcp-server"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

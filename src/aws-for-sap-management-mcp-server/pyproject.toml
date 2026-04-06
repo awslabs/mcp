@@ -1,5 +1,5 @@
 [project]
-name = "awslabs.aws-systems-manager-for-sap-mcp-server"
+name = "awslabs.aws-for-sap-management-mcp-server"
 version = "0.1.0"
 description = "An AWS Labs Model Context Protocol (MCP) server for AWS Systems Manager for SAP"
 readme = "README.md"
@@ -29,13 +29,13 @@ classifiers = [
 
 [project.urls]
 homepage = "https://awslabs.github.io/mcp/"
-docs = "https://awslabs.github.io/mcp/servers/aws-systems-manager-for-sap-mcp-server/"
-documentation = "https://awslabs.github.io/mcp/servers/aws-systems-manager-for-sap-mcp-server/"
+docs = "https://awslabs.github.io/mcp/servers/aws-for-sap-management-mcp-server/"
+documentation = "https://awslabs.github.io/mcp/servers/aws-for-sap-management-mcp-server/"
 repository = "https://github.com/awslabs/mcp.git"
-changelog = "https://github.com/awslabs/mcp/blob/main/src/aws-systems-manager-for-sap-mcp-server/CHANGELOG.md"
+changelog = "https://github.com/awslabs/mcp/blob/main/src/aws-for-sap-management-mcp-server/CHANGELOG.md"
 
 [project.scripts]
-"awslabs.aws-systems-manager-for-sap-mcp-server" = "awslabs.aws_systems_manager_for_sap_mcp_server.server:main"
+"awslabs.aws-for-sap-management-mcp-server" = "awslabs.aws_for_sap_management_mcp_server.server:main"
 
 [dependency-groups]
 dev = [
@@ -102,7 +102,7 @@ version = "0.0.0"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
-    "awslabs/aws_systems_manager_for_sap_mcp_server/__init__.py:__version__",
+    "awslabs/aws_for_sap_management_mcp_server/__init__.py:__version__",
 ]
 update_changelog_on_bump = true
 

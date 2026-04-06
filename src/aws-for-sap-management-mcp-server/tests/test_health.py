@@ -22,7 +22,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 @pytest.fixture
 def tools():
     """Create an SSMSAPHealthTools instance."""
-    from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import (
+    from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
         SSMSAPHealthTools,
     )
 
@@ -109,7 +109,7 @@ class TestGetSapHealthSummary:
     """Tests for get_sap_health_summary tool (comprehensive overview)."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_single_healthy_app(self, mock_get_client, tools, ctx):
         """Test health summary for a single healthy application."""
         mock_sap = _make_ssm_sap_client(
@@ -137,7 +137,7 @@ class TestGetSapHealthSummary:
         assert 'All 1 application(s) are running and healthy' in result.summary
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_no_applications_found(self, mock_get_client, tools, ctx):
         """Test health summary when no applications exist."""
         mock_sap = _make_ssm_sap_client(apps=[])
@@ -155,7 +155,7 @@ class TestGetSapHealthSummary:
         assert 'No SAP applications found' in result.message
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_multiple_apps_mixed_status(self, mock_get_client, tools, ctx):
         """Test health summary with multiple apps in different states."""
         mock_sap = MagicMock()
@@ -186,7 +186,7 @@ class TestGetSapHealthSummary:
         assert 'require attention' in result.summary
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_with_components(self, mock_get_client, tools, ctx):
         """Test health summary includes component details."""
         mock_sap = _make_ssm_sap_client(
@@ -217,7 +217,7 @@ class TestGetSapHealthSummary:
         assert 'i-abc123' in result.applications[0].components[0].ec2_instance_ids
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_with_config_checks(self, mock_get_client, tools, ctx):
         """Test health summary includes configuration check results."""
         recent_time = datetime.now(timezone.utc) - timedelta(hours=1)
@@ -252,7 +252,7 @@ class TestGetSapHealthSummary:
         assert result.applications[0].config_checks[0].triggered_by_summary is False
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_config_checks_include_subchecks_by_severity(self, mock_get_client, tools, ctx):
         """Test health summary includes subcheck details grouped by severity."""
         recent_time = datetime.now(timezone.utc) - timedelta(hours=1)
@@ -311,7 +311,7 @@ class TestGetSapHealthSummary:
             assert sc.rule_results[0].description == 'Fencing check'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_config_checks_no_subchecks_when_disabled(self, mock_get_client, tools, ctx):
         """Test health summary omits subchecks when include_subchecks=False."""
         recent_time = datetime.now(timezone.utc) - timedelta(hours=1)
@@ -348,7 +348,7 @@ class TestGetSapHealthSummary:
         assert len(check.subchecks) == 0
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_auto_triggers_config_checks_when_stale(self, mock_get_client, tools, ctx):
         """Test that config checks are auto-triggered when no recent results exist."""
         old_time = datetime.now(timezone.utc) - timedelta(hours=48)
@@ -376,7 +376,7 @@ class TestGetSapHealthSummary:
         mock_get_client.return_value = mock_sap
 
         with patch(
-            'awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools._wait_for_config_checks',
+            'awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools._wait_for_config_checks',
             new_callable=AsyncMock,
         ) as mock_wait:
             result = await tools.get_sap_health_summary(
@@ -395,7 +395,7 @@ class TestGetSapHealthSummary:
             assert mock_sap.list_configuration_check_operations.call_count == 2
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_auto_trigger_falls_back_to_previous_when_still_in_progress(self, mock_get_client, tools, ctx):
         """Test that previous config check results are used when new checks are still in progress."""
         old_time = datetime.now(timezone.utc) - timedelta(hours=48)
@@ -436,7 +436,7 @@ class TestGetSapHealthSummary:
         mock_get_client.return_value = mock_sap
 
         with patch(
-            'awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools._wait_for_config_checks',
+            'awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools._wait_for_config_checks',
             new_callable=AsyncMock,
         ):
             result = await tools.get_sap_health_summary(
@@ -456,7 +456,7 @@ class TestGetSapHealthSummary:
             assert 'Passed: 5' in app.config_checks[0].result
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_no_auto_trigger_when_recent(self, mock_get_client, tools, ctx):
         """Test that config checks are NOT auto-triggered when recent results exist."""
         recent_time = datetime.now(timezone.utc) - timedelta(hours=2)
@@ -488,7 +488,7 @@ class TestGetSapHealthSummary:
         mock_sap.start_configuration_checks.assert_not_called()
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_auto_trigger_disabled(self, mock_get_client, tools, ctx):
         """Test that auto-trigger can be disabled."""
         mock_sap = _make_ssm_sap_client(
@@ -512,7 +512,7 @@ class TestGetSapHealthSummary:
         mock_sap.start_configuration_checks.assert_not_called()
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_with_cloudwatch_metrics(self, mock_get_client, tools, ctx):
         """Test health summary includes CloudWatch metrics."""
         mock_sap = _make_ssm_sap_client(
@@ -556,7 +556,7 @@ class TestGetSapHealthSummary:
         assert metrics[0].status_check == 'OK'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_with_log_backup_status(self, mock_get_client, tools, ctx):
         """Test health summary includes log backup status."""
         mock_sap = _make_ssm_sap_client(
@@ -601,7 +601,7 @@ class TestGetSapHealthSummary:
         assert lb[0].agent_version == '3.2.1'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_with_aws_backup_status(self, mock_get_client, tools, ctx):
         """Test health summary includes AWS Backup status."""
         mock_sap = _make_ssm_sap_client(
@@ -645,7 +645,7 @@ class TestGetSapHealthSummary:
         assert bs[0].backup_status == 'COMPLETED'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_client_creation_error(self, mock_get_client, tools, ctx):
         """Test health summary handles client creation errors."""
         mock_get_client.side_effect = Exception('Invalid credentials')
@@ -656,7 +656,7 @@ class TestGetSapHealthSummary:
         assert 'Invalid credentials' in result.message
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_app_retrieval_error(self, mock_get_client, tools, ctx):
         """Test health summary handles per-app errors gracefully."""
         mock_sap = MagicMock()
@@ -677,7 +677,7 @@ class TestGetSapHealthSummary:
         assert 'Access denied' in result.applications[0].status_message
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_profile_and_region_passed_through(self, mock_get_client, tools, ctx):
         """Test that profile_name and region are passed to client factory."""
         mock_sap = _make_ssm_sap_client(
@@ -701,7 +701,7 @@ class TestGetSapHealthSummary:
         )
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_no_config_checks_when_disabled(self, mock_get_client, tools, ctx):
         """Test that config checks are skipped when disabled."""
         mock_sap = _make_ssm_sap_client(
@@ -729,7 +729,7 @@ class TestGenerateHealthReport:
     """Tests for generate_health_report tool (detailed Markdown report)."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_single_healthy_app(self, mock_get_client, tools, ctx):
         """Test health report for a single healthy application."""
         mock_sap = _make_ssm_sap_client(
@@ -755,7 +755,7 @@ class TestGenerateHealthReport:
         assert 'running and healthy' in result.report
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_no_applications_found(self, mock_get_client, tools, ctx):
         """Test health report when no applications exist."""
         mock_sap = _make_ssm_sap_client(apps=[])
@@ -773,7 +773,7 @@ class TestGenerateHealthReport:
         assert 'No SAP applications found' in result.message
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_with_components(self, mock_get_client, tools, ctx):
         """Test health report includes component details."""
         mock_sap = _make_ssm_sap_client(
@@ -802,7 +802,7 @@ class TestGenerateHealthReport:
         assert 'HANA' in result.report
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_with_config_checks(self, mock_get_client, tools, ctx):
         """Test health report includes configuration check results."""
         mock_sap = _make_ssm_sap_client(
@@ -829,7 +829,7 @@ class TestGenerateHealthReport:
         assert 'Storage Configuration' in result.report
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_with_subchecks_and_rules(self, mock_get_client, tools, ctx):
         """Test health report includes subchecks and rule results."""
         mock_sap = _make_ssm_sap_client(
@@ -859,7 +859,7 @@ class TestGenerateHealthReport:
         assert 'Rule 1' in result.report
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_with_cloudwatch_metrics(self, mock_get_client, tools, ctx):
         """Test health report includes CloudWatch metrics."""
         mock_sap = _make_ssm_sap_client(
@@ -898,7 +898,7 @@ class TestGenerateHealthReport:
         assert '45.2' in result.report
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_client_creation_error(self, mock_get_client, tools, ctx):
         """Test health report handles client creation errors."""
         mock_get_client.side_effect = Exception('Invalid credentials')
@@ -909,7 +909,7 @@ class TestGenerateHealthReport:
         assert 'Invalid credentials' in result.message
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_app_retrieval_error(self, mock_get_client, tools, ctx):
         """Test health report handles per-app errors gracefully."""
         mock_sap = MagicMock()
@@ -936,7 +936,7 @@ class TestExtractEc2Ids:
 
     def test_extract_from_hosts_array(self):
         """Test extraction from standard Hosts array."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import (
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
             _extract_ec2_ids,
         )
         detail = {
@@ -950,7 +950,7 @@ class TestExtractEc2Ids:
 
     def test_extract_from_associated_host(self):
         """Test extraction from AssociatedHost (HANA_NODE components)."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import (
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
             _extract_ec2_ids,
         )
         detail = {
@@ -962,7 +962,7 @@ class TestExtractEc2Ids:
 
     def test_extract_from_primary_secondary_host(self):
         """Test extraction from PrimaryHost/SecondaryHost fallback."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import (
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
             _extract_ec2_ids,
         )
         detail = {
@@ -976,7 +976,7 @@ class TestExtractEc2Ids:
 
     def test_extract_primary_host_string(self):
         """Test extraction when PrimaryHost is a string instance ID."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import (
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
             _extract_ec2_ids,
         )
         detail = {
@@ -988,7 +988,7 @@ class TestExtractEc2Ids:
 
     def test_deduplication(self):
         """Test that duplicate IDs are deduplicated."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import (
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
             _extract_ec2_ids,
         )
         detail = {
@@ -1000,7 +1000,7 @@ class TestExtractEc2Ids:
 
     def test_empty_detail(self):
         """Test with empty component detail."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import (
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
             _extract_ec2_ids,
         )
         ids = _extract_ec2_ids({})
@@ -1008,7 +1008,7 @@ class TestExtractEc2Ids:
 
     def test_instance_id_fallback(self):
         """Test InstanceId fallback when EC2InstanceId is missing."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import (
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
             _extract_ec2_ids,
         )
         detail = {
@@ -1022,7 +1022,7 @@ class TestAssociatedHostIntegration:
     """Tests for AssociatedHost EC2 extraction in health summary."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_hana_node_associated_host(self, mock_get_client, tools, ctx):
         """Test that HANA_NODE components with AssociatedHost get EC2 IDs extracted."""
         mock_sap = _make_ssm_sap_client(
@@ -1067,7 +1067,7 @@ class TestAssociatedHostIntegration:
         assert metrics[0].instance_id == 'i-node123'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_component_with_hana_details(self, mock_get_client, tools, ctx):
         """Test that HANA component details (version, replication) are captured."""
         mock_sap = _make_ssm_sap_client(
@@ -1105,7 +1105,7 @@ class TestEnhancedLogBackup:
     """Tests for enhanced HANA log backup status with SSM command invocation."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_log_backup_with_command_history(self, mock_get_client, tools, ctx):
         """Test log backup status includes SSM command invocation results."""
         mock_sap = _make_ssm_sap_client(
@@ -1164,7 +1164,7 @@ class TestEnhancedLogBackup:
         assert 'executionStatus' in lb[0].log_backup_details
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_log_backup_no_command_history(self, mock_get_client, tools, ctx):
         """Test log backup status when no SSM command history exists."""
         mock_sap = _make_ssm_sap_client(
@@ -1212,7 +1212,7 @@ class TestEnhancedBackup:
     """Tests for enhanced AWS Backup with SAP HANA resource type query."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_sap_hana_backup_type_query(self, mock_get_client, tools, ctx):
         """Test that backup queries SAP HANA on Amazon EC2 resource type."""
         mock_sap = _make_ssm_sap_client(
@@ -1261,7 +1261,7 @@ class TestEnhancedBackup:
         )
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_backup_fallback_to_ec2_arn(self, mock_get_client, tools, ctx):
         """Test backup falls back to EC2 ARN query when no SAP HANA jobs match."""
         mock_sap = _make_ssm_sap_client(
@@ -1308,7 +1308,7 @@ class TestCWAgentMetrics:
     """Tests for CWAgent metrics (memory, disk, network) in health summary."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_cwagent_metrics_included(self, mock_get_client, tools, ctx):
         """Test that CWAgent metrics are collected alongside EC2 metrics."""
         mock_sap = MagicMock()
@@ -1376,7 +1376,7 @@ class TestCWAgentMetrics:
         assert cw[0].network_out == 524288
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_cwagent_metrics_unavailable(self, mock_get_client, tools, ctx):
         """Test graceful handling when CWAgent metrics are not available."""
         mock_sap = MagicMock()
@@ -1436,7 +1436,7 @@ class TestFilesystemUsage:
     """Tests for filesystem usage via SSM RunCommand."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_filesystem_usage_found(self, mock_get_client, tools, ctx):
         """Test filesystem usage data is collected from SSM command history."""
         mock_sap = MagicMock()
@@ -1501,7 +1501,7 @@ class TestFilesystemUsage:
         assert '/usr/sap' in fs[0].filesystem_info
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_filesystem_usage_not_managed(self, mock_get_client, tools, ctx):
         """Test filesystem usage when instance is not managed by SSM."""
         mock_sap = MagicMock()
@@ -1555,28 +1555,28 @@ class TestFormatBytes:
 
     def test_bytes(self):
         """Test formatting of byte values."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import (
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
             _format_bytes,
         )
         assert _format_bytes(500) == '500 B'
 
     def test_kilobytes(self):
         """Test formatting of kilobyte values."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import (
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
             _format_bytes,
         )
         assert _format_bytes(2048) == '2.0 KB'
 
     def test_megabytes(self):
         """Test formatting of megabyte values."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import (
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
             _format_bytes,
         )
         assert _format_bytes(1048576) == '1.0 MB'
 
     def test_gigabytes(self):
         """Test formatting of gigabyte values."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import (
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
             _format_bytes,
         )
         assert _format_bytes(1073741824) == '1.00 GB'
@@ -1586,7 +1586,7 @@ class TestListOperationsFallback:
     """Tests for list_operations fallback when OperationId is missing from config checks."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_report_config_checks_with_fallback(self, mock_get_client, tools, ctx):
         """Test that generate_health_report uses list_operations fallback."""
         mock_sap = MagicMock()
@@ -1647,7 +1647,7 @@ class TestClusterStatusExtraction:
     """Tests for cluster_status extraction in _get_app_summary."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_cluster_status_populated(self, mock_get_client, tools, ctx):
         """Test that cluster_status is extracted from Resilience.ClusterStatus."""
         mock_sap = MagicMock()
@@ -1697,17 +1697,17 @@ class TestHelperFunctions:
     """Tests for internal helper functions."""
 
     def test_emoji_known_status(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _emoji
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _emoji
         assert _emoji('ACTIVATED') == '🟢'
         assert _emoji('FAILED') == '🔴'
         assert _emoji('UNKNOWN') == '⚪'
 
     def test_emoji_unknown_status(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _emoji
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _emoji
         assert _emoji('NONEXISTENT') == '⚪'
 
     def test_get_all_app_ids_pagination(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _get_all_app_ids
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _get_all_app_ids
         mock_client = MagicMock()
         mock_client.list_applications.side_effect = [
             {'Applications': [{'Id': 'a1'}], 'NextToken': 'tok'},
@@ -1717,21 +1717,21 @@ class TestHelperFunctions:
         assert ids == ['a1', 'a2']
 
     def test_discover_cwagent_dimensions_exception(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _discover_cwagent_dimensions
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _discover_cwagent_dimensions
         mock_cw = MagicMock()
         mock_cw.list_metrics.side_effect = Exception('fail')
         result = _discover_cwagent_dimensions(mock_cw, 'mem_used_percent', 'i-123')
         assert result is None
 
     def test_discover_cwagent_dimensions_empty(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _discover_cwagent_dimensions
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _discover_cwagent_dimensions
         mock_cw = MagicMock()
         mock_cw.list_metrics.return_value = {'Metrics': []}
         result = _discover_cwagent_dimensions(mock_cw, 'mem_used_percent', 'i-123')
         assert result is None
 
     def test_discover_cwagent_disk_dimensions(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _discover_cwagent_disk_dimensions
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _discover_cwagent_disk_dimensions
         mock_cw = MagicMock()
         mock_cw.list_metrics.return_value = {
             'Metrics': [
@@ -1744,37 +1744,37 @@ class TestHelperFunctions:
         assert len(result) == 2  # / and /hana/data match, /tmp does not
 
     def test_discover_cwagent_disk_dimensions_exception(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _discover_cwagent_disk_dimensions
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _discover_cwagent_disk_dimensions
         mock_cw = MagicMock()
         mock_cw.list_metrics.side_effect = Exception('fail')
         result = _discover_cwagent_disk_dimensions(mock_cw, 'i-1')
         assert result == []
 
     def test_has_recent_config_checks_empty(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _has_recent_config_checks
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _has_recent_config_checks
         assert _has_recent_config_checks([]) is False
 
     def test_has_recent_config_checks_recent(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _has_recent_config_checks
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _has_recent_config_checks
         recent = datetime.now(timezone.utc) - timedelta(hours=1)
         assert _has_recent_config_checks([{'EndTime': recent}]) is True
 
     def test_has_recent_config_checks_old(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _has_recent_config_checks
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _has_recent_config_checks
         old = datetime.now(timezone.utc) - timedelta(hours=48)
         assert _has_recent_config_checks([{'EndTime': old}]) is False
 
     def test_has_recent_config_checks_string_timestamp(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _has_recent_config_checks
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _has_recent_config_checks
         assert _has_recent_config_checks([{'EndTime': '2020-01-01'}]) is False
 
     def test_has_recent_config_checks_naive_datetime(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _has_recent_config_checks
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _has_recent_config_checks
         recent = datetime.now() - timedelta(hours=1)  # naive datetime
         assert _has_recent_config_checks([{'EndTime': recent}]) is True
 
     def test_trigger_config_checks_success(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _trigger_config_checks
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _trigger_config_checks
         mock_client = MagicMock()
         mock_client.list_configuration_check_definitions.return_value = {
             'ConfigurationChecks': [{'Id': 'CHECK_01'}, {'Id': 'CHECK_02'}]
@@ -1786,14 +1786,14 @@ class TestHelperFunctions:
         assert len(result) == 1
 
     def test_trigger_config_checks_no_definitions(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _trigger_config_checks
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _trigger_config_checks
         mock_client = MagicMock()
         mock_client.list_configuration_check_definitions.return_value = {'ConfigurationChecks': []}
         result = _trigger_config_checks(mock_client, 'app-1')
         assert result == []
 
     def test_trigger_config_checks_exception(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _trigger_config_checks
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _trigger_config_checks
         mock_client = MagicMock()
         mock_client.list_configuration_check_definitions.side_effect = Exception('fail')
         result = _trigger_config_checks(mock_client, 'app-1')
@@ -1805,36 +1805,36 @@ class TestWaitForConfigChecks:
 
     @pytest.mark.asyncio
     async def test_wait_all_complete(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _wait_for_config_checks
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _wait_for_config_checks
         mock_client = MagicMock()
         mock_client.get_configuration_check_operation.return_value = {
             'ConfigurationCheckOperation': {'Status': 'SUCCESS'}
         }
-        with patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.asyncio.sleep', new_callable=AsyncMock):
+        with patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.asyncio.sleep', new_callable=AsyncMock):
             await _wait_for_config_checks(mock_client, [{'OperationId': 'op-1'}], poll_interval_seconds=1, max_wait_seconds=5)
 
     @pytest.mark.asyncio
     async def test_wait_empty_operations(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _wait_for_config_checks
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _wait_for_config_checks
         mock_client = MagicMock()
         await _wait_for_config_checks(mock_client, [], poll_interval_seconds=1, max_wait_seconds=5)
 
     @pytest.mark.asyncio
     async def test_wait_timeout(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _wait_for_config_checks
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _wait_for_config_checks
         mock_client = MagicMock()
         mock_client.get_configuration_check_operation.return_value = {
             'ConfigurationCheckOperation': {'Status': 'IN_PROGRESS'}
         }
-        with patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.asyncio.sleep', new_callable=AsyncMock):
+        with patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.asyncio.sleep', new_callable=AsyncMock):
             await _wait_for_config_checks(mock_client, [{'OperationId': 'op-1'}], poll_interval_seconds=1, max_wait_seconds=2)
 
     @pytest.mark.asyncio
     async def test_wait_poll_exception(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _wait_for_config_checks
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _wait_for_config_checks
         mock_client = MagicMock()
         mock_client.get_configuration_check_operation.side_effect = Exception('fail')
-        with patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.asyncio.sleep', new_callable=AsyncMock):
+        with patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.asyncio.sleep', new_callable=AsyncMock):
             await _wait_for_config_checks(mock_client, [{'OperationId': 'op-1'}], poll_interval_seconds=1, max_wait_seconds=2)
 
 
@@ -1843,29 +1843,29 @@ class TestRunSsmCommand:
 
     @pytest.mark.asyncio
     async def test_success(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _run_ssm_command
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _run_ssm_command
         mock_ssm = MagicMock()
         mock_ssm.send_command.return_value = {'Command': {'CommandId': 'cmd-1'}}
         mock_ssm.get_command_invocation.return_value = {
             'Status': 'Success', 'StandardOutputContent': 'output data'
         }
-        with patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.asyncio.sleep', new_callable=AsyncMock):
+        with patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.asyncio.sleep', new_callable=AsyncMock):
             result = await _run_ssm_command(mock_ssm, 'i-123', 'df -h', timeout_seconds=6)
         assert result == 'output data'
 
     @pytest.mark.asyncio
     async def test_command_failed(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _run_ssm_command
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _run_ssm_command
         mock_ssm = MagicMock()
         mock_ssm.send_command.return_value = {'Command': {'CommandId': 'cmd-1'}}
         mock_ssm.get_command_invocation.return_value = {'Status': 'Failed'}
-        with patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.asyncio.sleep', new_callable=AsyncMock):
+        with patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.asyncio.sleep', new_callable=AsyncMock):
             result = await _run_ssm_command(mock_ssm, 'i-123', 'df -h', timeout_seconds=6)
         assert result is None
 
     @pytest.mark.asyncio
     async def test_no_command_id(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _run_ssm_command
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _run_ssm_command
         mock_ssm = MagicMock()
         mock_ssm.send_command.return_value = {'Command': {}}
         result = await _run_ssm_command(mock_ssm, 'i-123', 'df -h')
@@ -1873,7 +1873,7 @@ class TestRunSsmCommand:
 
     @pytest.mark.asyncio
     async def test_send_command_exception(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _run_ssm_command
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _run_ssm_command
         mock_ssm = MagicMock()
         mock_ssm.send_command.side_effect = Exception('fail')
         result = await _run_ssm_command(mock_ssm, 'i-123', 'df -h')
@@ -1881,26 +1881,26 @@ class TestRunSsmCommand:
 
     @pytest.mark.asyncio
     async def test_invocation_does_not_exist(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _run_ssm_command
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _run_ssm_command
         mock_ssm = MagicMock()
         mock_ssm.send_command.return_value = {'Command': {'CommandId': 'cmd-1'}}
         exc_class = type('InvocationDoesNotExist', (Exception,), {})
         mock_ssm.exceptions = MagicMock()
         mock_ssm.exceptions.InvocationDoesNotExist = exc_class
         mock_ssm.get_command_invocation.side_effect = exc_class('not yet')
-        with patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.asyncio.sleep', new_callable=AsyncMock):
+        with patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.asyncio.sleep', new_callable=AsyncMock):
             result = await _run_ssm_command(mock_ssm, 'i-123', 'df -h', timeout_seconds=3)
         assert result is None
 
     @pytest.mark.asyncio
     async def test_get_invocation_other_exception(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _run_ssm_command
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _run_ssm_command
         mock_ssm = MagicMock()
         mock_ssm.send_command.return_value = {'Command': {'CommandId': 'cmd-1'}}
         mock_ssm.exceptions = MagicMock()
         mock_ssm.exceptions.InvocationDoesNotExist = type('InvocationDoesNotExist', (Exception,), {})
         mock_ssm.get_command_invocation.side_effect = Exception('other error')
-        with patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.asyncio.sleep', new_callable=AsyncMock):
+        with patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.asyncio.sleep', new_callable=AsyncMock):
             result = await _run_ssm_command(mock_ssm, 'i-123', 'df -h', timeout_seconds=6)
         assert result is None
 
@@ -1909,7 +1909,7 @@ class TestRunSsmCommandSync:
     """Tests for _run_ssm_command_sync function."""
 
     def test_success(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _run_ssm_command_sync
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _run_ssm_command_sync
         mock_ssm = MagicMock()
         mock_ssm.send_command.return_value = {'Command': {'CommandId': 'cmd-1'}}
         mock_ssm.get_command_invocation.return_value = {
@@ -1920,7 +1920,7 @@ class TestRunSsmCommandSync:
         assert result == 'output'
 
     def test_failed(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _run_ssm_command_sync
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _run_ssm_command_sync
         mock_ssm = MagicMock()
         mock_ssm.send_command.return_value = {'Command': {'CommandId': 'cmd-1'}}
         mock_ssm.get_command_invocation.return_value = {'Status': 'Failed'}
@@ -1929,21 +1929,21 @@ class TestRunSsmCommandSync:
         assert result is None
 
     def test_no_command_id(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _run_ssm_command_sync
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _run_ssm_command_sync
         mock_ssm = MagicMock()
         mock_ssm.send_command.return_value = {'Command': {}}
         result = _run_ssm_command_sync(mock_ssm, 'i-123', 'df -h')
         assert result is None
 
     def test_send_exception(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _run_ssm_command_sync
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _run_ssm_command_sync
         mock_ssm = MagicMock()
         mock_ssm.send_command.side_effect = Exception('fail')
         result = _run_ssm_command_sync(mock_ssm, 'i-123', 'df -h')
         assert result is None
 
     def test_poll_exception_continues(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _run_ssm_command_sync
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _run_ssm_command_sync
         mock_ssm = MagicMock()
         mock_ssm.send_command.return_value = {'Command': {'CommandId': 'cmd-1'}}
         mock_ssm.get_command_invocation.side_effect = Exception('poll fail')
@@ -1956,19 +1956,19 @@ class TestBuildOverallSummary:
     """Tests for _build_overall_summary."""
 
     def test_all_healthy(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _build_overall_summary
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _build_overall_summary
         result = _build_overall_summary(2, {'ACTIVATED': 2}, {'SUCCESS': 2})
         assert 'All 2 application(s) are running and healthy' in result
 
     def test_mixed_status(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _build_overall_summary
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _build_overall_summary
         result = _build_overall_summary(3, {'ACTIVATED': 1, 'FAILED': 1, 'STOPPED': 1}, {'SUCCESS': 2, 'ERROR': 1})
         assert 'require attention' in result
         assert 'failed' in result
         assert 'stopped' in result
 
     def test_zero_apps(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _build_overall_summary
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _build_overall_summary
         result = _build_overall_summary(0, {}, {})
         assert 'Overall Summary' in result
 
@@ -1977,7 +1977,7 @@ class TestCheckAppHealth:
     """Tests for _check_app_health report generation."""
 
     def test_healthy_app_report(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _check_app_health
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _check_app_health
         mock_client = MagicMock()
         mock_client.get_application.return_value = {
             'Application': {'Id': 'app-1', 'Type': 'HANA', 'Status': 'ACTIVATED', 'DiscoveryStatus': 'SUCCESS'}
@@ -1994,7 +1994,7 @@ class TestCheckAppHealth:
         assert 'app-1' in report
 
     def test_unhealthy_app_report(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _check_app_health
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _check_app_health
         mock_client = MagicMock()
         mock_client.get_application.return_value = {
             'Application': {'Id': 'app-1', 'Type': 'HANA', 'Status': 'FAILED', 'DiscoveryStatus': 'REFRESH_FAILED', 'StatusMessage': 'Something broke'}
@@ -2010,7 +2010,7 @@ class TestCheckAppHealth:
         assert 'Something broke' in report
 
     def test_app_retrieval_error(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _check_app_health
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _check_app_health
         mock_client = MagicMock()
         mock_client.get_application.side_effect = Exception('Access denied')
         report, status, disc = _check_app_health(
@@ -2022,7 +2022,7 @@ class TestCheckAppHealth:
         assert 'Access denied' in report
 
     def test_with_hana_node_components(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _check_app_health
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _check_app_health
         mock_client = MagicMock()
         mock_client.get_application.return_value = {
             'Application': {'Id': 'app-1', 'Type': 'HANA', 'Status': 'ACTIVATED', 'DiscoveryStatus': 'SUCCESS'}
@@ -2054,7 +2054,7 @@ class TestCheckAppHealth:
         assert 'i-2' in report
 
     def test_with_parent_component_skipped(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _check_app_health
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _check_app_health
         mock_client = MagicMock()
         mock_client.get_application.return_value = {
             'Application': {'Id': 'app-1', 'Type': 'HANA', 'Status': 'ACTIVATED', 'DiscoveryStatus': 'SUCCESS'}
@@ -2081,7 +2081,7 @@ class TestCheckAppHealth:
         assert 'SYSTEMDB' in report
 
     def test_component_error(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _check_app_health
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _check_app_health
         mock_client = MagicMock()
         mock_client.get_application.return_value = {
             'Application': {'Id': 'app-1', 'Type': 'HANA', 'Status': 'ACTIVATED', 'DiscoveryStatus': 'SUCCESS'}
@@ -2096,7 +2096,7 @@ class TestCheckAppHealth:
         assert 'comp-1' in report
 
     def test_abap_components(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _check_app_health
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _check_app_health
         mock_client = MagicMock()
         mock_client.get_application.return_value = {
             'Application': {'Id': 'app-1', 'Type': 'SAP_ABAP', 'Status': 'ACTIVATED', 'DiscoveryStatus': 'SUCCESS'}
@@ -2121,7 +2121,7 @@ class TestAppendConfigChecks:
     """Tests for _append_config_checks."""
 
     def test_no_check_ops(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_config_checks
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_config_checks
         mock_client = MagicMock()
         mock_client.list_configuration_check_operations.return_value = {'ConfigurationCheckOperations': []}
         lines = []
@@ -2129,7 +2129,7 @@ class TestAppendConfigChecks:
         assert any('No configuration check results' in l for l in lines)
 
     def test_with_subchecks_and_rules(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_config_checks
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_config_checks
         mock_client = MagicMock()
         mock_client.list_configuration_check_operations.return_value = {
             'ConfigurationCheckOperations': [{
@@ -2154,7 +2154,7 @@ class TestAppendConfigChecks:
         assert len(findings) == 2
 
     def test_exception_handling(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_config_checks
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_config_checks
         mock_client = MagicMock()
         mock_client.list_configuration_check_operations.side_effect = Exception('fail')
         lines = []
@@ -2162,7 +2162,7 @@ class TestAppendConfigChecks:
         assert any('Could not retrieve' in l for l in lines)
 
     def test_fallback_to_list_operations(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_config_checks
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_config_checks
         mock_client = MagicMock()
         mock_client.list_configuration_check_operations.return_value = {
             'ConfigurationCheckOperations': [{
@@ -2188,13 +2188,13 @@ class TestAppendLogBackupStatus:
     """Tests for _append_log_backup_status."""
 
     def test_no_instances(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_log_backup_status
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_log_backup_status
         lines = []
         _append_log_backup_status(MagicMock(), 'app-1', [], lines)
         assert any('No EC2 instances' in l for l in lines)
 
     def test_online_with_backup_history(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_log_backup_status
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_log_backup_status
         mock_ssm = MagicMock()
         mock_ssm.describe_instance_information.return_value = {
             'InstanceInformationList': [{'PingStatus': 'Online', 'AgentVersion': '3.2'}]
@@ -2219,7 +2219,7 @@ class TestAppendLogBackupStatus:
         assert any('executionStatus' in l for l in lines)
 
     def test_online_no_history(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_log_backup_status
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_log_backup_status
         mock_ssm = MagicMock()
         mock_ssm.describe_instance_information.return_value = {
             'InstanceInformationList': [{'PingStatus': 'Online', 'AgentVersion': '3.2'}]
@@ -2234,7 +2234,7 @@ class TestAppendLogBackupStatus:
         assert len(findings) == 1
 
     def test_not_managed(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_log_backup_status
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_log_backup_status
         mock_ssm = MagicMock()
         mock_ssm.describe_instance_information.return_value = {'InstanceInformationList': []}
         lines = []
@@ -2242,7 +2242,7 @@ class TestAppendLogBackupStatus:
         assert any('Not managed' in l for l in lines)
 
     def test_describe_exception(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_log_backup_status
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_log_backup_status
         mock_ssm = MagicMock()
         mock_ssm.describe_instance_information.side_effect = Exception('fail')
         lines = []
@@ -2250,7 +2250,7 @@ class TestAppendLogBackupStatus:
         assert any('Unable to query' in l for l in lines)
 
     def test_failed_backup_check(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_log_backup_status
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_log_backup_status
         mock_ssm = MagicMock()
         mock_ssm.describe_instance_information.return_value = {
             'InstanceInformationList': [{'PingStatus': 'Online', 'AgentVersion': '3.2'}]
@@ -2279,13 +2279,13 @@ class TestAppendAwsBackupStatus:
     """Tests for _append_aws_backup_status."""
 
     def test_no_instances(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_aws_backup_status
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_aws_backup_status
         lines = []
         _append_aws_backup_status(MagicMock(), 'app-1', [], lines)
         assert any('No EC2 instances' in l for l in lines)
 
     def test_sap_hana_jobs_found(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_aws_backup_status
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_aws_backup_status
         mock_backup = MagicMock()
         mock_backup.list_backup_jobs.return_value = {
             'BackupJobs': [{
@@ -2298,7 +2298,7 @@ class TestAppendAwsBackupStatus:
         assert any('COMPLETED' in l for l in lines)
 
     def test_sap_hana_failed_job_with_describe(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_aws_backup_status
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_aws_backup_status
         mock_backup = MagicMock()
         mock_backup.list_backup_jobs.return_value = {
             'BackupJobs': [{
@@ -2316,7 +2316,7 @@ class TestAppendAwsBackupStatus:
         assert len(findings) == 1
 
     def test_fallback_to_ec2_arn(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_aws_backup_status
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_aws_backup_status
         mock_backup = MagicMock()
         mock_backup.list_backup_jobs.side_effect = [
             {'BackupJobs': []},  # SAP HANA query empty
@@ -2327,7 +2327,7 @@ class TestAppendAwsBackupStatus:
         assert any('COMPLETED' in l for l in lines)
 
     def test_fallback_no_backups(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_aws_backup_status
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_aws_backup_status
         mock_backup = MagicMock()
         mock_backup.list_backup_jobs.side_effect = [
             {'BackupJobs': []},  # SAP HANA query empty
@@ -2338,7 +2338,7 @@ class TestAppendAwsBackupStatus:
         assert any('No backups found' in l for l in lines)
 
     def test_fallback_exception(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_aws_backup_status
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_aws_backup_status
         mock_backup = MagicMock()
         mock_backup.list_backup_jobs.side_effect = [
             Exception('SAP query fail'),
@@ -2349,7 +2349,7 @@ class TestAppendAwsBackupStatus:
         assert any('COMPLETED' in l for l in lines)
 
     def test_ec2_fallback_exception(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_aws_backup_status
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_aws_backup_status
         mock_backup = MagicMock()
         mock_backup.list_backup_jobs.side_effect = [
             Exception('SAP query fail'),
@@ -2360,7 +2360,7 @@ class TestAppendAwsBackupStatus:
         assert any('Error' in l for l in lines)
 
     def test_outer_exception(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_aws_backup_status
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_aws_backup_status
         mock_backup = MagicMock()
         mock_backup.list_backup_jobs.side_effect = Exception('total fail')
         lines = []
@@ -2372,13 +2372,13 @@ class TestAppendCloudwatchMetrics:
     """Tests for _append_cloudwatch_metrics."""
 
     def test_no_instances(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_cloudwatch_metrics
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_cloudwatch_metrics
         lines = []
         _append_cloudwatch_metrics(MagicMock(), [], lines)
         assert any('No EC2 instances' in l for l in lines)
 
     def test_with_all_metrics(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_cloudwatch_metrics
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_cloudwatch_metrics
         mock_cw = MagicMock()
         mem_dims = [{'Name': 'InstanceId', 'Value': 'i-1'}]
         disk_dims = [{'Name': 'InstanceId', 'Value': 'i-1'}, {'Name': 'path', 'Value': '/'}, {'Name': 'device', 'Value': 'xvda'}]
@@ -2408,7 +2408,7 @@ class TestAppendCloudwatchMetrics:
         assert any('Memory usage critical' in f.get('rule', '') for f in findings)
 
     def test_status_check_failed(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_cloudwatch_metrics
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_cloudwatch_metrics
         mock_cw = MagicMock()
         mock_cw.list_metrics.return_value = {'Metrics': []}
         mock_cw.get_metric_statistics.side_effect = [
@@ -2422,7 +2422,7 @@ class TestAppendCloudwatchMetrics:
         assert any('status check failed' in f.get('rule', '') for f in findings)
 
     def test_no_datapoints(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_cloudwatch_metrics
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_cloudwatch_metrics
         mock_cw = MagicMock()
         mock_cw.list_metrics.return_value = {'Metrics': []}
         mock_cw.get_metric_statistics.side_effect = [
@@ -2434,7 +2434,7 @@ class TestAppendCloudwatchMetrics:
         assert any('No data' in l for l in lines)
 
     def test_cpu_exception(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_cloudwatch_metrics
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_cloudwatch_metrics
         mock_cw = MagicMock()
         mock_cw.list_metrics.return_value = {'Metrics': []}
         mock_cw.get_metric_statistics.side_effect = [
@@ -2450,16 +2450,16 @@ class TestAppendFilesystemUsage:
     """Tests for _append_filesystem_usage."""
 
     def test_no_instances(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_filesystem_usage
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_filesystem_usage
         lines = []
         _append_filesystem_usage(MagicMock(), [], lines)
         assert any('No EC2 instances' in l for l in lines)
 
     def test_with_ssm_command_output(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_filesystem_usage
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_filesystem_usage
         mock_ssm = MagicMock()
         with patch(
-            'awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools._run_ssm_command_sync',
+            'awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools._run_ssm_command_sync',
             return_value='Filesystem  Size  Used Avail Use% Mounted on\n/dev/xvda   50G   40G   10G  85% /\n/dev/xvdb  100G   96G    4G  96% /hana/data',
         ):
             lines = []
@@ -2471,7 +2471,7 @@ class TestAppendFilesystemUsage:
             assert any('high usage' in f.get('rule', '') for f in findings)
 
     def test_fallback_to_command_history(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_filesystem_usage
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_filesystem_usage
         mock_ssm = MagicMock()
         mock_ssm.list_commands.return_value = {
             'Commands': [{'CommandId': 'cmd-1', 'Parameters': {'commands': ['df -h /']}}]
@@ -2480,7 +2480,7 @@ class TestAppendFilesystemUsage:
             'Status': 'Success', 'StandardOutputContent': 'Filesystem  Size\n/dev/xvda   50G   40G   10G  70% /'
         }
         with patch(
-            'awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools._run_ssm_command_sync',
+            'awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools._run_ssm_command_sync',
             return_value=None,
         ):
             lines = []
@@ -2488,11 +2488,11 @@ class TestAppendFilesystemUsage:
             assert any('50G' in l for l in lines)
 
     def test_no_data_available(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_filesystem_usage
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_filesystem_usage
         mock_ssm = MagicMock()
         mock_ssm.list_commands.return_value = {'Commands': []}
         with patch(
-            'awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools._run_ssm_command_sync',
+            'awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools._run_ssm_command_sync',
             return_value=None,
         ):
             lines = []
@@ -2500,10 +2500,10 @@ class TestAppendFilesystemUsage:
             assert any('No filesystem usage data' in l for l in lines)
 
     def test_exception_handling(self):
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_filesystem_usage
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_filesystem_usage
         mock_ssm = MagicMock()
         with patch(
-            'awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools._run_ssm_command_sync',
+            'awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools._run_ssm_command_sync',
             side_effect=Exception('fail'),
         ):
             mock_ssm.list_commands.side_effect = Exception('fail')
@@ -2516,7 +2516,7 @@ class TestGetAppSummaryEdgeCases:
     """Tests for _get_app_summary edge cases."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_component_list_error(self, mock_get_client, tools, ctx):
         """Test _get_app_summary when list_components fails."""
         mock_sap = _make_ssm_sap_client(
@@ -2533,7 +2533,7 @@ class TestGetAppSummaryEdgeCases:
         assert result.applications[0].component_count == 0
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_component_detail_error(self, mock_get_client, tools, ctx):
         """Test _get_app_summary when get_component fails for one component."""
         mock_sap = _make_ssm_sap_client(
@@ -2551,7 +2551,7 @@ class TestGetAppSummaryEdgeCases:
         assert result.applications[0].components[0].status == 'ERROR'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_parent_hana_component_skipped(self, mock_get_client, tools, ctx):
         """Test that parent HANA component type is skipped in summary."""
         mock_sap = _make_ssm_sap_client(
@@ -2574,7 +2574,7 @@ class TestGetAppSummaryEdgeCases:
         assert result.applications[0].components[0].component_type == 'HANA_NODE'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_hana_node_with_resilience(self, mock_get_client, tools, ctx):
         """Test HANA_NODE with Resilience dict for replication info."""
         mock_sap = _make_ssm_sap_client(
@@ -2601,7 +2601,7 @@ class TestGetAppSummaryEdgeCases:
         assert comp.databases == ['SYSTEMDB', 'HDB']
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_config_check_exception(self, mock_get_client, tools, ctx):
         """Test _get_app_summary when config check operations fail."""
         mock_sap = _make_ssm_sap_client(
@@ -2618,7 +2618,7 @@ class TestGetAppSummaryEdgeCases:
         assert len(result.applications[0].config_checks) == 0
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_status_check_no_data(self, mock_get_client, tools, ctx):
         """Test CloudWatch status check with no datapoints."""
         mock_sap = _make_ssm_sap_client(
@@ -2648,7 +2648,7 @@ class TestGetAppSummaryEdgeCases:
         assert result.applications[0].cloudwatch_metrics[0].status_check == 'No data'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_status_check_error(self, mock_get_client, tools, ctx):
         """Test CloudWatch status check with exception."""
         mock_sap = _make_ssm_sap_client(
@@ -2678,7 +2678,7 @@ class TestGetAppSummaryEdgeCases:
         assert result.applications[0].cloudwatch_metrics[0].status_check == 'Error'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_app_with_status_message(self, mock_get_client, tools, ctx):
         """Test app with StatusMessage field."""
         mock_sap = _make_ssm_sap_client(
@@ -2697,7 +2697,7 @@ class TestReportWithLogBackup:
     """Tests for generate_health_report with log backup status."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_report_with_log_backup(self, mock_get_client, tools, ctx):
         """Test report includes log backup section."""
         mock_sap = _make_ssm_sap_client(
@@ -2723,7 +2723,7 @@ class TestReportWithLogBackup:
             return mock_sap
 
         mock_get_client.side_effect = client_router
-        with patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools._run_ssm_command', new_callable=AsyncMock, return_value=None):
+        with patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools._run_ssm_command', new_callable=AsyncMock, return_value=None):
             result = await tools.generate_health_report(
                 ctx, application_id='app-1',
                 include_config_checks=False, include_log_backup_status=True,
@@ -2733,7 +2733,7 @@ class TestReportWithLogBackup:
         assert 'Log Backup' in result.report
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_report_with_backup(self, mock_get_client, tools, ctx):
         """Test report includes AWS Backup section."""
         mock_sap = _make_ssm_sap_client(
@@ -2764,7 +2764,7 @@ class TestReportWithLogBackup:
         assert 'Backup' in result.report
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_report_with_cloudwatch(self, mock_get_client, tools, ctx):
         """Test report includes CloudWatch section."""
         mock_sap = _make_ssm_sap_client(
@@ -2801,7 +2801,7 @@ class TestGetAppSummarySubchecks:
     """Tests for subcheck/rule result paths in _get_app_summary."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_subcheck_rule_results_exception(self, mock_get_client, tools, ctx):
         """Test that rule result exceptions are handled gracefully."""
         recent = datetime.now(timezone.utc) - timedelta(hours=1)
@@ -2822,7 +2822,7 @@ class TestGetAppSummarySubchecks:
         assert result.applications[0].config_checks[0].subchecks[0].rule_results == []
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_subcheck_list_exception(self, mock_get_client, tools, ctx):
         """Test that subcheck list exceptions are handled gracefully."""
         recent = datetime.now(timezone.utc) - timedelta(hours=1)
@@ -2841,7 +2841,7 @@ class TestGetAppSummarySubchecks:
         assert result.applications[0].config_checks[0].subchecks == []
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_config_check_no_operation_id_fallback(self, mock_get_client, tools, ctx):
         """Test fallback to list_operations when no operation ID."""
         recent = datetime.now(timezone.utc) - timedelta(hours=1)
@@ -2868,7 +2868,7 @@ class TestReportLogBackupDetails:
     """Tests for log backup details in report."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_report_log_backup_with_invocation_details(self, mock_get_client, tools, ctx):
         """Test report log backup with invocation details."""
         mock_sap = _make_ssm_sap_client(
@@ -2902,7 +2902,7 @@ class TestReportLogBackupDetails:
             return mock_sap
 
         mock_get_client.side_effect = client_router
-        with patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools._run_ssm_command', new_callable=AsyncMock, return_value=None):
+        with patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools._run_ssm_command', new_callable=AsyncMock, return_value=None):
             result = await tools.generate_health_report(
                 ctx, application_id='app-1',
                 include_config_checks=False, include_log_backup_status=True,
@@ -2916,7 +2916,7 @@ class TestReportBackupDetails:
     """Tests for backup details in report."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_report_backup_failed_with_details(self, mock_get_client, tools, ctx):
         """Test report backup with failed job details."""
         mock_sap = _make_ssm_sap_client(
@@ -2952,7 +2952,7 @@ class TestReportBackupDetails:
         assert 'Disk full' in result.report
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_report_backup_ec2_fallback(self, mock_get_client, tools, ctx):
         """Test report backup with EC2 ARN fallback."""
         mock_sap = _make_ssm_sap_client(
@@ -2988,7 +2988,7 @@ class TestReportFilesystemUsage:
     """Tests for filesystem usage in report."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_report_filesystem_with_data(self, mock_get_client, tools, ctx):
         """Test report filesystem usage with data."""
         mock_sap = _make_ssm_sap_client(
@@ -3015,10 +3015,10 @@ class TestReportFilesystemUsage:
 
         mock_get_client.side_effect = client_router
         with patch(
-            'awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools._run_ssm_command',
+            'awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools._run_ssm_command',
             new_callable=AsyncMock, return_value=None,
         ), patch(
-            'awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools._run_ssm_command_sync',
+            'awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools._run_ssm_command_sync',
             return_value='Filesystem  Size  Used Avail Use% Mounted on\n/dev/xvda   50G   40G   10G  80% /',
         ):
             result = await tools.generate_health_report(
@@ -3034,7 +3034,7 @@ class TestReportCloudwatchDetails:
     """Tests for CloudWatch details in report."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_report_cloudwatch_with_cwagent(self, mock_get_client, tools, ctx):
         """Test report CloudWatch with CWAgent metrics."""
         mock_sap = _make_ssm_sap_client(
@@ -3087,7 +3087,7 @@ class TestGetAppSummaryBackupEdgeCases:
     """Tests for _get_app_summary backup edge cases."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_sap_hana_backup_failed_with_describe(self, mock_get_client, tools, ctx):
         """Test backup with FAILED status triggers describe_backup_job (lines 807-819)."""
         mock_sap = _make_ssm_sap_client(
@@ -3136,7 +3136,7 @@ class TestGetAppSummaryBackupEdgeCases:
         assert bs[0].failure_reason == 'Disk space insufficient'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_backup_sap_query_exception_fallback(self, mock_get_client, tools, ctx):
         """Test backup when SAP HANA query raises exception, falls back to EC2 ARN (lines 842-856)."""
         mock_sap = _make_ssm_sap_client(
@@ -3179,7 +3179,7 @@ class TestGetAppSummaryBackupEdgeCases:
         assert bs[0].backup_status == 'COMPLETED'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_backup_ec2_fallback_failed_with_describe(self, mock_get_client, tools, ctx):
         """Test EC2 ARN fallback with FAILED job and describe_backup_job (lines 863-901)."""
         mock_sap = _make_ssm_sap_client(
@@ -3228,7 +3228,7 @@ class TestGetAppSummaryBackupEdgeCases:
         assert bs[0].failure_reason == 'EC2 backup failed reason'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_backup_exception_fallback_ec2_failed(self, mock_get_client, tools, ctx):
         """Test backup outer exception fallback with FAILED EC2 job (lines 933-952)."""
         mock_sap = _make_ssm_sap_client(
@@ -3281,7 +3281,7 @@ class TestGetAppSummaryLogBackupEdgeCases:
     """Tests for _get_app_summary log backup edge cases."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_log_backup_invocation_detail_exception(self, mock_get_client, tools, ctx):
         """Test log backup when list_command_invocations raises (lines 757-762)."""
         mock_sap = _make_ssm_sap_client(
@@ -3327,7 +3327,7 @@ class TestGetAppSummaryLogBackupEdgeCases:
         assert lb[0].ssm_agent_status == 'Online'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_log_backup_paginator_exception(self, mock_get_client, tools, ctx):
         """Test log backup when paginator raises exception (lines 715-716)."""
         mock_sap = _make_ssm_sap_client(
@@ -3374,7 +3374,7 @@ class TestGetAppSummaryCWAgentExceptions:
     """Tests for CWAgent metric exception paths in _get_app_summary."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_cwagent_mem_exception(self, mock_get_client, tools, ctx):
         """Test CWAgent memory metric exception (lines 590-591)."""
         mock_sap = _make_ssm_sap_client(
@@ -3425,7 +3425,7 @@ class TestGetAppSummaryCWAgentExceptions:
         assert cw[0].memory_used_pct is None
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools.get_aws_client')
+    @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools.get_aws_client')
     async def test_cwagent_disk_exception(self, mock_get_client, tools, ctx):
         """Test CWAgent disk metric exception (lines 651-652)."""
         mock_sap = _make_ssm_sap_client(
@@ -3476,7 +3476,7 @@ class TestAppendLogBackupStatusEdgeCases:
 
     def test_invocation_detail_exception(self):
         """Test log backup when list_command_invocations raises (lines 1492-1533)."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_log_backup_status
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_log_backup_status
         mock_ssm = MagicMock()
         mock_ssm.describe_instance_information.return_value = {
             'InstanceInformationList': [{'PingStatus': 'Online', 'AgentVersion': '3.2'}]
@@ -3493,7 +3493,7 @@ class TestAppendLogBackupStatusEdgeCases:
 
     def test_paginator_exception(self):
         """Test log backup when paginator raises (lines 1405-1408)."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_log_backup_status
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_log_backup_status
         mock_ssm = MagicMock()
         mock_ssm.describe_instance_information.return_value = {
             'InstanceInformationList': [{'PingStatus': 'Online', 'AgentVersion': '3.2'}]
@@ -3507,7 +3507,7 @@ class TestAppendLogBackupStatusEdgeCases:
 
     def test_outer_exception(self):
         """Test log backup outer exception (lines 1343-1344)."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_log_backup_status
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_log_backup_status
         mock_ssm = MagicMock()
         mock_ssm.describe_instance_information.side_effect = Exception('Total failure')
         lines = []
@@ -3521,7 +3521,7 @@ class TestAppendAwsBackupStatusEdgeCases:
 
     def test_sap_hana_failed_job_no_status_message(self):
         """Test SAP HANA FAILED job without StatusMessage triggers describe (lines 1600-1641)."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_aws_backup_status
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_aws_backup_status
         mock_backup = MagicMock()
         mock_backup.list_backup_jobs.return_value = {
             'BackupJobs': [{
@@ -3543,7 +3543,7 @@ class TestAppendAwsBackupStatusEdgeCases:
 
     def test_ec2_fallback_failed_job_with_describe(self):
         """Test EC2 fallback FAILED job triggers describe (lines 1679-1681)."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_aws_backup_status
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_aws_backup_status
         mock_backup = MagicMock()
         mock_backup.list_backup_jobs.side_effect = [
             {'BackupJobs': []},  # SAP HANA empty
@@ -3569,7 +3569,7 @@ class TestAppendCloudwatchMetricsEdgeCases:
 
     def test_memory_warning_threshold(self):
         """Test memory between 80-90% generates warning (lines 1849-1857)."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_cloudwatch_metrics
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_cloudwatch_metrics
         mock_cw = MagicMock()
         mem_dims = [{'Name': 'InstanceId', 'Value': 'i-1'}]
         mock_cw.list_metrics.side_effect = [
@@ -3590,7 +3590,7 @@ class TestAppendCloudwatchMetricsEdgeCases:
 
     def test_disk_detail_table(self):
         """Test disk detail table with multiple paths (lines 1881-1900)."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _append_cloudwatch_metrics
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _append_cloudwatch_metrics
         mock_cw = MagicMock()
         disk_dims_root = [
             {'Name': 'InstanceId', 'Value': 'i-1'},
@@ -3639,7 +3639,7 @@ class TestCheckAppHealthReportEdgeCases:
 
     def test_report_with_config_checks_and_findings(self):
         """Test report with config checks that produce findings (lines 1178-1180, 1231, 1249)."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _check_app_health
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _check_app_health
         mock_client = MagicMock()
         mock_client.get_application.return_value = {
             'Application': {'Id': 'app-1', 'Type': 'HANA', 'Status': 'ACTIVATED', 'DiscoveryStatus': 'SUCCESS'}
@@ -3687,7 +3687,7 @@ class TestCheckAppHealthReportEdgeCases:
 
     def test_report_with_log_backup_and_backup(self):
         """Test report with log backup and AWS backup sections."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _check_app_health
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _check_app_health
         mock_client = MagicMock()
         mock_client.get_application.return_value = {
             'Application': {'Id': 'app-1', 'Type': 'HANA', 'Status': 'ACTIVATED', 'DiscoveryStatus': 'SUCCESS'}
@@ -3733,7 +3733,7 @@ class TestCheckAppHealthReportEdgeCases:
 
     def test_report_with_cloudwatch_metrics(self):
         """Test report with CloudWatch metrics section."""
-        from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import _check_app_health
+        from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import _check_app_health
         mock_client = MagicMock()
         mock_client.get_application.return_value = {
             'Application': {'Id': 'app-1', 'Type': 'HANA', 'Status': 'ACTIVATED', 'DiscoveryStatus': 'SUCCESS'}

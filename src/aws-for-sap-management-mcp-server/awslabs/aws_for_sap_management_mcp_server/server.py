@@ -14,16 +14,16 @@
 
 """awslabs SSM for SAP MCP Server implementation."""
 
-from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_applications.tools import (
+from awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools import (
     SSMSAPApplicationTools,
 )
-from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_config_checks.tools import (
+from awslabs.aws_for_sap_management_mcp_server.ssm_sap_config_checks.tools import (
     SSMSAPConfigCheckTools,
 )
-from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_health.tools import (
+from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
     SSMSAPHealthTools,
 )
-from awslabs.aws_systems_manager_for_sap_mcp_server.ssm_sap_scheduling.tools import (
+from awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools import (
     SSMSAPSchedulingTools,
 )
 from loguru import logger
@@ -31,7 +31,7 @@ from mcp.server.fastmcp import FastMCP
 
 
 mcp = FastMCP(
-    'awslabs.aws-systems-manager-for-sap-mcp-server',
+    'awslabs.aws-for-sap-management-mcp-server',
     instructions="""Use this MCP server to manage SAP applications registered with
 AWS Systems Manager for SAP. Supports listing and inspecting SAP applications,
 running and reviewing configuration checks, scheduling recurring operations
