@@ -11,8 +11,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""awslabs.cloudwatch-mcp-server"""
-
-__version__ = '0.0.23'
-MCP_SERVER_VERSION = __version__

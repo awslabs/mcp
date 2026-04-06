@@ -50,7 +50,7 @@ This MCP server provides tools for:
 
 ### Workflow Execution Tools
 
-1. **StartAHORun** - Start workflow runs with custom parameters and resource configuration
+1. **StartAHORun** - Start workflow runs with custom parameters, resource configuration, and optional VPC networking mode with a named configuration
 2. **ListAHORuns** - List workflow runs with filtering by status and date ranges
 3. **GetAHORun** - Retrieve detailed run information including status and metadata
 4. **ListAHORunTasks** - List tasks for specific runs with status filtering
@@ -108,6 +108,13 @@ This MCP server provides tools for:
 5. **StartAHOReferenceImportJob** - Import reference files from S3 into a reference store with batch support
 6. **GetAHOReferenceImportJob** - Get status and details of a reference import job including per-source statuses
 7. **ListAHOReferenceImportJobs** - List import jobs for a reference store with pagination
+
+### Configuration Management Tools
+
+1. **CreateAHOConfiguration** - Create a new HealthOmics configuration for workflow runs with optional run settings, description, and tags
+2. **GetAHOConfiguration** - Get detailed information about a specific configuration including run settings and status
+3. **ListAHOConfigurations** - List available configurations with pagination support
+4. **DeleteAHOConfiguration** - Delete a configuration
 
 ### Region Management Tools
 
@@ -526,6 +533,10 @@ The following IAM permissions are required:
                 "omics:StartReferenceImportJob",
                 "omics:GetReferenceImportJob",
                 "omics:ListReferenceImportJobs",
+                "omics:CreateConfiguration",
+                "omics:GetConfiguration",
+                "omics:ListConfigurations",
+                "omics:DeleteConfiguration",
                 "logs:DescribeLogGroups",
                 "logs:DescribeLogStreams",
                 "logs:GetLogEvents"

@@ -308,3 +308,35 @@ ERROR_BATCH_NOT_DELETABLE = 'Batch cannot be deleted. Status must be one of: {}'
 ERROR_INVALID_BATCH_RUN_SETTINGS = (
     'batchRunSettings must contain either inlineSettings or s3UriSettings, but not both'
 )
+
+# Networking modes
+NETWORKING_MODE_RESTRICTED = 'RESTRICTED'
+NETWORKING_MODE_VPC = 'VPC'
+NETWORKING_MODES = [NETWORKING_MODE_RESTRICTED, NETWORKING_MODE_VPC]
+
+# Configuration statuses
+CONFIGURATION_STATUS_CREATING = 'CREATING'
+CONFIGURATION_STATUS_ACTIVE = 'ACTIVE'
+CONFIGURATION_STATUS_DELETING = 'DELETING'
+CONFIGURATION_STATUS_DELETED = 'DELETED'
+CONFIGURATION_STATUSES = [
+    CONFIGURATION_STATUS_CREATING,
+    CONFIGURATION_STATUS_ACTIVE,
+    CONFIGURATION_STATUS_DELETING,
+    CONFIGURATION_STATUS_DELETED,
+]
+
+# Configuration constraints
+CONFIGURATION_NAME_MAX_LENGTH = 50
+RESERVED_CONFIGURATION_NAMES = ['default']
+
+# Error messages for configuration and networking operations
+ERROR_INVALID_NETWORKING_MODE = 'Invalid networking mode. Must be one of: {}'
+ERROR_VPC_MODE_REQUIRES_CONFIGURATION_NAME = (
+    'configuration_name is required when networking_mode is VPC'
+)
+ERROR_CONFIGURATION_NAME_REQUIRES_VPC_MODE = (
+    'configuration_name requires networking_mode to be VPC'
+)
+ERROR_RESERVED_CONFIGURATION_NAME = "Configuration name '{}' is reserved and cannot be used"
+ERROR_CONFIGURATION_NAME_TOO_LONG = 'Configuration name exceeds maximum length of {} characters'
