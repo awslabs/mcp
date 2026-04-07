@@ -270,6 +270,28 @@ class TestProcessNatGateways:
 
         assert result == []
 
+    def test_private_nat_gateway_no_public_ip(self):
+        """Test processing private NAT gateway without PublicIp."""
+        data = {
+            'NatGateways': [
+                {
+                    'NatGatewayId': 'nat-private',
+                    'State': 'available',
+                    'SubnetId': 'subnet-456',
+                    'NatGatewayAddresses': [
+                        {'PrivateIp': '10.0.1.10'},
+                    ],
+                }
+            ]
+        }
+
+        result = process_nat_gateways(data)
+
+        assert len(result) == 1
+        assert result[0].id == 'nat-private'
+        assert result[0].private_ips == ['10.0.1.10']
+        assert result[0].public_ips == []
+
 
 class TestProcessNacls:
     """Test process_nacls function."""
