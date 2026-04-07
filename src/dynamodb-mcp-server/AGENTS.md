@@ -129,7 +129,7 @@ The project uses pytest markers to categorize tests (configured in pyproject.tom
 
 ### Test Suite
 - **Property-based tests**: Using `hypothesis` for comprehensive input validation
-- **Comprehensive test coverage**: Unit, integration, and evaluation tests
+- **Comprehensive test coverage**: Unit and integration tests
 - **Async test support**: pytest-asyncio with auto mode
 - **Mocking support**: Using `moto` for AWS service mocking
 - **Coverage exclusions**: Pragma comments and main blocks are excluded
@@ -140,7 +140,6 @@ The project uses pytest markers to categorize tests (configured in pyproject.tom
 - `tests/test_markdown_formatter.py` - Markdown formatting tests
 - `tests/test_model_validation_utils.py` - DynamoDB validation tests
 - `tests/db_analyzer/` - Database analyzer tests
-- `tests/evals/` - Evaluation framework tests
 - `tests/cdk_generator/` - CDK code generation tests
 - `tests/repo_generation_tool/` - Data access layer generation tests
 - `tests/conftest.py` - Shared pytest fixtures and configuration
@@ -184,7 +183,7 @@ The project uses pytest markers to categorize tests (configured in pyproject.tom
   - `core/` - Core validation and parsing logic
   - `languages/` - Language-specific code generators
   - `codegen.py` - Main code generation orchestration
-- `tests/` - Test suite with unit, integration, and evaluation tests
+- `tests/` - Test suite with unit and integration tests
 
 ### Available MCP Tools
 

@@ -15,9 +15,10 @@
 """Tests for the aws-msk MCP Server."""
 
 import signal
+import warnings
 from anyio.abc import CancelScope
 from awslabs.aws_msk_mcp_server import server
-from awslabs.aws_msk_mcp_server.server import main, run_server, signal_handler
+from awslabs.aws_msk_mcp_server.server import DEPRECATION_NOTICE, main, run_server, signal_handler
 from awslabs.aws_msk_mcp_server.tools.static_tools.cluster_best_practices import (
     get_cluster_best_practices,
 )
@@ -387,7 +388,10 @@ class TestServer:
         # Assert
         mock_fast_mcp.assert_called_once_with(
             name='awslabs.aws-msk-mcp-server',
-            instructions="""
+            instructions='DEPRECATION NOTICE: '
+            + DEPRECATION_NOTICE
+            + """
+
         AWS MSK MCP Server providing tools to interact with MSK Clusters.
 
         This server enables you to:
@@ -461,7 +465,10 @@ class TestServer:
         # Assert
         mock_fast_mcp.assert_called_once_with(
             name='awslabs.aws-msk-mcp-server',
-            instructions="""
+            instructions='DEPRECATION NOTICE: '
+            + DEPRECATION_NOTICE
+            + """
+
         AWS MSK MCP Server providing tools to interact with MSK Clusters.
 
         This server enables you to:
@@ -491,6 +498,23 @@ class TestServer:
         mock_create_task_group.assert_called_once()
         mock_task_group.start_soon.assert_called_once()
         assert mock_task_group.start_soon.call_args[0][0] == signal_handler
+
+    @patch('awslabs.aws_msk_mcp_server.server.run')
+    @patch('awslabs.aws_msk_mcp_server.server.argparse.ArgumentParser')
+    def test_deprecation_warning(self, mock_argument_parser, mock_run):
+        """Test that main() emits a FutureWarning with DEPRECATION_NOTICE."""
+        mock_parser = MagicMock()
+        mock_argument_parser.return_value = mock_parser
+        mock_args = MagicMock()
+        mock_args.allow_writes = False
+        mock_parser.parse_args.return_value = mock_args
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter('always')
+            main()
+            future_warnings = [x for x in w if issubclass(x.category, FutureWarning)]
+            assert len(future_warnings) == 1
+            assert DEPRECATION_NOTICE in str(future_warnings[0].message)
 
     @patch('awslabs.aws_msk_mcp_server.server.run')
     @patch('awslabs.aws_msk_mcp_server.server.argparse.ArgumentParser')
