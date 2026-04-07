@@ -15,10 +15,12 @@
 """Implementation of Checkov scan tools."""
 
 import json
-import os
 import re
 import subprocess
-from awslabs.terraform_mcp_server.impl.tools.utils import get_dangerous_patterns
+from awslabs.terraform_mcp_server.impl.tools.utils import (
+    get_dangerous_patterns,
+    validate_working_directory,
+)
 from awslabs.terraform_mcp_server.models import (
     CheckovScanRequest,
     CheckovScanResult,
@@ -262,17 +264,21 @@ async def run_checkov_scan_impl(request: CheckovScanRequest) -> CheckovScanResul
                     )
 
     # Build the command
-    # Convert working_directory to absolute path if it's not already
-    working_dir = request.working_directory
-    if not os.path.isabs(working_dir):
-        # Get the current working directory of the MCP server
-        current_dir = os.getcwd()
-        # Go up to the project root directory (assuming we're in src/terraform-mcp-server/awslabs/terraform_mcp_server)
-        project_root = os.path.abspath(os.path.join(current_dir, '..', '..', '..', '..'))
-        # Join with the requested working directory
-        working_dir = os.path.abspath(os.path.join(project_root, working_dir))
+    # Validate and resolve working_directory
+    try:
+        working_dir = validate_working_directory(request.working_directory)
+    except ValueError as e:
+        logger.error(str(e))
+        return CheckovScanResult(
+            status='error',
+            working_directory=request.working_directory,
+            error_message=str(e),
+            vulnerabilities=[],
+            summary={},
+            raw_output=None,
+        )
 
-    logger.info(f'Using absolute working directory: {working_dir}')
+    logger.info(f'Using validated working directory: {working_dir}')
     cmd = ['checkov', '--quiet', '-d', working_dir]
 
     # Add framework if specified

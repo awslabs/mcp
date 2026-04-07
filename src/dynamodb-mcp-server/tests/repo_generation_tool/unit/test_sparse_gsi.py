@@ -1,11 +1,15 @@
 """Unit tests for sparse GSI support (exclude_none behavior)."""
 
+import os
 from awslabs.dynamodb_mcp_server.repo_generation_tool.languages.python.base_repository import (
     BaseRepository,
     ConfigurableEntity,
     EntityConfig,
 )
 from unittest.mock import patch
+
+
+os.environ.setdefault('AWS_DEFAULT_REGION', 'us-east-1')
 
 
 class SparseTestEntity(ConfigurableEntity):

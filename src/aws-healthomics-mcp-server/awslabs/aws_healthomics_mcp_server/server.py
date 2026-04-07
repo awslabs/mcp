@@ -19,6 +19,12 @@ from awslabs.aws_healthomics_mcp_server.tools.codeconnections import (
     get_codeconnection,
     list_codeconnections,
 )
+from awslabs.aws_healthomics_mcp_server.tools.configuration_tools import (
+    create_configuration,
+    delete_configuration,
+    get_configuration,
+    list_configurations,
+)
 from awslabs.aws_healthomics_mcp_server.tools.ecr_tools import (
     check_container_availability,
     clone_container_to_ecr,
@@ -37,7 +43,25 @@ from awslabs.aws_healthomics_mcp_server.tools.helper_tools import (
     get_supported_regions,
     package_workflow,
 )
+from awslabs.aws_healthomics_mcp_server.tools.reference_store_tools import (
+    get_reference_import_job,
+    get_reference_metadata,
+    get_reference_store,
+    list_reference_import_jobs,
+    list_reference_stores,
+    list_references,
+    start_reference_import_job,
+)
 from awslabs.aws_healthomics_mcp_server.tools.run_analysis import analyze_run_performance
+from awslabs.aws_healthomics_mcp_server.tools.run_batch import (
+    cancel_run_batch,
+    delete_batch,
+    delete_run_batch,
+    get_batch,
+    list_batches,
+    list_runs_in_batch,
+    start_run_batch,
+)
 from awslabs.aws_healthomics_mcp_server.tools.run_cache import (
     create_run_cache,
     get_run_cache,
@@ -51,6 +75,21 @@ from awslabs.aws_healthomics_mcp_server.tools.run_group import (
     update_run_group,
 )
 from awslabs.aws_healthomics_mcp_server.tools.run_timeline import generate_run_timeline
+from awslabs.aws_healthomics_mcp_server.tools.sequence_store_tools import (
+    activate_read_sets,
+    create_sequence_store,
+    get_read_set_export_job,
+    get_read_set_import_job,
+    get_read_set_metadata,
+    get_sequence_store,
+    list_read_set_export_jobs,
+    list_read_set_import_jobs,
+    list_read_sets,
+    list_sequence_stores,
+    start_read_set_export_job,
+    start_read_set_import_job,
+    update_sequence_store,
+)
 from awslabs.aws_healthomics_mcp_server.tools.troubleshooting import diagnose_run_failure
 from awslabs.aws_healthomics_mcp_server.tools.workflow_analysis import (
     get_run_engine_logs,
@@ -115,6 +154,15 @@ This MCP server provides tools for creating, managing, and analyzing genomic wor
 - **ListAHORunCaches**: List available run caches with optional filtering by name, status, or cache behavior
 - **UpdateAHORunCache**: Update an existing run cache's behavior, name, or description
 
+### Run Batch Management
+- **StartAHORunBatch**: Submit multiple workflow runs in a single request (up to 100,000 runs)
+- **GetAHOBatch**: Get detailed information about a specific batch including status, run summaries, and failure reasons
+- **ListAHOBatches**: List batches with optional filtering by status, name, or run group
+- **ListAHORunsInBatch**: List individual runs within a batch with optional filtering by submission status
+- **CancelAHORunBatch**: Cancel all runs in a batch (only for batches in PENDING, SUBMITTING, or INPROGRESS state)
+- **DeleteAHORunBatch**: Delete all runs in a batch (only for batches in PROCESSED or CANCELLED state)
+- **DeleteAHOBatch**: Delete batch metadata (only for batches in terminal state: PROCESSED, FAILED, CANCELLED, or RUNS_DELETED)
+
 ### Workflow Analysis
 - **GetAHORunLogs**: Retrieve high-level run logs showing workflow execution events
 - **GetAHORunManifestLogs**: Retrieve run manifest logs with workflow summary
@@ -152,6 +200,36 @@ This MCP server provides tools for creating, managing, and analyzing genomic wor
 - **ListCodeConnections**: List available CodeConnections for use with HealthOmics workflows
 - **CreateCodeConnection**: Create a new CodeConnection to a Git provider
 - **GetCodeConnection**: Get details about a specific CodeConnection
+
+### Sequence Store Management
+- **CreateAHOSequenceStore**: Create a new HealthOmics sequence store
+- **ListAHOSequenceStores**: List available sequence stores
+- **GetAHOSequenceStore**: Get details about a specific sequence store
+- **UpdateAHOSequenceStore**: Update a sequence store's configuration
+- **ListAHOReadSets**: List read sets in a sequence store with filtering
+- **GetAHOReadSetMetadata**: Get metadata for a specific read set
+- **StartAHOReadSetImportJob**: Import genomic files from S3 into a sequence store
+- **GetAHOReadSetImportJob**: Get status of a read set import job
+- **ListAHOReadSetImportJobs**: List import jobs for a sequence store
+- **StartAHOReadSetExportJob**: Export read sets from a sequence store to S3
+- **GetAHOReadSetExportJob**: Get status of a read set export job
+- **ListAHOReadSetExportJobs**: List export jobs for a sequence store
+- **ActivateAHOReadSets**: Activate archived read sets
+
+### Reference Store Management
+- **ListAHOReferenceStores**: List available reference stores
+- **GetAHOReferenceStore**: Get details about a specific reference store
+- **ListAHOReferences**: List references in a reference store with filtering
+- **GetAHOReferenceMetadata**: Get metadata for a specific reference
+- **StartAHOReferenceImportJob**: Import reference files from S3 into a reference store
+- **GetAHOReferenceImportJob**: Get status of a reference import job
+- **ListAHOReferenceImportJobs**: List import jobs for a reference store
+
+### Configuration Management
+- **CreateAHOConfiguration**: Create a new HealthOmics configuration for workflow runs
+- **GetAHOConfiguration**: Get details about a specific configuration
+- **ListAHOConfigurations**: List available configurations
+- **DeleteAHOConfiguration**: Delete a configuration
 
 ## Service Availability
 AWS HealthOmics is available in select AWS regions. Use the GetAHOSupportedRegions tool to get the current list of supported regions.
@@ -191,6 +269,15 @@ mcp.tool(name='GetAHORunCache')(get_run_cache)
 mcp.tool(name='ListAHORunCaches')(list_run_caches)
 mcp.tool(name='UpdateAHORunCache')(update_run_cache)
 
+# Register run batch tools
+mcp.tool(name='StartAHORunBatch')(start_run_batch)
+mcp.tool(name='GetAHOBatch')(get_batch)
+mcp.tool(name='ListAHOBatches')(list_batches)
+mcp.tool(name='ListAHORunsInBatch')(list_runs_in_batch)
+mcp.tool(name='CancelAHORunBatch')(cancel_run_batch)
+mcp.tool(name='DeleteAHORunBatch')(delete_run_batch)
+mcp.tool(name='DeleteAHOBatch')(delete_batch)
+
 # Register workflow analysis tools
 mcp.tool(name='GetAHORunLogs')(get_run_logs)
 mcp.tool(name='GetAHORunManifestLogs')(get_run_manifest_logs)
@@ -228,6 +315,36 @@ mcp.tool(name='ListPullThroughCacheRules')(list_pull_through_cache_rules)
 mcp.tool(name='CreatePullThroughCacheForHealthOmics')(create_pull_through_cache_for_healthomics)
 mcp.tool(name='CreateContainerRegistryMap')(create_container_registry_map)
 mcp.tool(name='ValidateHealthOmicsECRConfig')(validate_healthomics_ecr_config)
+
+# Register sequence store tools
+mcp.tool(name='CreateAHOSequenceStore')(create_sequence_store)
+mcp.tool(name='ListAHOSequenceStores')(list_sequence_stores)
+mcp.tool(name='GetAHOSequenceStore')(get_sequence_store)
+mcp.tool(name='UpdateAHOSequenceStore')(update_sequence_store)
+mcp.tool(name='ListAHOReadSets')(list_read_sets)
+mcp.tool(name='GetAHOReadSetMetadata')(get_read_set_metadata)
+mcp.tool(name='StartAHOReadSetImportJob')(start_read_set_import_job)
+mcp.tool(name='GetAHOReadSetImportJob')(get_read_set_import_job)
+mcp.tool(name='ListAHOReadSetImportJobs')(list_read_set_import_jobs)
+mcp.tool(name='StartAHOReadSetExportJob')(start_read_set_export_job)
+mcp.tool(name='GetAHOReadSetExportJob')(get_read_set_export_job)
+mcp.tool(name='ListAHOReadSetExportJobs')(list_read_set_export_jobs)
+mcp.tool(name='ActivateAHOReadSets')(activate_read_sets)
+
+# Register reference store tools
+mcp.tool(name='ListAHOReferenceStores')(list_reference_stores)
+mcp.tool(name='GetAHOReferenceStore')(get_reference_store)
+mcp.tool(name='ListAHOReferences')(list_references)
+mcp.tool(name='GetAHOReferenceMetadata')(get_reference_metadata)
+mcp.tool(name='StartAHOReferenceImportJob')(start_reference_import_job)
+mcp.tool(name='GetAHOReferenceImportJob')(get_reference_import_job)
+mcp.tool(name='ListAHOReferenceImportJobs')(list_reference_import_jobs)
+
+# Register configuration tools
+mcp.tool(name='CreateAHOConfiguration')(create_configuration)
+mcp.tool(name='GetAHOConfiguration')(get_configuration)
+mcp.tool(name='ListAHOConfigurations')(list_configurations)
+mcp.tool(name='DeleteAHOConfiguration')(delete_configuration)
 
 
 def main():
