@@ -405,7 +405,7 @@ pip install pydantic boto3
 **Optional Development Dependencies:**
 
 For linting and formatting the generated code:
-- `ruff>=0.9.7` - Python linter and formatter (recommended)
+- `ruff==0.15.8` - Python linter and formatter (recommended)
 
 **Generated File Structure:**
 
