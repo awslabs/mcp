@@ -3302,3 +3302,156 @@ def test_filter_operation_targets_case_sensitive():
     assert operation_targets[0]['Data']['ServiceOperation']['MetricType'] == 'fault'  # unchanged
     assert operation_targets[1]['Data']['ServiceOperation']['MetricType'] == 'FAULT'  # unchanged
     assert has_wildcards is False
+
+@pytest.mark.asyncio
+async def test_list_canaries_success(mock_aws_clients):
+    """Test list_canaries returns formatted canary list."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import list_canaries
+
+    mock_aws_clients['synthetics_client'].describe_canaries.return_value = {
+        'Canaries': [
+            {
+                'Name': 'my-canary',
+                'Status': {'State': 'RUNNING', 'StateReason': ''},
+                'Schedule': {'Expression': 'rate(5 minutes)'},
+                'RuntimeVersion': 'syn-nodejs-puppeteer-13.0'
+            },
+            {
+                'Name': 'stopped-canary',
+                'Status': {'State': 'STOPPED', 'StateReason': ''},
+                'Schedule': {'Expression': 'rate(1 hour)'},
+                'RuntimeVersion': 'syn-nodejs-playwright-5.0'
+            },
+        ],
+        'NextToken': None,
+    }
+
+    result = await list_canaries('us-east-1')
+
+    assert 'Found 2 canaries' in result
+    assert 'my-canary' in result
+    assert 'stopped-canary' in result
+    assert 'RUNNING' in result
+    assert 'STOPPED' in result
+    assert 'syn-nodejs-puppeteer-13.0' in result
+    assert 'syn-nodejs-playwright-5.0' in result
+
+
+@pytest.mark.asyncio
+async def test_list_canaries_empty(mock_aws_clients):
+    """Test list_canaries when no canaries exist."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import list_canaries
+
+    mock_aws_clients['synthetics_client'].describe_canaries.return_value = {
+        'Canaries': [],
+    }
+
+    result = await list_canaries('us-east-1')
+    assert 'No canaries found' in result
+
+
+@pytest.mark.asyncio
+async def test_list_canaries_api_error(mock_aws_clients):
+    """Test list_canaries handles API errors."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import list_canaries
+
+    mock_aws_clients['synthetics_client'].describe_canaries.side_effect = ClientError(
+        {'Error': {'Code': 'AccessDeniedException', 'Message': 'Access denied'}},
+        'DescribeCanaries',
+    )
+
+    result = await list_canaries('us-east-1')
+    assert 'Error listing canaries' in result
+
+
+@pytest.mark.asyncio
+async def test_list_canaries_pagination(mock_aws_clients):
+    """Test list_canaries handles pagination."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import list_canaries
+
+    mock_aws_clients['synthetics_client'].describe_canaries.side_effect = [
+        {
+            'Canaries': [
+                {
+                    'Name': 'canary-1',
+                    'Status': {'State': 'RUNNING'},
+                    'Schedule': {'Expression': 'rate(5 minutes)'},
+                    'RuntimeVersion': 'syn-nodejs-puppeteer-13.0'
+                }
+            ],
+            'NextToken': 'token123',
+        },
+        {
+            'Canaries': [
+                {
+                    'Name': 'canary-2',
+                    'Status': {'State': 'RUNNING'},
+                    'Schedule': {'Expression': 'rate(5 minutes)'},
+                    'RuntimeVersion': 'syn-nodejs-puppeteer-13.0'
+                }
+            ],
+        },
+    ]
+
+    result = await list_canaries('us-east-1')
+    assert 'Found 2 canaries' in result
+    assert 'canary-1' in result
+    assert 'canary-2' in result
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_kb_recommendations_on_failure(mock_aws_clients):
+    """Test analyze_canary_failures produces KB recommendations for matching errors."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import analyze_canary_failures
+
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
+        'CanaryRuns': [
+            {
+                'Id': 'run-failed-1',
+                'Status': {
+                    'State': 'FAILED',
+                    'StateReason': 'page.goto: Timeout 60000ms exceeded. waiting until "load"',
+                },
+                'Timeline': {'Started': datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)},
+            }
+        ]
+    }
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {
+        'Canary': {
+            'Name': 'test-canary',
+            'RuntimeVersion': 'syn-nodejs-playwright-2.0',
+            'ArtifactS3Location': '',
+        }
+    }
+    mock_aws_clients['s3_client'].list_objects_v2.return_value = {'Contents': []}
+
+    with (
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+        ) as mock_insights,
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.analyze_canary_logs_with_time_window'
+        ) as mock_cw_logs,
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_canary_code'
+        ) as mock_code,
+    ):
+        mock_insights.return_value = ''
+        mock_cw_logs.return_value = {
+            'status': 'success',
+            'time_window': '11:55-12:05',
+            'total_events': 3,
+            'error_events': [
+                {
+                    'timestamp': datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+                    'message': 'page.goto: Timeout 60000ms exceeded. waiting until "load"',
+                }
+            ],
+            'insights': [],
+        }
+        mock_code.return_value = {'error': 'no code'}
+
+        result = await analyze_canary_failures('test-canary', 'us-east-1')
+
+        assert '🔍 Comprehensive Failure Analysis for test-canary' in result
+        # The KB should match RUNTIME-001 based on the error message
+        assert 'Knowledge Base Recommendations' in result or 'Timeout 60000ms exceeded' in result

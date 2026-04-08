@@ -1511,3 +1511,114 @@ class TestListGroupingAttributeDefinitions:
         result = await list_grouping_attribute_definitions()
 
         assert 'aws:tag:CostCenter, otel.resource.cost_center, custom.attribute.cc' in result
+
+
+# =============================================================================
+# TESTS: audit_group_health canary integration
+# =============================================================================
+
+class TestAuditGroupHealthCanaryIntegration:
+    """Tests for the canary health check section in audit_group_health."""
+
+    @pytest.mark.asyncio
+    async def test_canary_section_with_failing_canary(self, mock_aws_clients):
+        """Test audit_group_health includes failing canary info."""
+        mock_appsignals = mock_aws_clients['applicationsignals_client']
+
+        # Setup: list_services returns a service with a canary dependent
+        svc = {
+            'KeyAttributes': {
+                'Name': 'payment-service',
+                'Type': 'Service',
+                'Environment': 'eks:prod',
+            },
+            'ServiceGroups': [
+                {'GroupName': 'App', 'GroupValue': 'Payments', 'GroupSource': 'TAG', 'GroupIdentifier': 'App=Payments'}
+            ],
+        }
+        mock_appsignals.list_services.return_value = {
+            'ServiceSummaries': [svc],
+        }
+        mock_appsignals.get_service.return_value = {
+            'Service': {
+                'KeyAttributes': svc['KeyAttributes'],
+                'MetricReferences': [],
+            }
+        }
+        mock_appsignals.list_service_dependents.return_value = {
+            'ServiceDependents': [
+                {
+                    'DependentKeyAttributes': {
+                        'ResourceType': 'AWS::Synthetics::Canary',
+                        'Identifier': 'payment-canary',
+                    }
+                }
+            ]
+        }
+
+        # Mock synthetics_client for canary runs — imported lazily inside the function
+        with patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.synthetics_client',
+        ) as mock_synthetics:
+            mock_synthetics.get_canary_runs.return_value = {
+                'CanaryRuns': [
+                    {'Status': {'State': 'FAILED'}},
+                    {'Status': {'State': 'FAILED'}},
+                    {'Status': {'State': 'FAILED'}},
+                    {'Status': {'State': 'PASSED'}},
+                    {'Status': {'State': 'PASSED'}},
+                ]
+            }
+
+            # Mock SLI report to avoid real API calls
+            with patch(
+                'awslabs.cloudwatch_applicationsignals_mcp_server.group_tools.SLIReportClient'
+            ) as mock_sli:
+                mock_sli_instance = MagicMock()
+                mock_sli_instance.generate_sli_report.side_effect = Exception('No SLOs')
+                mock_sli.return_value = mock_sli_instance
+
+                result = await audit_group_health(group_name='Payments')
+
+                assert 'SYNTHETICS CANARIES' in result
+                assert 'payment-canary' in result
+                assert 'failing' in result
+
+    @pytest.mark.asyncio
+    async def test_canary_section_no_canaries(self, mock_aws_clients):
+        """Test audit_group_health when no canaries are linked."""
+        mock_appsignals = mock_aws_clients['applicationsignals_client']
+
+        svc = {
+            'KeyAttributes': {
+                'Name': 'api-service',
+                'Type': 'Service',
+                'Environment': 'eks:prod',
+            },
+            'ServiceGroups': [
+                {'GroupName': 'App', 'GroupValue': 'API', 'GroupSource': 'TAG', 'GroupIdentifier': 'App=API'}
+            ],
+        }
+        mock_appsignals.list_services.return_value = {
+            'ServiceSummaries': [svc],
+        }
+        mock_appsignals.get_service.return_value = {
+            'Service': {
+                'KeyAttributes': svc['KeyAttributes'],
+                'MetricReferences': [],
+            }
+        }
+        mock_appsignals.list_service_dependents.return_value = {
+            'ServiceDependents': []
+        }
+
+        with patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.group_tools.SLIReportClient'
+        ) as mock_sli:
+            mock_sli_instance = MagicMock()
+            mock_sli_instance.generate_sli_report.side_effect = Exception('No SLOs')
+            mock_sli.return_value = mock_sli_instance
+
+            result = await audit_group_health(group_name='API')
+
+            assert 'SYNTHETICS CANARIES' not in result

@@ -1,0 +1,73 @@
+{
+  "id": "RUNTIME-012",
+  "title": "AWS SDK v3 calls return empty or incomplete response when includeResponseBody or logResponseBody is enabled",
+  "category": "sdk_compatibility",
+  "severity": "medium",
+  "error_patterns": [
+    {
+      "text_contains": "includeResponseBody"
+    },
+    {
+      "text_contains": "logResponseBody"
+    },
+    {
+      "text_contains": "@aws-sdk"
+    },
+    {
+      "text_contains": "aws-sdk/client"
+    },
+    {
+      "text_contains": "InvokeCommand"
+    },
+    {
+      "text_contains": "response body"
+    }
+  ],
+  "runtime_versions": [
+    "syn-nodejs-puppeteer-8.0+",
+    "syn-nodejs-playwright-2.0+"
+  ],
+  "symptoms": [
+    "AWS SDK v3 response is missing expected data fields — only $metadata is returned",
+    "AWS SDK v3 call appears to succeed (HTTP 200) but response payload is empty or incomplete",
+    "Issue only occurs when includeResponseBody or logResponseBody is enabled in syntheticsConfiguration",
+    "Disabling includeResponseBody or logResponseBody restores the full response",
+    "Equivalent canary using AWS SDK v2 works correctly"
+  ],
+  "root_cause": "AWS SDK v3 returns HTTP response bodies as a readable stream, which can only be consumed once. When includeResponseBody or logResponseBody is enabled in syntheticsConfiguration, the Synthetics runtime intercepts and reads this stream to include the body in the HAR file or canary report. This exhausts the stream before the SDK can deserialize it into the response object, resulting in an empty response body returned to the canary script.\n\nAWS SDK v2 is not affected because it buffers the response body before returning it, allowing it to be read multiple times.\n\nThis is a known incompatibility between the Synthetics response body logging feature and the streaming response model used by AWS SDK v3.\n",
+  "recommendations": [
+    {
+      "priority": "high",
+      "confidence": 95,
+      "title": "Disable includeResponseBody and logResponseBody",
+      "problem": "Synthetics response body logging consumes the AWS SDK v3 response stream before the SDK can deserialize it",
+      "solution": [
+        {
+          "step": "Disable includeResponseBody and logResponseBody in syntheticsConfiguration",
+          "description": "Disable both options in the canary script's syntheticsConfiguration. This prevents Synthetics from consuming the response stream and allows AWS SDK v3 to deserialize the response correctly.",
+          "command": "// In your canary script, update the configuration:\nsyntheticsConfiguration.setConfig({\n  includeResponseBody: false,\n  logResponseBody: false,\n});\n",
+          "expected_outcome": "AWS SDK v3 responses include all expected data fields."
+        }
+      ],
+      "estimated_time": "10 minutes"
+    }
+  ],
+  "documentation_links": [
+    {
+      "title": "CloudWatch Synthetics Configuration Options",
+      "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Synthetics_Library_SyntheticsLogger_SyntheticsConfiguration.html"
+    },
+    {
+      "title": "CloudWatch Synthetics Runtime Versions",
+      "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Synthetics_Library_nodejs_puppeteer.html"
+    }
+  ],
+  "tags": [
+    "sdk-v3",
+    "aws-sdk",
+    "includeResponseBody",
+    "logResponseBody",
+    "response-body",
+    "stream"
+  ]
+}

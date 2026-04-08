@@ -1,0 +1,79 @@
+{
+  "id": "RUNTIME-009",
+  "title": "Update Dry Run Failed despite SuccessPercentDryRun metric showing 100%",
+  "category": "dry_run",
+  "severity": "medium",
+  "error_patterns": [
+    {
+      "text_contains": "Update Dry run failed"
+    },
+    {
+      "text_contains": "No Test Result Returned"
+    },
+    {
+      "text_contains": "connection timed out"
+    },
+    {
+      "text_contains": "dry run"
+    },
+    {
+      "text_contains": "SuccessPercentDryRun"
+    }
+  ],
+  "runtime_versions": [
+    "syn-nodejs-puppeteer-10.0+",
+    "syn-nodejs-playwright-2.0+",
+    "syn-python-selenium-5.1+",
+    "syn-nodejs-3.0+"
+  ],
+  "symptoms": [
+    "Console shows 'Update Dry Run Failed' but SuccessPercentDryRun metric is 100%",
+    "Error: 'No Test Result Returned. Connection timed out after Xms'",
+    "Canary logs show 'End Canary. Result: PASSED' with no errors",
+    "Lambda Duration during dry run is significantly higher than normal runs",
+    "Dry run availability tab shows purple dot at 0% despite successful script execution",
+    "Issue only occurs during dry run, not regular canary runs"
+  ],
+  "root_cause": "Dry run always triggers a Lambda cold start because it deploys a new/different Lambda function version. During cold start, Lambda must decompress the browser binary and store it in ephemeral storage, adding significant overhead (typically ~8-9 seconds extra).\n\nIf the canary timeout is set close to the normal (warm) execution duration, the cold start overhead during dry run can push the total Lambda execution time past the canary timeout. The canary script itself completes successfully and emits metrics, but Lambda times out before returning the result to the Synthetics service.\n\nThis results in:\n- SuccessPercentDryRun = 100% (script succeeded and metric was emitted)\n- Dry run status = FAILED (Synthetics service did not receive a response from Lambda)\n- Console displays \"Update Dry Run Failed\"\n\nThis is expected behavior, not a bug. The fix is to increase the canary timeout to account for the cold start overhead during dry run.\n",
+  "recommendations": [
+    {
+      "priority": "high",
+      "confidence": 95,
+      "title": "Increase canary timeout to account for dry run cold start overhead",
+      "problem": "Canary timeout set too close to normal execution duration, causing dry run to fail on Lambda cold start",
+      "solution": [
+        {
+          "step": "Measure normal execution duration and cold start overhead",
+          "description": "Check Lambda Duration metrics to understand the gap between warm and cold start execution times",
+          "command": "# Via AWS Console:\n# 1. Navigate to CloudWatch Synthetics console\n# 2. Select your canary\n# 3. Go to the \"Monitoring\" tab\n# 4. Scroll to the \"Lambda metrics for selected time range\" section\n# 5. Find the \"Duration\" graph - compare the spike during a dry run vs normal runs\n#    (dry run data points will be noticeably higher due to cold start)\n",
+          "expected_outcome": "Identifies the maximum Lambda duration including cold start to set an appropriate timeout"
+        },
+        {
+          "step": "Increase canary timeout",
+          "description": "Set canary timeout to at least (max normal duration + cold start overhead + buffer)",
+          "command": "# Via AWS Console:\n# 1. Navigate to CloudWatch Synthetics console\n# 2. Select your canary\n# 3. Click \"Actions\" > \"Edit\"\n# 4. Under \"Canary settings\", increase the timeout value\n#    (recommended: normal duration + 10-15 seconds for cold start buffer)\n# 5. Save changes and re-run the dry run to verify\n\n# Via AWS CLI:\naws synthetics update-canary \\\n  --name <canary-name> \\\n  --region <canary-region> \\\n  --run-config TimeoutInSeconds=<new-timeout>\n",
+          "expected_outcome": "Dry run completes successfully without timeout, console no longer shows 'Update Dry Run Failed'"
+        }
+      ],
+      "estimated_time": "10 minutes"
+    }
+  ],
+  "documentation_links": [
+    {
+      "title": "CloudWatch Synthetics Dry Run",
+      "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/performing-safe-canary-upgrades.html"
+    },
+    {
+      "title": "CloudWatch Synthetics Canary Metrics",
+      "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Synthetics_Canaries_metrics.html"
+    }
+  ],
+  "tags": [
+    "dry-run",
+    "cold-start",
+    "lambda-timeout",
+    "canary-timeout",
+    "SuccessPercentDryRun",
+    "update-dry-run-failed"
+  ]
+}

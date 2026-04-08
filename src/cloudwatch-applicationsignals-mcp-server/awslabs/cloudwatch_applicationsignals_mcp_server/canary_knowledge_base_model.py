@@ -1,0 +1,93 @@
+"""Pydantic data models for Synthetics knowledge base entries, failure context, and match results."""
+
+from __future__ import annotations
+
+from datetime import date
+from typing import Optional, Union
+
+from pydantic import BaseModel, field_validator
+
+
+class ErrorPattern(BaseModel):
+    """A single error matching rule."""
+
+    regex: Optional[str] = None
+    text_contains: Optional[str] = None
+    error_type: Optional[str] = None
+
+
+class SolutionStep(BaseModel):
+    """A single solution step within a recommendation."""
+
+    step: str
+    description: Optional[str] = None
+    command: Optional[str] = None
+    expected_outcome: Optional[str] = None
+
+
+class Recommendation(BaseModel):
+    """A single recommendation within a KB entry."""
+
+    priority: str
+    confidence: Union[int, float, str]
+    title: Optional[str] = None
+    problem: Optional[str] = None
+    solution: list[SolutionStep]
+    estimated_time: Optional[str] = None
+
+
+class DocumentationLink(BaseModel):
+    """A documentation link with title and URL."""
+
+    title: str
+    url: str
+
+
+class KBEntry(BaseModel):
+    """A validated knowledge base entry parsed from JSON."""
+
+    model_config = {'extra': 'ignore'}
+
+    id: str
+    title: str
+    category: str
+    severity: str
+    error_patterns: list[ErrorPattern]
+    symptoms: list[str]
+    root_cause: str
+    recommendations: list[Recommendation]
+    runtime_versions: list[str] = []
+    documentation_links: list[DocumentationLink] = []
+    tags: list[str] = []
+    deprecated: bool = False
+    deprecation_date: Optional[date] = None
+
+    @field_validator('severity')
+    @classmethod
+    def validate_severity(cls, v: str) -> str:
+        allowed = {'critical', 'high', 'medium', 'low'}
+        if v.lower() not in allowed:
+            raise ValueError(f'severity must be one of {allowed}')
+        return v.lower()
+
+
+class FailureContext(BaseModel):
+    """Data collected from canary failure analysis, passed to the recommendation engine."""
+
+    error_messages: list[str] = []
+    state_reasons: list[str] = []
+    runtime_version: str = ''
+    log_patterns: list[str] = []
+    resource_metrics: dict[str, float] = {}
+    environment_indicators: list[str] = []
+
+
+class MatchResult(BaseModel):
+    """A scored knowledge base match."""
+
+    entry: KBEntry
+    confidence_score: float
+    error_pattern_score: float
+    symptom_score: float
+    runtime_version_score: float
+    environment_score: float

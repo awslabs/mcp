@@ -1,0 +1,70 @@
+{
+  "id": "RUNTIME-011",
+  "title": "Canary fails with 'Failed to launch the browser process' during Lambda cold start due to low timeout",
+  "category": "browser_launch",
+  "severity": "medium",
+  "error_patterns": [
+    {
+      "text_contains": "Failed to launch the browser process"
+    },
+    {
+      "text_contains": "Unable to launch Puppeteer browser"
+    },
+    {
+      "text_contains": "Retrying browser launch attempt"
+    }
+  ],
+  "runtime_versions": [
+    "syn-nodejs-puppeteer-8.0+",
+    "syn-nodejs-playwright-2.0+"
+  ],
+  "symptoms": [
+    "Canary fails with 'Unable to launch Puppeteer Browser, create a new page, setup page for events, and start a HAR file'",
+    "Logs show browser launch retried 2-3 times before failing",
+    "Issue persists for an extended period (e.g. 1-2 hours) then self-resolves",
+    "Canary was working normally before and no changes were made to the canary configuration or script",
+    "Memory usage during failed runs is well below the configured limit",
+    "Issue recurs intermittently, always self-resolving after a period of time",
+    "diskUsage log shows /tmp filesystem usage is low (e.g. 22%)"
+  ],
+  "root_cause": "When a Lambda container is refreshed (cold start), Synthetics must decompress the Chrome browser binary and store it in the Lambda's ephemeral storage (/tmp) before it can be used. This decompression process takes several seconds. Once decompressed, the binary is reused for all subsequent canary runs on the same container until the container is recycled.\n\nIf the canary timeout is set too low (e.g. 10 seconds), the decompression may not complete within the timeout window. This causes the browser launch to fail. Critically, a failed decompression can leave the browser binary in a corrupted or incomplete state in /tmp, causing all subsequent runs on the same Lambda container to also fail — even though those runs are warm starts.\n\nThe issue self-resolves when Lambda eventually provisions a new container, which starts a fresh decompression cycle. With a sufficient timeout, the decompression completes successfully and all subsequent runs on that container succeed.\n\nThis is not a bug — it is expected behavior when the canary timeout is set too close to or below the time required for browser binary decompression on a cold start.\n",
+  "recommendations": [
+    {
+      "priority": "high",
+      "confidence": 90,
+      "title": "Increase canary timeout to account for browser binary decompression on cold start",
+      "problem": "Canary timeout too low to allow browser binary decompression during Lambda cold start",
+      "solution": [
+        {
+          "step": "Determine the appropriate timeout value",
+          "description": "Check the Lambda Duration metric for your canary to find the normal (warm) execution time. The timeout should be set to at least (normal execution time + cold start overhead buffer).",
+          "command": "# Via AWS Console:\n# 1. Navigate to CloudWatch Synthetics console\n# 2. Select your canary\n# 3. Go to the \"Monitoring\" tab\n# 4. Scroll to \"Lambda metrics for selected time range\"\n# 5. Note the typical Duration value from warm runs as your baseline\n",
+          "expected_outcome": "Identifies the normal execution duration to use as the baseline for setting an appropriate timeout."
+        },
+        {
+          "step": "Increase canary timeout",
+          "description": "Set the canary timeout to at least (normal execution time + buffer for cold start overhead). The cold start decompression adds several seconds of overhead on top of normal execution time.",
+          "command": "# Via AWS Console:\n# 1. Navigate to CloudWatch Synthetics console\n# 2. Select your canary\n# 3. Click \"Actions\" > \"Edit\"\n# 4. Under \"Additional configuration\", increase the timeout value\n#    (recommended: normal execution time + 10-15 seconds for cold start buffer)\n# 5. Save changes\n\n# Via AWS CLI:\naws synthetics update-canary \\\n  --name <canary-name> \\\n  --region <canary-region> \\\n  --run-config TimeoutInSeconds=<normal-execution-time-plus-buffer>\n",
+          "expected_outcome": "Browser binary decompression completes within the timeout on cold starts. Canary no longer fails after Lambda container refresh."
+        }
+      ],
+      "estimated_time": "5 minutes"
+    }
+  ],
+  "documentation_links": [
+    {
+      "title": "CloudWatch Synthetics Canary Settings",
+      "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Synthetics_Canaries_Create.html"
+    }
+  ],
+  "tags": [
+    "browser-launch",
+    "cold-start",
+    "lambda-timeout",
+    "canary-timeout",
+    "puppeteer",
+    "chromium",
+    "browser-binary",
+    "decompression"
+  ]
+}

@@ -1,0 +1,96 @@
+{
+  "id": "RUNTIME-014",
+  "title": "Intermittent 'Attempted to use detached Frame' errors caused by network latency in Chromium",
+  "category": "frame_detachment",
+  "severity": "high",
+  "error_patterns": [
+    {
+      "text_contains": "Attempted to use detached Frame"
+    },
+    {
+      "text_contains": "Navigating frame was detached"
+    },
+    {
+      "text_contains": "detached Frame"
+    },
+    {
+      "text_contains": "Connection timed out after 60000ms"
+    }
+  ],
+  "runtime_versions": [
+    "syn-nodejs-puppeteer-12.0",
+    "syn-nodejs-puppeteer-13.0",
+    "syn-nodejs-puppeteer-13.1",
+    "syn-nodejs-playwright-2.0+"
+  ],
+  "symptoms": [
+    "Canary fails intermittently with 'Attempted to use detached Frame' error",
+    "Error: 'No test result returned. Connection timed out after 60000ms'",
+    "First canary step takes unusually long, causing Lambda to timeout at third or fourth step",
+    "HAR file shows redirect taking >58 seconds before timing out",
+    "Canary screenshots show white/blank pages during page redirects",
+    "Issue appeared or worsened after upgrading runtime from puppeteer-10.0 or earlier"
+  ],
+  "root_cause": "Network latency in Chromium causes intermittent timeouts during page navigation, particularly during multi-step redirects. This is outside the immediate control of the Synthetics runtime and affects both Puppeteer and Playwright runtimes.\n\nThe issue manifests as:\n1. The first navigation step takes significantly longer than expected due to network latency\n2. The canary reaches the 60-second Lambda timeout by the third or fourth step\n3. Lambda terminates the execution, closing the browser/page\n4. Remaining steps fail with 'Attempted to use detached Frame' because the page no longer exists\n\nContributing factors:\n- Chromium 142 (bundled with puppeteer-13.x) introduced local network access restrictions that require permission prompts for requests across local-to-public network boundaries. In headless mode, these prompts cannot be acknowledged, potentially causing hangs.\n- Regions with higher network latency are more frequently affected.\n- The issue is intermittent because network latency varies between runs.\n",
+  "recommendations": [
+    {
+      "priority": "critical",
+      "confidence": 95,
+      "title": "Enable auto retry and use SuccessPercentWithRetries metric",
+      "problem": "Intermittent network latency causes transient canary failures that trigger false alarms",
+      "solution": [
+        {
+          "step": "Enable auto retry for the canary",
+          "description": "Auto retry automatically retries a failed canary run up to 2 additional times before marking it as failed, handling transient network issues.",
+          "command": "# Via AWS Console:\n# 1. Navigate to CloudWatch > Synthetics Canaries\n# 2. Select your canary\n# 3. Click \"Edit\"\n# 4. Scroll to \"Additional configuration\"\n# 5. Enable \"Automatic retries\"\n# 6. Save changes\n\n# Via AWS CLI:\naws synthetics update-canary \\\n  --name <canary-name> \\\n  --region <canary-region> \\\n  --run-config '{\"AutoRetryConfig\": {\"MaxRetries\": 2}}'\n",
+          "expected_outcome": "Transient failures are automatically retried. Only persistent failures are reported."
+        },
+        {
+          "step": "Update CloudWatch alarms to use SuccessPercentWithRetries",
+          "description": "This metric accounts for successful retries and provides a more accurate representation of canary health.",
+          "command": "# Via AWS Console:\n# 1. Navigate to CloudWatch > Alarms\n# 2. Select the alarm monitoring your canary\n# 3. Click \"Edit\"\n# 4. Change the metric from SuccessPercent to SuccessPercentWithRetries\n# 5. Save changes\n",
+          "expected_outcome": "Alarms no longer fire on transient failures that succeed on retry."
+        }
+      ],
+      "estimated_time": "10 minutes"
+    },
+    {
+      "priority": "high",
+      "confidence": 75,
+      "title": "Increase canary timeout to accommodate slow navigation",
+      "problem": "Default 60-second timeout insufficient for regions with higher network latency",
+      "solution": [
+        {
+          "step": "Increase canary timeout",
+          "description": "Give the canary more time to complete navigation steps in high-latency regions.",
+          "command": "aws synthetics update-canary \\\n  --name <canary-name> \\\n  --region <canary-region> \\\n  --run-config TimeoutInSeconds=120\n",
+          "expected_outcome": "Canary has more time to complete navigation, reducing timeout-related frame detachment errors."
+        }
+      ],
+      "estimated_time": "5 minutes"
+    }
+  ],
+  "documentation_links": [
+    {
+      "title": "CloudWatch Synthetics Auto Retry",
+      "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Synthetics_Canaries_autoretry.html"
+    },
+    {
+      "title": "CloudWatch Synthetics Metrics",
+      "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Synthetics_Canaries_metrics.html"
+    },
+    {
+      "title": "Chromium 142 Local Network Access Restrictions",
+      "url": "https://developer.chrome.com/release-notes/142#local_network_access_restrictions"
+    }
+  ],
+  "tags": [
+    "frame-detachment",
+    "detached-frame",
+    "network-latency",
+    "chromium",
+    "timeout",
+    "auto-retry",
+    "intermittent"
+  ]
+}

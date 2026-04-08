@@ -1,0 +1,87 @@
+{
+  "id": "ENV-001",
+  "title": "Canary limit increase request for high quota values",
+  "category": "service_quotas",
+  "severity": "medium",
+  "error_patterns": [
+    {
+      "text_contains": "canary limit"
+    },
+    {
+      "text_contains": "quota increase"
+    },
+    {
+      "text_contains": "Service Quotas"
+    },
+    {
+      "regex": "limit.*increase.*\\d+"
+    }
+  ],
+  "runtime_versions": [
+    "*"
+  ],
+  "symptoms": [
+    "Customer requests canary limit increase above default 500",
+    "Customer unable to create additional canaries due to quota",
+    "Service Quotas console shows current limit reached"
+  ],
+  "root_cause": "CloudWatch Synthetics enforces per-account, per-region canary limits to manage service capacity and prevent resource exhaustion. The default limit is 500 canaries per region. Customers with large-scale monitoring requirements may need higher limits.\n\nLimit increase approval process varies by request size:\n- Up to 1000: Auto-approved through Service Quotas console\n- Above 1000: Requires a support ticket for manual review and approval\n",
+  "recommendations": [
+    {
+      "priority": "high",
+      "confidence": 95,
+      "title": "Self-service limit increase through Service Quotas (up to 1000)",
+      "problem": "Customer needs canary limit increase up to 1000 canaries",
+      "solution": [
+        {
+          "step": "Navigate to Service Quotas console",
+          "description": "Access AWS Service Quotas to request limit increase",
+          "command": "# Via AWS Console:\n# 1. Navigate to Service Quotas console\n# 2. Select \"AWS services\"\n# 3. Search for \"Amazon CloudWatch\"\n# 4. Click \"Canary limit\" quota\n# 5. Click \"Request increase at account level\"\n# 6. Enter desired value (up to 1000)\n# 7. Submit request (auto-approved)\n",
+          "expected_outcome": "Quota increase auto-approved and applied within minutes"
+        },
+        {
+          "step": "Verify new limit is applied",
+          "description": "Confirm the quota increase took effect",
+          "command": "# Via AWS Console:\n# 1. Navigate to Service Quotas console\n# 2. Select \"AWS services\"\n# 3. Search for \"Amazon CloudWatch\"\n# 4. Find \"Canary limit\" quota\n",
+          "expected_outcome": "New limit value displayed (e.g., 1000)"
+        }
+      ],
+      "estimated_time": "5 minutes"
+    },
+    {
+      "priority": "critical",
+      "confidence": 90,
+      "title": "Support ticket for limit increase above 1000",
+      "problem": "Customer needs canary limit above 1000",
+      "solution": [
+        {
+          "step": "Create support ticket with required information",
+          "description": "Provide all necessary details for manual approval",
+          "command": "# Required information for support ticket:\n# - Account ID(s)\n# - Region(s)\n# - Current number of canaries\n# - Requested new limit\n# - Use case justification\n",
+          "expected_outcome": "Support ticket created and processed for limit increase"
+        }
+      ],
+      "estimated_time": "24 hours (SLA)"
+    }
+  ],
+  "documentation_links": [
+    {
+      "title": "CloudWatch Synthetics Service Quotas",
+      "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/cloudwatch_limits.html#limits_cloudwatch_synthetics"
+    },
+    {
+      "title": "Service Quotas User Guide",
+      "url": "https://docs.aws.amazon.com/servicequotas/latest/userguide/intro.html"
+    },
+    {
+      "title": "Requesting a Quota Increase",
+      "url": "https://docs.aws.amazon.com/servicequotas/latest/userguide/request-quota-increase.html"
+    }
+  ],
+  "tags": [
+    "service-quotas",
+    "canary-limit",
+    "quota-increase",
+    "limit-increase"
+  ]
+}

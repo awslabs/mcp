@@ -1,0 +1,87 @@
+{
+  "id": "RUNTIME-013",
+  "title": "Embedded Metric Format (EMF) stops emitting metrics after upgrading to syn-nodejs-puppeteer-11.0 or later",
+  "category": "emf_logging",
+  "severity": "high",
+  "error_patterns": [
+    {
+      "text_contains": "Embedded Metric"
+    },
+    {
+      "text_contains": "canaryRunId"
+    },
+    {
+      "text_contains": "metrics not emitted"
+    },
+    {
+      "text_contains": "CloudWatchMetrics"
+    }
+  ],
+  "runtime_versions": [
+    "syn-nodejs-puppeteer-11.0+"
+  ],
+  "symptoms": [
+    "Embedded Metric Format metrics stop being emitted after upgrading to syn-nodejs-puppeteer-11.0 or later",
+    "CloudWatch does not parse EMF JSON from canary logs",
+    "Log messages contain a canaryRunId= prefix before the JSON payload",
+    "Setting CW_SYNTHETICS_LOG_FORMAT=TEXT does not resolve the issue",
+    "Same canary script works correctly on syn-nodejs-puppeteer-10.0"
+  ],
+  "root_cause": "Starting with syn-nodejs-puppeteer-11.0, the Synthetics runtime automatically inserts a canaryRunId= prefix into all log messages. This prefix is required for loading canary logs in the Synthetics console and cannot be disabled.\n\nThe CloudWatch Embedded Metric Format (EMF) specification requires that the LogEvent message be a valid JSON object with no additional data at the beginning or end. The canaryRunId= prefix breaks this requirement, causing the EMF parser to fail silently \u2014 no metrics are extracted from the log event.\n\nThis affects any canary that emits custom metrics via EMF by logging JSON payloads with the _aws CloudWatchMetrics structure. The canaryRunId prefix is separate from structured logging and persists even when CW_SYNTHETICS_LOG_FORMAT is set to TEXT.\n",
+  "recommendations": [
+    {
+      "priority": "critical",
+      "confidence": 95,
+      "title": "Use direct CloudWatch Logs PutLogEvents to bypass the canaryRunId prefix",
+      "problem": "Synthetics runtime prepends canaryRunId= to all log messages, breaking EMF format",
+      "solution": [
+        {
+          "step": "Create a CloudWatch Logs client and emit EMF logs directly",
+          "description": "Bypass the Synthetics logging helper by calling PutLogEvents directly. This writes pure JSON to the log stream without the canaryRunId prefix.",
+          "command": "const { CloudWatchLogsClient, PutLogEventsCommand } = require('@aws-sdk/client-cloudwatch-logs');\n\nconst cwLogs = new CloudWatchLogsClient();\nconst logGroupName = process.env.AWS_LAMBDA_LOG_GROUP_NAME;\nconst logStreamName = process.env.AWS_LAMBDA_LOG_STREAM_NAME;\n\nconst emfPayload = JSON.stringify({\n  message: '[Embedded Metric]',\n  MyMetric: 1,\n  dimension1: 'value1',\n  _aws: {\n    Timestamp: Date.now(),\n    CloudWatchMetrics: [{\n      Namespace: 'MyNamespace',\n      Dimensions: [['dimension1']],\n      Metrics: [{ Name: 'MyMetric', Unit: 'Count' }]\n    }]\n  }\n});\n\nawait cwLogs.send(new PutLogEventsCommand({\n  logGroupName,\n  logStreamName,\n  logEvents: [{\n    message: emfPayload,\n    timestamp: Date.now()\n  }]\n}));\n",
+          "expected_outcome": "EMF metrics are emitted successfully. Metrics appear in CloudWatch Metrics under the specified namespace."
+        },
+        {
+          "step": "Verify metrics in CloudWatch",
+          "description": "Confirm that metrics are being extracted from the direct log events",
+          "command": "# Via AWS Console:\n# 1. Navigate to CloudWatch > Metrics > All metrics\n# 2. Search for your custom namespace\n# 3. Verify metric data points are appearing\n#\n# Note: Logs emitted via PutLogEvents will NOT appear in the\n# Synthetics console. View them directly in the log stream\n# or via CloudWatch Logs Insights.\n",
+          "expected_outcome": "Custom metrics appear in CloudWatch Metrics. Log events are visible in CloudWatch Logs Insights."
+        }
+      ],
+      "estimated_time": "15 minutes"
+    },
+    {
+      "priority": "medium",
+      "confidence": 90,
+      "title": "Downgrade to syn-nodejs-puppeteer-10.0 as a temporary workaround",
+      "problem": "Need immediate fix while refactoring metric emission code",
+      "solution": [
+        {
+          "step": "Downgrade canary runtime to syn-nodejs-puppeteer-10.0",
+          "description": "Version 10.0 does not insert the canaryRunId prefix, so EMF works as expected",
+          "command": "aws synthetics update-canary \\\n  --name <canary-name> \\\n  --region <canary-region> \\\n  --runtime-version syn-nodejs-puppeteer-10.0\n",
+          "expected_outcome": "EMF metrics resume emitting correctly. Note: version 10.0 lacks features and fixes from newer runtimes."
+        }
+      ],
+      "estimated_time": "5 minutes"
+    }
+  ],
+  "documentation_links": [
+    {
+      "title": "CloudWatch Embedded Metric Format Specification",
+      "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Embedded_Metric_Format_Specification.html"
+    },
+    {
+      "title": "CloudWatch Synthetics Runtime Versions",
+      "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Synthetics_Canaries_Library.html"
+    }
+  ],
+  "tags": [
+    "embedded-metric-format",
+    "emf",
+    "canaryRunId",
+    "logging",
+    "metrics",
+    "puppeteer-11"
+  ]
+}
