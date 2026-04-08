@@ -21,21 +21,31 @@ deleting these resources.
 
 import json
 from awslabs.aws_dataprocessing_mcp_server.models.data_catalog_models import (
+    BatchDeleteConnectionData,
     ConnectionSummary,
+    ConnectionTypeBrief,
     CreateCatalogData,
     CreateConnectionData,
     CreatePartitionData,
     DeleteCatalogData,
     DeleteConnectionData,
     DeletePartitionData,
+    DescribeConnectionTypeData,
+    DescribeEntityData,
+    EntitySummary,
+    FieldSummary,
     GetCatalogData,
     GetConnectionData,
+    GetEntityRecordsData,
     GetPartitionData,
     ImportCatalogData,
     ListCatalogsData,
+    ListConnectionTypesData,
     ListConnectionsData,
+    ListEntitiesData,
     ListPartitionsData,
     PartitionSummary,
+    TestConnectionData,
     UpdateConnectionData,
     UpdatePartitionData,
 )
@@ -508,6 +518,536 @@ class DataCatalogManager:
         except ClientError as e:
             error_code = e.response['Error']['Code']
             error_message = f'Failed to update connection {connection_name}: {error_code} - {e.response["Error"]["Message"]}'
+            log_with_request_id(ctx, LogLevel.ERROR, error_message)
+
+            return CallToolResult(
+                isError=True,
+                content=[TextContent(type='text', text=error_message)],
+            )
+
+    async def test_connection(
+        self,
+        ctx: Context,
+        connection_name: Optional[str] = None,
+        catalog_id: Optional[str] = None,
+        test_connection_input: Optional[Dict[str, Any]] = None,
+    ) -> CallToolResult:
+        """Test a connection to validate service credentials.
+
+        Tests a connection to a service to validate the service credentials.
+        You can either provide an existing connection name or a TestConnectionInput
+        for testing a non-existing connection input.
+
+        Args:
+            ctx: MCP context containing request information
+            connection_name: Optional name of an existing connection to test
+            catalog_id: Optional catalog ID (defaults to AWS account ID)
+            test_connection_input: Optional TestConnectionInput for testing without an existing connection
+
+        Returns:
+            TestConnectionResponse with the result of the operation
+        """
+        try:
+            kwargs: Dict[str, Any] = {}
+            if connection_name:
+                kwargs['ConnectionName'] = connection_name
+            if catalog_id:
+                kwargs['CatalogId'] = catalog_id
+            if test_connection_input:
+                kwargs['TestConnectionInput'] = test_connection_input
+
+            self.glue_client.test_connection(**kwargs)
+
+            log_with_request_id(
+                ctx,
+                LogLevel.INFO,
+                f'Successfully initiated connection test{" for: " + connection_name if connection_name else ""}',
+            )
+
+            success_msg = f'Successfully initiated connection test{" for: " + connection_name if connection_name else ""}. The test runs asynchronously.'
+            data = TestConnectionData(
+                connection_name=connection_name,
+                catalog_id=catalog_id or '',
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_msg),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
+            )
+
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            error_message = f'Failed to test connection{" " + connection_name if connection_name else ""}: {error_code} - {e.response["Error"]["Message"]}'
+            log_with_request_id(ctx, LogLevel.ERROR, error_message)
+
+            return CallToolResult(
+                isError=True,
+                content=[TextContent(type='text', text=error_message)],
+            )
+
+    async def batch_delete_connection(
+        self,
+        ctx: Context,
+        connection_name_list: List[str],
+        catalog_id: Optional[str] = None,
+    ) -> CallToolResult:
+        """Delete a list of connections from the Data Catalog.
+
+        Deletes multiple connections in a single call. Only connections managed
+        by the MCP server (with appropriate tags) will be deleted.
+
+        Args:
+            ctx: MCP context containing request information
+            connection_name_list: List of connection names to delete
+            catalog_id: Optional catalog ID (defaults to AWS account ID)
+
+        Returns:
+            BatchDeleteConnectionResponse with succeeded and failed deletions
+        """
+        try:
+            # Verify each connection is MCP-managed before batch delete
+            region = AwsHelper.get_aws_region()
+            account_id = catalog_id or AwsHelper.get_aws_account_id()
+            partition = AwsHelper.get_aws_partition()
+
+            non_managed = []
+            for name in connection_name_list:
+                try:
+                    connection_arn = f'arn:{partition}:glue:{region}:{account_id}:connection/{name}'
+                    if not AwsHelper.is_resource_mcp_managed(self.glue_client, connection_arn):
+                        non_managed.append(name)
+                except ClientError:
+                    non_managed.append(name)
+
+            if non_managed:
+                error_message = f'Cannot batch delete - the following connections are not managed by the MCP server: {", ".join(non_managed)}'
+                log_with_request_id(ctx, LogLevel.ERROR, error_message)
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type='text', text=error_message)],
+                )
+
+            kwargs: Dict[str, Any] = {'ConnectionNameList': connection_name_list}
+            if catalog_id:
+                kwargs['CatalogId'] = catalog_id
+
+            response = self.glue_client.batch_delete_connection(**kwargs)
+            succeeded = response.get('Succeeded', [])
+            errors = response.get('Errors', {})
+
+            log_with_request_id(
+                ctx,
+                LogLevel.INFO,
+                f'Batch delete connections: {len(succeeded)} succeeded, {len(errors)} failed',
+            )
+
+            success_msg = f'Batch delete connections: {len(succeeded)} succeeded, {len(errors)} failed'
+            data = BatchDeleteConnectionData(
+                succeeded=succeeded,
+                errors=errors,
+                catalog_id=catalog_id or '',
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_msg),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
+            )
+
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            error_message = f'Failed to batch delete connections: {error_code} - {e.response["Error"]["Message"]}'
+            log_with_request_id(ctx, LogLevel.ERROR, error_message)
+
+            return CallToolResult(
+                isError=True,
+                content=[TextContent(type='text', text=error_message)],
+            )
+
+    async def describe_connection_type(
+        self,
+        ctx: Context,
+        connection_type: str,
+    ) -> CallToolResult:
+        """Describe a connection type with full details of supported options.
+
+        Provides full details of the supported options for a given connection type
+        in AWS Glue, including properties, authentication, and compute environments.
+
+        Args:
+            ctx: MCP context containing request information
+            connection_type: The name of the connection type to describe
+
+        Returns:
+            DescribeConnectionTypeResponse with the connection type details
+        """
+        try:
+            response = self.glue_client.describe_connection_type(
+                ConnectionType=connection_type
+            )
+
+            log_with_request_id(
+                ctx,
+                LogLevel.INFO,
+                f'Successfully described connection type: {connection_type}',
+            )
+
+            success_msg = f'Successfully described connection type: {connection_type}'
+            data = DescribeConnectionTypeData(
+                connection_type=response.get('ConnectionType', connection_type),
+                description=response.get('Description'),
+                capabilities=response.get('Capabilities'),
+                connection_properties=response.get('ConnectionProperties'),
+                connection_options=response.get('ConnectionOptions'),
+                authentication_configuration=response.get('AuthenticationConfiguration'),
+                compute_environment_configurations=response.get('ComputeEnvironmentConfigurations'),
+                physical_connection_requirements=response.get('PhysicalConnectionRequirements'),
+                athena_connection_properties=response.get('AthenaConnectionProperties'),
+                python_connection_properties=response.get('PythonConnectionProperties'),
+                spark_connection_properties=response.get('SparkConnectionProperties'),
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_msg),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
+            )
+
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            error_message = f'Failed to describe connection type {connection_type}: {error_code} - {e.response["Error"]["Message"]}'
+            log_with_request_id(ctx, LogLevel.ERROR, error_message)
+
+            return CallToolResult(
+                isError=True,
+                content=[TextContent(type='text', text=error_message)],
+            )
+
+    async def list_connection_types(
+        self,
+        ctx: Context,
+        max_results: Optional[int] = None,
+        next_token: Optional[str] = None,
+    ) -> CallToolResult:
+        """List available connection types in AWS Glue.
+
+        Provides a discovery mechanism to learn available connection types.
+        The response contains a list of connection types with high-level details.
+
+        Args:
+            ctx: MCP context containing request information
+            max_results: Optional maximum number of results to return
+            next_token: Optional pagination token
+
+        Returns:
+            ListConnectionTypesResponse with the list of connection types
+        """
+        try:
+            kwargs: Dict[str, Any] = {}
+            if max_results:
+                kwargs['MaxResults'] = max_results
+            if next_token:
+                kwargs['NextToken'] = next_token
+
+            response = self.glue_client.list_connection_types(**kwargs)
+            connection_types = response.get('ConnectionTypes', [])
+            next_token_response = response.get('NextToken')
+
+            log_with_request_id(
+                ctx,
+                LogLevel.INFO,
+                f'Successfully listed {len(connection_types)} connection types',
+            )
+
+            success_msg = f'Successfully listed {len(connection_types)} connection types'
+            data = ListConnectionTypesData(
+                connection_types=[
+                    ConnectionTypeBrief(
+                        connection_type=ct.get('ConnectionType'),
+                        display_name=ct.get('DisplayName'),
+                        vendor=ct.get('Vendor'),
+                        description=ct.get('Description'),
+                    )
+                    for ct in connection_types
+                ],
+                count=len(connection_types),
+                next_token=next_token_response,
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_msg),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
+            )
+
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            error_message = f'Failed to list connection types: {error_code} - {e.response["Error"]["Message"]}'
+            log_with_request_id(ctx, LogLevel.ERROR, error_message)
+
+            return CallToolResult(
+                isError=True,
+                content=[TextContent(type='text', text=error_message)],
+            )
+
+    async def list_entities(
+        self,
+        ctx: Context,
+        connection_name: str,
+        catalog_id: Optional[str] = None,
+        parent_entity_name: Optional[str] = None,
+        next_token: Optional[str] = None,
+        data_store_api_version: Optional[str] = None,
+    ) -> CallToolResult:
+        """List entities available for a connection.
+
+        Returns the available entities supported by the connection type.
+        For example, databases, schemas, or tables for Amazon Redshift,
+        or SObjects for Salesforce.
+
+        Args:
+            ctx: MCP context containing request information
+            connection_name: Name of the connection to list entities for
+            catalog_id: Optional catalog ID
+            parent_entity_name: Optional parent entity name for listing children
+            next_token: Optional pagination token
+            data_store_api_version: Optional API version of the SaaS connector
+
+        Returns:
+            ListEntitiesResponse with the list of entities
+        """
+        try:
+            kwargs: Dict[str, Any] = {'ConnectionName': connection_name}
+            if catalog_id:
+                kwargs['CatalogId'] = catalog_id
+            if parent_entity_name:
+                kwargs['ParentEntityName'] = parent_entity_name
+            if next_token:
+                kwargs['NextToken'] = next_token
+            if data_store_api_version:
+                kwargs['DataStoreApiVersion'] = data_store_api_version
+
+            response = self.glue_client.list_entities(**kwargs)
+            entities = response.get('Entities', [])
+            next_token_response = response.get('NextToken')
+
+            log_with_request_id(
+                ctx,
+                LogLevel.INFO,
+                f'Successfully listed {len(entities)} entities for connection: {connection_name}',
+            )
+
+            success_msg = f'Successfully listed {len(entities)} entities for connection: {connection_name}'
+            data = ListEntitiesData(
+                entities=[
+                    EntitySummary(
+                        entity_name=e.get('EntityName'),
+                        label=e.get('Label'),
+                        is_parent_entity=e.get('IsParentEntity'),
+                        description=e.get('Description'),
+                        category=e.get('Category'),
+                    )
+                    for e in entities
+                ],
+                count=len(entities),
+                next_token=next_token_response,
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_msg),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
+            )
+
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            error_message = f'Failed to list entities for connection {connection_name}: {error_code} - {e.response["Error"]["Message"]}'
+            log_with_request_id(ctx, LogLevel.ERROR, error_message)
+
+            return CallToolResult(
+                isError=True,
+                content=[TextContent(type='text', text=error_message)],
+            )
+
+    async def describe_entity(
+        self,
+        ctx: Context,
+        connection_name: str,
+        entity_name: str,
+        catalog_id: Optional[str] = None,
+        next_token: Optional[str] = None,
+        data_store_api_version: Optional[str] = None,
+    ) -> CallToolResult:
+        """Describe an entity's fields for a connection.
+
+        Provides details regarding the entity used with the connection type,
+        with a description of the data model for each field in the selected entity.
+
+        Args:
+            ctx: MCP context containing request information
+            connection_name: Name of the connection
+            entity_name: Name of the entity to describe
+            catalog_id: Optional catalog ID
+            next_token: Optional pagination token
+            data_store_api_version: Optional API version of the data store
+
+        Returns:
+            DescribeEntityResponse with the entity field details
+        """
+        try:
+            kwargs: Dict[str, Any] = {
+                'ConnectionName': connection_name,
+                'EntityName': entity_name,
+            }
+            if catalog_id:
+                kwargs['CatalogId'] = catalog_id
+            if next_token:
+                kwargs['NextToken'] = next_token
+            if data_store_api_version:
+                kwargs['DataStoreApiVersion'] = data_store_api_version
+
+            response = self.glue_client.describe_entity(**kwargs)
+            fields = response.get('Fields', [])
+            next_token_response = response.get('NextToken')
+
+            log_with_request_id(
+                ctx,
+                LogLevel.INFO,
+                f'Successfully described entity {entity_name} for connection: {connection_name}',
+            )
+
+            success_msg = f'Successfully described entity {entity_name} with {len(fields)} fields'
+            data = DescribeEntityData(
+                fields=[
+                    FieldSummary(
+                        field_name=f.get('FieldName'),
+                        label=f.get('Label'),
+                        description=f.get('Description'),
+                        field_type=f.get('FieldType'),
+                        is_primary_key=f.get('IsPrimaryKey'),
+                        is_nullable=f.get('IsNullable'),
+                        is_filterable=f.get('IsFilterable'),
+                        is_partitionable=f.get('IsPartitionable'),
+                        is_retrievable=f.get('IsRetrievable'),
+                        is_createable=f.get('IsCreateable'),
+                        is_updateable=f.get('IsUpdateable'),
+                        is_upsertable=f.get('IsUpsertable'),
+                    )
+                    for f in fields
+                ],
+                count=len(fields),
+                next_token=next_token_response,
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_msg),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
+            )
+
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            error_message = f'Failed to describe entity {entity_name} for connection {connection_name}: {error_code} - {e.response["Error"]["Message"]}'
+            log_with_request_id(ctx, LogLevel.ERROR, error_message)
+
+            return CallToolResult(
+                isError=True,
+                content=[TextContent(type='text', text=error_message)],
+            )
+
+    async def get_entity_records(
+        self,
+        ctx: Context,
+        connection_name: str,
+        entity_name: str,
+        limit: int,
+        catalog_id: Optional[str] = None,
+        next_token: Optional[str] = None,
+        data_store_api_version: Optional[str] = None,
+        connection_options: Optional[Dict[str, str]] = None,
+        filter_predicate: Optional[str] = None,
+        selected_fields: Optional[List[str]] = None,
+    ) -> CallToolResult:
+        """Get entity records (preview data) from a connection.
+
+        Queries preview data from a given connection type or from a native
+        Amazon S3 based AWS Glue Data Catalog. Returns records as JSON blobs.
+
+        Args:
+            ctx: MCP context containing request information
+            connection_name: Name of the connection
+            entity_name: Name of the entity to query
+            limit: Maximum number of records to fetch (1-1000)
+            catalog_id: Optional catalog ID
+            next_token: Optional pagination token
+            data_store_api_version: Optional API version of the SaaS connector
+            connection_options: Optional connector options for querying data
+            filter_predicate: Optional filter predicate for the query
+            selected_fields: Optional list of fields to fetch
+
+        Returns:
+            GetEntityRecordsResponse with the entity records
+        """
+        try:
+            kwargs: Dict[str, Any] = {
+                'ConnectionName': connection_name,
+                'EntityName': entity_name,
+                'Limit': limit,
+            }
+            if catalog_id:
+                kwargs['CatalogId'] = catalog_id
+            if next_token:
+                kwargs['NextToken'] = next_token
+            if data_store_api_version:
+                kwargs['DataStoreApiVersion'] = data_store_api_version
+            if connection_options:
+                kwargs['ConnectionOptions'] = connection_options
+            if filter_predicate:
+                kwargs['FilterPredicate'] = filter_predicate
+            if selected_fields:
+                kwargs['SelectedFields'] = selected_fields
+
+            response = self.glue_client.get_entity_records(**kwargs)
+            records = response.get('Records', [])
+            next_token_response = response.get('NextToken')
+
+            log_with_request_id(
+                ctx,
+                LogLevel.INFO,
+                f'Successfully retrieved {len(records)} records for entity {entity_name}',
+            )
+
+            success_msg = f'Successfully retrieved {len(records)} records for entity {entity_name}'
+            data = GetEntityRecordsData(
+                records=records,
+                count=len(records),
+                next_token=next_token_response,
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_msg),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
+            )
+
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            error_message = f'Failed to get entity records for {entity_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
             return CallToolResult(

@@ -65,6 +65,12 @@ class GlueDataCatalogHandler:
         self.mcp.tool(name='manage_aws_glue_connections')(
             self.manage_aws_glue_data_catalog_connections
         )
+        self.mcp.tool(name='manage_aws_glue_connection_types')(
+            self.manage_aws_glue_connection_types
+        )
+        self.mcp.tool(name='manage_aws_glue_connection_metadata')(
+            self.manage_aws_glue_connection_metadata
+        )
         self.mcp.tool(name='manage_aws_glue_partitions')(
             self.manage_aws_glue_data_catalog_partitions
         )
@@ -441,13 +447,13 @@ class GlueDataCatalogHandler:
         operation: Annotated[
             str,
             Field(
-                description='Operation to perform: create-connection, delete-connection, get-connection, list-connections, or update-connection. Choose "get-connection" or "list-connections" for read-only operations.',
+                description='Operation to perform: create-connection, delete-connection, get-connection, list-connections, update-connection, test-connection, or batch-delete-connection. Choose "get-connection" or "list-connections" for read-only operations.',
             ),
         ],
         connection_name: Annotated[
             Optional[str],
             Field(
-                description='Name of the connection (required for create-connection, delete-connection, get-connection, and update-connection operations).',
+                description='Name of the connection (required for create-connection, delete-connection, get-connection, update-connection, and test-connection operations).',
             ),
         ] = None,
         connection_input: Annotated[
@@ -476,6 +482,18 @@ class GlueDataCatalogHandler:
                 description='Flag to retrieve the connection metadata without returning the password(for get-connection and list-connections operation).',
             ),
         ] = True,
+        test_connection_input: Annotated[
+            Optional[Dict[str, Any]],
+            Field(
+                description='TestConnectionInput for testing a non-existing connection (for test-connection operation). Provide either connection_name or test_connection_input.',
+            ),
+        ] = None,
+        connection_name_list: Annotated[
+            Optional[List[str]],
+            Field(
+                description='List of connection names to delete (required for batch-delete-connection operation, max 25).',
+            ),
+        ] = None,
     ) -> CallToolResult:
         """Manage AWS Glue Data Catalog connections with both read and write operations.
 
@@ -485,7 +503,7 @@ class GlueDataCatalogHandler:
         to connect to external data sources.
 
         ## Requirements
-        - The server must be run with the `--allow-write` flag for create, update, and delete operations
+        - The server must be run with the `--allow-write` flag for create, update, delete, test, and batch-delete operations
         - Appropriate AWS permissions for Glue Data Catalog operations
         - Connection properties must be valid for the connection type
 
@@ -495,11 +513,14 @@ class GlueDataCatalogHandler:
         - **get-connection**: Retrieve detailed information about a specific connection
         - **list-connections**: List all connections
         - **update-connection**: Update an existing connection's properties
+        - **test-connection**: Test a connection to validate service credentials
+        - **batch-delete-connection**: Delete multiple connections in a single call
 
         ## Usage Tips
         - Connection names must be unique within your catalog
         - Connection input should include ConnectionType and ConnectionProperties
         - Use get or list operations to check existing connections before creating
+        - For test-connection, provide either connection_name (existing) or test_connection_input (new)
 
         Args:
             ctx: MCP context
@@ -510,6 +531,8 @@ class GlueDataCatalogHandler:
             max_results: Maximum results to return
             next_token: A continuation string token, if this is a continuation call
             hide_password: The boolean flag to control connection password in return value for get-connection and list-connections operation
+            test_connection_input: TestConnectionInput for test-connection operation
+            connection_name_list: List of connection names for batch-delete-connection operation
 
         Returns:
             Union of response types specific to the operation performed
@@ -520,8 +543,10 @@ class GlueDataCatalogHandler:
             'get-connection',
             'list-connections',
             'update-connection',
+            'test-connection',
+            'batch-delete-connection',
         ]:
-            error_message = f'Invalid operation: {operation}. Must be one of: create-connection, delete-connection, get-connection, list-connections, update-connection'
+            error_message = f'Invalid operation: {operation}. Must be one of: create-connection, delete-connection, get-connection, list-connections, update-connection, test-connection, batch-delete-connection'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
             return CallToolResult(
                 isError=True,
@@ -590,8 +615,32 @@ class GlueDataCatalogHandler:
                     connection_input=connection_input,
                     catalog_id=catalog_id,
                 )
+
+            elif operation == 'test-connection':
+                if connection_name is None and test_connection_input is None:
+                    raise ValueError(
+                        'Either connection_name or test_connection_input is required for test-connection operation'
+                    )
+                return await self.data_catalog_manager.test_connection(
+                    ctx=ctx,
+                    connection_name=connection_name,
+                    catalog_id=catalog_id,
+                    test_connection_input=test_connection_input,
+                )
+
+            elif operation == 'batch-delete-connection':
+                if connection_name_list is None or len(connection_name_list) == 0:
+                    raise ValueError(
+                        'connection_name_list is required for batch-delete-connection operation'
+                    )
+                return await self.data_catalog_manager.batch_delete_connection(
+                    ctx=ctx,
+                    connection_name_list=connection_name_list,
+                    catalog_id=catalog_id,
+                )
+
             else:
-                error_message = f'Invalid operation: {operation}. Must be one of: create-connection, delete-connection, get-connection, list-connections, update-connection'
+                error_message = f'Invalid operation: {operation}. Must be one of: create-connection, delete-connection, get-connection, list-connections, update-connection, test-connection, batch-delete-connection'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
                 return CallToolResult(
                     isError=True,
@@ -603,6 +652,311 @@ class GlueDataCatalogHandler:
             raise
         except Exception as e:
             error_message = f'Error in manage_aws_glue_data_catalog_connections: {str(e)}'
+            log_with_request_id(ctx, LogLevel.ERROR, error_message)
+            return CallToolResult(
+                isError=True,
+                content=[TextContent(type='text', text=error_message)],
+            )
+
+    async def manage_aws_glue_connection_types(
+        self,
+        ctx: Context,
+        operation: Annotated[
+            str,
+            Field(
+                description='Operation to perform: describe-connection-type, list-connection-types. Both are read-only operations.',
+            ),
+        ],
+        connection_type: Annotated[
+            Optional[str],
+            Field(
+                description='The name of the connection type to describe (required for describe-connection-type operation, e.g. JDBC, KAFKA, SALESFORCE).',
+            ),
+        ] = None,
+        max_results: Annotated[
+            Optional[int],
+            Field(description='Maximum number of results to return for list-connection-types operation.'),
+        ] = None,
+        next_token: Annotated[
+            Optional[str],
+            Field(description='A continuation token, if this is a continuation call.'),
+        ] = None,
+    ) -> CallToolResult:
+        """Discover and describe AWS Glue connection types.
+
+        This tool provides operations for discovering available connection types in AWS Glue
+        and getting detailed information about specific connection types, including their
+        supported properties, authentication methods, and compute environments.
+
+        ## Operations
+        - **describe-connection-type**: Get full details of a specific connection type including properties, auth config, and compute environments
+        - **list-connection-types**: List all available connection types with brief descriptions
+
+        ## Example
+        ```python
+        # List all available connection types
+        manage_aws_glue_connection_types(operation='list-connection-types')
+
+        # Describe a specific connection type
+        manage_aws_glue_connection_types(operation='describe-connection-type', connection_type='JDBC')
+        ```
+
+        Args:
+            ctx: MCP context
+            operation: Operation to perform
+            connection_type: Name of the connection type (for describe-connection-type)
+            max_results: Maximum results to return
+            next_token: Pagination token
+
+        Returns:
+            Union of response types specific to the operation performed
+        """
+        if operation not in ['describe-connection-type', 'list-connection-types']:
+            error_message = f'Invalid operation: {operation}. Must be one of: describe-connection-type, list-connection-types'
+            log_with_request_id(ctx, LogLevel.ERROR, error_message)
+            return CallToolResult(
+                isError=True,
+                content=[TextContent(type='text', text=error_message)],
+            )
+
+        try:
+            if operation == 'describe-connection-type':
+                if connection_type is None:
+                    raise ValueError(
+                        'connection_type is required for describe-connection-type operation'
+                    )
+                return await self.data_catalog_manager.describe_connection_type(
+                    ctx=ctx,
+                    connection_type=connection_type,
+                )
+
+            elif operation == 'list-connection-types':
+                return await self.data_catalog_manager.list_connection_types(
+                    ctx=ctx,
+                    max_results=max_results,
+                    next_token=next_token,
+                )
+
+            else:
+                error_message = f'Invalid operation: {operation}. Must be one of: describe-connection-type, list-connection-types'
+                log_with_request_id(ctx, LogLevel.ERROR, error_message)
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type='text', text=error_message)],
+                )
+
+        except ValueError as e:
+            log_with_request_id(ctx, LogLevel.ERROR, f'Parameter validation error: {str(e)}')
+            raise
+        except Exception as e:
+            error_message = f'Error in manage_aws_glue_connection_types: {str(e)}'
+            log_with_request_id(ctx, LogLevel.ERROR, error_message)
+            return CallToolResult(
+                isError=True,
+                content=[TextContent(type='text', text=error_message)],
+            )
+
+    async def manage_aws_glue_connection_metadata(
+        self,
+        ctx: Context,
+        operation: Annotated[
+            str,
+            Field(
+                description='Operation to perform: list-entities, describe-entity, get-entity-records. Choose "list-entities" or "describe-entity" for metadata-only operations. "get-entity-records" requires --allow-sensitive-data-access flag.',
+            ),
+        ],
+        connection_name: Annotated[
+            str,
+            Field(
+                description='Name of the connection that has required credentials to query the connection type (required for all operations).',
+            ),
+        ],
+        entity_name: Annotated[
+            Optional[str],
+            Field(
+                description='Name of the entity (required for describe-entity and get-entity-records operations).',
+            ),
+        ] = None,
+        catalog_id: Annotated[
+            Optional[str],
+            Field(
+                description='Catalog ID (optional, defaults to AWS account ID).',
+            ),
+        ] = None,
+        parent_entity_name: Annotated[
+            Optional[str],
+            Field(
+                description='Name of the parent entity for listing child entities (for list-entities operation).',
+            ),
+        ] = None,
+        next_token: Annotated[
+            Optional[str],
+            Field(description='A continuation token, if this is a continuation call.'),
+        ] = None,
+        data_store_api_version: Annotated[
+            Optional[str],
+            Field(
+                description='The API version of the SaaS connector.',
+            ),
+        ] = None,
+        limit: Annotated[
+            Optional[int],
+            Field(
+                description='Maximum number of records to fetch (1-1000, required for get-entity-records operation).',
+            ),
+        ] = None,
+        connection_options: Annotated[
+            Optional[Dict[str, str]],
+            Field(
+                description='Connector options required to query the data (for get-entity-records operation).',
+            ),
+        ] = None,
+        filter_predicate: Annotated[
+            Optional[str],
+            Field(
+                description='A filter predicate to apply in the query request (for get-entity-records operation).',
+            ),
+        ] = None,
+        selected_fields: Annotated[
+            Optional[List[str]],
+            Field(
+                description='List of fields to fetch as part of preview data (for get-entity-records operation).',
+            ),
+        ] = None,
+    ) -> CallToolResult:
+        """Access connection metadata and preview entity data from AWS Glue connections.
+
+        This tool provides operations for discovering entities available through a connection,
+        describing entity schemas, and previewing entity data. Useful for exploring data sources
+        connected via AWS Glue connections such as SaaS applications, databases, and other data stores.
+
+        ## Requirements
+        - The server must be run with the `--allow-sensitive-data-access` flag for get-entity-records operation
+        - Appropriate AWS permissions for Glue connection metadata operations
+        - A valid connection with credentials must exist
+
+        ## Operations
+        - **list-entities**: List available entities (e.g., tables, SObjects) for a connection
+        - **describe-entity**: Get the schema/field details for a specific entity
+        - **get-entity-records**: Preview data records from an entity (requires sensitive data access)
+
+        ## Example
+        ```python
+        # List entities for a Salesforce connection
+        manage_aws_glue_connection_metadata(
+            operation='list-entities',
+            connection_name='my-salesforce-connection',
+        )
+
+        # Describe the Account entity
+        manage_aws_glue_connection_metadata(
+            operation='describe-entity',
+            connection_name='my-salesforce-connection',
+            entity_name='Account',
+        )
+
+        # Preview records from the Account entity
+        manage_aws_glue_connection_metadata(
+            operation='get-entity-records',
+            connection_name='my-salesforce-connection',
+            entity_name='Account',
+            limit=10,
+        )
+        ```
+
+        Args:
+            ctx: MCP context
+            operation: Operation to perform
+            connection_name: Name of the connection
+            entity_name: Name of the entity
+            catalog_id: Catalog ID
+            parent_entity_name: Parent entity name for listing children
+            next_token: Pagination token
+            data_store_api_version: API version of the SaaS connector
+            limit: Maximum number of records to fetch
+            connection_options: Connector options for querying data
+            filter_predicate: Filter predicate for the query
+            selected_fields: List of fields to fetch
+
+        Returns:
+            Union of response types specific to the operation performed
+        """
+        if operation not in ['list-entities', 'describe-entity', 'get-entity-records']:
+            error_message = f'Invalid operation: {operation}. Must be one of: list-entities, describe-entity, get-entity-records'
+            log_with_request_id(ctx, LogLevel.ERROR, error_message)
+            return CallToolResult(
+                isError=True,
+                content=[TextContent(type='text', text=error_message)],
+            )
+
+        try:
+            if operation == 'get-entity-records' and not self.allow_sensitive_data_access:
+                error_message = 'Operation get-entity-records requires --allow-sensitive-data-access flag to be enabled'
+                log_with_request_id(ctx, LogLevel.ERROR, error_message)
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type='text', text=error_message)],
+                )
+
+            if operation == 'list-entities':
+                return await self.data_catalog_manager.list_entities(
+                    ctx=ctx,
+                    connection_name=connection_name,
+                    catalog_id=catalog_id,
+                    parent_entity_name=parent_entity_name,
+                    next_token=next_token,
+                    data_store_api_version=data_store_api_version,
+                )
+
+            elif operation == 'describe-entity':
+                if entity_name is None:
+                    raise ValueError(
+                        'entity_name is required for describe-entity operation'
+                    )
+                return await self.data_catalog_manager.describe_entity(
+                    ctx=ctx,
+                    connection_name=connection_name,
+                    entity_name=entity_name,
+                    catalog_id=catalog_id,
+                    next_token=next_token,
+                    data_store_api_version=data_store_api_version,
+                )
+
+            elif operation == 'get-entity-records':
+                if entity_name is None:
+                    raise ValueError(
+                        'entity_name is required for get-entity-records operation'
+                    )
+                if limit is None:
+                    raise ValueError(
+                        'limit is required for get-entity-records operation'
+                    )
+                return await self.data_catalog_manager.get_entity_records(
+                    ctx=ctx,
+                    connection_name=connection_name,
+                    entity_name=entity_name,
+                    limit=limit,
+                    catalog_id=catalog_id,
+                    next_token=next_token,
+                    data_store_api_version=data_store_api_version,
+                    connection_options=connection_options,
+                    filter_predicate=filter_predicate,
+                    selected_fields=selected_fields,
+                )
+
+            else:
+                error_message = f'Invalid operation: {operation}. Must be one of: list-entities, describe-entity, get-entity-records'
+                log_with_request_id(ctx, LogLevel.ERROR, error_message)
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type='text', text=error_message)],
+                )
+
+        except ValueError as e:
+            log_with_request_id(ctx, LogLevel.ERROR, f'Parameter validation error: {str(e)}')
+            raise
+        except Exception as e:
+            error_message = f'Error in manage_aws_glue_connection_metadata: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
             return CallToolResult(
                 isError=True,
