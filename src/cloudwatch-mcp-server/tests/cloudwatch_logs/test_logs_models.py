@@ -40,7 +40,6 @@ class TestLogGroupMetadata:
         # Verify the string timestamp was returned unchanged
         assert log_group.creationTime == '2023-01-01T00:00:00+00:00'
 
-
     def test_stored_bytes_optional(self):
         """Test that storedBytes is optional since AWS API may omit it."""
         log_group_data = {
