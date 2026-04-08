@@ -97,8 +97,8 @@ class TestShouldConvertToSql:
         small_size = 100  # Very small response
 
         # Mock the getenv to return 'true' for MCP_FORCE_SQL
-        mock_getenv.side_effect = (
-            lambda key, default=None: 'true' if key == 'MCP_FORCE_SQL' else default
+        mock_getenv.side_effect = lambda key, default=None: (
+            'true' if key == 'MCP_FORCE_SQL' else default
         )
 
         # Reset module constants by reloading the module
@@ -146,6 +146,156 @@ class TestGetSessionDbPath:
         # Just verify we get a path back
         assert path is not None
         assert isinstance(path, str)
+
+    def test_get_session_db_path_with_env_var(self):
+        """Test getting session DB path with AWSLABS_SESSION_DIR environment variable."""
+        from awslabs.billing_cost_management_mcp_server.utilities import sql_utils
+
+        original_path = sql_utils._SESSION_DB_PATH
+
+        try:
+            # Reset the global singleton
+            sql_utils._SESSION_DB_PATH = None
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                custom_session_dir = os.path.join(temp_dir, 'custom_sessions')
+
+                with patch.dict(os.environ, {'AWSLABS_SESSION_DIR': custom_session_dir}):
+                    with patch(
+                        'awslabs.billing_cost_management_mcp_server.utilities.sql_utils.atexit'
+                    ):
+                        # Call the function directly from the module
+                        path = sql_utils.get_session_db_path()
+
+                        # Verify path uses the custom directory
+                        assert path is not None
+                        assert custom_session_dir in path
+                        assert path.endswith('.db')
+                        # Verify the directory was created
+                        assert os.path.exists(custom_session_dir)
+        finally:
+            # Restore original path
+            sql_utils._SESSION_DB_PATH = original_path
+
+    def test_get_session_db_path_readonly_fallback(self):
+        """Test getting session DB path falls back to /tmp on read-only filesystem."""
+        from awslabs.billing_cost_management_mcp_server.utilities import sql_utils
+
+        original_path = sql_utils._SESSION_DB_PATH
+
+        try:
+            # Reset the global singleton
+            sql_utils._SESSION_DB_PATH = None
+
+            # Track makedirs calls to determine when to fail
+            makedirs_calls = []
+            real_makedirs = os.makedirs
+
+            def mock_makedirs_side_effect(path, exist_ok=False):
+                makedirs_calls.append(path)
+                # Fail on paths that don't contain the fallback directory
+                if '/tmp/awslabs' not in path:
+                    raise PermissionError('Read-only file system')
+                # Actually create the directory for fallback path
+                real_makedirs(path, exist_ok=True)
+
+            # Ensure AWSLABS_SESSION_DIR is not set
+            env_backup = os.environ.pop('AWSLABS_SESSION_DIR', None)
+
+            try:
+                with patch.object(os, 'makedirs', side_effect=mock_makedirs_side_effect):
+                    with patch(
+                        'awslabs.billing_cost_management_mcp_server.utilities.sql_utils.atexit'
+                    ):
+                        path = sql_utils.get_session_db_path()
+
+                        # Verify path falls back to /tmp
+                        assert path is not None
+                        assert '/tmp/awslabs/sessions/' in path
+                        assert path.endswith('.db')
+                        # Verify at least 2 makedirs calls (first failed, second succeeded)
+                        assert len(makedirs_calls) >= 2
+                        # Verify the fallback path was called
+                        assert any('/tmp/awslabs' in call for call in makedirs_calls)
+            finally:
+                if env_backup is not None:
+                    os.environ['AWSLABS_SESSION_DIR'] = env_backup
+        finally:
+            # Restore original path
+            sql_utils._SESSION_DB_PATH = original_path
+
+    def test_get_session_db_path_readonly_fallback_oserror(self):
+        """Test getting session DB path falls back to /tmp on OSError."""
+        from awslabs.billing_cost_management_mcp_server.utilities import sql_utils
+
+        original_path = sql_utils._SESSION_DB_PATH
+
+        try:
+            # Reset the global singleton
+            sql_utils._SESSION_DB_PATH = None
+
+            # Track makedirs calls to determine when to fail
+            makedirs_call_count = [0]
+            real_makedirs = os.makedirs
+
+            def mock_makedirs_side_effect(path, exist_ok=False):
+                makedirs_call_count[0] += 1
+                # Fail on the first call (default package-relative path) with OSError
+                # (errno 30 = Read-only file system on Linux)
+                if makedirs_call_count[0] == 1:
+                    raise OSError(30, 'Read-only file system', path)
+                # Actually create the directory for fallback path
+                real_makedirs(path, exist_ok=True)
+
+            # Ensure AWSLABS_SESSION_DIR is not set
+            env_backup = os.environ.pop('AWSLABS_SESSION_DIR', None)
+
+            try:
+                with patch.object(os, 'makedirs', side_effect=mock_makedirs_side_effect):
+                    with patch(
+                        'awslabs.billing_cost_management_mcp_server.utilities.sql_utils.atexit'
+                    ):
+                        path = sql_utils.get_session_db_path()
+
+                        # Verify path falls back to /tmp
+                        assert path is not None
+                        assert '/tmp/awslabs/sessions/' in path
+                        assert path.endswith('.db')
+                        # Verify makedirs was called twice (first failed, second succeeded)
+                        assert makedirs_call_count[0] == 2
+            finally:
+                if env_backup is not None:
+                    os.environ['AWSLABS_SESSION_DIR'] = env_backup
+        finally:
+            # Restore original path
+            sql_utils._SESSION_DB_PATH = original_path
+
+    def test_get_session_db_path_env_var_takes_precedence(self):
+        """Test AWSLABS_SESSION_DIR takes precedence over default path."""
+        from awslabs.billing_cost_management_mcp_server.utilities import sql_utils
+
+        original_path = sql_utils._SESSION_DB_PATH
+
+        try:
+            # Reset the global singleton
+            sql_utils._SESSION_DB_PATH = None
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                custom_session_dir = os.path.join(temp_dir, 'env_override')
+
+                with patch.dict(os.environ, {'AWSLABS_SESSION_DIR': custom_session_dir}):
+                    with patch(
+                        'awslabs.billing_cost_management_mcp_server.utilities.sql_utils.atexit'
+                    ):
+                        path = sql_utils.get_session_db_path()
+
+                        # Verify path uses the env var directory, not default
+                        assert custom_session_dir in path
+                        # Should NOT contain the package-relative path
+                        assert 'billing_cost_management_mcp_server' not in path
+        finally:
+            # Restore original path
+            sql_utils._SESSION_DB_PATH = original_path
 
 
 class TestGetDbConnection:
