@@ -16,7 +16,7 @@
 
 from datetime import datetime
 from pydantic import BaseModel, Field
-from typing import Dict, Optional
+from typing import Dict, Literal, Optional
 
 
 class RedshiftCluster(BaseModel):
@@ -139,3 +139,72 @@ class QueryResult(BaseModel):
         None, description='Query execution time in milliseconds'
     )
     query_id: str = Field(..., description='Unique identifier for the query execution')
+
+
+# --- Review models ---
+
+ConcernCategory = Literal['performance', 'cost', 'storage', 'scaling', 'full']
+
+CONCERN_QUERY_MAP: dict[ConcernCategory, list[str]] = {
+    'performance': ['Top50QueriesByRunTime', 'UsagePattern', 'WLMConfig', 'TableInfo'],
+    'cost': ['NodeDetails', 'WorkloadEvaluation', 'UsagePattern'],
+    'storage': ['NodeDetails', 'TableInfo', 'AlterTableRecommendations'],
+    'scaling': ['UsagePattern', 'WLMConfig', 'WorkloadEvaluation', 'NodeDetails'],
+    'full': [
+        'NodeDetails', 'WLMConfig', 'UsagePattern', 'TableInfo',
+        'AlterTableRecommendations', 'MaterializedView', 'Top50QueriesByRunTime',
+        'CopyPerformance', 'ExtQueryPerformance', 'DataShareProducerObject',
+        'DataShareConsumerUsage', 'ATOWorkerActions', 'WorkloadEvaluation',
+    ],
+}
+
+PROVISIONED_ONLY_QUERIES = {'WLMConfig', 'NodeDetails'}
+
+
+class ReviewFinding(BaseModel):
+    """A single finding from signal evaluation."""
+
+    signal_name: str
+    section: str
+    affected_row_count: int
+    recommendation_ids: list[str]
+
+
+class ReviewRecommendation(BaseModel):
+    """A resolved recommendation with full details."""
+
+    id: str
+    text: str
+    description: str
+    effort: Literal['Small', 'Medium', 'Large']
+    documentation_links: list[str]
+    triggered_by_signals: list[str]
+
+
+class ClusterMetadata(BaseModel):
+    """Cluster metadata extracted from NodeDetails query."""
+
+    cluster_id: str
+    node_type: str
+    node_count: int
+    region: str
+
+
+class QueryFailureInfo(BaseModel):
+    """Info about a failed query or signal evaluation."""
+
+    query_name: str
+    signal_name: str | None = None
+    error_message: str
+
+
+class ReviewResult(BaseModel):
+    """Complete result of a run_review tool call."""
+
+    cluster_metadata: ClusterMetadata
+    concern: str
+    signals_evaluated: int
+    findings: list[ReviewFinding]
+    recommendations: list[ReviewRecommendation]
+    queries_executed: list[str]
+    query_failures: list[QueryFailureInfo]
