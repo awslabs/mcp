@@ -353,3 +353,37 @@ def test_config_no_validate_output_from_args():
         setattr(args, attr, None)
     config = load_config(args)
     assert config.validate_output is False
+
+
+@pytest.mark.asyncio
+async def test_server_logs_tool_and_prompt_counts():
+    """Server logs registered tools and prompts after creation."""
+    with patch('awslabs.openapi_mcp_server.server.logger') as mock_logger:
+        server = await _create_server(_base_config())
+        tools = await server.list_tools()
+        prompts = await server.list_prompts()
+        # Verify logging happened
+        assert len(tools) > 0
+        assert len(prompts) > 0
+        # The server should have logged tool/prompt info
+        info_calls = [str(c) for c in mock_logger.info.call_args_list]
+        assert any('Registered tools' in c for c in info_calls)
+
+
+@pytest.mark.asyncio
+async def test_validate_output_true_creates_server():
+    """Server starts successfully with validate_output=True (default)."""
+    server = await _create_server(_base_config(validate_output=True))
+    tools = await server.list_tools()
+    assert len(tools) > 0
+
+
+@pytest.mark.asyncio
+async def test_prompt_generation_failure_handled():
+    """Server continues when prompt generation fails."""
+    with patch('awslabs.openapi_mcp_server.server.MCPPromptManager') as mock_pm:
+        mock_pm.return_value.generate_prompts.side_effect = RuntimeError('prompt gen failed')
+        server = await _create_server(_base_config())
+        # Server should still be created despite prompt failure
+        tools = await server.list_tools()
+        assert len(tools) > 0

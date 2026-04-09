@@ -277,21 +277,6 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
         if exclude_tags:
             server.disable(tags=exclude_tags)
 
-        # Log route information at debug level
-        if logger.level == 'DEBUG':
-            # Use getattr with default value to safely access attributes
-            openapi_router = getattr(server, '_openapi_router', None)
-            if openapi_router is not None:
-                routes = getattr(openapi_router, '_routes', [])
-                logger.debug(f'Server has {len(routes)} routes')
-
-                # Log details of each route
-                for i, route in enumerate(routes):
-                    path = getattr(route, 'path', 'unknown')
-                    method = getattr(route, 'method', 'unknown')
-                    mcp_type = getattr(route, 'mcp_type', 'unknown')
-                    logger.debug(f'Route {i}: {method} {path} - Type: {mcp_type}')
-
         logger.info(f'Successfully configured API: {config.api_name}')
 
         # Generate MCP-compliant prompts
