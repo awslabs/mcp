@@ -253,6 +253,10 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
 
             try:
                 extra_specs = json.loads(config.additional_specs)
+                if not isinstance(extra_specs, list):
+                    logger.warning('additional_specs must be a JSON array, got '
+                                   f'{type(extra_specs).__name__}')
+                    extra_specs = []
                 for entry in extra_specs:
                     if not isinstance(entry, dict):
                         logger.warning(f'Skipping non-dict additional spec entry: {entry}')
