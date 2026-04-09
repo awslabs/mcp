@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from awslabs.openapi_mcp_server.prompts.generators.operation_prompts import create_operation_prompt
 import asyncio
+from awslabs.openapi_mcp_server.prompts.generators.operation_prompts import create_operation_prompt
 from fastmcp import FastMCP
 from fastmcp.prompts.prompt import Prompt
 

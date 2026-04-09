@@ -36,7 +36,11 @@ class TestServerRouteLogging:
         mock_auth.provider_name = 'test_auth'  # Add provider_name attribute
         mock_get_auth.return_value = mock_auth
 
-        mock_spec = {'openapi': '3.0.0', 'paths': {}, 'info': {'title': 'Test API', 'version': '1.0.0'}}
+        mock_spec = {
+            'openapi': '3.0.0',
+            'paths': {},
+            'info': {'title': 'Test API', 'version': '1.0.0'},
+        }
         mock_load.return_value = mock_spec
         mock_validate.return_value = True
 
@@ -93,7 +97,11 @@ class TestServerRouteLogging:
         mock_auth.provider_name = 'test_auth'  # Add provider_name attribute
         mock_get_auth.return_value = mock_auth
 
-        mock_spec = {'openapi': '3.0.0', 'paths': {}, 'info': {'title': 'Test API', 'version': '1.0.0'}}
+        mock_spec = {
+            'openapi': '3.0.0',
+            'paths': {},
+            'info': {'title': 'Test API', 'version': '1.0.0'},
+        }
         mock_load.return_value = mock_spec
         mock_validate.return_value = True
 
@@ -114,8 +122,6 @@ class TestServerRouteLogging:
         mock_openapi_router = MagicMock()
         mock_openapi_router._routes = [mock_route1]
         mock_server._openapi_router = mock_openapi_router
-
-        
 
         # Set logger.level to INFO (not DEBUG)
         mock_logger.level = 'INFO'

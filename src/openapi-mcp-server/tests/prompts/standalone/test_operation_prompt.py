@@ -161,11 +161,9 @@ if __name__ == '__main__':
     print(f'Prompt creation success: {success}')
 
     # Print the prompt
-    if (
-        success
-        and hasattr(server, 'add_prompt')
-        and callable(server.add_prompt)
-    ):
+    if success and hasattr(server, 'add_prompt') and callable(server.add_prompt):
+        import asyncio
+
         prompts = asyncio.run(server.list_prompts())
         prompt = prompts[0] if prompts else None
         if prompt:

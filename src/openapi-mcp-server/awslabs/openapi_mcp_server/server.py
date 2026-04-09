@@ -376,7 +376,9 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
             tool_names = [getattr(t, 'name', 'unknown') for t in tools]
             logger.debug(f'Found {tool_count} tools via list_tools()')
             for i, tool in enumerate(tools):
-                logger.debug(f'Tool {i}: {getattr(tool, "name", "unknown")} - {getattr(tool, "description", "no description")}')
+                logger.debug(
+                    f'Tool {i}: {getattr(tool, "name", "unknown")} - {getattr(tool, "description", "no description")}'
+                )
         except Exception as e:
             logger.warning(f'Failed to list tools: {e}')
 

@@ -13,14 +13,11 @@
 # limitations under the License.
 """Tests for FastMCP 3.x features: tag filtering, enriched descriptions, validate_output, multi-spec."""
 
-import asyncio
 import json
-
 import pytest
-from unittest.mock import MagicMock, patch
-
 from awslabs.openapi_mcp_server.api.config import Config, load_config
 from awslabs.openapi_mcp_server.server import create_mcp_server_async
+from unittest.mock import MagicMock, patch
 
 
 PETSTORE_SPEC = {
@@ -104,9 +101,12 @@ def _base_config(**overrides):
 
 async def _create_server(config, spec=None, extra_spec=None):
     spec = spec or PETSTORE_SPEC
-    with patch('awslabs.openapi_mcp_server.server.load_openapi_spec') as mock_load, \
-         patch('awslabs.openapi_mcp_server.server.validate_openapi_spec', return_value=True), \
-         patch('awslabs.openapi_mcp_server.server.HttpClientFactory.create_client') as mock_client:
+    with (
+        patch('awslabs.openapi_mcp_server.server.load_openapi_spec') as mock_load,
+        patch('awslabs.openapi_mcp_server.server.validate_openapi_spec', return_value=True),
+        patch('awslabs.openapi_mcp_server.server.HttpClientFactory.create_client') as mock_client,
+    ):
+
         def load_side_effect(url='', path=''):
             if extra_spec and url != config.api_spec_url:
                 return extra_spec
@@ -210,14 +210,16 @@ async def test_validate_output_false_creates_server():
 @pytest.mark.asyncio
 async def test_additional_specs_adds_tools():
     """Additional specs add their tools to the server."""
-    extra = json.dumps([{
-        'name': 'payments',
-        'spec_url': 'https://payments.example.com/spec.json',
-        'base_url': 'https://payments.example.com',
-    }])
-    server = await _create_server(
-        _base_config(additional_specs=extra), extra_spec=EXTRA_SPEC
+    extra = json.dumps(
+        [
+            {
+                'name': 'payments',
+                'spec_url': 'https://payments.example.com/spec.json',
+                'base_url': 'https://payments.example.com',
+            }
+        ]
     )
+    server = await _create_server(_base_config(additional_specs=extra), extra_spec=EXTRA_SPEC)
     tools = await server.list_tools()
     names = {t.name for t in tools}
     assert 'listPets' in names
@@ -267,3 +269,87 @@ def test_config_defaults():
     assert config.exclude_tags == ''
     assert config.validate_output is True
     assert config.additional_specs == ''
+
+
+@pytest.mark.asyncio
+async def test_enriched_descriptions_no_params():
+    """Tool descriptions still enriched when operation has no parameters."""
+    server = await _create_server(_base_config())
+    tools = await server.list_tools()
+    inventory = next(t for t in tools if t.name == 'getInventory')
+    # Should have Returns even without params
+    assert 'Returns:' in inventory.description
+
+
+@pytest.mark.asyncio
+async def test_additional_specs_with_spec_path():
+    """Additional specs can use spec_path instead of spec_url."""
+    extra = json.dumps(
+        [
+            {
+                'name': 'payments',
+                'spec_path': '/tmp/fake.json',
+                'base_url': 'https://payments.example.com',
+            }
+        ]
+    )
+    server = await _create_server(_base_config(additional_specs=extra), extra_spec=EXTRA_SPEC)
+    tools = await server.list_tools()
+    names = {t.name for t in tools}
+    assert 'createPayment' in names
+
+
+@pytest.mark.asyncio
+async def test_additional_specs_empty_array():
+    """Empty additional_specs array is handled gracefully."""
+    server = await _create_server(_base_config(additional_specs='[]'))
+    tools = await server.list_tools()
+    assert len(tools) == 4  # Only primary spec tools
+
+
+@pytest.mark.asyncio
+async def test_include_and_exclude_tags_combined():
+    """Include and exclude can be used together."""
+    server = await _create_server(_base_config(include_tags='pet,store', exclude_tags='store'))
+    tools = await server.list_tools()
+    names = {t.name for t in tools}
+    assert 'listPets' in names
+    assert 'getInventory' not in names
+
+
+def test_config_no_validate_output_from_args():
+    """no_validate_output CLI arg sets validate_output to False."""
+    from unittest.mock import MagicMock as M
+
+    args = M()
+    args.no_validate_output = True
+    args.include_tags = None
+    args.exclude_tags = None
+    args.additional_specs = None
+    # Set all other expected attrs to None
+    for attr in [
+        'api_name',
+        'api_url',
+        'spec_url',
+        'spec_path',
+        'port',
+        'debug',
+        'auth_type',
+        'auth_username',
+        'auth_password',
+        'auth_token',
+        'auth_api_key',
+        'auth_api_key_name',
+        'auth_api_key_in',
+        'auth_cognito_client_id',
+        'auth_cognito_username',
+        'auth_cognito_password',
+        'auth_cognito_client_secret',
+        'auth_cognito_domain',
+        'auth_cognito_scopes',
+        'auth_cognito_user_pool_id',
+        'auth_cognito_region',
+    ]:
+        setattr(args, attr, None)
+    config = load_config(args)
+    assert config.validate_output is False
