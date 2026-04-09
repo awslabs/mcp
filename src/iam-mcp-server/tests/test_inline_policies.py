@@ -74,7 +74,7 @@ class TestUserInlinePolicies:
         # Setup
         mock_client = Mock()
         mock_get_client.return_value = mock_client
-        Context.initialize(readonly=False)
+        Context.initialize(readonly=False, require_confirmation=False)
 
         # Execute
         result = await put_user_policy(
@@ -103,7 +103,7 @@ class TestUserInlinePolicies:
         # Setup
         mock_client = Mock()
         mock_get_client.return_value = mock_client
-        Context.initialize(readonly=False)
+        Context.initialize(readonly=False, require_confirmation=False)
 
         # Execute
         result = await put_user_policy(
@@ -139,7 +139,7 @@ class TestUserInlinePolicies:
 
     async def test_put_user_policy_validation_errors(self, sample_policy_document):
         """Test put_user_policy validation errors."""
-        Context.initialize(readonly=False)
+        Context.initialize(readonly=False, require_confirmation=False)
 
         # Test missing user name
         with pytest.raises(IamValidationError, match='User name and policy name are required'):
@@ -200,7 +200,7 @@ class TestUserInlinePolicies:
         # Setup
         mock_client = Mock()
         mock_get_client.return_value = mock_client
-        Context.initialize(readonly=False)
+        Context.initialize(readonly=False, require_confirmation=False)
 
         # Execute
         result = await delete_user_policy(user_name='test-user', policy_name='test-policy')
@@ -263,7 +263,7 @@ class TestRoleInlinePolicies:
         # Setup
         mock_client = Mock()
         mock_get_client.return_value = mock_client
-        Context.initialize(readonly=False)
+        Context.initialize(readonly=False, require_confirmation=False)
 
         # Execute
         result = await put_role_policy(
@@ -300,7 +300,7 @@ class TestRoleInlinePolicies:
 
     async def test_put_role_policy_validation_errors(self, sample_policy_document):
         """Test put_role_policy validation errors."""
-        Context.initialize(readonly=False)
+        Context.initialize(readonly=False, require_confirmation=False)
 
         # Test missing role name
         with pytest.raises(IamValidationError, match='Role name and policy name are required'):
@@ -345,7 +345,7 @@ class TestRoleInlinePolicies:
         # Setup
         mock_client = Mock()
         mock_get_client.return_value = mock_client
-        Context.initialize(readonly=False)
+        Context.initialize(readonly=False, require_confirmation=False)
 
         # Execute
         result = await delete_role_policy(role_name='test-role', policy_name='test-policy')
@@ -395,7 +395,7 @@ class TestInlinePolicyErrorHandling:
             error_response={'Error': {'Code': 'NoSuchEntity', 'Message': 'User not found'}},
             operation_name='PutUserPolicy',
         )
-        Context.initialize(readonly=False)
+        Context.initialize(readonly=False, require_confirmation=False)
 
         # Execute & Verify
         with pytest.raises(Exception):  # Will be handled by handle_iam_error
@@ -430,7 +430,7 @@ class TestInlinePolicyErrorHandling:
             error_response={'Error': {'Code': 'NoSuchEntity', 'Message': 'Policy not found'}},
             operation_name='DeleteUserPolicy',
         )
-        Context.initialize(readonly=False)
+        Context.initialize(readonly=False, require_confirmation=False)
 
         # Execute & Verify
         with pytest.raises(Exception):  # Will be handled by handle_iam_error
@@ -464,7 +464,7 @@ class TestErrorHandlingCoverage:
         """Test put_user_policy with invalid JSON (lines 1065-1070)."""
         mock_client = Mock()
         mock_get_client.return_value = mock_client
-        Context.initialize(readonly=False)
+        Context.initialize(readonly=False, require_confirmation=False)
 
         with pytest.raises(IamValidationError, match='Invalid JSON in policy_document'):
             await put_user_policy(
@@ -476,7 +476,7 @@ class TestErrorHandlingCoverage:
         """Test put_role_policy with invalid JSON (lines 1065-1070)."""
         mock_client = Mock()
         mock_get_client.return_value = mock_client
-        Context.initialize(readonly=False)
+        Context.initialize(readonly=False, require_confirmation=False)
 
         with pytest.raises(IamValidationError, match='Invalid JSON in policy_document'):
             await put_role_policy(
@@ -512,7 +512,7 @@ class TestErrorHandlingCoverage:
         """Test exception handling in delete_user_policy (lines 1178-1181)."""
         mock_client = Mock()
         mock_get_client.return_value = mock_client
-        Context.initialize(readonly=False)
+        Context.initialize(readonly=False, require_confirmation=False)
 
         # Mock a generic exception to trigger the exception handler
         mock_client.delete_user_policy.side_effect = Exception('Generic error')
@@ -525,7 +525,7 @@ class TestErrorHandlingCoverage:
         """Test exception handling in delete_role_policy (lines 1178-1181)."""
         mock_client = Mock()
         mock_get_client.return_value = mock_client
-        Context.initialize(readonly=False)
+        Context.initialize(readonly=False, require_confirmation=False)
 
         # Mock a generic exception to trigger the exception handler
         mock_client.delete_role_policy.side_effect = Exception('Generic error')
