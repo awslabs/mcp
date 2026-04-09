@@ -494,5 +494,5 @@ async def test_enriched_descriptions_empty_original():
     item_tool = next((t for t in tools if t.name == 'listItems'), None)
     assert item_tool is not None
     # Should still have enrichment even without original description
-    if item_tool.description:
-        assert 'Returns:' in item_tool.description or item_tool.description != ''
+    assert item_tool.description
+    assert 'Returns:' in item_tool.description
