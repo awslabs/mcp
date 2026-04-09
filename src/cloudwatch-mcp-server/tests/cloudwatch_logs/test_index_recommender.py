@@ -18,14 +18,20 @@ import json
 import pytest
 import time
 from awslabs.cloudwatch_mcp_server.cloudwatch_logs.index_recommender import (
-    AccountIndexRecommenderResult,
-    IndexRecommenderResult,
     _build_field_usage,
-    _detect_language,
     _extract_log_group_name,
-    parse_query_fields,
     recommend_indexes_account,
     recommend_indexes_loggroup,
+)
+from awslabs.cloudwatch_mcp_server.cloudwatch_logs.query_parser import (
+    detect_language as _detect_language,
+)
+from awslabs.cloudwatch_mcp_server.cloudwatch_logs.query_parser import (
+    parse_query_fields,
+)
+from awslabs.cloudwatch_mcp_server.cloudwatch_logs.scoring import (
+    AccountIndexRecommenderResult,
+    IndexRecommenderResult,
 )
 from unittest.mock import AsyncMock, MagicMock, patch
 
