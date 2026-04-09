@@ -16,12 +16,17 @@
 
 import pytest
 from awslabs.redshift_mcp_server.models import (
+    ClusterMetadata,
+    QueryFailureInfo,
     QueryResult,
     RedshiftCluster,
     RedshiftColumn,
     RedshiftDatabase,
     RedshiftSchema,
     RedshiftTable,
+    ReviewFinding,
+    ReviewRecommendation,
+    ReviewResult,
 )
 from awslabs.redshift_mcp_server.server import (
     execute_query_tool,
@@ -30,6 +35,8 @@ from awslabs.redshift_mcp_server.server import (
     list_databases_tool,
     list_schemas_tool,
     list_tables_tool,
+    mcp,
+    run_review_tool,
 )
 from mcp.server.fastmcp import Context
 
@@ -528,3 +535,221 @@ class TestExecuteQueryTool:
         mock_ctx.error.assert_called_once_with(
             'Failed to execute query on cluster test-cluster in database test-db: Query error'
         )
+
+
+class TestRunReviewTool:
+    """Tests for the run_review MCP tool."""
+
+    def _make_review_result(self, findings=None, failures=None):
+        """Helper to build a ReviewResult with sensible defaults."""
+        return ReviewResult(
+            cluster_metadata=ClusterMetadata(
+                cluster_id='test-cluster',
+                node_type='ra3.xlplus',
+                node_count=2,
+                region='us-east-1',
+            ),
+            concern='full',
+            signals_evaluated=55,
+            findings=findings or [],
+            recommendations=[
+                ReviewRecommendation(
+                    id='rec-1',
+                    text='Enable short query acceleration',
+                    description='SQA routes short queries to a dedicated queue.',
+                    effort='Small',
+                    documentation_links=['https://docs.aws.amazon.com/redshift/latest/dg/wlm-short-query-acceleration.html'],
+                    triggered_by_signals=['HighSQAEligibility'],
+                ),
+            ] if findings else [],
+            queries_executed=['NodeDetails', 'WLMConfig'],
+            query_failures=failures or [],
+        )
+
+    def _make_mock_ctx(self, mocker):
+        """Build a mock Context whose request_context.lifespan_context is a ReviewAppContext."""
+        from awslabs.redshift_mcp_server.server import ReviewAppContext
+
+        mock_ctx = mocker.Mock(spec=Context)
+        mock_ctx.error = mocker.AsyncMock()
+        mock_ctx.request_context = mocker.Mock()
+        mock_ctx.request_context.lifespan_context = ReviewAppContext(
+            queries_config={'NodeDetails': {'SQL': 'SELECT 1'}},
+            signals_config={'NodeDetails': {'Signals': []}},
+            recommendations_config={},
+        )
+        return mock_ctx
+
+    @pytest.mark.asyncio
+    async def test_run_review_success(self, mocker):
+        """Test run_review returns a ReviewResult on success."""
+        findings = [
+            ReviewFinding(
+                signal_name='HighSQAEligibility',
+                section='WLMConfig',
+                affected_row_count=3,
+                recommendation_ids=['rec-1'],
+            ),
+        ]
+        expected = self._make_review_result(findings=findings)
+
+        mock_pipeline = mocker.patch(
+            'awslabs.redshift_mcp_server.server.run_review',
+            return_value=expected,
+        )
+        mock_ctx = self._make_mock_ctx(mocker)
+
+        result = await run_review_tool(
+            ctx=mock_ctx,
+            cluster_identifier='test-cluster',
+            database='dev',
+            concern='full',
+            workgroup=None,
+        )
+
+        assert isinstance(result, ReviewResult)
+        assert result.signals_evaluated == 55
+        assert len(result.findings) == 1
+        assert result.findings[0].signal_name == 'HighSQAEligibility'
+        assert result.findings[0].affected_row_count == 3
+        assert len(result.recommendations) == 1
+        assert result.recommendations[0].id == 'rec-1'
+        assert result.cluster_metadata.cluster_id == 'test-cluster'
+        assert result.cluster_metadata.node_type == 'ra3.xlplus'
+
+        mock_pipeline.assert_called_once()
+        call_kwargs = mock_pipeline.call_args.kwargs
+        assert call_kwargs['cluster_identifier'] == 'test-cluster'
+        assert call_kwargs['database'] == 'dev'
+        assert call_kwargs['concern'] == 'full'
+        assert call_kwargs['workgroup'] is None
+
+    @pytest.mark.asyncio
+    async def test_run_review_empty_results(self, mocker):
+        """Test run_review with no findings returns a clean response."""
+        expected = self._make_review_result(findings=[], failures=[])
+
+        mocker.patch(
+            'awslabs.redshift_mcp_server.server.run_review',
+            return_value=expected,
+        )
+        mock_ctx = self._make_mock_ctx(mocker)
+
+        result = await run_review_tool(
+            ctx=mock_ctx,
+            cluster_identifier='test-cluster',
+            database='dev',
+            concern='full',
+            workgroup=None,
+        )
+
+        assert isinstance(result, ReviewResult)
+        assert result.findings == []
+        assert result.recommendations == []
+        assert result.query_failures == []
+        assert result.signals_evaluated == 55
+
+    @pytest.mark.asyncio
+    async def test_run_review_error(self, mocker):
+        """Test run_review propagates pipeline errors."""
+        mocker.patch(
+            'awslabs.redshift_mcp_server.server.run_review',
+            side_effect=Exception('Data API timeout'),
+        )
+        mock_ctx = self._make_mock_ctx(mocker)
+
+        with pytest.raises(Exception, match='Data API timeout'):
+            await run_review_tool(
+                ctx=mock_ctx,
+                cluster_identifier='test-cluster',
+                database='dev',
+                concern='full',
+                workgroup=None,
+            )
+
+    @pytest.mark.asyncio
+    async def test_run_review_invalid_concern(self, mocker):
+        """Test run_review rejects invalid concern categories."""
+        mock_ctx = self._make_mock_ctx(mocker)
+
+        with pytest.raises(ValueError, match="Invalid concern category: 'invalid'"):
+            await run_review_tool(
+                ctx=mock_ctx,
+                cluster_identifier='test-cluster',
+                database='dev',
+                concern='invalid',
+                workgroup=None,
+            )
+
+    @pytest.mark.asyncio
+    async def test_run_review_parameters(self, mocker):
+        """Test run_review passes all parameters correctly including workgroup."""
+        expected = self._make_review_result()
+
+        mock_pipeline = mocker.patch(
+            'awslabs.redshift_mcp_server.server.run_review',
+            return_value=expected,
+        )
+        mock_ctx = self._make_mock_ctx(mocker)
+
+        await run_review_tool(
+            ctx=mock_ctx,
+            cluster_identifier='my-cluster',
+            database='analytics',
+            concern='performance',
+            workgroup='my-workgroup',
+        )
+
+        call_kwargs = mock_pipeline.call_args.kwargs
+        assert call_kwargs['cluster_identifier'] == 'my-cluster'
+        assert call_kwargs['database'] == 'analytics'
+        assert call_kwargs['concern'] == 'performance'
+        assert call_kwargs['workgroup'] == 'my-workgroup'
+
+    @pytest.mark.asyncio
+    async def test_run_review_with_query_failures(self, mocker):
+        """Test run_review includes query failures in the result."""
+        failures = [
+            QueryFailureInfo(
+                query_name='WLMConfig',
+                signal_name='HighConcurrency',
+                error_message='Statement timed out',
+            ),
+        ]
+        expected = self._make_review_result(failures=failures)
+
+        mocker.patch(
+            'awslabs.redshift_mcp_server.server.run_review',
+            return_value=expected,
+        )
+        mock_ctx = self._make_mock_ctx(mocker)
+
+        result = await run_review_tool(
+            ctx=mock_ctx,
+            cluster_identifier='test-cluster',
+            database='dev',
+            concern='full',
+            workgroup=None,
+        )
+
+        assert len(result.query_failures) == 1
+        assert result.query_failures[0].query_name == 'WLMConfig'
+        assert result.query_failures[0].signal_name == 'HighConcurrency'
+        assert result.query_failures[0].error_message == 'Statement timed out'
+
+    def test_no_removed_tools_registered(self):
+        """Verify export_csv and import_and_analyze are not registered as tools."""
+        tool_names = set()
+        for tool in mcp._tool_manager._tools.values():
+            tool_names.add(tool.name)
+
+        assert 'export_csv' not in tool_names, 'export_csv should not be registered'
+        assert 'import_and_analyze' not in tool_names, 'import_and_analyze should not be registered'
+
+    def test_run_review_tool_is_registered(self):
+        """Verify run_review is registered as an MCP tool."""
+        tool_names = set()
+        for tool in mcp._tool_manager._tools.values():
+            tool_names.add(tool.name)
+
+        assert 'run_review' in tool_names, 'run_review should be registered as a tool'

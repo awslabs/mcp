@@ -16,20 +16,28 @@
 
 import os
 import sys
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
+from pathlib import Path
+
 from awslabs.redshift_mcp_server.consts import (
     CLIENT_BEST_PRACTICES,
     DEFAULT_LOG_LEVEL,
     REDSHIFT_BEST_PRACTICES,
 )
 from awslabs.redshift_mcp_server.models import (
+    ConcernCategory,
     QueryResult,
     RedshiftCluster,
     RedshiftColumn,
     RedshiftDatabase,
     RedshiftSchema,
     RedshiftTable,
+    ReviewResult,
 )
 from awslabs.redshift_mcp_server.redshift import (
+    _execute_protected_statement,
     discover_clusters,
     discover_columns,
     discover_databases,
@@ -37,6 +45,15 @@ from awslabs.redshift_mcp_server.redshift import (
     discover_tables,
     execute_query,
 )
+from awslabs.redshift_mcp_server.review.config_loader import (
+    QueryEntry,
+    RecommendationEntry,
+    SectionEntry,
+    load_queries_config,
+    load_recommendations_config,
+    load_signals_config,
+)
+from awslabs.redshift_mcp_server.review.review_pipeline import run_review
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
@@ -50,8 +67,47 @@ logger.add(
 )
 
 
+# Config directory for review config files
+_CONFIG_DIR = Path(__file__).parent / 'config'
+
+
+@dataclass
+class ReviewAppContext:
+    """Application context holding loaded review config files."""
+
+    queries_config: dict[str, QueryEntry]
+    signals_config: dict[str, SectionEntry]
+    recommendations_config: dict[str, RecommendationEntry]
+
+
+@asynccontextmanager
+async def server_lifespan(server: FastMCP) -> AsyncIterator[ReviewAppContext]:
+    """Load review config files at server startup."""
+    try:
+        queries_config = load_queries_config(_CONFIG_DIR / 'queries.json')
+        signals_config = load_signals_config(_CONFIG_DIR / 'signals.json')
+        recommendations_config = load_recommendations_config(_CONFIG_DIR / 'recommendations.json')
+    except Exception as e:
+        logger.error(f'Failed to load review config files: {e}')
+        raise
+
+    query_count = len(queries_config)
+    signal_count = sum(len(s['Signals']) for s in signals_config.values())
+    recommendation_count = len(recommendations_config)
+    logger.info(
+        f'Review config loaded: {query_count} queries, {signal_count} signals, {recommendation_count} recommendations'
+    )
+
+    yield ReviewAppContext(
+        queries_config=queries_config,
+        signals_config=signals_config,
+        recommendations_config=recommendations_config,
+    )
+
+
 mcp = FastMCP(
     'awslabs.redshift-mcp-server',
+    lifespan=server_lifespan,
     instructions=f"""
 # Amazon Redshift MCP Server.
 
@@ -82,6 +138,12 @@ This tool queries the SVV_ALL_COLUMNS system view to discover available columns.
 ### execute_query
 Executes SQL queries against a Redshift cluster or serverless workgroup.
 This tool uses the Redshift Data API to run queries and return results.
+
+### run_review
+Runs a diagnostic review of a Redshift cluster or serverless workgroup.
+Evaluates up to 55 signals across 13 diagnostic queries, returning findings
+with counts and actionable recommendations ordered by effort.
+Supports concern categories: performance, cost, storage, scaling, full.
 
 ## Getting Started
 
@@ -621,6 +683,60 @@ async def execute_query_tool(
             f'Failed to execute query on cluster {cluster_identifier} in database {database_name}: {str(e)}'
         )
         raise
+
+
+@mcp.tool(name='run_review')
+async def run_review_tool(
+    ctx: Context,
+    cluster_identifier: str = Field(
+        ...,
+        description='The cluster identifier to run the review on. Must be a valid cluster identifier from the list_clusters tool.',
+    ),
+    database: str = Field(
+        ...,
+        description='The database name to run the review against. Must be a valid database name from the list_databases tool.',
+    ),
+    concern: str = Field(
+        'full',
+        description="The concern category to focus the review on. One of: 'performance', 'cost', 'storage', 'scaling', 'full'. Defaults to 'full'.",
+    ),
+    workgroup: str | None = Field(
+        None,
+        description='The serverless workgroup name. When provided, provisioned-only queries (WLMConfig, NodeDetails) are excluded.',
+    ),
+) -> ReviewResult:
+    """Run a diagnostic review of a Redshift cluster.
+
+    Evaluates up to 55 signals across 13 diagnostic queries,
+    returning findings with counts and actionable
+    recommendations ordered by effort.
+    """
+    # Validate concern category
+    valid_concerns: list[ConcernCategory] = ['performance', 'cost', 'storage', 'scaling', 'full']
+    if concern not in valid_concerns:
+        raise ValueError(
+            f"Invalid concern category: '{concern}'. Must be one of: {valid_concerns}"
+        )
+
+    # Get config from lifespan context
+    app_ctx: ReviewAppContext = ctx.request_context.lifespan_context
+
+    logger.info(
+        f'Running review on cluster {cluster_identifier}, database {database}, concern={concern}'
+    )
+
+    result = await run_review(
+        cluster_identifier=cluster_identifier,
+        database=database,
+        concern=concern,
+        queries_config=app_ctx.queries_config,
+        signals_config=app_ctx.signals_config,
+        recommendations_config=app_ctx.recommendations_config,
+        execute_fn=_execute_protected_statement,
+        workgroup=workgroup,
+    )
+
+    return result
 
 
 def main():
