@@ -981,6 +981,35 @@ metadata:
             mock_k8s_apis.list_resources.assert_called_once()
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize('kind_variant', ['Secret', 'secret', 'SECRET', 'SeCrEt'])
+    async def test_list_k8s_resources_secret_case_insensitive(
+        self, mock_context, mock_mcp, mock_client_cache, kind_variant
+    ):
+        """Test list_k8s_resources blocks Secrets regardless of case."""
+        # Initialize the K8s handler with sensitive data access disabled
+        with patch(
+            'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
+        ):
+            handler = K8sHandler(mock_mcp, allow_sensitive_data_access=False)
+
+        # Attempt to list Secrets with various case variations
+        result = await handler.list_k8s_resources(
+            mock_context,
+            cluster_name='test-cluster',
+            kind=kind_variant,
+            api_version='v1',
+            namespace='test-namespace',
+        )
+
+        # Verify the result is an error regardless of case
+        assert result.isError
+        assert isinstance(result.content[0], TextContent)
+        assert (
+            'Access to Kubernetes Secrets requires --allow-sensitive-data-access flag'
+            in result.content[0].text
+        )
+
+    @pytest.mark.asyncio
     async def test_generate_app_manifest_write_access_disabled(
         self, mock_context, mock_mcp, mock_client_cache
     ):
