@@ -578,7 +578,7 @@ def main():
     # Multi-spec composition
     parser.add_argument(
         '--additional-specs',
-        help='JSON array of additional API specs: [{"name":"...","spec_url":"...","base_url":"..."}]',
+        help='JSON array of additional API specs: [{"name":"...","spec_url":"...","base_url":"..."}] or [{"name":"...","spec_path":"...","base_url":"..."}] (base_url required when using spec_path)',
     )
 
     args = parser.parse_args()
