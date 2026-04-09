@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pyright type checking errors from namespace package logger re-export
 
 ### Security
-- Updated base image and all dependencies with latest security patches
+- Updated dependencies with latest security patches
 
 ## [0.2.0] - 2025-07-05
 
