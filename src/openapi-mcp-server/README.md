@@ -187,6 +187,10 @@ awslabs.openapi-mcp-server --api-url https://api.example.com --spec-url https://
 # Combine multiple APIs into one MCP server
 awslabs.openapi-mcp-server --api-url https://api.example.com --spec-url https://api.example.com/openapi.json \
   --additional-specs '[{"name":"payments","spec_url":"https://payments.example.com/openapi.json","base_url":"https://payments.example.com"}]'
+
+# Additional specs may also use a local OpenAPI file via spec_path
+awslabs.openapi-mcp-server --api-url https://api.example.com --spec-url https://api.example.com/openapi.json \
+  --additional-specs '[{"name":"payments","spec_path":"./specs/payments-openapi.json","base_url":"https://payments.example.com"}]'
 ```
 
 ### Disable Output Validation
