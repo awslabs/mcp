@@ -903,6 +903,34 @@ metadata:
             )
 
     @pytest.mark.asyncio
+    async def test_list_k8s_resources_secret_sensitive_data_access_disabled(
+        self, mock_context, mock_mcp, mock_client_cache
+    ):
+        """Test list_k8s_resources blocks Secrets when sensitive data access disabled."""
+        # Initialize the K8s handler with sensitive data access disabled
+        with patch(
+            'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
+        ):
+            handler = K8sHandler(mock_mcp, allow_sensitive_data_access=False)
+
+        # Attempt to list Secrets with sensitive data access disabled
+        result = await handler.list_k8s_resources(
+            mock_context,
+            cluster_name='test-cluster',
+            kind='Secret',
+            api_version='v1',
+            namespace='test-namespace',
+        )
+
+        # Verify the result is an error
+        assert result.isError
+        assert isinstance(result.content[0], TextContent)
+        assert (
+            'Access to Kubernetes Secrets requires --allow-sensitive-data-access flag'
+            in result.content[0].text
+        )
+
+    @pytest.mark.asyncio
     async def test_generate_app_manifest_write_access_disabled(
         self, mock_context, mock_mcp, mock_client_cache
     ):
