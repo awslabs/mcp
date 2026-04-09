@@ -496,3 +496,40 @@ async def test_enriched_descriptions_empty_original():
     # Should still have enrichment even without original description
     assert item_tool.description
     assert 'Returns:' in item_tool.description
+
+
+@pytest.mark.asyncio
+async def test_additional_specs_validation_failure_continues():
+    """Additional specs with validation failure still get loaded (warn but continue)."""
+    extra = json.dumps(
+        [
+            {
+                'name': 'payments',
+                'spec_url': 'http://payments/spec',
+                'base_url': 'https://payments.example.com',
+            }
+        ]
+    )
+    with (
+        patch('awslabs.openapi_mcp_server.server.load_openapi_spec') as mock_load,
+        patch('awslabs.openapi_mcp_server.server.validate_openapi_spec') as mock_validate,
+        patch('awslabs.openapi_mcp_server.server.HttpClientFactory.create_client') as mock_client,
+    ):
+
+        def load_side_effect(url='', path=''):
+            return PETSTORE_SPEC if url != 'http://payments/spec' else EXTRA_SPEC
+
+        def validate_side_effect(spec):
+            # Primary passes, extra fails
+            return spec != EXTRA_SPEC
+
+        mock_load.side_effect = load_side_effect
+        mock_validate.side_effect = validate_side_effect
+        mock_client.return_value = MagicMock()
+        config = _base_config(additional_specs=extra)
+        server = await create_mcp_server_async(config)
+        tools = await server.list_tools()
+        names = {t.name for t in tools}
+        # Both specs should be loaded despite validation failure on extra
+        assert 'listPets' in names
+        assert 'createPayment' in names
