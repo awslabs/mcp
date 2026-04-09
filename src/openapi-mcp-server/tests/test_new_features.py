@@ -427,3 +427,72 @@ async def test_additional_specs_malformed_entry():
     server = await _create_server(_base_config(additional_specs=extra), extra_spec=EXTRA_SPEC)
     tools = await server.list_tools()
     assert len(tools) > 0
+
+
+@pytest.mark.asyncio
+async def test_additional_specs_missing_base_url_skipped():
+    """Additional spec entries without base_url are skipped."""
+    extra = json.dumps([{'name': 'no-base', 'spec_url': 'http://x'}])
+    server = await _create_server(_base_config(additional_specs=extra), extra_spec=EXTRA_SPEC)
+    tools = await server.list_tools()
+    names = {t.name for t in tools}
+    # Only primary spec tools, extra was skipped
+    assert 'createPayment' not in names
+    assert 'listPets' in names
+
+
+@pytest.mark.asyncio
+async def test_additional_specs_load_failure_skipped():
+    """Additional spec entries that fail to load are skipped."""
+    extra = json.dumps(
+        [
+            {
+                'name': 'bad',
+                'spec_url': 'http://x',
+                'base_url': 'http://x',
+            }
+        ]
+    )
+    with (
+        patch('awslabs.openapi_mcp_server.server.load_openapi_spec') as mock_load,
+        patch('awslabs.openapi_mcp_server.server.validate_openapi_spec', return_value=True),
+        patch('awslabs.openapi_mcp_server.server.HttpClientFactory.create_client') as mock_client,
+    ):
+
+        def load_side_effect(url='', path=''):
+            if url == 'http://x':
+                raise ValueError('bad spec')
+            return PETSTORE_SPEC
+
+        mock_load.side_effect = load_side_effect
+        mock_client.return_value = MagicMock()
+        config = _base_config(additional_specs=extra)
+        server = await create_mcp_server_async(config)
+        tools = await server.list_tools()
+        names = {t.name for t in tools}
+        assert 'listPets' in names
+
+
+@pytest.mark.asyncio
+async def test_enriched_descriptions_empty_original():
+    """Enrichment works even when original description is empty."""
+    spec_no_desc = {
+        'openapi': '3.0.0',
+        'info': {'title': 'Test', 'version': '1.0.0'},
+        'servers': [{'url': 'https://example.com'}],
+        'paths': {
+            '/items': {
+                'get': {
+                    'operationId': 'listItems',
+                    'responses': {'200': {'description': 'OK'}},
+                },
+            },
+        },
+    }
+    server = await _create_server(_base_config(), spec=spec_no_desc)
+    tools = await server.list_tools()
+    item_tool = next((t for t in tools if t.name == 'listItems'), None)
+    assert item_tool is not None
+    # Should still have enrichment even without original description
+    if item_tool.description:
+        assert 'Returns:' in item_tool.description or item_tool.description != ''

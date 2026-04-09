@@ -86,15 +86,15 @@ class TestServerRouteLogging:
         mock_get_auth,
         mock_logger,
     ):
-        """Test that create_mcp_server doesn't log routes when debug is disabled."""
+        """Test that create_mcp_server does not log route-level debug messages."""
         # Set up mocks
         mock_auth = MagicMock()
-        mock_auth.is_configured.return_value = True  # This is crucial to prevent sys.exit(1)
+        mock_auth.is_configured.return_value = True
         mock_auth.get_auth_headers.return_value = {}
         mock_auth.get_auth_params.return_value = {}
         mock_auth.get_auth_cookies.return_value = {}
         mock_auth.get_httpx_auth.return_value = None
-        mock_auth.provider_name = 'test_auth'  # Add provider_name attribute
+        mock_auth.provider_name = 'test_auth'
         mock_get_auth.return_value = mock_auth
 
         mock_spec = {
@@ -105,50 +105,21 @@ class TestServerRouteLogging:
         mock_load.return_value = mock_spec
         mock_validate.return_value = True
 
-        # Mock HTTP client factory
         mock_client = MagicMock()
         mock_http_factory.create_client.return_value = mock_client
+        mock_fastmcp.return_value = MagicMock()
 
-        # Create a mock server with routes
-        mock_server = MagicMock()
-
-        # Create mock routes
-        mock_route1 = MagicMock()
-        mock_route1.path = '/api/v1/pets'
-        mock_route1.method = 'GET'
-        mock_route1.mcp_type = 'resource'
-
-        # Set up the _openapi_router attribute with routes
-        mock_openapi_router = MagicMock()
-        mock_openapi_router._routes = [mock_route1]
-        mock_server._openapi_router = mock_openapi_router
-
-        # Set logger.level to INFO (not DEBUG)
-        mock_logger.level = 'INFO'
-
-        # Create config
         config = Config(
             api_name='test',
             api_base_url='https://api.example.com',
             api_spec_url='https://api.example.com/spec.json',
         )
 
-        # Call create_mcp_server
         create_mcp_server(config)
 
-        # Verify that logger.debug was not called with route information
+        # Route-level debug logging was removed in fastmcp 3.x migration
         debug_calls = [str(call) for call in mock_logger.debug.call_args_list]
         route_debug_messages = [
-            call
-            for call in debug_calls
-            if 'routes' in call
-            and (
-                'Route 0:' in call
-                or 'Route 1:' in call
-                or 'Server has' in call
-                and 'routes' in call
-            )
+            call for call in debug_calls if 'Route 0:' in call or 'Route 1:' in call
         ]
-        assert len(route_debug_messages) == 0, (
-            f'Found unexpected route debug messages: {route_debug_messages}'
-        )
+        assert len(route_debug_messages) == 0

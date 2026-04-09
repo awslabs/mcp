@@ -232,7 +232,7 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
                         examples.append(f'{p.name}={schema["enum"][0]}')
             if examples:
                 parts.append(f'Example: {", ".join(examples)}')
-            if len(parts) > 1:
+            if parts:
                 component.description = ' | '.join(parts)
 
         provider_kwargs: Dict[str, Any] = {
@@ -252,13 +252,26 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
             try:
                 extra_specs = json.loads(config.additional_specs)
                 for entry in extra_specs:
+                    if not isinstance(entry, dict):
+                        logger.warning(f'Skipping non-dict additional spec entry: {entry}')
+                        continue
                     extra_name = entry.get('name', 'unknown')
+                    extra_base_url = entry.get('base_url', '')
+                    if not extra_base_url:
+                        logger.warning(
+                            f'Skipping additional spec {extra_name}: base_url is required'
+                        )
+                        continue
                     logger.info(f'Loading additional spec: {extra_name}')
-                    extra_spec = load_openapi_spec(
-                        url=entry.get('spec_url', ''), path=entry.get('spec_path', '')
-                    )
+                    try:
+                        extra_spec = load_openapi_spec(
+                            url=entry.get('spec_url', ''), path=entry.get('spec_path', '')
+                        )
+                    except (ValueError, Exception) as e:
+                        logger.warning(f'Failed to load additional spec {extra_name}: {e}')
+                        continue
                     extra_client = HttpClientFactory.create_client(
-                        base_url=entry.get('base_url', ''),
+                        base_url=extra_base_url,
                         headers=auth_headers,
                         auth=httpx_auth,
                         cookies=auth_cookies,
@@ -273,7 +286,7 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
                         )
                     )
                     logger.info(f'Added additional spec: {extra_name}')
-            except (json.JSONDecodeError, KeyError, TypeError, AttributeError) as e:
+            except (json.JSONDecodeError, TypeError) as e:
                 logger.warning(f'Failed to parse additional specs: {e}')
 
         server = FastMCP(
