@@ -1,5 +1,7 @@
 # AWS Labs aws-msk MCP Server
 
+> **⚠️ DEPRECATION NOTICE**: This MCP server is deprecated and will be removed in a future release. This server primarily wraps boto3 API calls that can be made directly. Consider using [aws-api-mcp-server](https://github.com/awslabs/mcp/tree/main/src/aws-api-mcp-server) or calling the MSK boto3 APIs directly.
+
 An AWS Labs Model Context Protocol (MCP) server for Amazon Managed Streaming for Kafka (MSK).
 
 ## Overview
