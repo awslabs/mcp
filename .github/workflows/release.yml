@@ -303,7 +303,7 @@ jobs:
       # Clear up space for specific large projects
       - name: Clear Up Space (Aggressively) for Specific Projects
         if: contains(fromJson('["core-mcp-server"]'), matrix.changed-directory)
-        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@11841059cfcc830c367325450a1898ebffef6e01
+        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@62f8a84f58baba0c523b31e475558513f73109b2
       #TODO: remove local action checkout when working...
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -350,7 +350,7 @@ jobs:
 
           echo "::debug::Directory validated: $FULL_PATH"
       - name: Install uv
-        uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b # v7.3.0
+        uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # v8.0.0
       - name: Build package
         working-directory: ${{ env.SRC_DIRECTORY }}/${{ matrix.changed-directory }}
         run: |
@@ -381,7 +381,7 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "::debug::Package version: $VERSION"
       - name: Publish package to PyPI
-        uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # v1.13.0
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # v1.14.0
         with:
           packages-dir: ${{ env.SRC_DIRECTORY }}/${{ matrix.changed-directory }}/dist
           print-hash: true
