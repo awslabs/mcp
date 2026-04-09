@@ -211,7 +211,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-git-repo-research-mcp-server"
-version = "1.0.15"
+version = "1.0.16"
 source = { editable = "." }
 dependencies = [
     { name = "backoff" },
