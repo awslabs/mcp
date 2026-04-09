@@ -270,6 +270,12 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
                     except (ValueError, Exception) as e:
                         logger.warning(f'Failed to load additional spec {extra_name}: {e}')
                         continue
+
+                    if not validate_openapi_spec(extra_spec):
+                        logger.warning(
+                            f'Skipping additional spec {extra_name}: OpenAPI spec validation failed'
+                        )
+                        continue
                     extra_client = HttpClientFactory.create_client(
                         base_url=extra_base_url,
                         headers=auth_headers,
