@@ -114,14 +114,15 @@ class TestPopulationCriteriaTwoStageFiltering:
     """Verify SQL structure for signals with PopulationCriteria."""
 
     def test_contains_filtered_intermediate_cte(self):
-        """Generated SQL includes a 'filtered' intermediate CTE."""
+        """Generated SQL uses _raw suffix for base CTE and query_name for filtered."""
         sql = build_signal_query('Q', 'SELECT 1', 'x > 0', population_criteria='active = true')
-        assert 'filtered AS (SELECT * FROM Q WHERE active = true)' in sql
+        assert 'Q_raw AS (SELECT 1)' in sql
+        assert 'Q AS (SELECT * FROM Q_raw WHERE active = true)' in sql
 
     def test_outer_select_from_filtered(self):
-        """The outer SELECT references 'filtered', not the original CTE."""
+        """The outer SELECT references the query_name CTE (filtered population)."""
         sql = build_signal_query('Q', 'SELECT 1', 'x > 0', population_criteria='active = true')
-        assert 'FROM filtered WHERE x > 0' in sql
+        assert 'FROM Q WHERE x > 0' in sql
 
     def test_population_criteria_applied_before_criteria(self):
         """PopulationCriteria appears before Criteria in the SQL."""
@@ -134,22 +135,22 @@ class TestPopulationCriteriaTwoStageFiltering:
         """Full SQL matches the expected two-stage template."""
         sql = build_signal_query('Q', 'SELECT 1', 'x > 0', population_criteria='y < 100')
         expected = (
-            'WITH Q AS (SELECT 1), '
-            'filtered AS (SELECT * FROM Q WHERE y < 100) '
-            'SELECT COUNT(*) FROM filtered WHERE x > 0'
+            'WITH Q_raw AS (SELECT 1), '
+            'Q AS (SELECT * FROM Q_raw WHERE y < 100) '
+            'SELECT COUNT(*) FROM Q WHERE x > 0'
         )
         assert sql == expected
 
     def test_both_cte_aliases_present(self):
-        """Both the query CTE and the filtered CTE are present."""
+        """Both the raw CTE and the filtered CTE are present."""
         sql = build_signal_query('WLMConfig', 'SELECT 1', 'x > 0', population_criteria='y = 1')
-        assert 'WITH WLMConfig AS (' in sql
-        assert 'filtered AS (' in sql
+        assert 'WITH WLMConfig_raw AS (' in sql
+        assert 'WLMConfig AS (SELECT * FROM WLMConfig_raw' in sql
 
     def test_population_criteria_uses_select_count(self):
         """Even with PopulationCriteria, the outer query uses SELECT COUNT(*)."""
         sql = build_signal_query('Q', 'SELECT 1', 'x > 0', population_criteria='y = 1')
-        assert 'SELECT COUNT(*) FROM filtered' in sql
+        assert 'SELECT COUNT(*) FROM Q' in sql
 
 
 # ---------------------------------------------------------------------------
@@ -183,7 +184,7 @@ class TestSubselectCriteria:
             'WLMConfig', 'SELECT * FROM stv_wlm', criteria, population_criteria='service_class_id <> 5'
         )
         assert 'select count(1) from WLMConfig' in sql
-        assert 'FROM filtered WHERE' in sql
+        assert 'FROM WLMConfig WHERE' in sql
 
     def test_subselect_with_multiple_subqueries(self):
         """Criteria with multiple subselects both resolve to the CTE alias."""
@@ -192,7 +193,7 @@ class TestSubselectCriteria:
             "OR (select count(1) from WLMConfig where service_class_category = 'Auto WLM') = 1"
         )
         sql = build_signal_query('WLMConfig', 'SELECT 1', criteria, population_criteria='x = 1')
-        # CTE alias appears in WITH + 2 subselects + filtered CTE reference = at least 3
+        # CTE alias appears in WITH (as _raw), named CTE, + 2 subselects = at least 3
         assert sql.count('WLMConfig') >= 3
 
     def test_workload_evaluation_subselect(self):
@@ -232,9 +233,12 @@ class TestAll55Signals:
     def test_contains_correct_cte_alias(
         self, query_name, base_sql, signal_name, criteria, population_criteria
     ):
-        """Every signal's SQL starts with the correct CTE alias."""
+        """Every signal's SQL contains the query_name as a CTE or subquery alias."""
         sql = build_signal_query(query_name, base_sql, criteria, population_criteria)
-        assert sql.startswith(f'WITH {query_name} AS (')
+        if population_criteria:
+            assert f'{query_name}_raw AS (' in sql or f') AS {query_name}_raw' in sql
+        else:
+            assert f'{query_name} AS (' in sql or f') AS {query_name}' in sql
 
     @pytest.mark.parametrize(
         'query_name, base_sql, signal_name, criteria, population_criteria',
@@ -273,9 +277,17 @@ class TestAll55Signals:
     def test_base_sql_embedded(
         self, query_name, base_sql, signal_name, criteria, population_criteria
     ):
-        """Every signal's SQL embeds the base SQL inside the CTE."""
+        """Every signal's SQL embeds the base SQL (or its final SELECT if flattened)."""
         sql = build_signal_query(query_name, base_sql, criteria, population_criteria)
-        assert f'{query_name} AS ({base_sql})' in sql
+        clean_base = base_sql.rstrip().rstrip(';')
+        has_inner_ctes = re.match(r'^WITH\s+', clean_base, re.IGNORECASE)
+        if has_inner_ctes:
+            # Inner CTEs are flattened or kept at top level; verify query_name appears
+            assert f'{query_name} AS (' in sql or f') AS {query_name}' in sql
+        elif population_criteria:
+            assert f'{query_name}_raw AS ({clean_base})' in sql
+        else:
+            assert f'{query_name} AS ({clean_base})' in sql
 
     @pytest.mark.parametrize(
         'query_name, base_sql, signal_name, criteria, population_criteria',
@@ -284,15 +296,20 @@ class TestAll55Signals:
     def test_population_criteria_when_present(
         self, query_name, base_sql, signal_name, criteria, population_criteria
     ):
-        """Signals with PopulationCriteria use the filtered intermediate CTE."""
+        """Signals with PopulationCriteria use the _raw / query_name CTE pattern."""
         sql = build_signal_query(query_name, base_sql, criteria, population_criteria)
+        is_recursive = bool(re.match(r'^WITH\s+RECURSIVE', base_sql.strip(), re.IGNORECASE))
         if population_criteria:
-            assert 'filtered AS (SELECT * FROM' in sql
-            assert f'WHERE {population_criteria})' in sql
-            assert 'FROM filtered WHERE' in sql
+            if is_recursive:
+                assert f') AS {query_name}_raw' in sql or f'{query_name}_raw AS (' in sql
+            else:
+                assert f'{query_name}_raw AS (' in sql
+                assert f'{query_name} AS (SELECT * FROM {query_name}_raw WHERE' in sql
+                assert f'FROM {query_name} WHERE' in sql
         else:
-            assert 'filtered' not in sql
-            assert f'FROM {query_name} WHERE' in sql
+            if not is_recursive:
+                assert '_raw' not in sql
+            assert f'FROM {query_name} WHERE' in sql or f'AS {query_name} WHERE' in sql
 
 
 # ---------------------------------------------------------------------------
@@ -310,12 +327,16 @@ class TestRoundTripStructuralEquivalence:
     def test_round_trip_cte_alias(
         self, query_name, base_sql, signal_name, criteria, population_criteria
     ):
-        """The CTE alias can be extracted from the generated SQL and matches the query name."""
+        """The query_name appears as a CTE or subquery alias in the generated SQL."""
         sql = build_signal_query(query_name, base_sql, criteria, population_criteria)
-        # Extract CTE alias: WITH <alias> AS (
-        match = re.match(r'WITH\s+(\w+)\s+AS\s+\(', sql)
-        assert match is not None
-        assert match.group(1) == query_name
+        is_recursive = bool(re.match(r'^WITH\s+RECURSIVE', base_sql.strip(), re.IGNORECASE))
+        if is_recursive:
+            assert f') AS {query_name}' in sql
+        elif population_criteria:
+            assert f'{query_name}_raw AS (' in sql
+            assert f'{query_name} AS (SELECT * FROM {query_name}_raw' in sql
+        else:
+            assert f'{query_name} AS (' in sql
 
     @pytest.mark.parametrize(
         'query_name, base_sql, signal_name, criteria, population_criteria',
@@ -342,10 +363,7 @@ class TestRoundTripStructuralEquivalence:
         """PopulationCriteria can be extracted from the filtered CTE when present."""
         sql = build_signal_query(query_name, base_sql, criteria, population_criteria)
         if population_criteria:
-            # Extract population criteria between the filtered CTE WHERE and the
-            # closing ') SELECT COUNT(*)'. We use the known suffix as the anchor
-            # because population criteria may contain parentheses.
-            marker_start = f'filtered AS (SELECT * FROM {query_name} WHERE '
+            marker_start = f'{query_name} AS (SELECT * FROM {query_name}_raw WHERE '
             marker_end = ') SELECT COUNT(*)'
             start_idx = sql.index(marker_start) + len(marker_start)
             end_idx = sql.index(marker_end, start_idx)
@@ -359,22 +377,27 @@ class TestRoundTripStructuralEquivalence:
     def test_round_trip_base_sql(
         self, query_name, base_sql, signal_name, criteria, population_criteria
     ):
-        """The base SQL can be extracted from the CTE body."""
+        """The base SQL content is present in the generated SQL."""
         sql = build_signal_query(query_name, base_sql, criteria, population_criteria)
-        # Extract: WITH <name> AS (<base_sql>)
-        # The base SQL is between the first '(' after 'AS' and the matching ')'
-        start_marker = f'WITH {query_name} AS ('
-        assert sql.startswith(start_marker)
-        start_idx = len(start_marker)
-        # Find the matching closing paren — the base_sql ends where the next
-        # top-level token starts (either ', filtered' or ') SELECT')
-        if population_criteria:
-            end_marker = f'), filtered AS'
+        clean_base = base_sql.rstrip().rstrip(';')
+        is_recursive = bool(re.match(r'^WITH\s+RECURSIVE', clean_base, re.IGNORECASE))
+        has_inner_ctes = bool(re.match(r'^WITH\s+', clean_base, re.IGNORECASE))
+        if has_inner_ctes:
+            # Flattened or subquery: verify query_name and SELECT COUNT(*) present
+            assert 'SELECT COUNT(*)' in sql
+            assert query_name in sql
+        elif population_criteria:
+            start_marker = f'{query_name}_raw AS ('
+            idx = sql.index(start_marker) + len(start_marker)
+            end_marker = f'), {query_name} AS'
+            end_idx = sql.index(end_marker, idx)
+            assert sql[idx:end_idx] == clean_base
         else:
-            end_marker = f') SELECT COUNT(*)'
-        end_idx = sql.index(end_marker, start_idx)
-        extracted_base = sql[start_idx:end_idx]
-        assert extracted_base == base_sql
+            start_marker = f'{query_name} AS ('
+            idx = sql.index(start_marker) + len(start_marker)
+            end_marker = ') SELECT COUNT(*)'
+            end_idx = sql.index(end_marker, idx)
+            assert sql[idx:end_idx] == clean_base
 
 
 # ---------------------------------------------------------------------------

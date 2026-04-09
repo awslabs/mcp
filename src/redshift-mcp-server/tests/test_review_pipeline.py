@@ -126,7 +126,7 @@ class TestConcernFiltering:
                 ]
             }
 
-        execute_fn = AsyncMock(side_effect=lambda *args: _make_count_response(0))
+        execute_fn = AsyncMock(side_effect=lambda *args, **kwargs: _make_count_response(0))
 
         result = await run_review(
             cluster_identifier='test-cluster',
@@ -199,7 +199,7 @@ class TestServerlessExclusion:
             },
         }
 
-        execute_fn = AsyncMock(side_effect=lambda *args: _make_count_response(0))
+        execute_fn = AsyncMock(side_effect=lambda *args, **kwargs: _make_count_response(0))
 
         result = await run_review(
             cluster_identifier='test-cluster',
@@ -240,7 +240,7 @@ class TestSignalTriggered:
         """Signal with count > 0 appears in findings."""
         call_count = 0
 
-        async def mock_execute(*args):
+        async def mock_execute(*args, **kwargs):
             nonlocal call_count
             call_count += 1
             # First call is metadata extraction (NodeDetails base SQL)
@@ -268,7 +268,7 @@ class TestSignalTriggered:
         """Signal with count == 0 does not appear in findings."""
         call_count = 0
 
-        async def mock_execute(*args):
+        async def mock_execute(*args, **kwargs):
             nonlocal call_count
             call_count += 1
             if call_count == 1:
@@ -318,7 +318,7 @@ class TestErrorIsolation:
 
         call_count = 0
 
-        async def mock_execute(*args):
+        async def mock_execute(*args, **kwargs):
             nonlocal call_count
             call_count += 1
             # First call: metadata extraction
@@ -388,7 +388,7 @@ class TestRecommendationOrdering:
 
         call_count = 0
 
-        async def mock_execute(*args):
+        async def mock_execute(*args, **kwargs):
             nonlocal call_count
             call_count += 1
             if call_count == 1:
@@ -439,7 +439,7 @@ class TestRecommendationDeduplication:
 
         call_count = 0
 
-        async def mock_execute(*args):
+        async def mock_execute(*args, **kwargs):
             nonlocal call_count
             call_count += 1
             if call_count == 1:
@@ -494,7 +494,7 @@ class TestRecommendationDeduplication:
 
         call_count = 0
 
-        async def mock_execute(*args):
+        async def mock_execute(*args, **kwargs):
             nonlocal call_count
             call_count += 1
             if call_count == 1:
@@ -548,7 +548,7 @@ class TestRecommendationTriggeredBy:
 
         call_count = 0
 
-        async def mock_execute(*args):
+        async def mock_execute(*args, **kwargs):
             nonlocal call_count
             call_count += 1
             if call_count == 1:
@@ -612,7 +612,7 @@ class TestFullPipeline:
 
         call_count = 0
 
-        async def mock_execute(cluster_id, database, sql):
+        async def mock_execute(cluster_id, database, sql, **kwargs):
             nonlocal call_count
             call_count += 1
             # Call 1: NodeDetails metadata extraction (base SQL)

@@ -48,6 +48,7 @@ async def run_review(
     recommendations_config: dict[str, RecommendationEntry],
     execute_fn: Callable[..., Any],
     workgroup: str | None = None,
+    progress_fn: Callable[[int, int], Any] | None = None,
 ) -> ReviewResult:
     """Execute a full cluster review.
 
@@ -84,6 +85,13 @@ async def run_review(
     queries_executed: list[str] = []
     signals_evaluated = 0
 
+    # Count total signals for progress reporting
+    total_signals = sum(
+        len(signals_config[q]['Signals'])
+        for q in query_names
+        if q in signals_config and queries_config.get(q, {}).get('SQL')
+    )
+
     for query_name in query_names:
         if query_name not in signals_config:
             continue
@@ -115,8 +123,12 @@ async def run_review(
                 validate_sql_readonly(sql)
 
                 # Execute via execute_fn (sequential per AD-2)
+                # allow_read_write=True because review queries are server-generated,
+                # validated by validate_sql_readonly(), and some diagnostic queries
+                # (e.g. WLMConfig using stv_ tables with LISTAGG) require write-capable
+                # transactions internally even though they only read data.
                 results_response, query_id = await execute_fn(
-                    cluster_identifier, database, sql
+                    cluster_identifier, database, sql, allow_read_write=True
                 )
 
                 # Extract count
@@ -127,6 +139,9 @@ async def run_review(
                     count = 0
 
                 signals_evaluated += 1
+
+                if progress_fn:
+                    await progress_fn(signals_evaluated, total_signals)
 
                 if count > 0:
                     findings.append(
@@ -152,6 +167,8 @@ async def run_review(
 
             except Exception as e:
                 signals_evaluated += 1
+                if progress_fn:
+                    await progress_fn(signals_evaluated, total_signals)
                 query_failures.append(
                     QueryFailureInfo(
                         query_name=query_name,
@@ -219,7 +236,9 @@ async def _extract_cluster_metadata(
         )
 
     try:
-        results_response, _ = await execute_fn(cluster_identifier, database, base_sql)
+        results_response, _ = await execute_fn(
+            cluster_identifier, database, base_sql, allow_read_write=True
+        )
         records = results_response.get('Records', [])
         if records and records[0]:
             # First column is node_type (stringValue)

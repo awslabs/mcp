@@ -734,6 +734,7 @@ async def run_review_tool(
         recommendations_config=app_ctx.recommendations_config,
         execute_fn=_execute_protected_statement,
         workgroup=workgroup,
+        progress_fn=lambda current, total: ctx.report_progress(current, total),
     )
 
     return result
