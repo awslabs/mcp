@@ -43,11 +43,18 @@ def _build_route_maps(spec: Dict[str, Any]) -> list:
         if not isinstance(path_item, dict):
             continue
         for method, operation in path_item.items():
-            if method.lower() not in _HTTP_METHODS or not isinstance(operation, dict):
+    http_methods = {'get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'}
+    for path, path_item in spec.get('paths', {}).items():
+        if not isinstance(path_item, dict):
+            continue
+        for method, operation in path_item.items():
+            if method.lower() not in http_methods or not isinstance(operation, dict):
                 continue
             if method.lower() == 'get':
                 parameters = operation.get('parameters', [])
-                query_params = [p for p in parameters if p.get('in') == 'query']
+                query_params = [
+                    p for p in parameters if isinstance(p, dict) and p.get('in') == 'query'
+                ]
                 if query_params:
                     mappings.append(
                         RouteMap(
