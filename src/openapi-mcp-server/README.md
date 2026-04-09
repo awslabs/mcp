@@ -275,7 +275,8 @@ export EXCLUDE_TAGS="admin,internal"  # Hide operations with these tags
 export VALIDATE_OUTPUT="true"  # Set to "false" to disable response schema validation
 
 # Multi-spec composition
-export ADDITIONAL_SPECS='[{"name":"payments","spec_url":"https://payments.example.com/openapi.json","base_url":"https://payments.example.com"}]'
+# Each additional spec may use either `spec_url` or `spec_path`; `base_url` is required when using `spec_path`
+export ADDITIONAL_SPECS='[{"name":"payments","spec_url":"https://payments.example.com/openapi.json","base_url":"https://payments.example.com"},{"name":"billing","spec_path":"./specs/billing-openapi.json","base_url":"https://billing.example.com"}]'
 ```
 
 ## Documentation
