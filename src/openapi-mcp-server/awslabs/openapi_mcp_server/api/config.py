@@ -55,7 +55,14 @@ class Config:
     debug: bool = False
     transport: str = 'stdio'  # stdio only
     message_timeout: int = 60
-    version: str = '0.3.0'
+    version: str = ''
+
+    def __post_init__(self):
+        """Set version from package metadata if not provided."""
+        if not self.version:
+            from awslabs.openapi_mcp_server import __version__
+
+            self.version = __version__
 
     # Tag filtering
     include_tags: str = ''  # comma-separated list of OpenAPI tags to include

@@ -26,7 +26,9 @@ def test_config_default_values():
     assert config.auth_type == 'none'
     assert config.host == '127.0.0.1'  # Default host should be localhost for security
     assert config.transport == 'stdio'
-    assert config.version == '0.3.0'
+    from awslabs.openapi_mcp_server import __version__
+
+    assert config.version == __version__
 
 
 def test_config_custom_values():

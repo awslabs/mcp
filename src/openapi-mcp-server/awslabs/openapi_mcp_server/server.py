@@ -33,11 +33,18 @@ from fastmcp.server.providers.openapi import MCPType, OpenAPIProvider, RouteMap
 from typing import Any, Dict
 
 
+_HTTP_METHODS = {'get', 'put', 'post', 'delete', 'patch', 'options', 'head', 'trace'}
+
+
 def _build_route_maps(spec: Dict[str, Any]) -> list:
     """Build route maps for GET operations with query parameters."""
     mappings = []
     for path, path_item in spec.get('paths', {}).items():
+        if not isinstance(path_item, dict):
+            continue
         for method, operation in path_item.items():
+            if method.lower() not in _HTTP_METHODS or not isinstance(operation, dict):
+                continue
             if method.lower() == 'get':
                 parameters = operation.get('parameters', [])
                 query_params = [p for p in parameters if p.get('in') == 'query']
@@ -266,7 +273,7 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
                         )
                     )
                     logger.info(f'Added additional spec: {extra_name}')
-            except (json.JSONDecodeError, KeyError, TypeError) as e:
+            except (json.JSONDecodeError, KeyError, TypeError, AttributeError) as e:
                 logger.warning(f'Failed to parse additional specs: {e}')
 
         server = FastMCP(
