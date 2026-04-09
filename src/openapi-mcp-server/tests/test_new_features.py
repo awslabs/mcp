@@ -288,7 +288,7 @@ async def test_additional_specs_with_spec_path():
         [
             {
                 'name': 'payments',
-                'spec_path': '/tmp/fake.json',
+                'spec_path': 'fake.json',
                 'base_url': 'https://payments.example.com',
             }
         ]
