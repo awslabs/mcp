@@ -387,3 +387,43 @@ async def test_prompt_generation_failure_handled():
         # Server should still be created despite prompt failure
         tools = await server.list_tools()
         assert len(tools) > 0
+
+
+def test_build_route_maps_skips_non_dict_path_items():
+    """_build_route_maps skips path items that are not dicts (e.g., $ref strings)."""
+    from awslabs.openapi_mcp_server.server import _build_route_maps
+
+    spec = {'paths': {'/pets': 'not-a-dict'}}
+    assert _build_route_maps(spec) == []
+
+
+def test_build_route_maps_skips_non_operation_keys():
+    """_build_route_maps skips non-HTTP-method keys like parameters and $ref."""
+    from awslabs.openapi_mcp_server.server import _build_route_maps
+
+    spec = {
+        'paths': {
+            '/pets': {
+                'parameters': [{'name': 'id', 'in': 'path'}],
+                '$ref': '#/components/pathItems/Pets',
+                'get': {
+                    'operationId': 'listPets',
+                    'parameters': [{'name': 'limit', 'in': 'query', 'schema': {'type': 'integer'}}],
+                    'responses': {'200': {'description': 'OK'}},
+                },
+            }
+        }
+    }
+    maps = _build_route_maps(spec)
+    assert len(maps) == 1
+
+
+@pytest.mark.asyncio
+async def test_additional_specs_malformed_entry():
+    """Malformed additional_specs entries (non-dict) are handled gracefully."""
+    extra = json.dumps(
+        [{'name': 'ok', 'spec_url': 'http://x', 'base_url': 'http://x'}, 'not-a-dict']
+    )
+    server = await _create_server(_base_config(additional_specs=extra), extra_spec=EXTRA_SPEC)
+    tools = await server.list_tools()
+    assert len(tools) > 0
