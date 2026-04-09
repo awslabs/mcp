@@ -33,6 +33,25 @@ from fastmcp.server.providers.openapi import MCPType, OpenAPIProvider, RouteMap
 from typing import Any, Dict
 
 
+def _build_route_maps(spec: Dict[str, Any]) -> list:
+    """Build route maps for GET operations with query parameters."""
+    mappings = []
+    for path, path_item in spec.get('paths', {}).items():
+        for method, operation in path_item.items():
+            if method.lower() == 'get':
+                parameters = operation.get('parameters', [])
+                query_params = [p for p in parameters if p.get('in') == 'query']
+                if query_params:
+                    mappings.append(
+                        RouteMap(
+                            methods=['GET'],
+                            pattern=f'^{re.escape(path)}$',
+                            mcp_type=MCPType.TOOL,
+                        )
+                    )
+    return mappings
+
+
 async def create_mcp_server_async(config: Config) -> FastMCP:
     """Create and configure the FastMCP server.
 
@@ -160,23 +179,7 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
         )
         logger.info(f'Created HTTP client for API base URL: {config.api_base_url}')
 
-        custom_mappings = []
-
-        # Identify GET operations with query parameters in the OpenAPI spec
-        for path, path_item in openapi_spec.get('paths', {}).items():
-            for method, operation in path_item.items():
-                if method.lower() == 'get':
-                    parameters = operation.get('parameters', [])
-                    query_params = [p for p in parameters if p.get('in') == 'query']
-                    if query_params:
-                        # Create a specific mapping for this path to ensure it's treated as a TOOL
-                        custom_mappings.append(
-                            RouteMap(
-                                methods=['GET'],
-                                pattern=f'^{re.escape(path)}$',
-                                mcp_type=MCPType.TOOL,
-                            )
-                        )
+        custom_mappings = _build_route_maps(openapi_spec)
 
         # Create the FastMCP server with custom route mappings
         logger.info('Creating FastMCP server with OpenAPI specification')
@@ -257,6 +260,7 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
                         OpenAPIProvider(
                             openapi_spec=extra_spec,
                             client=extra_client,
+                            route_maps=_build_route_maps(extra_spec),
                             mcp_component_fn=enrich_component,
                             validate_output=config.validate_output,
                         )
