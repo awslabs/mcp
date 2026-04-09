@@ -43,12 +43,7 @@ def _build_route_maps(spec: Dict[str, Any]) -> list:
         if not isinstance(path_item, dict):
             continue
         for method, operation in path_item.items():
-    http_methods = {'get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'}
-    for path, path_item in spec.get('paths', {}).items():
-        if not isinstance(path_item, dict):
-            continue
-        for method, operation in path_item.items():
-            if method.lower() not in http_methods or not isinstance(operation, dict):
+            if method.lower() not in _HTTP_METHODS or not isinstance(operation, dict):
                 continue
             if method.lower() == 'get':
                 parameters = operation.get('parameters', [])
@@ -280,9 +275,8 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
 
                     if not validate_openapi_spec(extra_spec):
                         logger.warning(
-                            f'Skipping additional spec {extra_name}: OpenAPI spec validation failed'
+                            f'Additional spec {extra_name} validation failed, continuing anyway'
                         )
-                        continue
                     extra_client = HttpClientFactory.create_client(
                         base_url=extra_base_url,
                         headers=auth_headers,
