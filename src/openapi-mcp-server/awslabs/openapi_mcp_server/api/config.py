@@ -55,7 +55,18 @@ class Config:
     debug: bool = False
     transport: str = 'stdio'  # stdio only
     message_timeout: int = 60
-    version: str = '0.2.0'
+    version: str = '0.3.0'
+
+    # Tag filtering
+    include_tags: str = ''  # comma-separated list of OpenAPI tags to include
+    exclude_tags: str = ''  # comma-separated list of OpenAPI tags to exclude
+
+    # Output validation
+    validate_output: bool = True  # validate API responses against OpenAPI response schemas
+
+    # Additional API specs for multi-spec composition
+    # JSON array: [{"name": "...", "spec_url": "...", "base_url": "..."}]
+    additional_specs: str = ''
 
 
 def load_config(args: Any = None) -> Config:
@@ -107,6 +118,13 @@ def load_config(args: Any = None) -> Config:
         'SERVER_DEBUG': (lambda v: setattr(config, 'debug', v.lower() == 'true')),
         'SERVER_TRANSPORT': (lambda v: setattr(config, 'transport', v)),
         'SERVER_MESSAGE_TIMEOUT': (lambda v: setattr(config, 'message_timeout', int(v))),
+        # Tag filtering
+        'INCLUDE_TAGS': (lambda v: setattr(config, 'include_tags', v)),
+        'EXCLUDE_TAGS': (lambda v: setattr(config, 'exclude_tags', v)),
+        # Output validation
+        'VALIDATE_OUTPUT': (lambda v: setattr(config, 'validate_output', v.lower() != 'false')),
+        # Additional specs
+        'ADDITIONAL_SPECS': (lambda v: setattr(config, 'additional_specs', v)),
     }
 
     # Load environment variables
@@ -209,6 +227,21 @@ def load_config(args: Any = None) -> Config:
         if hasattr(args, 'auth_cognito_region') and args.auth_cognito_region:
             logger.debug(f'Setting Cognito region from arguments: {args.auth_cognito_region}')
             config.auth_cognito_region = args.auth_cognito_region
+
+        # Tag filtering arguments
+        if hasattr(args, 'include_tags') and args.include_tags:
+            config.include_tags = args.include_tags
+
+        if hasattr(args, 'exclude_tags') and args.exclude_tags:
+            config.exclude_tags = args.exclude_tags
+
+        # Output validation
+        if hasattr(args, 'no_validate_output') and args.no_validate_output:
+            config.validate_output = False
+
+        # Additional specs
+        if hasattr(args, 'additional_specs') and args.additional_specs:
+            config.additional_specs = args.additional_specs
 
     # Log final configuration details
     logger.info(f'Configuration loaded: API name={config.api_name}, transport={config.transport}')

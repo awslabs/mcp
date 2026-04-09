@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from awslabs.openapi_mcp_server.prompts.generators.operation_prompts import create_operation_prompt
+import asyncio
 from fastmcp import FastMCP
 from fastmcp.prompts.prompt import Prompt
 
@@ -70,13 +71,14 @@ def test_operation_prompt_with_security():
     assert success is True
 
     # Check that the prompt has the expected properties
-    if hasattr(server, '_prompt_manager') and hasattr(server._prompt_manager, '_prompts'):
-        prompt = server._prompt_manager._prompts.get(operation_id)
+    if hasattr(server, 'add_prompt') and callable(server.add_prompt):
+        prompts = asyncio.run(server.list_prompts())
+        prompt = prompts[0] if prompts else None
         assert prompt is not None
         assert prompt.name == 'secureOperation'
 
         # Check that the prompt has been registered
-        assert prompt in server._prompt_manager._prompts.values()
+        assert prompt is not None
 
         # Since we can't directly check the security info in the prompt object,
         # we'll verify that the prompt was created successfully
@@ -154,8 +156,9 @@ def test_operation_prompt_with_enum_parameters():
     assert success is True
 
     # Check that the prompt has the expected properties
-    if hasattr(server, '_prompt_manager') and hasattr(server._prompt_manager, '_prompts'):
-        prompt = server._prompt_manager._prompts.get(operation_id)
+    if hasattr(server, 'add_prompt') and callable(server.add_prompt):
+        prompts = asyncio.run(server.list_prompts())
+        prompt = prompts[0] if prompts else None
         assert prompt is not None
         assert prompt.name == 'enumOperation'
 
@@ -241,8 +244,9 @@ def test_operation_prompt_with_request_body_schema():
     assert success is True
 
     # Check that the prompt has the expected properties
-    if hasattr(server, '_prompt_manager') and hasattr(server._prompt_manager, '_prompts'):
-        prompt = server._prompt_manager._prompts.get(operation_id)
+    if hasattr(server, 'add_prompt') and callable(server.add_prompt):
+        prompts = asyncio.run(server.list_prompts())
+        prompt = prompts[0] if prompts else None
         assert prompt is not None
         assert prompt.name == 'createWithSchema'
 

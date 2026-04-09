@@ -83,8 +83,11 @@ def test_create_operation_prompt():
     assert success is True
 
     # Check that the prompt has the expected properties
-    if hasattr(server, '_prompt_manager') and hasattr(server._prompt_manager, '_prompts'):
-        prompt = server._prompt_manager._prompts.get(operation_id)
+    if hasattr(server, 'add_prompt') and callable(server.add_prompt):
+        import asyncio
+
+        prompts = asyncio.run(server.list_prompts())
+        prompt = next((p for p in prompts if p.name == 'findPetsByStatus'), None)
         assert prompt is not None
         assert prompt.name == 'findPetsByStatus'
         assert prompt.description == 'Finds Pets by status'
@@ -160,10 +163,11 @@ if __name__ == '__main__':
     # Print the prompt
     if (
         success
-        and hasattr(server, '_prompt_manager')
-        and hasattr(server._prompt_manager, '_prompts')
+        and hasattr(server, 'add_prompt')
+        and callable(server.add_prompt)
     ):
-        prompt = server._prompt_manager._prompts.get(operation_id)
+        prompts = asyncio.run(server.list_prompts())
+        prompt = prompts[0] if prompts else None
         if prompt:
             # Convert to dict and remove function reference for serialization
             prompt_dict = prompt.model_dump()

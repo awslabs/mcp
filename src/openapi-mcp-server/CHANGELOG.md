@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-04-09
+
+### Added
+- Tag-based visibility filtering via `--include-tags` / `--exclude-tags` CLI args and `INCLUDE_TAGS` / `EXCLUDE_TAGS` env vars
+- Enriched tool descriptions with response codes and parameter examples from OpenAPI spec
+- Multi-spec composition via `--additional-specs` CLI arg or `ADDITIONAL_SPECS` env var to combine multiple APIs into one server
+- `--no-validate-output` flag and `VALIDATE_OUTPUT` env var to disable response schema validation for APIs with loose specs
+
+### Changed
+- Migrated from FastMCP 2.x to 3.x using provider-based architecture
+- Updated all dependencies to latest stable versions with upper bounds pinned to next major version
+
+### Fixed
+- Server crash when API spec or base URL is missing before server initialization
+- Pyright type checking errors from namespace package logger re-export
+
+### Security
+- Updated base image and all dependencies with latest security patches
+
 ## [0.2.0] - 2025-07-05
 
 ### Added
