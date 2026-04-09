@@ -931,6 +931,56 @@ metadata:
         )
 
     @pytest.mark.asyncio
+    async def test_list_k8s_resources_secret_sensitive_data_access_enabled(
+        self, mock_context, mock_mcp, mock_client_cache
+    ):
+        """Test list_k8s_resources allows Secrets when sensitive data access enabled."""
+        # Initialize the K8s handler with sensitive data access enabled
+        with patch(
+            'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
+        ):
+            handler = K8sHandler(mock_mcp, allow_sensitive_data_access=True)
+
+        # Mock get_client
+        mock_k8s_apis = MagicMock()
+
+        # Create mock Secret item with to_dict method
+        mock_secret = MagicMock()
+        mock_secret.to_dict.return_value = {
+            'metadata': {
+                'name': 'test-secret',
+                'namespace': 'test-namespace',
+                'creation_timestamp': '2024-01-01T00:00:00Z',
+                'labels': {'app': 'test'},
+                'annotations': {'key': 'value'},
+            }
+        }
+
+        # Mock response with items attribute
+        mock_response = MagicMock()
+        mock_response.items = [mock_secret]
+        mock_k8s_apis.list_resources.return_value = mock_response
+
+        with patch.object(handler, 'get_client', return_value=mock_k8s_apis) as mock_client:
+            # List Secrets with sensitive data access enabled
+            result = await handler.list_k8s_resources(
+                mock_context,
+                cluster_name='test-cluster',
+                kind='Secret',
+                api_version='v1',
+                namespace='test-namespace',
+            )
+
+            # Verify the result is not an error
+            assert not result.isError
+
+            # Verify that get_client was called
+            mock_client.assert_called_once_with('test-cluster')
+
+            # Verify that list_resources was called
+            mock_k8s_apis.list_resources.assert_called_once()
+
+    @pytest.mark.asyncio
     async def test_generate_app_manifest_write_access_disabled(
         self, mock_context, mock_mcp, mock_client_cache
     ):
