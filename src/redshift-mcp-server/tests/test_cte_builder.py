@@ -155,6 +155,22 @@ class TestPopulationCriteriaTwoStageFiltering:
 class TestSubselectCriteria:
     """Verify signals with subselect expressions produce valid SQL."""
 
+    def test_recursive_with_population_criteria(self):
+        """Recursive CTE with PopulationCriteria uses nested subquery."""
+        base = 'WITH recursive nums(n) as (SELECT 1 UNION ALL SELECT n+1 FROM nums WHERE n<5) SELECT n, n%2 as grp FROM nums'
+        sql = build_signal_query('Q', base, 'n > 3', population_criteria='grp = 0')
+        assert sql.startswith('WITH RECURSIVE')
+        assert 'AS Q_raw' in sql
+        assert 'AS Q WHERE' in sql
+        assert 'WHERE grp = 0' in sql
+
+    def test_recursive_without_population_criteria(self):
+        """Recursive CTE without PopulationCriteria uses simple subquery."""
+        base = 'WITH recursive nums(n) as (SELECT 1 UNION ALL SELECT n+1 FROM nums WHERE n<5) SELECT n FROM nums'
+        sql = build_signal_query('Q', base, 'n > 3')
+        assert sql.startswith('WITH RECURSIVE')
+        assert ') AS Q WHERE n > 3' in sql
+
     def test_subselect_referencing_same_cte(self):
         """Subselect referencing the CTE name resolves correctly."""
         criteria = '100*abs(val - (select min(val) from NodeDetails))/val >= 10'

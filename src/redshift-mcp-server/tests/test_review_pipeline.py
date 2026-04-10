@@ -661,3 +661,43 @@ class TestFullPipeline:
         # Queries executed
         assert 'NodeDetails' in result.queries_executed
         assert 'TableInfo' in result.queries_executed
+
+    @pytest.mark.asyncio
+    async def test_progress_fn_called_for_each_signal(self):
+        """progress_fn is called with (current, total) after each signal."""
+        signals_config = {
+            'NodeDetails': {
+                'Signals': [
+                    {'Signal': 'sig1', 'Criteria': 'x > 0', 'Recommendation': []},
+                    {'Signal': 'sig2', 'Criteria': 'y > 0', 'Recommendation': []},
+                ]
+            },
+        }
+
+        call_count = 0
+
+        async def mock_execute(cluster_id, database, sql, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return _make_node_details_response()
+            return _make_count_response(0)
+
+        progress_calls = []
+
+        async def mock_progress(current, total):
+            progress_calls.append((current, total))
+
+        result = await run_review(
+            cluster_identifier='test-cluster',
+            database='dev',
+            concern='storage',
+            queries_config=QUERIES_CONFIG,
+            signals_config=signals_config,
+            recommendations_config=RECOMMENDATIONS_CONFIG,
+            execute_fn=mock_execute,
+            progress_fn=mock_progress,
+        )
+
+        assert result.signals_evaluated == 2
+        assert progress_calls == [(1, 2), (2, 2)]

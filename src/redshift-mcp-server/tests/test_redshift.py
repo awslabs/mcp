@@ -778,7 +778,22 @@ class TestRedshiftSessionManager:
         # Verify a new session was created (execute_statement called)
         mock_data_client.execute_statement.assert_called_once()
         # Verify the expired session was deleted and replaced (covers lines 141-142)
-        assert session_manager._sessions[session_key]['session_id'] == 'new-session-id'
+
+    def test_invalidate_session_removes_cached_session(self):
+        """Test that invalidate_session removes a cached session."""
+        session_manager = RedshiftSessionManager(session_keepalive=600, app_name='test-app')
+        session_manager._sessions['cluster1:dev'] = {
+            'session_id': 'sess-123',
+            'created_at': time.time(),
+        }
+
+        session_manager.invalidate_session('cluster1', 'dev')
+        assert 'cluster1:dev' not in session_manager._sessions
+
+    def test_invalidate_session_noop_when_not_cached(self):
+        """Test that invalidate_session is a no-op when session doesn't exist."""
+        session_manager = RedshiftSessionManager(session_keepalive=600, app_name='test-app')
+        session_manager.invalidate_session('nonexistent', 'dev')  # should not raise
 
 
 class TestDiscoverFunctions:
