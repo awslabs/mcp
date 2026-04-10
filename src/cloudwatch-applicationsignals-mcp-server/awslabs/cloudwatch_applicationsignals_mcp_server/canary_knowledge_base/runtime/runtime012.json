@@ -34,7 +34,7 @@
     "Disabling includeResponseBody or logResponseBody restores the full response",
     "Equivalent canary using AWS SDK v2 works correctly"
   ],
-  "root_cause": "AWS SDK v3 returns HTTP response bodies as a readable stream, which can only be consumed once. When includeResponseBody or logResponseBody is enabled in syntheticsConfiguration, the Synthetics runtime intercepts and reads this stream to include the body in the HAR file or canary report. This exhausts the stream before the SDK can deserialize it into the response object, resulting in an empty response body returned to the canary script.\n\nAWS SDK v2 is not affected because it buffers the response body before returning it, allowing it to be read multiple times.\n\nThis is a known incompatibility between the Synthetics response body logging feature and the streaming response model used by AWS SDK v3.\n",
+  "root_cause": "AWS SDK v3 returns HTTP response bodies as a single-read stream. When includeResponseBody or logResponseBody is enabled, the Synthetics runtime reads this stream to capture the body for HAR/report artifacts, exhausting it before the SDK can deserialize the response. The canary script then receives an object with only $metadata and no payload fields. AWS SDK v2 is unaffected because it buffers the response body, allowing multiple reads. This is a known incompatibility between the Synthetics response-body logging feature and SDK v3's streaming response model.",
   "recommendations": [
     {
       "priority": "high",

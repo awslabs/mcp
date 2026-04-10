@@ -27,7 +27,7 @@
     "Setting CW_SYNTHETICS_LOG_FORMAT=TEXT does not resolve the issue",
     "Same canary script works correctly on syn-nodejs-puppeteer-10.0"
   ],
-  "root_cause": "Starting with syn-nodejs-puppeteer-11.0, the Synthetics runtime automatically inserts a canaryRunId= prefix into all log messages. This prefix is required for loading canary logs in the Synthetics console and cannot be disabled.\n\nThe CloudWatch Embedded Metric Format (EMF) specification requires that the LogEvent message be a valid JSON object with no additional data at the beginning or end. The canaryRunId= prefix breaks this requirement, causing the EMF parser to fail silently \u2014 no metrics are extracted from the log event.\n\nThis affects any canary that emits custom metrics via EMF by logging JSON payloads with the _aws CloudWatchMetrics structure. The canaryRunId prefix is separate from structured logging and persists even when CW_SYNTHETICS_LOG_FORMAT is set to TEXT.\n",
+  "root_cause": "Starting with syn-nodejs-puppeteer-11.0, the runtime prepends a canaryRunId=<id> prefix to every log message for console log-loading support. This prefix cannot be disabled and persists regardless of the CW_SYNTHETICS_LOG_FORMAT setting. The CloudWatch EMF specification requires log events to be pure JSON with no surrounding text. The canaryRunId= prefix makes the log event non-JSON, so the EMF parser silently skips it and no metrics are extracted.",
   "recommendations": [
     {
       "priority": "critical",

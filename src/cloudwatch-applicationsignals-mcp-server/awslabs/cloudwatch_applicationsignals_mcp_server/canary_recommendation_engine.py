@@ -161,7 +161,7 @@ class CanaryRecommendationEngine:
         return error * 0.40 + symptom * 0.20 + runtime * 0.20 + env * 0.20
 
     def get_recommendations(self, context: FailureContext) -> list[MatchResult]:
-        """Score all active entries, filter by threshold, return top-5 ranked."""
+        """Score all active entries, filter by threshold, return top-2 ranked."""
         results: list[MatchResult] = []
 
         for entry in self.loader.get_active_entries():
@@ -194,7 +194,7 @@ class CanaryRecommendationEngine:
             reverse=True,
         )
 
-        return results[:5]
+        return results[:2]
 
     def format_recommendations(self, recommendations: list[MatchResult]) -> str:
         """Render matched MatchResult entries into a formatted string section.

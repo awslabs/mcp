@@ -29,7 +29,7 @@
     "Issue started after upgrading to syn-nodejs-puppeteer-11.0",
     "Downgrading to version 10 resolves the issue"
   ],
-  "root_cause": "The syn-nodejs-puppeteer-11.0 runtime contains a bug that causes sporadic Golang process panics during canary execution. This is a known runtime defect that affects canaries running frequent checks (e.g., every 5 minutes).\n\nThe issue manifests as:\n1. Intermittent Golang runtime panics\n2. Unexpected process termination\n3. Missing data points in availability monitoring\n4. Canary execution failures without clear error messages\n\nThis commonly occurs with:\n- Canaries running on syn-nodejs-puppeteer-11.0 runtime\n- High-frequency canary schedules (every 5 minutes or less)\n- Canaries that perform multiple endpoint checks\n\nThe root cause is a runtime bug that was identified and fixed in syn-nodejs-puppeteer-13.0.\n",
+  "root_cause": "A bug in the Golang wrapper process used by syn-nodejs-puppeteer-11.0 and syn-nodejs-puppeteer-12.0 causes sporadic panics due to a race condition in goroutine lifecycle management. The panic terminates the Lambda execution immediately, producing no test result and no clear error message. High-frequency schedules (every 5 minutes or less) increase the likelihood of hitting the race condition. Fixed in syn-nodejs-puppeteer-13.0.",
   "recommendations": [
     {
       "priority": "critical",

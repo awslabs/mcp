@@ -25,7 +25,7 @@
     "Customer unable to create additional canaries due to quota",
     "Service Quotas console shows current limit reached"
   ],
-  "root_cause": "CloudWatch Synthetics enforces per-account, per-region canary limits to manage service capacity and prevent resource exhaustion. The default limit is 500 canaries per region. Customers with large-scale monitoring requirements may need higher limits.\n\nLimit increase approval process varies by request size:\n- Up to 1000: Auto-approved through Service Quotas console\n- Above 1000: Requires a support ticket for manual review and approval\n",
+  "root_cause": "CloudWatch Synthetics enforces per-account, per-region canary limits (default: 500) to manage service capacity. Increases up to 1000 are auto-approved via the Service Quotas console. Increases above 1000 require a support ticket for manual review.",
   "recommendations": [
     {
       "priority": "high",

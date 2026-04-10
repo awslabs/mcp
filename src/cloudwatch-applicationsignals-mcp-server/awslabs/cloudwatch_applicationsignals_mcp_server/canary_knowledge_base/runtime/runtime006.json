@@ -23,7 +23,7 @@
     "restrictedHeaders configuration ignored by executeHttpStep",
     "Same code works correctly on syn-nodejs-puppeteer-10.0 but not 11.0"
   ],
-  "root_cause": "The syn-nodejs-puppeteer-11.0 runtime contains a bug where the restrictedHeaders configuration passed to executeHttpStep is not honored. Headers that should be redacted (e.g., Authorization) appear in plain text in the canary's HTTP request reports and step logs.\n\nThis is a regression from syn-nodejs-puppeteer-10.0, where restrictedHeaders worked correctly. The bug was identified and fixed in syn-nodejs-puppeteer-12.0.\n",
+  "root_cause": "A regression in syn-nodejs-puppeteer-11.0 causes the executeHttpStep function to skip the header redaction logic when building HTTPRequestReports. The restrictedHeaders array is accepted but never applied during report generation, so sensitive headers (e.g., Authorization, X-Api-Key) appear in plain text in step logs and HAR artifacts. This is a code-path regression from syn-nodejs-puppeteer-10.0, fixed in syn-nodejs-puppeteer-12.0.",
   "recommendations": [
     {
       "priority": "critical",

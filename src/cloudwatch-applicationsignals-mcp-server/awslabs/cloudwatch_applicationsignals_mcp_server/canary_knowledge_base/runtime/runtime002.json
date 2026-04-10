@@ -25,12 +25,12 @@
   ],
   "symptoms": [
     "CloudFormation deployment fails with deprecated runtime version error",
-    "CloudFormation stack stucks in UPDATE_ROLLBACK_FAILED state",
+    "CloudFormation stack stuck in UPDATE_ROLLBACK_FAILED state",
     "Unable to rollback to previous runtime version",
     "Canary enters unhealthy state after runtime upgrade attempt",
     "CloudFormation error: 'Deprecated runtime version specified'"
   ],
-  "root_cause": "The canary deployed via CloudFormation stack upgraded from a deprecated runtime to a newer runtime. When attempting to rollback to the previous runtime after the failed upgrade, CloudFormation rollback also failed because the older runtime is now deprecated and unsupported. This left the CloudFormation stack unable to roll back or forward.\n\nThe issue manifests as:\n1. CloudFormation returns 400 error for deprecated runtime version\n2. CloudFormation stack enters UPDATE_ROLLBACK_FAILED state\n3. Canary remains in unhealthy/non-functional state\n",
+  "root_cause": "CloudFormation attempted to roll back a canary update to its previous runtime version, but that version has since been deprecated by the Synthetics service. The UpdateCanary API rejects deprecated runtime versions with a 400 error, which causes the CloudFormation rollback itself to fail, leaving the stack in UPDATE_ROLLBACK_FAILED state. The stack cannot move forward (original update failed) or backward (rollback target is deprecated).",
   "recommendations": [
     {
       "priority": "high",

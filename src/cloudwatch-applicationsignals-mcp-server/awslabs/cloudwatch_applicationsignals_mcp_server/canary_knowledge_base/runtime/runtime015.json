@@ -23,7 +23,7 @@
     "Canary reports failure even though the page loads successfully",
     "No code changes were made \u2014 only the runtime version was updated"
   ],
-  "root_cause": "In syn-python-selenium-7.0, the log level for the 'Loading was canceled' browser message was changed from WARNING to ERROR. The Synthetics runtime treats ERROR-level log entries as indicators of canary failure. This means canaries that previously passed with this benign browser message now fail because the same message is logged at a higher severity level.\n\nThe 'Loading was canceled' message is a common Chromium browser event that occurs during normal page navigation, particularly when a page redirects or when resources are canceled during navigation. It does not indicate an actual error in the canary script or the target endpoint.\n\nThis was classified as Bug-Runtime and fixed in syn-python-selenium-8.0, which restores the original WARNING log level for this message.",
+  "root_cause": "syn-python-selenium-7.0 reclassified the Chromium browser message 'Loading was canceled' from WARNING to ERROR level. The Synthetics runtime treats any ERROR-level log entry as a canary failure indicator. Since 'Loading was canceled' is a benign Chromium event that occurs during normal page navigation (especially redirects), canaries that previously passed now fail without any actual endpoint or script issue. Fixed in syn-python-selenium-8.0, which restores the WARNING level.",
   "recommendations": [
     {
       "priority": "critical",

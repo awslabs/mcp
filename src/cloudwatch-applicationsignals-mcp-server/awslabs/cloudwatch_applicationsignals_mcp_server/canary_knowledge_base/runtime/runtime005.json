@@ -27,7 +27,7 @@
     "Existing baseline in S3 not recognized by runtime",
     "Each run treated as new baseline instead of comparison"
   ],
-  "root_cause": "The syn-nodejs-puppeteer-10.0 runtime contains a bug in visual monitoring baseline management when BaseCanaryRunId is set to \"nextrun\" via the UpdateCanary API. Even when a valid visual baseline reference exists in S3, the runtime fails to recognize it correctly and treats each canary run as a new baseline, causing the baseline to be overwritten repeatedly.\n\nThe issue manifests as:\n1. Baseline screenshot updated on every canary execution\n2. Visual comparisons never performed against stable baseline\n3. S3 baseline reference not properly detected by runtime\n4. \"nextrun\" configuration not functioning as expected\n\nThis commonly occurs with:\n- Visual monitoring canaries on syn-nodejs-puppeteer-10.0\n- Canaries configured with BaseCanaryRunId: \"nextrun\"\n- Any visual monitoring setup expecting baseline persistence\n\nThe root cause is a runtime bug that was identified and fixed in syn-nodejs-puppeteer-11.0.\n",
+  "root_cause": "A bug in syn-nodejs-puppeteer-10.0's VisualValidator fails to detect an existing visualReference.json in S3 when BaseCanaryRunId is set to \"nextrun\". The runtime incorrectly evaluates the baseline as absent on every run, overwrites visualReference.json with the current run's screenshots, and never performs an actual visual comparison. Fixed in syn-nodejs-puppeteer-11.0.",
   "recommendations": [
     {
       "priority": "critical",

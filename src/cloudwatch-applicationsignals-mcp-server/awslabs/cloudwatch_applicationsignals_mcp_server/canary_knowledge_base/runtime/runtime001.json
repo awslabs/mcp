@@ -29,7 +29,7 @@
     "Memory usage approaching or exceeding 56% of allocated memory",
     "Playwright navigation times out waiting for 'load' event"
   ],
-  "root_cause": "The canary experiences intermittent timeout failures due to Lambda resource constraints, specifically ephemeral storage and memory limitations. When using the default 1024 MB ephemeral storage with playwright-based canaries, the browser engine (Chromium) may exhaust available disk space for cache, downloads, and temporary files during page load operations.\n\nThe issue manifests as:\n1. Playwright page.goto() operations timeout at 60 seconds\n2. Lambda execution duration extends beyond 90 seconds\n3. Memory usage increases to 55-60% of allocated memory\n4. EphemeralStorageUsagePercent metric approaches or exceeds 90%\n\nThis commonly occurs with:\n- Pages with extensive media content or large DOM trees\n- Canaries using syn-nodejs-playwright-2.0 or newer runtimes\n- Default Lambda configurations (1500 MB memory, 1024 MB ephemeral storage)\n",
+  "root_cause": "Playwright-based canaries run Chromium inside Lambda, which writes browser cache, downloads, and temp files to /tmp (ephemeral storage). With the default 1024 MB ephemeral storage, Chromium can exhaust available disk space during page load, causing I/O stalls that prevent the page from finishing within the 60-second navigation timeout. The EphemeralStorageUsagePercent metric exceeds 90% during these failures. Higher memory usage (55-60% of allocation) further reduces available CPU time, compounding the slowdown.",
   "recommendations": [
     {
       "priority": "critical",

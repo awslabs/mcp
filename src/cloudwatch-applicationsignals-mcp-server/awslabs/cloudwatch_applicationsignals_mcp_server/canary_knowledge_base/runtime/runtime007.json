@@ -29,7 +29,7 @@
     "No errors appear in the canary script execution; the freeze occurs in post-script cleanup",
     "Target website makes a large number of continuous network calls even after page load"
   ],
-  "root_cause": "After the canary script completes, the Synthetics runtime calls browser.close() (Puppeteer method) to clean up the browser process and remove the temporary profile directory. In affected runtime versions, browser.close() can intermittently hang for an extended period (~57 seconds), blocking the Lambda function from completing.\n\nIf the remaining Lambda execution time is less than the time browser.close() takes to complete, the Lambda function times out. This causes the canary run to be marked as failed even though the canary script itself executed successfully and all steps passed.\n\nThis is a known runtime bug fixed in syn-nodejs-puppeteer-10.0.\n",
+  "root_cause": "In syn-nodejs-puppeteer-8.0 through 9.1, browser.close() can hang for ~57 seconds when Chromium holds open network connections or pending requests at cleanup time. The hang occurs between HAR generation completing and the profile directory being removed. If the remaining Lambda execution time is less than the hang duration, Lambda times out and the run is marked failed — even though all canary steps passed. Sites that make continuous background network calls (e.g., WebSocket keep-alives, long-polling) are most likely to trigger this. Fixed in syn-nodejs-puppeteer-10.0.",
   "recommendations": [
     {
       "priority": "high",
