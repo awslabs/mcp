@@ -533,3 +533,12 @@ async def test_additional_specs_validation_failure_continues():
         # Both specs should be loaded despite validation failure on extra
         assert 'listPets' in names
         assert 'createPayment' in names
+
+
+@pytest.mark.asyncio
+async def test_additional_specs_non_list_json():
+    """Non-list JSON for additional_specs logs warning and continues."""
+    server = await _create_server(_base_config(additional_specs='{"name":"not-a-list"}'))
+    tools = await server.list_tools()
+    names = {t.name for t in tools}
+    assert 'listPets' in names
