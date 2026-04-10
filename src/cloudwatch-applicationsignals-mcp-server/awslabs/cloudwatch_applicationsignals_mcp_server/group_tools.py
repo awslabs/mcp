@@ -26,6 +26,7 @@ Tools:
 """
 
 from .aws_clients import AWS_REGION, applicationsignals_client, cloudwatch_client
+from .canary_utils import check_canaries_for_service
 from .sli_report_client import AWSConfig, SLIReportClient
 from .utils import (
     ERROR_THRESHOLD_CRITICAL,
@@ -731,61 +732,20 @@ async def audit_group_health(
 
         # Check Synthetics canaries linked to services in this group
         try:
-            canary_names = set()
-            for svc in group_services:
-                key_attrs = svc.get('KeyAttributes', {})
-                if not key_attrs.get('Name') or not key_attrs.get('Environment'):
-                    continue
-                try:
-                    dep_resp = applicationsignals_client.list_service_dependents(
-                        StartTime=start_dt,
-                        EndTime=end_dt,
-                        KeyAttributes=key_attrs,
-                        MaxResults=100,
-                    )
-                    for dep in dep_resp.get('ServiceDependents', []):
-                        dep_attrs = dep.get('DependentKeyAttributes', {})
-                        if dep_attrs.get('ResourceType') == 'AWS::Synthetics::Canary':
-                            canary_names.add(dep_attrs.get('Identifier', ''))
-                except Exception:
-                    pass
-
-            canary_names.discard('')
-            if canary_names:
-                from .aws_clients import synthetics_client as synth_client
-
+            normalized_targets = [
+                {'Type': 'service', 'Data': {'Service': svc.get('KeyAttributes', {})}}
+                for svc in group_services
+            ]
+            unix_start = int(start_dt.timestamp())
+            unix_end = int(end_dt.timestamp())
+            canary_result = await check_canaries_for_service(
+                normalized_targets, unix_start, unix_end, AWS_REGION
+            )
+            if canary_result:
                 result += '\n' + '=' * 50 + '\n'
-                result += f'🧪 **SYNTHETICS CANARIES** ({len(canary_names)} linked)\n'
-                result += '=' * 50 + '\n\n'
-
-                failing_canaries = []
-                healthy_canaries = []
-                for cname in sorted(canary_names):
-                    try:
-                        runs_resp = synth_client.get_canary_runs(Name=cname, MaxResults=5)
-                        runs = runs_resp.get('CanaryRuns', [])
-                        if not runs:
-                            continue
-                        passed = sum(1 for r in runs if r.get('Status', {}).get('State') == 'PASSED')
-                        total = len(runs)
-                        pct = (passed / total * 100) if total > 0 else 0
-                        failed = total - passed
-                        if pct < 80:
-                            failing_canaries.append((cname, pct, failed))
-                        else:
-                            healthy_canaries.append(cname)
-                    except Exception:
-                        pass
-
-                if failing_canaries:
-                    result += f'🔴 {len(failing_canaries)} failing:\n'
-                    for cname, pct, fc in sorted(failing_canaries, key=lambda x: x[1]):
-                        result += f'   • {cname}: {pct:.0f}% success ({fc}/5 recent runs failed)\n'
-                if healthy_canaries:
-                    result += f'✅ {len(healthy_canaries)} healthy: {", ".join(healthy_canaries)}\n'
-
-                if failing_canaries:
-                    result += f'\n💡 Use analyze_canary_failures(canary_name="<name>") for root cause analysis of failing canaries.\n'
+                result += '🧪 **SYNTHETICS CANARIES**\n'
+                result += '=' * 50 + '\n'
+                result += canary_result
         except Exception as e:
             logger.warning(f'Canary check in audit_group_health failed: {e}')
 

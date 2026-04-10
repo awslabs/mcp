@@ -46,6 +46,7 @@ def mock_aws_clients():
     """Mock all AWS clients to prevent real API calls during tests."""
     mock_applicationsignals_client = MagicMock()
     mock_cloudwatch_client = MagicMock()
+    mock_synthetics_client = MagicMock()
 
     patches = [
         patch(
@@ -56,6 +57,14 @@ def mock_aws_clients():
             'awslabs.cloudwatch_applicationsignals_mcp_server.group_tools.cloudwatch_client',
             mock_cloudwatch_client,
         ),
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.applicationsignals_client',
+            mock_applicationsignals_client,
+        ),
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.synthetics_client',
+            mock_synthetics_client,
+        ),
     ]
 
     for p in patches:
@@ -65,6 +74,7 @@ def mock_aws_clients():
         yield {
             'applicationsignals_client': mock_applicationsignals_client,
             'cloudwatch_client': mock_cloudwatch_client,
+            'synthetics_client': mock_synthetics_client,
         }
     finally:
         for p in patches:
@@ -1556,33 +1566,31 @@ class TestAuditGroupHealthCanaryIntegration:
             ]
         }
 
-        # Mock synthetics_client for canary runs — imported lazily inside the function
+        # Mock synthetics_client for canary runs
+        mock_synthetics = mock_aws_clients['synthetics_client']
+        mock_synthetics.get_canary_runs.return_value = {
+            'CanaryRuns': [
+                {'Status': {'State': 'FAILED'}},
+                {'Status': {'State': 'FAILED'}},
+                {'Status': {'State': 'FAILED'}},
+                {'Status': {'State': 'PASSED'}},
+                {'Status': {'State': 'PASSED'}},
+            ]
+        }
+
+        # Mock SLI report to avoid real API calls
         with patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.synthetics_client',
-        ) as mock_synthetics:
-            mock_synthetics.get_canary_runs.return_value = {
-                'CanaryRuns': [
-                    {'Status': {'State': 'FAILED'}},
-                    {'Status': {'State': 'FAILED'}},
-                    {'Status': {'State': 'FAILED'}},
-                    {'Status': {'State': 'PASSED'}},
-                    {'Status': {'State': 'PASSED'}},
-                ]
-            }
+            'awslabs.cloudwatch_applicationsignals_mcp_server.group_tools.SLIReportClient'
+        ) as mock_sli:
+            mock_sli_instance = MagicMock()
+            mock_sli_instance.generate_sli_report.side_effect = Exception('No SLOs')
+            mock_sli.return_value = mock_sli_instance
 
-            # Mock SLI report to avoid real API calls
-            with patch(
-                'awslabs.cloudwatch_applicationsignals_mcp_server.group_tools.SLIReportClient'
-            ) as mock_sli:
-                mock_sli_instance = MagicMock()
-                mock_sli_instance.generate_sli_report.side_effect = Exception('No SLOs')
-                mock_sli.return_value = mock_sli_instance
+            result = await audit_group_health(group_name='Payments')
 
-                result = await audit_group_health(group_name='Payments')
-
-                assert 'SYNTHETICS CANARIES' in result
-                assert 'payment-canary' in result
-                assert 'failing' in result
+            assert 'SYNTHETICS CANARIES' in result
+            assert 'payment-canary' in result
+            assert 'failing' in result
 
     @pytest.mark.asyncio
     async def test_canary_section_no_canaries(self, mock_aws_clients):
