@@ -33,7 +33,7 @@ from awslabs.redshift_mcp_server.review.cte_builder import (
     build_signal_query,
     validate_sql_readonly,
 )
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from loguru import logger
 from typing import Any
 
@@ -45,9 +45,9 @@ async def run_review(
     cluster_identifier: str,
     database: str,
     concern: ConcernCategory,
-    queries_config: dict[str, QueryEntry],
-    signals_config: dict[str, SectionEntry],
-    recommendations_config: dict[str, RecommendationEntry],
+    queries_config: Mapping[str, QueryEntry],
+    signals_config: Mapping[str, SectionEntry],
+    recommendations_config: Mapping[str, RecommendationEntry],
     execute_fn: Callable[..., Any],
     workgroup: str | None = None,
     progress_fn: Callable[[int, int], Any] | None = None,
@@ -213,7 +213,7 @@ async def _extract_cluster_metadata(
     cluster_identifier: str,
     database: str,
     query_names: list[str],
-    queries_config: dict[str, QueryEntry],
+    queries_config: Mapping[str, QueryEntry],
     execute_fn: Callable[..., Any],
     workgroup: str | None = None,
 ) -> ClusterMetadata:
@@ -266,7 +266,7 @@ async def _extract_cluster_metadata(
 
 def _resolve_recommendations(
     findings: list[ReviewFinding],
-    recommendations_config: dict[str, RecommendationEntry],
+    recommendations_config: Mapping[str, RecommendationEntry],
 ) -> list[ReviewRecommendation]:
     """Resolve, deduplicate, order, and aggregate recommendations from findings."""
     # Track first-occurrence order and triggered_by_signals per rec ID

@@ -138,7 +138,7 @@ class TestConfigLoaderWithSyntheticData:
         result = load_signals_config(config_file)
         signal = result['TestSection']['Signals'][0]
         assert signal['Signal'] == 'test signal'
-        assert signal['PopulationCriteria'] == 'active = true'
+        assert signal.get('PopulationCriteria') == 'active = true'
 
     def test_recommendations_with_all_fields(self, tmp_path):
         """Test loading recommendations config with all fields."""

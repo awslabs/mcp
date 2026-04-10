@@ -1,237 +1,235 @@
 {
   "REC-001": {
-    "text": "For additional scalability, migrate to the RA3 node type or serverless",
     "description": "RA3 nodes with managed storage provide independent scaling of compute and storage. Migrating from DC or DS node types to RA3 allows you to scale storage without adding compute, and leverages automatic data tiering between local SSD and S3-backed managed storage.",
-    "effort": "Large",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/mgmt/working-with-clusters.html#rs-upgrading-to-ra3",
       "https://docs.aws.amazon.com/redshift/latest/mgmt/serverless-whatis.html",
       "https://docs.aws.amazon.com/redshift/latest/mgmt/serverless-migration.html",
       "https://aws.amazon.com/premiumsupport/knowledge-center/redshift-ra3-node-type/",
       "https://aws.amazon.com/blogs/big-data/use-amazon-redshift-ra3-with-managed-storage-in-your-modern-data-architecture/"
-    ]
+    ],
+    "effort": "Large",
+    "text": "For additional scalability, migrate to the RA3 node type or serverless"
   },
   "REC-002": {
-    "text": "For busy clusters, schedule a VACUUM DELETE",
     "description": "Amazon Redshift automatically performs a DELETE ONLY vacuum in the background, so you rarely, if ever, need to run a DELETE ONLY vacuum. However, this operation only runs when the cluster is idle. If your cluster is busy, you should schedule this operation to minimize I/O operations. A VACUUM DELETE reclaims disk space occupied by rows that were marked for deletion by previous UPDATE and DELETE operations, and compacts the table to free up the consumed space. A DELETE ONLY vacuum operation doesn't sort table data.",
-    "effort": "Small",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/dg/t_Reclaiming_storage_space202.html#automatic-table-delete"
-    ]
+    ],
+    "effort": "Small",
+    "text": "For busy clusters, schedule a VACUUM DELETE"
   },
   "REC-003": {
-    "text": "For busy clusters, schedule ANALYZE commands",
     "description": "Stale or missing table statistics reduce sort key effectiveness and may cause the optimizer not to use the optimal query path for the affected queries. A higher value of the stats_off column in SVV_TABLE_INFO means that statistics is more out of date hence it is recommended to check tables with >= 10. While Redshift automatically analyzes your data, this occurs when the cluster is not busy. If you have a busy cluster or if there are significant write operations/changes on the table (e.g. DDL change) and access to the data is immediately required, explicitly execute or schedule ANALYZE commands. Consider ANALYZE PREDICATE COLUMNS or sp_analyze_minimal if you have a wide table (100s of columns) for a faster execution.",
-    "effort": "Small",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/dg/t_Analyzing_tables.html"
-    ]
+    ],
+    "effort": "Small",
+    "text": "For busy clusters, schedule ANALYZE commands"
   },
   "REC-004": {
-    "text": "If you are running out of storage or to reduce I/O overhead, review compression encodings",
     "description": "Compression is a column-level operation that reduces the size of data when it is stored. Compression conserves storage space and reduces the size of data that is read from storage, which reduces the amount of disk I/O and therefore improves query performance. As a best practice, leverage AZ64 for numeric and date data types and ZSTD for character data types where possible or use ENCODE AUTO to automatically manage the compression encoding for all columns in the table. For monitoring actions of automatic table optimization, SVV_ALTER_TABLE_RECOMMENDATIONS records the current Amazon Redshift Advisor recommendations for tables while SVL_AUTO_WORKER_ACTION shows an audit log of all the actions taken by Amazon Redshift, and the previous state of the table. To change the encoding of the table to AUTO: ALTER TABLE [table_name] ALTER ENCODE AUTO;",
-    "effort": "Medium",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/dg/t_Compressing_data_on_disk.html",
       "https://docs.aws.amazon.com/redshift/latest/dg/t_Verifying_data_compression.html"
-    ]
+    ],
+    "effort": "Medium",
+    "text": "If you are running out of storage or to reduce I/O overhead, review compression encodings"
   },
   "REC-005": {
-    "text": "If you are running out of storage or memory, add more compute nodes using resize",
     "description": "When using node types like DC2, you may run into situations where you are out of storage. In some cases, both DC2 and RA3, where you see heavy disk spill, resizing your cluster can make more memory available and speed up query execution.",
-    "effort": "Medium",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/mgmt/managing-cluster-operations.html#elastic-resize",
       "https://aws.amazon.com/blogs/big-data/accelerate-resize-and-encryption-of-amazon-redshift-clusters-with-faster-classic-resize/"
-    ]
+    ],
+    "effort": "Medium",
+    "text": "If you are running out of storage or memory, add more compute nodes using resize"
   },
   "REC-006": {
-    "text": "Unload infrequently accessed data to S3 and query using Redshift Spectrum",
     "description": "Redshift Spectrum allows you to query exabytes of data in your Amazon S3 data lake, without loading or moving objects. Infrequently accessed data (also known as COLD data) can reside or be offloaded in Amazon S3 and be queried in Amazon Redshift using Redshift Spectrum. You can also define a spectrum usage limit either as a daily, weekly, or monthly usage limit and define actions that Amazon Redshift automatically takes if the limits are reached. The action taken could be logging the event to a system table, creating an alert for notification, or disabling the feature.",
-    "effort": "Large",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/dg/c-getting-started-using-spectrum.html",
       "https://docs.aws.amazon.com/redshift/latest/dg/tutorial-query-nested-data.html",
       "https://aws.amazon.com/blogs/big-data/10-best-practices-for-amazon-redshift-spectrum/",
       "https://aws.amazon.com/blogs/big-data/manage-and-control-your-cost-with-amazon-redshift-concurrency-scaling-and-spectrum/",
       "https://aws.amazon.com/blogs/big-data/working-with-nested-data-types-using-amazon-redshift-spectrum/"
-    ]
+    ],
+    "effort": "Large",
+    "text": "Unload infrequently accessed data to S3 and query using Redshift Spectrum"
   },
   "REC-007": {
-    "text": "To improve query performance, choose the best sort key",
     "description": "For large tables, adding a sort key can speed up queries with predicates. Review commonly filtered fields and add a sort key: ALTER TABLE [table_name] ALTER SORTKEY ([column1], [columnN]). For small tables (less than 5 million rows), sort keys are not effective and will add maintenance and storage overhead: ALTER TABLE [table_name] ALTER SORTKEY NONE; For unknown table sizes or access patterns, you can set the sort key to AUTO which allows Redshift to define the optimal sort key: ALTER TABLE [table_name] ALTER SORTKEY AUTO;",
-    "effort": "Medium",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-sort-key.html"
-    ]
+    ],
+    "effort": "Medium",
+    "text": "To improve query performance, choose the best sort key"
   },
   "REC-008": {
-    "text": "To improve query performance, choose the best distribution style",
     "description": "Heavy skew (where the ratio of the number of rows on a slice is more than 4x of another slice) can cause queries to perform slower as they are waiting on the compute node with the most data to complete before returning the result set. If the first node is skewed, this may be due to using a distribution key containing nulls. To change the column used as a distribution key: ALTER TABLE [table_name] ALTER DISTSTYLE KEY DISTKEY [column_name]; For small tables (< 5 million rows) e.g. reference or dimension tables that are frequently used in JOINS consider an ALL distribution style. To manage the distribution style automatically, create your tables with DISTSTYLE AUTO. Amazon Redshift initially assigns ALL distribution to a small table, then changes to EVEN distribution when the table grows larger. A low skew value indicates that table data is properly distributed. If a table has a skew value of 4.00 or higher, consider modifying its data distribution style.",
-    "effort": "Medium",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-best-dist-key.html",
       "https://docs.aws.amazon.com/redshift/latest/dg/t_Creating_tables.html#ato-enabling",
       "https://aws.amazon.com/blogs/big-data/amazon-redshift-engineerings-advanced-table-design-playbook-distribution-styles-and-distribution-keys/",
       "https://aws.amazon.com/blogs/big-data/automate-your-amazon-redshift-performance-tuning-with-automatic-table-optimization/"
-    ]
+    ],
+    "effort": "Medium",
+    "text": "To improve query performance, choose the best distribution style"
   },
   "REC-009": {
-    "text": "To improve query performance, remove nested loop joins (cross-joins)",
     "description": "Review queries that make use of cross-joins and remove them if possible by adding a join condition.",
-    "effort": "Medium",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/dg/query-performance-improvement-opportunities.html#nested-loop"
-    ]
+    ],
+    "effort": "Medium",
+    "text": "To improve query performance, remove nested loop joins (cross-joins)"
   },
   "REC-010": {
-    "text": "To improve query performance, remove the encoding on the first column of a sort key",
     "description": "It is a best practice to not encode the first column of a sort key for optimal query performance. Using ENCODE AUTO to automatically manage the compression encoding for all columns in the table also ensures this. To change the encoding of the table to AUTO, the following command can be executed: ALTER TABLE [table_name] ALTER ENCODE AUTO;",
-    "effort": "Medium",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/dg/t_Verifying_data_compression.html"
-    ]
+    ],
+    "effort": "Medium",
+    "text": "To improve query performance, remove the encoding on the first column of a sort key"
   },
   "REC-011": {
-    "text": "To optimize memory consumption and avoid disk spill, reduce varchar fields to be inline with their max length",
     "description": "Use caution when setting a large length on character type fields such as VARCHAR. When allocating memory for queries using these fields, Amazon Redshift will allocate based on the maximum values and queries are more likely to spill to disk. To change the length of the column, the following command can be executed: ALTER TABLE [table_name] ALTER COLUMN [column_name] TYPE varchar([size])",
-    "effort": "Medium",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-smallest-column-size.html"
-    ]
+    ],
+    "effort": "Medium",
+    "text": "To optimize memory consumption and avoid disk spill, reduce varchar fields to be inline with their max length"
   },
   "REC-012": {
-    "text": "To save cost, remove extra compute nodes using elastic or classic resize",
     "description": "You may have more compute than you need. If you can reduce the size of your cluster and maintain your SLAs, you may be able to save money. In addition, enable the concurrency scaling feature and leverage the 1 hour free credit per day on a given WLM queue. Apply the necessary concurrency scaling usage limits. Use of concurrency scaling allows the cluster to handle spiky compute needs and allow for queries in WLM queues in which it is enabled to get consistent performance.",
-    "effort": "Medium",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/mgmt/managing-cluster-operations.html#elastic-resize",
       "https://docs.aws.amazon.com/redshift/latest/dg/concurrency-scaling-queues.html",
       "https://docs.aws.amazon.com/redshift/latest/mgmt/managing-cluster-usage-limits.html",
       "https://aws.amazon.com/blogs/big-data/accelerate-resize-and-encryption-of-amazon-redshift-clusters-with-faster-classic-resize/"
-    ]
+    ],
+    "effort": "Medium",
+    "text": "To save cost, remove extra compute nodes using elastic or classic resize"
   },
   "REC-013": {
-    "text": "To improve query performance, ensure large tables with a sort key are vacuumed",
     "description": "Tables which contain a sort key but have not been vacuumed will not benefit from the sort key. While Auto Vacuum should optimize most tables, in busy clusters, customers should schedule the VACUUM SORT RECLUSTER operation either as part of the regular data ingestion / transformation workload (especially those that affect a large number of rows) or as part of a recurring maintenance activity (e.g. weekly / monthly) based on the vacuum_sort_benefit column in SVV_TABLE_INFO. Use the DEEP COPY approach if the table does not need to be accessible for writes. A deep copy is much faster than a vacuum. The trade off is that you should not make concurrent updates during a deep copy operation unless you can track it and move the delta updates into the new table after the process has completed.",
-    "effort": "Small",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/dg/r_VACUUM_command.html",
       "https://docs.aws.amazon.com/redshift/latest/dg/performing-a-deep-copy.html"
-    ]
+    ],
+    "effort": "Small",
+    "text": "To improve query performance, ensure large tables with a sort key are vacuumed"
   },
   "REC-014": {
-    "text": "To improve query performance and reduce maintenance overhead, replace Interleaved Sort keys with Materialized Views",
     "description": "While interleaved sort keys may provide some benefit for tables with multiple access patterns, Materialized Views (MVs) are a newer strategy to optimize for performance in similar situations. MVs can be used to support not only different sorting strategies, but also calculated fields, different distribution strategies, and pre-aggregated results. Also, tables with an interleaved sort key are not eligible for concurrency scaling and data sharing. If your use case still requires interleaved sort keys, keep in mind a VACUUM REINDEX is required to take advantage of it, but it is an expensive operation and in many cases the performance benefit is not worth the additional maintenance effort.",
-    "effort": "Large",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/dg/materialized-view-overview.html",
       "https://docs.aws.amazon.com/redshift/latest/dg/r_VACUUM_command.html#vacuum-reindex"
-    ]
+    ],
+    "effort": "Large",
+    "text": "To improve query performance and reduce maintenance overhead, replace Interleaved Sort keys with Materialized Views"
   },
   "REC-015": {
-    "text": "To maximize system throughput and use resources most effectively, set up automatic WLM",
     "description": "With automatic workload management (autoWLM), Amazon Redshift manages query concurrency and memory allocation. Automatic WLM determines the amount of resources that queries need, and adjusts the concurrency based on the workload. When queries requiring large amounts of resources are in the system (for example, hash joins between large tables), the concurrency is lower. When lighter queries (such as inserts, deletes, scans, or simple aggregations) are submitted, concurrency is higher.",
-    "effort": "Small",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/dg/automatic-wlm.html",
       "https://aws.amazon.com/blogs/big-data/benchmarking-the-performance-of-the-new-auto-wlm-with-adaptive-concurrency-in-amazon-redshift/"
-    ]
+    ],
+    "effort": "Small",
+    "text": "To maximize system throughput and use resources most effectively, set up automatic WLM"
   },
   "REC-016": {
-    "text": "Re-allocate your memory distribution to add up to 100%",
     "description": "When using manual WLM total memory allocation should equal 100%. Allocating less than 100% may result in unpredictable query performance and/or inefficient use of cluster resources.",
-    "effort": "Small",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/dg/cm-c-defining-query-queues.html",
       "https://docs.aws.amazon.com/redshift/latest/dg/cm-c-defining-query-queues.html#wlm-memory-percent"
-    ]
+    ],
+    "effort": "Small",
+    "text": "Re-allocate your memory distribution to add up to 100%"
   },
   "REC-017": {
-    "text": "To improve query performance, configure no more than 20 WLM slots",
     "description": "When using manual WLM, high slot counts can result in too little memory being allocated to each query and results spilling to disk which may affect the query performance and having a lower query throughput. When you use lower concurrency, query throughput is increased and overall system performance is improved for most workloads.",
-    "effort": "Small",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/dg/cm-c-defining-query-queues.html",
       "https://docs.aws.amazon.com/redshift/latest/dg/cm-c-defining-query-queues.html#cm-c-defining-query-queues-concurrency-level"
-    ]
+    ],
+    "effort": "Small",
+    "text": "To improve query performance, configure no more than 20 WLM slots"
   },
   "REC-018": {
-    "text": "To have better visibility on resource usage by workload and optimize resource allocation, create separate query queues for each workload",
     "description": "When you define multiple query queues, you can route queries to the appropriate queues at runtime. For example query queues can be defined for each type of workload: BI / Dashboard workload, ETL / Data Ingestion workload, Data Science workload, Adhoc workload, Application workload.",
-    "effort": "Medium",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/dg/cm-c-wlm-queue-assignment-rules.html"
-    ]
+    ],
+    "effort": "Medium",
+    "text": "To have better visibility on resource usage by workload and optimize resource allocation, create separate query queues for each workload"
   },
   "REC-019": {
-    "text": "For additional scalability, enable the concurrency scaling",
     "description": "Use of concurrency scaling allows the cluster to handle spiky compute needs and allow for queries in WLM queues in which it is enabled to get consistent performance. Concurrency scaling is available 1 hour free per day. Additionally usage limits can be applied to manage costs.",
-    "effort": "Small",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/dg/concurrency-scaling.html",
       "https://docs.aws.amazon.com/redshift/latest/dg/concurrency-scaling-queues.html",
       "https://docs.aws.amazon.com/redshift/latest/mgmt/managing-cluster-usage-limits.html",
       "https://aws.amazon.com/blogs/big-data/manage-and-control-your-cost-with-amazon-redshift-concurrency-scaling-and-spectrum/",
       "https://www.youtube.com/watch?v=-2yQsI9xJKQ"
-    ]
+    ],
+    "effort": "Small",
+    "text": "For additional scalability, enable the concurrency scaling"
   },
   "REC-020": {
-    "text": "For additional scalability, enable short query acceleration",
     "description": "If you enable SQA, you can reduce or eliminate workload management (WLM) queues that are dedicated to running short queries. Amazon Redshift uses a machine learning algorithm to analyze each eligible query and predict the query's execution time. By default, WLM dynamically assigns a value for the SQA maximum runtime based on analysis of your cluster's workload. Alternatively, you can specify a fixed value of 1 to 20 seconds.",
-    "effort": "Small",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/dg/wlm-short-query-acceleration.html"
-    ]
+    ],
+    "effort": "Small",
+    "text": "For additional scalability, enable short query acceleration"
   },
   "REC-021": {
-    "text": "To ensure queries get resources based on importance, set priorities for each WLM queue",
     "description": "Not all queries are of equal importance, and often performance of one workload or set of users might be more important. When auto WLM is enabled, you can define the relative importance of queries in a workload by setting a priority value. The priority is specified for a queue and inherited by all queries associated with the queue. Amazon Redshift uses the priority when letting queries into the system, and to determine the amount of resources allocated to a query.",
-    "effort": "Small",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/dg/query-priority.html"
-    ]
+    ],
+    "effort": "Small",
+    "text": "To ensure queries get resources based on importance, set priorities for each WLM queue"
   },
   "REC-022": {
-    "text": "To set query performance boundaries on workloads, add QMR rules",
     "description": "Query monitoring rules (QMR) define metrics-based performance boundaries for WLM queues and specify what action to take when a query goes beyond those boundaries. For example, to track poorly designed queries, you might have a rule that logs queries that contain nested loops or execute for more than 2 hours. You can define up to 25 rules for each queue, with a limit of 25 rules for all queues. You can start with Query monitoring rules templates. WLM evaluates metrics every 10 seconds. If more than one rule is triggered during the same period, WLM initiates the most severe action: abort, then hop, then log. The most common metrics where QMR can protect your system include: query_execution_time (identifies sub-optimal table or query design), query_temp_blocks_to_disk (identifies queries using more than available memory which write intermediate results to disk), spectrum_scan_size_mb / spectrum_scan_row_count (a large scan may mean there is no partition pruning applied), and nested_loop_join_row_count (joins without a join condition that result in the Cartesian product of two tables).",
-    "effort": "Small",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/dg/cm-c-wlm-query-monitoring-rules.html",
       "https://docs.aws.amazon.com/redshift/latest/dg/cm-c-wlm-query-monitoring-rules.html#cm-c-wlm-query-monitoring-templates"
-    ]
+    ],
+    "effort": "Small",
+    "text": "To set query performance boundaries on workloads, add QMR rules"
   },
   "REC-023": {
-    "text": "Increase load performance by optimizing COPY operations",
     "description": "Amazon Redshift can automatically load in parallel from multiple compressed data files. This divides the workload among the nodes in your cluster. However, if you use multiple concurrent COPY commands to load one table from multiple files, Amazon Redshift performs a serialized load which is slower than loading them using one operation. Optimal COPY performance can be achieved through a file count that is a multiple of the number of node slices. For optimum parallelism, the ideal file size is 1 to 125 MB after compression.",
-    "effort": "Medium",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/dg/t_Loading-data-from-S3.html",
       "https://docs.aws.amazon.com/redshift/latest/dg/c_loading-data-best-practices.html",
       "https://aws.amazon.com/blogs/big-data/part-1-introducing-new-features-for-amazon-redshift-copy/"
-    ]
+    ],
+    "effort": "Medium",
+    "text": "Increase load performance by optimizing COPY operations"
   },
   "REC-024": {
-    "text": "To avoid disk spill, review queries and add predicates to filter tables that participate in joins, even if the predicates apply the same filters",
     "description": "Even though a filter may be redundant, the query planner can skip scanning large numbers of disk blocks when performing a join operation. For example, adding a predicate for sales.saletime to the WHERE clause returns the same result set without the filter because a product will always be sold after it is listed, but Amazon Redshift is able to filter the table before the join step.",
-    "effort": "Medium",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/dg/c_designing-queries-best-practices.html"
-    ]
+    ],
+    "effort": "Medium",
+    "text": "To avoid disk spill, review queries and add predicates to filter tables that participate in joins, even if the predicates apply the same filters"
   },
   "REC-025": {
-    "text": "To reduce compile overhead, avoid drop/create operations in favor of delete/copy/insert",
     "description": "High compile count can be caused by queries executed against new tables.",
-    "effort": "Medium",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/dg/c-query-performance.html",
       "https://aws.amazon.com/blogs/big-data/fast-and-predictable-performance-with-serverless-compilation-using-amazon-redshift/"
-    ]
+    ],
+    "effort": "Medium",
+    "text": "To reduce compile overhead, avoid drop/create operations in favor of delete/copy/insert"
   },
   "REC-026": {
-    "text": "For additional scalability, isolate your workloads using data sharing",
     "description": "Amazon Redshift data sharing provides workload isolation by allowing multiple consumers to share data seamlessly without the need to unload and load data. Implementing workload isolation allows for agility, allows sizing of clusters independently, and creates a simple cost charge-back model.",
-    "effort": "Large",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/dg/data_sharing_intro.html",
       "https://aws.amazon.com/blogs/big-data/amazon-redshift-data-sharing-best-practices-and-considerations/",
@@ -240,30 +238,30 @@
       "https://aws.amazon.com/blogs/aws/cross-account-data-sharing-for-amazon-redshift/",
       "https://aws.amazon.com/blogs/big-data/security-considerations-for-amazon-redshift-cross-account-data-sharing/",
       "https://aws.amazon.com/blogs/big-data/share-data-securely-across-regions-using-amazon-redshift-data-sharing/"
-    ]
+    ],
+    "effort": "Large",
+    "text": "For additional scalability, isolate your workloads using data sharing"
   },
   "REC-027": {
-    "text": "Increase read performance from Spectrum tables, by optimizing your partitioning strategy",
     "description": "When you partition your data, you can restrict the amount of data that Redshift Spectrum scans by filtering on the partition key. Amazon Redshift Spectrum can take advantage of partition pruning and skip scanning unneeded partitions and files by defining the S3 prefix based on the columns (e.g. transaction_date) frequently used in SQL predicates. A common practice is to partition the data based on time. For example, you might choose to partition by year, month, date, and hour. If you have data coming from multiple sources, you might partition by a data source identifier and date.",
-    "effort": "Medium",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/dg/c-spectrum-external-performance.html",
       "https://docs.aws.amazon.com/redshift/latest/dg/c-spectrum-external-tables.html#c-spectrum-external-tables-partitioning",
       "https://aws.amazon.com/blogs/big-data/10-best-practices-for-amazon-redshift-spectrum/"
-    ]
+    ],
+    "effort": "Medium",
+    "text": "Increase read performance from Spectrum tables, by optimizing your partitioning strategy"
   },
   "REC-028": {
-    "text": "To improve query performance, redesign the large table to a time series table",
     "description": "If your data has a fixed retention period, you can organize your data as a sequence of time-series tables. In such a sequence, each table is identical but contains data for different time ranges. You can easily remove old data simply by running a DROP TABLE command on the corresponding tables. This approach is much faster than running a large-scale DELETE process and saves you from having to run a subsequent VACUUM process to reclaim space. To hide the fact that the data is stored in different tables, you can create a UNION ALL view. When you delete old data, simply refine your UNION ALL view to remove the dropped tables. Similarly, as you load new time periods into new tables, add the new tables to the view. To signal the optimizer to skip the scan on tables that don't match the query filter, your view definition filters for the date range that corresponds to each table. If your data requires processing of different time ranges, you can follow a similar approach but instead of a time range make use of another criteria for data segregation based on data access pattern such as geography (e.g. region). A sample conversion process: create multiple tables based on how the data needs to be accessed (e.g. by week, month, quarter, geography, account), create a view that consolidates all the time series tables (may include external tables queried using Redshift Spectrum), replace the query on the table with the query on the view. If a query filters on the sort key, the query planner can efficiently skip all the tables that are not used.",
-    "effort": "Large",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-time-series-tables.html"
-    ]
+    ],
+    "effort": "Large",
+    "text": "To improve query performance, redesign the large table to a time series table"
   },
   "REC-029": {
-    "text": "Increase load performance by avoiding or minimizing multiple single row insert statements",
     "description": "A data ingestion / loading process that runs a single row insert or multi row insert statement uses only the leader node for each execution and is slow when used to load large amounts of data compared to other data ingestion / loading options like a COPY command which engages compute nodes in parallel. Data compression is also inefficient when you add data only one row or a few rows at a time. Redesign the data ingestion process to replace multiple single row insert statements to either use: COPY command, COPY command with column mapping, ALTER TABLE APPEND, Bulk Insert, or Multi Row Insert.",
-    "effort": "Medium",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/dg/c_loading-data-best-practices.html",
       "https://docs.aws.amazon.com/redshift/latest/dg/t_Updating_tables_with_DML_commands.html",
@@ -272,87 +270,89 @@
       "https://docs.aws.amazon.com/redshift/latest/dg/r_ALTER_TABLE_APPEND.html",
       "https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-bulk-inserts.html",
       "https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-multi-row-inserts.html"
-    ]
+    ],
+    "effort": "Medium",
+    "text": "Increase load performance by avoiding or minimizing multiple single row insert statements"
   },
   "REC-030": {
-    "text": "To improve query performance, create a materialized view to use incremental refresh",
     "description": "A materialized view contains a precomputed result set, based on an SQL query over one or more base tables. Materialized views are especially useful for speeding up queries that are predictable and repeated. Instead of performing resource-intensive queries against large tables (such as aggregates or multiple joins), applications can query a materialized view and retrieve a precomputed result set. From the user standpoint, the query results are returned much faster compared to when retrieving the same data from the base tables. To complete refresh of the materialized views with minimal impact to active workloads in your cluster, create a materialized view that can perform an incremental refresh in order to quickly identify the changes to the data in the base tables since the last refresh and update the data in the materialized view.",
-    "effort": "Medium",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/dg/materialized-view-refresh.html",
       "https://aws.amazon.com/blogs/big-data/speed-up-your-elt-and-bi-queries-with-amazon-redshift-materialized-views/",
       "https://aws.amazon.com/blogs/big-data/optimize-your-analytical-workloads-using-the-automatic-query-rewrite-feature-of-amazon-redshift-materialized-views/"
-    ]
+    ],
+    "effort": "Medium",
+    "text": "To improve query performance, create a materialized view to use incremental refresh"
   },
   "REC-031": {
-    "text": "To keep the data accurate and up to date, recreate the materialized view",
     "description": "Due to underlying DDL changes on the base tables used in the materialized view, the materialized view can no longer be refreshed.",
-    "effort": "Small",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/dg/r_STV_MV_INFO.html"
-    ]
+    ],
+    "effort": "Small",
+    "text": "To keep the data accurate and up to date, recreate the materialized view"
   },
   "REC-033": {
-    "text": "To save cost, apply the necessary concurrency scaling usage limit",
     "description": "You can define limits to monitor and control your usage and associated cost of some Amazon Redshift features. You can create daily, weekly, and monthly usage limits, and define actions that Amazon Redshift automatically takes if those limits are reached. Actions include logging an event to a system table, raising alerts with Amazon SNS and Amazon CloudWatch to notify an administrator, and disabling further usage to control costs. A concurrency scaling limit specifies the threshold of the total amount of time used by concurrency scaling in 1-minute increments.",
-    "effort": "Small",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/mgmt/managing-cluster-usage-limits.html",
       "https://aws.amazon.com/blogs/big-data/manage-and-control-your-cost-with-amazon-redshift-concurrency-scaling-and-spectrum/"
-    ]
+    ],
+    "effort": "Small",
+    "text": "To save cost, apply the necessary concurrency scaling usage limit"
   },
   "REC-034": {
-    "text": "To improve query performance, create a materialized view to use incremental refresh in the producer cluster and share the materialized view to the consumer cluster(s)",
     "description": "Materialized views (MVs) provide a powerful route to precompute complex aggregations for use cases where high throughput is needed, and you can directly share a materialized view object via data sharing as well. For materialized views built on tables where there are frequent write operations, it is ideal to create the materialized view object on the producer itself and share the view. This method gives us the opportunity to centralize the management of the view on the producer cluster itself. For slowly changing data tables, you can share the table objects directly and build the materialized view on the shared objects directly on the consumer. This method gives us the flexibility of creating a customized view of data on each consumer according to your use case. This can help optimize the block metadata download and caching times in the data sharing query lifecycle. This also helps in materialized view refreshes because Redshift does not support incremental refresh for MVs built on shared objects.",
-    "effort": "Large",
     "documentation_links": [
       "https://aws.amazon.com/blogs/big-data/speed-up-your-elt-and-bi-queries-with-amazon-redshift-materialized-views/",
       "https://aws.amazon.com/blogs/big-data/amazon-redshift-data-sharing-best-practices-and-considerations/"
-    ]
+    ],
+    "effort": "Large",
+    "text": "To improve query performance, create a materialized view to use incremental refresh in the producer cluster and share the materialized view to the consumer cluster(s)"
   },
   "REC-035": {
-    "text": "For better price performance, leverage Redshift serverless",
     "description": "Redshift serverless provides the same or better price performance when compared to on demand especially with intermittent workloads. This is possible because of its ability to auto pause and resume so you only pay for the times the cluster is running.",
-    "effort": "Large",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/mgmt/working-with-serverless.html",
       "https://docs.aws.amazon.com/redshift/latest/mgmt/serverless-billing.html",
       "https://www.youtube.com/watch?v=XcRJjXudIf8",
       "https://www.youtube.com/watch?v=JBPpmMq9OS8"
-    ]
+    ],
+    "effort": "Large",
+    "text": "For better price performance, leverage Redshift serverless"
   },
   "REC-036": {
-    "text": "To avoid 'connection limit' errors and release unused resources, set idle session timeout and clean up idle sessions when needed",
     "description": "Idle connections consume cluster connection slots and hold resources unnecessarily. Configuring idle session timeouts and periodically cleaning up stale sessions prevents connection limit errors and frees resources for active workloads.",
-    "effort": "Small",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/mgmt/connecting-drop-issues.html"
-    ]
+    ],
+    "effort": "Small",
+    "text": "To avoid 'connection limit' errors and release unused resources, set idle session timeout and clean up idle sessions when needed"
   },
   "REC-037": {
-    "text": "For increased stability, use the 'trailing' track for production workloads",
     "description": "The trailing maintenance track applies cluster patches after they have been validated on the current track for several weeks. Using the trailing track for production clusters reduces the risk of encountering issues from newly released patches.",
-    "effort": "Small",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/mgmt/working-with-clusters.html#rs-maintenance-tracks"
-    ]
+    ],
+    "effort": "Small",
+    "text": "For increased stability, use the 'trailing' track for production workloads"
   },
   "REC-038": {
-    "text": "To reduce processing skew, perform a classic resize to rebalance your data",
     "description": "Data distribution skew across slices can develop over time, especially after multiple elastic resizes. A classic resize redistributes all data evenly across the new slice configuration, eliminating processing skew and restoring balanced query execution.",
-    "effort": "Large",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/mgmt/managing-cluster-operations.html#rs-resize-tutorial"
-    ]
+    ],
+    "effort": "Large",
+    "text": "To reduce processing skew, perform a classic resize to rebalance your data"
   },
   "REC-039": {
-    "text": "Ensure materialized views are not stale for data accuracy and query rewrite",
     "description": "A materialized view contains a pre-computed result set, based on an SQL query over one or more base tables. Materialized views are especially useful for speeding up queries that are predictable and repeated. In addition, materialized views can be useful for accessing data using an alternate distribution or sort key. From the user standpoint, they don't have to re-write their queries; the re-writer will determine and use the appropriate MV and the query results are returned much faster compared to when retrieving the same data from the base tables. A stale MV does not have up-to-date data and will not be used by autorewrite.",
-    "effort": "Small",
     "documentation_links": [
       "https://docs.aws.amazon.com/redshift/latest/dg/materialized-view-refresh.html",
       "https://aws.amazon.com/blogs/big-data/speed-up-your-elt-and-bi-queries-with-amazon-redshift-materialized-views/",
       "https://aws.amazon.com/blogs/big-data/optimize-your-analytical-workloads-using-the-automatic-query-rewrite-feature-of-amazon-redshift-materialized-views/"
-    ]
+    ],
+    "effort": "Small",
+    "text": "Ensure materialized views are not stale for data accuracy and query rewrite"
   }
 }

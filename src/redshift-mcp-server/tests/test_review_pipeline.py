@@ -16,6 +16,11 @@
 
 import pytest
 from awslabs.redshift_mcp_server.models import CONCERN_QUERY_MAP, ConcernCategory
+from awslabs.redshift_mcp_server.review.config_loader import (
+    QueryEntry,
+    RecommendationEntry,
+    SectionEntry,
+)
 from awslabs.redshift_mcp_server.review.review_pipeline import run_review
 from unittest.mock import AsyncMock
 
@@ -24,7 +29,7 @@ from unittest.mock import AsyncMock
 # Minimal config fixtures
 # ---------------------------------------------------------------------------
 
-QUERIES_CONFIG = {
+QUERIES_CONFIG: dict[str, QueryEntry] = {
     'NodeDetails': {
         'SQL': 'SELECT node_type, storage_used_gb, storage_utilization_pct FROM stv_node_storage'
     },
@@ -42,7 +47,7 @@ QUERIES_CONFIG = {
     'WorkloadEvaluation': {'SQL': 'SELECT * FROM workload_eval'},
 }
 
-SIGNALS_CONFIG_SIMPLE = {
+SIGNALS_CONFIG_SIMPLE: dict[str, SectionEntry] = {
     'NodeDetails': {
         'Signals': [
             {
@@ -54,7 +59,7 @@ SIGNALS_CONFIG_SIMPLE = {
     },
 }
 
-RECOMMENDATIONS_CONFIG = {
+RECOMMENDATIONS_CONFIG: dict[str, RecommendationEntry] = {
     'REC-001': {
         'text': 'Rec 1 text',
         'description': 'Rec 1 desc',
@@ -112,7 +117,7 @@ class TestConcernFiltering:
         expected_queries = set(CONCERN_QUERY_MAP[concern])
 
         # Build a signals config with one signal per query so we can track execution
-        signals_config = {}
+        signals_config: dict[str, SectionEntry] = {}
         for qname in expected_queries:
             signals_config[qname] = {
                 'Signals': [
@@ -167,7 +172,7 @@ class TestServerlessExclusion:
     @pytest.mark.asyncio
     async def test_provisioned_only_queries_excluded_with_workgroup(self):
         """When workgroup is set, WLMConfig and NodeDetails are excluded."""
-        signals_config = {
+        signals_config: dict[str, SectionEntry] = {
             'NodeDetails': {
                 'Signals': [
                     {
@@ -297,7 +302,7 @@ class TestErrorIsolation:
     @pytest.mark.asyncio
     async def test_failed_signal_does_not_block_others(self):
         """One failing signal doesn't prevent other signals from executing."""
-        signals_config = {
+        signals_config: dict[str, SectionEntry] = {
             'NodeDetails': {
                 'Signals': [
                     {
@@ -362,7 +367,7 @@ class TestRecommendationOrdering:
     @pytest.mark.asyncio
     async def test_recommendations_ordered_small_medium_large(self):
         """Recommendations are ordered Small → Medium → Large."""
-        signals_config = {
+        signals_config: dict[str, SectionEntry] = {
             'NodeDetails': {
                 'Signals': [
                     {
@@ -418,7 +423,7 @@ class TestRecommendationDeduplication:
     @pytest.mark.asyncio
     async def test_duplicate_recommendations_deduplicated(self):
         """Multiple findings referencing the same rec ID produce one recommendation."""
-        signals_config = {
+        signals_config: dict[str, SectionEntry] = {
             'NodeDetails': {
                 'Signals': [
                     {
@@ -473,7 +478,7 @@ class TestRecommendationDeduplication:
             },
         }
 
-        signals_config = {
+        signals_config: dict[str, SectionEntry] = {
             'NodeDetails': {
                 'Signals': [
                     {
@@ -527,7 +532,7 @@ class TestRecommendationTriggeredBy:
     @pytest.mark.asyncio
     async def test_triggered_by_aggregates_across_findings(self):
         """A recommendation triggered by multiple signals lists all of them."""
-        signals_config = {
+        signals_config: dict[str, SectionEntry] = {
             'NodeDetails': {
                 'Signals': [
                     {
@@ -582,7 +587,7 @@ class TestFullPipeline:
     @pytest.mark.asyncio
     async def test_full_pipeline_returns_complete_review_result(self):
         """Full pipeline with multiple signals produces a complete ReviewResult."""
-        signals_config = {
+        signals_config: dict[str, SectionEntry] = {
             'NodeDetails': {
                 'Signals': [
                     {
@@ -665,7 +670,7 @@ class TestFullPipeline:
     @pytest.mark.asyncio
     async def test_progress_fn_called_for_each_signal(self):
         """progress_fn is called with (current, total) after each signal."""
-        signals_config = {
+        signals_config: dict[str, SectionEntry] = {
             'NodeDetails': {
                 'Signals': [
                     {'Signal': 'sig1', 'Criteria': 'x > 0', 'Recommendation': []},
