@@ -759,3 +759,13 @@ class TestRunReviewTool:
             tool_names.add(tool.name)
 
         assert 'run_review' in tool_names, 'run_review should be registered as a tool'
+
+    @pytest.mark.asyncio
+    async def test_server_lifespan_loads_config(self):
+        """Server lifespan loads review config files."""
+        from awslabs.redshift_mcp_server.server import mcp, server_lifespan
+
+        async with server_lifespan(mcp) as ctx:
+            assert len(ctx.queries_config) > 0
+            assert len(ctx.signals_config) > 0
+            assert len(ctx.recommendations_config) > 0

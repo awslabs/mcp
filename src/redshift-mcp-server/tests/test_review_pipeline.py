@@ -706,3 +706,152 @@ class TestFullPipeline:
 
         assert result.signals_evaluated == 2
         assert progress_calls == [(1, 2), (2, 2)]
+
+    @pytest.mark.asyncio
+    async def test_skips_query_with_no_sql(self):
+        """Queries with empty SQL are skipped."""
+        signals_config: dict[str, SectionEntry] = {
+            'NodeDetails': {
+                'Signals': [
+                    {'Signal': 'sig1', 'Criteria': 'x > 0', 'Recommendation': []},
+                ]
+            },
+        }
+        queries_with_empty_sql: dict[str, QueryEntry] = {
+            'NodeDetails': {'SQL': ''},
+        }
+
+        async def mock_execute(cluster_id, database, sql, **kwargs):
+            return _make_node_details_response()
+
+        result = await run_review(
+            cluster_identifier='test-cluster',
+            database='dev',
+            concern='storage',
+            queries_config=queries_with_empty_sql,
+            signals_config=signals_config,
+            recommendations_config=RECOMMENDATIONS_CONFIG,
+            execute_fn=mock_execute,
+        )
+        assert result.signals_evaluated == 0
+
+    @pytest.mark.asyncio
+    async def test_empty_records_returns_count_zero(self):
+        """Empty Records in response treated as count=0."""
+        signals_config: dict[str, SectionEntry] = {
+            'NodeDetails': {
+                'Signals': [
+                    {'Signal': 'sig1', 'Criteria': 'x > 0', 'Recommendation': []},
+                ]
+            },
+        }
+
+        call_count = 0
+
+        async def mock_execute(cluster_id, database, sql, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return _make_node_details_response()
+            return ({'Records': []}, 'qid')
+
+        result = await run_review(
+            cluster_identifier='test-cluster',
+            database='dev',
+            concern='storage',
+            queries_config=QUERIES_CONFIG,
+            signals_config=signals_config,
+            recommendations_config=RECOMMENDATIONS_CONFIG,
+            execute_fn=mock_execute,
+        )
+        assert result.signals_evaluated == 1
+        assert len(result.findings) == 0
+
+    @pytest.mark.asyncio
+    async def test_metadata_fallback_no_sql(self):
+        """Metadata extraction falls back when NodeDetails has no SQL."""
+        signals_config: dict[str, SectionEntry] = {
+            'NodeDetails': {
+                'Signals': [
+                    {'Signal': 'sig1', 'Criteria': 'x > 0', 'Recommendation': []},
+                ]
+            },
+        }
+        no_sql_config: dict[str, QueryEntry] = {'NodeDetails': {'SQL': ''}}
+
+        async def mock_execute(cluster_id, database, sql, **kwargs):
+            return _make_count_response(0)
+
+        result = await run_review(
+            cluster_identifier='test-cluster',
+            database='dev',
+            concern='storage',
+            queries_config=no_sql_config,
+            signals_config=signals_config,
+            recommendations_config=RECOMMENDATIONS_CONFIG,
+            execute_fn=mock_execute,
+        )
+        assert result.cluster_metadata.node_type == 'unknown'
+
+    @pytest.mark.asyncio
+    async def test_metadata_fallback_on_execute_error(self):
+        """Metadata extraction falls back when execute fails."""
+        signals_config: dict[str, SectionEntry] = {
+            'NodeDetails': {
+                'Signals': [
+                    {'Signal': 'sig1', 'Criteria': 'x > 0', 'Recommendation': []},
+                ]
+            },
+        }
+
+        call_count = 0
+
+        async def mock_execute(cluster_id, database, sql, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise Exception('metadata extraction failed')
+            return _make_count_response(0)
+
+        result = await run_review(
+            cluster_identifier='test-cluster',
+            database='dev',
+            concern='storage',
+            queries_config=QUERIES_CONFIG,
+            signals_config=signals_config,
+            recommendations_config=RECOMMENDATIONS_CONFIG,
+            execute_fn=mock_execute,
+        )
+        assert result.cluster_metadata.node_type == 'unknown'
+
+    @pytest.mark.asyncio
+    async def test_missing_recommendation_id_skipped(self):
+        """Recommendation IDs not in config are silently skipped."""
+        signals_config: dict[str, SectionEntry] = {
+            'NodeDetails': {
+                'Signals': [
+                    {'Signal': 'sig1', 'Criteria': 'x > 0', 'Recommendation': ['NONEXISTENT']},
+                ]
+            },
+        }
+
+        call_count = 0
+
+        async def mock_execute(cluster_id, database, sql, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return _make_node_details_response()
+            return _make_count_response(5)
+
+        result = await run_review(
+            cluster_identifier='test-cluster',
+            database='dev',
+            concern='storage',
+            queries_config=QUERIES_CONFIG,
+            signals_config=signals_config,
+            recommendations_config=RECOMMENDATIONS_CONFIG,
+            execute_fn=mock_execute,
+        )
+        assert len(result.findings) == 1
+        assert len(result.recommendations) == 0
