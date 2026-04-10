@@ -61,8 +61,8 @@ class TestInvokeAgentRuntime:
         assert 'hello' in result.response_body
 
     @pytest.mark.asyncio
-    async def test_success_streaming_response(self, mock_ctx, data_factory, mock_data_client):
-        """Streaming chunks are concatenated."""
+    async def test_success_streaming_bytes(self, mock_ctx, data_factory, mock_data_client):
+        """Streaming byte chunks are concatenated."""
         mock_data_client.invoke_agent_runtime.return_value = {
             'runtimeSessionId': 'sess-456',
             'contentType': 'text/event-stream',
@@ -76,6 +76,38 @@ class TestInvokeAgentRuntime:
         )
         assert isinstance(result, InvokeRuntimeResponse)
         assert result.response_body == 'chunk1chunk2'
+
+    @pytest.mark.asyncio
+    async def test_success_streaming_strings(self, mock_ctx, data_factory, mock_data_client):
+        """Streaming non-bytes chunks are converted via str()."""
+        mock_data_client.invoke_agent_runtime.return_value = {
+            'runtimeSessionId': 'sess-789',
+            'contentType': 'text/event-stream',
+            'response': ['text1', 'text2'],
+        }
+        tools = InvocationTools(data_factory)
+        result = await tools.invoke_agent_runtime(
+            ctx=mock_ctx,
+            agent_runtime_arn='arn:test',
+            payload='{}',
+        )
+        assert isinstance(result, InvokeRuntimeResponse)
+        assert result.response_body == 'text1text2'
+
+    @pytest.mark.asyncio
+    async def test_no_response_key(self, mock_ctx, data_factory, mock_data_client):
+        """Response without 'response' key returns empty body."""
+        mock_data_client.invoke_agent_runtime.return_value = {
+            'runtimeSessionId': 'sess-000',
+        }
+        tools = InvocationTools(data_factory)
+        result = await tools.invoke_agent_runtime(
+            ctx=mock_ctx,
+            agent_runtime_arn='arn:test',
+            payload='{}',
+        )
+        assert isinstance(result, InvokeRuntimeResponse)
+        assert result.response_body == ''
 
     @pytest.mark.asyncio
     async def test_access_denied(self, mock_ctx, data_factory, mock_data_client):
@@ -93,6 +125,19 @@ class TestInvokeAgentRuntime:
         )
         assert isinstance(result, ErrorResponse)
         assert result.error_type == 'AccessDeniedException'
+
+    @pytest.mark.asyncio
+    async def test_generic_exception(self, mock_ctx, data_factory, mock_data_client):
+        """Non-ClientError exception is returned as ErrorResponse."""
+        mock_data_client.invoke_agent_runtime.side_effect = RuntimeError('boom')
+        tools = InvocationTools(data_factory)
+        result = await tools.invoke_agent_runtime(
+            ctx=mock_ctx,
+            agent_runtime_arn='arn:test',
+            payload='{}',
+        )
+        assert isinstance(result, ErrorResponse)
+        assert result.error_type == 'RuntimeError'
 
     @pytest.mark.asyncio
     async def test_default_qualifier(self, mock_ctx, data_factory, mock_data_client):
@@ -123,6 +168,21 @@ class TestInvokeAgentRuntime:
         )
         call_kwargs = mock_data_client.invoke_agent_runtime.call_args[1]
         assert call_kwargs['payload'] == b'{"prompt":"hello"}'
+
+    @pytest.mark.asyncio
+    async def test_session_id_omitted(self, mock_ctx, data_factory, mock_data_client):
+        """Omitting session_id does not include it in kwargs."""
+        mock_data_client.invoke_agent_runtime.return_value = {
+            'response': io.BytesIO(b'ok'),
+        }
+        tools = InvocationTools(data_factory)
+        await tools.invoke_agent_runtime(
+            ctx=mock_ctx,
+            agent_runtime_arn='arn:test',
+            payload='{}',
+        )
+        call_kwargs = mock_data_client.invoke_agent_runtime.call_args[1]
+        assert 'runtimeSessionId' not in call_kwargs
 
 
 class TestStopRuntimeSession:
@@ -173,3 +233,16 @@ class TestStopRuntimeSession:
         )
         call_kwargs = mock_data_client.stop_runtime_session.call_args[1]
         assert call_kwargs['qualifier'] == 'staging'
+
+    @pytest.mark.asyncio
+    async def test_generic_exception(self, mock_ctx, data_factory, mock_data_client):
+        """Non-ClientError exception is returned as ErrorResponse."""
+        mock_data_client.stop_runtime_session.side_effect = ValueError('bad')
+        tools = InvocationTools(data_factory)
+        result = await tools.stop_runtime_session(
+            ctx=mock_ctx,
+            agent_runtime_arn='arn:test',
+            runtime_session_id='sess-1',
+        )
+        assert isinstance(result, ErrorResponse)
+        assert result.error_type == 'ValueError'
