@@ -14,11 +14,10 @@
 
 """Tests for review pipeline orchestration."""
 
-from unittest.mock import AsyncMock
-
 import pytest
 from awslabs.redshift_mcp_server.models import CONCERN_QUERY_MAP, ConcernCategory
 from awslabs.redshift_mcp_server.review.review_pipeline import run_review
+from unittest.mock import AsyncMock
 
 
 # ---------------------------------------------------------------------------
@@ -96,7 +95,6 @@ def _make_node_details_response() -> tuple[dict, str]:
         },
         'query-id-metadata',
     )
-
 
 
 # ---------------------------------------------------------------------------

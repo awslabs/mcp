@@ -16,11 +16,6 @@
 
 import os
 import sys
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
-from dataclasses import dataclass
-from pathlib import Path
-
 from awslabs.redshift_mcp_server.consts import (
     CLIENT_BEST_PRACTICES,
     DEFAULT_LOG_LEVEL,
@@ -54,8 +49,12 @@ from awslabs.redshift_mcp_server.review.config_loader import (
     load_signals_config,
 )
 from awslabs.redshift_mcp_server.review.review_pipeline import run_review
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
+from pathlib import Path
 from pydantic import Field
 
 

@@ -151,10 +151,19 @@ CONCERN_QUERY_MAP: dict[ConcernCategory, list[str]] = {
     'storage': ['NodeDetails', 'TableInfo', 'AlterTableRecommendations'],
     'scaling': ['UsagePattern', 'WLMConfig', 'WorkloadEvaluation', 'NodeDetails'],
     'full': [
-        'NodeDetails', 'WLMConfig', 'UsagePattern', 'TableInfo',
-        'AlterTableRecommendations', 'MaterializedView', 'Top50QueriesByRunTime',
-        'CopyPerformance', 'ExtQueryPerformance', 'DataShareProducerObject',
-        'DataShareConsumerUsage', 'ATOWorkerActions', 'WorkloadEvaluation',
+        'NodeDetails',
+        'WLMConfig',
+        'UsagePattern',
+        'TableInfo',
+        'AlterTableRecommendations',
+        'MaterializedView',
+        'Top50QueriesByRunTime',
+        'CopyPerformance',
+        'ExtQueryPerformance',
+        'DataShareProducerObject',
+        'DataShareConsumerUsage',
+        'ATOWorkerActions',
+        'WorkloadEvaluation',
     ],
 }
 

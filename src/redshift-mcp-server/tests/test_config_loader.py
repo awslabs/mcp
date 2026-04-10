@@ -15,22 +15,16 @@
 """Tests for the review config loader."""
 
 import json
-from pathlib import Path
-
 import pytest
 from awslabs.redshift_mcp_server.review.config_loader import (
     load_queries_config,
     load_recommendations_config,
     load_signals_config,
 )
+from pathlib import Path
 
 
-CONFIG_DIR = (
-    Path(__file__).resolve().parent.parent
-    / 'awslabs'
-    / 'redshift_mcp_server'
-    / 'config'
-)
+CONFIG_DIR = Path(__file__).resolve().parent.parent / 'awslabs' / 'redshift_mcp_server' / 'config'
 
 
 class TestLoadQueriesConfig:

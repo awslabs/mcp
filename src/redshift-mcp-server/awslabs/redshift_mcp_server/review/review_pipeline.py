@@ -14,27 +14,29 @@
 
 """Review pipeline orchestrating CTE-based signal evaluation."""
 
-from collections.abc import Callable
-from typing import Any
-
-from loguru import logger
-
 from awslabs.redshift_mcp_server.models import (
     CONCERN_QUERY_MAP,
     PROVISIONED_ONLY_QUERIES,
-    ConcernCategory,
     ClusterMetadata,
+    ConcernCategory,
     QueryFailureInfo,
     ReviewFinding,
     ReviewRecommendation,
     ReviewResult,
 )
-from awslabs.redshift_mcp_server.review.cte_builder import build_signal_query, validate_sql_readonly
 from awslabs.redshift_mcp_server.review.config_loader import (
     QueryEntry,
     RecommendationEntry,
     SectionEntry,
 )
+from awslabs.redshift_mcp_server.review.cte_builder import (
+    build_signal_query,
+    validate_sql_readonly,
+)
+from collections.abc import Callable
+from loguru import logger
+from typing import Any
+
 
 EFFORT_ORDER = {'Small': 0, 'Medium': 1, 'Large': 2}
 

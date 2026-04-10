@@ -16,6 +16,7 @@
 
 import re
 
+
 _MODIFICATION_PATTERN = re.compile(
     r'\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE)\b',
     re.IGNORECASE,
@@ -94,10 +95,7 @@ def build_signal_query(
             f'{query_name} AS ({final_select}) '
             f'SELECT COUNT(*) FROM {query_name} WHERE {criteria}'
         )
-    return (
-        f'WITH {query_name} AS ({base_sql}) '
-        f'SELECT COUNT(*) FROM {query_name} WHERE {criteria}'
-    )
+    return f'WITH {query_name} AS ({base_sql}) SELECT COUNT(*) FROM {query_name} WHERE {criteria}'
 
 
 # Matches WITH [RECURSIVE] at the start
@@ -114,7 +112,7 @@ def _extract_ctes(sql: str) -> tuple[bool, str | None, str]:
         return False, None, sql
 
     is_recursive = bool(match.group(1))
-    remainder = sql[match.end():]
+    remainder = sql[match.end() :]
     last_top_select = _find_last_top_level_select(remainder)
     if last_top_select is None:
         return False, None, sql
@@ -140,7 +138,7 @@ def _find_last_top_level_select(sql: str) -> int | None:
             i += 1
             while i < len(sql) and sql[i] != "'":
                 i += 1
-        elif depth == 0 and sql[i:i + 6].upper() == 'SELECT':
+        elif depth == 0 and sql[i : i + 6].upper() == 'SELECT':
             last_top_select = i
         i += 1
     return last_top_select

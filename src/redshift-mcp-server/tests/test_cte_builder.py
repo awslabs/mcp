@@ -14,26 +14,20 @@
 
 """Tests for CTE builder SQL generation."""
 
-import re
-from pathlib import Path
-
 import pytest
-from awslabs.redshift_mcp_server.review.cte_builder import (
-    build_signal_query,
-    validate_sql_readonly,
-)
+import re
 from awslabs.redshift_mcp_server.review.config_loader import (
     load_queries_config,
     load_signals_config,
 )
-
-
-CONFIG_DIR = (
-    Path(__file__).resolve().parent.parent
-    / 'awslabs'
-    / 'redshift_mcp_server'
-    / 'config'
+from awslabs.redshift_mcp_server.review.cte_builder import (
+    build_signal_query,
+    validate_sql_readonly,
 )
+from pathlib import Path
+
+
+CONFIG_DIR = Path(__file__).resolve().parent.parent / 'awslabs' / 'redshift_mcp_server' / 'config'
 
 
 def _load_all_signals():
@@ -172,7 +166,9 @@ class TestSubselectCriteria:
 
     def test_subselect_with_aggregate_sum(self):
         """Subselect with SUM aggregate resolves correctly."""
-        criteria = '(select sum(slots) from WLMConfig where service_class_id not in (5,14,15)) > 20'
+        criteria = (
+            '(select sum(slots) from WLMConfig where service_class_id not in (5,14,15)) > 20'
+        )
         sql = build_signal_query('WLMConfig', 'SELECT * FROM stv_wlm', criteria)
         assert 'select sum(slots) from WLMConfig' in sql
         assert 'WITH WLMConfig AS (' in sql
@@ -181,7 +177,10 @@ class TestSubselectCriteria:
         """Subselect with COUNT aggregate resolves correctly."""
         criteria = "(select count(1) from WLMConfig where wlm_mode='manual') > 0"
         sql = build_signal_query(
-            'WLMConfig', 'SELECT * FROM stv_wlm', criteria, population_criteria='service_class_id <> 5'
+            'WLMConfig',
+            'SELECT * FROM stv_wlm',
+            criteria,
+            population_criteria='service_class_id <> 5',
         )
         assert 'select count(1) from WLMConfig' in sql
         assert 'FROM WLMConfig WHERE' in sql
@@ -198,10 +197,7 @@ class TestSubselectCriteria:
 
     def test_workload_evaluation_subselect(self):
         """WorkloadEvaluation signal with sum/division subselect."""
-        criteria = (
-            '(select sum(total_query_minutes_in_day)/1440 '
-            'from WorkloadEvaluation)*100 < 75'
-        )
+        criteria = '(select sum(total_query_minutes_in_day)/1440 from WorkloadEvaluation)*100 < 75'
         sql = build_signal_query('WorkloadEvaluation', 'SELECT 1', criteria)
         assert 'from WorkloadEvaluation' in sql
         assert 'WITH WorkloadEvaluation AS (' in sql
@@ -265,7 +261,7 @@ class TestAll55Signals:
         # We check that the outer SELECT is COUNT(*), not bare *
         outer_match = re.search(r'\)\s+SELECT\s+', sql)
         if outer_match:
-            outer_select = sql[outer_match.start():]
+            outer_select = sql[outer_match.start() :]
             assert 'SELECT COUNT(*)' in outer_select
             # Ensure no bare "SELECT *" (without COUNT) in the outer query
             assert not re.search(r'SELECT\s+\*\s+FROM', outer_select)
@@ -350,7 +346,7 @@ class TestRoundTripStructuralEquivalence:
         # The SQL always ends with "WHERE <criteria>"
         where_idx = sql.rfind('WHERE ')
         assert where_idx != -1
-        extracted_criteria = sql[where_idx + len('WHERE '):]
+        extracted_criteria = sql[where_idx + len('WHERE ') :]
         assert extracted_criteria == criteria
 
     @pytest.mark.parametrize(
@@ -380,7 +376,6 @@ class TestRoundTripStructuralEquivalence:
         """The base SQL content is present in the generated SQL."""
         sql = build_signal_query(query_name, base_sql, criteria, population_criteria)
         clean_base = base_sql.rstrip().rstrip(';')
-        is_recursive = bool(re.match(r'^WITH\s+RECURSIVE', clean_base, re.IGNORECASE))
         has_inner_ctes = bool(re.match(r'^WITH\s+', clean_base, re.IGNORECASE))
         if has_inner_ctes:
             # Flattened or subquery: verify query_name and SELECT COUNT(*) present
@@ -495,7 +490,7 @@ class TestSQLValidationColumnNamesContainingKeywords:
 
     def test_alter_ego_column(self):
         """Column name 'alter_ego' is not rejected (ALTER is a substring)."""
-        validate_sql_readonly("SELECT COUNT(*) FROM t WHERE alter_ego IS NOT NULL")
+        validate_sql_readonly('SELECT COUNT(*) FROM t WHERE alter_ego IS NOT NULL')
 
     def test_drop_rate_column(self):
         """Column name 'drop_rate' is not rejected (DROP is a substring)."""

@@ -558,10 +558,14 @@ class TestRunReviewTool:
                     text='Enable short query acceleration',
                     description='SQA routes short queries to a dedicated queue.',
                     effort='Small',
-                    documentation_links=['https://docs.aws.amazon.com/redshift/latest/dg/wlm-short-query-acceleration.html'],
+                    documentation_links=[
+                        'https://docs.aws.amazon.com/redshift/latest/dg/wlm-short-query-acceleration.html'
+                    ],
                     triggered_by_signals=['HighSQAEligibility'],
                 ),
-            ] if findings else [],
+            ]
+            if findings
+            else [],
             queries_executed=['NodeDetails', 'WLMConfig'],
             query_failures=failures or [],
         )
@@ -744,7 +748,9 @@ class TestRunReviewTool:
             tool_names.add(tool.name)
 
         assert 'export_csv' not in tool_names, 'export_csv should not be registered'
-        assert 'import_and_analyze' not in tool_names, 'import_and_analyze should not be registered'
+        assert 'import_and_analyze' not in tool_names, (
+            'import_and_analyze should not be registered'
+        )
 
     def test_run_review_tool_is_registered(self):
         """Verify run_review is registered as an MCP tool."""
