@@ -15,7 +15,7 @@ class TestServerRouteLogging:
     @patch('awslabs.openapi_mcp_server.server.OpenAPIProvider')
     @patch('awslabs.openapi_mcp_server.server.FastMCP')
     @patch('awslabs.openapi_mcp_server.server.HttpClientFactory')
-    def test_create_server_logs_routes(
+    def test_create_server_with_openapi_provider(
         self,
         mock_http_factory,
         mock_openapi_provider,
@@ -25,7 +25,7 @@ class TestServerRouteLogging:
         mock_get_auth,
         mock_logger,
     ):
-        """Test that create_mcp_server logs routes when debug is enabled."""
+        """Test that create_mcp_server creates server with OpenAPIProvider."""
         # Set up mocks
         mock_auth = MagicMock()
         mock_auth.is_configured.return_value = True  # This is crucial to prevent sys.exit(1)

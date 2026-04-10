@@ -37,7 +37,6 @@ def mock_config():
     config.version = '1.0.0'
     config.transport = 'stdio'
     return config
-    return config
 
 
 @patch('awslabs.openapi_mcp_server.server.OpenAPIProvider')
