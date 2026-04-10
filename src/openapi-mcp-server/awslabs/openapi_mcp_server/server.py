@@ -274,7 +274,7 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
                         extra_spec = load_openapi_spec(
                             url=entry.get('spec_url', ''), path=entry.get('spec_path', '')
                         )
-                    except (ValueError, Exception) as e:
+                    except Exception as e:
                         logger.warning(f'Failed to load additional spec {extra_name}: {e}')
                         continue
 
