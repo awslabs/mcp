@@ -2037,7 +2037,7 @@ class TestDataCatalogManager:
         )
         assert isinstance(result, CallToolResult)
         assert result.isError is False
-        assert 'Successfully initiated connection test' in result.content[0].text
+        assert 'Successfully tested connection' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_test_connection_with_test_input(self, manager, mock_ctx, mock_glue_client):

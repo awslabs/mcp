@@ -561,10 +561,10 @@ class DataCatalogManager:
             log_with_request_id(
                 ctx,
                 LogLevel.INFO,
-                f'Successfully initiated connection test{" for: " + connection_name if connection_name else ""}',
+                f'Successfully tested connection{" for: " + connection_name if connection_name else ""}',
             )
 
-            success_msg = f'Successfully initiated connection test{" for: " + connection_name if connection_name else ""}. The test runs asynchronously.'
+            success_msg = f'Successfully tested connection{" for: " + connection_name if connection_name else ""}. The connection credentials are valid.'
             data = TestConnectionData(
                 connection_name=connection_name,
                 catalog_id=catalog_id or '',
