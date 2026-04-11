@@ -121,6 +121,8 @@ You can use the following command to start MCP Inspector. It will output a URL t
 npx @modelcontextprotocol/inspector https://knowledge-mcp.global.api.aws
 ```
 
+If MCP Inspector shows no tools or reports a connection error, the server may have rate-limited the initialization request. Wait 15–20 seconds and reconnect. See the [Rate Limiting](#rate-limiting) section for details.
+
 ### AWS Authentication
 
 The Knowledge MCP server does not require authentication but is subject to rate limits.
@@ -128,6 +130,16 @@ The Knowledge MCP server does not require authentication but is subject to rate 
 ### Data Usage
 
 Telemetry data collected through AWS Knowledge MCP server is not used for machine learning model training or improvement purposes.
+
+### Rate Limiting
+
+The Knowledge MCP server enforces a per-IP rate limit of approximately one request per 15 seconds. Because the standard MCP handshake sends multiple requests in quick succession (`initialize` → `tools/list`), some clients may receive an HTTP 429 response on the second request, which causes the client to report a connection failure or an empty tools list.
+
+**Recommendations:**
+
+- Wait at least 15–20 seconds between connection attempts from the same IP address.
+- If your MCP client does not support automatic retry, use the `fastmcp` proxy configuration shown in the [Configuration](#configuration) section. The proxy bridges stdio to HTTP and consolidates the handshake, reducing the number of raw HTTP requests visible to the rate limiter.
+- MCP clients that cache `tools/list` across sessions are less affected because the initialization handshake only runs once.
 
 ### FAQs
 
@@ -158,3 +170,7 @@ Yes. The Knowledge MCP server offers guidance for configuring and managing AWS s
 #### 7. Can I use AWS Knowledge MCP Server to find agent-friendly guidance on complex, actionable AWS workflows?
 
 Yes. The Knowledge MCP server is now empowered by a list of high-quality SOPs that provide AI agents step-by-step guidance on complex, error-prone workflows. Such workflows include deployment, troubleshooting, security, infrastructure setup, and more. Leveraging agent SOPs would not only augment the quality of agent responses, but also significantly boost AI efficiency in terms of time and token usage.
+
+#### 8. Why does my MCP client fail to connect or show an empty tools list?
+
+The server enforces a per-IP rate limit. If you connect multiple times in quick succession, the second connection attempt may be rate-limited with an HTTP 429 response. Wait 15–20 seconds between attempts. If your client does not support automatic retry, use the `fastmcp` proxy configuration shown in the [Configuration](#configuration) section.
