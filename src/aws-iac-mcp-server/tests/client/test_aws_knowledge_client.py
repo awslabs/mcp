@@ -120,6 +120,99 @@ class TestSearchDocumentation:
         with pytest.raises(Exception, match='Tool call failed'):
             await search_documentation('lambda', 'cdk')
 
+    @pytest.mark.asyncio
+    @patch('awslabs.aws_iac_mcp_server.client.aws_knowledge_client.asyncio.sleep')
+    @patch('awslabs.aws_iac_mcp_server.client.aws_knowledge_client.Client')
+    async def test_rate_limit_retry_succeeds(self, mock_client_class, mock_sleep):
+        """Test that a 429 on first attempt triggers retry and succeeds on second.
+
+        Verifies sleep is called once with a value >= BASE_BACKOFF_SECONDS (16s)
+        and that the successful result from the second attempt is returned.
+        """
+        mock_client = AsyncMock()
+        mock_client_class.return_value = mock_client
+        mock_sleep.return_value = None
+
+        mock_response = MagicMock()
+        mock_response.status_code = 429
+        rate_limit_exc = httpx.HTTPStatusError(
+            'Too Many Requests', request=MagicMock(), response=mock_response
+        )
+
+        mock_result = MagicMock()
+        mock_result.is_error = False
+        mock_content = TextContent(
+            type='text',
+            text=json.dumps(
+                {
+                    'content': {
+                        'result': [
+                            {
+                                'rank_order': 1,
+                                'title': 'AWS Lambda',
+                                'url': 'https://docs.aws.amazon.com/lambda/',
+                                'context': 'Serverless compute service',
+                            }
+                        ]
+                    }
+                }
+            ),
+        )
+        mock_result.content = [mock_content]
+        mock_client.call_tool = AsyncMock(side_effect=[rate_limit_exc, mock_result])
+
+        result = await search_documentation('lambda', 'cdk', limit=5)
+
+        assert len(result) == 1
+        assert result[0].title == 'AWS Lambda'
+        mock_sleep.assert_called_once()
+        sleep_time = mock_sleep.call_args[0][0]
+        assert sleep_time >= 16  # at least BASE_BACKOFF_SECONDS
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aws_iac_mcp_server.client.aws_knowledge_client.asyncio.sleep')
+    @patch('awslabs.aws_iac_mcp_server.client.aws_knowledge_client.Client')
+    async def test_rate_limit_all_retries_exhausted(self, mock_client_class, mock_sleep):
+        """Test that after MAX_RETRIES 429 responses the exception is re-raised.
+
+        Verifies sleep is called exactly MAX_RETRIES - 1 times (no sleep after
+        the final failing attempt) and the original exception propagates.
+        """
+        mock_client = AsyncMock()
+        mock_client_class.return_value = mock_client
+        mock_sleep.return_value = None
+
+        mock_response = MagicMock()
+        mock_response.status_code = 429
+        rate_limit_exc = httpx.HTTPStatusError(
+            'Too Many Requests', request=MagicMock(), response=mock_response
+        )
+        mock_client.call_tool = AsyncMock(side_effect=rate_limit_exc)
+
+        with pytest.raises(httpx.HTTPStatusError):
+            await search_documentation('lambda', 'cdk')
+
+        assert mock_sleep.call_count == 2  # sleep between attempts 1→2 and 2→3, not after 3
+        assert mock_client_class.call_count == 3  # new Client() each attempt
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aws_iac_mcp_server.client.aws_knowledge_client.asyncio.sleep')
+    @patch('awslabs.aws_iac_mcp_server.client.aws_knowledge_client.Client')
+    async def test_non_rate_limit_error_no_retry(self, mock_client_class, mock_sleep):
+        """Test that non-429 exceptions are raised immediately without retry.
+
+        Verifies sleep is never called and only one Client() is created.
+        """
+        mock_client = AsyncMock()
+        mock_client_class.return_value = mock_client
+        mock_client.call_tool = AsyncMock(side_effect=Exception('Connection refused'))
+
+        with pytest.raises(Exception, match='Connection refused'):
+            await search_documentation('lambda', 'cdk')
+
+        mock_sleep.assert_not_called()
+        assert mock_client_class.call_count == 1
+
 
 class TestParseSearchResult:
     """Test cases for the _parse_search_documentation_result function."""
