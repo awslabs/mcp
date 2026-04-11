@@ -1,11 +1,49 @@
+import httpx
 import json
 import pytest
 from awslabs.aws_iac_mcp_server.client.aws_knowledge_client import (
+    _is_rate_limit_error,
     _parse_search_documentation_result,
     search_documentation,
 )
 from mcp.types import TextContent
 from unittest.mock import AsyncMock, MagicMock, patch
+
+
+class TestIsRateLimitError:
+    """Unit tests for the _is_rate_limit_error helper."""
+
+    def test_httpx_429_is_rate_limit(self):
+        """httpx.HTTPStatusError with status 429 is a rate-limit error."""
+        mock_response = MagicMock()
+        mock_response.status_code = 429
+        exc = httpx.HTTPStatusError(
+            'Too Many Requests', request=MagicMock(), response=mock_response
+        )
+        assert _is_rate_limit_error(exc) is True
+
+    def test_httpx_500_is_not_rate_limit(self):
+        """httpx.HTTPStatusError with non-429 status is not a rate-limit error."""
+        mock_response = MagicMock()
+        mock_response.status_code = 500
+        exc = httpx.HTTPStatusError(
+            'Internal Server Error', request=MagicMock(), response=mock_response
+        )
+        assert _is_rate_limit_error(exc) is False
+
+    def test_string_429_is_rate_limit(self):
+        """Exception with '429' in message is treated as a rate-limit error."""
+        assert _is_rate_limit_error(Exception('HTTP 429 error')) is True
+
+    def test_string_too_many_requests_is_rate_limit(self):
+        """Exception with 'too many requests' in message is treated as rate-limit."""
+        assert (
+            _is_rate_limit_error(Exception('Too many requests. Please try again later.')) is True
+        )
+
+    def test_generic_exception_is_not_rate_limit(self):
+        """A plain connection error is not a rate-limit error."""
+        assert _is_rate_limit_error(Exception('Connection refused')) is False
 
 
 class TestSearchDocumentation:

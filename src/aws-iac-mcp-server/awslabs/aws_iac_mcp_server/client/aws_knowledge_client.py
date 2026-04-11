@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import httpx
 import json
 import os
 import sys
@@ -30,6 +31,17 @@ KNOWLEDGE_MCP_ENDPOINT = os.environ.get(
     'KNOWLEDGE_MCP_ENDPOINT', 'https://knowledge-mcp.global.api.aws'
 )
 KNOWLEDGE_MCP_SEARCH_DOCUMENTATION_TOOL = 'aws___search_documentation'
+MAX_RETRIES = 3
+BASE_BACKOFF_SECONDS = 16
+MAX_BACKOFF_SECONDS = 60
+
+
+def _is_rate_limit_error(exc: Exception) -> bool:
+    """Return True if the exception represents an HTTP 429 rate-limit response."""
+    if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code == 429:
+        return True
+    msg = str(exc).lower()
+    return '429' in msg or 'too many requests' in msg
 
 
 async def search_documentation(
