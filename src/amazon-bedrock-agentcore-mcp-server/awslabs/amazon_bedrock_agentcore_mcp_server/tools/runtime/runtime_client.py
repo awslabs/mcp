@@ -20,6 +20,9 @@ stop session) use ``bedrock-agentcore``.
 """
 
 import boto3
+from awslabs.amazon_bedrock_agentcore_mcp_server.utils.user_agent import (
+    build_user_agent,
+)
 from botocore.config import Config
 from loguru import logger
 from os import getenv
@@ -29,9 +32,8 @@ from typing import Any, Dict
 _control_clients: Dict[str, Any] = {}
 _data_clients: Dict[str, Any] = {}
 
-MCP_SERVER_VERSION = '0.1.0'
-MCP_CONTROL_USER_AGENT = f'agentcore-mcp-server/{MCP_SERVER_VERSION} runtime-control'
-MCP_DATA_USER_AGENT = f'agentcore-mcp-server/{MCP_SERVER_VERSION} runtime'
+MCP_CONTROL_USER_AGENT = build_user_agent('runtime', 'control')
+MCP_DATA_USER_AGENT = build_user_agent('runtime')
 
 
 def get_control_client(region_name: str | None = None) -> Any:

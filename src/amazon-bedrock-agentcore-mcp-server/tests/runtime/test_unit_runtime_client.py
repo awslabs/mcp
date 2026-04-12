@@ -142,3 +142,32 @@ class TestGetDataClient:
         assert config is not None, 'boto3 client must be created with a Config'
         assert MCP_DATA_USER_AGENT in config.user_agent_extra
         assert 'runtime-control' not in config.user_agent_extra
+
+
+class TestUserAgentFromSharedUtility:
+    """Verify runtime constants are built from the shared user_agent utility."""
+
+    def test_control_matches_shared_utility(self):
+        """Control user-agent matches build_user_agent('runtime', 'control')."""
+        from awslabs.amazon_bedrock_agentcore_mcp_server.utils.user_agent import (
+            build_user_agent,
+        )
+
+        assert MCP_CONTROL_USER_AGENT == build_user_agent('runtime', 'control')
+
+    def test_data_matches_shared_utility(self):
+        """Data user-agent matches build_user_agent('runtime')."""
+        from awslabs.amazon_bedrock_agentcore_mcp_server.utils.user_agent import (
+            build_user_agent,
+        )
+
+        assert MCP_DATA_USER_AGENT == build_user_agent('runtime')
+
+    def test_format_contains_version(self):
+        """Both user-agent strings contain the shared version."""
+        from awslabs.amazon_bedrock_agentcore_mcp_server.utils.user_agent import (
+            MCP_SERVER_VERSION,
+        )
+
+        assert MCP_SERVER_VERSION in MCP_CONTROL_USER_AGENT
+        assert MCP_SERVER_VERSION in MCP_DATA_USER_AGENT
