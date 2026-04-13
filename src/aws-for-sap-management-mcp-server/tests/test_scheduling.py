@@ -239,9 +239,7 @@ class TestListAppSchedules:
         """Test listing schedules excluding disabled ones."""
         mock_scheduler = MagicMock()
         paginator = MagicMock()
-        paginator.paginate.return_value = [
-            {'Schedules': [{'Name': 'sched-1'}]}
-        ]
+        paginator.paginate.return_value = [{'Schedules': [{'Name': 'sched-1'}]}]
         mock_scheduler.get_paginator.return_value = paginator
         mock_scheduler.get_schedule.return_value = {
             'Arn': 'arn:sched-1',
@@ -266,9 +264,7 @@ class TestListAppSchedules:
         """Test that schedules are filtered by application ID."""
         mock_scheduler = MagicMock()
         paginator = MagicMock()
-        paginator.paginate.return_value = [
-            {'Schedules': [{'Name': 'sched-1'}]}
-        ]
+        paginator.paginate.return_value = [{'Schedules': [{'Name': 'sched-1'}]}]
         mock_scheduler.get_paginator.return_value = paginator
         mock_scheduler.get_schedule.return_value = {
             'Arn': 'arn:sched-1',
@@ -348,9 +344,7 @@ class TestUpdateScheduleState:
             }
             mock_get_client.return_value = mock_scheduler
 
-            result = await tools.update_schedule_state(
-                ctx, schedule_name='sched-1', enabled=True
-            )
+            result = await tools.update_schedule_state(ctx, schedule_name='sched-1', enabled=True)
 
             assert result.status == 'success'
             assert result.previous_state == 'DISABLED'
@@ -370,9 +364,7 @@ class TestUpdateScheduleState:
             }
             mock_get_client.return_value = mock_scheduler
 
-            result = await tools.update_schedule_state(
-                ctx, schedule_name='sched-1', enabled=True
-            )
+            result = await tools.update_schedule_state(ctx, schedule_name='sched-1', enabled=True)
 
             assert result.status == 'no_change'
             mock_scheduler.update_schedule.assert_not_called()
@@ -494,9 +486,20 @@ class TestHelperFunctions:
             _determine_operation_type,
         )
 
-        assert _determine_operation_type('arn:aws:scheduler:::aws-sdk:ssmsap:startApplication') == 'Start Application'
-        assert _determine_operation_type('arn:aws:scheduler:::aws-sdk:ssmsap:stopApplication') == 'Stop Application'
-        assert _determine_operation_type('arn:aws:scheduler:::aws-sdk:ssmsap:startConfigurationChecks') == 'Configuration Checks'
+        assert (
+            _determine_operation_type('arn:aws:scheduler:::aws-sdk:ssmsap:startApplication')
+            == 'Start Application'
+        )
+        assert (
+            _determine_operation_type('arn:aws:scheduler:::aws-sdk:ssmsap:stopApplication')
+            == 'Stop Application'
+        )
+        assert (
+            _determine_operation_type(
+                'arn:aws:scheduler:::aws-sdk:ssmsap:startConfigurationChecks'
+            )
+            == 'Configuration Checks'
+        )
         assert _determine_operation_type('arn:unknown') == 'Unknown'
 
     def test_generate_schedule_name(self):
@@ -517,6 +520,7 @@ class TestSchedulingRequestConsent:
     async def test_consent_approved(self):
         """Test request_consent when user approves."""
         from awslabs.aws_for_sap_management_mcp_server.common import request_consent
+
         mock_ctx = MagicMock()
         mock_result = MagicMock()
         mock_result.action = 'accept'
@@ -529,6 +533,7 @@ class TestSchedulingRequestConsent:
     async def test_consent_rejected(self):
         """Test request_consent when user rejects."""
         from awslabs.aws_for_sap_management_mcp_server.common import request_consent
+
         mock_ctx = MagicMock()
         mock_result = MagicMock()
         mock_result.action = 'reject'
@@ -542,6 +547,7 @@ class TestSchedulingRequestConsent:
     async def test_consent_unchecked(self):
         """Test request_consent when user accepts but doesn't check acknowledge."""
         from awslabs.aws_for_sap_management_mcp_server.common import request_consent
+
         mock_ctx = MagicMock()
         mock_result = MagicMock()
         mock_result.action = 'accept'
@@ -594,7 +600,9 @@ class TestSchedulingRejectionPaths:
             side_effect=ValueError('User rejected the operation.'),
         ):
             result = await tools.schedule_config_checks(
-                ctx, application_id='app-1', schedule_expression='rate(7 days)',
+                ctx,
+                application_id='app-1',
+                schedule_expression='rate(7 days)',
             )
             assert result.status == 'error'
             assert 'User rejected' in result.message
@@ -608,7 +616,9 @@ class TestSchedulingRejectionPaths:
             side_effect=ValueError('User rejected the operation.'),
         ):
             result = await tools.schedule_start_application(
-                ctx, application_id='app-1', schedule_expression='rate(1 day)',
+                ctx,
+                application_id='app-1',
+                schedule_expression='rate(1 day)',
             )
             assert result.status == 'error'
             assert 'User rejected' in result.message
@@ -622,7 +632,9 @@ class TestSchedulingRejectionPaths:
             side_effect=ValueError('User rejected the operation.'),
         ):
             result = await tools.schedule_stop_application(
-                ctx, application_id='app-1', schedule_expression='rate(1 day)',
+                ctx,
+                application_id='app-1',
+                schedule_expression='rate(1 day)',
             )
             assert result.status == 'error'
             assert 'User rejected' in result.message
@@ -648,7 +660,9 @@ class TestSchedulingRejectionPaths:
             side_effect=ValueError('User rejected the operation.'),
         ):
             result = await tools.update_schedule_state(
-                ctx, schedule_name='sched-1', enabled=True,
+                ctx,
+                schedule_name='sched-1',
+                enabled=True,
             )
             assert result.status == 'error'
             assert 'User rejected' in result.message
@@ -663,6 +677,7 @@ class TestEnsureSchedulerRoleEdgeCases:
         from awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools import (
             _ensure_scheduler_role,
         )
+
         mock_iam = MagicMock()
         mock_iam.get_role.side_effect = ClientError(
             {'Error': {'Code': 'AccessDenied', 'Message': 'No access'}},
@@ -687,6 +702,7 @@ class TestEnsureSchedulerRoleEdgeCases:
         from awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools import (
             _ensure_scheduler_role,
         )
+
         mock_iam = MagicMock()
         mock_iam.get_role.side_effect = ClientError(
             {'Error': {'Code': 'NoSuchEntity', 'Message': 'Not found'}},
@@ -715,6 +731,7 @@ class TestEnsureSchedulerRoleEdgeCases:
         from awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools import (
             _ensure_scheduler_role,
         )
+
         mock_get_client.side_effect = Exception('Cannot create IAM client')
 
         with pytest.raises(Exception, match='Cannot create IAM client'):
@@ -772,9 +789,7 @@ class TestUpdateScheduleDisable:
             }
             mock_get_client.return_value = mock_scheduler
 
-            result = await tools.update_schedule_state(
-                ctx, schedule_name='sched-1', enabled=False
-            )
+            result = await tools.update_schedule_state(ctx, schedule_name='sched-1', enabled=False)
 
             assert result.status == 'success'
             assert result.previous_state == 'ENABLED'
@@ -787,9 +802,7 @@ class TestUpdateScheduleDisable:
         with _mock_consent():
             mock_get_client.side_effect = Exception('Connection error')
 
-            result = await tools.update_schedule_state(
-                ctx, schedule_name='sched-1', enabled=True
-            )
+            result = await tools.update_schedule_state(ctx, schedule_name='sched-1', enabled=True)
 
             assert result.status == 'error'
             assert 'Connection error' in result.message
@@ -851,9 +864,7 @@ class TestListAppSchedulesEdgeCases:
         """Test list_app_schedules when schedule has invalid JSON input."""
         mock_scheduler = MagicMock()
         paginator = MagicMock()
-        paginator.paginate.return_value = [
-            {'Schedules': [{'Name': 'sched-1'}]}
-        ]
+        paginator.paginate.return_value = [{'Schedules': [{'Name': 'sched-1'}]}]
         mock_scheduler.get_paginator.return_value = paginator
         mock_scheduler.get_schedule.return_value = {
             'Arn': 'arn:sched-1',

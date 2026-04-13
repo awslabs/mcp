@@ -16,7 +16,11 @@
 
 import asyncio
 from awslabs.aws_for_sap_management_mcp_server.client_factory import get_aws_client
-from awslabs.aws_for_sap_management_mcp_server.common import format_client_error, format_datetime, request_consent
+from awslabs.aws_for_sap_management_mcp_server.common import (
+    format_client_error,
+    format_datetime,
+    request_consent,
+)
 from awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.models import (
     ApplicationDetail,
     ApplicationSummary,
@@ -64,9 +68,7 @@ class SSMSAPApplicationTools:
         ] = None,
         profile_name: Annotated[
             str | None,
-            Field(
-                description='AWS CLI Profile Name to use. Falls back to AWS_PROFILE env var.'
-            ),
+            Field(description='AWS CLI Profile Name to use. Falls back to AWS_PROFILE env var.'),
         ] = None,
     ) -> ListApplicationsResponse:
         """List all SAP applications registered with AWS Systems Manager for SAP.
@@ -161,17 +163,21 @@ class SSMSAPApplicationTools:
                         detail = client.get_component(
                             ApplicationId=application_id, ComponentId=comp_id
                         ).get('Component', {})
-                        components.append({
-                            'component_id': comp_id,
-                            'component_type': detail.get('ComponentType', 'UNKNOWN'),
-                            'status': detail.get('Status', 'UNKNOWN'),
-                            'sid': detail.get('Sid'),
-                        })
+                        components.append(
+                            {
+                                'component_id': comp_id,
+                                'component_type': detail.get('ComponentType', 'UNKNOWN'),
+                                'status': detail.get('Status', 'UNKNOWN'),
+                                'sid': detail.get('Sid'),
+                            }
+                        )
                     except Exception as ce:
-                        components.append({
-                            'component_id': comp_id,
-                            'error': str(ce),
-                        })
+                        components.append(
+                            {
+                                'component_id': comp_id,
+                                'error': str(ce),
+                            }
+                        )
             except Exception as e:
                 logger.warning(f'Error listing components: {e}')
 
@@ -241,20 +247,20 @@ class SSMSAPApplicationTools:
         """
         try:
             client = get_aws_client('ssm-sap', region_name=region, profile_name=profile_name)
-            response = client.get_component(
-                ApplicationId=application_id, ComponentId=component_id
-            )
+            response = client.get_component(ApplicationId=application_id, ComponentId=component_id)
             comp = response.get('Component', {})
 
             hosts = []
             for host in comp.get('Hosts', []):
-                hosts.append({
-                    'hostname': host.get('HostName'),
-                    'host_ip': host.get('HostIp'),
-                    'host_role': host.get('HostRole'),
-                    'ec2_instance_id': host.get('EC2InstanceId') or host.get('InstanceId'),
-                    'os_version': host.get('OsVersion'),
-                })
+                hosts.append(
+                    {
+                        'hostname': host.get('HostName'),
+                        'host_ip': host.get('HostIp'),
+                        'host_role': host.get('HostRole'),
+                        'ec2_instance_id': host.get('EC2InstanceId') or host.get('InstanceId'),
+                        'os_version': host.get('OsVersion'),
+                    }
+                )
 
             return ComponentDetail(
                 component_id=component_id,
@@ -587,7 +593,9 @@ class SSMSAPApplicationTools:
 
         # Build consent dialog dynamically
         cascade_stop = False
-        ec2_warning = ' EC2 instances will also be shut down.' if include_ec2_instance_shutdown else ''
+        ec2_warning = (
+            ' EC2 instances will also be shut down.' if include_ec2_instance_shutdown else ''
+        )
 
         if associated_nw_apps:
             nw_list = ', '.join(associated_nw_apps)
@@ -605,7 +613,7 @@ class SSMSAPApplicationTools:
                             description=(
                                 f'Stop associated NetWeaver application(s) [{nw_list}] '
                                 'before stopping the HANA database. Recommended to avoid data inconsistency.'
-                            )
+                            ),
                         ),
                         'acknowledge': Field(
                             description=(
@@ -625,13 +633,16 @@ class SSMSAPApplicationTools:
                     schema=ConsentModel,
                 )
 
-                if elicitation_result.action != 'accept' or not elicitation_result.data.acknowledge:
+                if (
+                    elicitation_result.action != 'accept'
+                    or not elicitation_result.data.acknowledge  # type: ignore[attr-defined]
+                ):
                     return StartStopApplicationResponse(
                         status='error',
                         message='User rejected the operation.',
                         application_id=application_id,
                     )
-                cascade_stop = elicitation_result.data.stop_associated_apps_first
+                cascade_stop = elicitation_result.data.stop_associated_apps_first  # type: ignore[attr-defined]
             except McpError as e:
                 if e.error.code == METHOD_NOT_FOUND:
                     return StartStopApplicationResponse(
@@ -676,36 +687,42 @@ class SSMSAPApplicationTools:
                             nw_end_time = str(op.get('EndTime', ''))
                             if nw_status in ('SUCCESS', 'ERROR'):
                                 if nw_status == 'ERROR':
-                                    cascade_details.append(CascadeStopDetail(
-                                        application_id=nw_app_id,
-                                        application_type='SAP_ABAP',
-                                        operation_id=op_id,
-                                        status='ERROR',
-                                        start_time=nw_start_time,
-                                        end_time=nw_end_time,
-                                    ))
+                                    cascade_details.append(
+                                        CascadeStopDetail(
+                                            application_id=nw_app_id,
+                                            application_type='SAP_ABAP',
+                                            operation_id=op_id,
+                                            status='ERROR',
+                                            start_time=nw_start_time,
+                                            end_time=nw_end_time,
+                                        )
+                                    )
                                     return StartStopApplicationResponse(
                                         status='error',
                                         message=f"Failed to stop associated NetWeaver app '{nw_app_id}': {op.get('StatusMessage', 'Unknown error')}",
                                         application_id=application_id,
                                         associated_app_stop_details=cascade_details,
                                     )
-                                cascade_details.append(CascadeStopDetail(
+                                cascade_details.append(
+                                    CascadeStopDetail(
+                                        application_id=nw_app_id,
+                                        application_type='SAP_ABAP',
+                                        operation_id=op_id,
+                                        status='SUCCESS',
+                                        start_time=nw_start_time,
+                                        end_time=nw_end_time,
+                                    )
+                                )
+                                break
+                        else:
+                            cascade_details.append(
+                                CascadeStopDetail(
                                     application_id=nw_app_id,
                                     application_type='SAP_ABAP',
                                     operation_id=op_id,
-                                    status='SUCCESS',
-                                    start_time=nw_start_time,
-                                    end_time=nw_end_time,
-                                ))
-                                break
-                        else:
-                            cascade_details.append(CascadeStopDetail(
-                                application_id=nw_app_id,
-                                application_type='SAP_ABAP',
-                                operation_id=op_id,
-                                status='TIMED_OUT',
-                            ))
+                                    status='TIMED_OUT',
+                                )
+                            )
                             return StartStopApplicationResponse(
                                 status='error',
                                 message=f"Timed out waiting for NetWeaver app '{nw_app_id}' to stop.",
@@ -713,12 +730,14 @@ class SSMSAPApplicationTools:
                                 associated_app_stop_details=cascade_details,
                             )
                 except ClientError as e:
-                    cascade_details.append(CascadeStopDetail(
-                        application_id=nw_app_id,
-                        application_type='SAP_ABAP',
-                        operation_id=None,
-                        status='ERROR',
-                    ))
+                    cascade_details.append(
+                        CascadeStopDetail(
+                            application_id=nw_app_id,
+                            application_type='SAP_ABAP',
+                            operation_id=None,
+                            status='ERROR',
+                        )
+                    )
                     return StartStopApplicationResponse(
                         status='error',
                         message=f"Error stopping NetWeaver app '{nw_app_id}': {e.response['Error']['Message']}",
@@ -738,7 +757,7 @@ class SSMSAPApplicationTools:
             message = f"Stop operation initiated for '{application_id}'"
             if cascade_details:
                 stopped_names = ', '.join(d.application_id for d in cascade_details)
-                message += f" (after successfully stopping associated app(s): {stopped_names})"
+                message += f' (after successfully stopping associated app(s): {stopped_names})'
             return StartStopApplicationResponse(
                 status='success',
                 message=message,

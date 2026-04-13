@@ -15,7 +15,6 @@
 """Tests for server initialization and tool registration."""
 
 
-
 class TestServerInitialization:
     """Test server module initialization."""
 
@@ -57,7 +56,7 @@ class TestServerInitialization:
 
     def test_server_exception_handler(self):
         """Test that server re-raises exceptions during tool registration (lines 165-167)."""
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import patch
 
         # Patch one of the tool classes to raise during init
         with patch(
@@ -66,14 +65,16 @@ class TestServerInitialization:
             mock_app_tools.side_effect = RuntimeError('Registration failed')
             import importlib
             import pytest
+
             with pytest.raises(RuntimeError, match='Registration failed'):
                 import awslabs.aws_for_sap_management_mcp_server.server as server_mod
+
                 importlib.reload(server_mod)
 
     def test_main_function(self):
         """Test that main() calls mcp.run() (line 177)."""
-        from unittest.mock import patch
         from awslabs.aws_for_sap_management_mcp_server.server import main
+        from unittest.mock import patch
 
         with patch('awslabs.aws_for_sap_management_mcp_server.server.mcp') as mock_mcp:
             main()

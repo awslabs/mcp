@@ -29,9 +29,7 @@ from botocore.exceptions import ClientError
 from datetime import datetime
 from loguru import logger
 from mcp.server.fastmcp import Context
-from mcp.shared.exceptions import McpError
-from mcp.types import METHOD_NOT_FOUND
-from pydantic import BaseModel, Field
+from pydantic import Field
 from typing import Annotated, Any, Dict, List
 
 
@@ -163,11 +161,15 @@ class SSMSAPSchedulingTools:
         ] = None,
         schedule_name: Annotated[
             str | None,
-            Field(description='Optional custom name for the schedule. Auto-generated if not provided.'),
+            Field(
+                description='Optional custom name for the schedule. Auto-generated if not provided.'
+            ),
         ] = None,
         timezone_str: Annotated[
             str | None,
-            Field(description='Timezone for cron expressions (e.g., "America/New_York"). Default: UTC.'),
+            Field(
+                description='Timezone for cron expressions (e.g., "America/New_York"). Default: UTC.'
+            ),
         ] = None,
         region: Annotated[
             str | None,
@@ -208,7 +210,8 @@ class SSMSAPSchedulingTools:
             return CreateScheduleResponse(
                 status='error',
                 message=str(e),
-                schedule_name=schedule_name or _generate_schedule_name('ssmsap-cc-', application_id),
+                schedule_name=schedule_name
+                or _generate_schedule_name('ssmsap-cc-', application_id),
                 schedule_arn=None,
                 application_id=application_id,
                 schedule_expression=schedule_expression,
@@ -299,7 +302,8 @@ class SSMSAPSchedulingTools:
             return CreateScheduleResponse(
                 status='error',
                 message=str(e),
-                schedule_name=schedule_name or _generate_schedule_name('ssmsap-start-', application_id),
+                schedule_name=schedule_name
+                or _generate_schedule_name('ssmsap-start-', application_id),
                 schedule_arn=None,
                 application_id=application_id,
                 schedule_expression=schedule_expression,
@@ -309,7 +313,8 @@ class SSMSAPSchedulingTools:
             operation='start_application',
             application_id=application_id,
             schedule_expression=schedule_expression,
-            schedule_name=schedule_name or _generate_schedule_name('ssmsap-start-', application_id),
+            schedule_name=schedule_name
+            or _generate_schedule_name('ssmsap-start-', application_id),
             description=description or f'Scheduled start for SAP application {application_id}',
             start_date=start_date,
             end_date=end_date,
@@ -396,7 +401,9 @@ class SSMSAPSchedulingTools:
         if stop_connected_entity:
             extra_input['StopConnectedEntity'] = stop_connected_entity
 
-        ec2_warning = ' EC2 instances will also be shut down.' if include_ec2_instance_shutdown else ''
+        ec2_warning = (
+            ' EC2 instances will also be shut down.' if include_ec2_instance_shutdown else ''
+        )
         try:
             await request_consent(
                 f"Schedule automatic STOP for SAP application '{application_id}' "
@@ -409,7 +416,8 @@ class SSMSAPSchedulingTools:
             return CreateScheduleResponse(
                 status='error',
                 message=str(e),
-                schedule_name=schedule_name or _generate_schedule_name('ssmsap-stop-', application_id),
+                schedule_name=schedule_name
+                or _generate_schedule_name('ssmsap-stop-', application_id),
                 schedule_arn=None,
                 application_id=application_id,
                 schedule_expression=schedule_expression,
@@ -476,13 +484,9 @@ class SSMSAPSchedulingTools:
             if timezone_str:
                 params['ScheduleExpressionTimezone'] = timezone_str
             if start_date:
-                params['StartDate'] = datetime.fromisoformat(
-                    start_date.replace('Z', '+00:00')
-                )
+                params['StartDate'] = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
             if end_date:
-                params['EndDate'] = datetime.fromisoformat(
-                    end_date.replace('Z', '+00:00')
-                )
+                params['EndDate'] = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
 
             response = scheduler.create_schedule(**params)
             return CreateScheduleResponse(

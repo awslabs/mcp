@@ -67,6 +67,4 @@ class ListSchedulesResponse(BaseModel):
     total_schedules: int = Field(default=0, description='Total number of schedules')
     enabled_count: int = Field(default=0, description='Number of enabled schedules')
     disabled_count: int = Field(default=0, description='Number of disabled schedules')
-    schedules: List[ScheduleDetail] = Field(
-        default_factory=list, description='List of schedules'
-    )
+    schedules: List[ScheduleDetail] = Field(default_factory=list, description='List of schedules')

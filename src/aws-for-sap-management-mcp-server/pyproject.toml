@@ -82,6 +82,10 @@ ignore = ["C901", "E501", "E741", "F402", "F823", "D100", "D106"]
 lines-after-imports = 2
 no-sections = true
 
+[tool.ruff.lint.per-file-ignores]
+"**/*.ipynb" = ["F704"]
+"tests/**" = ["D102"]
+
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 

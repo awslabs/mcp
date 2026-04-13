@@ -218,11 +218,7 @@ class SSMSAPConfigCheckTools:
             logger.error(f'Error getting config check summary: {e}')
             return ConfigCheckSummary(
                 application_id=application_id,
-                checks=[
-                    ConfigCheckOperation(
-                        check_id='ERROR', status='ERROR', result=str(e)
-                    )
-                ],
+                checks=[ConfigCheckOperation(check_id='ERROR', status='ERROR', result=str(e))],
             )
 
     async def get_config_check_operation(
@@ -334,9 +330,7 @@ class SSMSAPConfigCheckTools:
         """
         try:
             client = get_aws_client('ssm-sap', region_name=region, profile_name=profile_name)
-            response = client.list_sub_check_rule_results(
-                SubCheckResultId=subcheck_result_id
-            )
+            response = client.list_sub_check_rule_results(SubCheckResultId=subcheck_result_id)
             return response.get('RuleResults', [])
         except Exception as e:
             logger.error(f'Error listing sub check rule results: {e}')

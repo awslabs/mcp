@@ -99,7 +99,9 @@ def _get_all_app_ids(client) -> List[str]:
 
 
 def _discover_cwagent_dimensions(
-    cloudwatch_client, metric_name: str, instance_id: str,
+    cloudwatch_client,
+    metric_name: str,
+    instance_id: str,
 ) -> Optional[List[Dict[str, str]]]:
     """Discover actual CWAgent dimensions for a metric on an instance.
 
@@ -123,7 +125,9 @@ def _discover_cwagent_dimensions(
 
 
 def _discover_cwagent_disk_dimensions(
-    cloudwatch_client, instance_id: str, target_paths: Optional[List[str]] = None,
+    cloudwatch_client,
+    instance_id: str,
+    target_paths: Optional[List[str]] = None,
 ) -> List[List[Dict[str, str]]]:
     """Discover CWAgent disk_used_percent dimensions for SAP-relevant paths.
 
@@ -150,7 +154,10 @@ def _discover_cwagent_disk_dimensions(
 
 
 async def _run_ssm_command(
-    ssm_client, instance_id: str, command: str, timeout_seconds: int = 30,
+    ssm_client,
+    instance_id: str,
+    command: str,
+    timeout_seconds: int = 30,
 ) -> Optional[str]:
     """Run a shell command on an instance via SSM and return the output.
 
@@ -191,7 +198,10 @@ async def _run_ssm_command(
 
 
 def _run_ssm_command_sync(
-    ssm_client, instance_id: str, command: str, timeout_seconds: int = 30,
+    ssm_client,
+    instance_id: str,
+    command: str,
+    timeout_seconds: int = 30,
 ) -> Optional[str]:
     """Run a shell command on an instance via SSM and return the output (sync version).
 
@@ -199,6 +209,7 @@ def _run_ssm_command_sync(
     Returns the stdout output or None on failure.
     """
     import time as _time
+
     try:
         resp = ssm_client.send_command(
             InstanceIds=[instance_id],
@@ -239,7 +250,11 @@ def _has_recent_config_checks(config_check_ops: list, max_age_hours: int = 24) -
         last_updated = op.get('EndTime') or op.get('LastUpdatedTime')
         if last_updated:
             if isinstance(last_updated, datetime):
-                ts = last_updated if last_updated.tzinfo else last_updated.replace(tzinfo=timezone.utc)
+                ts = (
+                    last_updated
+                    if last_updated.tzinfo
+                    else last_updated.replace(tzinfo=timezone.utc)
+                )
             else:
                 continue
             if (now - ts).total_seconds() < max_age_hours * 3600:
@@ -251,7 +266,9 @@ def _trigger_config_checks(client, app_id: str) -> list:
     """Trigger all available config checks for an application and return the operations."""
     try:
         defs_response = client.list_configuration_check_definitions()
-        check_ids = [c.get('Id') for c in defs_response.get('ConfigurationChecks', []) if c.get('Id')]
+        check_ids = [
+            c.get('Id') for c in defs_response.get('ConfigurationChecks', []) if c.get('Id')
+        ]
         if not check_ids:
             return []
         response = client.start_configuration_checks(
@@ -264,7 +281,10 @@ def _trigger_config_checks(client, app_id: str) -> list:
 
 
 async def _wait_for_config_checks(
-    client, operations: list, poll_interval_seconds: int = 10, max_wait_seconds: int = 180,
+    client,
+    operations: list,
+    poll_interval_seconds: int = 10,
+    max_wait_seconds: int = 180,
 ) -> None:
     """Poll config check operations until all complete or timeout is reached.
 
@@ -274,9 +294,7 @@ async def _wait_for_config_checks(
         poll_interval_seconds: Seconds between polling attempts. Default: 10.
         max_wait_seconds: Maximum total seconds to wait. Default: 180 (3 minutes).
     """
-    operation_ids = [
-        op.get('OperationId') for op in operations if op.get('OperationId')
-    ]
+    operation_ids = [op.get('OperationId') for op in operations if op.get('OperationId')]
     if not operation_ids:
         return
 
@@ -385,9 +403,9 @@ async def _get_app_summary(
             for comp in comp_response.get('Components', []):
                 comp_id = comp.get('ComponentId', '')
                 try:
-                    detail = client.get_component(
-                        ApplicationId=app_id, ComponentId=comp_id
-                    ).get('Component', {})
+                    detail = client.get_component(ApplicationId=app_id, ComponentId=comp_id).get(
+                        'Component', {}
+                    )
                     instance_ids = _extract_ec2_ids(detail)
                     for iid in instance_ids:
                         if iid not in ec2_instance_ids:
@@ -436,20 +454,25 @@ async def _get_app_summary(
                             cluster_status = str(cls_status)
                         dbs = detail.get('Databases')
                         if dbs and isinstance(dbs, list):
-                            databases = [str(d.get('DatabaseId', d) if isinstance(d, dict) else d) for d in dbs]
+                            databases = [
+                                str(d.get('DatabaseId', d) if isinstance(d, dict) else d)
+                                for d in dbs
+                            ]
 
-                    components.append(ComponentEntry(
-                        component_id=comp_id,
-                        component_type=comp_type,
-                        status=detail.get('Status', 'UNKNOWN'),
-                        sid=detail.get('Sid', '-'),
-                        ec2_instance_ids=instance_ids,
-                        hana_version=hana_version,
-                        replication_mode=replication_mode,
-                        operation_mode=operation_mode,
-                        databases=databases,
-                        cluster_status=cluster_status,
-                    ))
+                    components.append(
+                        ComponentEntry(
+                            component_id=comp_id,
+                            component_type=comp_type,
+                            status=detail.get('Status', 'UNKNOWN'),
+                            sid=detail.get('Sid', '-'),
+                            ec2_instance_ids=instance_ids,
+                            hana_version=hana_version,
+                            replication_mode=replication_mode,
+                            operation_mode=operation_mode,
+                            databases=databases,
+                            cluster_status=cluster_status,
+                        )
+                    )
                 except Exception:
                     components.append(ComponentEntry(component_id=comp_id, status='ERROR'))
         except Exception:
@@ -486,9 +509,7 @@ async def _get_app_summary(
                         check_ops = cc_response.get('ConfigurationCheckOperations', [])
 
                         # If new checks are still in progress, prefer previous results
-                        any_in_progress = any(
-                            op.get('Status') == 'INPROGRESS' for op in check_ops
-                        )
+                        any_in_progress = any(op.get('Status') == 'INPROGRESS' for op in check_ops)
                         if any_in_progress and previous_check_ops:
                             check_ops = previous_check_ops
 
@@ -517,14 +538,18 @@ async def _get_app_summary(
                                     MaxResults=10,
                                 )
                                 for list_op in ops_resp.get('Operations', []):
-                                    if list_op.get('Type') == 'CONFIGURATION_CHECK' and list_op.get('Id'):
+                                    if list_op.get(
+                                        'Type'
+                                    ) == 'CONFIGURATION_CHECK' and list_op.get('Id'):
                                         operation_id = list_op['Id']
                                         break
                             except Exception:
                                 pass
                         if operation_id:
                             try:
-                                sc_response = client.list_sub_check_results(OperationId=operation_id)
+                                sc_response = client.list_sub_check_results(
+                                    OperationId=operation_id
+                                )
                                 for sc in sc_response.get('SubCheckResults', []):
                                     sc_id = sc.get('Id', '')
                                     rule_results = []
@@ -534,35 +559,41 @@ async def _get_app_summary(
                                                 SubCheckResultId=sc_id
                                             )
                                             for rule in rr_response.get('RuleResults', []):
-                                                rule_results.append(RuleResultEntry(
-                                                    rule_id=rule.get('Id', 'UNKNOWN'),
-                                                    description=rule.get('Description'),
-                                                    status=rule.get('Status', 'UNKNOWN'),
-                                                    message=rule.get('Message'),
-                                                    metadata=rule.get('Metadata'),
-                                                ))
+                                                rule_results.append(
+                                                    RuleResultEntry(
+                                                        rule_id=rule.get('Id', 'UNKNOWN'),
+                                                        description=rule.get('Description'),
+                                                        status=rule.get('Status', 'UNKNOWN'),
+                                                        message=rule.get('Message'),
+                                                        metadata=rule.get('Metadata'),
+                                                    )
+                                                )
                                         except Exception:
                                             pass
-                                    subchecks.append(SubCheckEntry(
-                                        id=sc_id or None,
-                                        name=sc.get('Name', 'UNKNOWN'),
-                                        result=sc.get('Result', 'UNKNOWN'),
-                                        description=sc.get('Description'),
-                                        rule_results=rule_results,
-                                    ))
+                                    subchecks.append(
+                                        SubCheckEntry(
+                                            id=sc_id or None,
+                                            name=sc.get('Name', 'UNKNOWN'),
+                                            result=sc.get('Result', 'UNKNOWN'),
+                                            description=sc.get('Description'),
+                                            rule_results=rule_results,
+                                        )
+                                    )
                             except Exception:
                                 pass
 
-                    config_checks.append(ConfigCheckEntry(
-                        check_id=op.get('ConfigurationCheckId', 'UNKNOWN'),
-                        status=op.get('Status', 'UNKNOWN'),
-                        result=result,
-                        last_updated=format_datetime(
-                            op.get('EndTime') or op.get('LastUpdatedTime')
-                        ),
-                        triggered_by_summary=triggered,
-                        subchecks=subchecks,
-                    ))
+                    config_checks.append(
+                        ConfigCheckEntry(
+                            check_id=op.get('ConfigurationCheckId', 'UNKNOWN'),
+                            status=op.get('Status', 'UNKNOWN'),
+                            result=result,
+                            last_updated=format_datetime(
+                                op.get('EndTime') or op.get('LastUpdatedTime')
+                            ),
+                            triggered_by_summary=triggered,
+                            subchecks=subchecks,
+                        )
+                    )
             except Exception:
                 pass
 
@@ -580,8 +611,10 @@ async def _get_app_summary(
                         Namespace='AWS/EC2',
                         MetricName='CPUUtilization',
                         Dimensions=[{'Name': 'InstanceId', 'Value': instance_id}],
-                        StartTime=start_time, EndTime=now,
-                        Period=3600, Statistics=['Average', 'Maximum'],
+                        StartTime=start_time,
+                        EndTime=now,
+                        Period=3600,
+                        Statistics=['Average', 'Maximum'],
                     )
                     dps = cpu_resp.get('Datapoints', [])
                     if dps:
@@ -594,8 +627,10 @@ async def _get_app_summary(
                         Namespace='AWS/EC2',
                         MetricName='StatusCheckFailed',
                         Dimensions=[{'Name': 'InstanceId', 'Value': instance_id}],
-                        StartTime=start_time, EndTime=now,
-                        Period=3600, Statistics=['Maximum'],
+                        StartTime=start_time,
+                        EndTime=now,
+                        Period=3600,
+                        Statistics=['Maximum'],
                     )
                     dps = sc_resp.get('Datapoints', [])
                     if dps:
@@ -612,15 +647,19 @@ async def _get_app_summary(
                 network_out = None
                 try:
                     mem_dims = _discover_cwagent_dimensions(
-                        cloudwatch_client, 'mem_used_percent', instance_id,
+                        cloudwatch_client,
+                        'mem_used_percent',
+                        instance_id,
                     )
                     if mem_dims:
                         mem_resp = cloudwatch_client.get_metric_statistics(
                             Namespace='CWAgent',
                             MetricName='mem_used_percent',
                             Dimensions=mem_dims,
-                            StartTime=start_time, EndTime=now,
-                            Period=3600, Statistics=['Average'],
+                            StartTime=start_time,
+                            EndTime=now,
+                            Period=3600,
+                            Statistics=['Average'],
                         )
                         dps = mem_resp.get('Datapoints', [])
                         if dps:
@@ -630,7 +669,8 @@ async def _get_app_summary(
                 try:
                     # Query SAP-relevant disk paths
                     disk_dim_sets = _discover_cwagent_disk_dimensions(
-                        cloudwatch_client, instance_id,
+                        cloudwatch_client,
+                        instance_id,
                     )
                     if disk_dim_sets:
                         # Use root '/' path for the summary metric; collect all for detail
@@ -641,8 +681,10 @@ async def _get_app_summary(
                                     Namespace='CWAgent',
                                     MetricName='disk_used_percent',
                                     Dimensions=dim_set,
-                                    StartTime=start_time, EndTime=now,
-                                    Period=3600, Statistics=['Average'],
+                                    StartTime=start_time,
+                                    EndTime=now,
+                                    Period=3600,
+                                    Statistics=['Average'],
                                 )
                                 dps = disk_resp.get('Datapoints', [])
                                 if dps:
@@ -652,15 +694,19 @@ async def _get_app_summary(
                     pass
                 try:
                     net_dims = _discover_cwagent_dimensions(
-                        cloudwatch_client, 'net_bytes_recv', instance_id,
+                        cloudwatch_client,
+                        'net_bytes_recv',
+                        instance_id,
                     )
                     if net_dims:
                         net_in_resp = cloudwatch_client.get_metric_statistics(
                             Namespace='CWAgent',
                             MetricName='net_bytes_recv',
                             Dimensions=net_dims,
-                            StartTime=start_time, EndTime=now,
-                            Period=3600, Statistics=['Sum'],
+                            StartTime=start_time,
+                            EndTime=now,
+                            Period=3600,
+                            Statistics=['Sum'],
                         )
                         dps = net_in_resp.get('Datapoints', [])
                         if dps:
@@ -669,30 +715,37 @@ async def _get_app_summary(
                     pass
                 try:
                     net_dims = _discover_cwagent_dimensions(
-                        cloudwatch_client, 'net_bytes_sent', instance_id,
+                        cloudwatch_client,
+                        'net_bytes_sent',
+                        instance_id,
                     )
                     if net_dims:
                         net_out_resp = cloudwatch_client.get_metric_statistics(
                             Namespace='CWAgent',
                             MetricName='net_bytes_sent',
                             Dimensions=net_dims,
-                            StartTime=start_time, EndTime=now,
-                            Period=3600, Statistics=['Sum'],
+                            StartTime=start_time,
+                            EndTime=now,
+                            Period=3600,
+                            Statistics=['Sum'],
                         )
                         dps = net_out_resp.get('Datapoints', [])
                         if dps:
                             network_out = round(dps[0].get('Sum', 0), 0)
                 except Exception:
                     pass
-                cw_metrics.append(CloudWatchMetricsEntry(
-                    instance_id=instance_id,
-                    cpu_avg=cpu_avg, cpu_max=cpu_max,
-                    status_check=status_check,
-                    memory_used_pct=memory_used_pct,
-                    disk_used_pct=disk_used_pct,
-                    network_in=network_in,
-                    network_out=network_out,
-                ))
+                cw_metrics.append(
+                    CloudWatchMetricsEntry(
+                        instance_id=instance_id,
+                        cpu_avg=cpu_avg,
+                        cpu_max=cpu_max,
+                        status_check=status_check,
+                        memory_used_pct=memory_used_pct,
+                        disk_used_pct=disk_used_pct,
+                        network_in=network_in,
+                        network_out=network_out,
+                    )
+                )
 
         # Log backup status — only for HANA applications
         log_backup = []
@@ -722,15 +775,17 @@ async def _get_app_summary(
                         all_cmds = []
                         paginator = ssm_client.get_paginator('list_commands')
                         for page in paginator.paginate(
-                            Filters=[{'key': 'DocumentName', 'value': 'AWSSystemsManagerSAP-HanaLogBackupStatusCheck'}],
+                            Filters=[
+                                {
+                                    'key': 'DocumentName',
+                                    'value': 'AWSSystemsManagerSAP-HanaLogBackupStatusCheck',
+                                }
+                            ],
                             PaginationConfig={'MaxItems': 50},
                         ):
                             all_cmds.extend(page.get('Commands', []))
                         # Find commands targeting this instance
-                        matching = [
-                            c for c in all_cmds
-                            if instance_id in c.get('InstanceIds', [])
-                        ]
+                        matching = [c for c in all_cmds if instance_id in c.get('InstanceIds', [])]
                         if matching:
                             cmd_id = matching[0].get('CommandId')
                             if cmd_id:
@@ -752,22 +807,28 @@ async def _get_app_summary(
                                                     # Extract JSON payload after pip install noise
                                                     json_start = output.find('{"executionStatus"')
                                                     if json_start >= 0:
-                                                        backup_check_details = output[json_start:json_start + 500]
+                                                        backup_check_details = output[
+                                                            json_start : json_start + 500
+                                                        ]
                                                     else:
                                                         backup_check_details = output[:500]
                                                 break
                                 except Exception as e:
-                                    logger.warning(f'Error getting invocation details for {instance_id}: {e}')
+                                    logger.warning(
+                                        f'Error getting invocation details for {instance_id}: {e}'
+                                    )
                     except Exception as e:
                         logger.warning(f'Error checking log backup for {instance_id}: {e}')
 
-                log_backup.append(LogBackupStatusEntry(
-                    instance_id=instance_id,
-                    ssm_agent_status=agent_status,
-                    agent_version=agent_version,
-                    log_backup_status=backup_check_status,
-                    log_backup_details=backup_check_details,
-                ))
+                log_backup.append(
+                    LogBackupStatusEntry(
+                        instance_id=instance_id,
+                        ssm_agent_status=agent_status,
+                        agent_version=agent_version,
+                        log_backup_status=backup_check_status,
+                        log_backup_details=backup_check_details,
+                    )
+                )
 
         # AWS Backup status — only for HANA applications
         backup_entries = []
@@ -804,25 +865,30 @@ async def _get_app_summary(
                             # Capture failure reason from the API
                             failure_reason = None
                             if b_status in ('FAILED', 'EXPIRED', 'ABORTED'):
-                                failure_reason = job.get('StatusMessage') or job.get('MessageCategory')
+                                failure_reason = job.get('StatusMessage') or job.get(
+                                    'MessageCategory'
+                                )
                                 # If list_backup_jobs didn't return StatusMessage,
                                 # call describe_backup_job for the detailed failure reason
                                 job_id = job.get('BackupJobId', '')
                                 if not failure_reason and job_id:
                                     try:
-                                        detail_resp = backup_client.describe_backup_job(BackupJobId=job_id)
-                                        failure_reason = (
-                                            detail_resp.get('StatusMessage')
-                                            or detail_resp.get('MessageCategory')
+                                        detail_resp = backup_client.describe_backup_job(
+                                            BackupJobId=job_id
                                         )
+                                        failure_reason = detail_resp.get(
+                                            'StatusMessage'
+                                        ) or detail_resp.get('MessageCategory')
                                     except Exception:
                                         pass
-                            backup_entries.append(BackupStatusEntry(
-                                instance_id=app_id,
-                                last_backup=last_backup,
-                                backup_status=status_str,
-                                failure_reason=failure_reason,
-                            ))
+                            backup_entries.append(
+                                BackupStatusEntry(
+                                    instance_id=app_id,
+                                    last_backup=last_backup,
+                                    backup_status=status_str,
+                                    failure_reason=failure_reason,
+                                )
+                            )
                     else:
                         # Fallback: query per-instance by EC2 resource ARN
                         for instance_id in ec2_instance_ids:
@@ -839,27 +905,32 @@ async def _get_app_summary(
                                     b_status = jobs[0].get('State', 'UNKNOWN')
                                     last_backup = format_datetime(jobs[0].get('CompletionDate'))
                                     if b_status in ('FAILED', 'EXPIRED', 'ABORTED'):
-                                        failure_reason = jobs[0].get('StatusMessage') or jobs[0].get('MessageCategory')
+                                        failure_reason = jobs[0].get('StatusMessage') or jobs[
+                                            0
+                                        ].get('MessageCategory')
                                         job_id = jobs[0].get('BackupJobId', '')
                                         if not failure_reason and job_id:
                                             try:
-                                                detail_resp = backup_client.describe_backup_job(BackupJobId=job_id)
-                                                failure_reason = (
-                                                    detail_resp.get('StatusMessage')
-                                                    or detail_resp.get('MessageCategory')
+                                                detail_resp = backup_client.describe_backup_job(
+                                                    BackupJobId=job_id
                                                 )
+                                                failure_reason = detail_resp.get(
+                                                    'StatusMessage'
+                                                ) or detail_resp.get('MessageCategory')
                                             except Exception:
                                                 pass
                                 else:
                                     b_status = 'No backups'
                             except Exception:
                                 b_status = 'Error'
-                            backup_entries.append(BackupStatusEntry(
-                                instance_id=instance_id,
-                                last_backup=last_backup,
-                                backup_status=b_status,
-                                failure_reason=failure_reason,
-                            ))
+                            backup_entries.append(
+                                BackupStatusEntry(
+                                    instance_id=instance_id,
+                                    last_backup=last_backup,
+                                    backup_status=b_status,
+                                    failure_reason=failure_reason,
+                                )
+                            )
                 except Exception:
                     # Fallback: query per-instance by EC2 resource ARN
                     for instance_id in ec2_instance_ids:
@@ -876,27 +947,32 @@ async def _get_app_summary(
                                 b_status = jobs[0].get('State', 'UNKNOWN')
                                 last_backup = format_datetime(jobs[0].get('CompletionDate'))
                                 if b_status in ('FAILED', 'EXPIRED', 'ABORTED'):
-                                    failure_reason = jobs[0].get('StatusMessage') or jobs[0].get('MessageCategory')
+                                    failure_reason = jobs[0].get('StatusMessage') or jobs[0].get(
+                                        'MessageCategory'
+                                    )
                                     job_id = jobs[0].get('BackupJobId', '')
                                     if not failure_reason and job_id:
                                         try:
-                                            detail_resp = backup_client.describe_backup_job(BackupJobId=job_id)
-                                            failure_reason = (
-                                                detail_resp.get('StatusMessage')
-                                                or detail_resp.get('MessageCategory')
+                                            detail_resp = backup_client.describe_backup_job(
+                                                BackupJobId=job_id
                                             )
+                                            failure_reason = detail_resp.get(
+                                                'StatusMessage'
+                                            ) or detail_resp.get('MessageCategory')
                                         except Exception:
                                             pass
                             else:
                                 b_status = 'No backups'
                         except Exception:
                             b_status = 'Error'
-                        backup_entries.append(BackupStatusEntry(
-                            instance_id=instance_id,
-                            last_backup=last_backup,
-                            backup_status=b_status,
-                            failure_reason=failure_reason,
-                        ))
+                        backup_entries.append(
+                            BackupStatusEntry(
+                                instance_id=instance_id,
+                                last_backup=last_backup,
+                                backup_status=b_status,
+                                failure_reason=failure_reason,
+                            )
+                        )
             except Exception:
                 pass
 
@@ -915,7 +991,8 @@ async def _get_app_summary(
                     if managed:
                         # Run df -h to get filesystem usage for SAP-relevant paths
                         output = await _run_ssm_command(
-                            ssm_client, instance_id,
+                            ssm_client,
+                            instance_id,
                             'df -h / /usr/sap /hana/data /hana/log /hana/shared /backup 2>/dev/null | sort -u',
                         )
                         if output:
@@ -926,7 +1003,9 @@ async def _get_app_summary(
                             try:
                                 cmd_resp = ssm_client.list_commands(
                                     InstanceId=instance_id,
-                                    Filters=[{'key': 'DocumentName', 'value': 'AWS-RunShellScript'}],
+                                    Filters=[
+                                        {'key': 'DocumentName', 'value': 'AWS-RunShellScript'}
+                                    ],
                                     MaxResults=5,
                                 )
                                 for cmd in cmd_resp.get('Commands', []):
@@ -950,11 +1029,13 @@ async def _get_app_summary(
                         fs_status = 'Not managed'
                 except Exception:
                     fs_status = 'Error'
-                fs_entries.append(FilesystemUsageEntry(
-                    instance_id=instance_id,
-                    filesystem_info=fs_info,
-                    status=fs_status,
-                ))
+                fs_entries.append(
+                    FilesystemUsageEntry(
+                        instance_id=instance_id,
+                        filesystem_info=fs_info,
+                        status=fs_status,
+                    )
+                )
 
         return ApplicationHealthEntry(
             application_id=app_id,
@@ -1087,9 +1168,7 @@ def _check_app_health(
                             or ''
                         )
                         op_mode = (
-                            resilience.get('HsrOperationMode')
-                            or detail.get('OperationMode')
-                            or ''
+                            resilience.get('HsrOperationMode') or detail.get('OperationMode') or ''
                         )
                         cluster = resilience.get('ClusterStatus', '')
                         ver = detail.get('HdbVersion') or detail.get('HanaVersion')
@@ -1100,30 +1179,38 @@ def _check_app_health(
                         if repl == 'PRIMARY' or op_mode == 'PRIMARY':
                             role = 'Primary'
                         elif repl and repl != 'NONE':
-                            role = f'Secondary ({repl}/{op_mode})' if op_mode and op_mode != 'NONE' else f'Secondary ({repl})'
+                            role = (
+                                f'Secondary ({repl}/{op_mode})'
+                                if op_mode and op_mode != 'NONE'
+                                else f'Secondary ({repl})'
+                            )
                         else:
                             role = comp_type
 
                         # Extract hostname from component ID (e.g. HDB-HDB00-sappridb -> sappridb)
                         hostname = comp_id.rsplit('-', 1)[-1] if '-' in comp_id else comp_id
 
-                        node_details.append({
-                            'hostname': hostname,
-                            'role': role,
-                            'comp_type': comp_type,
-                            'status': comp_status,
-                            'cluster': cluster,
-                            'instance_ids': instance_ids,
-                        })
+                        node_details.append(
+                            {
+                                'hostname': hostname,
+                                'role': role,
+                                'comp_type': comp_type,
+                                'status': comp_status,
+                                'cluster': cluster,
+                                'instance_ids': instance_ids,
+                            }
+                        )
                     except Exception:
-                        node_details.append({
-                            'hostname': comp_id,
-                            'role': '-',
-                            'comp_type': 'UNKNOWN',
-                            'status': 'Error',
-                            'cluster': '-',
-                            'instance_ids': [],
-                        })
+                        node_details.append(
+                            {
+                                'hostname': comp_id,
+                                'role': '-',
+                                'comp_type': 'UNKNOWN',
+                                'status': 'Error',
+                                'cluster': '-',
+                                'instance_ids': [],
+                            }
+                        )
 
                 # Render system overview
                 lines.append('| Property | Value |')
@@ -1160,12 +1247,14 @@ def _check_app_health(
                     lines.append('|----------|------|--------|---------|--------------|')
 
                 for node in node_details:
-                    ids_str = ', '.join(f'`{i}`' for i in node['instance_ids']) if node['instance_ids'] else '-'
+                    ids_str = (
+                        ', '.join(f'`{i}`' for i in node['instance_ids'])
+                        if node['instance_ids']
+                        else '-'
+                    )
                     status_str = f'{_emoji(node["status"])} {node["status"]}'
                     if is_single_node:
-                        lines.append(
-                            f'| {node["hostname"]} | {status_str} | {ids_str} |'
-                        )
+                        lines.append(f'| {node["hostname"]} | {status_str} | {ids_str} |')
                     elif is_abap:
                         lines.append(
                             f'| {node["hostname"]} | {node["comp_type"]} | {status_str} | {ids_str} |'
@@ -1185,30 +1274,36 @@ def _check_app_health(
         # Configuration checks
         if include_config_checks:
             _append_config_checks(
-                client, app_id, lines, include_subchecks, include_rule_results,
+                client,
+                app_id,
+                lines,
+                include_subchecks,
+                include_rule_results,
                 findings=findings,
             )
 
         # HANA log backup status — only for HANA applications
         is_hana = app_type == 'HANA'
         if include_log_backup_status and ssm_client and is_hana:
-            _append_log_backup_status(ssm_client, app_id, ec2_instance_ids, lines,
-                                      findings=findings)
+            _append_log_backup_status(
+                ssm_client, app_id, ec2_instance_ids, lines, findings=findings
+            )
 
         # AWS Backup status — only for HANA applications
         if include_aws_backup_status and backup_client and is_hana:
-            _append_aws_backup_status(backup_client, app_id, ec2_instance_ids, lines,
-                                      findings=findings)
+            _append_aws_backup_status(
+                backup_client, app_id, ec2_instance_ids, lines, findings=findings
+            )
 
         # CloudWatch metrics
         if include_cloudwatch_metrics and cloudwatch_client:
-            _append_cloudwatch_metrics(cloudwatch_client, ec2_instance_ids, lines,
-                                       findings=findings)
+            _append_cloudwatch_metrics(
+                cloudwatch_client, ec2_instance_ids, lines, findings=findings
+            )
 
         # Filesystem usage via SSM
         if include_log_backup_status and ssm_client and ec2_instance_ids:
-            _append_filesystem_usage(ssm_client, ec2_instance_ids, lines,
-                                     findings=findings)
+            _append_filesystem_usage(ssm_client, ec2_instance_ids, lines, findings=findings)
 
         # Consolidated Recommended Actions — at the very end
         if findings:
@@ -1268,8 +1363,11 @@ def _check_app_health(
 
 
 def _append_config_checks(
-    client, app_id: str, lines: List[str],
-    include_subchecks: bool, include_rule_results: bool,
+    client,
+    app_id: str,
+    lines: List[str],
+    include_subchecks: bool,
+    include_rule_results: bool,
     findings: List[Dict[str, str]] | None = None,
 ) -> None:
     """Append configuration check results to the report.
@@ -1376,7 +1474,9 @@ def _append_config_checks(
                                     rules = rr_response.get('RuleResults', [])
                                     if rules:
                                         for rule in rules:
-                                            rule_name = rule.get('Description', rule.get('Id', 'UNKNOWN'))
+                                            rule_name = rule.get(
+                                                'Description', rule.get('Id', 'UNKNOWN')
+                                            )
                                             rule_status = rule.get('Status', 'UNKNOWN')
                                             rule_msg = rule.get('Message', '')
                                             metadata = rule.get('Metadata', {})
@@ -1387,7 +1487,11 @@ def _append_config_checks(
 
                                             # Collect for consolidated remediation
                                             if rule_status in ('FAILED', 'WARNING'):
-                                                severity = 'failure' if rule_status == 'FAILED' else 'warning'
+                                                severity = (
+                                                    'failure'
+                                                    if rule_status == 'FAILED'
+                                                    else 'warning'
+                                                )
                                                 finding = {
                                                     'severity': severity,
                                                     'section': check_name,
@@ -1397,7 +1501,7 @@ def _append_config_checks(
                                                     'expected': metadata.get('ExpectedValue', ''),
                                                 }
                                                 # Deduplicate (same rule on both nodes)
-                                                key = f"{rule_name}|{rule_msg}"
+                                                key = f'{rule_name}|{rule_msg}'
                                                 if not any(f.get('_key') == key for f in findings):
                                                     finding['_key'] = key
                                                     findings.append(finding)
@@ -1416,7 +1520,10 @@ def _append_config_checks(
 
 
 def _append_log_backup_status(
-    ssm_client, app_id: str, ec2_instance_ids: List[str], lines: List[str],
+    ssm_client,
+    app_id: str,
+    ec2_instance_ids: List[str],
+    lines: List[str],
     findings: List[Dict[str, str]] | None = None,
 ) -> None:
     """Append HANA log backup status to the report.
@@ -1456,15 +1563,19 @@ def _append_log_backup_status(
                             all_cmds = []
                             paginator = ssm_client.get_paginator('list_commands')
                             for page in paginator.paginate(
-                                Filters=[{'key': 'DocumentName', 'value': 'AWSSystemsManagerSAP-HanaLogBackupStatusCheck'}],
+                                Filters=[
+                                    {
+                                        'key': 'DocumentName',
+                                        'value': 'AWSSystemsManagerSAP-HanaLogBackupStatusCheck',
+                                    }
+                                ],
                                 PaginationConfig={'MaxItems': 50},
                             ):
                                 all_cmds.extend(page.get('Commands', []))
 
                             # Find commands targeting this instance
                             matching = [
-                                c for c in all_cmds
-                                if instance_id in c.get('InstanceIds', [])
+                                c for c in all_cmds if instance_id in c.get('InstanceIds', [])
                             ]
                             if matching:
                                 cmd_id = matching[0].get('CommandId')
@@ -1485,9 +1596,11 @@ def _append_log_backup_status(
                                                     output = plugin.get('Output', '')
                                                     if output and cmd_status == 'Success':
                                                         # Extract JSON payload
-                                                        json_start = output.find('{"executionStatus"')
+                                                        json_start = output.find(
+                                                            '{"executionStatus"'
+                                                        )
                                                         if json_start >= 0:
-                                                            backup_info = f'🟢 {output[json_start:json_start + 200]}'
+                                                            backup_info = f'🟢 {output[json_start : json_start + 200]}'
                                                         else:
                                                             backup_info = '🟢 Success'
                                                     elif cmd_status == 'Failed':
@@ -1511,21 +1624,29 @@ def _append_log_backup_status(
             # Collect findings for remediation
             if findings is not None:
                 if backup_info == 'No check history':
-                    findings.append({
-                        'severity': 'warning',
-                        'section': 'HANA Log Backup',
-                        'rule': f'Log backup check not available for {instance_id}',
-                        'message': 'No log backup check history found. Ensure AWSSystemsManagerSAP-HanaLogBackupStatusCheck is configured.',
-                        'actual': '', 'expected': '', '_key': f'log_backup_no_history|{instance_id}',
-                    })
+                    findings.append(
+                        {
+                            'severity': 'warning',
+                            'section': 'HANA Log Backup',
+                            'rule': f'Log backup check not available for {instance_id}',
+                            'message': 'No log backup check history found. Ensure AWSSystemsManagerSAP-HanaLogBackupStatusCheck is configured.',
+                            'actual': '',
+                            'expected': '',
+                            '_key': f'log_backup_no_history|{instance_id}',
+                        }
+                    )
                 elif '🔴' in backup_info:
-                    findings.append({
-                        'severity': 'failure',
-                        'section': 'HANA Log Backup',
-                        'rule': f'Log backup check failed for {instance_id}',
-                        'message': 'HANA log backup check returned a failure status.',
-                        'actual': '', 'expected': '', '_key': f'log_backup_failed|{instance_id}',
-                    })
+                    findings.append(
+                        {
+                            'severity': 'failure',
+                            'section': 'HANA Log Backup',
+                            'rule': f'Log backup check failed for {instance_id}',
+                            'message': 'HANA log backup check returned a failure status.',
+                            'actual': '',
+                            'expected': '',
+                            '_key': f'log_backup_failed|{instance_id}',
+                        }
+                    )
 
         lines.append('')
     except Exception as e:
@@ -1534,7 +1655,10 @@ def _append_log_backup_status(
 
 
 def _append_aws_backup_status(
-    backup_client, app_id: str, ec2_instance_ids: List[str], lines: List[str],
+    backup_client,
+    app_id: str,
+    ec2_instance_ids: List[str],
+    lines: List[str],
     findings: List[Dict[str, str]] | None = None,
 ) -> None:
     """Append AWS Backup status for SAP HANA resources.
@@ -1592,21 +1716,24 @@ def _append_aws_backup_status(
                             job_id = job.get('BackupJobId', '')
                             if not failure_reason and job_id:
                                 try:
-                                    detail_resp = backup_client.describe_backup_job(BackupJobId=job_id)
-                                    failure_reason = (
-                                        detail_resp.get('StatusMessage')
-                                        or detail_resp.get('MessageCategory')
+                                    detail_resp = backup_client.describe_backup_job(
+                                        BackupJobId=job_id
                                     )
+                                    failure_reason = detail_resp.get(
+                                        'StatusMessage'
+                                    ) or detail_resp.get('MessageCategory')
                                 except Exception:
                                     pass
-                            failed_jobs.append({
-                                'instance': app_id,
-                                'status': job_status,
-                                'time': completion,
-                                'type': backup_type,
-                                'reason': failure_reason,
-                                'job_id': job_id or 'N/A',
-                            })
+                            failed_jobs.append(
+                                {
+                                    'instance': app_id,
+                                    'status': job_status,
+                                    'time': completion,
+                                    'type': backup_type,
+                                    'reason': failure_reason,
+                                    'job_id': job_id or 'N/A',
+                                }
+                            )
         except Exception:
             pass
 
@@ -1616,7 +1743,8 @@ def _append_aws_backup_status(
                 resource_arn = f'arn:aws:ec2:*:*:instance/{instance_id}'
                 try:
                     jobs_response = backup_client.list_backup_jobs(
-                        ByResourceArn=resource_arn, MaxResults=1,
+                        ByResourceArn=resource_arn,
+                        MaxResults=1,
                     )
                     jobs = jobs_response.get('BackupJobs', [])
                     if jobs:
@@ -1631,21 +1759,24 @@ def _append_aws_backup_status(
                             job_id = job.get('BackupJobId', '')
                             if not failure_reason and job_id:
                                 try:
-                                    detail_resp = backup_client.describe_backup_job(BackupJobId=job_id)
-                                    failure_reason = (
-                                        detail_resp.get('StatusMessage')
-                                        or detail_resp.get('MessageCategory')
+                                    detail_resp = backup_client.describe_backup_job(
+                                        BackupJobId=job_id
                                     )
+                                    failure_reason = detail_resp.get(
+                                        'StatusMessage'
+                                    ) or detail_resp.get('MessageCategory')
                                 except Exception:
                                     pass
-                            failed_jobs.append({
-                                'instance': instance_id,
-                                'status': job_status,
-                                'time': completion,
-                                'type': 'EC2',
-                                'reason': failure_reason,
-                                'job_id': job_id or 'N/A',
-                            })
+                            failed_jobs.append(
+                                {
+                                    'instance': instance_id,
+                                    'status': job_status,
+                                    'time': completion,
+                                    'type': 'EC2',
+                                    'reason': failure_reason,
+                                    'job_id': job_id or 'N/A',
+                                }
+                            )
                     else:
                         lines.append(f'| `{instance_id}` | No backups found | ⚪ N/A | - |')
                 except Exception:
@@ -1658,7 +1789,11 @@ def _append_aws_backup_status(
             lines.append('#### Backup Failure Details')
             lines.append('')
             for fj in failed_jobs:
-                reason = fj['reason'] if fj['reason'] else 'No failure reason returned by AWS Backup API'
+                reason = (
+                    fj['reason']
+                    if fj['reason']
+                    else 'No failure reason returned by AWS Backup API'
+                )
                 lines.append(f'- 🔴 **{fj["status"]}** at {fj["time"]} (Job ID: `{fj["job_id"]}`)')
                 lines.append(f'  - Failure Reason: {reason}')
                 lines.append('')
@@ -1666,15 +1801,22 @@ def _append_aws_backup_status(
             # Collect findings for consolidated remediation
             if findings is not None:
                 for fj in failed_jobs:
-                    reason = fj['reason'] if fj['reason'] else 'No failure reason returned by AWS Backup API'
-                    findings.append({
-                        'severity': 'failure',
-                        'section': 'AWS Backup',
-                        'rule': f'Backup {fj["status"].lower()} for {fj["instance"]}',
-                        'message': f'Job {fj["job_id"]} at {fj["time"]}: {reason}',
-                        'actual': fj['status'], 'expected': 'COMPLETED',
-                        '_key': f'backup_{fj["status"].lower()}|{fj["instance"]}|{fj["job_id"]}',
-                    })
+                    reason = (
+                        fj['reason']
+                        if fj['reason']
+                        else 'No failure reason returned by AWS Backup API'
+                    )
+                    findings.append(
+                        {
+                            'severity': 'failure',
+                            'section': 'AWS Backup',
+                            'rule': f'Backup {fj["status"].lower()} for {fj["instance"]}',
+                            'message': f'Job {fj["job_id"]} at {fj["time"]}: {reason}',
+                            'actual': fj['status'],
+                            'expected': 'COMPLETED',
+                            '_key': f'backup_{fj["status"].lower()}|{fj["instance"]}|{fj["job_id"]}',
+                        }
+                    )
 
     except Exception as e:
         lines.append(f'> ⚠️ Could not check AWS Backup status: {e}')
@@ -1682,7 +1824,9 @@ def _append_aws_backup_status(
 
 
 def _append_cloudwatch_metrics(
-    cloudwatch_client, ec2_instance_ids: List[str], lines: List[str],
+    cloudwatch_client,
+    ec2_instance_ids: List[str],
+    lines: List[str],
     findings: List[Dict[str, str]] | None = None,
 ) -> None:
     """Append CloudWatch metrics for EC2 instances running SAP.
@@ -1753,15 +1897,19 @@ def _append_cloudwatch_metrics(
         # CWAgent metrics
         try:
             mem_dims = _discover_cwagent_dimensions(
-                cloudwatch_client, 'mem_used_percent', instance_id,
+                cloudwatch_client,
+                'mem_used_percent',
+                instance_id,
             )
             if mem_dims:
                 mem_resp = cloudwatch_client.get_metric_statistics(
                     Namespace='CWAgent',
                     MetricName='mem_used_percent',
                     Dimensions=mem_dims,
-                    StartTime=start_time, EndTime=now,
-                    Period=3600, Statistics=['Average'],
+                    StartTime=start_time,
+                    EndTime=now,
+                    Period=3600,
+                    Statistics=['Average'],
                 )
                 dps = mem_resp.get('Datapoints', [])
                 if dps:
@@ -1770,7 +1918,8 @@ def _append_cloudwatch_metrics(
             pass
         try:
             disk_dim_sets = _discover_cwagent_disk_dimensions(
-                cloudwatch_client, instance_id,
+                cloudwatch_client,
+                instance_id,
             )
             for dim_set in disk_dim_sets:
                 dim_map = {d['Name']: d['Value'] for d in dim_set}
@@ -1779,8 +1928,10 @@ def _append_cloudwatch_metrics(
                         Namespace='CWAgent',
                         MetricName='disk_used_percent',
                         Dimensions=dim_set,
-                        StartTime=start_time, EndTime=now,
-                        Period=3600, Statistics=['Average'],
+                        StartTime=start_time,
+                        EndTime=now,
+                        Period=3600,
+                        Statistics=['Average'],
                     )
                     dps = disk_resp.get('Datapoints', [])
                     if dps:
@@ -1789,14 +1940,16 @@ def _append_cloudwatch_metrics(
         except Exception:
             pass
 
-        instance_data.append({
-            'id': instance_id,
-            'cpu_avg': cpu_avg,
-            'cpu_max': cpu_max,
-            'mem_pct': mem_pct,
-            'disk_pct': disk_pct,
-            'status_check': status_check,
-        })
+        instance_data.append(
+            {
+                'id': instance_id,
+                'cpu_avg': cpu_avg,
+                'cpu_max': cpu_max,
+                'mem_pct': mem_pct,
+                'disk_pct': disk_pct,
+                'status_check': status_check,
+            }
+        )
 
     # Determine which columns have data across all instances
     has_cpu = any(d['cpu_avg'] is not None for d in instance_data)
@@ -1838,31 +1991,43 @@ def _append_cloudwatch_metrics(
             try:
                 mem_val = float(d['mem_pct']) if d['mem_pct'] else 0
                 if mem_val > 90:
-                    findings.append({
-                        'severity': 'failure', 'section': 'CloudWatch Metrics',
-                        'rule': f'Memory usage critical on {d["id"]}',
-                        'message': f'Memory at {d["mem_pct"]}% — exceeds 90% threshold',
-                        'actual': f'{d["mem_pct"]}%', 'expected': '< 90%',
-                        '_key': f'cw_mem_critical|{d["id"]}',
-                    })
+                    findings.append(
+                        {
+                            'severity': 'failure',
+                            'section': 'CloudWatch Metrics',
+                            'rule': f'Memory usage critical on {d["id"]}',
+                            'message': f'Memory at {d["mem_pct"]}% — exceeds 90% threshold',
+                            'actual': f'{d["mem_pct"]}%',
+                            'expected': '< 90%',
+                            '_key': f'cw_mem_critical|{d["id"]}',
+                        }
+                    )
                 elif mem_val > 80:
-                    findings.append({
-                        'severity': 'warning', 'section': 'CloudWatch Metrics',
-                        'rule': f'Memory usage high on {d["id"]}',
-                        'message': f'Memory at {d["mem_pct"]}% — approaching critical threshold',
-                        'actual': f'{d["mem_pct"]}%', 'expected': '< 80%',
-                        '_key': f'cw_mem_high|{d["id"]}',
-                    })
+                    findings.append(
+                        {
+                            'severity': 'warning',
+                            'section': 'CloudWatch Metrics',
+                            'rule': f'Memory usage high on {d["id"]}',
+                            'message': f'Memory at {d["mem_pct"]}% — approaching critical threshold',
+                            'actual': f'{d["mem_pct"]}%',
+                            'expected': '< 80%',
+                            '_key': f'cw_mem_high|{d["id"]}',
+                        }
+                    )
             except (ValueError, TypeError):
                 pass
             if '🔴' in d['status_check']:
-                findings.append({
-                    'severity': 'failure', 'section': 'CloudWatch Metrics',
-                    'rule': f'EC2 status check failed on {d["id"]}',
-                    'message': 'Instance or system status check is failing',
-                    'actual': 'FAILED', 'expected': 'OK',
-                    '_key': f'cw_status_failed|{d["id"]}',
-                })
+                findings.append(
+                    {
+                        'severity': 'failure',
+                        'section': 'CloudWatch Metrics',
+                        'rule': f'EC2 status check failed on {d["id"]}',
+                        'message': 'Instance or system status check is failing',
+                        'actual': 'FAILED',
+                        'expected': 'OK',
+                        '_key': f'cw_status_failed|{d["id"]}',
+                    }
+                )
 
     # Detailed disk usage per SAP-relevant path (separate table)
     has_disk_detail = False
@@ -1875,7 +2040,8 @@ def _append_cloudwatch_metrics(
     for instance_id in ec2_instance_ids:
         try:
             disk_dim_sets = _discover_cwagent_disk_dimensions(
-                cloudwatch_client, instance_id,
+                cloudwatch_client,
+                instance_id,
             )
             for dim_set in disk_dim_sets:
                 dim_map = {d['Name']: d['Value'] for d in dim_set}
@@ -1886,8 +2052,10 @@ def _append_cloudwatch_metrics(
                         Namespace='CWAgent',
                         MetricName='disk_used_percent',
                         Dimensions=dim_set,
-                        StartTime=start_time, EndTime=now,
-                        Period=3600, Statistics=['Average'],
+                        StartTime=start_time,
+                        EndTime=now,
+                        Period=3600,
+                        Statistics=['Average'],
                     )
                     dps = disk_resp.get('Datapoints', [])
                     if dps:
@@ -1916,15 +2084,19 @@ def _append_cloudwatch_metrics(
         net_out = '-'
         try:
             recv_dims = _discover_cwagent_dimensions(
-                cloudwatch_client, 'net_bytes_recv', instance_id,
+                cloudwatch_client,
+                'net_bytes_recv',
+                instance_id,
             )
             if recv_dims:
                 resp = cloudwatch_client.get_metric_statistics(
                     Namespace='CWAgent',
                     MetricName='net_bytes_recv',
                     Dimensions=recv_dims,
-                    StartTime=start_time, EndTime=now,
-                    Period=3600, Statistics=['Sum'],
+                    StartTime=start_time,
+                    EndTime=now,
+                    Period=3600,
+                    Statistics=['Sum'],
                 )
                 dps = resp.get('Datapoints', [])
                 if dps:
@@ -1935,15 +2107,19 @@ def _append_cloudwatch_metrics(
             pass
         try:
             sent_dims = _discover_cwagent_dimensions(
-                cloudwatch_client, 'net_bytes_sent', instance_id,
+                cloudwatch_client,
+                'net_bytes_sent',
+                instance_id,
             )
             if sent_dims:
                 resp = cloudwatch_client.get_metric_statistics(
                     Namespace='CWAgent',
                     MetricName='net_bytes_sent',
                     Dimensions=sent_dims,
-                    StartTime=start_time, EndTime=now,
-                    Period=3600, Statistics=['Sum'],
+                    StartTime=start_time,
+                    EndTime=now,
+                    Period=3600,
+                    Statistics=['Sum'],
                 )
                 dps = resp.get('Datapoints', [])
                 if dps:
@@ -1962,7 +2138,9 @@ def _append_cloudwatch_metrics(
 
 
 def _append_filesystem_usage(
-    ssm_client, ec2_instance_ids: List[str], lines: List[str],
+    ssm_client,
+    ec2_instance_ids: List[str],
+    lines: List[str],
     findings: List[Dict[str, str]] | None = None,
 ) -> None:
     """Append filesystem usage information for SAP-relevant paths.
@@ -2032,28 +2210,36 @@ def _append_filesystem_usage(
                             pct = int(parts[-2].replace('%', ''))
                             mount = parts[-1]
                             if pct >= 95:
-                                findings.append({
-                                    'severity': 'failure',
-                                    'section': 'Filesystem Usage',
-                                    'rule': f'Filesystem {mount} critically full on {instance_id}',
-                                    'message': f'{mount} is at {pct}% — immediate action required',
-                                    'actual': f'{pct}%', 'expected': '< 80%',
-                                    '_key': f'fs_critical|{instance_id}|{mount}',
-                                })
+                                findings.append(
+                                    {
+                                        'severity': 'failure',
+                                        'section': 'Filesystem Usage',
+                                        'rule': f'Filesystem {mount} critically full on {instance_id}',
+                                        'message': f'{mount} is at {pct}% — immediate action required',
+                                        'actual': f'{pct}%',
+                                        'expected': '< 80%',
+                                        '_key': f'fs_critical|{instance_id}|{mount}',
+                                    }
+                                )
                             elif pct >= 80:
-                                findings.append({
-                                    'severity': 'warning',
-                                    'section': 'Filesystem Usage',
-                                    'rule': f'Filesystem {mount} high usage on {instance_id}',
-                                    'message': f'{mount} is at {pct}% — review and plan cleanup',
-                                    'actual': f'{pct}%', 'expected': '< 80%',
-                                    '_key': f'fs_high|{instance_id}|{mount}',
-                                })
+                                findings.append(
+                                    {
+                                        'severity': 'warning',
+                                        'section': 'Filesystem Usage',
+                                        'rule': f'Filesystem {mount} high usage on {instance_id}',
+                                        'message': f'{mount} is at {pct}% — review and plan cleanup',
+                                        'actual': f'{pct}%',
+                                        'expected': '< 80%',
+                                        '_key': f'fs_high|{instance_id}|{mount}',
+                                    }
+                                )
                         except (ValueError, IndexError):
                             pass
 
     if not found_any:
-        lines.append('> No filesystem usage data available. Ensure SSM agent is running on the instances.')
+        lines.append(
+            '> No filesystem usage data available. Ensure SSM agent is running on the instances.'
+        )
         lines.append('')
 
 
@@ -2130,11 +2316,15 @@ class SSMSAPHealthTools:
         ] = True,
         auto_trigger_config_checks: Annotated[
             bool,
-            Field(description='Automatically trigger config checks if no recent results exist. Default: True.'),
+            Field(
+                description='Automatically trigger config checks if no recent results exist. Default: True.'
+            ),
         ] = True,
         config_check_max_age_hours: Annotated[
             int,
-            Field(description='Max age in hours for config check results before auto-triggering. Default: 24.'),
+            Field(
+                description='Max age in hours for config check results before auto-triggering. Default: 24.'
+            ),
         ] = 24,
         region: Annotated[
             str | None,
@@ -2144,9 +2334,7 @@ class SSMSAPHealthTools:
         ] = None,
         profile_name: Annotated[
             str | None,
-            Field(
-                description='AWS CLI Profile Name. Falls back to AWS_PROFILE env var.'
-            ),
+            Field(description='AWS CLI Profile Name. Falls back to AWS_PROFILE env var.'),
         ] = None,
     ) -> HealthSummaryResponse:
         """Get comprehensive health summary for SAP systems managed by SSM for SAP.
@@ -2188,11 +2376,15 @@ class SSMSAPHealthTools:
 
             backup_client = None
             if include_aws_backup_status:
-                backup_client = get_aws_client('backup', region_name=region, profile_name=profile_name)
+                backup_client = get_aws_client(
+                    'backup', region_name=region, profile_name=profile_name
+                )
 
             cloudwatch_client = None
             if include_cloudwatch_metrics:
-                cloudwatch_client = get_aws_client('cloudwatch', region_name=region, profile_name=profile_name)
+                cloudwatch_client = get_aws_client(
+                    'cloudwatch', region_name=region, profile_name=profile_name
+                )
 
             if application_id:
                 app_ids = [application_id]
@@ -2212,7 +2404,8 @@ class SSMSAPHealthTools:
             entries: List[ApplicationHealthEntry] = []
             for app_id in app_ids:
                 entry = await _get_app_summary(
-                    client, app_id,
+                    client,
+                    app_id,
                     ssm_client=ssm_client,
                     backup_client=backup_client,
                     cloudwatch_client=cloudwatch_client,
@@ -2248,15 +2441,15 @@ class SSMSAPHealthTools:
             lines.append('| Application | Type | Components |')
             lines.append('|-------------|------|------------|')
             for e in entries:
-                lines.append(
-                    f'| `{e.application_id}` | {e.app_type} | {e.component_count} |'
-                )
+                lines.append(f'| `{e.application_id}` | {e.app_type} | {e.component_count} |')
             lines.append('')
 
             if healthy == len(entries) and len(entries) > 0:
                 lines.append(f'> ✅ All {len(entries)} application(s) are running and healthy.')
             elif len(entries) > 0:
-                lines.append(f'> ⚠️ {unhealthy} of {len(entries)} application(s) require attention.')
+                lines.append(
+                    f'> ⚠️ {unhealthy} of {len(entries)} application(s) require attention.'
+                )
             lines.append('')
 
             return HealthSummaryResponse(
@@ -2317,9 +2510,7 @@ class SSMSAPHealthTools:
         ] = None,
         profile_name: Annotated[
             str | None,
-            Field(
-                description='AWS CLI Profile Name. Falls back to AWS_PROFILE env var.'
-            ),
+            Field(description='AWS CLI Profile Name. Falls back to AWS_PROFILE env var.'),
         ] = None,
     ) -> HealthReportResponse:
         """Generate a detailed, downloadable health report for SAP systems managed by SSM for SAP.
@@ -2359,11 +2550,15 @@ class SSMSAPHealthTools:
 
             backup_client = None
             if include_aws_backup_status:
-                backup_client = get_aws_client('backup', region_name=region, profile_name=profile_name)
+                backup_client = get_aws_client(
+                    'backup', region_name=region, profile_name=profile_name
+                )
 
             cloudwatch_client = None
             if include_cloudwatch_metrics:
-                cloudwatch_client = get_aws_client('cloudwatch', region_name=region, profile_name=profile_name)
+                cloudwatch_client = get_aws_client(
+                    'cloudwatch', region_name=region, profile_name=profile_name
+                )
 
             if application_id:
                 app_ids = [application_id]
@@ -2386,7 +2581,9 @@ class SSMSAPHealthTools:
             report_lines.append('| | |')
             report_lines.append('|---|---|')
             report_lines.append(f'| Region | `{effective_region}` |')
-            report_lines.append(f'| Timestamp | {current_time.strftime("%Y-%m-%d %H:%M:%S UTC")} |')
+            report_lines.append(
+                f'| Timestamp | {current_time.strftime("%Y-%m-%d %H:%M:%S UTC")} |'
+            )
             report_lines.append(f'| Applications | {len(app_ids)} |')
             report_lines.append('')
 
@@ -2396,14 +2593,23 @@ class SSMSAPHealthTools:
 
             for app_id in app_ids:
                 app_report, app_status, disc_status = _check_app_health(
-                    client, ssm_client, backup_client, cloudwatch_client,
-                    app_id, include_config_checks, include_subchecks,
-                    include_rule_results, include_log_backup_status,
-                    include_aws_backup_status, include_cloudwatch_metrics,
+                    client,
+                    ssm_client,
+                    backup_client,
+                    cloudwatch_client,
+                    app_id,
+                    include_config_checks,
+                    include_subchecks,
+                    include_rule_results,
+                    include_log_backup_status,
+                    include_aws_backup_status,
+                    include_cloudwatch_metrics,
                 )
                 app_reports.append(app_report)
                 app_status_counts[app_status] = app_status_counts.get(app_status, 0) + 1
-                discovery_status_counts[disc_status] = discovery_status_counts.get(disc_status, 0) + 1
+                discovery_status_counts[disc_status] = (
+                    discovery_status_counts.get(disc_status, 0) + 1
+                )
 
             summary = _build_overall_summary(
                 len(app_ids), app_status_counts, discovery_status_counts

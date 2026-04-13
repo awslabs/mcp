@@ -134,9 +134,7 @@ class TestGetApplication:
                 'DiscoveryStatus': 'SUCCESS',
             }
         }
-        mock_client.list_components.return_value = {
-            'Components': [{'ComponentId': 'comp-1'}]
-        }
+        mock_client.list_components.return_value = {'Components': [{'ComponentId': 'comp-1'}]}
         mock_client.get_component.return_value = {
             'Component': {
                 'ComponentType': 'HANA',
@@ -492,6 +490,7 @@ class TestRequestConsent:
     async def test_consent_approved(self):
         """Test request_consent when user approves."""
         from awslabs.aws_for_sap_management_mcp_server.common import request_consent
+
         mock_ctx = MagicMock()
         mock_result = MagicMock()
         mock_result.action = 'accept'
@@ -505,6 +504,7 @@ class TestRequestConsent:
     async def test_consent_rejected(self):
         """Test request_consent when user rejects."""
         from awslabs.aws_for_sap_management_mcp_server.common import request_consent
+
         mock_ctx = MagicMock()
         mock_result = MagicMock()
         mock_result.action = 'reject'
@@ -518,6 +518,7 @@ class TestRequestConsent:
     async def test_consent_unchecked(self):
         """Test request_consent when user accepts but doesn't check acknowledge."""
         from awslabs.aws_for_sap_management_mcp_server.common import request_consent
+
         mock_ctx = MagicMock()
         mock_result = MagicMock()
         mock_result.action = 'accept'
@@ -583,10 +584,13 @@ class TestStopApplicationCascade:
         """Test stop with associated NW apps and cascade enabled."""
         mock_client = MagicMock()
         mock_client.get_application.side_effect = [
-            {'Application': {
-                'Id': 'hana-1', 'Type': 'HANA',
-                'AssociatedApplicationArns': ['arn:aws:ssm-sap:us-east-1:123:app/nw-1'],
-            }},
+            {
+                'Application': {
+                    'Id': 'hana-1',
+                    'Type': 'HANA',
+                    'AssociatedApplicationArns': ['arn:aws:ssm-sap:us-east-1:123:app/nw-1'],
+                }
+            },
             {'Application': {'Id': 'nw-1', 'Type': 'SAP_ABAP'}},
         ]
         mock_client.stop_application.side_effect = [
@@ -605,7 +609,10 @@ class TestStopApplicationCascade:
         mock_result.data.stop_associated_apps_first = True
         ctx.elicit = AsyncMock(return_value=mock_result)
 
-        with patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.asyncio.sleep', new_callable=AsyncMock):
+        with patch(
+            'awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.asyncio.sleep',
+            new_callable=AsyncMock,
+        ):
             result = await tools.stop_application(ctx, application_id='hana-1')
 
         assert result.status == 'success'
@@ -619,10 +626,13 @@ class TestStopApplicationCascade:
         """Test stop with NW apps but user skips cascade."""
         mock_client = MagicMock()
         mock_client.get_application.side_effect = [
-            {'Application': {
-                'Id': 'hana-1', 'Type': 'HANA',
-                'AssociatedApplicationArns': ['arn:aws:ssm-sap:us-east-1:123:app/nw-1'],
-            }},
+            {
+                'Application': {
+                    'Id': 'hana-1',
+                    'Type': 'HANA',
+                    'AssociatedApplicationArns': ['arn:aws:ssm-sap:us-east-1:123:app/nw-1'],
+                }
+            },
             {'Application': {'Id': 'nw-1', 'Type': 'SAP_ABAP'}},
         ]
         mock_client.stop_application.return_value = {'OperationId': 'op-hana-stop'}
@@ -645,10 +655,13 @@ class TestStopApplicationCascade:
         """Test stop with NW apps but user rejects."""
         mock_client = MagicMock()
         mock_client.get_application.side_effect = [
-            {'Application': {
-                'Id': 'hana-1', 'Type': 'HANA',
-                'AssociatedApplicationArns': ['arn:aws:ssm-sap:us-east-1:123:app/nw-1'],
-            }},
+            {
+                'Application': {
+                    'Id': 'hana-1',
+                    'Type': 'HANA',
+                    'AssociatedApplicationArns': ['arn:aws:ssm-sap:us-east-1:123:app/nw-1'],
+                }
+            },
             {'Application': {'Id': 'nw-1', 'Type': 'SAP_ABAP'}},
         ]
         mock_get_client.return_value = mock_client
@@ -682,10 +695,13 @@ class TestStopApplicationCascade:
         """Test cascade stop when NW stop raises ClientError."""
         mock_client = MagicMock()
         mock_client.get_application.side_effect = [
-            {'Application': {
-                'Id': 'hana-1', 'Type': 'HANA',
-                'AssociatedApplicationArns': ['arn:aws:ssm-sap:us-east-1:123:app/nw-1'],
-            }},
+            {
+                'Application': {
+                    'Id': 'hana-1',
+                    'Type': 'HANA',
+                    'AssociatedApplicationArns': ['arn:aws:ssm-sap:us-east-1:123:app/nw-1'],
+                }
+            },
             {'Application': {'Id': 'nw-1', 'Type': 'SAP_ABAP'}},
         ]
         mock_client.stop_application.side_effect = ClientError(
@@ -714,10 +730,13 @@ class TestStopApplicationCascade:
 
         mock_client = MagicMock()
         mock_client.get_application.side_effect = [
-            {'Application': {
-                'Id': 'hana-1', 'Type': 'HANA',
-                'AssociatedApplicationArns': ['arn:aws:ssm-sap:us-east-1:123:app/nw-1'],
-            }},
+            {
+                'Application': {
+                    'Id': 'hana-1',
+                    'Type': 'HANA',
+                    'AssociatedApplicationArns': ['arn:aws:ssm-sap:us-east-1:123:app/nw-1'],
+                }
+            },
             {'Application': {'Id': 'nw-1', 'Type': 'SAP_ABAP'}},
         ]
         mock_get_client.return_value = mock_client
@@ -737,15 +756,23 @@ class TestStopApplicationCascade:
         """Test cascade stop when NW stop operation returns ERROR."""
         mock_client = MagicMock()
         mock_client.get_application.side_effect = [
-            {'Application': {
-                'Id': 'hana-1', 'Type': 'HANA',
-                'AssociatedApplicationArns': ['arn:aws:ssm-sap:us-east-1:123:app/nw-1'],
-            }},
+            {
+                'Application': {
+                    'Id': 'hana-1',
+                    'Type': 'HANA',
+                    'AssociatedApplicationArns': ['arn:aws:ssm-sap:us-east-1:123:app/nw-1'],
+                }
+            },
             {'Application': {'Id': 'nw-1', 'Type': 'SAP_ABAP'}},
         ]
         mock_client.stop_application.return_value = {'OperationId': 'op-nw-stop'}
         mock_client.get_operation.return_value = {
-            'Operation': {'Status': 'ERROR', 'StatusMessage': 'Stop failed', 'StartTime': '', 'EndTime': ''},
+            'Operation': {
+                'Status': 'ERROR',
+                'StatusMessage': 'Stop failed',
+                'StartTime': '',
+                'EndTime': '',
+            },
         }
         mock_get_client.return_value = mock_client
 
@@ -755,7 +782,10 @@ class TestStopApplicationCascade:
         mock_result.data.stop_associated_apps_first = True
         ctx.elicit = AsyncMock(return_value=mock_result)
 
-        with patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.asyncio.sleep', new_callable=AsyncMock):
+        with patch(
+            'awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.asyncio.sleep',
+            new_callable=AsyncMock,
+        ):
             result = await tools.stop_application(ctx, application_id='hana-1')
 
         assert result.status == 'error'
@@ -772,7 +802,9 @@ class TestGetApplicationEdgeCases:
         mock_client = MagicMock()
         mock_client.get_application.return_value = {
             'Application': {
-                'Id': 'app-1', 'Type': 'HANA', 'Status': 'ACTIVATED',
+                'Id': 'app-1',
+                'Type': 'HANA',
+                'Status': 'ACTIVATED',
                 'DiscoveryStatus': 'SUCCESS',
             }
         }
@@ -815,7 +847,8 @@ class TestRegisterApplicationOptionalParams:
         """Test register_application passes credentials and tags (lines 456, 460)."""
         mock_client = MagicMock()
         mock_client.register_application.return_value = {
-            'ApplicationId': 'app-1', 'OperationId': 'op-1',
+            'ApplicationId': 'app-1',
+            'OperationId': 'op-1',
         }
         mock_get_client.return_value = mock_client
 
@@ -826,13 +859,21 @@ class TestRegisterApplicationOptionalParams:
             sid='HDB',
             sap_instance_number='00',
             instances=['i-abc123'],
-            credentials=[{'CredentialType': 'ADMIN', 'DatabaseName': 'HDB/SYSTEMDB', 'SecretId': 'arn:secret'}],
+            credentials=[
+                {
+                    'CredentialType': 'ADMIN',
+                    'DatabaseName': 'HDB/SYSTEMDB',
+                    'SecretId': 'arn:aws:secretsmanager:us-east-1:123456789012:test-id',
+                }
+            ],
             tags={'env': 'prod'},
         )
 
         assert result.status == 'success'
         call_kwargs = mock_client.register_application.call_args[1]
-        assert call_kwargs['Credentials'] == [{'CredentialType': 'ADMIN', 'DatabaseName': 'HDB/SYSTEMDB', 'SecretId': 'arn:secret'}]
+        assert call_kwargs['Credentials'] == [
+            {'CredentialType': 'ADMIN', 'DatabaseName': 'HDB/SYSTEMDB', 'SecretId': 'arn:aws:secretsmanager:us-east-1:123456789012:test-id'}
+        ]
         assert call_kwargs['Tags'] == {'env': 'prod'}
 
     @pytest.mark.asyncio
@@ -841,7 +882,8 @@ class TestRegisterApplicationOptionalParams:
         """Test register_application SAP_ABAP with database_arn (line 458)."""
         mock_client = MagicMock()
         mock_client.register_application.return_value = {
-            'ApplicationId': 'nw-1', 'OperationId': 'op-2',
+            'ApplicationId': 'nw-1',
+            'OperationId': 'op-2',
         }
         mock_get_client.return_value = mock_client
 
@@ -890,7 +932,12 @@ class TestStartApplicationClientError:
         with _mock_consent():
             mock_client = MagicMock()
             mock_client.start_application.side_effect = ClientError(
-                {'Error': {'Code': 'ValidationException', 'Message': 'App not in stoppable state'}},
+                {
+                    'Error': {
+                        'Code': 'ValidationException',
+                        'Message': 'App not in stoppable state',
+                    }
+                },
                 'StartApplication',
             )
             mock_get_client.return_value = mock_client
@@ -910,10 +957,13 @@ class TestStopApplicationEdgeCases:
         """Test stop when verifying associated app raises exception (lines 611-612)."""
         mock_client = MagicMock()
         mock_client.get_application.side_effect = [
-            {'Application': {
-                'Id': 'hana-1', 'Type': 'HANA',
-                'AssociatedApplicationArns': ['arn:aws:ssm-sap:us-east-1:123:app/nw-bad'],
-            }},
+            {
+                'Application': {
+                    'Id': 'hana-1',
+                    'Type': 'HANA',
+                    'AssociatedApplicationArns': ['arn:aws:ssm-sap:us-east-1:123:app/nw-bad'],
+                }
+            },
             Exception('Cannot verify associated app'),  # get_application for nw-bad fails
         ]
         mock_client.stop_application.return_value = {'OperationId': 'op-stop'}
@@ -931,10 +981,13 @@ class TestStopApplicationEdgeCases:
         """Test stop when associated ARN has no slash (line 604)."""
         mock_client = MagicMock()
         mock_client.get_application.side_effect = [
-            {'Application': {
-                'Id': 'hana-1', 'Type': 'HANA',
-                'AssociatedApplicationArns': ['no-slash-arn'],
-            }},
+            {
+                'Application': {
+                    'Id': 'hana-1',
+                    'Type': 'HANA',
+                    'AssociatedApplicationArns': ['no-slash-arn'],
+                }
+            },
         ]
         mock_client.stop_application.return_value = {'OperationId': 'op-stop'}
         mock_get_client.return_value = mock_client
@@ -950,10 +1003,13 @@ class TestStopApplicationEdgeCases:
         """Test cascade stop when NW stop operation times out (lines 735-741)."""
         mock_client = MagicMock()
         mock_client.get_application.side_effect = [
-            {'Application': {
-                'Id': 'hana-1', 'Type': 'HANA',
-                'AssociatedApplicationArns': ['arn:aws:ssm-sap:us-east-1:123:app/nw-1'],
-            }},
+            {
+                'Application': {
+                    'Id': 'hana-1',
+                    'Type': 'HANA',
+                    'AssociatedApplicationArns': ['arn:aws:ssm-sap:us-east-1:123:app/nw-1'],
+                }
+            },
             {'Application': {'Id': 'nw-1', 'Type': 'SAP_ABAP'}},
         ]
         mock_client.stop_application.return_value = {'OperationId': 'op-nw-stop'}
@@ -969,7 +1025,10 @@ class TestStopApplicationEdgeCases:
         mock_result.data.stop_associated_apps_first = True
         ctx.elicit = AsyncMock(return_value=mock_result)
 
-        with patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.asyncio.sleep', new_callable=AsyncMock):
+        with patch(
+            'awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.asyncio.sleep',
+            new_callable=AsyncMock,
+        ):
             result = await tools.stop_application(ctx, application_id='hana-1')
 
         assert result.status == 'error'
@@ -1019,10 +1078,13 @@ class TestStopApplicationEdgeCases:
 
         mock_client = MagicMock()
         mock_client.get_application.side_effect = [
-            {'Application': {
-                'Id': 'hana-1', 'Type': 'HANA',
-                'AssociatedApplicationArns': ['arn:aws:ssm-sap:us-east-1:123:app/nw-1'],
-            }},
+            {
+                'Application': {
+                    'Id': 'hana-1',
+                    'Type': 'HANA',
+                    'AssociatedApplicationArns': ['arn:aws:ssm-sap:us-east-1:123:app/nw-1'],
+                }
+            },
             {'Application': {'Id': 'nw-1', 'Type': 'SAP_ABAP'}},
         ]
         mock_get_client.return_value = mock_client
