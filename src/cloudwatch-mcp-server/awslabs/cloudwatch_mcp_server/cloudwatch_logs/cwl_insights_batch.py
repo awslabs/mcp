@@ -110,7 +110,7 @@ def _chunk_list(lst: List, size: int) -> List[List]:
 
 def _convert_time(time_str: str) -> int:
     """ISO 8601 string → Unix epoch seconds.
-    
+
     Note: This is a standalone function separate from CloudWatchLogsTools._convert_time_to_timestamp
     because it includes enhanced error handling with actionable error messages for the batch tool.
 
@@ -180,7 +180,7 @@ async def _start_and_poll(
         try:
             logs_client.stop_query(queryId=query_id)
         except Exception as e:
-            logger.warning(f"Failed to stop query {query_id} after polling timeout: {e}")
+            logger.warning(f'Failed to stop query {query_id} after polling timeout: {e}')
         return {
             'query_id': query_id,
             'status': 'PollingTimeout',
@@ -191,16 +191,16 @@ async def _start_and_poll(
 
 def _hit_output_limit(result: Dict) -> bool:
     """Return True if the query likely hit the 10 000-record output cap.
-    
+
     Uses recordsMatched from statistics when available, falls back to result count.
     """
     stats = result.get('statistics', {})
     records_matched = stats.get('recordsMatched', 0)
-    
+
     # If statistics available, use recordsMatched
     if records_matched > 0:
         return records_matched >= MAX_OUTPUT_RECORDS
-    
+
     # Fallback to result count
     return len(result.get('results', [])) >= MAX_OUTPUT_RECORDS
 
@@ -265,11 +265,15 @@ async def _run_chunk(
         except ClientError as exc:
             error_code = exc.response.get('Error', {}).get('Code', 'Unknown')
             # Non-retryable errors: fail fast without retry
-            if error_code in ('AccessDeniedException', 'InvalidParameterException', 'ResourceNotFoundException'):
+            if error_code in (
+                'AccessDeniedException',
+                'InvalidParameterException',
+                'ResourceNotFoundException',
+            ):
                 logger.exception(f'Non-retryable error in {region}: {error_code}')
                 summary.failed_chunks += 1
                 log_group_preview = log_groups[:3] + (['...'] if len(log_groups) > 3 else [])
-                time_range = f"{datetime.datetime.fromtimestamp(start_ts).isoformat()} to {datetime.datetime.fromtimestamp(end_ts).isoformat()}"
+                time_range = f'{datetime.datetime.fromtimestamp(start_ts).isoformat()} to {datetime.datetime.fromtimestamp(end_ts).isoformat()}'
                 summary.warnings.append(
                     f'Query failed in {region} with {error_code}. '
                     f'Log groups: {log_group_preview}. Time range: {time_range}. '
@@ -284,7 +288,7 @@ async def _run_chunk(
                 continue
             summary.failed_chunks += 1
             log_group_preview = log_groups[:3] + (['...'] if len(log_groups) > 3 else [])
-            time_range = f"{datetime.datetime.fromtimestamp(start_ts).isoformat()} to {datetime.datetime.fromtimestamp(end_ts).isoformat()}"
+            time_range = f'{datetime.datetime.fromtimestamp(start_ts).isoformat()} to {datetime.datetime.fromtimestamp(end_ts).isoformat()}'
             summary.warnings.append(
                 f'Query failed in {region} after {MAX_RETRIES} retries. '
                 f'Log groups: {log_group_preview}. Time range: {time_range}. '
@@ -300,7 +304,7 @@ async def _run_chunk(
             summary.failed_chunks += 1
             # Provide actionable error context
             log_group_preview = log_groups[:3] + (['...'] if len(log_groups) > 3 else [])
-            time_range = f"{datetime.datetime.fromtimestamp(start_ts).isoformat()} to {datetime.datetime.fromtimestamp(end_ts).isoformat()}"
+            time_range = f'{datetime.datetime.fromtimestamp(start_ts).isoformat()} to {datetime.datetime.fromtimestamp(end_ts).isoformat()}'
             summary.warnings.append(
                 f'Query failed in {region} after {MAX_RETRIES} retries. '
                 f'Log groups: {log_group_preview}. Time range: {time_range}. '
@@ -478,28 +482,27 @@ async def execute_cwl_insights_batch(
     """
     # Validate inputs
     if not log_group_names:
-        raise ValueError("log_group_names cannot be empty")
+        raise ValueError('log_group_names cannot be empty')
 
     if not regions:
-        raise ValueError("regions cannot be empty")
+        raise ValueError('regions cannot be empty')
 
     if max_timeout <= 0:
-        raise ValueError(f"max_timeout must be positive, got {max_timeout}")
+        raise ValueError(f'max_timeout must be positive, got {max_timeout}')
 
     if limit is not None and limit <= 0:
-        raise ValueError(f"limit must be positive, got {limit}")
+        raise ValueError(f'limit must be positive, got {limit}')
 
     # Convert and validate time range
     try:
         start_ts = _convert_time(start_time)
         end_ts = _convert_time(end_time)
     except ValueError as e:
-        raise ValueError(f"Invalid time parameter: {e}") from e
+        raise ValueError(f'Invalid time parameter: {e}') from e
 
     if start_ts >= end_ts:
         raise ValueError(
-            f"start_time must be before end_time. "
-            f"Got start_time={start_time}, end_time={end_time}"
+            f'start_time must be before end_time. Got start_time={start_time}, end_time={end_time}'
         )
 
     chunks_per_region = _chunk_list(log_group_names, MAX_LOG_GROUPS_PER_QUERY)

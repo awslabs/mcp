@@ -210,9 +210,7 @@ class CloudWatchLogsTools:
         mcp.tool(name='cancel_logs_insight_query')(self.cancel_logs_insight_query)
 
         # Register multi-region Logs Insights query tool
-        mcp.tool(name='execute_cwl_insights_batch')(
-            execute_cwl_insights_batch
-        )
+        mcp.tool(name='execute_cwl_insights_batch')(execute_cwl_insights_batch)
         # Register index recommender tools
         mcp.tool(name='recommend_indexes_loggroup')(recommend_indexes_loggroup)
         mcp.tool(name='recommend_indexes_account')(recommend_indexes_account)

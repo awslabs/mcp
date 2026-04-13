@@ -387,7 +387,7 @@ class TestEdgeCases:
             tools.register(mock_mcp)
 
             # Verify all tools are registered
-            assert mock_mcp.tool.call_count == 7
+            assert mock_mcp.tool.call_count == 8
             tool_calls = [call[1]['name'] for call in mock_mcp.tool.call_args_list]
             expected_tools = [
                 'describe_log_groups',

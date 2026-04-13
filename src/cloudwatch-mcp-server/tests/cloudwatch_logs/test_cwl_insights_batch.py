@@ -20,12 +20,12 @@ from awslabs.cloudwatch_mcp_server.cloudwatch_logs.cwl_insights_batch import (
     _CONCURRENCY_PER_REGION,
     MAX_RECHUNK_DEPTH,
     MultiRegionQueryResult,
+    _annotate_rows,
     _chunk_list,
-    _RegionContext,
     _convert_time,
     _hit_output_limit,
     _is_splittable_failure,
-    _annotate_rows,
+    _RegionContext,
     execute_cwl_insights_batch,
 )
 from botocore.exceptions import ClientError
@@ -45,11 +45,15 @@ def ctx():
 @pytest.fixture(autouse=True)
 def _fast_timers():
     """Zero out poll/start intervals so tests don't sleep."""
-    with patch(
-        'awslabs.cloudwatch_mcp_server.cloudwatch_logs.cwl_insights_batch._POLL_INTERVAL', 0,
-    ), patch(
-        'awslabs.cloudwatch_mcp_server.cloudwatch_logs.cwl_insights_batch._START_QUERY_INTERVAL',
-        0,
+    with (
+        patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_logs.cwl_insights_batch._POLL_INTERVAL',
+            0,
+        ),
+        patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_logs.cwl_insights_batch._START_QUERY_INTERVAL',
+            0,
+        ),
     ):
         yield
 
@@ -61,8 +65,10 @@ def _make_logs_client(results=None, status='Complete'):
     client.get_query_results.return_value = {
         'status': status,
         'results': [
-            [{'field': '@timestamp', 'value': '2025-01-01T00:00:00Z'},
-             {'field': '@message', 'value': msg}]
+            [
+                {'field': '@timestamp', 'value': '2025-01-01T00:00:00Z'},
+                {'field': '@message', 'value': msg},
+            ]
             for msg in (results or ['hello'])
         ],
         'statistics': {'recordsMatched': 1.0, 'recordsScanned': 100.0},
@@ -426,8 +432,10 @@ class TestMultiRegionQuery:
             )
 
         assert result.summary.re_chunked <= 2**MAX_RECHUNK_DEPTH
-        assert any('max re-chunk depth' in w or 'cannot be split' in w.lower()
-                    for w in result.summary.warnings)
+        assert any(
+            'max re-chunk depth' in w or 'cannot be split' in w.lower()
+            for w in result.summary.warnings
+        )
 
     async def test_summary_warnings_on_failure(self, ctx):
         """ctx.warning should be called when there are failed chunks."""
@@ -527,12 +535,15 @@ class TestMultiRegionQuery:
         # 15 log groups = 15 chunks of 1 (we set chunk size to 1 via patching MAX)
         groups = [f'/g{i}' for i in range(15)]
 
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_logs.cwl_insights_batch.get_aws_client',
-            return_value=client,
-        ), patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_logs.cwl_insights_batch.MAX_LOG_GROUPS_PER_QUERY',
-            1,
+        with (
+            patch(
+                'awslabs.cloudwatch_mcp_server.cloudwatch_logs.cwl_insights_batch.get_aws_client',
+                return_value=client,
+            ),
+            patch(
+                'awslabs.cloudwatch_mcp_server.cloudwatch_logs.cwl_insights_batch.MAX_LOG_GROUPS_PER_QUERY',
+                1,
+            ),
         ):
             result = await execute_cwl_insights_batch(
                 ctx,
@@ -552,31 +563,38 @@ class TestConvertTime:
     """Tests for _convert_time helper."""
 
     def test_valid_iso(self):
+        """Valid ISO 8601 string converts correctly."""
         assert _convert_time('2025-01-01T00:00:00+00:00') == 1735689600
 
     def test_invalid_string(self):
+        """Invalid string raises ValueError."""
         with pytest.raises(ValueError, match='Invalid ISO 8601'):
             _convert_time('not-a-date')
 
     def test_none_input(self):
+        """None input raises ValueError."""
         with pytest.raises(ValueError):
-            _convert_time(None)
+            _convert_time(None)  # type: ignore[arg-type]
 
 
 class TestHitOutputLimit:
     """Tests for _hit_output_limit helper."""
 
     def test_below_limit(self):
+        """Below limit returns False."""
         assert _hit_output_limit({'statistics': {'recordsMatched': 100}, 'results': []}) is False
 
     def test_at_limit_via_stats(self):
+        """At limit via stats returns True."""
         assert _hit_output_limit({'statistics': {'recordsMatched': 10_000}, 'results': []}) is True
 
     def test_at_limit_via_results_fallback(self):
+        """At limit via results fallback returns True."""
         rows = [{'m': 'x'}] * 10_000
         assert _hit_output_limit({'statistics': {}, 'results': rows}) is True
 
     def test_empty(self):
+        """Empty results returns False."""
         assert _hit_output_limit({'results': []}) is False
 
 
@@ -584,15 +602,19 @@ class TestIsSplittableFailure:
     """Tests for _is_splittable_failure helper."""
 
     def test_timeout(self):
+        """Timeout status is splittable."""
         assert _is_splittable_failure({'status': 'Timeout'}) is True
 
     def test_polling_timeout(self):
+        """PollingTimeout status is splittable."""
         assert _is_splittable_failure({'status': 'PollingTimeout'}) is True
 
     def test_failed_not_splittable(self):
+        """Failed status is not splittable."""
         assert _is_splittable_failure({'status': 'Failed'}) is False
 
     def test_complete_not_splittable(self):
+        """Complete status is not splittable."""
         assert _is_splittable_failure({'status': 'Complete'}) is False
 
 
@@ -600,6 +622,7 @@ class TestAnnotateRows:
     """Tests for _annotate_rows helper."""
 
     def test_single_log_group(self):
+        """Single log group uses name directly."""
         rows = [{'@message': 'hi'}]
         _annotate_rows(rows, 'us-east-1', 'acct-1', ['/aws/lg1'])
         assert rows[0]['_region'] == 'us-east-1'
@@ -607,6 +630,7 @@ class TestAnnotateRows:
         assert rows[0]['_logGroups'] == '/aws/lg1'
 
     def test_multiple_log_groups(self):
+        """Multiple log groups shows count."""
         rows = [{'@message': 'hi'}]
         _annotate_rows(rows, 'eu-west-1', None, ['/lg1', '/lg2', '/lg3'])
         assert rows[0]['_logGroups'] == '3 log groups'
@@ -618,6 +642,7 @@ class TestValidation:
     """Tests for input validation in execute_cwl_insights_batch."""
 
     async def test_invalid_start_time(self, ctx):
+        """Invalid start_time raises ValueError."""
         with pytest.raises(ValueError, match='Invalid time parameter'):
             await execute_cwl_insights_batch(
                 ctx,
@@ -629,6 +654,7 @@ class TestValidation:
             )
 
     async def test_start_after_end(self, ctx):
+        """start_time after end_time raises ValueError."""
         with pytest.raises(ValueError, match='start_time must be before end_time'):
             await execute_cwl_insights_batch(
                 ctx,
@@ -640,6 +666,7 @@ class TestValidation:
             )
 
     async def test_negative_max_timeout(self, ctx):
+        """Negative max_timeout raises ValueError."""
         with pytest.raises(ValueError, match='max_timeout must be positive'):
             await execute_cwl_insights_batch(
                 ctx,
@@ -652,6 +679,7 @@ class TestValidation:
             )
 
     async def test_negative_limit(self, ctx):
+        """Negative limit raises ValueError."""
         with pytest.raises(ValueError, match='limit must be positive'):
             await execute_cwl_insights_batch(
                 ctx,
@@ -752,11 +780,15 @@ class TestValidation:
 
         client.get_query_results.side_effect = get_results
 
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_logs.cwl_insights_batch.get_aws_client',
-            return_value=client,
-        ), patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_logs.cwl_insights_batch._POLL_INTERVAL', 0,
+        with (
+            patch(
+                'awslabs.cloudwatch_mcp_server.cloudwatch_logs.cwl_insights_batch.get_aws_client',
+                return_value=client,
+            ),
+            patch(
+                'awslabs.cloudwatch_mcp_server.cloudwatch_logs.cwl_insights_batch._POLL_INTERVAL',
+                0,
+            ),
         ):
             result = await execute_cwl_insights_batch(
                 ctx,
@@ -765,7 +797,7 @@ class TestValidation:
                 start_time='2025-01-01T00:00:00+00:00',
                 end_time='2025-01-01T01:00:00+00:00',
                 query_string='fields @message',
-                max_timeout=0,
+                max_timeout=1,
             )
 
         assert result.summary.total_chunks == 1
@@ -815,18 +847,19 @@ class TestValidation:
         client.stop_query.return_value = {}
         client.get_query_results.return_value = {
             'status': 'Complete',
-            'results': [
-                [{'field': '@message', 'value': f'row{i}'}] for i in range(500)
-            ],
+            'results': [[{'field': '@message', 'value': f'row{i}'}] for i in range(500)],
             'statistics': {'recordsMatched': 500.0},
         }
 
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_logs.cwl_insights_batch.get_aws_client',
-            return_value=client,
-        ), patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_logs.cwl_insights_batch.LARGE_RESULT_WARNING_THRESHOLD',
-            100,
+        with (
+            patch(
+                'awslabs.cloudwatch_mcp_server.cloudwatch_logs.cwl_insights_batch.get_aws_client',
+                return_value=client,
+            ),
+            patch(
+                'awslabs.cloudwatch_mcp_server.cloudwatch_logs.cwl_insights_batch.LARGE_RESULT_WARNING_THRESHOLD',
+                100,
+            ),
         ):
             result = await execute_cwl_insights_batch(
                 ctx,
@@ -841,7 +874,7 @@ class TestValidation:
         assert any('Large result set' in w for w in result.summary.warnings)
 
     async def test_limit_param_forwarded(self, ctx):
-        """limit parameter should be passed to start_query."""
+        """Limit parameter should be passed to start_query."""
         client = _make_logs_client(['msg'])
         with patch(
             'awslabs.cloudwatch_mcp_server.cloudwatch_logs.cwl_insights_batch.get_aws_client',
@@ -861,8 +894,9 @@ class TestValidation:
         call_kwargs = client.start_query.call_args
         assert call_kwargs is not None
         # limit should appear in the kwargs
-        assert 50 in (call_kwargs.kwargs.get('limit'), call_kwargs[1].get('limit', None)) or \
-            any(v == 50 for v in (call_kwargs.kwargs.values() if call_kwargs.kwargs else []))
+        assert 50 in (call_kwargs.kwargs.get('limit'), call_kwargs[1].get('limit', None)) or any(
+            v == 50 for v in (call_kwargs.kwargs.values() if call_kwargs.kwargs else [])
+        )
 
     async def test_rechunk_with_partial_results(self, ctx):
         """Rechunk at max depth with partial results should count as successful."""
@@ -875,12 +909,15 @@ class TestValidation:
             'statistics': {},
         }
 
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_logs.cwl_insights_batch.get_aws_client',
-            return_value=client,
-        ), patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_logs.cwl_insights_batch.MAX_RECHUNK_DEPTH',
-            0,
+        with (
+            patch(
+                'awslabs.cloudwatch_mcp_server.cloudwatch_logs.cwl_insights_batch.get_aws_client',
+                return_value=client,
+            ),
+            patch(
+                'awslabs.cloudwatch_mcp_server.cloudwatch_logs.cwl_insights_batch.MAX_RECHUNK_DEPTH',
+                0,
+            ),
         ):
             result = await asyncio.wait_for(
                 execute_cwl_insights_batch(
