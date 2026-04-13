@@ -50,7 +50,8 @@ Use this MCP server to manage SAP applications registered with AWS Systems Manag
 * `get_schedule_details` - Get detailed information about a specific schedule
 
 ### Health Summary Tools
-* `get_sap_health_summary` - Generate a comprehensive Markdown health report for one or all SAP applications, including application/component status, configuration checks with subchecks and rule results, HANA log backup status, AWS Backup status, and CloudWatch EC2 metrics
+* `get_sap_health_summary` - Get comprehensive health summary for one or all SAP applications, including application/component status, configuration checks with subchecks and rule results, HANA log backup status, AWS Backup status, and CloudWatch EC2 metrics
+* `generate_health_report` - Generate a detailed, downloadable Markdown health report covering all health dimensions for one or all SAP applications
 
 ### Required IAM Permissions
 
@@ -83,8 +84,11 @@ Use this MCP server to manage SAP applications registered with AWS Systems Manag
 * `iam:AttachRolePolicy`
 * `sts:GetCallerIdentity`
 
-#### SSM (for health summary log backup checks)
+#### SSM (for health summary log backup and filesystem checks)
 * `ssm:DescribeInstanceInformation`
+* `ssm:SendCommand`
+* `ssm:GetCommandInvocation`
+* `ssm:ListCommands`
 
 #### AWS Backup (for health summary backup status)
 * `backup:ListBackupPlans`
@@ -92,6 +96,7 @@ Use this MCP server to manage SAP applications registered with AWS Systems Manag
 
 #### CloudWatch (for health summary EC2 metrics)
 * `cloudwatch:GetMetricStatistics`
+* `cloudwatch:ListMetrics`
 
 ## Installation
 
