@@ -273,6 +273,112 @@ class UpdateConnectionData(BaseModel):
     operation: str = Field(default='update', description='Operation performed')
 
 
+class TestConnectionData(BaseModel):
+    """Data model for test connection operation."""
+
+    connection_name: Optional[str] = Field(None, description='Name of the tested connection')
+    catalog_id: Optional[str] = Field(None, description='Catalog ID containing the connection')
+    operation: str = Field(default='test-connection', description='Operation performed')
+
+
+class BatchDeleteConnectionData(BaseModel):
+    """Data model for batch delete connection operation."""
+
+    succeeded: List[str] = Field(default_factory=list, description='Connections successfully deleted')
+    errors: Dict[str, Any] = Field(default_factory=dict, description='Connections that failed to delete with error details')
+    catalog_id: Optional[str] = Field(None, description='Catalog ID containing the connections')
+    operation: str = Field(default='batch-delete-connection', description='Operation performed')
+
+
+class DescribeConnectionTypeData(BaseModel):
+    """Data model for describe connection type operation."""
+
+    connection_type: str = Field(..., description='Name of the connection type')
+    description: Optional[str] = Field(None, description='Description of the connection type')
+    capabilities: Optional[Dict[str, Any]] = Field(None, description='Supported capabilities')
+    connection_properties: Optional[Dict[str, Any]] = Field(None, description='Common connection properties')
+    connection_options: Optional[Dict[str, Any]] = Field(None, description='Connection options for Spark ETL')
+    authentication_configuration: Optional[Dict[str, Any]] = Field(None, description='Authentication configuration')
+    compute_environment_configurations: Optional[Dict[str, Any]] = Field(None, description='Supported compute environments')
+    physical_connection_requirements: Optional[Dict[str, Any]] = Field(None, description='Physical connection requirements')
+    athena_connection_properties: Optional[Dict[str, Any]] = Field(None, description='Athena-specific properties')
+    python_connection_properties: Optional[Dict[str, Any]] = Field(None, description='Python-specific properties')
+    spark_connection_properties: Optional[Dict[str, Any]] = Field(None, description='Spark-specific properties')
+    operation: str = Field(default='describe-connection-type', description='Operation performed')
+
+
+class ConnectionTypeBrief(BaseModel):
+    """Summary model for a connection type."""
+
+    connection_type: Optional[str] = Field(None, description='Name of the connection type')
+    display_name: Optional[str] = Field(None, description='Human-readable display name')
+    vendor: Optional[str] = Field(None, description='Vendor name')
+    description: Optional[str] = Field(None, description='Description of the connection type')
+
+
+class ListConnectionTypesData(BaseModel):
+    """Data model for list connection types operation."""
+
+    connection_types: List[ConnectionTypeBrief] = Field(default_factory=list, description='List of connection types')
+    count: int = Field(0, description='Number of connection types returned')
+    next_token: Optional[str] = Field(None, description='Token for pagination')
+    operation: str = Field(default='list-connection-types', description='Operation performed')
+
+
+class EntitySummary(BaseModel):
+    """Summary model for a connection entity."""
+
+    entity_name: Optional[str] = Field(None, description='Name of the entity')
+    label: Optional[str] = Field(None, description='Label for the entity')
+    is_parent_entity: Optional[bool] = Field(None, description='Whether entity has sub-objects')
+    description: Optional[str] = Field(None, description='Description of the entity')
+    category: Optional[str] = Field(None, description='Category of the entity')
+
+
+class ListEntitiesData(BaseModel):
+    """Data model for list entities operation."""
+
+    entities: List[EntitySummary] = Field(default_factory=list, description='List of entities')
+    count: int = Field(0, description='Number of entities returned')
+    next_token: Optional[str] = Field(None, description='Token for pagination')
+    operation: str = Field(default='list-entities', description='Operation performed')
+
+
+class FieldSummary(BaseModel):
+    """Summary model for an entity field."""
+
+    field_name: Optional[str] = Field(None, description='Unique identifier for the field')
+    label: Optional[str] = Field(None, description='Readable label for the field')
+    description: Optional[str] = Field(None, description='Description of the field')
+    field_type: Optional[str] = Field(None, description='Data type of the field')
+    is_primary_key: Optional[bool] = Field(None, description='Whether field is a primary key')
+    is_nullable: Optional[bool] = Field(None, description='Whether field is nullable')
+    is_filterable: Optional[bool] = Field(None, description='Whether field can be used in filters')
+    is_partitionable: Optional[bool] = Field(None, description='Whether field can be used for partitioning')
+    is_retrievable: Optional[bool] = Field(None, description='Whether field can be retrieved')
+    is_createable: Optional[bool] = Field(None, description='Whether field can be created')
+    is_updateable: Optional[bool] = Field(None, description='Whether field can be updated')
+    is_upsertable: Optional[bool] = Field(None, description='Whether field can be upserted')
+
+
+class DescribeEntityData(BaseModel):
+    """Data model for describe entity operation."""
+
+    fields: List[FieldSummary] = Field(default_factory=list, description='List of entity fields')
+    count: int = Field(0, description='Number of fields returned')
+    next_token: Optional[str] = Field(None, description='Token for pagination')
+    operation: str = Field(default='describe-entity', description='Operation performed')
+
+
+class GetEntityRecordsData(BaseModel):
+    """Data model for get entity records operation."""
+
+    records: List[Dict[str, Any]] = Field(default_factory=list, description='List of entity records')
+    count: int = Field(0, description='Number of records returned')
+    next_token: Optional[str] = Field(None, description='Token for pagination')
+    operation: str = Field(default='get-entity-records', description='Operation performed')
+
+
 # Partition Data Models
 class CreatePartitionData(BaseModel):
     """Data model for create partition operation."""
