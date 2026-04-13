@@ -863,7 +863,6 @@ class TestRegisterApplicationOptionalParams:
                 {
                     'CredentialType': 'ADMIN',
                     'DatabaseName': 'HDB/SYSTEMDB',
-                    'SecretId': 'arn:aws:secretsmanager:us-east-1:123456789012:test-id',
                 }
             ],
             tags={'env': 'prod'},
@@ -875,7 +874,6 @@ class TestRegisterApplicationOptionalParams:
             {
                 'CredentialType': 'ADMIN',
                 'DatabaseName': 'HDB/SYSTEMDB',
-                'SecretId': 'arn:aws:secretsmanager:us-east-1:123456789012:test-id',
             }
         ]
         assert call_kwargs['Tags'] == {'env': 'prod'}
