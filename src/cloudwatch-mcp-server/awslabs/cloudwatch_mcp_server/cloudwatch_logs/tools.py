@@ -19,6 +19,9 @@ import datetime
 from awslabs.cloudwatch_mcp_server.aws_common import get_aws_client
 from awslabs.cloudwatch_mcp_server.cloudwatch_logs.cwl_insights_batch import (
     execute_cwl_insights_batch,
+from awslabs.cloudwatch_mcp_server.cloudwatch_logs.index_recommender import (
+    recommend_indexes_account,
+    recommend_indexes_loggroup,
 )
 from awslabs.cloudwatch_mcp_server.cloudwatch_logs.models import (
     LogAnomaly,
@@ -209,6 +212,9 @@ class CloudWatchLogsTools:
         mcp.tool(name='execute_cwl_insights_batch')(
             execute_cwl_insights_batch
         )
+        # Register index recommender tools
+        mcp.tool(name='recommend_indexes_loggroup')(recommend_indexes_loggroup)
+        mcp.tool(name='recommend_indexes_account')(recommend_indexes_account)
 
     async def describe_log_groups(
         self,
