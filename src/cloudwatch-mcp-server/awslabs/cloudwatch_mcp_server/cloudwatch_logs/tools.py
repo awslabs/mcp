@@ -17,6 +17,9 @@
 import asyncio
 import datetime
 from awslabs.cloudwatch_mcp_server.aws_common import get_aws_client
+from awslabs.cloudwatch_mcp_server.cloudwatch_logs.cwl_insights_batch import (
+    execute_cwl_insights_batch,
+)
 from awslabs.cloudwatch_mcp_server.cloudwatch_logs.models import (
     LogAnomaly,
     LogAnomalyDetector,
@@ -201,6 +204,11 @@ class CloudWatchLogsTools:
 
         # Register cancel_logs_insight_query tool
         mcp.tool(name='cancel_logs_insight_query')(self.cancel_logs_insight_query)
+
+        # Register multi-region Logs Insights query tool
+        mcp.tool(name='execute_cwl_insights_batch')(
+            execute_cwl_insights_batch
+        )
 
     async def describe_log_groups(
         self,
