@@ -19,6 +19,7 @@ import datetime
 from awslabs.cloudwatch_mcp_server.aws_common import get_aws_client
 from awslabs.cloudwatch_mcp_server.cloudwatch_logs.cwl_insights_batch import (
     execute_cwl_insights_batch,
+)
 from awslabs.cloudwatch_mcp_server.cloudwatch_logs.index_recommender import (
     recommend_indexes_account,
     recommend_indexes_loggroup,
