@@ -872,7 +872,11 @@ class TestRegisterApplicationOptionalParams:
         assert result.status == 'success'
         call_kwargs = mock_client.register_application.call_args[1]
         assert call_kwargs['Credentials'] == [
-            {'CredentialType': 'ADMIN', 'DatabaseName': 'HDB/SYSTEMDB', 'SecretId': 'arn:aws:secretsmanager:us-east-1:123456789012:test-id'}
+            {
+                'CredentialType': 'ADMIN',
+                'DatabaseName': 'HDB/SYSTEMDB',
+                'SecretId': 'arn:aws:secretsmanager:us-east-1:123456789012:test-id',
+            }
         ]
         assert call_kwargs['Tags'] == {'env': 'prod'}
 
