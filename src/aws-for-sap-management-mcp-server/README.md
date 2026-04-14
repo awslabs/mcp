@@ -1,4 +1,4 @@
-# AWS Labs AWS Systems Manager for SAP MCP Server
+# AWS Labs AWS For SAP Management MCP Server
 
 An AWS Labs Model Context Protocol (MCP) server for AWS Systems Manager for SAP. This server enables AI agents to manage SAP applications registered with AWS Systems Manager for SAP, run configuration checks, and schedule recurring operations via Amazon EventBridge Scheduler.
 
