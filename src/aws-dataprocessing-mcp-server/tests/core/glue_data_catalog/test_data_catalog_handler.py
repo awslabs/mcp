@@ -2119,7 +2119,9 @@ class TestDataCatalogManager:
         assert '2 succeeded' in result.content[0].text
 
     @pytest.mark.asyncio
-    async def test_batch_delete_connection_not_mcp_managed(self, manager, mock_ctx, mock_glue_client):
+    async def test_batch_delete_connection_not_mcp_managed(
+        self, manager, mock_ctx, mock_glue_client
+    ):
         """Test that batch_delete_connection rejects non-MCP-managed connections."""
         with (
             patch(
@@ -2255,7 +2257,9 @@ class TestDataCatalogManager:
         assert 'Successfully listed 2 connection types' in result.content[0].text
 
     @pytest.mark.asyncio
-    async def test_list_connection_types_with_pagination(self, manager, mock_ctx, mock_glue_client):
+    async def test_list_connection_types_with_pagination(
+        self, manager, mock_ctx, mock_glue_client
+    ):
         """Test that list_connection_types handles pagination parameters."""
         mock_glue_client.list_connection_types.return_value = {
             'ConnectionTypes': [{'ConnectionType': 'JDBC'}],
@@ -2488,7 +2492,9 @@ class TestDataCatalogManager:
         assert 'Successfully retrieved 2 records' in result.content[0].text
 
     @pytest.mark.asyncio
-    async def test_get_entity_records_with_all_parameters(self, manager, mock_ctx, mock_glue_client):
+    async def test_get_entity_records_with_all_parameters(
+        self, manager, mock_ctx, mock_glue_client
+    ):
         """Test that get_entity_records handles all optional parameters."""
         mock_glue_client.get_entity_records.return_value = {
             'Records': [],
