@@ -1,3 +1,17 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Tests for canary_utils functions."""
 
 import gzip
@@ -1626,3 +1640,136 @@ async def test_check_canaries_for_service_api_exception():
         ]
         result = await check_canaries_for_service(targets, 1700000000, 1700086400, 'us-east-1')
         assert result == ''
+
+
+@pytest.mark.asyncio
+async def test_check_canaries_for_service_pagination():
+    """Test check_canaries_for_service paginates list_service_dependents."""
+
+    with (
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.applicationsignals_client'
+        ) as mock_appsignals,
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.synthetics_client'
+        ) as mock_synthetics,
+    ):
+        # First page returns a non-canary dependent + NextToken
+        # Second page returns a canary dependent
+        mock_appsignals.list_service_dependents.side_effect = [
+            {
+                'ServiceDependents': [
+                    {'DependentKeyAttributes': {'ResourceType': 'AWS::ECS::Service', 'Identifier': 'other-svc'}},
+                ],
+                'NextToken': 'page2',
+            },
+            {
+                'ServiceDependents': [
+                    {'DependentKeyAttributes': {'ResourceType': 'AWS::Synthetics::Canary', 'Identifier': 'paginated-canary'}},
+                ],
+            },
+        ]
+        mock_synthetics.get_canary_runs.return_value = {
+            'CanaryRuns': [
+                {'Status': {'State': 'PASSED'}},
+                {'Status': {'State': 'PASSED'}},
+                {'Status': {'State': 'PASSED'}},
+                {'Status': {'State': 'PASSED'}},
+                {'Status': {'State': 'PASSED'}},
+            ]
+        }
+
+        targets = [
+            {'Type': 'service', 'Data': {'Service': {'Type': 'Service', 'Name': 'my-svc', 'Environment': 'eks:cluster'}}}
+        ]
+        result = await check_canaries_for_service(targets, 1700000000, 1700086400, 'us-east-1')
+        assert 'paginated-canary' in result
+        assert mock_appsignals.list_service_dependents.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_check_canaries_for_service_no_data_runs():
+    """Test check_canaries_for_service handles canary with no runs."""
+
+    with (
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.applicationsignals_client'
+        ) as mock_appsignals,
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.synthetics_client'
+        ) as mock_synthetics,
+    ):
+        mock_appsignals.list_service_dependents.return_value = {
+            'ServiceDependents': [
+                {'DependentKeyAttributes': {'ResourceType': 'AWS::Synthetics::Canary', 'Identifier': 'empty-canary'}},
+            ]
+        }
+        mock_synthetics.get_canary_runs.return_value = {'CanaryRuns': []}
+
+        targets = [
+            {'Type': 'service', 'Data': {'Service': {'Type': 'Service', 'Name': 'my-svc', 'Environment': 'eks:cluster'}}}
+        ]
+        result = await check_canaries_for_service(targets, 1700000000, 1700086400, 'us-east-1')
+        # Should still produce output since a canary was found
+        assert 'Synthetics Canaries' in result
+
+
+@pytest.mark.asyncio
+async def test_check_canaries_for_service_get_runs_error():
+    """Test check_canaries_for_service logs warning when get_canary_runs fails."""
+
+    with (
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.applicationsignals_client'
+        ) as mock_appsignals,
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.synthetics_client'
+        ) as mock_synthetics,
+    ):
+        mock_appsignals.list_service_dependents.return_value = {
+            'ServiceDependents': [
+                {'DependentKeyAttributes': {'ResourceType': 'AWS::Synthetics::Canary', 'Identifier': 'error-canary'}},
+            ]
+        }
+        mock_synthetics.get_canary_runs.side_effect = Exception('Access denied')
+
+        targets = [
+            {'Type': 'service', 'Data': {'Service': {'Type': 'Service', 'Name': 'my-svc', 'Environment': 'eks:cluster'}}}
+        ]
+        result = await check_canaries_for_service(targets, 1700000000, 1700086400, 'us-east-1')
+        assert 'Synthetics Canaries' in result
+
+
+@pytest.mark.asyncio
+async def test_check_canaries_for_service_empty_identifier():
+    """Test check_canaries_for_service skips canaries with empty identifiers."""
+
+    with (
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.applicationsignals_client'
+        ) as mock_appsignals,
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.synthetics_client'
+        ) as mock_synthetics,
+    ):
+        mock_appsignals.list_service_dependents.return_value = {
+            'ServiceDependents': [
+                {'DependentKeyAttributes': {'ResourceType': 'AWS::Synthetics::Canary', 'Identifier': ''}},
+                {'DependentKeyAttributes': {'ResourceType': 'AWS::Synthetics::Canary', 'Identifier': 'real-canary'}},
+            ]
+        }
+        mock_synthetics.get_canary_runs.return_value = {
+            'CanaryRuns': [
+                {'Status': {'State': 'PASSED'}},
+                {'Status': {'State': 'PASSED'}},
+                {'Status': {'State': 'PASSED'}},
+                {'Status': {'State': 'PASSED'}},
+                {'Status': {'State': 'PASSED'}},
+            ]
+        }
+
+        targets = [
+            {'Type': 'service', 'Data': {'Service': {'Type': 'Service', 'Name': 'my-svc', 'Environment': 'eks:cluster'}}}
+        ]
+        result = await check_canaries_for_service(targets, 1700000000, 1700086400, 'us-east-1')
+        assert 'real-canary' in result

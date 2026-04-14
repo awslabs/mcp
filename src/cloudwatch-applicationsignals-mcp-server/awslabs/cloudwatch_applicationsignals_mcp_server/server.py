@@ -1106,12 +1106,14 @@ async def analyze_canary_failures(canary_name: str, region: str = AWS_REGION, de
             # Still run KB lookup when user provided an issue description
             if description:
                 try:
-                    kb_error_messages_healthy: list[str] = [description]
+                    # Cap description length to mitigate slow regex matching in KB patterns
+                    capped_description = description[:500] if len(description) > 500 else description
+                    kb_error_messages_healthy: list[str] = [capped_description]
                     failure_context_healthy = FailureContext(
                         error_messages=kb_error_messages_healthy,
                         runtime_version=canary.get('RuntimeVersion', ''),
                     )
-                    engine_healthy = CanaryRecommendationEngine(CanaryKnowledgeBaseLoader.get_instance())
+                    engine_healthy = CanaryRecommendationEngine(await CanaryKnowledgeBaseLoader.get_instance())
                     recommendations_healthy = engine_healthy.get_recommendations(failure_context_healthy)
                     if recommendations_healthy:
                         result += engine_healthy.format_recommendations(recommendations_healthy)
@@ -1548,13 +1550,6 @@ async def analyze_canary_failures(canary_name: str, region: str = AWS_REGION, de
 
         # --- Knowledge Base Recommendations ---
         try:
-            # Build resource_metrics from telemetry_data if available
-            kb_resource_metrics: dict[str, float] = {}
-            if 'telemetry_data' in dir() and isinstance(telemetry_data, dict) and 'error' not in telemetry_data:
-                for key, val in telemetry_data.items():
-                    if isinstance(val, (int, float)):
-                        kb_resource_metrics[key] = float(val)
-
             # Build environment_indicators from canary tags and category context
             kb_env_indicators: list[str] = []
             canary_tags = canary.get('Tags', {})
@@ -1568,7 +1563,8 @@ async def analyze_canary_failures(canary_name: str, region: str = AWS_REGION, de
             # Build error_messages: StateReason + all collected detailed errors + user description
             kb_error_messages: list[str] = [selected_reason]
             if description:
-                kb_error_messages.append(description)
+                # Cap description length to mitigate slow regex matching in KB patterns
+                kb_error_messages.append(description[:500] if len(description) > 500 else description)
             for msg in all_collected_error_messages:
                 if msg and msg not in kb_error_messages:
                     kb_error_messages.append(msg)
@@ -1578,10 +1574,9 @@ async def analyze_canary_failures(canary_name: str, region: str = AWS_REGION, de
                 state_reasons=[selected_reason],
                 runtime_version=canary.get('RuntimeVersion', ''),
                 log_patterns=all_collected_log_patterns,
-                resource_metrics=kb_resource_metrics,
                 environment_indicators=kb_env_indicators,
             )
-            engine = CanaryRecommendationEngine(CanaryKnowledgeBaseLoader.get_instance())
+            engine = CanaryRecommendationEngine(await CanaryKnowledgeBaseLoader.get_instance())
             recommendations = engine.get_recommendations(failure_context)
             if recommendations:
                 result += engine.format_recommendations(recommendations)
@@ -1595,7 +1590,7 @@ async def analyze_canary_failures(canary_name: str, region: str = AWS_REGION, de
         return f'❌ Error in comprehensive failure analysis: {str(e)}'
 
 @mcp.tool()
-async def list_canaries(region: str = AWS_REGION) -> str:
+async def list_canaries(region: str = AWS_REGION, max_results: int = 20) -> str:
     """List all CloudWatch Synthetics canaries in the account.
 
     Use this tool to discover canaries before analyzing them with analyze_canary_failures().
@@ -1603,33 +1598,42 @@ async def list_canaries(region: str = AWS_REGION) -> str:
 
     Args:
         region: AWS region to query (defaults to configured region).
+        max_results: Maximum number of canaries to display (default: 20, max: 200).
 
     Returns:
         Formatted list of all canaries with their current status and configuration.
     """
-    try:
-        from botocore.exceptions import ClientError
+    from botocore.exceptions import ClientError
 
-        canaries = []
+    max_results = min(max(max_results, 1), 200)
+
+    try:
+        canaries: list = []
         paginator_token = None
 
         while True:
-            kwargs = {'MaxResults': 20}
+            kwargs: dict = {'MaxResults': 20}
             if paginator_token:
                 kwargs['NextToken'] = paginator_token
 
             response = synthetics_client.describe_canaries(**kwargs)
             canaries.extend(response.get('Canaries', []))
             paginator_token = response.get('NextToken')
-            if not paginator_token:
+            if not paginator_token or len(canaries) >= max_results:
                 break
 
         if not canaries:
             return 'No canaries found in this account/region.'
 
-        result = f'Found {len(canaries)} canaries:\n\n'
+        total_fetched = len(canaries)
+        display_canaries = canaries[:max_results]
 
-        for c in canaries:
+        result = f'Found {total_fetched} canaries'
+        if total_fetched > max_results:
+            result += f' (showing first {max_results})'
+        result += ':\n\n'
+
+        for c in display_canaries:
             name = c.get('Name', 'Unknown')
             status_obj = c.get('Status', {})
             state = status_obj.get('State', 'Unknown')
@@ -1665,9 +1669,7 @@ async def list_canaries(region: str = AWS_REGION) -> str:
         return result
 
     except ClientError as e:
-        error_code = e.response['Error']['Code']
-        error_msg = e.response['Error']['Message']
-        return f'Error listing canaries: {error_code} - {error_msg}'
+        return f'Error listing canaries: {e}'
     except Exception as e:
         return f'Error listing canaries: {str(e)}'
 

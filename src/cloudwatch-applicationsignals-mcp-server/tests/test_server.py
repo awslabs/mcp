@@ -3455,3 +3455,219 @@ async def test_analyze_canary_failures_kb_recommendations_on_failure(mock_aws_cl
         assert '🔍 Comprehensive Failure Analysis for test-canary' in result
         # The KB should match RUNTIME-001 based on the error message
         assert 'Knowledge Base Recommendations' in result or 'Timeout 60000ms exceeded' in result
+
+
+@pytest.mark.asyncio
+async def test_list_canaries_max_results_truncation(mock_aws_clients):
+    """Test list_canaries truncates output when more canaries exist than max_results."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import list_canaries
+
+    # Return 20 canaries on first page with a next token (more exist)
+    canaries_page1 = [
+        {
+            'Name': f'canary-{i}',
+            'Status': {'State': 'RUNNING'},
+            'Schedule': {'Expression': 'rate(5 minutes)'},
+            'RuntimeVersion': 'syn-nodejs-puppeteer-13.0',
+        }
+        for i in range(20)
+    ]
+    mock_aws_clients['synthetics_client'].describe_canaries.return_value = {
+        'Canaries': canaries_page1,
+        'NextToken': 'more-exist',
+    }
+
+    # max_results=5 should stop after first page and only display 5
+    result = await list_canaries('us-east-1', max_results=5)
+
+    assert 'showing first 5' in result
+    assert 'canary-0' in result
+    assert 'canary-4' in result
+
+
+@pytest.mark.asyncio
+async def test_list_canaries_max_results_clamped(mock_aws_clients):
+    """Test list_canaries clamps max_results to valid range."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import list_canaries
+
+    mock_aws_clients['synthetics_client'].describe_canaries.return_value = {
+        'Canaries': [
+            {
+                'Name': 'canary-1',
+                'Status': {'State': 'RUNNING'},
+                'Schedule': {'Expression': 'rate(5 minutes)'},
+                'RuntimeVersion': 'syn-nodejs-puppeteer-13.0',
+            }
+        ],
+    }
+
+    # max_results=0 should be clamped to 1
+    result = await list_canaries('us-east-1', max_results=0)
+    assert 'canary-1' in result
+
+    # max_results=999 should be clamped to 200
+    result = await list_canaries('us-east-1', max_results=999)
+    assert 'canary-1' in result
+
+
+@pytest.mark.asyncio
+async def test_list_canaries_error_and_stopped_states(mock_aws_clients):
+    """Test list_canaries displays correct emojis for different states."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import list_canaries
+
+    mock_aws_clients['synthetics_client'].describe_canaries.return_value = {
+        'Canaries': [
+            {
+                'Name': 'error-canary',
+                'Status': {'State': 'ERROR', 'StateReason': 'Lambda error'},
+                'Schedule': {'Expression': 'rate(5 minutes)'},
+                'RuntimeVersion': 'syn-nodejs-puppeteer-13.0',
+            },
+            {
+                'Name': 'unknown-canary',
+                'Status': {'State': 'CREATING'},
+                'Schedule': {'Expression': 'rate(1 hour)'},
+                'RuntimeVersion': 'syn-nodejs-puppeteer-13.0',
+            },
+        ],
+    }
+
+    result = await list_canaries('us-east-1')
+
+    assert '🟠 error-canary' in result
+    assert 'Lambda error' in result
+    assert '⚪ unknown-canary' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_healthy_with_description(mock_aws_clients):
+    """Test analyze_canary_failures runs KB lookup on healthy canary when description is provided."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import analyze_canary_failures
+
+    # All runs passed — no failures
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
+        'CanaryRuns': [
+            {
+                'Id': 'run-1',
+                'Status': {'State': 'PASSED', 'StateReason': ''},
+                'Timeline': {'Started': datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)},
+            }
+        ]
+    }
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {
+        'Canary': {
+            'Name': 'healthy-canary',
+            'RuntimeVersion': 'syn-nodejs-puppeteer-10.0',
+            'ArtifactS3Location': '',
+        }
+    }
+
+    result = await analyze_canary_failures(
+        'healthy-canary', 'us-east-1',
+        description='visual monitoring baseline keeps resetting'
+    )
+
+    assert 'recovering or healthy' in result
+    # KB should match RUNTIME-005 based on the description
+    assert 'Knowledge Base Recommendations' in result or 'baseline' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_healthy_no_description(mock_aws_clients):
+    """Test analyze_canary_failures skips KB on healthy canary without description."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import analyze_canary_failures
+
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
+        'CanaryRuns': [
+            {
+                'Id': 'run-1',
+                'Status': {'State': 'PASSED', 'StateReason': ''},
+                'Timeline': {'Started': datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)},
+            }
+        ]
+    }
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {
+        'Canary': {
+            'Name': 'healthy-canary',
+            'RuntimeVersion': 'syn-nodejs-puppeteer-10.0',
+            'ArtifactS3Location': '',
+        }
+    }
+
+    result = await analyze_canary_failures('healthy-canary', 'us-east-1')
+
+    assert 'recovering or healthy' in result
+    assert 'Knowledge Base Recommendations' not in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_kb_with_cw_logs_enrichment(mock_aws_clients):
+    """Test analyze_canary_failures enriches KB context from CW logs when S3 artifacts are available."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import analyze_canary_failures
+
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
+        'CanaryRuns': [
+            {
+                'Id': 'run-failed-1',
+                'Status': {
+                    'State': 'FAILED',
+                    'StateReason': 'Canary failed',
+                },
+                'Timeline': {'Started': datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)},
+            }
+        ]
+    }
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {
+        'Canary': {
+            'Name': 'test-canary',
+            'RuntimeVersion': 'syn-nodejs-puppeteer-11.0',
+            'ArtifactS3Location': 'cw-syn-results-123/canary/test-canary',
+        }
+    }
+    # S3 artifacts available
+    mock_aws_clients['s3_client'].list_objects_v2.return_value = {
+        'Contents': [
+            {'Key': 'canary/test-canary/run-failed-1/logs/log.txt', 'Size': 100},
+        ]
+    }
+
+    with (
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+        ) as mock_insights,
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.analyze_canary_logs_with_time_window'
+        ) as mock_cw_logs,
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_canary_code'
+        ) as mock_code,
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.analyze_log_files'
+        ) as mock_log_files,
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.analyze_screenshots'
+        ) as mock_screenshots,
+    ):
+        mock_insights.return_value = ''
+        mock_cw_logs.return_value = {
+            'status': 'success',
+            'time_window': '11:55-12:05',
+            'total_events': 2,
+            'error_events': [
+                {
+                    'timestamp': datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+                    'message': 'panic: runtime error: goroutine stack overflow',
+                }
+            ],
+            'insights': ['Golang panic detected'],
+        }
+        mock_log_files.return_value = {
+            'insights': ['panic detected in runtime'],
+            'error_events': [{'message': 'fatal error: goroutine'}],
+        }
+        mock_screenshots.return_value = {'screenshots': [], 'insights': []}
+        mock_code.return_value = {'error': 'no code'}
+
+        result = await analyze_canary_failures('test-canary', 'us-east-1')
+
+        assert '🔍 Comprehensive Failure Analysis for test-canary' in result

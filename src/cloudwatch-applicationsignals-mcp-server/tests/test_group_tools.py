@@ -48,6 +48,9 @@ def mock_aws_clients():
     mock_cloudwatch_client = MagicMock()
     mock_synthetics_client = MagicMock()
 
+    # Default return for canary check pagination — prevents infinite loop in check_canaries_for_service
+    mock_applicationsignals_client.list_service_dependents.return_value = {'ServiceDependents': []}
+
     patches = [
         patch(
             'awslabs.cloudwatch_applicationsignals_mcp_server.group_tools.applicationsignals_client',

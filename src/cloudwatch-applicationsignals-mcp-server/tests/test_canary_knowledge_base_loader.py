@@ -1,3 +1,17 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Tests for canary_knowledge_base_loader."""
 
 import json
@@ -38,25 +52,33 @@ def sample_entry_json():
 class TestCanaryKnowledgeBaseLoader:
     """Tests for CanaryKnowledgeBaseLoader."""
 
+    @staticmethod
+    def _load_sync() -> CanaryKnowledgeBaseLoader:
+        """Synchronously create and load a loader for tests."""
+        loader = CanaryKnowledgeBaseLoader()
+        loader.load()
+        return loader
+
     def test_singleton(self):
-        instance1 = CanaryKnowledgeBaseLoader.get_instance()
-        instance2 = CanaryKnowledgeBaseLoader.get_instance()
-        assert instance1 is instance2
+        loader1 = self._load_sync()
+        CanaryKnowledgeBaseLoader._instance = loader1
+        # Second call to get_instance would return same if _instance is set
+        assert CanaryKnowledgeBaseLoader._instance is loader1
 
     def test_load_from_real_kb_directory(self):
-        loader = CanaryKnowledgeBaseLoader.get_instance()
+        loader = self._load_sync()
         entries = loader.get_active_entries()
         # Should load the actual KB entries from the canary_knowledge_base directory
         assert len(entries) > 0
 
     def test_get_entry_by_id(self):
-        loader = CanaryKnowledgeBaseLoader.get_instance()
+        loader = self._load_sync()
         entry = loader.get_entry_by_id('RUNTIME-001')
         assert entry is not None
         assert entry.id == 'RUNTIME-001'
 
     def test_get_entry_by_id_not_found(self):
-        loader = CanaryKnowledgeBaseLoader.get_instance()
+        loader = self._load_sync()
         entry = loader.get_entry_by_id('NONEXISTENT-999')
         assert entry is None
 

@@ -901,16 +901,24 @@ async def check_canaries_for_service(normalized_targets, unix_start, unix_end, r
             if not key_attrs.get('Name') or not key_attrs.get('Environment'):
                 continue
             try:
-                resp = applicationsignals_client.list_service_dependents(
-                    StartTime=datetime.fromtimestamp(unix_start, tz=timezone.utc),
-                    EndTime=datetime.fromtimestamp(unix_end, tz=timezone.utc),
-                    KeyAttributes=key_attrs,
-                    MaxResults=100,
-                )
-                for dep in resp.get('ServiceDependents', []):
-                    dep_attrs = dep.get('DependentKeyAttributes', {})
-                    if dep_attrs.get('ResourceType') == 'AWS::Synthetics::Canary':
-                        canary_names.add(dep_attrs.get('Identifier', ''))
+                next_token = None
+                while True:
+                    kwargs = {
+                        'StartTime': datetime.fromtimestamp(unix_start, tz=timezone.utc),
+                        'EndTime': datetime.fromtimestamp(unix_end, tz=timezone.utc),
+                        'KeyAttributes': key_attrs,
+                        'MaxResults': 100,
+                    }
+                    if next_token:
+                        kwargs['NextToken'] = next_token
+                    resp = applicationsignals_client.list_service_dependents(**kwargs)
+                    for dep in resp.get('ServiceDependents', []):
+                        dep_attrs = dep.get('DependentKeyAttributes', {})
+                        if dep_attrs.get('ResourceType') == 'AWS::Synthetics::Canary':
+                            canary_names.add(dep_attrs.get('Identifier', ''))
+                    next_token = resp.get('NextToken')
+                    if not next_token:
+                        break
             except Exception as e:
                 logger.warning(f'Failed to get dependents for {key_attrs.get("Name")}: {e}')
 
@@ -933,7 +941,8 @@ async def check_canaries_for_service(normalized_targets, unix_start, unix_end, r
                 total = len(runs)
                 success_pct = (passed / total * 100) if total > 0 else 0
                 canary_statuses.append((name, 'ok' if success_pct >= 80 else 'failing', success_pct, failed))
-            except Exception:
+            except Exception as e:
+                logger.warning(f'Failed to get runs for canary {name}: {e}')
                 canary_statuses.append((name, 'error', 0, 0))
 
         # Build output
@@ -947,21 +956,6 @@ async def check_canaries_for_service(normalized_targets, unix_start, unix_end, r
                 result += f'  • {name}: {pct:.0f}% success ({fail_count}/5 recent runs failed)\n'
         if healthy:
             result += f'✅ {len(healthy)} healthy canaries: {", ".join(n for n, _, _, _ in healthy)}\n'
-
-        # Deep analysis for worst canary (0% or lowest success)
-        if failing:
-            worst = min(failing, key=lambda x: x[2])
-            worst_name = worst[0]
-            result += f'\n🔍 Deep analysis for worst canary ({worst_name}):\n'
-            try:
-                deep = await analyze_canary_failures(worst_name, region)
-                # Extract just the key findings (first 500 chars)
-                if len(deep) > 600:
-                    result += deep[:600] + '...\n'
-                else:
-                    result += deep + '\n'
-            except Exception as e:
-                result += f'  (Deep analysis failed: {e})\n'
 
         result += f'💡 Use analyze_canary_failures(canary_name="<name>") for detailed analysis of any canary.\n'
         return result

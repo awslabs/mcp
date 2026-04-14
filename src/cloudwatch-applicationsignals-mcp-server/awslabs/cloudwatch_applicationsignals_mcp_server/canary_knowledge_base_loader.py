@@ -1,7 +1,22 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Knowledge base loader: discover, parse, validate, and cache JSON entries."""
 
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import date
 from pathlib import Path
@@ -18,11 +33,11 @@ class CanaryKnowledgeBaseLoader:
     _instance: Optional[CanaryKnowledgeBaseLoader] = None
 
     @classmethod
-    def get_instance(cls) -> CanaryKnowledgeBaseLoader:
-        """Return the singleton instance, creating it on first call."""
+    async def get_instance(cls) -> CanaryKnowledgeBaseLoader:
+        """Return the singleton instance, loading KB entries off the event loop on first call."""
         if cls._instance is None:
             cls._instance = cls()
-            cls._instance.load()
+            await asyncio.to_thread(cls._instance.load)
         return cls._instance
 
     def __init__(self) -> None:

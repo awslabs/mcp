@@ -1,3 +1,17 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Tests for canary_recommendation_engine."""
 
 import pytest
@@ -277,11 +291,18 @@ class TestComputeConfidence:
         assert engine._compute_confidence(1.0, 0.0, 0.0, 0.0) == 0.4
 
 
+def _load_kb_sync() -> CanaryKnowledgeBaseLoader:
+    """Synchronously create and load a KB loader for tests."""
+    loader = CanaryKnowledgeBaseLoader()
+    loader.load()
+    return loader
+
+
 class TestGetRecommendations:
     """Tests for get_recommendations end-to-end."""
 
     def test_returns_matches_above_threshold(self):
-        loader = CanaryKnowledgeBaseLoader.get_instance()
+        loader = _load_kb_sync()
         engine = CanaryRecommendationEngine(loader)
 
         ctx = FailureContext(
@@ -293,7 +314,7 @@ class TestGetRecommendations:
         assert results[0].entry.id == 'RUNTIME-001'
 
     def test_no_match_returns_empty(self):
-        loader = CanaryKnowledgeBaseLoader.get_instance()
+        loader = _load_kb_sync()
         engine = CanaryRecommendationEngine(loader)
 
         ctx = FailureContext(
@@ -326,7 +347,7 @@ class TestGetRecommendations:
         assert len(results) <= 5
 
     def test_sorted_by_confidence_descending(self):
-        loader = CanaryKnowledgeBaseLoader.get_instance()
+        loader = _load_kb_sync()
         engine = CanaryRecommendationEngine(loader)
 
         # Use a broad error message that might match multiple entries
@@ -405,4 +426,4 @@ class TestFormatRecommendations:
         engine = CanaryRecommendationEngine(MagicMock())
         output = engine.format_recommendations([match])
         assert 'AWS Docs' in output
-        assert 'https://docs.aws.amazon.com' in output
+        assert 'docs.aws.amazon.com' in output

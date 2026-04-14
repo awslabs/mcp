@@ -106,6 +106,7 @@ IaC code: [ABSOLUTE_PATH_TO_IAC]"
 - Root cause analysis with traces, logs, and metrics correlation
 - Issue prioritization by severity (critical, warning, info findings)
 - **Wildcard Pattern Support**: Use `*payment*` for automatic service discovery
+- **Synthetics Canary Correlation**: Automatically detects and reports canary health for audited services
 - Performance optimized for fast execution across multiple targets
 
 **Key Use Cases:**
@@ -264,10 +265,16 @@ FILTER attributes.aws.local.service = "payment-service" and attributes.aws.local
 - Discover all canaries with their current status (Running, Stopped, Error)
 - View schedule, runtime version, and last run time for each canary
 - Useful for identifying canaries before deep-diving with `analyze_canary_failures()`
+- Output is capped to avoid overwhelming LLM context windows in large accounts
+
+**Parameters:**
+- `region` (optional): AWS region to query (defaults to configured region)
+- `max_results` (optional): Maximum number of canaries to display (default: 20, max: 200)
 
 **Key Use Cases:**
-- `list_canaries()` - List all canaries in the default region
+- `list_canaries()` - List canaries in the default region (first 20)
 - `list_canaries(region="eu-west-1")` - List canaries in a specific region
+- `list_canaries(max_results=100)` - List up to 100 canaries
 
 #### 14. **`list_change_events`** - AWS Application Signals Change Event Query
 **Query AWS Application Signals change events to correlate infrastructure and application changes with service performance issues**
