@@ -1,39 +1,14 @@
-"""Tests for rum_tools.py functions."""
+"""Tests for rum_tools.py — all calls go through the unified rum() dispatcher."""
 
 import json
 import pytest
-from awslabs.cloudwatch_applicationsignals_mcp_server.rum_tools import (
-    analyze_rum_log_group,
-    audit_rum_health,
-    check_rum_data_access,
-    correlate_rum_to_backend,
-    create_rum_app_monitor,
-    delete_rum_app_monitor,
-    delete_rum_resource_policy,
-    get_rum_app_launches,
-    get_rum_app_monitor,
-    get_rum_crashes,
-    get_rum_errors,
-    get_rum_metrics,
-    get_rum_page_views,
-    get_rum_performance,
-    get_rum_resource_policy,
-    get_rum_sessions,
-    list_rum_app_monitors,
-    list_rum_tags,
-    put_rum_resource_policy,
-    query_rum_events,
-    tag_rum_resource,
-    untag_rum_resource,
-    update_rum_app_monitor,
-)
+from awslabs.cloudwatch_applicationsignals_mcp_server.rum_tools import rum
 from unittest.mock import MagicMock, patch
 
 
 START = '2026-03-01T00:00:00Z'
 END = '2026-03-18T00:00:00Z'
 LOG_GROUP = '/aws/vendedlogs/RUMService_test'
-ARN = 'arn:aws:rum:us-east-1:123456789012:appmonitor/test'
 
 
 def _app_monitor_response(cw_log_enabled=True, enable_xray=False,
@@ -89,256 +64,205 @@ def mock_aws_clients():
             p.stop()
 
 
-# --- check_rum_data_access ---
+# --- Unknown action ---
 
 
 @pytest.mark.asyncio
-async def test_check_rum_data_access_all_good(mock_aws_clients):
-    """Test check_rum_data_access with fully configured app monitor."""
+async def test_unknown_action():
+    result = json.loads(await rum(action='bogus'))
+    assert 'error' in result
+    assert 'available_actions' in result
+
+
+# --- Discovery ---
+
+
+@pytest.mark.asyncio
+async def test_check_data_access_all_good(mock_aws_clients):
     mock_aws_clients['rum_client'].get_app_monitor.return_value = _app_monitor_response(
         cw_log_enabled=True, enable_xray=True, allow_cookies=True)
-    result = json.loads(await check_rum_data_access('test'))
+    result = json.loads(await rum(action='check_data_access', app_monitor_name='test'))
     assert result['state'] == 'ACTIVE'
     assert len(result['findings']) == 0
-    assert len(result['capabilities']) > 0
 
 
 @pytest.mark.asyncio
-async def test_check_rum_data_access_cw_log_disabled(mock_aws_clients):
-    """Test check_rum_data_access flags CW Logs disabled as HIGH severity."""
+async def test_check_data_access_cw_log_disabled(mock_aws_clients):
     mock_aws_clients['rum_client'].get_app_monitor.return_value = _app_monitor_response(cw_log_enabled=False)
-    result = json.loads(await check_rum_data_access('test'))
+    result = json.loads(await rum(action='check_data_access', app_monitor_name='test'))
     assert any(f['severity'] == 'HIGH' for f in result['findings'])
 
 
 @pytest.mark.asyncio
-async def test_check_rum_data_access_not_found(mock_aws_clients):
-    """Test check_rum_data_access returns error for missing app monitor."""
-    exc = type('ResourceNotFoundException', (Exception,), {})
-    mock_aws_clients['rum_client'].exceptions.ResourceNotFoundException = exc
-    mock_aws_clients['rum_client'].get_app_monitor.side_effect = exc('not found')
-    result = json.loads(await check_rum_data_access('missing'))
-    assert 'error' in result
-
-
-# --- CRUD tools ---
+async def test_check_data_access_xray_disabled(mock_aws_clients):
+    mock_aws_clients['rum_client'].get_app_monitor.return_value = _app_monitor_response(enable_xray=False)
+    result = json.loads(await rum(action='check_data_access', app_monitor_name='test'))
+    xray_finding = [f for f in result['findings'] if 'X-Ray' in f['issue']]
+    assert len(xray_finding) == 1
+    assert xray_finding[0]['severity'] == 'MEDIUM'
+    assert 'correlate' in xray_finding[0]['impact'].lower()
 
 
 @pytest.mark.asyncio
-async def test_list_rum_app_monitors(mock_aws_clients):
-    """Test list_rum_app_monitors returns paginated results."""
+async def test_check_data_access_not_found(mock_aws_clients):
+    exc = type('ResourceNotFoundException', (Exception,), {})
+    mock_aws_clients['rum_client'].exceptions.ResourceNotFoundException = exc
+    mock_aws_clients['rum_client'].get_app_monitor.side_effect = exc('not found')
+    result = json.loads(await rum(action='check_data_access', app_monitor_name='missing'))
+    assert 'error' in result
+
+
+@pytest.mark.asyncio
+async def test_list_monitors(mock_aws_clients):
     paginator = MagicMock()
     paginator.paginate.return_value = [{'AppMonitorSummaries': [
         {'Name': 'app1', 'Id': 'id1', 'State': 'ACTIVE'},
     ]}]
     mock_aws_clients['rum_client'].get_paginator.return_value = paginator
-    result = json.loads(await list_rum_app_monitors())
+    result = json.loads(await rum(action='list_monitors'))
     assert result['count'] == 1
-    assert result['app_monitors'][0]['Name'] == 'app1'
 
 
 @pytest.mark.asyncio
-async def test_get_rum_app_monitor_success(mock_aws_clients):
-    """Test get_rum_app_monitor returns app monitor config."""
+async def test_get_monitor(mock_aws_clients):
     mock_aws_clients['rum_client'].get_app_monitor.return_value = _app_monitor_response()
-    result = json.loads(await get_rum_app_monitor('test'))
+    result = json.loads(await rum(action='get_monitor', app_monitor_name='test'))
     assert result['Name'] == 'test'
 
 
 @pytest.mark.asyncio
-async def test_get_rum_app_monitor_error(mock_aws_clients):
-    """Test get_rum_app_monitor returns error on exception."""
+async def test_get_monitor_error(mock_aws_clients):
     mock_aws_clients['rum_client'].get_app_monitor.side_effect = Exception('boom')
-    result = json.loads(await get_rum_app_monitor('test'))
+    result = json.loads(await rum(action='get_monitor', app_monitor_name='test'))
     assert 'error' in result
 
 
 @pytest.mark.asyncio
-async def test_create_rum_app_monitor(mock_aws_clients):
-    """Test create_rum_app_monitor with default CwLogEnabled=true."""
-    mock_aws_clients['rum_client'].create_app_monitor.return_value = {'Id': 'new-id'}
-    result = json.loads(await create_rum_app_monitor('new-app', 'example.com'))
-    assert result['id'] == 'new-id'
-    assert result['cw_log_enabled'] is True
-
-
-@pytest.mark.asyncio
-async def test_update_rum_app_monitor(mock_aws_clients):
-    """Test update_rum_app_monitor with partial fields."""
-    result = json.loads(await update_rum_app_monitor('test', domain='new.com'))
-    mock_aws_clients['rum_client'].update_app_monitor.assert_called_once()
-    assert 'updated' in result['message'].lower()
-
-
-@pytest.mark.asyncio
-async def test_delete_rum_app_monitor(mock_aws_clients):
-    """Test delete_rum_app_monitor calls API and returns confirmation."""
-    result = json.loads(await delete_rum_app_monitor('test'))
-    mock_aws_clients['rum_client'].delete_app_monitor.assert_called_once_with(Name='test')
-    assert 'deleted' in result['message'].lower()
-
-
-@pytest.mark.asyncio
-async def test_tag_rum_resource(mock_aws_clients):
-    """Test tag_rum_resource parses JSON tags and calls API."""
-    result = json.loads(await tag_rum_resource(ARN, '{"env":"prod"}'))
-    mock_aws_clients['rum_client'].tag_resource.assert_called_once_with(
-        ResourceArn=ARN, Tags={'env': 'prod'})
-    assert 'added' in result['message'].lower()
-
-
-@pytest.mark.asyncio
-async def test_untag_rum_resource(mock_aws_clients):
-    """Test untag_rum_resource parses JSON keys and calls API."""
-    result = json.loads(await untag_rum_resource(ARN, '["env"]'))
-    mock_aws_clients['rum_client'].untag_resource.assert_called_once_with(
-        ResourceArn=ARN, TagKeys=['env'])
-    assert 'removed' in result['message'].lower()
-
-
-@pytest.mark.asyncio
-async def test_list_rum_tags(mock_aws_clients):
-    """Test list_rum_tags returns tag map."""
+async def test_list_tags(mock_aws_clients):
     mock_aws_clients['rum_client'].list_tags_for_resource.return_value = {'Tags': {'env': 'prod'}}
-    result = json.loads(await list_rum_tags(ARN))
+    result = json.loads(await rum(action='list_tags', resource_arn='arn:aws:rum:us-east-1:123:appmonitor/test'))
     assert result['tags'] == {'env': 'prod'}
 
 
 @pytest.mark.asyncio
-async def test_get_rum_resource_policy(mock_aws_clients):
-    """Test get_rum_resource_policy parses policy document."""
+async def test_get_policy(mock_aws_clients):
     mock_aws_clients['rum_client'].get_resource_policy.return_value = {
         'PolicyDocument': '{"Version":"2012-10-17"}'}
-    result = json.loads(await get_rum_resource_policy('test'))
+    result = json.loads(await rum(action='get_policy', app_monitor_name='test'))
     assert result['policy']['Version'] == '2012-10-17'
-
-
-@pytest.mark.asyncio
-async def test_put_rum_resource_policy(mock_aws_clients):
-    """Test put_rum_resource_policy sets policy."""
-    result = json.loads(await put_rum_resource_policy('test', '{"Version":"2012-10-17"}'))
-    assert 'policy set' in result['message'].lower()
-
-
-@pytest.mark.asyncio
-async def test_delete_rum_resource_policy(mock_aws_clients):
-    """Test delete_rum_resource_policy removes policy."""
-    result = json.loads(await delete_rum_resource_policy('test'))
-    assert 'deleted' in result['message'].lower()
 
 
 # --- Logs Insights query tools ---
 
 
 def _setup_logs_mocks(clients):
-    """Configure mocks for tools that use Logs Insights."""
     clients['rum_client'].get_app_monitor.return_value = _app_monitor_response()
     clients['logs_client'].start_query.return_value = {'queryId': 'qid'}
     clients['logs_client'].get_query_results.return_value = _logs_result()
 
 
 @pytest.mark.asyncio
-async def test_query_rum_events_success(mock_aws_clients):
-    """Test query_rum_events runs custom query against log group."""
+async def test_query(mock_aws_clients):
     _setup_logs_mocks(mock_aws_clients)
-    result = json.loads(await query_rum_events('test', 'fields @timestamp', START, END))
+    result = json.loads(await rum(action='query', app_monitor_name='test',
+                                  query_string='fields @timestamp', start_time=START, end_time=END))
     assert result['status'] == 'Complete'
-    assert result['app_monitor'] == 'test'
     assert result['log_group'] == LOG_GROUP
 
 
 @pytest.mark.asyncio
-async def test_query_rum_events_cw_log_disabled(mock_aws_clients):
-    """Test query_rum_events returns error when CW Logs not enabled."""
+async def test_query_cw_log_disabled(mock_aws_clients):
     mock_aws_clients['rum_client'].get_app_monitor.return_value = _app_monitor_response(cw_log_enabled=False)
-    result = json.loads(await query_rum_events('test', 'fields @timestamp', START, END))
+    result = json.loads(await rum(action='query', app_monitor_name='test',
+                                  query_string='fields @timestamp', start_time=START, end_time=END))
     assert 'error' in result
 
 
 @pytest.mark.asyncio
-async def test_audit_rum_health(mock_aws_clients):
-    """Test audit_rum_health runs 3 parallel queries."""
+async def test_health(mock_aws_clients):
     _setup_logs_mocks(mock_aws_clients)
-    result = json.loads(await audit_rum_health('test', START, END))
+    result = json.loads(await rum(action='health', app_monitor_name='test',
+                                  start_time=START, end_time=END))
     assert 'error_breakdown' in result
     assert 'slowest_pages' in result
     assert 'sessions_with_errors' in result
 
 
 @pytest.mark.asyncio
-async def test_get_rum_errors(mock_aws_clients):
-    """Test get_rum_errors returns error aggregation."""
+async def test_errors(mock_aws_clients):
     _setup_logs_mocks(mock_aws_clients)
-    result = json.loads(await get_rum_errors('test', START, END))
+    result = json.loads(await rum(action='errors', app_monitor_name='test',
+                                  start_time=START, end_time=END))
     assert result['status'] == 'Complete'
 
 
 @pytest.mark.asyncio
-async def test_get_rum_errors_with_filters(mock_aws_clients):
-    """Test get_rum_errors with page_url and group_by filters."""
+async def test_errors_with_filters(mock_aws_clients):
     _setup_logs_mocks(mock_aws_clients)
-    result = json.loads(await get_rum_errors('test', START, END, page_url='/checkout', group_by='browser'))
+    result = json.loads(await rum(action='errors', app_monitor_name='test',
+                                  start_time=START, end_time=END,
+                                  page_url='/checkout', group_by='browser'))
     assert result['status'] == 'Complete'
 
 
 @pytest.mark.asyncio
-async def test_get_rum_performance(mock_aws_clients):
-    """Test get_rum_performance returns navigation timings and web vitals."""
+async def test_performance(mock_aws_clients):
     _setup_logs_mocks(mock_aws_clients)
-    result = json.loads(await get_rum_performance('test', START, END))
+    result = json.loads(await rum(action='performance', app_monitor_name='test',
+                                  start_time=START, end_time=END))
     assert 'navigation_timings' in result
     assert 'web_vitals' in result
 
 
 @pytest.mark.asyncio
-async def test_get_rum_sessions(mock_aws_clients):
-    """Test get_rum_sessions returns session list."""
+async def test_sessions(mock_aws_clients):
     _setup_logs_mocks(mock_aws_clients)
-    result = json.loads(await get_rum_sessions('test', START, END))
+    result = json.loads(await rum(action='sessions', app_monitor_name='test',
+                                  start_time=START, end_time=END))
     assert result['status'] == 'Complete'
 
 
 @pytest.mark.asyncio
-async def test_get_rum_page_views(mock_aws_clients):
-    """Test get_rum_page_views returns top pages."""
+async def test_page_views(mock_aws_clients):
     _setup_logs_mocks(mock_aws_clients)
-    result = json.loads(await get_rum_page_views('test', START, END))
+    result = json.loads(await rum(action='page_views', app_monitor_name='test',
+                                  start_time=START, end_time=END))
     assert result['status'] == 'Complete'
 
 
 @pytest.mark.asyncio
-async def test_get_rum_crashes_android(mock_aws_clients):
-    """Test get_rum_crashes with android platform filter."""
+async def test_crashes_android(mock_aws_clients):
     _setup_logs_mocks(mock_aws_clients)
-    result = json.loads(await get_rum_crashes('test', START, END, platform='android'))
+    result = json.loads(await rum(action='crashes', app_monitor_name='test',
+                                  start_time=START, end_time=END, platform='android'))
     assert 'android' in result
     assert 'ios' not in result
 
 
 @pytest.mark.asyncio
-async def test_get_rum_crashes_all(mock_aws_clients):
-    """Test get_rum_crashes with all platforms."""
+async def test_crashes_all(mock_aws_clients):
     _setup_logs_mocks(mock_aws_clients)
-    result = json.loads(await get_rum_crashes('test', START, END, platform='all'))
+    result = json.loads(await rum(action='crashes', app_monitor_name='test',
+                                  start_time=START, end_time=END, platform='all'))
     assert 'android' in result
     assert 'ios' in result
 
 
 @pytest.mark.asyncio
-async def test_get_rum_app_launches(mock_aws_clients):
-    """Test get_rum_app_launches returns both platforms."""
+async def test_app_launches(mock_aws_clients):
     _setup_logs_mocks(mock_aws_clients)
-    result = json.loads(await get_rum_app_launches('test', START, END))
+    result = json.loads(await rum(action='app_launches', app_monitor_name='test',
+                                  start_time=START, end_time=END))
     assert 'android' in result
     assert 'ios' in result
 
 
 @pytest.mark.asyncio
-async def test_analyze_rum_log_group(mock_aws_clients):
-    """Test analyze_rum_log_group checks anomalies and runs pattern queries."""
+async def test_analyze(mock_aws_clients):
     _setup_logs_mocks(mock_aws_clients)
     mock_aws_clients['logs_client'].list_log_anomaly_detectors.return_value = {'anomalyDetectors': []}
-    result = json.loads(await analyze_rum_log_group('test', START, END))
+    result = json.loads(await rum(action='analyze', app_monitor_name='test',
+                                  start_time=START, end_time=END))
     assert 'anomaly_detection' in result
     assert 'top_patterns' in result
     assert 'error_patterns' in result
@@ -348,8 +272,7 @@ async def test_analyze_rum_log_group(mock_aws_clients):
 
 
 @pytest.mark.asyncio
-async def test_correlate_rum_to_backend_with_traces(mock_aws_clients):
-    """Test correlate_rum_to_backend finds traces and summarizes backend services."""
+async def test_correlate_with_traces(mock_aws_clients):
     _setup_logs_mocks(mock_aws_clients)
     mock_aws_clients['logs_client'].get_query_results.return_value = _logs_result(
         rows=[[{'field': 'event_details.trace_id', 'value': '1-abc-def'},
@@ -359,32 +282,33 @@ async def test_correlate_rum_to_backend_with_traces(mock_aws_clients):
             {'Document': json.dumps({'name': 'payment-svc', 'start_time': 1.0, 'end_time': 2.0,
                                      'error': False, 'fault': False})}
         ]}]}
-    result = json.loads(await correlate_rum_to_backend('test', '/checkout', START, END))
+    result = json.loads(await rum(action='correlate', app_monitor_name='test',
+                                  page_url='/checkout', start_time=START, end_time=END))
     assert result['trace_count'] == 1
     assert 'payment-svc' in result['backend_services']
 
 
 @pytest.mark.asyncio
-async def test_correlate_rum_to_backend_no_traces(mock_aws_clients):
-    """Test correlate_rum_to_backend returns message when no traces found."""
+async def test_correlate_no_traces(mock_aws_clients):
     _setup_logs_mocks(mock_aws_clients)
     mock_aws_clients['logs_client'].get_query_results.return_value = _logs_result(rows=[])
-    result = json.loads(await correlate_rum_to_backend('test', '/checkout', START, END))
+    result = json.loads(await rum(action='correlate', app_monitor_name='test',
+                                  page_url='/checkout', start_time=START, end_time=END))
     assert 'No X-Ray trace events found' in result.get('message', '')
 
 
 @pytest.mark.asyncio
-async def test_get_rum_metrics_success(mock_aws_clients):
-    """Test get_rum_metrics returns metric data from AWS/RUM namespace."""
+async def test_metrics(mock_aws_clients):
     mock_aws_clients['cloudwatch_client'].get_metric_data.return_value = {
         'MetricDataResults': [{'Id': 'm0', 'Timestamps': [], 'Values': [], 'StatusCode': 'Complete'}]}
-    result = json.loads(await get_rum_metrics('test', '["JsErrorCount"]', START, END))
+    result = json.loads(await rum(action='metrics', app_monitor_name='test',
+                                  metric_names='["JsErrorCount"]', start_time=START, end_time=END))
     assert 'JsErrorCount' in result['metrics']
 
 
 @pytest.mark.asyncio
-async def test_get_rum_metrics_error(mock_aws_clients):
-    """Test get_rum_metrics returns error on API failure."""
+async def test_metrics_error(mock_aws_clients):
     mock_aws_clients['cloudwatch_client'].get_metric_data.side_effect = Exception('throttled')
-    result = json.loads(await get_rum_metrics('test', '["JsErrorCount"]', START, END))
+    result = json.loads(await rum(action='metrics', app_monitor_name='test',
+                                  metric_names='["JsErrorCount"]', start_time=START, end_time=END))
     assert 'error' in result

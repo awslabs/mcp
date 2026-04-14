@@ -63,31 +63,7 @@ from .service_tools import (
 )
 from .slo_tools import get_slo, list_slos
 from .trace_tools import list_slis, query_sampled_traces, search_transaction_spans
-from .rum_tools import (
-    analyze_rum_log_group,
-    audit_rum_health,
-    check_rum_data_access,
-    correlate_rum_to_backend,
-    create_rum_app_monitor,
-    delete_rum_app_monitor,
-    delete_rum_resource_policy,
-    get_rum_app_launches,
-    get_rum_app_monitor,
-    get_rum_crashes,
-    get_rum_errors,
-    get_rum_metrics,
-    get_rum_page_views,
-    get_rum_performance,
-    get_rum_resource_policy,
-    get_rum_sessions,
-    list_rum_app_monitors,
-    list_rum_tags,
-    put_rum_resource_policy,
-    query_rum_events,
-    tag_rum_resource,
-    untag_rum_resource,
-    update_rum_app_monitor,
-)
+from .rum_tools import rum
 from .utils import parse_timestamp
 from datetime import datetime, timedelta, timezone
 from loguru import logger
@@ -1529,29 +1505,7 @@ mcp.tool()(get_group_changes)
 mcp.tool()(list_grouping_attribute_definitions)
 
 # RUM tools
-mcp.tool()(check_rum_data_access)
-mcp.tool()(list_rum_app_monitors)
-mcp.tool()(get_rum_app_monitor)
-mcp.tool()(create_rum_app_monitor)
-mcp.tool()(update_rum_app_monitor)
-mcp.tool()(delete_rum_app_monitor)
-mcp.tool()(tag_rum_resource)
-mcp.tool()(untag_rum_resource)
-mcp.tool()(list_rum_tags)
-mcp.tool()(get_rum_resource_policy)
-mcp.tool()(put_rum_resource_policy)
-mcp.tool()(delete_rum_resource_policy)
-mcp.tool()(query_rum_events)
-mcp.tool()(audit_rum_health)
-mcp.tool()(get_rum_errors)
-mcp.tool()(get_rum_performance)
-mcp.tool()(get_rum_sessions)
-mcp.tool()(get_rum_page_views)
-mcp.tool()(get_rum_crashes)
-mcp.tool()(get_rum_app_launches)
-mcp.tool()(analyze_rum_log_group)
-mcp.tool()(correlate_rum_to_backend)
-mcp.tool()(get_rum_metrics)
+mcp.tool()(rum)
 
 
 def main():

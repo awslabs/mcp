@@ -12,7 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""CloudWatch Application Signals MCP Server - RUM tools."""
+"""CloudWatch Application Signals MCP Server - RUM tools.
+
+All RUM functionality is exposed through a single ``rum`` tool that takes an
+``action`` parameter to select the operation.  The individual ``_*`` async
+helpers are kept as private implementation details.
+"""
 
 import json
 import time
@@ -21,6 +26,78 @@ from .utils import remove_null_values
 from datetime import datetime, timezone
 from loguru import logger
 from typing import Optional
+
+
+# ---------------------------------------------------------------------------
+# Dispatcher – the single public MCP tool
+# ---------------------------------------------------------------------------
+
+_ACTION_MAP: dict[str, callable] = {}  # populated after function definitions
+
+
+async def rum(
+    action: str,
+    app_monitor_name: Optional[str] = None,
+    resource_arn: Optional[str] = None,
+    query_string: Optional[str] = None,
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
+    max_results: Optional[int] = None,
+    page_url: Optional[str] = None,
+    group_by: Optional[str] = None,
+    platform: Optional[str] = None,
+    max_traces: Optional[int] = None,
+    metric_names: Optional[str] = None,
+    statistic: Optional[str] = None,
+    period: Optional[int] = None,
+) -> str:
+    """CloudWatch RUM – monitor real user experience across web and mobile apps.
+
+    Use the ``action`` parameter to select an operation.  All other parameters
+    are optional and depend on the chosen action.
+
+    **Actions & required parameters:**
+
+    Discovery:
+    - ``check_data_access`` – Inspect app monitor config (app_monitor_name)
+    - ``list_monitors`` – List all app monitors (no required params)
+    - ``get_monitor`` – Get app monitor details (app_monitor_name)
+    - ``list_tags`` – List tags for an app monitor (resource_arn)
+    - ``get_policy`` – Get resource-based policy (app_monitor_name)
+
+    Analytics (require CW Logs enabled):
+    - ``query`` – Run custom Logs Insights query (app_monitor_name, query_string, start_time, end_time; optional: max_results)
+    - ``health`` – Quick health audit (app_monitor_name, start_time, end_time)
+    - ``errors`` – Error analysis (app_monitor_name, start_time, end_time; optional: page_url, group_by)
+    - ``performance`` – Page load + Web Vitals (app_monitor_name, start_time, end_time; optional: page_url)
+    - ``sessions`` – Recent sessions (app_monitor_name, start_time, end_time)
+    - ``page_views`` – Top pages by views (app_monitor_name, start_time, end_time)
+    - ``crashes`` – Mobile crashes (app_monitor_name, start_time, end_time; optional: platform)
+    - ``app_launches`` – Mobile launch times (app_monitor_name, start_time, end_time; optional: platform)
+    - ``analyze`` – Anomaly detection + patterns (app_monitor_name, start_time, end_time)
+
+    Correlation & Metrics:
+    - ``correlate`` – Frontend-to-backend X-Ray correlation (app_monitor_name, page_url, start_time, end_time; optional: max_traces)
+    - ``metrics`` – CloudWatch RUM namespace metrics (app_monitor_name, metric_names as JSON array, start_time, end_time; optional: statistic, period)
+    """
+    handler = _ACTION_MAP.get(action)
+    if not handler:
+        return json.dumps({
+            'error': f"Unknown action '{action}'.",
+            'available_actions': sorted(_ACTION_MAP.keys()),
+        })
+    # Build kwargs from non-None values (excluding 'action')
+    kwargs = {k: v for k, v in dict(
+        app_monitor_name=app_monitor_name, resource_arn=resource_arn,
+        query_string=query_string, start_time=start_time, end_time=end_time,
+        max_results=max_results, page_url=page_url, group_by=group_by,
+        platform=platform, max_traces=max_traces, metric_names=metric_names,
+        statistic=statistic, period=period,
+    ).items() if v is not None}
+    try:
+        return await handler(**kwargs)
+    except TypeError as e:
+        return json.dumps({'error': f"Invalid parameters for action '{action}': {e}"})
 
 
 # --- Internal helpers ---
@@ -37,7 +114,7 @@ def _get_rum_log_group(app_monitor_name: str) -> str:
     if not cw_log.get('CwLogEnabled', False):
         raise ValueError(
             f"App monitor '{app_monitor_name}' does not have CloudWatch Logs enabled. "
-            f'To enable it, call update_rum_app_monitor with CwLogEnabled=true. '
+            f'To enable it, run: aws rum update-app-monitor --name {app_monitor_name} --cw-log-enabled. '
             f'Once enabled, new events will be sent to CW Logs (existing events are not backfilled). '
             f'Recommended log retention: 30 days.'
         )
@@ -141,7 +218,7 @@ async def check_rum_data_access(app_monitor_name: str) -> str:
             'severity': 'HIGH',
             'issue': 'CloudWatch Logs not enabled',
             'impact': 'Cannot use Logs Insights analytics tools (errors, performance, sessions)',
-            'fix': 'Call update_rum_app_monitor with CwLogEnabled=true. Recommended retention: 30 days.',
+            'fix': 'Enable CW Logs via the AWS console or CLI: aws rum update-app-monitor --name <name> --cw-log-enabled. Recommended retention: 30 days.',
         })
 
     # X-Ray
@@ -241,140 +318,6 @@ async def get_rum_app_monitor(app_monitor_name: str) -> str:
         return json.dumps({'error': str(e)})
 
 
-async def create_rum_app_monitor(
-    name: str,
-    domain: str,
-    cw_log_enabled: bool = True,
-    enable_xray: bool = False,
-    session_sample_rate: float = 1.0,
-    telemetries: Optional[str] = None,
-    allow_cookies: bool = True,
-) -> str:
-    """Create a new CloudWatch RUM app monitor.
-
-    Defaults CwLogEnabled=true so Logs Insights analytics work immediately.
-    Telemetries defaults to ['errors', 'performance', 'http'] if not specified.
-
-    Args:
-        name: App monitor name.
-        domain: Domain to monitor (e.g., 'example.com').
-        cw_log_enabled: Enable CW Logs for analytics (default: true).
-        enable_xray: Enable X-Ray tracing (default: false).
-        session_sample_rate: 0.0-1.0 proportion of sessions to record (default: 1.0).
-        telemetries: JSON array of telemetry types, e.g. '["errors","performance","http"]'.
-        allow_cookies: Enable cookies for session tracking (default: true).
-    """
-    telem_list = json.loads(telemetries) if telemetries else ['errors', 'performance', 'http']
-    try:
-        resp = rum_client.create_app_monitor(
-            Name=name,
-            Domain=domain,
-            CwLogEnabled=cw_log_enabled,
-            AppMonitorConfiguration={
-                'EnableXRay': enable_xray,
-                'SessionSampleRate': session_sample_rate,
-                'Telemetries': telem_list,
-                'AllowCookies': allow_cookies,
-            },
-        )
-        return json.dumps({
-            'id': resp.get('Id'),
-            'name': name,
-            'cw_log_enabled': cw_log_enabled,
-            'message': f"App monitor '{name}' created. CW Logs {'enabled' if cw_log_enabled else 'disabled'}.",
-        })
-    except Exception as e:
-        return json.dumps({'error': str(e)})
-
-
-async def update_rum_app_monitor(
-    app_monitor_name: str,
-    domain: Optional[str] = None,
-    cw_log_enabled: Optional[bool] = None,
-    enable_xray: Optional[bool] = None,
-    session_sample_rate: Optional[float] = None,
-    telemetries: Optional[str] = None,
-    allow_cookies: Optional[bool] = None,
-) -> str:
-    """Update a CloudWatch RUM app monitor configuration.
-
-    Only specified fields are updated; others remain unchanged.
-
-    Args:
-        app_monitor_name: Name of the app monitor to update.
-        domain: New domain.
-        cw_log_enabled: Enable/disable CW Logs.
-        enable_xray: Enable/disable X-Ray.
-        session_sample_rate: New sample rate (0.0-1.0).
-        telemetries: JSON array of telemetry types.
-        allow_cookies: Enable/disable cookies.
-    """
-    kwargs = {'Name': app_monitor_name}
-    if domain is not None:
-        kwargs['Domain'] = domain
-    if cw_log_enabled is not None:
-        kwargs['CwLogEnabled'] = cw_log_enabled
-
-    config = {}
-    if enable_xray is not None:
-        config['EnableXRay'] = enable_xray
-    if session_sample_rate is not None:
-        config['SessionSampleRate'] = session_sample_rate
-    if telemetries is not None:
-        config['Telemetries'] = json.loads(telemetries)
-    if allow_cookies is not None:
-        config['AllowCookies'] = allow_cookies
-    if config:
-        kwargs['AppMonitorConfiguration'] = config
-
-    try:
-        rum_client.update_app_monitor(**kwargs)
-        return json.dumps({'message': f"App monitor '{app_monitor_name}' updated.", 'updated_fields': list(kwargs.keys())})
-    except Exception as e:
-        return json.dumps({'error': str(e)})
-
-
-async def delete_rum_app_monitor(app_monitor_name: str) -> str:
-    """Delete a CloudWatch RUM app monitor.
-
-    WARNING: This permanently deletes the app monitor and stops all data collection.
-    CW Logs data in the log group is NOT deleted (managed by log group retention).
-    """
-    try:
-        rum_client.delete_app_monitor(Name=app_monitor_name)
-        return json.dumps({'message': f"App monitor '{app_monitor_name}' deleted."})
-    except Exception as e:
-        return json.dumps({'error': str(e)})
-
-
-async def tag_rum_resource(resource_arn: str, tags: str) -> str:
-    """Add tags to a RUM resource (app monitor).
-
-    Args:
-        resource_arn: ARN of the app monitor.
-        tags: JSON object of key-value tag pairs, e.g. '{"env":"prod","team":"frontend"}'.
-    """
-    try:
-        rum_client.tag_resource(ResourceArn=resource_arn, Tags=json.loads(tags))
-        return json.dumps({'message': f'Tags added to {resource_arn}.'})
-    except Exception as e:
-        return json.dumps({'error': str(e)})
-
-
-async def untag_rum_resource(resource_arn: str, tag_keys: str) -> str:
-    """Remove tags from a RUM resource (app monitor).
-
-    Args:
-        resource_arn: ARN of the app monitor.
-        tag_keys: JSON array of tag keys to remove, e.g. '["env","team"]'.
-    """
-    try:
-        rum_client.untag_resource(ResourceArn=resource_arn, TagKeys=json.loads(tag_keys))
-        return json.dumps({'message': f'Tags removed from {resource_arn}.'})
-    except Exception as e:
-        return json.dumps({'error': str(e)})
-
-
 async def list_rum_tags(resource_arn: str) -> str:
     """List tags for a RUM resource (app monitor).
 
@@ -397,36 +340,6 @@ async def get_rum_resource_policy(app_monitor_name: str) -> str:
         resp = rum_client.get_resource_policy(Name=app_monitor_name)
         policy = resp.get('PolicyDocument', '{}')
         return json.dumps({'policy': json.loads(policy) if policy else None}, indent=2)
-    except Exception as e:
-        return json.dumps({'error': str(e)})
-
-
-async def put_rum_resource_policy(app_monitor_name: str, policy_document: str) -> str:
-    """Set a resource-based policy on a RUM app monitor.
-
-    Controls who can call PutRumEvents. Common use: allow unauthenticated
-    ingestion for mobile apps or web apps without Cognito.
-
-    Args:
-        app_monitor_name: Name of the app monitor.
-        policy_document: JSON policy document string.
-    """
-    try:
-        rum_client.put_resource_policy(Name=app_monitor_name, PolicyDocument=policy_document)
-        return json.dumps({'message': f"Resource policy set on '{app_monitor_name}'."})
-    except Exception as e:
-        return json.dumps({'error': str(e)})
-
-
-async def delete_rum_resource_policy(app_monitor_name: str) -> str:
-    """Delete the resource-based policy from a RUM app monitor.
-
-    WARNING: This removes all resource-based access. Unauthenticated clients
-    will no longer be able to send telemetry.
-    """
-    try:
-        rum_client.delete_resource_policy(Name=app_monitor_name)
-        return json.dumps({'message': f"Resource policy deleted from '{app_monitor_name}'."})
     except Exception as e:
         return json.dumps({'error': str(e)})
 
@@ -950,3 +863,27 @@ async def get_rum_metrics(
         }, indent=2, default=str)
     except Exception as e:
         return json.dumps({'error': str(e)})
+
+
+# ---------------------------------------------------------------------------
+# Wire action map (must come after all function definitions)
+# ---------------------------------------------------------------------------
+
+_ACTION_MAP.update({
+    'check_data_access': check_rum_data_access,
+    'list_monitors': list_rum_app_monitors,
+    'get_monitor': get_rum_app_monitor,
+    'list_tags': list_rum_tags,
+    'get_policy': get_rum_resource_policy,
+    'query': query_rum_events,
+    'health': audit_rum_health,
+    'errors': get_rum_errors,
+    'performance': get_rum_performance,
+    'sessions': get_rum_sessions,
+    'page_views': get_rum_page_views,
+    'crashes': get_rum_crashes,
+    'app_launches': get_rum_app_launches,
+    'analyze': analyze_rum_log_group,
+    'correlate': correlate_rum_to_backend,
+    'metrics': get_rum_metrics,
+})
