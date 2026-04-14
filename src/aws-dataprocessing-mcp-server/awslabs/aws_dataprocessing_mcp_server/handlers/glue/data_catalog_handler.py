@@ -675,7 +675,9 @@ class GlueDataCatalogHandler:
         ] = None,
         max_results: Annotated[
             Optional[int],
-            Field(description='Maximum number of results to return for list-connection-types operation.'),
+            Field(
+                description='Maximum number of results to return for list-connection-types operation.'
+            ),
         ] = None,
         next_token: Annotated[
             Optional[str],
@@ -698,7 +700,9 @@ class GlueDataCatalogHandler:
         manage_aws_glue_connection_types(operation='list-connection-types')
 
         # Describe a specific connection type
-        manage_aws_glue_connection_types(operation='describe-connection-type', connection_type='JDBC')
+        manage_aws_glue_connection_types(
+            operation='describe-connection-type', connection_type='JDBC'
+        )
         ```
 
         Args:
@@ -910,9 +914,7 @@ class GlueDataCatalogHandler:
 
             elif operation == 'describe-entity':
                 if entity_name is None:
-                    raise ValueError(
-                        'entity_name is required for describe-entity operation'
-                    )
+                    raise ValueError('entity_name is required for describe-entity operation')
                 return await self.data_catalog_manager.describe_entity(
                     ctx=ctx,
                     connection_name=connection_name,
@@ -924,13 +926,9 @@ class GlueDataCatalogHandler:
 
             elif operation == 'get-entity-records':
                 if entity_name is None:
-                    raise ValueError(
-                        'entity_name is required for get-entity-records operation'
-                    )
+                    raise ValueError('entity_name is required for get-entity-records operation')
                 if limit is None:
-                    raise ValueError(
-                        'limit is required for get-entity-records operation'
-                    )
+                    raise ValueError('limit is required for get-entity-records operation')
                 return await self.data_catalog_manager.get_entity_records(
                     ctx=ctx,
                     connection_name=connection_name,

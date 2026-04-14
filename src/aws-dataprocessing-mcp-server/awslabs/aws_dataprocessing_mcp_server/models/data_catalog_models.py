@@ -284,8 +284,12 @@ class TestConnectionData(BaseModel):
 class BatchDeleteConnectionData(BaseModel):
     """Data model for batch delete connection operation."""
 
-    succeeded: List[str] = Field(default_factory=list, description='Connections successfully deleted')
-    errors: Dict[str, Any] = Field(default_factory=dict, description='Connections that failed to delete with error details')
+    succeeded: List[str] = Field(
+        default_factory=list, description='Connections successfully deleted'
+    )
+    errors: Dict[str, Any] = Field(
+        default_factory=dict, description='Connections that failed to delete with error details'
+    )
     catalog_id: Optional[str] = Field(None, description='Catalog ID containing the connections')
     operation: str = Field(default='batch-delete-connection', description='Operation performed')
 
@@ -296,14 +300,30 @@ class DescribeConnectionTypeData(BaseModel):
     connection_type: str = Field(..., description='Name of the connection type')
     description: Optional[str] = Field(None, description='Description of the connection type')
     capabilities: Optional[Dict[str, Any]] = Field(None, description='Supported capabilities')
-    connection_properties: Optional[Dict[str, Any]] = Field(None, description='Common connection properties')
-    connection_options: Optional[Dict[str, Any]] = Field(None, description='Connection options for Spark ETL')
-    authentication_configuration: Optional[Dict[str, Any]] = Field(None, description='Authentication configuration')
-    compute_environment_configurations: Optional[Dict[str, Any]] = Field(None, description='Supported compute environments')
-    physical_connection_requirements: Optional[Dict[str, Any]] = Field(None, description='Physical connection requirements')
-    athena_connection_properties: Optional[Dict[str, Any]] = Field(None, description='Athena-specific properties')
-    python_connection_properties: Optional[Dict[str, Any]] = Field(None, description='Python-specific properties')
-    spark_connection_properties: Optional[Dict[str, Any]] = Field(None, description='Spark-specific properties')
+    connection_properties: Optional[Dict[str, Any]] = Field(
+        None, description='Common connection properties'
+    )
+    connection_options: Optional[Dict[str, Any]] = Field(
+        None, description='Connection options for Spark ETL'
+    )
+    authentication_configuration: Optional[Dict[str, Any]] = Field(
+        None, description='Authentication configuration'
+    )
+    compute_environment_configurations: Optional[Dict[str, Any]] = Field(
+        None, description='Supported compute environments'
+    )
+    physical_connection_requirements: Optional[Dict[str, Any]] = Field(
+        None, description='Physical connection requirements'
+    )
+    athena_connection_properties: Optional[Dict[str, Any]] = Field(
+        None, description='Athena-specific properties'
+    )
+    python_connection_properties: Optional[Dict[str, Any]] = Field(
+        None, description='Python-specific properties'
+    )
+    spark_connection_properties: Optional[Dict[str, Any]] = Field(
+        None, description='Spark-specific properties'
+    )
     operation: str = Field(default='describe-connection-type', description='Operation performed')
 
 
@@ -319,7 +339,9 @@ class ConnectionTypeBrief(BaseModel):
 class ListConnectionTypesData(BaseModel):
     """Data model for list connection types operation."""
 
-    connection_types: List[ConnectionTypeBrief] = Field(default_factory=list, description='List of connection types')
+    connection_types: List[ConnectionTypeBrief] = Field(
+        default_factory=list, description='List of connection types'
+    )
     count: int = Field(0, description='Number of connection types returned')
     next_token: Optional[str] = Field(None, description='Token for pagination')
     operation: str = Field(default='list-connection-types', description='Operation performed')
@@ -354,7 +376,9 @@ class FieldSummary(BaseModel):
     is_primary_key: Optional[bool] = Field(None, description='Whether field is a primary key')
     is_nullable: Optional[bool] = Field(None, description='Whether field is nullable')
     is_filterable: Optional[bool] = Field(None, description='Whether field can be used in filters')
-    is_partitionable: Optional[bool] = Field(None, description='Whether field can be used for partitioning')
+    is_partitionable: Optional[bool] = Field(
+        None, description='Whether field can be used for partitioning'
+    )
     is_retrievable: Optional[bool] = Field(None, description='Whether field can be retrieved')
     is_createable: Optional[bool] = Field(None, description='Whether field can be created')
     is_updateable: Optional[bool] = Field(None, description='Whether field can be updated')
@@ -373,7 +397,9 @@ class DescribeEntityData(BaseModel):
 class GetEntityRecordsData(BaseModel):
     """Data model for get entity records operation."""
 
-    records: List[Dict[str, Any]] = Field(default_factory=list, description='List of entity records')
+    records: List[Dict[str, Any]] = Field(
+        default_factory=list, description='List of entity records'
+    )
     count: int = Field(0, description='Number of records returned')
     next_token: Optional[str] = Field(None, description='Token for pagination')
     operation: str = Field(default='get-entity-records', description='Operation performed')

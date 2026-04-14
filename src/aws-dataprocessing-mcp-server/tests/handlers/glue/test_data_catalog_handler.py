@@ -3988,7 +3988,7 @@ class TestGlueDataCatalogHandler:
         expected_response.content = []
         mock_catalog_manager.list_entities.return_value = expected_response
 
-        result = await handler.manage_aws_glue_connection_metadata(
+        await handler.manage_aws_glue_connection_metadata(
             mock_ctx,
             operation='list-entities',
             connection_name='my-conn',
