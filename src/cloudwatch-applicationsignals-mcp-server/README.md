@@ -13,6 +13,7 @@ This server enables AI assistants like Kiro, Claude, and GitHub Copilot to help 
 5. **100% Trace Visibility** - Query OpenTelemetry spans data via Transaction Search for complete observability
 6. **Multi-Service Analysis** - Audit multiple services simultaneously with automatic batching
 7. **Natural Language Insights** - Generate business insights from telemetry data through natural language queries
+8. **CloudWatch RUM Analytics** - Monitor real user experience with error tracking, performance analysis, mobile crash reporting, and frontend-to-backend correlation
 
 ## Prerequisites
 
@@ -353,6 +354,114 @@ This tool provides access to AWS Application Signals' change detection capabilit
 - Displays source keys (AWS tags, OTEL attributes)
 - Shows default values for each grouping attribute
 - Useful for understanding available groups
+
+### 🌐 CloudWatch RUM Tools
+
+Monitor real user experience across web and mobile applications using CloudWatch RUM data.
+
+> **Prerequisite:** Most RUM analytics tools require CloudWatch Logs to be enabled on the app monitor (`CwLogEnabled=true`). The `create_rum_app_monitor` tool enables this by default. Use `check_rum_data_access` to verify your setup.
+
+#### Foundation & Configuration
+
+#### 20. **`check_rum_data_access`** - Configuration Inspector
+**Check an app monitor's configuration and data access capabilities**
+
+- Inspects CW Logs, X-Ray, telemetry, sampling, and cookie settings
+- Returns structured findings with severity levels and remediation steps
+- Use this first to verify your app monitor is set up correctly
+
+#### 21. **`list_rum_app_monitors`** - App Monitor Discovery
+**List all CloudWatch RUM app monitors in the account**
+
+- Returns app monitor names, IDs, states, and creation dates
+
+#### 22. **`get_rum_app_monitor`** - App Monitor Details
+**Get full configuration of a CloudWatch RUM app monitor**
+
+- Returns CW Logs status, telemetries, sampling rate, X-Ray, domain, and data storage settings
+
+#### 23. **`create_rum_app_monitor`** - Create App Monitor
+**Create a new CloudWatch RUM app monitor with analytics enabled by default**
+
+- Defaults `CwLogEnabled=true` so Logs Insights analytics work immediately
+- Configurable telemetries, sampling rate, X-Ray, and cookie settings
+
+#### 24. **`update_rum_app_monitor`** - Update App Monitor
+**Update an existing app monitor's configuration**
+
+- Partial updates supported — only specified fields are changed
+
+#### 25. **`delete_rum_app_monitor`** - Delete App Monitor
+**Permanently delete an app monitor and stop data collection**
+
+#### 26-28. **`tag_rum_resource`**, **`untag_rum_resource`**, **`list_rum_tags`** - Tagging
+**Manage tags on RUM app monitors**
+
+#### 29-31. **`get_rum_resource_policy`**, **`put_rum_resource_policy`**, **`delete_rum_resource_policy`** - Resource Policies
+**Manage resource-based policies controlling who can send telemetry (PutRumEvents)**
+
+#### Analytics & Queries
+
+#### 32. **`query_rum_events`** - Custom Query Engine
+**Run arbitrary CloudWatch Logs Insights queries against a RUM app monitor's log group**
+
+- Auto-discovers the log group from the app monitor config
+- Supports all Logs Insights query syntax (stats, filter, pattern, etc.)
+- Common event types documented in tool description
+
+#### 33. **`audit_rum_health`** - Quick Health Check
+**"Are my users impacted right now?"**
+
+- Runs error rate, slowest pages, and session error queries
+- Returns a combined health summary for rapid incident triage
+
+#### 34. **`get_rum_errors`** - Error Analysis
+**Get JS and HTTP errors grouped by message and page**
+
+- Optional filtering by page URL
+- Optional grouping by country, browser, device, or OS
+
+#### 35. **`get_rum_performance`** - Performance Analysis
+**Get page load performance and Core Web Vitals (LCP, FID, CLS, INP)**
+
+- Returns navigation timings (p50/p90/p99) and web vitals per page
+
+#### 36. **`get_rum_sessions`** - Session Explorer
+**Get recent sessions with browser, OS, device type, and event counts**
+
+#### 37. **`get_rum_page_views`** - Page View Rankings
+**Get top pages by view count**
+
+#### 38. **`get_rum_crashes`** - Mobile Crash Reports
+**Get mobile crashes and stability issues (iOS + Android)**
+
+- Android: crashes and ANRs (validated against real Device Farm data)
+- iOS: crashes and hangs (experimental — field paths not yet validated)
+
+#### 39. **`get_rum_app_launches`** - Mobile App Launch Performance
+**Get cold/warm/pre-warm launch times across platforms**
+
+- Android queries validated. iOS queries experimental.
+
+#### 40. **`analyze_rum_log_group`** - Anomaly Detection
+**Analyze a RUM log group for anomalies and common patterns**
+
+- Checks anomaly detectors, retrieves anomalies within time range
+- Identifies top message patterns and error patterns
+
+#### 41. **`correlate_rum_to_backend`** - Frontend-to-Backend Correlation
+**Connect slow pages to the backend services behind them**
+
+- Finds X-Ray trace IDs from RUM events in CW Logs
+- Retrieves full backend traces via X-Ray BatchGetTraces
+- Summarizes backend service call counts, durations, and errors
+- Requires X-Ray to be enabled on the app monitor
+
+#### 42. **`get_rum_metrics`** - CloudWatch Metrics
+**Get vended CloudWatch metrics from the AWS/RUM namespace**
+
+- Supports all 36 RUM metric names (JsErrorCount, SessionCount, WebVitals, CrashCount, etc.)
+- Always available — does not require CW Logs to be enabled
 
 ## Installation
 
@@ -841,6 +950,28 @@ For detailed change history of specific problematic services, I can investigate 
 Would you like me to investigate the change history for any specific service in detail?
 ```
 
+### Example 9: CloudWatch RUM — Real User Monitoring
+```
+User: "Are my users experiencing issues on the checkout page?"
+Assistant: I'll check your RUM data for user-facing issues on the checkout page.
+
+[Step 1: Verify the app monitor is configured correctly]
+check_rum_data_access(app_monitor_name="my-web-app")
+→ CW Logs enabled, X-Ray enabled, all telemetries active. Full analytics available.
+
+[Step 2: Quick health check]
+audit_rum_health(app_monitor_name="my-web-app", start_time="2026-03-18T00:00:00Z", end_time="2026-03-19T00:00:00Z")
+→ Error rate is 3x higher than normal, concentrated on /checkout page, mostly Chrome users in Germany.
+
+[Step 3: Get error details]
+get_rum_errors(app_monitor_name="my-web-app", start_time="...", end_time="...", page_url="/checkout")
+→ Top error: "TypeError: Cannot read property 'total' of undefined" — 847 occurrences.
+
+[Step 4: Is it frontend or backend?]
+correlate_rum_to_backend(app_monitor_name="my-web-app", page_url="/checkout", start_time="...", end_time="...")
+→ Backend payment-service is returning 500 errors with avg 5.2s response time. Root cause is in the backend.
+```
+
 ## Recommended Workflows
 
 ### 🎯 Primary Audit Workflow (Most Common)
@@ -907,6 +1038,20 @@ The server requires the following AWS IAM permissions:
         "xray:GetTraceSegmentDestination",
         "synthetics:GetCanary",
         "synthetics:GetCanaryRuns",
+        "rum:GetAppMonitor",
+        "rum:ListAppMonitors",
+        "rum:CreateAppMonitor",
+        "rum:UpdateAppMonitor",
+        "rum:DeleteAppMonitor",
+        "rum:TagResource",
+        "rum:UntagResource",
+        "rum:ListTagsForResource",
+        "rum:GetResourcePolicy",
+        "rum:PutResourcePolicy",
+        "rum:DeleteResourcePolicy",
+        "logs:DescribeLogGroups",
+        "logs:ListLogAnomalyDetectors",
+        "logs:ListAnomalies",
         "s3:GetObject",
         "s3:ListBucket",
         "iam:GetRole",
@@ -926,6 +1071,7 @@ The server requires the following AWS IAM permissions:
 - `AWS_REGION` - AWS region (defaults to us-east-1)
 - `MCP_CLOUDWATCH_APPLICATION_SIGNALS_LOG_LEVEL` - Logging level (defaults to INFO)
 - `AUDITOR_LOG_PATH` - Path for audit log files (defaults to /tmp)
+- `MCP_RUM_ENDPOINT` - Override RUM API endpoint URL (for testing against non-production environments)
 
 ### AWS Credentials
 

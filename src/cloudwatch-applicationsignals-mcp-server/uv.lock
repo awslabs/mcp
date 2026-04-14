@@ -82,7 +82,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "bandit", specifier = ">=1.8.6" },
-    { name = "boto3-stubs", extras = ["application-signals", "cloudwatch", "logs", "xray"], specifier = ">=1.42.0" },
+    { name = "boto3-stubs", extras = ["application-signals", "cloudwatch", "cloudwatchrum", "logs", "xray"], specifier = ">=1.42.0" },
     { name = "commitizen", specifier = ">=4.4.1" },
     { name = "moto", specifier = ">=5.0.0" },
     { name = "pre-commit", specifier = ">=4.2.0" },
