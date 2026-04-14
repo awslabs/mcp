@@ -50,6 +50,9 @@ async def rum(
     metric_names: Optional[str] = None,
     statistic: Optional[str] = None,
     period: Optional[int] = None,
+    session_id: Optional[str] = None,
+    metric: Optional[str] = None,
+    bucket: Optional[str] = None,
 ) -> str:
     """CloudWatch RUM – monitor real user experience across web and mobile apps.
 
@@ -71,8 +74,14 @@ async def rum(
     - ``errors`` – Error analysis (app_monitor_name, start_time, end_time; optional: page_url, group_by)
     - ``performance`` – Page load + Web Vitals (app_monitor_name, start_time, end_time; optional: page_url)
     - ``sessions`` – Recent sessions (app_monitor_name, start_time, end_time)
+    - ``session_detail`` – All events for one session (app_monitor_name, session_id, start_time, end_time)
     - ``page_views`` – Top pages by views (app_monitor_name, start_time, end_time)
-    - ``crashes`` – Mobile crashes (app_monitor_name, start_time, end_time; optional: platform)
+    - ``timeseries`` – Time-bucketed trends (app_monitor_name, start_time, end_time; optional: metric='errors'|'performance'|'sessions', bucket='1h', page_url)
+    - ``locations`` – Sessions and performance by country (app_monitor_name, start_time, end_time; optional: page_url)
+    - ``http_requests`` – Top HTTP requests with latency/errors (app_monitor_name, start_time, end_time; optional: page_url)
+    - ``resources`` – Top resource requests by duration/size (app_monitor_name, start_time, end_time; optional: page_url)
+    - ``page_flows`` – Page-to-page navigation flows (app_monitor_name, start_time, end_time)
+    - ``crashes`` – Mobile crashes + ANRs (app_monitor_name, start_time, end_time; optional: platform)
     - ``app_launches`` – Mobile launch times (app_monitor_name, start_time, end_time; optional: platform)
     - ``analyze`` – Anomaly detection + patterns (app_monitor_name, start_time, end_time)
 
@@ -92,7 +101,8 @@ async def rum(
         query_string=query_string, start_time=start_time, end_time=end_time,
         max_results=max_results, page_url=page_url, group_by=group_by,
         platform=platform, max_traces=max_traces, metric_names=metric_names,
-        statistic=statistic, period=period,
+        statistic=statistic, period=period, session_id=session_id,
+        metric=metric, bucket=bucket,
     ).items() if v is not None}
     try:
         return await handler(**kwargs)
@@ -569,6 +579,190 @@ async def get_rum_page_views(
     return json.dumps({'app_monitor': app_monitor_name, **result}, indent=2, default=str)
 
 
+# --- Wave 4b: Time series, geo, HTTP requests, session detail, resources, page flows ---
+
+
+async def get_rum_timeseries(
+    app_monitor_name: str,
+    start_time: str,
+    end_time: str,
+    metric: str = 'errors',
+    bucket: str = '1h',
+    page_url: Optional[str] = None,
+) -> str:
+    """Get time-bucketed trends for errors, performance, or sessions.
+
+    Args:
+        app_monitor_name: Name of the RUM app monitor.
+        start_time: ISO 8601 start time.
+        end_time: ISO 8601 end time.
+        metric: 'errors', 'performance', or 'sessions' (default: errors).
+        bucket: Time bucket size (default: '1h'). E.g. '5m', '15m', '1h', '1d'.
+        page_url: Optional page URL filter.
+    """
+    from . import rum_queries
+
+    try:
+        log_group = _get_rum_log_group(app_monitor_name)
+    except ValueError as e:
+        return json.dumps({'error': str(e)})
+
+    query_map = {
+        'errors': rum_queries.errors_timeseries_query(bucket, page_url),
+        'performance': rum_queries.performance_timeseries_query(bucket, page_url),
+        'sessions': rum_queries.sessions_timeseries_query(bucket),
+    }
+    query = query_map.get(metric)
+    if not query:
+        return json.dumps({'error': f"Unknown metric '{metric}'. Use: errors, performance, sessions."})
+
+    result = _run_logs_insights_query(log_group, query, _parse_time(start_time), _parse_time(end_time))
+    return json.dumps({'app_monitor': app_monitor_name, 'metric': metric, 'bucket': bucket, **result}, indent=2, default=str)
+
+
+async def get_rum_locations(
+    app_monitor_name: str,
+    start_time: str,
+    end_time: str,
+    page_url: Optional[str] = None,
+) -> str:
+    """Get session counts and performance by country.
+
+    Args:
+        app_monitor_name: Name of the RUM app monitor.
+        start_time: ISO 8601 start time.
+        end_time: ISO 8601 end time.
+        page_url: Optional page URL filter.
+    """
+    from . import rum_queries
+
+    try:
+        log_group = _get_rum_log_group(app_monitor_name)
+    except ValueError as e:
+        return json.dumps({'error': str(e)})
+
+    st = _parse_time(start_time)
+    et = _parse_time(end_time)
+    sessions_result = _run_logs_insights_query(log_group, rum_queries.geo_sessions_query(page_url), st, et)
+    perf_result = _run_logs_insights_query(log_group, rum_queries.geo_performance_query(page_url), st, et)
+
+    return json.dumps({
+        'app_monitor': app_monitor_name,
+        'sessions_by_country': sessions_result,
+        'performance_by_country': perf_result,
+    }, indent=2, default=str)
+
+
+async def get_rum_http_requests(
+    app_monitor_name: str,
+    start_time: str,
+    end_time: str,
+    page_url: Optional[str] = None,
+) -> str:
+    """Get top HTTP requests by URL with latency and error rates.
+
+    Args:
+        app_monitor_name: Name of the RUM app monitor.
+        start_time: ISO 8601 start time.
+        end_time: ISO 8601 end time.
+        page_url: Optional page URL filter.
+    """
+    from . import rum_queries
+
+    try:
+        log_group = _get_rum_log_group(app_monitor_name)
+    except ValueError as e:
+        return json.dumps({'error': str(e)})
+
+    result = _run_logs_insights_query(
+        log_group, rum_queries.http_requests_query(page_url),
+        _parse_time(start_time), _parse_time(end_time),
+    )
+    return json.dumps({'app_monitor': app_monitor_name, **result}, indent=2, default=str)
+
+
+async def get_rum_session_detail(
+    app_monitor_name: str,
+    session_id: str,
+    start_time: str,
+    end_time: str,
+) -> str:
+    """Get all events for a single session in chronological order.
+
+    Args:
+        app_monitor_name: Name of the RUM app monitor.
+        session_id: The session ID to look up.
+        start_time: ISO 8601 start time.
+        end_time: ISO 8601 end time.
+    """
+    from . import rum_queries
+
+    try:
+        log_group = _get_rum_log_group(app_monitor_name)
+    except ValueError as e:
+        return json.dumps({'error': str(e)})
+
+    result = _run_logs_insights_query(
+        log_group, rum_queries.session_detail_query(session_id),
+        _parse_time(start_time), _parse_time(end_time),
+    )
+    return json.dumps({'app_monitor': app_monitor_name, 'session_id': session_id, **result}, indent=2, default=str)
+
+
+async def get_rum_resources(
+    app_monitor_name: str,
+    start_time: str,
+    end_time: str,
+    page_url: Optional[str] = None,
+) -> str:
+    """Get top resource requests by duration and size.
+
+    Args:
+        app_monitor_name: Name of the RUM app monitor.
+        start_time: ISO 8601 start time.
+        end_time: ISO 8601 end time.
+        page_url: Optional page URL filter.
+    """
+    from . import rum_queries
+
+    try:
+        log_group = _get_rum_log_group(app_monitor_name)
+    except ValueError as e:
+        return json.dumps({'error': str(e)})
+
+    result = _run_logs_insights_query(
+        log_group, rum_queries.resource_requests_query(page_url),
+        _parse_time(start_time), _parse_time(end_time),
+    )
+    return json.dumps({'app_monitor': app_monitor_name, **result}, indent=2, default=str)
+
+
+async def get_rum_page_flows(
+    app_monitor_name: str,
+    start_time: str,
+    end_time: str,
+) -> str:
+    """Get page-to-page navigation flows (approximates user journey).
+
+    Args:
+        app_monitor_name: Name of the RUM app monitor.
+        start_time: ISO 8601 start time.
+        end_time: ISO 8601 end time.
+    """
+    from . import rum_queries
+
+    try:
+        log_group = _get_rum_log_group(app_monitor_name)
+    except ValueError as e:
+        return json.dumps({'error': str(e)})
+
+    result = _run_logs_insights_query(
+        log_group, rum_queries.PAGE_FLOWS_QUERY,
+        _parse_time(start_time), _parse_time(end_time),
+    )
+    return json.dumps({'app_monitor': app_monitor_name, **result}, indent=2, default=str)
+
+
 # --- Wave 5: Mobile analytics (experimental) + Anomaly detection ---
 
 
@@ -604,6 +798,7 @@ async def get_rum_crashes(
         results['ios'] = _run_logs_insights_query(log_group, rum_queries.MOBILE_CRASHES_IOS, st, et)
     if platform in ('android', 'all'):
         results['android'] = _run_logs_insights_query(log_group, rum_queries.MOBILE_CRASHES_ANDROID, st, et)
+        results['android_anrs'] = _run_logs_insights_query(log_group, rum_queries.MOBILE_ANRS_ANDROID, st, et)
 
     return json.dumps({
         'app_monitor': app_monitor_name,
@@ -880,7 +1075,13 @@ _ACTION_MAP.update({
     'errors': get_rum_errors,
     'performance': get_rum_performance,
     'sessions': get_rum_sessions,
+    'session_detail': get_rum_session_detail,
     'page_views': get_rum_page_views,
+    'timeseries': get_rum_timeseries,
+    'locations': get_rum_locations,
+    'http_requests': get_rum_http_requests,
+    'resources': get_rum_resources,
+    'page_flows': get_rum_page_flows,
     'crashes': get_rum_crashes,
     'app_launches': get_rum_app_launches,
     'analyze': analyze_rum_log_group,

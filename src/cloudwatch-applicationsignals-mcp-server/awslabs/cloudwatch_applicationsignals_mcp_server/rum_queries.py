@@ -185,6 +185,132 @@ MOBILE_APP_LAUNCHES_IOS = """fields @timestamp, name, attributes.launch.type, du
 | sort attributes.launch.type"""
 
 
+
+# --- Time series ---
+
+
+def errors_timeseries_query(bucket: str = '1h', page_url: str | None = None) -> str:
+    """Error count over time."""
+    extra_filter = _optional_filter('metadata.pageId', page_url)
+    return f"""fields event_type
+| filter event_type in ["com.amazon.rum.js_error_event", "com.amazon.rum.http_event"]{extra_filter}
+| stats count(*) as error_count by bin({bucket}) as time_bucket, event_type
+| sort time_bucket asc"""
+
+
+def performance_timeseries_query(bucket: str = '1h', page_url: str | None = None) -> str:
+    """Page load time over time."""
+    extra_filter = _optional_filter('metadata.pageId', page_url)
+    return f"""fields event_details.duration
+| filter event_type = "com.amazon.rum.performance_navigation_event"{extra_filter}
+| stats pct(event_details.duration, 50) as p50_ms, pct(event_details.duration, 90) as p90_ms, count(*) as loads by bin({bucket}) as time_bucket
+| sort time_bucket asc"""
+
+
+def sessions_timeseries_query(bucket: str = '1h') -> str:
+    """Session count over time."""
+    return f"""fields user_details.sessionId
+| filter event_type = "com.amazon.rum.session_start_event"
+| stats count(*) as session_count by bin({bucket}) as time_bucket
+| sort time_bucket asc"""
+
+
+# --- Geo / Locations ---
+
+
+def geo_sessions_query(page_url: str | None = None) -> str:
+    """Session and error counts by country."""
+    extra_filter = _optional_filter('metadata.pageId', page_url)
+    return f"""fields metadata.countryCode, metadata.subdivisionCode, event_type
+| filter metadata.countryCode != ""{extra_filter}
+| stats count(*) as event_count,
+  count_distinct(user_details.sessionId) as sessions,
+  sum(event_type = "com.amazon.rum.js_error_event" or event_type = "com.amazon.rum.http_event") as errors
+  by metadata.countryCode
+| sort sessions desc
+| limit 50"""
+
+
+def geo_performance_query(page_url: str | None = None) -> str:
+    """Page load time by country."""
+    extra_filter = _optional_filter('metadata.pageId', page_url)
+    return f"""fields metadata.countryCode, event_details.duration
+| filter event_type = "com.amazon.rum.performance_navigation_event" and metadata.countryCode != ""{extra_filter}
+| stats pct(event_details.duration, 50) as p50_ms, pct(event_details.duration, 90) as p90_ms, count(*) as loads by metadata.countryCode
+| sort p90_ms desc
+| limit 50"""
+
+
+# --- HTTP Requests ---
+
+
+def http_requests_query(page_url: str | None = None) -> str:
+    """Top HTTP requests by URL with latency and status."""
+    extra_filter = _optional_filter('metadata.pageId', page_url)
+    return f"""fields event_details.request.url, event_details.request.method,
+  event_details.response.status, event_details.duration
+| filter event_type = "com.amazon.rum.http_event"{extra_filter}
+| stats count(*) as request_count,
+  pct(event_details.duration, 50) as p50_ms,
+  pct(event_details.duration, 90) as p90_ms,
+  sum(event_details.response.status >= 400 and event_details.response.status < 500) as http_4xx,
+  sum(event_details.response.status >= 500) as http_5xx
+  by event_details.request.url
+| sort request_count desc
+| limit 50"""
+
+
+# --- Session detail ---
+
+
+def session_detail_query(session_id: str) -> str:
+    """All events for a single session in chronological order."""
+    return f"""fields @timestamp, event_type, metadata.pageId,
+  event_details.type, event_details.message, event_details.duration,
+  event_details.request.url, event_details.response.status, event_details.value
+| filter user_details.sessionId = "{session_id}"
+| sort @timestamp asc
+| limit 1000"""
+
+
+# --- Resource requests ---
+
+
+def resource_requests_query(page_url: str | None = None) -> str:
+    """Top resource requests by duration and size."""
+    extra_filter = _optional_filter('metadata.pageId', page_url)
+    return f"""fields event_details.targetUrl, event_details.fileType,
+  event_details.duration, event_details.transferSize
+| filter event_type = "com.amazon.rum.performance_resource_event"{extra_filter}
+| stats count(*) as request_count,
+  pct(event_details.duration, 50) as p50_ms,
+  pct(event_details.duration, 90) as p90_ms,
+  avg(event_details.transferSize) as avg_bytes
+  by event_details.targetUrl, event_details.fileType
+| sort p90_ms desc
+| limit 50"""
+
+
+# --- ANRs (Android) ---
+
+MOBILE_ANRS_ANDROID = """fields @timestamp, scope.name,
+  attributes.exception.type, attributes.exception.message, attributes.exception.stacktrace,
+  attributes.session.id, attributes.screen.name, attributes.thread.name,
+  resource.attributes.device.model.name, resource.attributes.os.version
+| filter scope.name = "io.opentelemetry.anr"
+| stats count(*) as anr_count by attributes.exception.type, attributes.exception.message
+| sort anr_count desc
+| limit 25"""
+
+
+# --- Page flows ---
+
+PAGE_FLOWS_QUERY = """fields metadata.pageId, metadata.parentPageId
+| filter event_type = "com.amazon.rum.page_view_event" and metadata.parentPageId != ""
+| stats count(*) as navigation_count by metadata.parentPageId, metadata.pageId
+| sort navigation_count desc
+| limit 50"""
+
 # --- Correlation ---
 
 def trace_ids_for_page_query(page_url: str) -> str:

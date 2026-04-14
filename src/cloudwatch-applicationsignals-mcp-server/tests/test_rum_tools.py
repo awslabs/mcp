@@ -44,7 +44,8 @@ def mock_aws_clients():
     mock_cw = MagicMock()
     mock_xray = MagicMock()
     mock_time = MagicMock()
-    mock_time.monotonic.side_effect = [0, 0, 100] * 20
+    _time_counter = iter(range(0, 10000, 1))
+    mock_time.monotonic.side_effect = lambda: next(_time_counter)
     mock_time.sleep = MagicMock()
 
     patches = [
@@ -269,6 +270,65 @@ async def test_analyze(mock_aws_clients):
 
 
 # --- Correlation + Metrics ---
+
+
+@pytest.mark.asyncio
+async def test_timeseries_errors(mock_aws_clients):
+    _setup_logs_mocks(mock_aws_clients)
+    result = json.loads(await rum(action='timeseries', app_monitor_name='test',
+                                  start_time=START, end_time=END, metric='errors'))
+    assert result['metric'] == 'errors'
+    assert result['status'] == 'Complete'
+
+
+@pytest.mark.asyncio
+async def test_timeseries_unknown_metric(mock_aws_clients):
+    _setup_logs_mocks(mock_aws_clients)
+    result = json.loads(await rum(action='timeseries', app_monitor_name='test',
+                                  start_time=START, end_time=END, metric='bogus'))
+    assert 'error' in result
+
+
+@pytest.mark.asyncio
+async def test_locations(mock_aws_clients):
+    _setup_logs_mocks(mock_aws_clients)
+    result = json.loads(await rum(action='locations', app_monitor_name='test',
+                                  start_time=START, end_time=END))
+    assert 'sessions_by_country' in result
+    assert 'performance_by_country' in result
+
+
+@pytest.mark.asyncio
+async def test_http_requests(mock_aws_clients):
+    _setup_logs_mocks(mock_aws_clients)
+    result = json.loads(await rum(action='http_requests', app_monitor_name='test',
+                                  start_time=START, end_time=END))
+    assert result['status'] == 'Complete'
+
+
+@pytest.mark.asyncio
+async def test_session_detail(mock_aws_clients):
+    _setup_logs_mocks(mock_aws_clients)
+    result = json.loads(await rum(action='session_detail', app_monitor_name='test',
+                                  session_id='abc-123', start_time=START, end_time=END))
+    assert result['session_id'] == 'abc-123'
+    assert result['status'] == 'Complete'
+
+
+@pytest.mark.asyncio
+async def test_resources(mock_aws_clients):
+    _setup_logs_mocks(mock_aws_clients)
+    result = json.loads(await rum(action='resources', app_monitor_name='test',
+                                  start_time=START, end_time=END))
+    assert result['status'] == 'Complete'
+
+
+@pytest.mark.asyncio
+async def test_page_flows(mock_aws_clients):
+    _setup_logs_mocks(mock_aws_clients)
+    result = json.loads(await rum(action='page_flows', app_monitor_name='test',
+                                  start_time=START, end_time=END))
+    assert result['status'] == 'Complete'
 
 
 @pytest.mark.asyncio
