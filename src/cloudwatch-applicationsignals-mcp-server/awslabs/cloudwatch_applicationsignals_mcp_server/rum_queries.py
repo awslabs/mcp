@@ -63,10 +63,11 @@ def errors_query(page_url: str | None = None, group_by: str | None = None) -> st
     """Build error analysis query."""
     extra_filter = _optional_filter('metadata.pageId', page_url)
     gb = _group_by_clause(group_by)
-    return f"""fields @timestamp, event_type, event_details.error_type, event_details.error_message,
-  event_details.stack_trace, metadata.pageId, metadata.browserName, metadata.countryCode
+    return f"""fields @timestamp, event_type, metadata.pageId, metadata.browserName, metadata.countryCode,
+  event_details.type, event_details.message, event_details.filename,
+  event_details.request.url, event_details.response.status
 | filter event_type in ["com.amazon.rum.js_error_event", "com.amazon.rum.http_event"]{extra_filter}
-| stats count(*) as error_count by event_details.error_message, metadata.pageId{gb}
+| stats count(*) as error_count by coalesce(event_details.message, event_details.request.url) as error_key, event_type, metadata.pageId{gb}
 | sort error_count desc
 | limit 50"""
 
