@@ -21,7 +21,7 @@ helpers are kept as private implementation details.
 
 import json
 import time
-from .aws_clients import cloudwatch_client, logs_client, rum_client, xray_client
+from .aws_clients import applicationsignals_client, cloudwatch_client, logs_client, rum_client, xray_client
 from .utils import remove_null_values
 from datetime import datetime, timezone
 from loguru import logger
@@ -89,6 +89,7 @@ async def rum(
     Correlation & Metrics:
     - ``correlate`` – Frontend-to-backend X-Ray correlation (app_monitor_name, page_url, start_time, end_time; optional: max_traces)
     - ``metrics`` – CloudWatch RUM namespace metrics (app_monitor_name, metric_names as JSON array, start_time, end_time; optional: statistic, period)
+    - ``slo_health`` – SLO breach status for an app monitor (app_monitor_name, start_time, end_time)
     """
     handler = _ACTION_MAP.get(action)
     if not handler:
@@ -1117,6 +1118,139 @@ async def get_rum_metrics(
 # Wire action map (must come after all function definitions)
 # ---------------------------------------------------------------------------
 
+
+# --- Wave 7: SLO health (Application Signals integration) ---
+
+
+async def get_rum_slo_health(
+    app_monitor_name: str,
+    start_time: str,
+    end_time: str,
+) -> str:
+    """Get SLO health status for a RUM app monitor.
+
+    Queries Application Signals for SLOs associated with this app monitor,
+    checks breach status, and returns the same health model as the RUM console.
+
+    Args:
+        app_monitor_name: Name of the RUM app monitor.
+        start_time: ISO 8601 start time.
+        end_time: ISO 8601 end time.
+    """
+    st = _parse_time(start_time)
+    et = _parse_time(end_time)
+
+    try:
+        # Step 1: Find SLOs for this app monitor
+        slos = []
+        paginator = applicationsignals_client.get_paginator('list_service_level_objectives')
+        for page in paginator.paginate(
+            KeyAttributes={
+                'Type': 'AWS::Resource',
+                'ResourceType': 'AWS::RUM::AppMonitor',
+                'Identifier': app_monitor_name,
+            },
+        ):
+            slos.extend(page.get('SloSummaries', []))
+    except Exception as e:
+        # If no SLOs or API error, return NO_SLO status
+        return json.dumps({
+            'app_monitor': app_monitor_name,
+            'status': 'NO_SLO',
+            'total': 0, 'healthy': 0, 'breaching': 0,
+            'breaching_slos': [],
+            'message': f'Could not list SLOs: {e}',
+        }, indent=2)
+
+    if not slos:
+        return json.dumps({
+            'app_monitor': app_monitor_name,
+            'status': 'NO_SLO',
+            'total': 0, 'healthy': 0, 'breaching': 0,
+            'breaching_slos': [],
+        }, indent=2)
+
+    # Step 2: Check each SLO's attainment
+    breaching = []
+    healthy = 0
+    insufficient = 0
+
+    for slo in slos:
+        slo_name = slo.get('Name', '')
+        try:
+            resp = applicationsignals_client.get_service_level_objective(Id=slo_name)
+            slo_detail = resp.get('Slo', {})
+            goal = slo_detail.get('Goal', {})
+            attainment = goal.get('AttainmentGoal')
+
+            # Get budget status
+            budget_resp = applicationsignals_client.batch_get_service_level_objective_budget_report(
+                Timestamp=et,
+                SloIds=[slo_name],
+            )
+            reports = budget_resp.get('Reports', [])
+            if reports:
+                report = reports[0]
+                budget_status = report.get('BudgetStatus', 'UNKNOWN')
+                if budget_status == 'OK':
+                    healthy += 1
+                elif budget_status == 'BREACHED':
+                    # Extract metric name from SLO config
+                    metric_name = _extract_slo_metric_name(slo_detail)
+                    breaching.append({
+                        'slo_name': slo_name,
+                        'budget_status': budget_status,
+                        'attainment': report.get('Attainment'),
+                        'goal': attainment,
+                        'metric': metric_name,
+                    })
+                else:
+                    insufficient += 1
+            else:
+                insufficient += 1
+        except Exception as e:
+            logger.warning(f'Failed to check SLO {slo_name}: {e}')
+            insufficient += 1
+
+    total = len(slos)
+    if breaching:
+        status = 'BREACHED'
+    elif insufficient == total:
+        status = 'INSUFFICIENT_DATA'
+    else:
+        status = 'OK'
+
+    return json.dumps({
+        'app_monitor': app_monitor_name,
+        'status': status,
+        'total': total,
+        'healthy': healthy,
+        'breaching': len(breaching),
+        'insufficient_data': insufficient,
+        'breaching_slos': breaching,
+        'slo_names': [s.get('Name') for s in slos],
+    }, indent=2, default=str)
+
+
+def _extract_slo_metric_name(slo_detail: dict) -> str:
+    """Extract the RUM metric name from an SLO config."""
+    # Request-based SLO path
+    req_sli = slo_detail.get('RequestBasedSli', {}).get('RequestBasedSliMetric', {})
+    for count_key in ('MonitoredRequestCountMetric',):
+        count_metric = req_sli.get(count_key, {})
+        for metric_list_key in ('GoodCountMetric', 'BadCountMetric'):
+            metrics = count_metric.get(metric_list_key, [])
+            if isinstance(metrics, list):
+                for m in metrics:
+                    mid = m.get('Id', '')
+                    if mid.startswith('fault_') or mid.startswith('good_'):
+                        return m.get('MetricStat', {}).get('Metric', {}).get('MetricName', 'unknown')
+    # Period-based SLO path
+    sli_metric = slo_detail.get('Sli', {}).get('SliMetric', {})
+    for m in sli_metric.get('MetricDataQueries', []):
+        return m.get('MetricStat', {}).get('Metric', {}).get('MetricName', 'unknown')
+    return 'unknown'
+
 _ACTION_MAP.update({
     'check_data_access': check_rum_data_access,
     'list_monitors': list_rum_app_monitors,
@@ -1140,4 +1274,5 @@ _ACTION_MAP.update({
     'analyze': analyze_rum_log_group,
     'correlate': correlate_rum_to_backend,
     'metrics': get_rum_metrics,
+    'slo_health': get_rum_slo_health,
 })

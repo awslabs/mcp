@@ -45,6 +45,7 @@ def mock_aws_clients():
     mock_logs = MagicMock()
     mock_cw = MagicMock()
     mock_xray = MagicMock()
+    mock_appsignals = MagicMock()
     mock_time = MagicMock()
     _time_counter = iter(range(0, 10000, 1))
     mock_time.monotonic.side_effect = lambda: next(_time_counter)
@@ -55,13 +56,15 @@ def mock_aws_clients():
         patch('awslabs.cloudwatch_applicationsignals_mcp_server.rum_tools.logs_client', mock_logs),
         patch('awslabs.cloudwatch_applicationsignals_mcp_server.rum_tools.cloudwatch_client', mock_cw),
         patch('awslabs.cloudwatch_applicationsignals_mcp_server.rum_tools.xray_client', mock_xray),
+        patch('awslabs.cloudwatch_applicationsignals_mcp_server.rum_tools.applicationsignals_client', mock_appsignals),
         patch('awslabs.cloudwatch_applicationsignals_mcp_server.rum_tools.time', mock_time),
     ]
     for p in patches:
         p.start()
     try:
         yield {'rum_client': mock_rum, 'logs_client': mock_logs,
-               'cloudwatch_client': mock_cw, 'xray_client': mock_xray, 'time': mock_time}
+               'cloudwatch_client': mock_cw, 'xray_client': mock_xray,
+               'applicationsignals_client': mock_appsignals, 'time': mock_time}
     finally:
         for p in patches:
             p.stop()
@@ -417,3 +420,53 @@ async def test_metrics_error(mock_aws_clients):
     result = json.loads(await rum(action='metrics', app_monitor_name='test',
                                   metric_names='["JsErrorCount"]', start_time=START, end_time=END))
     assert 'error' in result
+
+
+# --- SLO Health ---
+
+
+@pytest.mark.asyncio
+async def test_slo_health_no_slos(mock_aws_clients):
+    paginator = MagicMock()
+    paginator.paginate.return_value = [{'SloSummaries': []}]
+    mock_aws_clients['applicationsignals_client'].get_paginator.return_value = paginator
+    result = json.loads(await rum(action='slo_health', app_monitor_name='test',
+                                  start_time=START, end_time=END))
+    assert result['status'] == 'NO_SLO'
+    assert result['total'] == 0
+
+
+@pytest.mark.asyncio
+async def test_slo_health_ok(mock_aws_clients):
+    paginator = MagicMock()
+    paginator.paginate.return_value = [{'SloSummaries': [{'Name': 'my-slo'}]}]
+    mock_aws_clients['applicationsignals_client'].get_paginator.return_value = paginator
+    mock_aws_clients['applicationsignals_client'].get_service_level_objective.return_value = {
+        'Slo': {'Goal': {'AttainmentGoal': 99.9}}}
+    mock_aws_clients['applicationsignals_client'].batch_get_service_level_objective_budget_report.return_value = {
+        'Reports': [{'BudgetStatus': 'OK', 'Attainment': 99.95}]}
+    result = json.loads(await rum(action='slo_health', app_monitor_name='test',
+                                  start_time=START, end_time=END))
+    assert result['status'] == 'OK'
+    assert result['healthy'] == 1
+    assert result['breaching'] == 0
+
+
+@pytest.mark.asyncio
+async def test_slo_health_breached(mock_aws_clients):
+    paginator = MagicMock()
+    paginator.paginate.return_value = [{'SloSummaries': [{'Name': 'my-slo'}]}]
+    mock_aws_clients['applicationsignals_client'].get_paginator.return_value = paginator
+    mock_aws_clients['applicationsignals_client'].get_service_level_objective.return_value = {
+        'Slo': {'Goal': {'AttainmentGoal': 99.9},
+                'RequestBasedSli': {'RequestBasedSliMetric': {
+                    'MonitoredRequestCountMetric': {'BadCountMetric': [
+                        {'Id': 'fault_m1', 'MetricStat': {'Metric': {'MetricName': 'JsErrorCount'}}}
+                    ]}}}}}
+    mock_aws_clients['applicationsignals_client'].batch_get_service_level_objective_budget_report.return_value = {
+        'Reports': [{'BudgetStatus': 'BREACHED', 'Attainment': 98.5}]}
+    result = json.loads(await rum(action='slo_health', app_monitor_name='test',
+                                  start_time=START, end_time=END))
+    assert result['status'] == 'BREACHED'
+    assert result['breaching'] == 1
+    assert result['breaching_slos'][0]['metric'] == 'JsErrorCount'
