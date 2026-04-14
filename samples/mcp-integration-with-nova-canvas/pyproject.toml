@@ -9,7 +9,7 @@ dependencies = [
     "fastapi[standard]>=0.115.12",
     "langchain-mcp-adapters>=0.0.7",
     "mcp>=1.23.0",
-    "pillow>=10.0.0",
+    "pillow>=12.2.0",
     "streamlit>=1.44.1",
     "uvicorn>=0.34.0",
 ]
