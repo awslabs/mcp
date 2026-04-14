@@ -18,12 +18,18 @@ Supports two modes:
 1. Default mode: Module-level singleton clients using AWS_PROFILE or the default credential chain.
 2. Custom mode: Per-request clients via a pluggable factory, allowing consumers to override
    credentials and region. Set via set_client_factory() and set_region_override().
+
+Both the region override and the client factory use ``contextvars.ContextVar`` so
+that each async request/coroutine gets its own isolated copy — no cross-request
+race conditions.
 """
 
 import boto3
+import contextvars
 import os
 from . import __version__
 from botocore.config import Config
+from contextlib import contextmanager
 from loguru import logger
 from typing import Any, Callable, Dict, Optional
 
@@ -36,32 +42,56 @@ logger.debug(f'Default AWS region: {_DEFAULT_REGION}')
 AWS_REGION = _DEFAULT_REGION
 
 # ---------------------------------------------------------------------------
-# Region override — allows consumers of this package to override the region
-# at runtime. Falls back to _DEFAULT_REGION.
+# Region override — per-request via contextvars so concurrent async
+# requests never interfere with each other.
 # ---------------------------------------------------------------------------
 
-_region_override: Optional[str] = None
+_region_override_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+    '_region_override', default=None
+)
 
 
 def set_region_override(region: str) -> None:
-    """Override the AWS region for all subsequent get_region() calls."""
-    global _region_override
-    _region_override = region
+    """Override the AWS region for the current async context.
+
+    Requires a custom client factory to be set first (via ``set_client_factory``),
+    because the default singleton clients are pre-built with the default region
+    and would not honour this override.
+
+    Raises:
+        RuntimeError: If no custom client factory has been registered.
+    """
+    if _client_factory_var.get() is None:
+        raise RuntimeError(
+            'set_region_override() requires a custom client factory. '
+            'Call set_client_factory() first.'
+        )
+    _region_override_var.set(region)
     logger.info(f'Region override set: {region}')
 
 
 def clear_region_override() -> None:
-    """Clear the region override, reverting to the default region."""
-    global _region_override
-    _region_override = None
+    """Clear the region override for the current async context."""
+    _region_override_var.set(None)
+
+
+@contextmanager
+def region_override(region: str):
+    """Context manager that sets and automatically clears a region override."""
+    token = _region_override_var.set(region)
+    try:
+        yield
+    finally:
+        _region_override_var.reset(token)
 
 
 def get_region() -> str:
-    """Get the active AWS region.
+    """Get the active AWS region for the current async context.
 
     Returns the override region if set, otherwise the default from AWS_REGION env var.
     """
-    return _region_override if _region_override is not None else _DEFAULT_REGION
+    override = _region_override_var.get()
+    return override if override is not None else _DEFAULT_REGION
 
 
 def _default_boto3_config() -> Config:
@@ -85,15 +115,17 @@ def _get_endpoint_overrides() -> Dict[str, Optional[str]]:
 
 
 # ---------------------------------------------------------------------------
-# Client factory hook — allows consumers of this package to override
-# how boto3 clients are created (e.g. to inject custom credentials).
+# Client factory hook — per-request via contextvars so concurrent async
+# requests never interfere with each other.
 # ---------------------------------------------------------------------------
 
-_client_factory: Optional[Callable[[str], Any]] = None
+_client_factory_var: contextvars.ContextVar[Optional[Callable[[str], Any]]] = contextvars.ContextVar(
+    '_client_factory', default=None
+)
 
 
 def set_client_factory(factory: Callable[[str], Any]) -> None:
-    """Set a custom client factory to override how boto3 clients are created.
+    """Set a custom client factory for the current async context.
 
     The factory receives a service name (e.g. 'logs', 'cloudwatch') and must
     return a boto3 client for that service. Use this to inject custom credentials
@@ -102,35 +134,47 @@ def set_client_factory(factory: Callable[[str], Any]) -> None:
     Args:
         factory: A callable(service_name: str) -> boto3.client
     """
-    global _client_factory
-    _client_factory = factory
+    _client_factory_var.set(factory)
     logger.info('Custom client factory registered')
 
 
 def clear_client_factory() -> None:
-    """Clear the custom client factory, reverting to default singleton clients."""
-    global _client_factory
-    _client_factory = None
+    """Clear the custom client factory for the current async context.
+
+    Also clears any region override since it is only meaningful with a custom factory.
+    """
+    _client_factory_var.set(None)
+    _region_override_var.set(None)
 
 
 def get_client(service_name: str) -> Any:
     """Get a boto3 client for the given service.
 
-    Delegates to the custom factory if one is set, otherwise returns the
-    module-level singleton client initialized from the default credential chain.
+    Delegates to the custom factory if one is set for the current async context,
+    otherwise returns the module-level singleton client initialized from the
+    default credential chain.
 
     Args:
         service_name: AWS service name (e.g. 'logs', 'application-signals', 'cloudwatch')
 
     Returns:
         A boto3 client for the specified service.
+
+    Raises:
+        KeyError: If *service_name* is not a recognised service and no custom factory is set.
     """
-    if _client_factory is not None:
+    factory = _client_factory_var.get()
+    if factory is not None:
         logger.debug(f'get_client({service_name}): using custom factory')
-        return _client_factory(service_name)
+        return factory(service_name)
 
     # Fall back to module-level singletons
     logger.debug(f'get_client({service_name}): using default singleton (local creds)')
+    if service_name not in _singleton_clients:
+        raise KeyError(
+            f"Unknown service '{service_name}'. "
+            f"Available services: {sorted(_singleton_clients.keys())}"
+        )
     return _singleton_clients[service_name]
 
 

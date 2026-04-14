@@ -127,18 +127,8 @@ def test_initialize_aws_clients_with_profile():
             mock_session,
         ):
             with patch('awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.Config'):
-                # Call the initialization function
-                (
-                    logs,
-                    applicationsignals,
-                    cloudwatch,
-                    xray,
-                    synthetics,
-                    s3,
-                    iam,
-                    lambda_client,
-                    sts,
-                ) = _initialize_aws_clients()
+                # Call the initialization function (returns a dict)
+                clients = _initialize_aws_clients()
 
                 # Verify Session was called with the profile
                 mock_session.assert_called_once()
@@ -155,10 +145,10 @@ def test_initialize_aws_clients_with_profile():
                 assert 'xray' in client_calls
 
                 # Verify the returned clients
-                assert logs == mock_client
-                assert applicationsignals == mock_client
-                assert cloudwatch == mock_client
-                assert xray == mock_client
+                assert clients['logs'] == mock_client
+                assert clients['application-signals'] == mock_client
+                assert clients['cloudwatch'] == mock_client
+                assert clients['xray'] == mock_client
 
 
 def test_initialize_aws_clients_with_mcp_source():
