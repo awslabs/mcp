@@ -18,8 +18,10 @@ These tests cover the execute_managed_mode and _execute_query_batch methods
 in the MySQLPlugin class which require mocking the MySQL MCP server connection.
 """
 
+import json
 import pytest
-from unittest.mock import patch
+from awslabs.dynamodb_mcp_server.db_analyzer.mysql import _get_validated_hostname
+from unittest.mock import Mock, patch
 
 
 class TestMySQLManagedMode:
@@ -270,3 +272,105 @@ class TestMySQLExecuteQueryBatch:
         assert 'comprehensive_table_analysis' in all_results
         assert 'comprehensive_index_analysis' in all_results
         assert len(all_errors) == 0
+
+
+class TestGetValidatedHostname:
+    """Tests for _get_validated_hostname hostname-secret consistency check."""
+
+    def test_matching_hostname(self):
+        """Test that matching hostname returns the secret host."""
+        secret_json = json.dumps(
+            {
+                'username': 'user',
+                'password': 'pass',  # pragma: allowlist secret
+                'host': 'my-db.cluster-xxx.us-east-1.rds.amazonaws.com',
+            }
+        )
+
+        with patch('awslabs.dynamodb_mcp_server.db_analyzer.mysql.boto3') as mock_boto3:
+            mock_client = Mock()
+            mock_boto3.client.return_value = mock_client
+            mock_client.get_secret_value.return_value = {'SecretString': secret_json}
+
+            result = _get_validated_hostname(
+                'my-db.cluster-xxx.us-east-1.rds.amazonaws.com',
+                'arn:aws:secretsmanager:us-east-1:123:secret:test',
+                'us-east-1',
+            )
+            assert result == 'my-db.cluster-xxx.us-east-1.rds.amazonaws.com'
+
+    def test_mismatched_hostname_returns_secret_host(self):
+        """Test that mismatched hostname raises ValueError."""
+        secret_json = json.dumps(
+            {
+                'username': 'user',
+                'password': 'pass',  # pragma: allowlist secret
+                'host': 'legitimate-db.us-east-1.rds.amazonaws.com',
+            }
+        )
+
+        with patch('awslabs.dynamodb_mcp_server.db_analyzer.mysql.boto3') as mock_boto3:
+            mock_client = Mock()
+            mock_boto3.client.return_value = mock_client
+            mock_client.get_secret_value.return_value = {'SecretString': secret_json}
+
+            with pytest.raises(ValueError, match='does not match the host'):
+                _get_validated_hostname(
+                    'attacker.example.com',
+                    'arn:aws:secretsmanager:us-east-1:123:secret:test',
+                    'us-east-1',
+                )
+
+    def test_case_insensitive_match(self):
+        """Test that hostname comparison is case-insensitive."""
+        secret_json = json.dumps(
+            {
+                'username': 'user',
+                'password': 'pass',  # pragma: allowlist secret
+                'host': 'My-DB.us-east-1.rds.amazonaws.com',
+            }
+        )
+
+        with patch('awslabs.dynamodb_mcp_server.db_analyzer.mysql.boto3') as mock_boto3:
+            mock_client = Mock()
+            mock_boto3.client.return_value = mock_client
+            mock_client.get_secret_value.return_value = {'SecretString': secret_json}
+
+            result = _get_validated_hostname(
+                'my-db.us-east-1.rds.amazonaws.com',
+                'arn:aws:secretsmanager:us-east-1:123:secret:test',
+                'us-east-1',
+            )
+            assert result == 'My-DB.us-east-1.rds.amazonaws.com'
+
+    def test_missing_host_in_secret_raises_error(self):
+        """Test that missing host field in secret raises ValueError."""
+        secret_json = json.dumps(
+            {'username': 'user', 'password': 'pass'}  # pragma: allowlist secret
+        )
+
+        with patch('awslabs.dynamodb_mcp_server.db_analyzer.mysql.boto3') as mock_boto3:
+            mock_client = Mock()
+            mock_boto3.client.return_value = mock_client
+            mock_client.get_secret_value.return_value = {'SecretString': secret_json}
+
+            with pytest.raises(ValueError, match='must contain a "host" field'):
+                _get_validated_hostname(
+                    'some-host',
+                    'arn:aws:secretsmanager:us-east-1:123:secret:test',
+                    'us-east-1',
+                )
+
+    def test_secrets_manager_failure_raises_error(self):
+        """Test that Secrets Manager failure raises ValueError."""
+        with patch('awslabs.dynamodb_mcp_server.db_analyzer.mysql.boto3') as mock_boto3:
+            mock_client = Mock()
+            mock_boto3.client.return_value = mock_client
+            mock_client.get_secret_value.side_effect = Exception('Access denied')
+
+            with pytest.raises(ValueError, match='Failed to retrieve secret'):
+                _get_validated_hostname(
+                    'some-host',
+                    'arn:aws:secretsmanager:us-east-1:123:secret:test',
+                    'us-east-1',
+                )
