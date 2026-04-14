@@ -164,12 +164,23 @@ MOBILE_CRASHES_ANDROID = """fields @timestamp, eventName, scope.name,
 | sort crash_count desc
 | limit 25"""
 
-MOBILE_CRASHES_IOS = """fields @timestamp, scope.name,
+MOBILE_CRASHES_IOS = """fields @timestamp, scope.name, eventName,
   attributes.type, attributes.message, attributes.stacktrace,
   attributes.session.id, attributes.screen.name
-| filter scope.name like /software.amazon.opentelemetry.(crash|hang)/
+| filter scope.name = "software.amazon.opentelemetry.kscrash"
 | stats count(*) as crash_count by attributes.type, attributes.message
 | sort crash_count desc
+| limit 25"""
+
+MOBILE_HANGS_IOS = """fields @timestamp, name, scope.name, durationNano,
+  attributes.type, attributes.message, attributes.stacktrace,
+  attributes.session.id, attributes.screen.name
+| filter scope.name = "software.amazon.opentelemetry.hang"
+| stats count(*) as hang_count,
+  pct(durationNano / 1000000, 50) as p50_duration_ms,
+  pct(durationNano / 1000000, 90) as p90_duration_ms
+  by attributes.message
+| sort hang_count desc
 | limit 25"""
 
 MOBILE_APP_LAUNCHES_ANDROID = """fields @timestamp, name, attributes.start.type, durationNano,
@@ -186,7 +197,7 @@ MOBILE_APP_LAUNCHES_ANDROID = """fields @timestamp, name, attributes.start.type,
 
 MOBILE_APP_LAUNCHES_IOS = """fields @timestamp, name, attributes.launch.type, durationNano,
   attributes.session.id
-| filter name = "AppStart" and scope.name = "software.amazon.opentelemetry.AppStart"
+| filter name = "AppStart" and scope.name = "software.amazon.opentelemetry.appstart"
 | stats
   pct(durationNano / 1000000, 50) as p50_ms,
   pct(durationNano / 1000000, 90) as p90_ms,

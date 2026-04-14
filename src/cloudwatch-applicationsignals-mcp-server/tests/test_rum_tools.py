@@ -285,7 +285,7 @@ async def test_crashes_android(mock_aws_clients):
     result = json.loads(await rum(action='crashes', app_monitor_name='test',
                                   start_time=START, end_time=END, platform='android'))
     assert 'android' in result
-    assert 'ios' not in result
+    assert 'ios_crashes' not in result
 
 
 @pytest.mark.asyncio
@@ -294,7 +294,9 @@ async def test_crashes_all(mock_aws_clients):
     result = json.loads(await rum(action='crashes', app_monitor_name='test',
                                   start_time=START, end_time=END, platform='all'))
     assert 'android' in result
-    assert 'ios' in result
+    assert 'android_anrs' in result
+    assert 'ios_crashes' in result
+    assert 'ios_hangs' in result
 
 
 @pytest.mark.asyncio

@@ -849,14 +849,15 @@ async def get_rum_crashes(
     results = {}
 
     if platform in ('ios', 'all'):
-        results['ios'] = _run_logs_insights_query(log_group, rum_queries.MOBILE_CRASHES_IOS, st, et)
+        results['ios_crashes'] = _run_logs_insights_query(log_group, rum_queries.MOBILE_CRASHES_IOS, st, et)
+        results['ios_hangs'] = _run_logs_insights_query(log_group, rum_queries.MOBILE_HANGS_IOS, st, et)
     if platform in ('android', 'all'):
         results['android'] = _run_logs_insights_query(log_group, rum_queries.MOBILE_CRASHES_ANDROID, st, et)
         results['android_anrs'] = _run_logs_insights_query(log_group, rum_queries.MOBILE_ANRS_ANDROID, st, et)
 
     return json.dumps({
         'app_monitor': app_monitor_name,
-        'note': 'Android validated. iOS field paths are experimental.',
+        'note': 'Field paths validated against ADOT Android SDK and aws-otel-swift SDK.',
         **results,
     }, indent=2, default=str)
 
@@ -895,7 +896,7 @@ async def get_rum_app_launches(
 
     return json.dumps({
         'app_monitor': app_monitor_name,
-        'note': 'Android validated. iOS field paths are experimental.',
+        'note': 'Field paths validated against ADOT Android SDK and aws-otel-swift SDK.',
         **results,
     }, indent=2, default=str)
 
