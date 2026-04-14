@@ -227,6 +227,38 @@ async def test_performance(mock_aws_clients):
 
 
 @pytest.mark.asyncio
+async def test_performance_vitals_bucketing(mock_aws_clients):
+    """Test that Web Vitals results get good/needs-improvement/poor assessment."""
+    mock_aws_clients['rum_client'].get_app_monitor.return_value = _app_monitor_response()
+    mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'qid'}
+    # Return a CLS result with p90=0.05 (good) and LCP with p90=5000 (poor)
+    call_count = [0]
+    def mock_get_results(**kwargs):
+        call_count[0] += 1
+        if call_count[0] <= 1:  # nav query
+            return _logs_result()
+        # vitals query
+        return {'status': 'Complete', 'results': [
+            [{'field': 'event_type', 'value': 'com.amazon.rum.cumulative_layout_shift_event'},
+             {'field': 'p90', 'value': '0.05'}, {'field': 'p50', 'value': '0.02'},
+             {'field': 'p99', 'value': '0.1'}, {'field': 'samples', 'value': '100'},
+             {'field': 'metadata.pageId', 'value': '/home'}],
+            [{'field': 'event_type', 'value': 'com.amazon.rum.largest_contentful_paint_event'},
+             {'field': 'p90', 'value': '5000'}, {'field': 'p50', 'value': '3000'},
+             {'field': 'p99', 'value': '8000'}, {'field': 'samples', 'value': '50'},
+             {'field': 'metadata.pageId', 'value': '/home'}],
+        ], 'statistics': {'recordsMatched': 2.0}}
+    mock_aws_clients['logs_client'].get_query_results.side_effect = mock_get_results
+    result = json.loads(await rum(action='performance', app_monitor_name='test',
+                                  start_time=START, end_time=END))
+    vitals = result['web_vitals']['results']
+    cls_row = [r for r in vitals if 'cumulative_layout_shift' in r.get('event_type', '')][0]
+    lcp_row = [r for r in vitals if 'largest_contentful_paint' in r.get('event_type', '')][0]
+    assert cls_row['assessment'] == 'good'
+    assert lcp_row['assessment'] == 'poor'
+
+
+@pytest.mark.asyncio
 async def test_sessions(mock_aws_clients):
     _setup_logs_mocks(mock_aws_clients)
     result = json.loads(await rum(action='sessions', app_monitor_name='test',

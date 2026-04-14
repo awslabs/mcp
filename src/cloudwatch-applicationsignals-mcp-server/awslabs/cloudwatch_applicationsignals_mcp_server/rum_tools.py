@@ -541,6 +541,31 @@ async def get_rum_performance(
         log_group, rum_queries.performance_web_vitals_query(page_url), st, et
     )
 
+    # Classify Web Vitals into good/needs-improvement/poor per web.dev thresholds
+    _WEB_VITALS_THRESHOLDS = {
+        'largest_contentful_paint_event': (2500, 4000, 'ms'),
+        'first_input_delay_event': (100, 300, 'ms'),
+        'cumulative_layout_shift_event': (0.1, 0.25, ''),
+        'interaction_to_next_paint_event': (200, 500, 'ms'),
+    }
+    for row in vitals_result.get('results', []):
+        event_type = row.get('event_type', '')
+        short_name = event_type.split('.')[-1] if '.' in event_type else event_type
+        thresholds = _WEB_VITALS_THRESHOLDS.get(short_name)
+        if thresholds:
+            good_limit, poor_limit, unit = thresholds
+            try:
+                p75 = float(row.get('p90', 0))  # use p90 for assessment
+                if p75 <= good_limit:
+                    row['assessment'] = 'good'
+                elif p75 <= poor_limit:
+                    row['assessment'] = 'needs-improvement'
+                else:
+                    row['assessment'] = 'poor'
+                row['thresholds'] = f'good<={good_limit}{unit}, poor>{poor_limit}{unit}'
+            except (ValueError, TypeError):
+                pass
+
     return json.dumps({
         'app_monitor': app_monitor_name,
         'navigation_timings': nav_result,
