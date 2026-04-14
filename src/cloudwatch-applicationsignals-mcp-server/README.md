@@ -380,17 +380,23 @@ rum(action="<action_name>", app_monitor_name="my-app", ...)
 | `query` | Run custom Logs Insights query | `app_monitor_name`, `query_string`, `start_time`, `end_time` |
 | `health` | Quick health audit (errors, slow pages, sessions) | `app_monitor_name`, `start_time`, `end_time` |
 | `errors` | JS/HTTP errors by message and page | `app_monitor_name`, `start_time`, `end_time` |
-| `performance` | Page load + Core Web Vitals (LCP, FID, CLS, INP) | `app_monitor_name`, `start_time`, `end_time` |
+| `performance` | Page load + Core Web Vitals with good/needs-improvement/poor assessment | `app_monitor_name`, `start_time`, `end_time` |
 | `sessions` | Recent sessions with browser/OS/device | `app_monitor_name`, `start_time`, `end_time` |
+| `session_detail` | Full event timeline for a single session | `app_monitor_name`, `session_id`, `start_time`, `end_time` |
 | `page_views` | Top pages by view count | `app_monitor_name`, `start_time`, `end_time` |
-| `crashes` | Mobile crashes (Android validated, iOS experimental) | `app_monitor_name`, `start_time`, `end_time` |
+| `timeseries` | Time-bucketed trends (errors, performance, sessions) | `app_monitor_name`, `start_time`, `end_time` |
+| `locations` | Sessions and performance by country | `app_monitor_name`, `start_time`, `end_time` |
+| `http_requests` | Top HTTP requests with latency and error rates | `app_monitor_name`, `start_time`, `end_time` |
+| `resources` | Top resource requests by duration and size | `app_monitor_name`, `start_time`, `end_time` |
+| `page_flows` | Page-to-page navigation flows | `app_monitor_name`, `start_time`, `end_time` |
+| `crashes` | Mobile crashes + ANRs (Android validated, iOS experimental) | `app_monitor_name`, `start_time`, `end_time` |
 | `app_launches` | Mobile cold/warm/pre-warm launch times | `app_monitor_name`, `start_time`, `end_time` |
 | `analyze` | Anomaly detection + message patterns | `app_monitor_name`, `start_time`, `end_time` |
 | **Correlation & Metrics** | | |
 | `correlate` | Frontend-to-backend X-Ray trace correlation | `app_monitor_name`, `page_url`, `start_time`, `end_time` |
 | `metrics` | CloudWatch RUM namespace metrics | `app_monitor_name`, `metric_names` (JSON array), `start_time`, `end_time` |
 
-**Optional parameters** (action-dependent): `resource_arn`, `page_url`, `group_by`, `platform`, `max_results`, `max_traces`, `statistic`, `period`
+**Optional parameters** (action-dependent): `resource_arn`, `page_url`, `group_by`, `platform`, `max_results`, `max_traces`, `statistic`, `period`, `session_id`, `metric`, `bucket`, `compare_previous`
 
 ## Installation
 
