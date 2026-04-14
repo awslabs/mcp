@@ -53,6 +53,7 @@ async def rum(
     session_id: Optional[str] = None,
     metric: Optional[str] = None,
     bucket: Optional[str] = None,
+    compare_previous: Optional[bool] = None,
 ) -> str:
     """CloudWatch RUM – monitor real user experience across web and mobile apps.
 
@@ -70,7 +71,7 @@ async def rum(
 
     Analytics (require CW Logs enabled):
     - ``query`` – Run custom Logs Insights query (app_monitor_name, query_string, start_time, end_time; optional: max_results)
-    - ``health`` – Quick health audit (app_monitor_name, start_time, end_time)
+    - ``health`` – Quick health audit (app_monitor_name, start_time, end_time; optional: compare_previous=true for period-over-period)
     - ``errors`` – Error analysis (app_monitor_name, start_time, end_time; optional: page_url, group_by)
     - ``performance`` – Page load + Web Vitals (app_monitor_name, start_time, end_time; optional: page_url)
     - ``sessions`` – Recent sessions (app_monitor_name, start_time, end_time)
@@ -102,7 +103,7 @@ async def rum(
         max_results=max_results, page_url=page_url, group_by=group_by,
         platform=platform, max_traces=max_traces, metric_names=metric_names,
         statistic=statistic, period=period, session_id=session_id,
-        metric=metric, bucket=bucket,
+        metric=metric, bucket=bucket, compare_previous=compare_previous,
     ).items() if v is not None}
     try:
         return await handler(**kwargs)
@@ -416,16 +417,18 @@ async def audit_rum_health(
     app_monitor_name: str,
     start_time: str,
     end_time: str,
+    compare_previous: bool = False,
 ) -> str:
     """Quick health check: "Are my users impacted right now?".
 
     Runs parallel queries for error rates, slowest pages, and sessions with most errors.
-    Returns a combined health summary.
+    Returns a combined health summary. Optionally compares to the previous period.
 
     Args:
         app_monitor_name: Name of the RUM app monitor.
         start_time: ISO 8601 start time.
         end_time: ISO 8601 end time.
+        compare_previous: If true, also query the previous period of equal length and include deltas.
     """
     from . import rum_queries
 
@@ -437,7 +440,6 @@ async def audit_rum_health(
     st = _parse_time(start_time)
     et = _parse_time(end_time)
 
-    # Run 3 queries
     queries = {
         'error_breakdown': rum_queries.HEALTH_ERROR_RATE,
         'slowest_pages': rum_queries.HEALTH_SLOWEST_PAGES,
@@ -450,11 +452,28 @@ async def audit_rum_health(
         except Exception as e:
             results[name] = {'status': 'Failed', 'error': str(e), 'results': []}
 
-    return json.dumps({
+    output = {
         'app_monitor': app_monitor_name,
         'time_range': {'start': start_time, 'end': end_time},
         **results,
-    }, indent=2, default=str)
+    }
+
+    if compare_previous:
+        duration = et - st
+        prev_et = st
+        prev_st = st - duration
+        prev_results = {}
+        for name, q in queries.items():
+            try:
+                prev_results[name] = _run_logs_insights_query(log_group, q, prev_st, prev_et, max_results=10)
+            except Exception as e:
+                prev_results[name] = {'status': 'Failed', 'error': str(e), 'results': []}
+        output['previous_period'] = {
+            'time_range': {'start': prev_st.isoformat(), 'end': prev_et.isoformat()},
+            **prev_results,
+        }
+
+    return json.dumps(output, indent=2, default=str)
 
 
 async def get_rum_errors(

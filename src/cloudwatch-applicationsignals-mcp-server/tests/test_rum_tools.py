@@ -187,6 +187,17 @@ async def test_health(mock_aws_clients):
     assert 'error_breakdown' in result
     assert 'slowest_pages' in result
     assert 'sessions_with_errors' in result
+    assert 'previous_period' not in result
+
+
+@pytest.mark.asyncio
+async def test_health_compare_previous(mock_aws_clients):
+    _setup_logs_mocks(mock_aws_clients)
+    result = json.loads(await rum(action='health', app_monitor_name='test',
+                                  start_time=START, end_time=END, compare_previous=True))
+    assert 'error_breakdown' in result
+    assert 'previous_period' in result
+    assert 'error_breakdown' in result['previous_period']
 
 
 @pytest.mark.asyncio
