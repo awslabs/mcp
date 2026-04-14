@@ -114,10 +114,12 @@ async def rum(
 # --- Internal helpers ---
 
 
-def _get_rum_log_group(app_monitor_name: str) -> str:
-    """Get the CW Logs log group for a RUM app monitor.
 
-    Returns the log group name or raises ValueError with guidance.
+def _get_rum_app_info(app_monitor_name: str) -> tuple[str, str]:
+    """Get log group and platform for a RUM app monitor.
+
+    Returns (log_group, platform) where platform is 'web' or 'mobile'.
+    Raises ValueError if CW Logs is not enabled.
     """
     resp = rum_client.get_app_monitor(Name=app_monitor_name)
     app_monitor = resp['AppMonitor']
@@ -135,8 +137,9 @@ def _get_rum_log_group(app_monitor_name: str) -> str:
             f"App monitor '{app_monitor_name}' has CW Logs enabled but no log group found. "
             f'This may indicate the app monitor was recently created. Wait a few minutes and retry.'
         )
-    return log_group
-
+    raw_platform = app_monitor.get('Platform', 'Web')
+    platform = 'web' if raw_platform == 'Web' else 'mobile'
+    return log_group, platform
 
 def _run_logs_insights_query(
     log_group: str,
@@ -388,7 +391,7 @@ async def query_rum_events(
         max_results: Maximum results to return (default 1000).
     """
     try:
-        log_group = _get_rum_log_group(app_monitor_name)
+        log_group, platform = _get_rum_app_info(app_monitor_name)
     except ValueError as e:
         return json.dumps({'error': str(e)})
 
@@ -433,7 +436,7 @@ async def audit_rum_health(
     from . import rum_queries
 
     try:
-        log_group = _get_rum_log_group(app_monitor_name)
+        log_group, platform = _get_rum_app_info(app_monitor_name)
     except ValueError as e:
         return json.dumps({'error': str(e)})
 
@@ -495,7 +498,7 @@ async def get_rum_errors(
     from . import rum_queries
 
     try:
-        log_group = _get_rum_log_group(app_monitor_name)
+        log_group, platform = _get_rum_app_info(app_monitor_name)
     except ValueError as e:
         return json.dumps({'error': str(e)})
 
@@ -527,7 +530,7 @@ async def get_rum_performance(
     from . import rum_queries
 
     try:
-        log_group = _get_rum_log_group(app_monitor_name)
+        log_group, platform = _get_rum_app_info(app_monitor_name)
     except ValueError as e:
         return json.dumps({'error': str(e)})
 
@@ -588,14 +591,15 @@ async def get_rum_sessions(
     from . import rum_queries
 
     try:
-        log_group = _get_rum_log_group(app_monitor_name)
+        log_group, platform = _get_rum_app_info(app_monitor_name)
     except ValueError as e:
         return json.dumps({'error': str(e)})
 
-    result = _run_logs_insights_query(
-        log_group, rum_queries.SESSIONS_QUERY, _parse_time(start_time), _parse_time(end_time)
-    )
-    return json.dumps({'app_monitor': app_monitor_name, **result}, indent=2, default=str)
+    st = _parse_time(start_time)
+    et = _parse_time(end_time)
+    query = rum_queries.SESSIONS_QUERY if platform == 'web' else rum_queries.MOBILE_SESSIONS_QUERY
+    result = _run_logs_insights_query(log_group, query, st, et)
+    return json.dumps({'app_monitor': app_monitor_name, 'platform': platform, **result}, indent=2, default=str)
 
 
 async def get_rum_page_views(
@@ -613,7 +617,7 @@ async def get_rum_page_views(
     from . import rum_queries
 
     try:
-        log_group = _get_rum_log_group(app_monitor_name)
+        log_group, platform = _get_rum_app_info(app_monitor_name)
     except ValueError as e:
         return json.dumps({'error': str(e)})
 
@@ -647,21 +651,25 @@ async def get_rum_timeseries(
     from . import rum_queries
 
     try:
-        log_group = _get_rum_log_group(app_monitor_name)
+        log_group, platform = _get_rum_app_info(app_monitor_name)
     except ValueError as e:
         return json.dumps({'error': str(e)})
+
+    st = _parse_time(start_time)
+    et = _parse_time(end_time)
 
     query_map = {
         'errors': rum_queries.errors_timeseries_query(bucket, page_url),
         'performance': rum_queries.performance_timeseries_query(bucket, page_url),
-        'sessions': rum_queries.sessions_timeseries_query(bucket),
+        'sessions': (rum_queries.sessions_timeseries_query(bucket) if platform == 'web'
+                     else rum_queries.mobile_sessions_timeseries_query(bucket)),
     }
     query = query_map.get(metric)
     if not query:
         return json.dumps({'error': f"Unknown metric '{metric}'. Use: errors, performance, sessions."})
 
-    result = _run_logs_insights_query(log_group, query, _parse_time(start_time), _parse_time(end_time))
-    return json.dumps({'app_monitor': app_monitor_name, 'metric': metric, 'bucket': bucket, **result}, indent=2, default=str)
+    result = _run_logs_insights_query(log_group, query, st, et)
+    return json.dumps({'app_monitor': app_monitor_name, 'metric': metric, 'bucket': bucket, 'platform': platform, **result}, indent=2, default=str)
 
 
 async def get_rum_locations(
@@ -681,7 +689,7 @@ async def get_rum_locations(
     from . import rum_queries
 
     try:
-        log_group = _get_rum_log_group(app_monitor_name)
+        log_group, platform = _get_rum_app_info(app_monitor_name)
     except ValueError as e:
         return json.dumps({'error': str(e)})
 
@@ -714,7 +722,7 @@ async def get_rum_http_requests(
     from . import rum_queries
 
     try:
-        log_group = _get_rum_log_group(app_monitor_name)
+        log_group, platform = _get_rum_app_info(app_monitor_name)
     except ValueError as e:
         return json.dumps({'error': str(e)})
 
@@ -742,15 +750,16 @@ async def get_rum_session_detail(
     from . import rum_queries
 
     try:
-        log_group = _get_rum_log_group(app_monitor_name)
+        log_group, platform = _get_rum_app_info(app_monitor_name)
     except ValueError as e:
         return json.dumps({'error': str(e)})
 
-    result = _run_logs_insights_query(
-        log_group, rum_queries.session_detail_query(session_id),
-        _parse_time(start_time), _parse_time(end_time),
-    )
-    return json.dumps({'app_monitor': app_monitor_name, 'session_id': session_id, **result}, indent=2, default=str)
+    st = _parse_time(start_time)
+    et = _parse_time(end_time)
+    query = (rum_queries.session_detail_query(session_id) if platform == 'web'
+             else rum_queries.mobile_session_detail_query(session_id))
+    result = _run_logs_insights_query(log_group, query, st, et)
+    return json.dumps({'app_monitor': app_monitor_name, 'session_id': session_id, 'platform': platform, **result}, indent=2, default=str)
 
 
 async def get_rum_resources(
@@ -770,7 +779,7 @@ async def get_rum_resources(
     from . import rum_queries
 
     try:
-        log_group = _get_rum_log_group(app_monitor_name)
+        log_group, platform = _get_rum_app_info(app_monitor_name)
     except ValueError as e:
         return json.dumps({'error': str(e)})
 
@@ -796,7 +805,7 @@ async def get_rum_page_flows(
     from . import rum_queries
 
     try:
-        log_group = _get_rum_log_group(app_monitor_name)
+        log_group, platform = _get_rum_app_info(app_monitor_name)
     except ValueError as e:
         return json.dumps({'error': str(e)})
 
@@ -830,7 +839,7 @@ async def get_rum_crashes(
     from . import rum_queries
 
     try:
-        log_group = _get_rum_log_group(app_monitor_name)
+        log_group, _platform = _get_rum_app_info(app_monitor_name)
     except ValueError as e:
         return json.dumps({'error': str(e)})
 
@@ -870,7 +879,7 @@ async def get_rum_app_launches(
     from . import rum_queries
 
     try:
-        log_group = _get_rum_log_group(app_monitor_name)
+        log_group, _platform = _get_rum_app_info(app_monitor_name)
     except ValueError as e:
         return json.dumps({'error': str(e)})
 
@@ -908,7 +917,7 @@ async def analyze_rum_log_group(
     from . import rum_queries
 
     try:
-        log_group = _get_rum_log_group(app_monitor_name)
+        log_group, platform = _get_rum_app_info(app_monitor_name)
     except ValueError as e:
         return json.dumps({'error': str(e)})
 
@@ -977,7 +986,7 @@ async def correlate_rum_to_backend(
     from . import rum_queries
 
     try:
-        log_group = _get_rum_log_group(app_monitor_name)
+        log_group, platform = _get_rum_app_info(app_monitor_name)
     except ValueError as e:
         return json.dumps({'error': str(e)})
 

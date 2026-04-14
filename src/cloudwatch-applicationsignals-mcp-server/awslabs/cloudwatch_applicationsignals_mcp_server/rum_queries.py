@@ -120,6 +120,17 @@ SESSIONS_QUERY = """fields user_details.sessionId, metadata.browserName, metadat
 | sort session_start desc
 | limit 50"""
 
+MOBILE_SESSIONS_QUERY = """fields attributes.session.id, resource.attributes.device.model.name,
+  resource.attributes.os.name, resource.attributes.os.version,
+  resource.attributes.geo.country.iso_code, attributes.screen.name
+| stats
+  min(@timestamp) as session_start,
+  max(@timestamp) as session_end,
+  count(*) as event_count
+  by attributes.session.id, resource.attributes.device.model.name, resource.attributes.os.version
+| sort session_start desc
+| limit 50"""
+
 
 # --- Page views ---
 
@@ -215,6 +226,14 @@ def sessions_timeseries_query(bucket: str = '1h') -> str:
 | sort time_bucket asc"""
 
 
+def mobile_sessions_timeseries_query(bucket: str = '1h') -> str:
+    """Session count over time (mobile OTel schema)."""
+    return f"""fields attributes.session.id
+| filter eventName = "session.start"
+| stats count(*) as session_count by bin({bucket}) as time_bucket
+| sort time_bucket asc"""
+
+
 # --- Geo / Locations ---
 
 
@@ -269,6 +288,16 @@ def session_detail_query(session_id: str) -> str:
   event_details.type, event_details.message, event_details.duration,
   event_details.request.url, event_details.response.status, event_details.value
 | filter user_details.sessionId = "{session_id}"
+| sort @timestamp asc
+| limit 1000"""
+
+
+def mobile_session_detail_query(session_id: str) -> str:
+    """All events for a single mobile session in chronological order."""
+    return f"""fields @timestamp, name, scope.name, eventName, durationNano,
+  attributes.screen.name, attributes.exception.type, attributes.exception.message,
+  attributes.http.response.status_code, attributes.url.full
+| filter attributes.session.id = "{session_id}"
 | sort @timestamp asc
 | limit 1000"""
 

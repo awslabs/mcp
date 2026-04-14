@@ -12,10 +12,12 @@ LOG_GROUP = '/aws/vendedlogs/RUMService_test'
 
 
 def _app_monitor_response(cw_log_enabled=True, enable_xray=False,
-                           telemetries=None, sample_rate=1.0, allow_cookies=True):
+                           telemetries=None, sample_rate=1.0, allow_cookies=True,
+                           platform='Web'):
     """Build a mock get_app_monitor response."""
     return {'AppMonitor': {
         'Name': 'test', 'Id': 'test-id', 'Domain': 'example.com', 'State': 'ACTIVE',
+        'Platform': platform,
         'DataStorage': {'CwLog': {
             'CwLogEnabled': cw_log_enabled,
             'CwLogGroup': LOG_GROUP if cw_log_enabled else None,
