@@ -15,6 +15,7 @@
 """SSM for SAP health summary and report tools for MCP server."""
 
 import asyncio
+from boto3 import Session
 from awslabs.aws_for_sap_management_mcp_server.client_factory import get_aws_client
 from awslabs.aws_for_sap_management_mcp_server.common import format_datetime
 from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.models import (
@@ -2425,7 +2426,7 @@ class SSMSAPHealthTools:
 
             # Build markdown summary
             lines = []
-            effective_region = region or 'us-east-1'
+            effective_region = region or Session().region_name or 'us-east-1'
             current_time = datetime.now(timezone.utc)
             lines.append('# SAP Health Summary')
             lines.append('')
@@ -2573,7 +2574,7 @@ class SSMSAPHealthTools:
                     application_count=0,
                 )
 
-            effective_region = region or 'us-east-1'
+            effective_region = region or Session().region_name or 'us-east-1'
 
             report_lines = []
             report_lines.append('# SAP Systems Health Report')
