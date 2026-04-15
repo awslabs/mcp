@@ -133,7 +133,7 @@ DIMENSION REFERENCE:
 BILLING VIEW SUPPORT:
 Most Cost Explorer operations support an optional billing_view_arn parameter that allows you to scope
 your query to a specific billing view. If not provided, the query defaults to the account's primary
-billing view. You can use the list-billing-views and get-billing-view tools opon request to discover
+billing view. You can use the list-billing-views and get-billing-view tools upon request to discover
 available billing views and their ARNs.
 
 Billing view types:

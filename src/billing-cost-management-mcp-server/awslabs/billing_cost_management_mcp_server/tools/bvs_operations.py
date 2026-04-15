@@ -26,7 +26,7 @@ from ..utilities.aws_service_base import (
 )
 from ..utilities.constants import REGION_US_EAST_1
 from ..utilities.time_utils import (
-    epoch_seconds_to_utc_iso_string,
+    timestamp_to_utc_iso_string,
     utc_datetime_string_to_epoch_seconds,
 )
 from fastmcp import Context
@@ -375,13 +375,13 @@ def _format_get_billing_view_element(billing_view: Dict[str, Any]) -> Dict[str, 
         )
 
     if 'createdAt' in billing_view:
-        formatted['created_at'] = epoch_seconds_to_utc_iso_string(billing_view['createdAt'])
+        formatted['created_at'] = timestamp_to_utc_iso_string(billing_view['createdAt'])
 
     if 'updatedAt' in billing_view:
-        formatted['updated_at'] = epoch_seconds_to_utc_iso_string(billing_view['updatedAt'])
+        formatted['updated_at'] = timestamp_to_utc_iso_string(billing_view['updatedAt'])
 
     if 'viewDefinitionLastUpdatedAt' in billing_view:
-        formatted['view_definition_last_updated_at'] = epoch_seconds_to_utc_iso_string(
+        formatted['view_definition_last_updated_at'] = timestamp_to_utc_iso_string(
             billing_view['viewDefinitionLastUpdatedAt']
         )
 
@@ -486,12 +486,12 @@ def _format_time_range(time_range: Dict[str, Any]) -> Dict[str, Any]:
     formatted: Dict[str, Any] = {}
 
     if 'beginDateInclusive' in time_range:
-        formatted['begin_date_inclusive'] = epoch_seconds_to_utc_iso_string(
+        formatted['begin_date_inclusive'] = timestamp_to_utc_iso_string(
             time_range['beginDateInclusive']
         )
 
     if 'endDateInclusive' in time_range:
-        formatted['end_date_inclusive'] = epoch_seconds_to_utc_iso_string(
+        formatted['end_date_inclusive'] = timestamp_to_utc_iso_string(
             time_range['endDateInclusive']
         )
 

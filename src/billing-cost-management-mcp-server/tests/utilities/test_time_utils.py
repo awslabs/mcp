@@ -16,7 +16,7 @@
 
 import pytest
 from awslabs.billing_cost_management_mcp_server.utilities.time_utils import (
-    epoch_seconds_to_utc_iso_string,
+    timestamp_to_utc_iso_string,
 )
 from datetime import datetime, timezone
 
@@ -53,60 +53,60 @@ class TestUtcDatetimeStringToEpochSeconds:
 
 
 class TestEpochSecondsToUtcIsoStringDatetime:
-    """Tests for epoch_seconds_to_utc_iso_string with datetime inputs."""
+    """Tests for timestamp_to_utc_iso_string with datetime inputs."""
 
     def test_datetime_with_timezone(self):
         """Test conversion with timezone-aware datetime."""
         from awslabs.billing_cost_management_mcp_server.utilities.time_utils import (
-            epoch_seconds_to_utc_iso_string,
+            timestamp_to_utc_iso_string,
         )
 
         dt = datetime(2023, 11, 14, 22, 13, 20, tzinfo=timezone.utc)
-        result = epoch_seconds_to_utc_iso_string(dt)
+        result = timestamp_to_utc_iso_string(dt)
         assert result == '2023-11-14T22:13:20'
 
     def test_datetime_without_timezone(self):
         """Test conversion with naive datetime (no timezone)."""
         from awslabs.billing_cost_management_mcp_server.utilities.time_utils import (
-            epoch_seconds_to_utc_iso_string,
+            timestamp_to_utc_iso_string,
         )
 
         dt = datetime(2023, 11, 14, 22, 13, 20)
-        result = epoch_seconds_to_utc_iso_string(dt)
+        result = timestamp_to_utc_iso_string(dt)
         assert result == '2023-11-14T22:13:20'
 
 
 class TestEpochSecondsToUtcIsoString:
-    """Tests for the epoch_seconds_to_utc_iso_string function."""
+    """Tests for the timestamp_to_utc_iso_string function."""
 
     def test_known_timestamp(self):
         """Test conversion of a known epoch timestamp."""
         # 2023-11-14T22:13:20 UTC
-        result = epoch_seconds_to_utc_iso_string(1700000000)
+        result = timestamp_to_utc_iso_string(1700000000)
         assert result == '2023-11-14T22:13:20'
 
     def test_unix_epoch_zero(self):
         """Test conversion of epoch zero (1970-01-01)."""
-        result = epoch_seconds_to_utc_iso_string(0)
+        result = timestamp_to_utc_iso_string(0)
         assert result == '1970-01-01T00:00:00'
 
     def test_float_timestamp(self):
         """Test conversion of a float timestamp with fractional seconds."""
-        result = epoch_seconds_to_utc_iso_string(1700000000.5)
+        result = timestamp_to_utc_iso_string(1700000000.5)
         assert result == '2023-11-14T22:13:20.500000'
 
     def test_returns_string_without_timezone(self):
         """Test that the result does not contain timezone info."""
-        result = epoch_seconds_to_utc_iso_string(1700000000)
+        result = timestamp_to_utc_iso_string(1700000000)
         assert '+' not in result
         assert 'Z' not in result
 
     def test_different_timestamps(self):
         """Test several different timestamps for correct formatting."""
         # 2023-11-15T10:00:00 UTC = 1700042400
-        result = epoch_seconds_to_utc_iso_string(1700042400)
+        result = timestamp_to_utc_iso_string(1700042400)
         assert result == '2023-11-15T10:00:00'
 
         # 2025-01-01T00:00:00 UTC = 1735689600
-        result = epoch_seconds_to_utc_iso_string(1735689600)
+        result = timestamp_to_utc_iso_string(1735689600)
         assert result == '2025-01-01T00:00:00'

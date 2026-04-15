@@ -51,20 +51,20 @@ def utc_datetime_string_to_epoch_seconds(datetime_str: str) -> int:
     )
 
 
-def epoch_seconds_to_utc_iso_string(epoch_seconds: Union[int, float, datetime]) -> str:
-    """Convert epoch seconds or a datetime to a UTC ISO 8601 formatted string.
+def timestamp_to_utc_iso_string(timestamp: Union[int, float, datetime]) -> str:
+    """Convert a timestamp to a UTC ISO 8601 formatted string.
 
     Handles both epoch seconds (int/float) and datetime objects, as different
     AWS services may return timestamps in different formats.
 
     Args:
-        epoch_seconds: Unix timestamp in seconds (int/float) or a datetime object.
+        timestamp: Unix timestamp in seconds (int/float) or a datetime object.
 
     Returns:
         ISO 8601 formatted date string (e.g., "2023-11-14T22:13:20").
     """
-    if isinstance(epoch_seconds, datetime):
-        if epoch_seconds.tzinfo is not None:
-            epoch_seconds = epoch_seconds.astimezone(timezone.utc)
-        return epoch_seconds.replace(tzinfo=None).isoformat()
-    return datetime.fromtimestamp(epoch_seconds, tz=timezone.utc).replace(tzinfo=None).isoformat()
+    if isinstance(timestamp, datetime):
+        if timestamp.tzinfo is not None:
+            timestamp = timestamp.astimezone(timezone.utc)
+        return timestamp.replace(tzinfo=None).isoformat()
+    return datetime.fromtimestamp(timestamp, tz=timezone.utc).replace(tzinfo=None).isoformat()
