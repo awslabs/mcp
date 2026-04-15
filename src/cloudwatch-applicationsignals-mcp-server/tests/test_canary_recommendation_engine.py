@@ -333,7 +333,7 @@ class TestGetRecommendations:
         results = engine.get_recommendations(ctx)
         assert len(results) == 0
 
-    def test_max_five_results(self):
+    def test_max_two_results(self):
         loader = MagicMock()
         entries = [
             _make_entry(id=f'TEST-{i:03d}', error_patterns=[ErrorPattern(text_contains='error')])
@@ -344,7 +344,7 @@ class TestGetRecommendations:
         engine = CanaryRecommendationEngine(loader)
         ctx = _make_context(error_messages=['error occurred'], runtime_version='syn-nodejs-puppeteer-10.0')
         results = engine.get_recommendations(ctx)
-        assert len(results) <= 5
+        assert len(results) <= 2
 
     def test_sorted_by_confidence_descending(self):
         loader = _load_kb_sync()
