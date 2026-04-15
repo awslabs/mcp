@@ -82,7 +82,8 @@
       "**/skills/*/scripts",
       "**/skills/*/references",
       "**/skills/*/mcp",
-      "**/DO_NOT_RELEASE"
+      "**/DO_NOT_RELEASE",
+      "**/*.pyi"
     ]
   }
 ]
