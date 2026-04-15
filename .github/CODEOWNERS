@@ -33,8 +33,6 @@ NOTICE                                                         @awslabs/mcp-admi
 # DEPRECATED — use boto3 API or aws-api-mcp-server
 /src/aws-bedrock-data-automation-mcp-server                    @awslabs/mcp-admins
 /src/aws-dataprocessing-mcp-server                             @awslabs/mcp-admins @awslabs/mcp-maintainers  @naikvaib @LiyuanLD @ckha2000 @raghav1397 @chappidim @yuxiaorun
-# DEPRECATED — use diagram agent skill
-/src/aws-diagram-mcp-server                                    @awslabs/mcp-admins
 /src/aws-documentation-mcp-server                              @awslabs/mcp-admins @awslabs/mcp-maintainers  @Lavoiedavidw @JonLim @tuanknguyen @AadityaBhoota @artb30 @alexisareyn
 /src/aws-healthomics-mcp-server                                @awslabs/mcp-admins @awslabs/mcp-maintainers  @markjschreiber @WIIASD @a-li @alxawan @sabeelmansuri
 /src/aws-iac-mcp-server                                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @kdbrogan @vishaalmehrishi @aemada-aws @kumvprat

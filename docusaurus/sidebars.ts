@@ -107,7 +107,6 @@ const sidebars: SidebarsConfig = {
             "servers/core-mcp-server",
             "servers/git-repo-research-mcp-server",
             "servers/openapi-mcp-server",
-            "servers/aws-diagram-mcp-server",
             "servers/prometheus-mcp-server",
             "servers/code-doc-gen-mcp-server",
             "servers/frontend-mcp-server",
