@@ -119,8 +119,8 @@ def _get_endpoint_overrides() -> Dict[str, Optional[str]]:
 # requests never interfere with each other.
 # ---------------------------------------------------------------------------
 
-_client_factory_var: contextvars.ContextVar[Optional[Callable[[str], Any]]] = contextvars.ContextVar(
-    '_client_factory', default=None
+_client_factory_var: contextvars.ContextVar[Optional[Callable[[str], Any]]] = (
+    contextvars.ContextVar('_client_factory', default=None)
 )
 
 
@@ -173,7 +173,7 @@ def get_client(service_name: str) -> Any:
     if service_name not in _singleton_clients:
         raise KeyError(
             f"Unknown service '{service_name}'. "
-            f"Available services: {sorted(_singleton_clients.keys())}"
+            f'Available services: {sorted(_singleton_clients.keys())}'
         )
     return _singleton_clients[service_name]
 
@@ -181,6 +181,7 @@ def get_client(service_name: str) -> Any:
 # ---------------------------------------------------------------------------
 # Module-level singleton clients (local/CLI mode)
 # ---------------------------------------------------------------------------
+
 
 def _initialize_aws_clients() -> Dict[str, Any]:
     """Initialize AWS clients with proper configuration."""
@@ -196,6 +197,7 @@ def _initialize_aws_clients() -> Dict[str, Any]:
         session = boto3.Session(profile_name=aws_profile, region_name=_DEFAULT_REGION)
         create = session.client
     else:
+
         def create(service_name, **kwargs):
             return boto3.client(service_name, **kwargs)
 

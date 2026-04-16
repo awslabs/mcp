@@ -268,13 +268,15 @@ async def test_analyze_log_files(mock_canary_clients, logs, log_content, expecte
 @pytest.mark.asyncio
 async def test_extract_disk_memory_usage_metrics():
     """Test extract disk memory usage metrics."""
-    with (
-        patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.synthetics_client'
-        ) as mock_synthetics,
-        patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.logs_client'
-        ) as mock_logs,
+    mock_synthetics = MagicMock()
+
+    mock_logs = MagicMock()
+
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.get_client',
+        side_effect=lambda svc: {'synthetics': mock_synthetics, 'logs': mock_logs}.get(
+            svc, MagicMock()
+        ),
     ):
         mock_synthetics.get_canary.return_value = {'Canary': {'Name': 'test-canary'}}
         result = await extract_disk_memory_usage_metrics('test-canary', 'us-east-1')
@@ -303,9 +305,12 @@ async def test_extract_disk_memory_usage_metrics():
 @pytest.mark.asyncio
 async def test_analyze_canary_logs_with_time_window():
     """Test analyze canary logs with time window."""
+    mock_logs = MagicMock()
+
     with patch(
-        'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.logs_client'
-    ) as mock_logs:
+        'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.get_client',
+        return_value=mock_logs,
+    ):
         canary = {'Name': 'test-canary'}
         failure_time = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
         result = await analyze_canary_logs_with_time_window(
@@ -328,9 +333,12 @@ async def test_analyze_canary_logs_with_time_window():
 @pytest.mark.asyncio
 async def test_get_canary_code():
     """Test get canary code."""
+    mock_lambda = MagicMock()
+
     with patch(
-        'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.lambda_client'
-    ) as mock_lambda:
+        'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.get_client',
+        return_value=mock_lambda,
+    ):
         canary = {'Code': {'SourceLocationArn': 'arn:aws:s3:::test-bucket/code.zip'}}
         result = await get_canary_code(canary, 'us-east-1')
         assert 'error' in result
@@ -372,15 +380,28 @@ async def test_get_canary_metrics_and_service_insights():
 @pytest.mark.asyncio
 async def test_analyze_canary_failures_integration():
     """Test analyze canary failures integration."""
+    mock_synthetics = MagicMock()
+    mock_s3 = MagicMock()
+    mock_iam = MagicMock()
+    mock_sts = MagicMock()
     with (
         patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.synthetics_client'
-        ) as mock_synthetics,
-        patch('awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.iam_client'),
-        patch('awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.s3_client') as mock_s3,
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_client',
+            side_effect=lambda svc: {
+                'synthetics': mock_synthetics,
+                's3': mock_s3,
+                'iam': mock_iam,
+                'sts': mock_sts,
+            }.get(svc, MagicMock()),
+        ),
         patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.sts_client'
-        ) as mock_sts,
+            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.get_client',
+            side_effect=lambda svc: {
+                'synthetics': mock_synthetics,
+                's3': mock_s3,
+                'iam': mock_iam,
+            }.get(svc, MagicMock()),
+        ),
         patch('subprocess.run') as mock_subprocess,
     ):
         from awslabs.cloudwatch_applicationsignals_mcp_server.server import analyze_canary_failures
@@ -594,9 +615,12 @@ async def test_analyze_canary_logs_no_engine_arn():
 @pytest.mark.asyncio
 async def test_analyze_canary_logs_resource_not_found():
     """Test analyze canary logs resource not found."""
+    mock_logs = MagicMock()
+
     with patch(
-        'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.logs_client'
-    ) as mock_logs:
+        'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.get_client',
+        return_value=mock_logs,
+    ):
         mock_logs.filter_log_events.side_effect = ClientError(
             {'Error': {'Code': 'ResourceNotFoundException'}}, 'FilterLogEvents'
         )
@@ -613,9 +637,12 @@ async def test_analyze_canary_logs_resource_not_found():
 @pytest.mark.asyncio
 async def test_extract_disk_memory_usage_no_engine_configs():
     """Test extract disk memory usage no engine configs."""
+    mock_synthetics = MagicMock()
+
     with patch(
-        'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.synthetics_client'
-    ) as mock_synthetics:
+        'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.get_client',
+        return_value=mock_synthetics,
+    ):
         mock_synthetics.get_canary.return_value = {'Canary': {'Name': 'test-canary'}}
 
         result = await extract_disk_memory_usage_metrics('test-canary', 'us-east-1')
@@ -626,13 +653,15 @@ async def test_extract_disk_memory_usage_no_engine_configs():
 @pytest.mark.asyncio
 async def test_extract_disk_memory_usage_with_engine_configs():
     """Test extract disk memory usage with engine configs."""
-    with (
-        patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.synthetics_client'
-        ) as mock_synthetics,
-        patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.logs_client'
-        ) as mock_logs,
+    mock_synthetics = MagicMock()
+
+    mock_logs = MagicMock()
+
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.get_client',
+        side_effect=lambda svc: {'synthetics': mock_synthetics, 'logs': mock_logs}.get(
+            svc, MagicMock()
+        ),
     ):
         mock_synthetics.get_canary.return_value = {
             'Canary': {
@@ -652,9 +681,12 @@ async def test_extract_disk_memory_usage_with_engine_configs():
 @pytest.mark.asyncio
 async def test_get_canary_code_with_engine_configs():
     """Test get canary code with engine configs."""
+    mock_lambda = MagicMock()
+
     with patch(
-        'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.lambda_client'
-    ) as mock_lambda:
+        'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.get_client',
+        return_value=mock_lambda,
+    ):
         mock_lambda.get_function.return_value = {
             'Configuration': {
                 'MemorySize': 128,
@@ -747,13 +779,15 @@ async def test_analyze_har_file_gzipped_content():
 @pytest.mark.asyncio
 async def test_extract_disk_memory_usage_query_timeout():
     """Test extract disk memory usage query timeout."""
-    with (
-        patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.synthetics_client'
-        ) as mock_synthetics,
-        patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.logs_client'
-        ) as mock_logs,
+    mock_synthetics = MagicMock()
+
+    mock_logs = MagicMock()
+
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.get_client',
+        side_effect=lambda svc: {'synthetics': mock_synthetics, 'logs': mock_logs}.get(
+            svc, MagicMock()
+        ),
     ):
         mock_synthetics.get_canary.return_value = {
             'Canary': {'EngineArn': 'arn:aws:lambda:us-east-1:123456789012:function:test'}
@@ -770,9 +804,12 @@ async def test_extract_disk_memory_usage_query_timeout():
 @pytest.mark.asyncio
 async def test_get_canary_code_with_layers():
     """Test get canary code with layers."""
+    mock_lambda = MagicMock()
+
     with patch(
-        'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.lambda_client'
-    ) as mock_lambda:
+        'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.get_client',
+        return_value=mock_lambda,
+    ):
         mock_lambda.get_function.return_value = {
             'Configuration': {
                 'MemorySize': 256,
@@ -933,10 +970,13 @@ async def test_check_resource_arns_correct_with_s3_prefix():
 @pytest.mark.asyncio
 async def test_get_canary_code_source_location_arn():
     """Test get canary code source location arn."""
+    mock_lambda = MagicMock()
+
     with (
         patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.lambda_client'
-        ) as mock_lambda,
+            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.get_client',
+            return_value=mock_lambda,
+        ),
         patch('requests.get') as mock_requests,
         patch('tempfile.NamedTemporaryFile') as mock_temp,
         patch('zipfile.ZipFile') as mock_zip,
@@ -981,10 +1021,13 @@ async def test_get_canary_code_source_location_arn():
 @pytest.mark.asyncio
 async def test_get_canary_code_custom_layers():
     """Test get canary code custom layers."""
+    mock_lambda = MagicMock()
+
     with (
         patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.lambda_client'
-        ) as mock_lambda,
+            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.get_client',
+            return_value=mock_lambda,
+        ),
         patch('requests.get') as mock_requests,
         patch('tempfile.NamedTemporaryFile') as mock_temp,
         patch('zipfile.ZipFile') as mock_zip,
@@ -1027,10 +1070,13 @@ async def test_get_canary_code_custom_layers():
 @pytest.mark.asyncio
 async def test_get_canary_code_function_code_fallback():
     """Test get canary code function code fallback."""
+    mock_lambda = MagicMock()
+
     with (
         patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.lambda_client'
-        ) as mock_lambda,
+            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.get_client',
+            return_value=mock_lambda,
+        ),
         patch('requests.get') as mock_requests,
         patch('tempfile.NamedTemporaryFile') as mock_temp,
         patch('zipfile.ZipFile') as mock_zip,
@@ -1069,9 +1115,12 @@ async def test_get_canary_code_function_code_fallback():
 @pytest.mark.asyncio
 async def test_get_canary_code_extraction_error():
     """Test get canary code extraction error."""
+    mock_lambda = MagicMock()
+
     with patch(
-        'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.lambda_client'
-    ) as mock_lambda:
+        'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.get_client',
+        return_value=mock_lambda,
+    ):
         mock_lambda.get_function.return_value = {
             'Configuration': {
                 'MemorySize': 128,
@@ -1096,13 +1145,15 @@ async def test_get_canary_code_extraction_error():
 @pytest.mark.asyncio
 async def test_extract_disk_memory_usage_invalid_results():
     """Test extract disk memory usage invalid results."""
-    with (
-        patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.synthetics_client'
-        ) as mock_synthetics,
-        patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.logs_client'
-        ) as mock_logs,
+    mock_synthetics = MagicMock()
+
+    mock_logs = MagicMock()
+
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.get_client',
+        side_effect=lambda svc: {'synthetics': mock_synthetics, 'logs': mock_logs}.get(
+            svc, MagicMock()
+        ),
     ):
         mock_synthetics.get_canary.return_value = {
             'Canary': {'EngineArn': 'arn:aws:lambda:us-east-1:123456789012:function:test'}
@@ -1188,9 +1239,12 @@ async def test_coverage_check_resource_arns_string_resources():
 @pytest.mark.asyncio
 async def test_coverage_analyze_canary_logs_string_failure_time():
     """Test coverage analyze canary logs string failure time."""
+    mock_logs = MagicMock()
+
     with patch(
-        'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.logs_client'
-    ) as mock_logs:
+        'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.get_client',
+        return_value=mock_logs,
+    ):
         mock_logs.filter_log_events.return_value = {'events': []}
 
         canary = {'EngineArn': 'arn:aws:lambda:us-east-1:123456789012:function:test'}
@@ -1205,9 +1259,12 @@ async def test_coverage_analyze_canary_logs_string_failure_time():
 @pytest.mark.asyncio
 async def test_coverage_analyze_canary_logs_other_client_error():
     """Test coverage analyze canary logs other client error."""
+    mock_logs = MagicMock()
+
     with patch(
-        'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.logs_client'
-    ) as mock_logs:
+        'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.get_client',
+        return_value=mock_logs,
+    ):
         mock_logs.filter_log_events.side_effect = ClientError(
             {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}}, 'FilterLogEvents'
         )
@@ -1225,13 +1282,17 @@ async def test_coverage_analyze_canary_logs_other_client_error():
 @pytest.mark.asyncio
 async def test_coverage_extract_disk_memory_usage_query_running():
     """Test coverage extract disk memory usage query running."""
+    mock_synthetics = MagicMock()
+
+    mock_logs = MagicMock()
+
     with (
         patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.synthetics_client'
-        ) as mock_synthetics,
-        patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.logs_client'
-        ) as mock_logs,
+            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.get_client',
+            side_effect=lambda svc: {'synthetics': mock_synthetics, 'logs': mock_logs}.get(
+                svc, MagicMock()
+            ),
+        ),
         patch('asyncio.sleep', new_callable=AsyncMock),
     ):
         mock_synthetics.get_canary.return_value = {
@@ -1248,9 +1309,12 @@ async def test_coverage_extract_disk_memory_usage_query_running():
 @pytest.mark.asyncio
 async def test_coverage_get_canary_code_layer_exception():
     """Test coverage get canary code layer exception."""
+    mock_lambda = MagicMock()
+
     with patch(
-        'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.lambda_client'
-    ) as mock_lambda:
+        'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.get_client',
+        return_value=mock_lambda,
+    ):
         mock_lambda.get_function.return_value = {
             'Configuration': {
                 'MemorySize': 128,
@@ -1275,9 +1339,12 @@ async def test_coverage_get_canary_code_layer_exception():
 @pytest.mark.asyncio
 async def test_coverage_get_canary_code_source_location_exception():
     """Test coverage get canary code source location exception."""
+    mock_lambda = MagicMock()
+
     with patch(
-        'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.lambda_client'
-    ) as mock_lambda:
+        'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.get_client',
+        return_value=mock_lambda,
+    ):
         mock_lambda.get_function.return_value = {
             'Configuration': {
                 'MemorySize': 128,
@@ -1388,9 +1455,12 @@ def test_check_resource_arns_correct_iam_exception():
 @pytest.mark.asyncio
 async def test_analyze_canary_logs_with_time_window_exception():
     """Test analyze_canary_logs_with_time_window with exception during processing."""
+    mock_logs_client = MagicMock()
+
     with patch(
-        'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.logs_client'
-    ) as mock_logs_client:
+        'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.get_client',
+        return_value=mock_logs_client,
+    ):
         mock_logs_client.describe_log_groups.side_effect = Exception('Logs error')
 
         result = await analyze_canary_logs_with_time_window(
@@ -1404,9 +1474,12 @@ async def test_analyze_canary_logs_with_time_window_exception():
 @pytest.mark.asyncio
 async def test_extract_disk_memory_usage_metrics_exception():
     """Test extract_disk_memory_usage_metrics with exception."""
+    mock_synthetics_client = MagicMock()
+
     with patch(
-        'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.synthetics_client'
-    ) as mock_synthetics_client:
+        'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.get_client',
+        return_value=mock_synthetics_client,
+    ):
         mock_synthetics_client.get_canary.side_effect = Exception('CloudWatch error')
 
         result = await extract_disk_memory_usage_metrics('test-canary')
@@ -1418,29 +1491,32 @@ async def test_extract_disk_memory_usage_metrics_exception():
 @pytest.mark.asyncio
 async def test_extract_disk_memory_usage_metrics_telemetry_exception():
     """Test extract_disk_memory_usage_metrics with telemetry processing exception."""
+    mock_synthetics = MagicMock()
+    mock_logs_client = MagicMock()
     with patch(
-        'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.logs_client'
-    ) as mock_logs_client:
-        # Mock successful log group check but fail during telemetry processing
-        mock_logs_client.describe_log_groups.return_value = {
-            'logGroups': [{'logGroupName': '/aws/synthetics/canary/test-canary'}]
+        'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.get_client',
+        side_effect=lambda svc: {'synthetics': mock_synthetics, 'logs': mock_logs_client}.get(
+            svc, MagicMock()
+        ),
+    ):
+        mock_synthetics.get_canary.return_value = {
+            'Canary': {'EngineArn': 'arn:aws:lambda:us-east-1:123456789012:function:test'}
         }
         mock_logs_client.start_query.return_value = {'queryId': 'test-query-id'}
         mock_logs_client.get_query_results.return_value = {
             'status': 'Complete',
             'results': [
                 [
-                    {'field': '@timestamp', 'value': '2024-01-01T00:00:00Z'},
-                    {'field': '@message', 'value': 'invalid json'},
+                    {'value': '2024-01-01T00:00:00Z'},
+                    {'value': 'not_a_number'},
                 ]
             ],
         }
 
         result = await extract_disk_memory_usage_metrics('test-canary')
 
-        # Should handle JSON parsing errors gracefully
         assert 'error' in result
-        assert 'Resource analysis failed:' in result['error']
+        assert 'No valid telemetry metrics found' in result['error']
 
 
 @pytest.mark.asyncio

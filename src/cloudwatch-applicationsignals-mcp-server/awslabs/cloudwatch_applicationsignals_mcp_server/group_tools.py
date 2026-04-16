@@ -105,7 +105,9 @@ async def _discover_services_by_group(
     }
 
     try:
-        all_services = list_services_paginated(applicationsignals_client, start_time, end_time)
+        all_services = list_services_paginated(
+            get_client('application-signals'), start_time, end_time
+        )
 
         for service in all_services:
             stats['total_services_scanned'] += 1
@@ -503,7 +505,7 @@ async def audit_group_health(
 
                 try:
                     # Get service detail for metric references
-                    service_response = applicationsignals_client.get_service(
+                    service_response = get_client('application-signals').get_service(
                         StartTime=start_dt,
                         EndTime=end_dt,
                         KeyAttributes=key_attrs,
@@ -519,7 +521,7 @@ async def audit_group_health(
 
                         if metric_type == 'Fault':
                             stats = fetch_metric_stats(
-                                cloudwatch_client,
+                                get_client('cloudwatch'),
                                 namespace,
                                 metric_name,
                                 dimensions,
@@ -559,7 +561,7 @@ async def audit_group_health(
 
                         elif metric_type == 'Error':
                             stats = fetch_metric_stats(
-                                cloudwatch_client,
+                                get_client('cloudwatch'),
                                 namespace,
                                 metric_name,
                                 dimensions,
@@ -599,7 +601,7 @@ async def audit_group_health(
 
                         elif metric_type == 'Latency':
                             stats = fetch_metric_stats(
-                                cloudwatch_client,
+                                get_client('cloudwatch'),
                                 namespace,
                                 metric_name,
                                 dimensions,
@@ -832,7 +834,7 @@ async def get_group_dependencies(
 
             # Get dependencies
             try:
-                response = applicationsignals_client.list_service_dependencies(
+                response = get_client('application-signals').list_service_dependencies(
                     StartTime=start_dt,
                     EndTime=end_dt,
                     KeyAttributes=key_attrs,
@@ -867,7 +869,7 @@ async def get_group_dependencies(
                         cache_key = (dep_name.lower(), dep_env.lower())
                         if cache_key not in dep_group_cache:
                             try:
-                                dep_svc_response = applicationsignals_client.get_service(
+                                dep_svc_response = get_client('application-signals').get_service(
                                     StartTime=start_dt,
                                     EndTime=end_dt,
                                     KeyAttributes=dep_key_attrs,
@@ -1045,7 +1047,7 @@ async def get_group_changes(
                 if next_token:
                     list_params['NextToken'] = next_token
 
-                response = applicationsignals_client.list_service_states(**list_params)
+                response = get_client('application-signals').list_service_states(**list_params)
                 service_states = response.get('ServiceStates', [])
                 next_token = response.get('NextToken')
 
@@ -1210,7 +1212,9 @@ async def list_grouping_attribute_definitions() -> str:
             if next_token:
                 list_params['NextToken'] = next_token
 
-            response = applicationsignals_client.list_grouping_attribute_definitions(**list_params)
+            response = get_client('application-signals').list_grouping_attribute_definitions(
+                **list_params
+            )
             definitions = response.get('GroupingAttributeDefinitions', [])
             all_definitions.extend(definitions)
 

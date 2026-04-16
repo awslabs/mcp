@@ -47,14 +47,17 @@ def mock_aws_clients():
     mock_applicationsignals_client = MagicMock()
     mock_cloudwatch_client = MagicMock()
 
+    def _get_client(service_name):
+        if service_name == 'application-signals':
+            return mock_applicationsignals_client
+        if service_name == 'cloudwatch':
+            return mock_cloudwatch_client
+        return MagicMock()
+
     patches = [
         patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.group_tools.applicationsignals_client',
-            mock_applicationsignals_client,
-        ),
-        patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.group_tools.cloudwatch_client',
-            mock_cloudwatch_client,
+            'awslabs.cloudwatch_applicationsignals_mcp_server.group_tools.get_client',
+            side_effect=_get_client,
         ),
     ]
 

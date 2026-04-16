@@ -333,7 +333,9 @@ async def list_slos(
         logger.debug(f'Listing SLOs with parameters: {request_params}')
 
         # Call the Application Signals API
-        response = get_client('application-signals').list_service_level_objectives(**request_params)
+        response = get_client('application-signals').list_service_level_objectives(
+            **request_params
+        )
         slo_summaries = response.get('SloSummaries', [])
 
         logger.debug(f'Retrieved {len(slo_summaries)} SLO summaries')

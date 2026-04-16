@@ -1207,7 +1207,10 @@ async def analyze_canary_failures(canary_name: str, region: str = None) -> str:
 
                                 if har_files and success_har_files:
                                     failure_har = await analyze_har_file(
-                                        get_client('s3'), bucket_name, har_files, is_failed_run=True
+                                        get_client('s3'),
+                                        bucket_name,
+                                        har_files,
+                                        is_failed_run=True,
                                     )
                                     success_har = await analyze_har_file(
                                         get_client('s3'),
@@ -1306,7 +1309,9 @@ async def analyze_canary_failures(canary_name: str, region: str = None) -> str:
                 result += f"\n🔍 RUNNING COMPREHENSIVE IAM ANALYSIS (common cause of '{selected_reason}'):\n"
 
                 # 1. Check IAM role and policies
-                iam_analysis = await analyze_iam_role_and_policies(canary, get_client('iam'), region)
+                iam_analysis = await analyze_iam_role_and_policies(
+                    canary, get_client('iam'), region
+                )
 
                 # Display IAM analysis results
                 result += f'IAM Role Analysis Status: {iam_analysis["status"]}\n'

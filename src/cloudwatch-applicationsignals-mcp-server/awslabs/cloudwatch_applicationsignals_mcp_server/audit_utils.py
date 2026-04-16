@@ -309,6 +309,7 @@ def _fetch_instrumented_services_with_pagination(
     """
     if applicationsignals_client is None:
         from .aws_clients import get_client
+
         applicationsignals_client = get_client('application-signals')
 
     all_service_names = []
@@ -457,6 +458,7 @@ def expand_service_wildcard_patterns(
 
     if applicationsignals_client is None:
         from .aws_clients import get_client
+
         applicationsignals_client = get_client('application-signals')
 
     expanded_targets = []
@@ -627,6 +629,7 @@ def expand_slo_wildcard_patterns(
     """
     if applicationsignals_client is None:
         from .aws_clients import get_client
+
         applicationsignals_client = get_client('application-signals')
 
     expanded_targets = []
@@ -738,6 +741,7 @@ def expand_service_operation_wildcard_patterns(
     """
     if applicationsignals_client is None:
         from .aws_clients import get_client
+
         applicationsignals_client = get_client('application-signals')
 
     expanded_targets = []
