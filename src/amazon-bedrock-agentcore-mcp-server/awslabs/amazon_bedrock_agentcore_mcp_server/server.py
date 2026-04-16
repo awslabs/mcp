@@ -17,6 +17,7 @@
 import asyncio
 import os
 import signal
+import sys
 from .tools import docs, gateway, memory, runtime
 from .utils import cache
 from collections.abc import AsyncIterator
@@ -100,11 +101,15 @@ _code_interpreter_cleanup = None
 async def server_lifespan(server: FastMCP) -> AsyncIterator[None]:
     """Manage server lifecycle — browser cleanup task, code interpreter cleanup, and graceful shutdown."""
     if _browser_cm is not None and _browser_sm is not None:
-        loop = asyncio.get_running_loop()
-        for sig in (signal.SIGTERM, signal.SIGINT):
-            loop.add_signal_handler(
-                sig, lambda cm=_browser_cm: asyncio.ensure_future(cm.cleanup())
-            )
+        # Register signal handlers for graceful browser cleanup on platforms
+        # that support it. Windows does not support asyncio signal handlers,
+        # so we skip registration there to avoid a NotImplementedError crash.
+        if sys.platform != 'win32':
+            loop = asyncio.get_running_loop()
+            for sig in (signal.SIGTERM, signal.SIGINT):
+                loop.add_signal_handler(
+                    sig, lambda cm=_browser_cm: asyncio.ensure_future(cm.cleanup())
+                )
 
         from .tools.browser import cleanup_stale_sessions
 
