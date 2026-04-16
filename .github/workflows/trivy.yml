@@ -46,7 +46,7 @@ jobs:
     steps:
       - name: Clear Up Space (Agressively) for Trivy Scans that Run Out of Space
         if: contains(toJson('["src/core-mcp-server"]'), matrix.dockerfile)
-        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@11841059cfcc830c367325450a1898ebffef6e01
+        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@8f8460d377c692b27764daf20dfc3510706f98ca
 
       - name: Get Checkout Depth
         id: checkout-depth
@@ -95,7 +95,7 @@ jobs:
           docker image save -o "${{ runner.temp }}/image.tar" docker.io/${{ matrix.dockerfile }}:${{ github.sha }}
 
       - name: Upload digest
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: image-${{ steps.checkout-depth.outputs.image-name }}
           path: ${{ runner.temp }}/image.tar
@@ -122,19 +122,19 @@ jobs:
 
       - name: Run Trivy vulnerability scanner
         if: hashFiles(format('{0}/trivy-results.sarif', matrix.dockerfile)) == ''
-        uses: aquasecurity/trivy-action@97e0b3872f55f89b95b2f65b3dbab56962816478 #v0.34.2
+        uses: aquasecurity/trivy-action@1994662b5555670344cd84d29ed3cad4bd26f31c #v0.34.2
         with:
           image-ref: 'docker.io/${{ matrix.dockerfile }}:${{ github.sha }}'
           format: 'sarif'
           output: '${{ matrix.dockerfile }}/trivy-results.sarif'
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@c0fc915677567258ee3c194d03ffe7ae3dc8d741 # v4.31.9
+        uses: github/codeql-action/upload-sarif@6777c894e961d2f153d1ba129f67f775f81e39a1 # v4.31.9
         with:
           sarif_file: '${{ matrix.dockerfile }}/trivy-results.sarif'
 
       - name: Upload results
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: trivy-results-${{ steps.checkout-depth.outputs.image-name }}
           path: |
