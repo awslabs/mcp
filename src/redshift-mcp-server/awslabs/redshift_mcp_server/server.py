@@ -545,6 +545,10 @@ async def execute_query_tool(
     sql: str = Field(
         ..., description='The SQL statement to execute. Should be a single SQL statement.'
     ),
+    read_only: bool = Field(
+        True,
+        description='Run query in a READ ONLY transaction. Set to False for queries that need write access (e.g. external/federated tables via Spectrum or Glue).',
+    ),
 ) -> QueryResult:
     """Execute a SQL query against a Redshift cluster or serverless workgroup.
 
@@ -604,7 +608,7 @@ async def execute_query_tool(
     try:
         logger.info(f'Executing query on cluster {cluster_identifier} in database {database_name}')
         query_result_data = await execute_query(
-            cluster_identifier=cluster_identifier, database_name=database_name, sql=sql
+            cluster_identifier=cluster_identifier, database_name=database_name, sql=sql, allow_read_write=not read_only
         )
 
         # Convert to QueryResult model
