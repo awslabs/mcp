@@ -266,12 +266,12 @@ Enables write access mode, which allows mutating operations (e.g., create, updat
 
 #### `--allow-sensitive-data-access` (optional)
 
-Enables access to operations that expose sensitive customer data. When disabled (default), the following operations are restricted:
+Enables access to operations that expose sensitive user data. When disabled (default), the following operations are restricted:
 
 **CRITICAL - Database Credentials:**
 * `get-connection` and `list-connections`: Automatically enforces `hide_password=True` to prevent exposure of plaintext database passwords in connection properties
 
-**HIGH - Customer Data:**
+**HIGH - User Data:**
 * `get-query-results` (Athena): Blocks retrieval of actual query result data
 * `get-statement` (Glue Interactive Sessions): Blocks retrieval of statement execution outputs
 * `get-entity-records` (Data Catalog): Blocks retrieval of preview data from connected sources
@@ -281,7 +281,7 @@ Enables access to operations that expose sensitive customer data. When disabled 
 * `describe-step` (EMR EC2): Blocks access to step configurations and error details
 
 * Default: false (Access to sensitive data is restricted by default)
-* Security Note: Only enable this flag in trusted environments when you need access to actual customer data
+* Security Note: Only enable this flag in trusted environments when you need access to actual data
 * Example: Add `--allow-sensitive-data-access` to the `args` list in your MCP server definition.
 
 ### Environment variables
