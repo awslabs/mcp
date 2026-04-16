@@ -17,13 +17,33 @@ Utility functions for handling time calculations.
 """
 
 import datetime
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
+
+
+def _ensure_datetime(value: Optional[Union[str, datetime.datetime]]) -> Optional[datetime.datetime]:
+    """Convert a string to a datetime object if necessary.
+
+    Parameters
+    ----------
+    value : str or datetime or None
+        A datetime object, an ISO-8601 string, or None.
+
+    Returns
+    -------
+    datetime or None
+        The parsed datetime, or None if the input was None.
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return value
 
 
 def calculate_time_window(
     time_window: int = 3600,
-    start_time: Optional[datetime.datetime] = None,
-    end_time: Optional[datetime.datetime] = None,
+    start_time: Optional[Union[str, datetime.datetime]] = None,
+    end_time: Optional[Union[str, datetime.datetime]] = None,
 ) -> Tuple[datetime.datetime, datetime.datetime]:
     """
     Calculate the actual start time and end time for a time window.
@@ -32,16 +52,23 @@ def calculate_time_window(
     ----------
     time_window : int, optional
         Time window in seconds (default: 3600)
-    start_time : datetime, optional
-        Explicit start time (takes precedence over time_window if provided)
-    end_time : datetime, optional
-        Explicit end time (defaults to current time if not provided)
+    start_time : datetime or str, optional
+        Explicit start time (takes precedence over time_window if provided).
+        Accepts datetime objects or ISO-8601 strings.
+    end_time : datetime or str, optional
+        Explicit end time (defaults to current time if not provided).
+        Accepts datetime objects or ISO-8601 strings.
 
     Returns
     -------
     Tuple[datetime.datetime, datetime.datetime]
         Tuple of (actual_start_time, actual_end_time) with timezone info
     """
+    # Coerce string inputs to datetime objects so callers (e.g. MCP JSON
+    # payloads) can pass ISO-8601 strings without triggering an AttributeError.
+    start_time = _ensure_datetime(start_time)
+    end_time = _ensure_datetime(end_time)
+
     now = datetime.datetime.now(datetime.timezone.utc)
 
     # Handle provided start_time and end_time
