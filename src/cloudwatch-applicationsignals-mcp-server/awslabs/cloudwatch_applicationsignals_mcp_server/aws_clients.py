@@ -31,7 +31,7 @@ from . import __version__
 from botocore.config import Config
 from contextlib import contextmanager
 from loguru import logger
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, cast
 
 
 # Default AWS region from environment variable
@@ -195,11 +195,9 @@ def _initialize_aws_clients() -> Dict[str, Any]:
     if aws_profile := os.environ.get('AWS_PROFILE'):
         logger.debug(f'Using AWS profile: {aws_profile}')
         session = boto3.Session(profile_name=aws_profile, region_name=_DEFAULT_REGION)
-        create = session.client
+        create = cast(Callable[..., Any], session.client)
     else:
-
-        def create(service_name, **kwargs):
-            return boto3.client(service_name, **kwargs)
+        create = cast(Callable[..., Any], boto3.client)
 
     def _make(service_name: str, **extra_kwargs) -> Any:
         kwargs = {'region_name': _DEFAULT_REGION, 'config': config}

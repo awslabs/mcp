@@ -975,7 +975,7 @@ async def audit_service_operations(
 
 
 @mcp.tool()
-async def analyze_canary_failures(canary_name: str, region: str = None) -> str:
+async def analyze_canary_failures(canary_name: str, region: str | None = None) -> str:
     """Comprehensive canary failure analysis with deep dive into issues.
 
     Use this tool to:
