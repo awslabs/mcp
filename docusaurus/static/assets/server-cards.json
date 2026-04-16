@@ -880,27 +880,6 @@
     },
     {
       "category": "Developer Tools & Support",
-      "description": "Generate architecture diagrams and technical illustrations",
-      "icon": "\ud83d\udee0\ufe0f",
-      "id": "aws-diagram-mcp-server",
-      "name": "AWS Diagram MCP Server",
-      "source_path": "src/aws-diagram-mcp-server/",
-      "subcategory": "Visualization",
-      "tags": [
-        "developer-tools",
-        "diagrams",
-        "architecture",
-        "visualization",
-        "technical-illustrations",
-        "vibe-coding",
-        "application-development"
-      ],
-      "workflows": [
-        "vibe-coding"
-      ]
-    },
-    {
-      "category": "Developer Tools & Support",
       "description": "React and modern web development guidance",
       "icon": "\ud83d\udee0\ufe0f",
       "id": "frontend-mcp-server",
