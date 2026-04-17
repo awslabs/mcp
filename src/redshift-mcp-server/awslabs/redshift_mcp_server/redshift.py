@@ -185,19 +185,6 @@ class RedshiftSessionManager:
         logger.debug(f'Created session with application name: {session_id}')
         return session_id
 
-    def invalidate_session(self, cluster_identifier: str, database_name: str) -> None:
-        """Remove a cached session so the next call creates a fresh one.
-
-        Args:
-            cluster_identifier: The cluster identifier.
-            database_name: The database name.
-        """
-        session_key = f'{cluster_identifier}:{database_name}'
-        if session_key in self._sessions:
-            old_id = self._sessions[session_key]['session_id']
-            del self._sessions[session_key]
-            logger.info(f'Invalidated session: {old_id} for {session_key}')
-
     def _is_session_expired(self, session_info: dict) -> bool:
         """Check if a session has expired based on keepalive timeout.
 
@@ -304,8 +291,6 @@ async def _execute_protected_statement(
         )
     except Exception as end_error:
         logger.error(f'END statement execution failed: {end_error}')
-        # Session is likely dead — invalidate so next call creates a fresh one
-        session_manager.invalidate_session(cluster_identifier, database_name)
         if user_sql_error:
             # Both failed - raise combined error
             raise Exception(
