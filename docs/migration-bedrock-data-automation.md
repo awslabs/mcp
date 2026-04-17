@@ -54,11 +54,11 @@ The [aws-api-mcp-server](https://github.com/awslabs/mcp/tree/main/src/aws-api-mc
 
 ## Tool Mapping
 
-| Old Tool | Alternative |
-|---|---|
-| `getprojects` | `boto3.client('bedrock-data-automation').list_data_automation_projects()` |
-| `getprojectdetails` | `boto3.client('bedrock-data-automation').get_data_automation_project()` |
-| `analyzeasset` | `boto3.client('bedrock-data-automation-runtime').invoke_data_automation_async()` |
+| Old Tool            | Alternative                                                                      |
+|---------------------|----------------------------------------------------------------------------------|
+| `getprojects`       | `boto3.client('bedrock-data-automation').list_data_automation_projects()`        |
+| `getprojectdetails` | `boto3.client('bedrock-data-automation').get_data_automation_project()`          |
+| `analyzeasset`      | `boto3.client('bedrock-data-automation-runtime').invoke_data_automation_async()` |
 
 ## Summary
 

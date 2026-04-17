@@ -14,6 +14,7 @@
 
 """Query tools for DocumentDB MCP Server."""
 
+from awslabs.documentdb_mcp_server.config import serverConfig
 from awslabs.documentdb_mcp_server.connection_tools import DocumentDBConnection
 from loguru import logger
 from pydantic import Field
@@ -92,6 +93,18 @@ async def aggregate(
     Returns:
         List[Dict[str, Any]]: List of aggregation results
     """
+    # Check if pipeline contains write stages in read-only mode
+    if serverConfig.read_only_mode:
+        for stage in pipeline:
+            if '$out' in stage or '$merge' in stage:
+                denied_stage = '$out' if '$out' in stage else '$merge'
+                logger.warning(
+                    f'Aggregation operation denied: Pipeline contains write stage ({denied_stage}) in read-only mode'
+                )
+                raise ValueError(
+                    'Operation not permitted: Server is configured in read-only mode. Aggregation pipeline contains write stages ($out or $merge) which are not allowed.'
+                )
+
     try:
         # Get connection
         if connection_id not in DocumentDBConnection._connections:
