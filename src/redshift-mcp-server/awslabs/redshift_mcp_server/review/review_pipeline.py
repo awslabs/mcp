@@ -16,7 +16,6 @@
 
 from awslabs.redshift_mcp_server.models import (
     PROVISIONED_ONLY_QUERIES,
-    QueryFailureInfo,
     ReviewFinding,
     ReviewRecommendation,
     ReviewResult,
@@ -70,7 +69,6 @@ async def run_review(
 
     # Stage 3 & 4: Evaluate signals and build findings
     findings: list[ReviewFinding] = []
-    query_failures: list[QueryFailureInfo] = []
     queries_executed: list[str] = []
     signals_evaluated = 0
 
@@ -99,77 +97,58 @@ async def run_review(
             population_criteria = signal_entry.get('PopulationCriteria')
             recommendation_ids = signal_entry.get('Recommendation', [])
 
-            try:
-                # Build CTE SQL
-                sql = build_signal_query(
-                    query_name=query_name,
-                    base_sql=base_sql,
-                    criteria=criteria,
-                    population_criteria=population_criteria,
-                )
+            # Build CTE SQL
+            sql = build_signal_query(
+                query_name=query_name,
+                base_sql=base_sql,
+                criteria=criteria,
+                population_criteria=population_criteria,
+            )
 
-                # Validate read-only
-                validate_sql_readonly(sql)
+            # Validate read-only
+            validate_sql_readonly(sql)
 
-                # Execute via execute_fn (sequential per AD-2)
-                # allow_read_write=True because review queries are server-generated,
-                # validated by validate_sql_readonly(), and some diagnostic queries
-                # (e.g. WLMConfig using stv_ tables with LISTAGG) require write-capable
-                # transactions internally even though they only read data.
-                results_response, query_id = await execute_fn(
-                    cluster_identifier, database, sql, allow_read_write=True
-                )
+            # Execute via execute_fn (sequential per AD-2)
+            # allow_read_write=True because review queries are server-generated,
+            # validated by validate_sql_readonly(), and some diagnostic queries
+            # (e.g. WLMConfig using stv_ tables with LISTAGG) require write-capable
+            # transactions internally even though they only read data.
+            results_response, query_id = await execute_fn(
+                cluster_identifier, database, sql, allow_read_write=True
+            )
 
-                # Extract count
-                records = results_response.get('Records', [])
-                if records and records[0]:
-                    count = records[0][0].get('longValue', 0)
-                else:
-                    count = 0
+            # Extract count
+            records = results_response.get('Records', [])
+            if records and records[0]:
+                count = records[0][0].get('longValue', 0)
+            else:
+                count = 0
 
-                signals_evaluated += 1
+            signals_evaluated += 1
 
-                if progress_fn:
-                    await progress_fn(signals_evaluated, total_signals)
+            if progress_fn:
+                await progress_fn(signals_evaluated, total_signals)
 
-                if count > 0:
-                    findings.append(
-                        ReviewFinding(
-                            signal_name=signal_name,
-                            section=query_name,
-                            affected_row_count=count,
-                            recommendation_ids=recommendation_ids,
-                        )
-                    )
-                    logger.debug(
-                        'Signal triggered: "{}" in section {} (count={})',
-                        signal_name,
-                        query_name,
-                        count,
-                    )
-                else:
-                    logger.debug(
-                        'Signal not triggered: "{}" in section {}',
-                        signal_name,
-                        query_name,
-                    )
-
-            except Exception as e:
-                signals_evaluated += 1
-                if progress_fn:
-                    await progress_fn(signals_evaluated, total_signals)
-                query_failures.append(
-                    QueryFailureInfo(
-                        query_name=query_name,
+            if count > 0:
+                findings.append(
+                    ReviewFinding(
                         signal_name=signal_name,
-                        error_message=str(e),
+                        section=query_name,
+                        affected_row_count=count,
+                        recommendation_ids=recommendation_ids,
                     )
                 )
                 logger.debug(
-                    'Signal evaluation failed: "{}" in section {}: {}',
+                    'Signal triggered: "{}" in section {} (count={})',
                     signal_name,
                     query_name,
-                    e,
+                    count,
+                )
+            else:
+                logger.debug(
+                    'Signal not triggered: "{}" in section {}',
+                    signal_name,
+                    query_name,
                 )
 
     # Stage 5-7: Resolve, deduplicate, order, and aggregate recommendations
@@ -179,10 +158,9 @@ async def run_review(
     )
 
     logger.info(
-        'Review complete: {} signals evaluated, {} findings, {} failures',
+        'Review complete: {} signals evaluated, {} findings',
         signals_evaluated,
         len(findings),
-        len(query_failures),
     )
 
     return ReviewResult(
@@ -190,7 +168,6 @@ async def run_review(
         findings=findings,
         recommendations=recommendations,
         queries_executed=queries_executed,
-        query_failures=query_failures,
     )
 
 

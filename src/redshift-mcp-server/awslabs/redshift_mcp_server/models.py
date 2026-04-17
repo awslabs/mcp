@@ -172,16 +172,6 @@ class ReviewRecommendation(BaseModel):
     )
 
 
-class QueryFailureInfo(BaseModel):
-    """Info about a failed query or signal evaluation."""
-
-    query_name: str = Field(..., description='Name of the diagnostic query that failed')
-    signal_name: Optional[str] = Field(
-        None, description='Name of the signal being evaluated when the failure occurred'
-    )
-    error_message: str = Field(..., description='Error message describing the failure')
-
-
 class ReviewResult(BaseModel):
     """Complete result of a review_cluster tool call."""
 
@@ -194,7 +184,4 @@ class ReviewResult(BaseModel):
     )
     queries_executed: list[str] = Field(
         ..., description='Names of diagnostic queries that were executed'
-    )
-    query_failures: list[QueryFailureInfo] = Field(
-        ..., description='List of query or signal evaluation failures'
     )

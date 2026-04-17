@@ -193,16 +193,16 @@ class TestSignalTriggered:
 
 
 # ---------------------------------------------------------------------------
-# Property 10: Error isolation — failed signal does not block others
+# Error propagation — failed signal raises to caller
 # ---------------------------------------------------------------------------
 
 
-class TestErrorIsolation:
-    """Property 10: Failed signal does not block others."""
+class TestErrorPropagation:
+    """Errors during signal evaluation propagate to the caller."""
 
     @pytest.mark.asyncio
-    async def test_failed_signal_does_not_block_others(self):
-        """One failing signal doesn't prevent other signals from executing."""
+    async def test_failed_signal_raises(self):
+        """A failing signal propagates the exception to the caller."""
         signals_config: dict[str, SectionEntry] = {
             'NodeDetails': {
                 'Signals': [
@@ -211,46 +211,22 @@ class TestErrorIsolation:
                         'Criteria': 'bad_col > 0',
                         'Recommendation': ['REC-001'],
                     },
-                    {
-                        'Signal': 'passing signal',
-                        'Criteria': 'good_col > 0',
-                        'Recommendation': ['REC-002'],
-                    },
                 ]
             },
         }
 
-        call_count = 0
-
         async def mock_execute(*args, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            # First call: first signal fails
-            if call_count == 1:
-                raise RuntimeError('Simulated query failure')
-            # Second call: second signal succeeds
-            return _make_count_response(3)
+            raise RuntimeError('Simulated query failure')
 
-        result = await run_review(
-            cluster_identifier='test-cluster',
-            database='dev',
-            queries_config=QUERIES_CONFIG,
-            signals_config=signals_config,
-            recommendations_config=RECOMMENDATIONS_CONFIG,
-            execute_fn=mock_execute,
-        )
-
-        # The failing signal should be recorded in query_failures
-        assert len(result.query_failures) == 1
-        assert result.query_failures[0].signal_name == 'failing signal'
-        assert 'Simulated query failure' in result.query_failures[0].error_message
-
-        # The passing signal should still produce a finding
-        assert len(result.findings) == 1
-        assert result.findings[0].signal_name == 'passing signal'
-
-        # Total signals evaluated should be 2
-        assert result.signals_evaluated == 2
+        with pytest.raises(RuntimeError, match='Simulated query failure'):
+            await run_review(
+                cluster_identifier='test-cluster',
+                database='dev',
+                queries_config=QUERIES_CONFIG,
+                signals_config=signals_config,
+                recommendations_config=RECOMMENDATIONS_CONFIG,
+                execute_fn=mock_execute,
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -519,9 +495,6 @@ class TestFullPipeline:
         assert len(result.recommendations) == 2
         assert result.recommendations[0].effort == 'Small'
         assert result.recommendations[1].effort == 'Large'
-
-        # No failures
-        assert len(result.query_failures) == 0
 
         # Queries executed
         assert 'NodeDetails' in result.queries_executed

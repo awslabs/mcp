@@ -16,7 +16,6 @@
 
 import pytest
 from awslabs.redshift_mcp_server.models import (
-    QueryFailureInfo,
     QueryResult,
     RedshiftCluster,
     RedshiftColumn,
@@ -539,7 +538,7 @@ class TestExecuteQueryTool:
 class TestReviewClusterTool:
     """Tests for the review_cluster MCP tool."""
 
-    def _make_review_result(self, findings=None, failures=None):
+    def _make_review_result(self, findings=None):
         """Helper to build a ReviewResult with sensible defaults."""
         return ReviewResult(
             signals_evaluated=55,
@@ -559,7 +558,6 @@ class TestReviewClusterTool:
             if findings
             else [],
             queries_executed=['NodeDetails', 'WLMConfig'],
-            query_failures=failures or [],
         )
 
     def _make_mock_ctx(self, mocker):
@@ -619,7 +617,7 @@ class TestReviewClusterTool:
     @pytest.mark.asyncio
     async def test_review_cluster_empty_results(self, mocker):
         """Test review_cluster with no findings returns a clean response."""
-        expected = self._make_review_result(findings=[], failures=[])
+        expected = self._make_review_result(findings=[])
 
         mocker.patch(
             'awslabs.redshift_mcp_server.server.run_review',
@@ -637,7 +635,6 @@ class TestReviewClusterTool:
         assert isinstance(result, ReviewResult)
         assert result.findings == []
         assert result.recommendations == []
-        assert result.query_failures == []
         assert result.signals_evaluated == 55
 
     @pytest.mark.asyncio
@@ -679,36 +676,6 @@ class TestReviewClusterTool:
         assert call_kwargs['cluster_identifier'] == 'my-cluster'
         assert call_kwargs['database'] == 'analytics'
         assert call_kwargs['workgroup'] == 'my-workgroup'
-
-    @pytest.mark.asyncio
-    async def test_review_cluster_with_query_failures(self, mocker):
-        """Test review_cluster includes query failures in the result."""
-        failures = [
-            QueryFailureInfo(
-                query_name='WLMConfig',
-                signal_name='HighConcurrency',
-                error_message='Statement timed out',
-            ),
-        ]
-        expected = self._make_review_result(failures=failures)
-
-        mocker.patch(
-            'awslabs.redshift_mcp_server.server.run_review',
-            return_value=expected,
-        )
-        mock_ctx = self._make_mock_ctx(mocker)
-
-        result = await review_cluster_tool(
-            ctx=mock_ctx,
-            cluster_identifier='test-cluster',
-            database='dev',
-            workgroup=None,
-        )
-
-        assert len(result.query_failures) == 1
-        assert result.query_failures[0].query_name == 'WLMConfig'
-        assert result.query_failures[0].signal_name == 'HighConcurrency'
-        assert result.query_failures[0].error_message == 'Statement timed out'
 
     def test_no_removed_tools_registered(self):
         """Verify export_csv and import_and_analyze are not registered as tools."""
