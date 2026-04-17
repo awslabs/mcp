@@ -339,6 +339,13 @@ class EMRServerlessJobRunHandler:
                     )
                     return self._create_error_response(operation, error_message)
 
+                # SECURITY: Job run details may contain sensitive data in arguments, error messages, and logs
+                # Require --allow-sensitive-data-access flag to prevent unauthorized data exposure
+                if not self.allow_sensitive_data_access:
+                    error_message = 'Operation get-job-run may contain sensitive data in job arguments and logs, and requires --allow-sensitive-data-access flag'
+                    log_with_request_id(ctx, LogLevel.ERROR, error_message)
+                    return self._create_error_response(operation, error_message)
+
                 # Get job run
                 response = self.emr_serverless_client.get_job_run(
                     applicationId=application_id,
