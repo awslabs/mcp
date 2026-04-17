@@ -149,36 +149,52 @@ PROVISIONED_ONLY_QUERIES = {'WLMConfig', 'NodeDetails'}
 class ReviewFinding(BaseModel):
     """A single finding from signal evaluation."""
 
-    signal_name: str
-    section: str
-    affected_row_count: int
-    recommendation_ids: list[str]
+    signal_name: str = Field(..., description='Name of the signal that was triggered')
+    section: str = Field(..., description='The diagnostic query section this finding belongs to')
+    affected_row_count: int = Field(..., description='Number of rows matching the signal criteria')
+    recommendation_ids: list[str] = Field(
+        ..., description='List of recommendation IDs associated with this finding'
+    )
 
 
 class ReviewRecommendation(BaseModel):
     """A resolved recommendation with full details."""
 
-    id: str
-    text: str
-    description: str
-    effort: Literal['Small', 'Medium', 'Large']
-    documentation_links: list[str]
-    triggered_by_signals: list[str]
+    id: str = Field(..., description='Unique identifier for the recommendation')
+    text: str = Field(..., description='Short summary of the recommendation')
+    description: str = Field(..., description='Detailed description of the recommendation')
+    effort: Literal['Small', 'Medium', 'Large'] = Field(
+        ..., description='Estimated effort level to implement the recommendation'
+    )
+    documentation_links: list[str] = Field(..., description='Links to relevant documentation')
+    triggered_by_signals: list[str] = Field(
+        ..., description='Names of signals that triggered this recommendation'
+    )
 
 
 class QueryFailureInfo(BaseModel):
     """Info about a failed query or signal evaluation."""
 
-    query_name: str
-    signal_name: str | None = None
-    error_message: str
+    query_name: str = Field(..., description='Name of the diagnostic query that failed')
+    signal_name: Optional[str] = Field(
+        None, description='Name of the signal being evaluated when the failure occurred'
+    )
+    error_message: str = Field(..., description='Error message describing the failure')
 
 
 class ReviewResult(BaseModel):
     """Complete result of a review_cluster tool call."""
 
-    signals_evaluated: int
-    findings: list[ReviewFinding]
-    recommendations: list[ReviewRecommendation]
-    queries_executed: list[str]
-    query_failures: list[QueryFailureInfo]
+    signals_evaluated: int = Field(..., description='Total number of signals evaluated')
+    findings: list[ReviewFinding] = Field(
+        ..., description='List of triggered findings from signal evaluation'
+    )
+    recommendations: list[ReviewRecommendation] = Field(
+        ..., description='Deduplicated recommendations ordered by effort'
+    )
+    queries_executed: list[str] = Field(
+        ..., description='Names of diagnostic queries that were executed'
+    )
+    query_failures: list[QueryFailureInfo] = Field(
+        ..., description='List of query or signal evaluation failures'
+    )
