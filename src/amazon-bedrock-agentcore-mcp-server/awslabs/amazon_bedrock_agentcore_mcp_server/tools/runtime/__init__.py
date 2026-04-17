@@ -36,10 +36,15 @@ Tool cost classification
 - delete_agent_runtime / delete_agent_runtime_endpoint
   Removes infrastructure.
 
+**Configuration (updates infrastructure, no per-use charge):**
+- update_agent_runtime
+  Creates a new immutable version and may trigger redeployment.
+- update_agent_runtime_endpoint
+  Points an endpoint to a different version, may trigger redeployment.
+
 **Read-only (no cost):**
 - get_agent_runtime, list_agent_runtimes, list_agent_runtime_versions
 - get_agent_runtime_endpoint, list_agent_runtime_endpoints
-- update_agent_runtime, update_agent_runtime_endpoint
 - get_runtime_guide
 """
 

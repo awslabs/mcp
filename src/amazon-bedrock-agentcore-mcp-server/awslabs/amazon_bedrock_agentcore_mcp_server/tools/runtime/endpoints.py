@@ -81,9 +81,9 @@ class EndpointTools:
                 'agentRuntimeId': agent_runtime_id,
                 'name': name,
             }
-            if agent_runtime_version:
+            if agent_runtime_version is not None:
                 kwargs['agentRuntimeVersion'] = agent_runtime_version
-            if description:
+            if description is not None:
                 kwargs['description'] = description
 
             r = client.create_agent_runtime_endpoint(**kwargs)
@@ -156,7 +156,7 @@ class EndpointTools:
                 'agentRuntimeId': agent_runtime_id,
                 'endpointName': endpoint_name,
             }
-            if agent_runtime_version:
+            if agent_runtime_version is not None:
                 kwargs['agentRuntimeVersion'] = agent_runtime_version
             if description is not None:
                 kwargs['description'] = description

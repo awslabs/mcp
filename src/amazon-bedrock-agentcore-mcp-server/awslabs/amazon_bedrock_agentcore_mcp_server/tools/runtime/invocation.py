@@ -14,11 +14,50 @@
 
 """Data-plane tools: invoke agents and manage sessions."""
 
+import asyncio
 from .error_handler import handle_runtime_error
 from .models import ErrorResponse, InvokeRuntimeResponse, StopSessionResponse
 from mcp.server.fastmcp import Context
 from pydantic import Field
 from typing import Annotated, Callable, Optional, Union
+
+
+def _read_response_body(resp: dict) -> str:
+    """Read the response body from an invoke_agent_runtime response.
+
+    Handles three boto3 response shapes:
+    - StreamingBody (has .read())
+    - EventStream (yields dicts with 'chunk'/'bytes' keys)
+    - Iterable of bytes or strings
+
+    All decoding uses errors='replace' to handle non-UTF8 content
+    safely instead of crashing.
+    """
+    if 'response' not in resp:
+        return ''
+
+    body = resp['response']
+
+    # StreamingBody — single .read()
+    if hasattr(body, 'read'):
+        return body.read().decode('utf-8', errors='replace')
+
+    # Iterable (EventStream or list of chunks)
+    if hasattr(body, '__iter__'):
+        chunks: list[str] = []
+        for chunk in body:
+            if isinstance(chunk, dict):
+                # EventStream format: {'chunk': {'bytes': b'...'}}
+                chunk_data = chunk.get('chunk', {})
+                if isinstance(chunk_data, dict) and 'bytes' in chunk_data:
+                    chunks.append(chunk_data['bytes'].decode('utf-8', errors='replace'))
+            elif isinstance(chunk, bytes):
+                chunks.append(chunk.decode('utf-8', errors='replace'))
+            else:
+                chunks.append(str(chunk))
+        return ''.join(chunks)
+
+    return ''
 
 
 class InvocationTools:
@@ -88,28 +127,19 @@ class InvocationTools:
                 'payload': payload.encode('utf-8'),
                 'qualifier': qualifier,
             }
-            if runtime_session_id:
+            if runtime_session_id is not None:
                 kwargs['runtimeSessionId'] = runtime_session_id
 
-            resp = client.invoke_agent_runtime(**kwargs)
+            # Run synchronous boto3 call in a thread to avoid
+            # blocking the asyncio event loop.
+            resp = await asyncio.to_thread(client.invoke_agent_runtime, **kwargs)
 
-            # Read response body
-            response_body = ''
+            # Read response body in a thread as well — streaming
+            # reads can block for the full response duration.
+            response_body = await asyncio.to_thread(_read_response_body, resp)
+
             content_type = resp.get('contentType', '')
             session_id = resp.get('runtimeSessionId', '')
-
-            if 'response' in resp:
-                body = resp['response']
-                if hasattr(body, 'read'):
-                    response_body = body.read().decode('utf-8')
-                elif hasattr(body, '__iter__'):
-                    chunks = []
-                    for chunk in body:
-                        if isinstance(chunk, bytes):
-                            chunks.append(chunk.decode('utf-8'))
-                        else:
-                            chunks.append(str(chunk))
-                    response_body = ''.join(chunks)
 
             return InvokeRuntimeResponse(
                 status='success',

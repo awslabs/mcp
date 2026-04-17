@@ -18,6 +18,7 @@ import io
 import pytest
 from awslabs.amazon_bedrock_agentcore_mcp_server.tools.runtime.invocation import (
     InvocationTools,
+    _read_response_body,
 )
 from awslabs.amazon_bedrock_agentcore_mcp_server.tools.runtime.models import (
     ErrorResponse,
@@ -36,6 +37,79 @@ def _client_error(code='ValidationException', message='bad request', status=400)
         },
         'TestOp',
     )
+
+
+# -----------------------------------------------------------------------
+# _read_response_body (unit tests for the helper)
+# -----------------------------------------------------------------------
+
+
+class TestReadResponseBody:
+    """Tests for _read_response_body helper."""
+
+    def test_streaming_body(self):
+        """StreamingBody with .read() is decoded."""
+        resp = {'response': io.BytesIO(b'{"result":"hello"}')}
+        assert 'hello' in _read_response_body(resp)
+
+    def test_byte_chunks(self):
+        """List of byte chunks is concatenated."""
+        resp = {'response': [b'chunk1', b'chunk2']}
+        assert _read_response_body(resp) == 'chunk1chunk2'
+
+    def test_string_chunks(self):
+        """Non-bytes iterable items are converted via str()."""
+        resp = {'response': ['text1', 'text2']}
+        assert _read_response_body(resp) == 'text1text2'
+
+    def test_eventstream_dicts(self):
+        """EventStream dicts with chunk/bytes are decoded properly."""
+        resp = {
+            'response': [
+                {'chunk': {'bytes': b'hello '}},
+                {'chunk': {'bytes': b'world'}},
+            ]
+        }
+        assert _read_response_body(resp) == 'hello world'
+
+    def test_eventstream_mixed(self):
+        """EventStream with non-chunk dicts is skipped gracefully."""
+        resp = {
+            'response': [
+                {'chunk': {'bytes': b'data'}},
+                {'metadata': {'something': 'else'}},
+            ]
+        }
+        assert _read_response_body(resp) == 'data'
+
+    def test_no_response_key(self):
+        """Missing 'response' key returns empty string."""
+        assert _read_response_body({}) == ''
+        assert _read_response_body({'runtimeSessionId': 'x'}) == ''
+
+    def test_non_utf8_streaming_body(self):
+        """Non-UTF8 bytes use replacement characters instead of crashing."""
+        resp = {'response': io.BytesIO(b'\x80\x81\x82')}
+        result = _read_response_body(resp)
+        assert '\ufffd' in result  # replacement character
+
+    def test_non_utf8_byte_chunks(self):
+        """Non-UTF8 byte chunks use replacement characters."""
+        resp = {'response': [b'ok\x80', b'\xffbad']}
+        result = _read_response_body(resp)
+        assert 'ok' in result
+        assert '\ufffd' in result
+
+    def test_non_utf8_eventstream(self):
+        """Non-UTF8 EventStream bytes use replacement characters."""
+        resp = {'response': [{'chunk': {'bytes': b'\x80\x81'}}]}
+        result = _read_response_body(resp)
+        assert '\ufffd' in result
+
+
+# -----------------------------------------------------------------------
+# InvocationTools.invoke_agent_runtime
+# -----------------------------------------------------------------------
 
 
 class TestInvokeAgentRuntime:
@@ -76,6 +150,26 @@ class TestInvokeAgentRuntime:
         )
         assert isinstance(result, InvokeRuntimeResponse)
         assert result.response_body == 'chunk1chunk2'
+
+    @pytest.mark.asyncio
+    async def test_success_eventstream_dicts(self, mock_ctx, data_factory, mock_data_client):
+        """EventStream dict format is handled correctly."""
+        mock_data_client.invoke_agent_runtime.return_value = {
+            'runtimeSessionId': 'sess-es',
+            'contentType': 'application/vnd.amazon.eventstream',
+            'response': [
+                {'chunk': {'bytes': b'hello '}},
+                {'chunk': {'bytes': b'world'}},
+            ],
+        }
+        tools = InvocationTools(data_factory)
+        result = await tools.invoke_agent_runtime(
+            ctx=mock_ctx,
+            agent_runtime_arn='arn:test',
+            payload='{}',
+        )
+        assert isinstance(result, InvokeRuntimeResponse)
+        assert result.response_body == 'hello world'
 
     @pytest.mark.asyncio
     async def test_success_streaming_strings(self, mock_ctx, data_factory, mock_data_client):
@@ -183,6 +277,33 @@ class TestInvokeAgentRuntime:
         )
         call_kwargs = mock_data_client.invoke_agent_runtime.call_args[1]
         assert 'runtimeSessionId' not in call_kwargs
+
+    @pytest.mark.asyncio
+    async def test_session_id_is_not_none_check(
+        self,
+        mock_ctx,
+        data_factory,
+        mock_data_client,
+    ):
+        """Empty string session_id IS sent (is not None, not truthiness)."""
+        mock_data_client.invoke_agent_runtime.return_value = {
+            'response': io.BytesIO(b'ok'),
+        }
+        tools = InvocationTools(data_factory)
+        await tools.invoke_agent_runtime(
+            ctx=mock_ctx,
+            agent_runtime_arn='arn:test',
+            payload='{}',
+            runtime_session_id='',
+        )
+        call_kwargs = mock_data_client.invoke_agent_runtime.call_args[1]
+        # Empty string IS included because we check `is not None`, not truthiness
+        assert 'runtimeSessionId' in call_kwargs
+
+
+# -----------------------------------------------------------------------
+# InvocationTools.stop_runtime_session
+# -----------------------------------------------------------------------
 
 
 class TestStopRuntimeSession:

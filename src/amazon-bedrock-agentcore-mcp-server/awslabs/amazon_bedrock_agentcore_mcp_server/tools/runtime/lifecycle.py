@@ -153,7 +153,9 @@ class LifecycleTools:
                 if code_runtime:
                     code_cfg['runtime'] = code_runtime
                 if code_entry_point:
-                    code_cfg['entryPoint'] = code_entry_point.split(',')
+                    code_cfg['entryPoint'] = [
+                        s.strip() for s in code_entry_point.split(',') if s.strip()
+                    ]
                 artifact['codeConfiguration'] = code_cfg
             else:
                 return CreateRuntimeResponse(
@@ -165,10 +167,12 @@ class LifecycleTools:
             net_cfg: dict = {'networkMode': network_mode}
             if network_mode == 'VPC':
                 mode_cfg: dict = {}
-                if subnets:
-                    mode_cfg['subnets'] = [s.strip() for s in subnets.split(',')]
-                if security_groups:
-                    mode_cfg['securityGroups'] = [s.strip() for s in security_groups.split(',')]
+                if subnets is not None:
+                    mode_cfg['subnets'] = [s.strip() for s in subnets.split(',') if s.strip()]
+                if security_groups is not None:
+                    mode_cfg['securityGroups'] = [
+                        s.strip() for s in security_groups.split(',') if s.strip()
+                    ]
                 net_cfg['networkModeConfig'] = mode_cfg
 
             kwargs: dict = {
@@ -177,9 +181,9 @@ class LifecycleTools:
                 'networkConfiguration': net_cfg,
                 'roleArn': role_arn,
             }
-            if description:
+            if description is not None:
                 kwargs['description'] = description
-            if server_protocol:
+            if server_protocol is not None:
                 kwargs['protocolConfiguration'] = {'serverProtocol': server_protocol}
             lc: dict = {}
             if idle_timeout is not None:
@@ -224,7 +228,7 @@ class LifecycleTools:
         try:
             client = self._get_client()
             kwargs: dict = {'agentRuntimeId': agent_runtime_id}
-            if agent_runtime_version:
+            if agent_runtime_version is not None:
                 kwargs['agentRuntimeVersion'] = agent_runtime_version
 
             r = client.get_agent_runtime(**kwargs)
@@ -322,7 +326,9 @@ class LifecycleTools:
                 if code_runtime:
                     code_cfg['runtime'] = code_runtime
                 if code_entry_point:
-                    code_cfg['entryPoint'] = code_entry_point.split(',')
+                    code_cfg['entryPoint'] = [
+                        s.strip() for s in code_entry_point.split(',') if s.strip()
+                    ]
                 artifact['codeConfiguration'] = code_cfg
             else:
                 return UpdateRuntimeResponse(
@@ -333,10 +339,12 @@ class LifecycleTools:
             net_cfg: dict = {'networkMode': network_mode}
             if network_mode == 'VPC':
                 mode_cfg: dict = {}
-                if subnets:
-                    mode_cfg['subnets'] = [s.strip() for s in subnets.split(',')]
-                if security_groups:
-                    mode_cfg['securityGroups'] = [s.strip() for s in security_groups.split(',')]
+                if subnets is not None:
+                    mode_cfg['subnets'] = [s.strip() for s in subnets.split(',') if s.strip()]
+                if security_groups is not None:
+                    mode_cfg['securityGroups'] = [
+                        s.strip() for s in security_groups.split(',') if s.strip()
+                    ]
                 net_cfg['networkModeConfig'] = mode_cfg
 
             kwargs: dict = {
@@ -347,7 +355,7 @@ class LifecycleTools:
             }
             if description is not None:
                 kwargs['description'] = description
-            if server_protocol:
+            if server_protocol is not None:
                 kwargs['protocolConfiguration'] = {'serverProtocol': server_protocol}
             lc: dict = {}
             if idle_timeout is not None:
