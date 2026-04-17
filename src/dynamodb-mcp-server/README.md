@@ -218,7 +218,22 @@ Managed mode allows you to connect the tool to AWS RDS Data API to analyze exist
 **For Connection-based access:**
 1. MySQL server accessible from your environment
 2. Database credentials stored in AWS Secrets Manager
-3. AWS credentials with permissions to access Secrets Manager
+3. The Secrets Manager secret **must** contain a `host` field matching your database hostname (in addition to `username` and `password`). This ensures credentials are only used with the intended database host. RDS-managed secrets include this field automatically. If you created your secret manually, ensure it follows the [standard structure](https://docs.aws.amazon.com/secretsmanager/latest/userguide/reference_secret_json_structure.html):
+
+   ```bash
+   aws secretsmanager create-secret \
+       --name "my-db-secret" \
+       --secret-string '{
+           "engine": "mysql",
+           "host": "my-db.cluster-xxx.us-east-1.rds.amazonaws.com",
+           "username": "<username>",
+           "password": "<password>",
+           "dbname": "<database name>",
+           "port": 3306
+       }'
+   ```
+
+4. AWS credentials with permissions to access Secrets Manager
 
 **For both connection methods:**
 4. Enable Performance Schema for access pattern analysis (optional but recommended):
@@ -405,7 +420,7 @@ pip install pydantic boto3
 **Optional Development Dependencies:**
 
 For linting and formatting the generated code:
-- `ruff>=0.9.7` - Python linter and formatter (recommended)
+- `ruff==0.15.8` - Python linter and formatter (recommended)
 
 **Generated File Structure:**
 

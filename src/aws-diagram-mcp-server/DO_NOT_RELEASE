@@ -1,6 +1,0 @@
-This package is deprecated. Do not publish new releases to PyPI.
-
-Replacement: Diagram agent skill in the deploy-on-aws plugin
-https://github.com/awslabs/agent-plugins/tree/main/plugins/deploy-on-aws
-
-Migration guide: docs/migration-diagram.md

@@ -18,7 +18,7 @@ from awslabs.openapi_mcp_server.prompts import MCPPromptManager
 from awslabs.openapi_mcp_server.prompts.generators.workflow_prompts import (
     identify_workflows,
 )
-from fastmcp.server.openapi import MCPType
+from fastmcp.server.providers.openapi import MCPType
 from unittest.mock import AsyncMock, MagicMock, patch
 
 

@@ -25,7 +25,7 @@ from ..utilities.aws_service_base import (
     parse_json,
 )
 from ..utilities.constants import REGION_US_EAST_1
-from ..utilities.time_utils import epoch_seconds_to_utc_iso_string
+from ..utilities.time_utils import timestamp_to_utc_iso_string
 from fastmcp import Context
 from typing import Any, Dict, List, Optional
 
@@ -155,10 +155,10 @@ def _format_billing_groups(billing_groups: List[Dict[str, Any]]) -> List[Dict[st
             formatted_group['account_grouping'] = account_grouping
 
         if 'CreationTime' in bg:
-            formatted_group['creation_time'] = epoch_seconds_to_utc_iso_string(bg['CreationTime'])
+            formatted_group['creation_time'] = timestamp_to_utc_iso_string(bg['CreationTime'])
 
         if 'LastModifiedTime' in bg:
-            formatted_group['last_modified_time'] = epoch_seconds_to_utc_iso_string(
+            formatted_group['last_modified_time'] = timestamp_to_utc_iso_string(
                 bg['LastModifiedTime']
             )
 
@@ -723,10 +723,10 @@ def _format_custom_line_item_base(item: Dict[str, Any]) -> Dict[str, Any]:
         }
 
     if 'CreationTime' in item:
-        formatted['creation_time'] = epoch_seconds_to_utc_iso_string(item['CreationTime'])
+        formatted['creation_time'] = timestamp_to_utc_iso_string(item['CreationTime'])
 
     if 'LastModifiedTime' in item:
-        formatted['last_modified_time'] = epoch_seconds_to_utc_iso_string(item['LastModifiedTime'])
+        formatted['last_modified_time'] = timestamp_to_utc_iso_string(item['LastModifiedTime'])
 
     return formatted
 
@@ -802,7 +802,7 @@ def _format_custom_line_item_versions(
         formatted_version['end_billing_period'] = version.get('EndBillingPeriod')
 
         if 'StartTime' in version:
-            formatted_version['start_time'] = epoch_seconds_to_utc_iso_string(version['StartTime'])
+            formatted_version['start_time'] = timestamp_to_utc_iso_string(version['StartTime'])
 
         formatted_versions.append(formatted_version)
 
@@ -1160,10 +1160,10 @@ def _format_pricing_rules(pricing_rules: List[Dict[str, Any]]) -> List[Dict[str,
             formatted_rule['tiering'] = tiering
 
         if 'CreationTime' in rule:
-            formatted_rule['creation_time'] = epoch_seconds_to_utc_iso_string(rule['CreationTime'])
+            formatted_rule['creation_time'] = timestamp_to_utc_iso_string(rule['CreationTime'])
 
         if 'LastModifiedTime' in rule:
-            formatted_rule['last_modified_time'] = epoch_seconds_to_utc_iso_string(
+            formatted_rule['last_modified_time'] = timestamp_to_utc_iso_string(
                 rule['LastModifiedTime']
             )
 
@@ -1185,10 +1185,10 @@ def _format_pricing_plans(pricing_plans: List[Dict[str, Any]]) -> List[Dict[str,
         }
 
         if 'CreationTime' in plan:
-            formatted_plan['creation_time'] = epoch_seconds_to_utc_iso_string(plan['CreationTime'])
+            formatted_plan['creation_time'] = timestamp_to_utc_iso_string(plan['CreationTime'])
 
         if 'LastModifiedTime' in plan:
-            formatted_plan['last_modified_time'] = epoch_seconds_to_utc_iso_string(
+            formatted_plan['last_modified_time'] = timestamp_to_utc_iso_string(
                 plan['LastModifiedTime']
             )
 
