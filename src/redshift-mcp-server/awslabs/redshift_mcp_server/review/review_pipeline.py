@@ -16,7 +16,6 @@
 
 from awslabs.redshift_mcp_server.models import (
     PROVISIONED_ONLY_QUERIES,
-    ClusterMetadata,
     QueryFailureInfo,
     ReviewFinding,
     ReviewRecommendation,
@@ -59,7 +58,6 @@ async def run_review(
     5. Resolve recommendation IDs -> full recommendation objects, deduplicate
     6. Order recommendations by effort (Small -> Medium -> Large)
     7. Aggregate triggered_by_signals per recommendation
-    8. Extract cluster metadata from NodeDetails results (fallback for serverless)
     """
     # Stage 1: Gather all query names that have both SQL and signals
     query_names = [
@@ -69,16 +67,6 @@ async def run_review(
     # Stage 2: Filter out provisioned-only queries when workgroup is set (serverless)
     if workgroup:
         query_names = [q for q in query_names if q not in PROVISIONED_ONLY_QUERIES]
-
-    # Stage 8 (early): Extract cluster metadata
-    cluster_metadata = await _extract_cluster_metadata(
-        cluster_identifier=cluster_identifier,
-        database=database,
-        query_names=query_names,
-        queries_config=queries_config,
-        execute_fn=execute_fn,
-        workgroup=workgroup,
-    )
 
     # Stage 3 & 4: Evaluate signals and build findings
     findings: list[ReviewFinding] = []
@@ -198,67 +186,11 @@ async def run_review(
     )
 
     return ReviewResult(
-        cluster_metadata=cluster_metadata,
         signals_evaluated=signals_evaluated,
         findings=findings,
         recommendations=recommendations,
         queries_executed=queries_executed,
         query_failures=query_failures,
-    )
-
-
-async def _extract_cluster_metadata(
-    cluster_identifier: str,
-    database: str,
-    query_names: list[str],
-    queries_config: Mapping[str, QueryEntry],
-    execute_fn: Callable[..., Any],
-    workgroup: str | None = None,
-) -> ClusterMetadata:
-    """Extract cluster metadata from NodeDetails query or use serverless defaults."""
-    # Serverless fallback
-    if workgroup or 'NodeDetails' not in query_names:
-        return ClusterMetadata(
-            cluster_id=cluster_identifier,
-            node_type='serverless',
-            node_count=0,
-            region='unknown',
-        )
-
-    # Try to execute NodeDetails base SQL for metadata
-    base_sql = queries_config.get('NodeDetails', {}).get('SQL', '')
-    if not base_sql:
-        return ClusterMetadata(
-            cluster_id=cluster_identifier,
-            node_type='unknown',
-            node_count=0,
-            region='unknown',
-        )
-
-    try:
-        results_response, _ = await execute_fn(
-            cluster_identifier, database, base_sql, allow_read_write=True
-        )
-        records = results_response.get('Records', [])
-        if records and records[0]:
-            # First column is node_type (stringValue)
-            node_type = records[0][0].get('stringValue', 'unknown')
-            # Node count is the number of rows
-            node_count = len(records)
-            return ClusterMetadata(
-                cluster_id=cluster_identifier,
-                node_type=node_type,
-                node_count=node_count,
-                region='unknown',
-            )
-    except Exception as e:
-        logger.debug('Failed to extract cluster metadata: {}', e)
-
-    return ClusterMetadata(
-        cluster_id=cluster_identifier,
-        node_type='unknown',
-        node_count=0,
-        region='unknown',
     )
 
 

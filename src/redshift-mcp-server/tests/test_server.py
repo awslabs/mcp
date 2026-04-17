@@ -16,7 +16,6 @@
 
 import pytest
 from awslabs.redshift_mcp_server.models import (
-    ClusterMetadata,
     QueryFailureInfo,
     QueryResult,
     RedshiftCluster,
@@ -543,12 +542,6 @@ class TestReviewClusterTool:
     def _make_review_result(self, findings=None, failures=None):
         """Helper to build a ReviewResult with sensible defaults."""
         return ReviewResult(
-            cluster_metadata=ClusterMetadata(
-                cluster_id='test-cluster',
-                node_type='ra3.xlplus',
-                node_count=2,
-                region='us-east-1',
-            ),
             signals_evaluated=55,
             findings=findings or [],
             recommendations=[
@@ -616,8 +609,6 @@ class TestReviewClusterTool:
         assert result.findings[0].affected_row_count == 3
         assert len(result.recommendations) == 1
         assert result.recommendations[0].id == 'rec-1'
-        assert result.cluster_metadata.cluster_id == 'test-cluster'
-        assert result.cluster_metadata.node_type == 'ra3.xlplus'
 
         mock_pipeline.assert_called_once()
         call_kwargs = mock_pipeline.call_args.kwargs

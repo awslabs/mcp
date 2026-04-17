@@ -166,15 +166,6 @@ class ReviewRecommendation(BaseModel):
     triggered_by_signals: list[str]
 
 
-class ClusterMetadata(BaseModel):
-    """Cluster metadata extracted from NodeDetails query."""
-
-    cluster_id: str
-    node_type: str
-    node_count: int
-    region: str
-
-
 class QueryFailureInfo(BaseModel):
     """Info about a failed query or signal evaluation."""
 
@@ -184,9 +175,8 @@ class QueryFailureInfo(BaseModel):
 
 
 class ReviewResult(BaseModel):
-    """Complete result of a run_review tool call."""
+    """Complete result of a review_cluster tool call."""
 
-    cluster_metadata: ClusterMetadata
     signals_evaluated: int
     findings: list[ReviewFinding]
     recommendations: list[ReviewRecommendation]

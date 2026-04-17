@@ -85,22 +85,6 @@ def _make_count_response(count: int) -> tuple[dict, str]:
     return ({'Records': [[{'longValue': count}]]}, f'query-id-{count}')
 
 
-def _make_node_details_response() -> tuple[dict, str]:
-    """Build a mock Data API response for NodeDetails metadata extraction."""
-    return (
-        {
-            'Records': [
-                [
-                    {'stringValue': 'ra3.xlplus'},
-                    {'longValue': 100},
-                    {'doubleValue': 45.2},
-                ]
-            ]
-        },
-        'query-id-metadata',
-    )
-
-
 # ---------------------------------------------------------------------------
 # Serverless exclusion
 # ---------------------------------------------------------------------------
@@ -164,10 +148,6 @@ class TestServerlessExclusion:
             assert 'WITH NodeDetails AS (' not in sql
             assert 'WITH WLMConfig AS (' not in sql
 
-        # Metadata should fall back to serverless defaults
-        assert result.cluster_metadata.node_type == 'serverless'
-        assert result.cluster_metadata.node_count == 0
-
 
 # ---------------------------------------------------------------------------
 # Property 3: Signal triggered if and only if count > 0
@@ -180,16 +160,7 @@ class TestSignalTriggered:
     @pytest.mark.asyncio
     async def test_signal_triggered_when_count_positive(self):
         """Signal with count > 0 appears in findings."""
-        call_count = 0
-
-        async def mock_execute(*args, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            # First call is metadata extraction (NodeDetails base SQL)
-            if call_count == 1:
-                return _make_node_details_response()
-            # Second call is the signal CTE
-            return _make_count_response(5)
+        execute_fn = AsyncMock(side_effect=lambda *args, **kwargs: _make_count_response(5))
 
         result = await run_review(
             cluster_identifier='test-cluster',
@@ -197,7 +168,7 @@ class TestSignalTriggered:
             queries_config=QUERIES_CONFIG,
             signals_config=SIGNALS_CONFIG_SIMPLE,
             recommendations_config=RECOMMENDATIONS_CONFIG,
-            execute_fn=mock_execute,
+            execute_fn=execute_fn,
         )
 
         assert len(result.findings) == 1
@@ -207,14 +178,7 @@ class TestSignalTriggered:
     @pytest.mark.asyncio
     async def test_signal_not_triggered_when_count_zero(self):
         """Signal with count == 0 does not appear in findings."""
-        call_count = 0
-
-        async def mock_execute(*args, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return _make_node_details_response()
-            return _make_count_response(0)
+        execute_fn = AsyncMock(side_effect=lambda *args, **kwargs: _make_count_response(0))
 
         result = await run_review(
             cluster_identifier='test-cluster',
@@ -222,7 +186,7 @@ class TestSignalTriggered:
             queries_config=QUERIES_CONFIG,
             signals_config=SIGNALS_CONFIG_SIMPLE,
             recommendations_config=RECOMMENDATIONS_CONFIG,
-            execute_fn=mock_execute,
+            execute_fn=execute_fn,
         )
 
         assert len(result.findings) == 0
@@ -261,13 +225,10 @@ class TestErrorIsolation:
         async def mock_execute(*args, **kwargs):
             nonlocal call_count
             call_count += 1
-            # First call: metadata extraction
+            # First call: first signal fails
             if call_count == 1:
-                return _make_node_details_response()
-            # Second call: first signal fails
-            if call_count == 2:
                 raise RuntimeError('Simulated query failure')
-            # Third call: second signal succeeds
+            # Second call: second signal succeeds
             return _make_count_response(3)
 
         result = await run_review(
@@ -330,8 +291,6 @@ class TestRecommendationOrdering:
         async def mock_execute(*args, **kwargs):
             nonlocal call_count
             call_count += 1
-            if call_count == 1:
-                return _make_node_details_response()
             return _make_count_response(1)
 
         result = await run_review(
@@ -375,14 +334,7 @@ class TestRecommendationDeduplication:
             },
         }
 
-        call_count = 0
-
-        async def mock_execute(*args, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return _make_node_details_response()
-            return _make_count_response(1)
+        execute_fn = AsyncMock(side_effect=lambda *args, **kwargs: _make_count_response(1))
 
         result = await run_review(
             cluster_identifier='test-cluster',
@@ -390,7 +342,7 @@ class TestRecommendationDeduplication:
             queries_config=QUERIES_CONFIG,
             signals_config=signals_config,
             recommendations_config=RECOMMENDATIONS_CONFIG,
-            execute_fn=mock_execute,
+            execute_fn=execute_fn,
         )
 
         rec_ids = [r.id for r in result.recommendations]
@@ -429,14 +381,7 @@ class TestRecommendationDeduplication:
             },
         }
 
-        call_count = 0
-
-        async def mock_execute(*args, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return _make_node_details_response()
-            return _make_count_response(1)
+        execute_fn = AsyncMock(side_effect=lambda *args, **kwargs: _make_count_response(1))
 
         result = await run_review(
             cluster_identifier='test-cluster',
@@ -444,7 +389,7 @@ class TestRecommendationDeduplication:
             queries_config=QUERIES_CONFIG,
             signals_config=signals_config,
             recommendations_config=recs_config,
-            execute_fn=mock_execute,
+            execute_fn=execute_fn,
         )
 
         small_recs = [r for r in result.recommendations if r.effort == 'Small']
@@ -482,14 +427,7 @@ class TestRecommendationTriggeredBy:
             },
         }
 
-        call_count = 0
-
-        async def mock_execute(*args, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return _make_node_details_response()
-            return _make_count_response(2)
+        execute_fn = AsyncMock(side_effect=lambda *args, **kwargs: _make_count_response(2))
 
         result = await run_review(
             cluster_identifier='test-cluster',
@@ -497,7 +435,7 @@ class TestRecommendationTriggeredBy:
             queries_config=QUERIES_CONFIG,
             signals_config=signals_config,
             recommendations_config=RECOMMENDATIONS_CONFIG,
-            execute_fn=mock_execute,
+            execute_fn=execute_fn,
         )
 
         assert len(result.recommendations) == 1
@@ -550,16 +488,13 @@ class TestFullPipeline:
         async def mock_execute(cluster_id, database, sql, **kwargs):
             nonlocal call_count
             call_count += 1
-            # Call 1: NodeDetails metadata extraction (base SQL)
+            # Call 1: NodeDetails signal — triggered (count=3)
             if call_count == 1:
-                return _make_node_details_response()
-            # Call 2: NodeDetails signal — triggered (count=3)
-            if call_count == 2:
                 return _make_count_response(3)
-            # Call 3: TableInfo signal 1 — triggered (count=10)
-            if call_count == 3:
+            # Call 2: TableInfo signal 1 — triggered (count=10)
+            if call_count == 2:
                 return _make_count_response(10)
-            # Call 4: TableInfo signal 2 — not triggered (count=0)
+            # Call 3: TableInfo signal 2 — not triggered (count=0)
             return _make_count_response(0)
 
         result = await run_review(
@@ -570,11 +505,6 @@ class TestFullPipeline:
             recommendations_config=RECOMMENDATIONS_CONFIG,
             execute_fn=mock_execute,
         )
-
-        # Verify ReviewResult structure
-        assert result.cluster_metadata.cluster_id == 'test-cluster'
-        assert result.cluster_metadata.node_type == 'ra3.xlplus'
-        assert result.cluster_metadata.node_count == 1
 
         # 3 signals evaluated
         assert result.signals_evaluated == 3
@@ -609,13 +539,7 @@ class TestFullPipeline:
             },
         }
 
-        call_count = 0
-
         async def mock_execute(cluster_id, database, sql, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return _make_node_details_response()
             return _make_count_response(0)
 
         progress_calls = []
@@ -651,7 +575,7 @@ class TestFullPipeline:
         }
 
         async def mock_execute(cluster_id, database, sql, **kwargs):
-            return _make_node_details_response()
+            return _make_count_response(0)
 
         result = await run_review(
             cluster_identifier='test-cluster',
@@ -674,13 +598,7 @@ class TestFullPipeline:
             },
         }
 
-        call_count = 0
-
         async def mock_execute(cluster_id, database, sql, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return _make_node_details_response()
             return ({'Records': []}, 'qid')
 
         result = await run_review(
@@ -695,63 +613,6 @@ class TestFullPipeline:
         assert len(result.findings) == 0
 
     @pytest.mark.asyncio
-    async def test_metadata_fallback_no_sql(self):
-        """Metadata extraction falls back when NodeDetails has no SQL."""
-        signals_config: dict[str, SectionEntry] = {
-            'NodeDetails': {
-                'Signals': [
-                    {'Signal': 'sig1', 'Criteria': 'x > 0', 'Recommendation': []},
-                ]
-            },
-        }
-        no_sql_config: dict[str, QueryEntry] = {'NodeDetails': {'SQL': ''}}
-
-        async def mock_execute(cluster_id, database, sql, **kwargs):
-            return _make_count_response(0)
-
-        result = await run_review(
-            cluster_identifier='test-cluster',
-            database='dev',
-            queries_config=no_sql_config,
-            signals_config=signals_config,
-            recommendations_config=RECOMMENDATIONS_CONFIG,
-            execute_fn=mock_execute,
-        )
-        # NodeDetails with empty SQL is excluded from query_names,
-        # so metadata extraction falls back to serverless defaults
-        assert result.cluster_metadata.node_type == 'serverless'
-
-    @pytest.mark.asyncio
-    async def test_metadata_fallback_on_execute_error(self):
-        """Metadata extraction falls back when execute fails."""
-        signals_config: dict[str, SectionEntry] = {
-            'NodeDetails': {
-                'Signals': [
-                    {'Signal': 'sig1', 'Criteria': 'x > 0', 'Recommendation': []},
-                ]
-            },
-        }
-
-        call_count = 0
-
-        async def mock_execute(cluster_id, database, sql, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                raise Exception('metadata extraction failed')
-            return _make_count_response(0)
-
-        result = await run_review(
-            cluster_identifier='test-cluster',
-            database='dev',
-            queries_config=QUERIES_CONFIG,
-            signals_config=signals_config,
-            recommendations_config=RECOMMENDATIONS_CONFIG,
-            execute_fn=mock_execute,
-        )
-        assert result.cluster_metadata.node_type == 'unknown'
-
-    @pytest.mark.asyncio
     async def test_missing_recommendation_id_skipped(self):
         """Recommendation IDs not in config are silently skipped."""
         signals_config: dict[str, SectionEntry] = {
@@ -762,14 +623,7 @@ class TestFullPipeline:
             },
         }
 
-        call_count = 0
-
-        async def mock_execute(cluster_id, database, sql, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return _make_node_details_response()
-            return _make_count_response(5)
+        execute_fn = AsyncMock(side_effect=lambda *args, **kwargs: _make_count_response(5))
 
         result = await run_review(
             cluster_identifier='test-cluster',
@@ -777,7 +631,7 @@ class TestFullPipeline:
             queries_config=QUERIES_CONFIG,
             signals_config=signals_config,
             recommendations_config=RECOMMENDATIONS_CONFIG,
-            execute_fn=mock_execute,
+            execute_fn=execute_fn,
         )
         assert len(result.findings) == 1
         assert len(result.recommendations) == 0
