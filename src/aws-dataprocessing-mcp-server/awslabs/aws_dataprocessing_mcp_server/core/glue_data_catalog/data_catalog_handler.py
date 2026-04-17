@@ -40,7 +40,6 @@ from awslabs.aws_dataprocessing_mcp_server.models.data_catalog_models import (
     GetPartitionData,
     ImportCatalogData,
     ListCatalogsData,
-    ListConnectionTypesData,
     ListConnectionsData,
     ListConnectionTypesData,
     ListEntitiesData,
