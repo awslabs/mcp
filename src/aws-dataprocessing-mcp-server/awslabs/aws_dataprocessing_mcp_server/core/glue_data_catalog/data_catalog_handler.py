@@ -42,6 +42,7 @@ from awslabs.aws_dataprocessing_mcp_server.models.data_catalog_models import (
     ListCatalogsData,
     ListConnectionTypesData,
     ListConnectionsData,
+    ListConnectionTypesData,
     ListEntitiesData,
     ListPartitionsData,
     PartitionSummary,
@@ -616,7 +617,9 @@ class DataCatalogManager:
             non_managed = []
             for name in connection_name_list:
                 try:
-                    connection_arn = f'arn:{partition}:glue:{region}:{account_id}:connection/{name}'
+                    connection_arn = (
+                        f'arn:{partition}:glue:{region}:{account_id}:connection/{name}'
+                    )
                     if not AwsHelper.is_resource_mcp_managed(self.glue_client, connection_arn):
                         non_managed.append(name)
                 except ClientError:
@@ -644,7 +647,9 @@ class DataCatalogManager:
                 f'Batch delete connections: {len(succeeded)} succeeded, {len(errors)} failed',
             )
 
-            success_msg = f'Batch delete connections: {len(succeeded)} succeeded, {len(errors)} failed'
+            success_msg = (
+                f'Batch delete connections: {len(succeeded)} succeeded, {len(errors)} failed'
+            )
             data = BatchDeleteConnectionData(
                 succeeded=succeeded,
                 errors=errors,
@@ -687,9 +692,7 @@ class DataCatalogManager:
             DescribeConnectionTypeResponse with the connection type details
         """
         try:
-            response = self.glue_client.describe_connection_type(
-                ConnectionType=connection_type
-            )
+            response = self.glue_client.describe_connection_type(ConnectionType=connection_type)
 
             log_with_request_id(
                 ctx,
@@ -705,7 +708,9 @@ class DataCatalogManager:
                 connection_properties=response.get('ConnectionProperties'),
                 connection_options=response.get('ConnectionOptions'),
                 authentication_configuration=response.get('AuthenticationConfiguration'),
-                compute_environment_configurations=response.get('ComputeEnvironmentConfigurations'),
+                compute_environment_configurations=response.get(
+                    'ComputeEnvironmentConfigurations'
+                ),
                 physical_connection_requirements=response.get('PhysicalConnectionRequirements'),
                 athena_connection_properties=response.get('AthenaConnectionProperties'),
                 python_connection_properties=response.get('PythonConnectionProperties'),
@@ -791,7 +796,9 @@ class DataCatalogManager:
 
         except ClientError as e:
             error_code = e.response['Error']['Code']
-            error_message = f'Failed to list connection types: {error_code} - {e.response["Error"]["Message"]}'
+            error_message = (
+                f'Failed to list connection types: {error_code} - {e.response["Error"]["Message"]}'
+            )
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
             return CallToolResult(
@@ -846,7 +853,9 @@ class DataCatalogManager:
                 f'Successfully listed {len(entities)} entities for connection: {connection_name}',
             )
 
-            success_msg = f'Successfully listed {len(entities)} entities for connection: {connection_name}'
+            success_msg = (
+                f'Successfully listed {len(entities)} entities for connection: {connection_name}'
+            )
             data = ListEntitiesData(
                 entities=[
                     EntitySummary(

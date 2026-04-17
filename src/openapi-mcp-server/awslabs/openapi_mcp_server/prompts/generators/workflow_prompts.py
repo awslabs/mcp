@@ -232,7 +232,7 @@ def create_workflow_prompt(server: Any, workflow: Dict[str, Any]) -> bool:
             return messages
 
         # Register the function as a prompt
-        if hasattr(server, '_prompt_manager'):
+        if hasattr(server, 'add_prompt'):
             # Create tags based on workflow metadata
             tags = {resource_type, workflow_type}
 
@@ -245,11 +245,11 @@ def create_workflow_prompt(server: Any, workflow: Dict[str, Any]) -> bool:
             )
 
             # Add the prompt to the server
-            server._prompt_manager.add_prompt(prompt)
+            server.add_prompt(prompt)
             logger.debug(f'Added workflow prompt: {workflow["name"]}')
             return True
         else:
-            logger.warning('Server does not have _prompt_manager')
+            logger.warning('Server does not have add_prompt')
             return False
 
     except Exception as e:
