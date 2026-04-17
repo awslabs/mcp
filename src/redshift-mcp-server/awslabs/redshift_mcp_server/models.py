@@ -143,8 +143,6 @@ class QueryResult(BaseModel):
 
 # --- Review models ---
 
-PROVISIONED_ONLY_QUERIES = {'WLMConfig', 'NodeDetails'}
-
 
 class ReviewFinding(BaseModel):
     """A single finding from signal evaluation."""

@@ -15,7 +15,6 @@
 """Review pipeline orchestrating CTE-based signal evaluation."""
 
 from awslabs.redshift_mcp_server.models import (
-    PROVISIONED_ONLY_QUERIES,
     ReviewFinding,
     ReviewRecommendation,
     ReviewResult,
@@ -35,6 +34,7 @@ from typing import Any
 
 
 EFFORT_ORDER = {'Small': 0, 'Medium': 1, 'Large': 2}
+PROVISIONED_ONLY_QUERIES = {'WLMConfig', 'NodeDetails'}
 
 
 async def run_review(
