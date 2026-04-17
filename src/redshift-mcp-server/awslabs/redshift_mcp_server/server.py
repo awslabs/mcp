@@ -137,7 +137,7 @@ This tool queries the SVV_ALL_COLUMNS system view to discover available columns.
 Executes SQL queries against a Redshift cluster or serverless workgroup.
 This tool uses the Redshift Data API to run queries and return results.
 
-### run_review
+### review_cluster
 Runs a diagnostic review of a Redshift cluster or serverless workgroup.
 Evaluates up to 55 signals across 13 diagnostic queries, returning findings
 with counts and actionable recommendations ordered by effort.
@@ -683,8 +683,8 @@ async def execute_query_tool(
         raise
 
 
-@mcp.tool(name='run_review')
-async def run_review_tool(
+@mcp.tool(name='review_cluster')
+async def review_cluster_tool(
     ctx: Context,
     cluster_identifier: str = Field(
         ...,

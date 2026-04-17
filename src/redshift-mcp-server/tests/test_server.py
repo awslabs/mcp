@@ -36,7 +36,7 @@ from awslabs.redshift_mcp_server.server import (
     list_schemas_tool,
     list_tables_tool,
     mcp,
-    run_review_tool,
+    review_cluster_tool,
 )
 from mcp.server.fastmcp import Context
 
@@ -537,8 +537,8 @@ class TestExecuteQueryTool:
         )
 
 
-class TestRunReviewTool:
-    """Tests for the run_review MCP tool."""
+class TestReviewClusterTool:
+    """Tests for the review_cluster MCP tool."""
 
     def _make_review_result(self, findings=None, failures=None):
         """Helper to build a ReviewResult with sensible defaults."""
@@ -584,8 +584,8 @@ class TestRunReviewTool:
         return mock_ctx
 
     @pytest.mark.asyncio
-    async def test_run_review_success(self, mocker):
-        """Test run_review returns a ReviewResult on success."""
+    async def test_review_cluster_success(self, mocker):
+        """Test review_cluster returns a ReviewResult on success."""
         findings = [
             ReviewFinding(
                 signal_name='HighSQAEligibility',
@@ -602,7 +602,7 @@ class TestRunReviewTool:
         )
         mock_ctx = self._make_mock_ctx(mocker)
 
-        result = await run_review_tool(
+        result = await review_cluster_tool(
             ctx=mock_ctx,
             cluster_identifier='test-cluster',
             database='dev',
@@ -626,8 +626,8 @@ class TestRunReviewTool:
         assert call_kwargs['workgroup'] is None
 
     @pytest.mark.asyncio
-    async def test_run_review_empty_results(self, mocker):
-        """Test run_review with no findings returns a clean response."""
+    async def test_review_cluster_empty_results(self, mocker):
+        """Test review_cluster with no findings returns a clean response."""
         expected = self._make_review_result(findings=[], failures=[])
 
         mocker.patch(
@@ -636,7 +636,7 @@ class TestRunReviewTool:
         )
         mock_ctx = self._make_mock_ctx(mocker)
 
-        result = await run_review_tool(
+        result = await review_cluster_tool(
             ctx=mock_ctx,
             cluster_identifier='test-cluster',
             database='dev',
@@ -650,8 +650,8 @@ class TestRunReviewTool:
         assert result.signals_evaluated == 55
 
     @pytest.mark.asyncio
-    async def test_run_review_error(self, mocker):
-        """Test run_review propagates pipeline errors."""
+    async def test_review_cluster_error(self, mocker):
+        """Test review_cluster propagates pipeline errors."""
         mocker.patch(
             'awslabs.redshift_mcp_server.server.run_review',
             side_effect=Exception('Data API timeout'),
@@ -659,7 +659,7 @@ class TestRunReviewTool:
         mock_ctx = self._make_mock_ctx(mocker)
 
         with pytest.raises(Exception, match='Data API timeout'):
-            await run_review_tool(
+            await review_cluster_tool(
                 ctx=mock_ctx,
                 cluster_identifier='test-cluster',
                 database='dev',
@@ -667,8 +667,8 @@ class TestRunReviewTool:
             )
 
     @pytest.mark.asyncio
-    async def test_run_review_parameters(self, mocker):
-        """Test run_review passes all parameters correctly including workgroup."""
+    async def test_review_cluster_parameters(self, mocker):
+        """Test review_cluster passes all parameters correctly including workgroup."""
         expected = self._make_review_result()
 
         mock_pipeline = mocker.patch(
@@ -677,7 +677,7 @@ class TestRunReviewTool:
         )
         mock_ctx = self._make_mock_ctx(mocker)
 
-        await run_review_tool(
+        await review_cluster_tool(
             ctx=mock_ctx,
             cluster_identifier='my-cluster',
             database='analytics',
@@ -690,8 +690,8 @@ class TestRunReviewTool:
         assert call_kwargs['workgroup'] == 'my-workgroup'
 
     @pytest.mark.asyncio
-    async def test_run_review_with_query_failures(self, mocker):
-        """Test run_review includes query failures in the result."""
+    async def test_review_cluster_with_query_failures(self, mocker):
+        """Test review_cluster includes query failures in the result."""
         failures = [
             QueryFailureInfo(
                 query_name='WLMConfig',
@@ -707,7 +707,7 @@ class TestRunReviewTool:
         )
         mock_ctx = self._make_mock_ctx(mocker)
 
-        result = await run_review_tool(
+        result = await review_cluster_tool(
             ctx=mock_ctx,
             cluster_identifier='test-cluster',
             database='dev',
@@ -730,13 +730,13 @@ class TestRunReviewTool:
             'import_and_analyze should not be registered'
         )
 
-    def test_run_review_tool_is_registered(self):
-        """Verify run_review is registered as an MCP tool."""
+    def test_review_cluster_tool_is_registered(self):
+        """Verify review_cluster is registered as an MCP tool."""
         tool_names = set()
         for tool in mcp._tool_manager._tools.values():
             tool_names.add(tool.name)
 
-        assert 'run_review' in tool_names, 'run_review should be registered as a tool'
+        assert 'review_cluster' in tool_names, 'review_cluster should be registered as a tool'
 
     @pytest.mark.asyncio
     async def test_server_lifespan_loads_config(self):
