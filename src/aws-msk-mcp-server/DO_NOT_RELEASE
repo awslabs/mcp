@@ -1,3 +1,0 @@
-This package is deprecated. Do not publish new releases to PyPI.
-
-Replacement: None — use aws-api-mcp-server or call MSK boto3 APIs directly.
