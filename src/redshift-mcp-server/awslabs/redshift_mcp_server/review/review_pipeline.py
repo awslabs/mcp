@@ -12,37 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Review pipeline orchestrating CTE-based signal evaluation."""
+"""Review pipeline orchestrating signal evaluation."""
 
 from awslabs.redshift_mcp_server.models import (
     ReviewFinding,
     ReviewRecommendation,
     ReviewResult,
 )
-from awslabs.redshift_mcp_server.review.config_loader import (
-    QueryEntry,
-    RecommendationEntry,
-    SectionEntry,
+from awslabs.redshift_mcp_server.review.review_queries import (
+    RECOMMENDATIONS,
+    REVIEW_QUERIES,
 )
-from awslabs.redshift_mcp_server.review.cte_builder import (
-    build_signal_query,
-    validate_sql_readonly,
-)
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from loguru import logger
 from typing import Any
-
-
-EFFORT_ORDER = {'Small': 0, 'Medium': 1, 'Large': 2}
-PROVISIONED_ONLY_QUERIES = {'WLMConfig', 'NodeDetails'}
 
 
 async def run_review(
     cluster_identifier: str,
     database: str,
-    queries_config: Mapping[str, QueryEntry],
-    signals_config: Mapping[str, SectionEntry],
-    recommendations_config: Mapping[str, RecommendationEntry],
     execute_fn: Callable[..., Any],
     workgroup: str | None = None,
     progress_fn: Callable[[int, int], Any] | None = None,
@@ -50,164 +38,93 @@ async def run_review(
     """Execute a full cluster review.
 
     Pipeline stages:
-    1. Gather all query names from queries_config that have signals
-    2. Filter out provisioned-only queries if workgroup is set
-    3. For each query, for each signal: build CTE SQL, validate, execute, extract count
-    4. Build findings list (signal triggered if count > 0)
-    5. Resolve recommendation IDs -> full recommendation objects, deduplicate
-    6. Order recommendations by effort (Small -> Medium -> Large)
-    7. Aggregate triggered_by_signals per recommendation
+    1. Select review queries (filter out provisioned-only when serverless)
+    2. Execute each query and collect (count, rec_id) rows
+    3. Build findings from rows where count > 0
+    4. Resolve and deduplicate recommendations, ordered by first occurrence
     """
-    # Stage 1: Gather all query names that have both SQL and signals
-    query_names = [
-        q for q in queries_config if q in signals_config and queries_config[q].get('SQL')
+    # Stage 1: Select queries, filtering provisioned-only for serverless
+    queries = [
+        (name, sql)
+        for name, sql, provisioned_only in REVIEW_QUERIES
+        if not (workgroup and provisioned_only)
     ]
 
-    # Stage 2: Filter out provisioned-only queries when workgroup is set (serverless)
-    if workgroup:
-        query_names = [q for q in query_names if q not in PROVISIONED_ONLY_QUERIES]
-
-    # Stage 3 & 4: Evaluate signals and build findings
+    total_queries = len(queries)
     findings: list[ReviewFinding] = []
     queries_executed: list[str] = []
-    signals_evaluated = 0
 
-    # Count total signals for progress reporting
-    total_signals = sum(
-        len(signals_config[q]['Signals'])
-        for q in query_names
-        if q in signals_config and queries_config.get(q, {}).get('SQL')
-    )
+    # Stage 2 & 3: Execute and collect findings
+    for idx, (query_name, sql) in enumerate(queries):
+        logger.debug('Executing review query: {} ({}/{})', query_name, idx + 1, total_queries)
 
-    for query_name in query_names:
-        if query_name not in signals_config:
-            continue
+        results_response, _ = await execute_fn(
+            cluster_identifier,
+            database,
+            sql,
+            allow_read_write=True,
+        )
 
-        section = signals_config[query_name]
-        base_sql = queries_config.get(query_name, {}).get('SQL', '')
-        if not base_sql:
-            continue
+        queries_executed.append(query_name)
 
-        if query_name not in queries_executed:
-            queries_executed.append(query_name)
-
-        for signal_entry in section['Signals']:
-            signal_name = signal_entry['Signal']
-            criteria = signal_entry['Criteria']
-            population_criteria = signal_entry.get('PopulationCriteria')
-            recommendation_ids = signal_entry.get('Recommendation', [])
-
-            # Build CTE SQL
-            sql = build_signal_query(
-                query_name=query_name,
-                base_sql=base_sql,
-                criteria=criteria,
-                population_criteria=population_criteria,
-            )
-
-            # Validate read-only
-            validate_sql_readonly(sql)
-
-            # Execute via execute_fn (sequential per AD-2)
-            # allow_read_write=True because review queries are server-generated,
-            # validated by validate_sql_readonly(), and some diagnostic queries
-            # (e.g. WLMConfig using stv_ tables with LISTAGG) require write-capable
-            # transactions internally even though they only read data.
-            results_response, query_id = await execute_fn(
-                cluster_identifier, database, sql, allow_read_write=True
-            )
-
-            # Extract count
-            records = results_response.get('Records', [])
-            if records and records[0]:
-                count = records[0][0].get('longValue', 0)
-            else:
-                count = 0
-
-            signals_evaluated += 1
-
-            if progress_fn:
-                await progress_fn(signals_evaluated, total_signals)
-
-            if count > 0:
+        records = results_response.get('Records', [])
+        query_findings = 0
+        for row in records:
+            count = row[0].get('longValue', 0)
+            rec_id = row[1].get('stringValue', '')
+            if count > 0 and rec_id:
+                query_findings += 1
                 findings.append(
                     ReviewFinding(
-                        signal_name=signal_name,
+                        signal_name=query_name,
                         section=query_name,
                         affected_row_count=count,
-                        recommendation_ids=recommendation_ids,
+                        recommendation_ids=[rec_id],
                     )
                 )
-                logger.debug(
-                    'Signal triggered: "{}" in section {} (count={})',
-                    signal_name,
-                    query_name,
-                    count,
-                )
-            else:
-                logger.debug(
-                    'Signal not triggered: "{}" in section {}',
-                    signal_name,
-                    query_name,
-                )
 
-    # Stage 5-7: Resolve, deduplicate, order, and aggregate recommendations
-    recommendations = _resolve_recommendations(
-        findings=findings,
-        recommendations_config=recommendations_config,
-    )
+        logger.debug(
+            'Query {} returned {} rows, {} findings',
+            query_name,
+            len(records),
+            query_findings,
+        )
+
+        if progress_fn:
+            await progress_fn(idx + 1, total_queries)
+
+    # Stage 4: Resolve recommendations (deduplicate, preserve first-occurrence order)
+    seen: dict[str, list[str]] = {}
+    for finding in findings:
+        for rec_id in finding.recommendation_ids:
+            if rec_id not in seen:
+                seen[rec_id] = []
+            if finding.signal_name not in seen[rec_id]:
+                seen[rec_id].append(finding.signal_name)
+
+    recommendations: list[ReviewRecommendation] = []
+    for rec_id, triggered_by in seen.items():
+        text = RECOMMENDATIONS.get(rec_id, '')
+        if not text:
+            continue
+        recommendations.append(
+            ReviewRecommendation(
+                id=rec_id,
+                text=text,
+                triggered_by_signals=triggered_by,
+            )
+        )
 
     logger.info(
-        'Review complete: {} signals evaluated, {} findings',
-        signals_evaluated,
+        'Review complete: {} queries executed, {} findings, {} recommendations',
+        len(queries_executed),
         len(findings),
+        len(recommendations),
     )
 
     return ReviewResult(
-        signals_evaluated=signals_evaluated,
+        signals_evaluated=total_queries,
         findings=findings,
         recommendations=recommendations,
         queries_executed=queries_executed,
     )
-
-
-def _resolve_recommendations(
-    findings: list[ReviewFinding],
-    recommendations_config: Mapping[str, RecommendationEntry],
-) -> list[ReviewRecommendation]:
-    """Resolve, deduplicate, order, and aggregate recommendations from findings."""
-    # Track first-occurrence order and triggered_by_signals per rec ID
-    rec_order: dict[str, int] = {}
-    triggered_by: dict[str, list[str]] = {}
-    order_counter = 0
-
-    for finding in findings:
-        for rec_id in finding.recommendation_ids:
-            if rec_id not in rec_order:
-                rec_order[rec_id] = order_counter
-                order_counter += 1
-                triggered_by[rec_id] = []
-            if finding.signal_name not in triggered_by[rec_id]:
-                triggered_by[rec_id].append(finding.signal_name)
-
-    # Build recommendation objects
-    resolved: list[ReviewRecommendation] = []
-    for rec_id in rec_order:
-        entry = recommendations_config.get(rec_id)
-        if not entry:
-            continue
-        resolved.append(
-            ReviewRecommendation(
-                id=rec_id,
-                text=entry['text'],
-                description=entry['description'],
-                effort=entry['effort'],
-                documentation_links=entry['documentation_links'],
-                triggered_by_signals=triggered_by[rec_id],
-            )
-        )
-
-    # Sort by effort (Small -> Medium -> Large), preserving first-occurrence within same effort
-    resolved.sort(key=lambda r: (EFFORT_ORDER.get(r.effort, 99), rec_order.get(r.id, 99)))
-
-    return resolved

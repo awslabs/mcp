@@ -541,18 +541,13 @@ class TestReviewClusterTool:
     def _make_review_result(self, findings=None):
         """Helper to build a ReviewResult with sensible defaults."""
         return ReviewResult(
-            signals_evaluated=55,
+            signals_evaluated=13,
             findings=findings or [],
             recommendations=[
                 ReviewRecommendation(
-                    id='rec-1',
-                    text='Enable short query acceleration',
-                    description='SQA routes short queries to a dedicated queue.',
-                    effort='Small',
-                    documentation_links=[
-                        'https://docs.aws.amazon.com/redshift/latest/dg/wlm-short-query-acceleration.html'
-                    ],
-                    triggered_by_signals=['HighSQAEligibility'],
+                    id='REC_020',
+                    text='## For additional scalability, enable short query acceleration\n\n...',
+                    triggered_by_signals=['WLMConfig'],
                 ),
             ]
             if findings
@@ -561,17 +556,10 @@ class TestReviewClusterTool:
         )
 
     def _make_mock_ctx(self, mocker):
-        """Build a mock Context whose request_context.lifespan_context is a ReviewAppContext."""
-        from awslabs.redshift_mcp_server.server import ReviewAppContext
-
+        """Build a mock Context."""
         mock_ctx = mocker.Mock(spec=Context)
         mock_ctx.error = mocker.AsyncMock()
         mock_ctx.request_context = mocker.Mock()
-        mock_ctx.request_context.lifespan_context = ReviewAppContext(
-            queries_config={'NodeDetails': {'SQL': 'SELECT 1'}},
-            signals_config={'NodeDetails': {'Signals': []}},
-            recommendations_config={},
-        )
         return mock_ctx
 
     @pytest.mark.asyncio
@@ -582,7 +570,7 @@ class TestReviewClusterTool:
                 signal_name='HighSQAEligibility',
                 section='WLMConfig',
                 affected_row_count=3,
-                recommendation_ids=['rec-1'],
+                recommendation_ids=['REC_020'],
             ),
         ]
         expected = self._make_review_result(findings=findings)
@@ -601,12 +589,12 @@ class TestReviewClusterTool:
         )
 
         assert isinstance(result, ReviewResult)
-        assert result.signals_evaluated == 55
+        assert result.signals_evaluated == 13
         assert len(result.findings) == 1
         assert result.findings[0].signal_name == 'HighSQAEligibility'
         assert result.findings[0].affected_row_count == 3
         assert len(result.recommendations) == 1
-        assert result.recommendations[0].id == 'rec-1'
+        assert result.recommendations[0].id == 'REC_020'
 
         mock_pipeline.assert_called_once()
         call_kwargs = mock_pipeline.call_args.kwargs
@@ -635,7 +623,7 @@ class TestReviewClusterTool:
         assert isinstance(result, ReviewResult)
         assert result.findings == []
         assert result.recommendations == []
-        assert result.signals_evaluated == 55
+        assert result.signals_evaluated == 13
 
     @pytest.mark.asyncio
     async def test_review_cluster_error(self, mocker):
@@ -695,13 +683,3 @@ class TestReviewClusterTool:
             tool_names.add(tool.name)
 
         assert 'review_cluster' in tool_names, 'review_cluster should be registered as a tool'
-
-    @pytest.mark.asyncio
-    async def test_server_lifespan_loads_config(self):
-        """Server lifespan loads review config files."""
-        from awslabs.redshift_mcp_server.server import mcp, server_lifespan
-
-        async with server_lifespan(mcp) as ctx:
-            assert len(ctx.queries_config) > 0
-            assert len(ctx.signals_config) > 0
-            assert len(ctx.recommendations_config) > 0

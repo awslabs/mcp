@@ -39,21 +39,9 @@ from awslabs.redshift_mcp_server.redshift import (
     discover_tables,
     execute_query,
 )
-from awslabs.redshift_mcp_server.review.config_loader import (
-    QueryEntry,
-    RecommendationEntry,
-    SectionEntry,
-    load_queries_config,
-    load_recommendations_config,
-    load_signals_config,
-)
 from awslabs.redshift_mcp_server.review.review_pipeline import run_review
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
-from dataclasses import dataclass
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
-from pathlib import Path
 from pydantic import Field
 
 
@@ -65,47 +53,8 @@ logger.add(
 )
 
 
-# Config directory for review config files
-_CONFIG_DIR = Path(__file__).parent / 'config'
-
-
-@dataclass
-class ReviewAppContext:
-    """Application context holding loaded review config files."""
-
-    queries_config: dict[str, QueryEntry]
-    signals_config: dict[str, SectionEntry]
-    recommendations_config: dict[str, RecommendationEntry]
-
-
-@asynccontextmanager
-async def server_lifespan(server: FastMCP) -> AsyncIterator[ReviewAppContext]:
-    """Load review config files at server startup."""
-    try:
-        queries_config = load_queries_config(_CONFIG_DIR / 'queries.json')
-        signals_config = load_signals_config(_CONFIG_DIR / 'signals.json')
-        recommendations_config = load_recommendations_config(_CONFIG_DIR / 'recommendations.json')
-    except Exception as e:
-        logger.error(f'Failed to load review config files: {e}')
-        raise
-
-    query_count = len(queries_config)
-    signal_count = sum(len(s['Signals']) for s in signals_config.values())
-    recommendation_count = len(recommendations_config)
-    logger.info(
-        f'Review config loaded: {query_count} queries, {signal_count} signals, {recommendation_count} recommendations'
-    )
-
-    yield ReviewAppContext(
-        queries_config=queries_config,
-        signals_config=signals_config,
-        recommendations_config=recommendations_config,
-    )
-
-
 mcp = FastMCP(
     'awslabs.redshift-mcp-server',
-    lifespan=server_lifespan,
     instructions=f"""
 # Amazon Redshift MCP Server.
 
@@ -701,21 +650,16 @@ async def review_cluster_tool(
 ) -> ReviewResult:
     """Run a diagnostic review of a Redshift cluster.
 
-    Evaluates up to 55 signals across 13 diagnostic queries,
-    returning findings with counts and actionable
-    recommendations ordered by effort.
+    Evaluates signals across diagnostic queries, returning findings
+    with counts and actionable recommendations. Each recommendation
+    includes documentation links — always include these links when
+    presenting results to the user.
     """
-    # Get config from lifespan context
-    app_ctx: ReviewAppContext = ctx.request_context.lifespan_context
-
     logger.info(f'Running review on cluster {cluster_identifier}, database {database}')
 
     result = await run_review(
         cluster_identifier=cluster_identifier,
         database=database,
-        queries_config=app_ctx.queries_config,
-        signals_config=app_ctx.signals_config,
-        recommendations_config=app_ctx.recommendations_config,
         execute_fn=_execute_protected_statement,
         workgroup=workgroup,
         progress_fn=lambda current, total: ctx.report_progress(current, total),

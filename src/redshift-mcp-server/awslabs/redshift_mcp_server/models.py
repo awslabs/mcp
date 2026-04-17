@@ -16,7 +16,7 @@
 
 from datetime import datetime
 from pydantic import BaseModel, Field
-from typing import Dict, Literal, Optional
+from typing import Dict, Optional
 
 
 class RedshiftCluster(BaseModel):
@@ -159,12 +159,7 @@ class ReviewRecommendation(BaseModel):
     """A resolved recommendation with full details."""
 
     id: str = Field(..., description='Unique identifier for the recommendation')
-    text: str = Field(..., description='Short summary of the recommendation')
-    description: str = Field(..., description='Detailed description of the recommendation')
-    effort: Literal['Small', 'Medium', 'Large'] = Field(
-        ..., description='Estimated effort level to implement the recommendation'
-    )
-    documentation_links: list[str] = Field(..., description='Links to relevant documentation')
+    text: str = Field(..., description='Markdown text of the recommendation')
     triggered_by_signals: list[str] = Field(
         ..., description='Names of signals that triggered this recommendation'
     )

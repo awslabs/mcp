@@ -15,74 +15,23 @@
 """Tests for review pipeline orchestration."""
 
 import pytest
-from awslabs.redshift_mcp_server.review.config_loader import (
-    QueryEntry,
-    RecommendationEntry,
-    SectionEntry,
-)
 from awslabs.redshift_mcp_server.review.review_pipeline import run_review
+from awslabs.redshift_mcp_server.review.review_queries import (
+    RECOMMENDATIONS,
+    REVIEW_QUERIES,
+)
 from unittest.mock import AsyncMock
 
 
-# ---------------------------------------------------------------------------
-# Minimal config fixtures
-# ---------------------------------------------------------------------------
-
-QUERIES_CONFIG: dict[str, QueryEntry] = {
-    'NodeDetails': {
-        'SQL': 'SELECT node_type, storage_used_gb, storage_utilization_pct FROM stv_node_storage'
-    },
-    'WLMConfig': {'SQL': 'SELECT * FROM stv_wlm_service_class_config'},
-    'UsagePattern': {'SQL': 'SELECT * FROM usage_pattern'},
-    'TableInfo': {'SQL': 'SELECT * FROM svv_table_info'},
-    'AlterTableRecommendations': {'SQL': 'SELECT * FROM svv_alter_table_recommendations'},
-    'MaterializedView': {'SQL': 'SELECT * FROM stv_mv_info'},
-    'Top50QueriesByRunTime': {'SQL': 'SELECT * FROM top_queries'},
-    'CopyPerformance': {'SQL': 'SELECT * FROM copy_perf'},
-    'ExtQueryPerformance': {'SQL': 'SELECT * FROM ext_query_perf'},
-    'DataShareProducerObject': {'SQL': 'SELECT * FROM datashare_producer'},
-    'DataShareConsumerUsage': {'SQL': 'SELECT * FROM datashare_consumer'},
-    'ATOWorkerActions': {'SQL': 'SELECT * FROM ato_worker'},
-    'WorkloadEvaluation': {'SQL': 'SELECT * FROM workload_eval'},
-}
-
-SIGNALS_CONFIG_SIMPLE: dict[str, SectionEntry] = {
-    'NodeDetails': {
-        'Signals': [
-            {
-                'Signal': 'test signal A',
-                'Criteria': 'col > 10',
-                'Recommendation': ['REC-001'],
-            },
-        ]
-    },
-}
-
-RECOMMENDATIONS_CONFIG: dict[str, RecommendationEntry] = {
-    'REC-001': {
-        'text': 'Rec 1 text',
-        'description': 'Rec 1 desc',
-        'effort': 'Large',
-        'documentation_links': ['https://example.com/1'],
-    },
-    'REC-002': {
-        'text': 'Rec 2 text',
-        'description': 'Rec 2 desc',
-        'effort': 'Small',
-        'documentation_links': ['https://example.com/2'],
-    },
-    'REC-003': {
-        'text': 'Rec 3 text',
-        'description': 'Rec 3 desc',
-        'effort': 'Medium',
-        'documentation_links': ['https://example.com/3'],
-    },
-}
+def _make_response(rows: list[tuple[int, str]]) -> tuple[dict, str]:
+    """Build a mock Data API response with (count, rec_id) rows."""
+    records = [[{'longValue': count}, {'stringValue': rec_id}] for count, rec_id in rows]
+    return ({'Records': records}, 'query-id')
 
 
-def _make_count_response(count: int) -> tuple[dict, str]:
-    """Build a mock Data API response for a COUNT(*) query."""
-    return ({'Records': [[{'longValue': count}]]}, f'query-id-{count}')
+def _make_empty_response() -> tuple[dict, str]:
+    """Build a mock Data API response with no records."""
+    return ({'Records': []}, 'query-id')
 
 
 # ---------------------------------------------------------------------------
@@ -91,101 +40,69 @@ def _make_count_response(count: int) -> tuple[dict, str]:
 
 
 class TestServerlessExclusion:
-    """Verify WLMConfig/NodeDetails excluded when workgroup is set."""
+    """Verify provisioned-only queries excluded when workgroup is set."""
 
     @pytest.mark.asyncio
     async def test_provisioned_only_queries_excluded_with_workgroup(self):
-        """When workgroup is set, WLMConfig and NodeDetails are excluded."""
-        signals_config: dict[str, SectionEntry] = {
-            'NodeDetails': {
-                'Signals': [
-                    {
-                        'Signal': 'node signal',
-                        'Criteria': 'x > 0',
-                        'Recommendation': ['REC-001'],
-                    }
-                ]
-            },
-            'WLMConfig': {
-                'Signals': [
-                    {
-                        'Signal': 'wlm signal',
-                        'Criteria': 'y > 0',
-                        'Recommendation': ['REC-002'],
-                    }
-                ]
-            },
-            'UsagePattern': {
-                'Signals': [
-                    {
-                        'Signal': 'usage signal',
-                        'Criteria': 'z > 0',
-                        'Recommendation': ['REC-003'],
-                    }
-                ]
-            },
-        }
-
-        execute_fn = AsyncMock(side_effect=lambda *args, **kwargs: _make_count_response(0))
+        """When workgroup is set, NodeDetails and WLMConfig are excluded."""
+        execute_fn = AsyncMock(side_effect=lambda *a, **kw: _make_empty_response())
 
         result = await run_review(
             cluster_identifier='test-cluster',
             database='dev',
-            queries_config=QUERIES_CONFIG,
-            signals_config=signals_config,
-            recommendations_config=RECOMMENDATIONS_CONFIG,
             execute_fn=execute_fn,
             workgroup='my-workgroup',
         )
 
-        # NodeDetails and WLMConfig should not appear in queries_executed
         assert 'NodeDetails' not in result.queries_executed
         assert 'WLMConfig' not in result.queries_executed
 
-        # Verify no SQL referencing NodeDetails or WLMConfig was executed
-        for call in execute_fn.call_args_list:
-            sql = call.args[2]
-            assert 'WITH NodeDetails AS (' not in sql
-            assert 'WITH WLMConfig AS (' not in sql
+    @pytest.mark.asyncio
+    async def test_provisioned_queries_included_without_workgroup(self):
+        """Without workgroup, all queries including provisioned-only are executed."""
+        execute_fn = AsyncMock(side_effect=lambda *a, **kw: _make_empty_response())
+
+        result = await run_review(
+            cluster_identifier='test-cluster',
+            database='dev',
+            execute_fn=execute_fn,
+        )
+
+        assert 'NodeDetails' in result.queries_executed
+        assert 'WLMConfig' in result.queries_executed
 
 
 # ---------------------------------------------------------------------------
-# Property 3: Signal triggered if and only if count > 0
+# Signal triggering
 # ---------------------------------------------------------------------------
 
 
 class TestSignalTriggered:
-    """Property 3: Signal triggered if and only if count > 0."""
+    """Findings are created when count > 0."""
 
     @pytest.mark.asyncio
-    async def test_signal_triggered_when_count_positive(self):
-        """Signal with count > 0 appears in findings."""
-        execute_fn = AsyncMock(side_effect=lambda *args, **kwargs: _make_count_response(5))
+    async def test_finding_created_when_count_positive(self):
+        """Rows with count > 0 produce findings."""
+        execute_fn = AsyncMock(side_effect=lambda *a, **kw: _make_response([(5, 'REC_001')]))
 
         result = await run_review(
             cluster_identifier='test-cluster',
             database='dev',
-            queries_config=QUERIES_CONFIG,
-            signals_config=SIGNALS_CONFIG_SIMPLE,
-            recommendations_config=RECOMMENDATIONS_CONFIG,
             execute_fn=execute_fn,
         )
 
-        assert len(result.findings) == 1
-        assert result.findings[0].signal_name == 'test signal A'
-        assert result.findings[0].affected_row_count == 5
+        assert len(result.findings) > 0
+        rec_ids = [f.recommendation_ids[0] for f in result.findings]
+        assert 'REC_001' in rec_ids
 
     @pytest.mark.asyncio
-    async def test_signal_not_triggered_when_count_zero(self):
-        """Signal with count == 0 does not appear in findings."""
-        execute_fn = AsyncMock(side_effect=lambda *args, **kwargs: _make_count_response(0))
+    async def test_no_findings_when_all_counts_zero(self):
+        """Rows with count == 0 do not produce findings."""
+        execute_fn = AsyncMock(side_effect=lambda *a, **kw: _make_response([(0, 'REC_001')]))
 
         result = await run_review(
             cluster_identifier='test-cluster',
             database='dev',
-            queries_config=QUERIES_CONFIG,
-            signals_config=SIGNALS_CONFIG_SIMPLE,
-            recommendations_config=RECOMMENDATIONS_CONFIG,
             execute_fn=execute_fn,
         )
 
@@ -193,233 +110,78 @@ class TestSignalTriggered:
 
 
 # ---------------------------------------------------------------------------
-# Error propagation — failed signal raises to caller
+# Error propagation
 # ---------------------------------------------------------------------------
 
 
 class TestErrorPropagation:
-    """Errors during signal evaluation propagate to the caller."""
+    """Errors during query execution propagate to the caller."""
 
     @pytest.mark.asyncio
-    async def test_failed_signal_raises(self):
-        """A failing signal propagates the exception to the caller."""
-        signals_config: dict[str, SectionEntry] = {
-            'NodeDetails': {
-                'Signals': [
-                    {
-                        'Signal': 'failing signal',
-                        'Criteria': 'bad_col > 0',
-                        'Recommendation': ['REC-001'],
-                    },
-                ]
-            },
-        }
+    async def test_failed_query_raises(self):
+        """A failing query propagates the exception."""
+        execute_fn = AsyncMock(side_effect=RuntimeError('Data API timeout'))
 
-        async def mock_execute(*args, **kwargs):
-            raise RuntimeError('Simulated query failure')
-
-        with pytest.raises(RuntimeError, match='Simulated query failure'):
+        with pytest.raises(RuntimeError, match='Data API timeout'):
             await run_review(
                 cluster_identifier='test-cluster',
                 database='dev',
-                queries_config=QUERIES_CONFIG,
-                signals_config=signals_config,
-                recommendations_config=RECOMMENDATIONS_CONFIG,
-                execute_fn=mock_execute,
+                execute_fn=execute_fn,
             )
 
 
 # ---------------------------------------------------------------------------
-# Property 6: Recommendation ordering by effort
-# ---------------------------------------------------------------------------
-
-
-class TestRecommendationOrdering:
-    """Property 6: Recommendations ordered by effort."""
-
-    @pytest.mark.asyncio
-    async def test_recommendations_ordered_small_medium_large(self):
-        """Recommendations are ordered Small → Medium → Large."""
-        signals_config: dict[str, SectionEntry] = {
-            'NodeDetails': {
-                'Signals': [
-                    {
-                        'Signal': 'sig-large',
-                        'Criteria': 'a > 0',
-                        'Recommendation': ['REC-001'],  # Large
-                    },
-                    {
-                        'Signal': 'sig-small',
-                        'Criteria': 'b > 0',
-                        'Recommendation': ['REC-002'],  # Small
-                    },
-                    {
-                        'Signal': 'sig-medium',
-                        'Criteria': 'c > 0',
-                        'Recommendation': ['REC-003'],  # Medium
-                    },
-                ]
-            },
-        }
-
-        call_count = 0
-
-        async def mock_execute(*args, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            return _make_count_response(1)
-
-        result = await run_review(
-            cluster_identifier='test-cluster',
-            database='dev',
-            queries_config=QUERIES_CONFIG,
-            signals_config=signals_config,
-            recommendations_config=RECOMMENDATIONS_CONFIG,
-            execute_fn=mock_execute,
-        )
-
-        efforts = [r.effort for r in result.recommendations]
-        assert efforts == ['Small', 'Medium', 'Large']
-
-
-# ---------------------------------------------------------------------------
-# Property 8: Recommendation deduplication with first-occurrence order
+# Recommendation deduplication
 # ---------------------------------------------------------------------------
 
 
 class TestRecommendationDeduplication:
-    """Property 8: Deduplication with first-occurrence order."""
+    """Recommendations are deduplicated across findings."""
 
     @pytest.mark.asyncio
-    async def test_duplicate_recommendations_deduplicated(self):
-        """Multiple findings referencing the same rec ID produce one recommendation."""
-        signals_config: dict[str, SectionEntry] = {
-            'NodeDetails': {
-                'Signals': [
-                    {
-                        'Signal': 'sig-1',
-                        'Criteria': 'a > 0',
-                        'Recommendation': ['REC-001', 'REC-002'],
-                    },
-                    {
-                        'Signal': 'sig-2',
-                        'Criteria': 'b > 0',
-                        'Recommendation': ['REC-002', 'REC-003'],
-                    },
-                ]
-            },
-        }
-
-        execute_fn = AsyncMock(side_effect=lambda *args, **kwargs: _make_count_response(1))
+    async def test_duplicate_rec_ids_deduplicated(self):
+        """Same rec ID from multiple queries produces one recommendation."""
+        execute_fn = AsyncMock(
+            side_effect=lambda *a, **kw: _make_response([(3, 'REC_003'), (2, 'REC_003')])
+        )
 
         result = await run_review(
             cluster_identifier='test-cluster',
             database='dev',
-            queries_config=QUERIES_CONFIG,
-            signals_config=signals_config,
-            recommendations_config=RECOMMENDATIONS_CONFIG,
             execute_fn=execute_fn,
         )
 
         rec_ids = [r.id for r in result.recommendations]
-        # Each rec ID appears exactly once
-        assert len(rec_ids) == len(set(rec_ids))
-        assert len(rec_ids) == 3
+        assert rec_ids.count('REC_003') == 1
+
+
+# ---------------------------------------------------------------------------
+# Progress reporting
+# ---------------------------------------------------------------------------
+
+
+class TestProgressReporting:
+    """progress_fn is called for each query."""
 
     @pytest.mark.asyncio
-    async def test_first_occurrence_order_preserved(self):
-        """Within the same effort level, first-occurrence order is preserved."""
-        # Both REC-002 (Small) and a new Small rec — first-occurrence should win
-        recs_config = {
-            **RECOMMENDATIONS_CONFIG,
-            'REC-004': {
-                'text': 'Rec 4 text',
-                'description': 'Rec 4 desc',
-                'effort': 'Small',
-                'documentation_links': ['https://example.com/4'],
-            },
-        }
+    async def test_progress_fn_called(self):
+        """progress_fn receives (current, total) after each query."""
+        execute_fn = AsyncMock(side_effect=lambda *a, **kw: _make_empty_response())
+        progress_calls = []
 
-        signals_config: dict[str, SectionEntry] = {
-            'NodeDetails': {
-                'Signals': [
-                    {
-                        'Signal': 'sig-1',
-                        'Criteria': 'a > 0',
-                        'Recommendation': ['REC-004'],  # Small, seen first
-                    },
-                    {
-                        'Signal': 'sig-2',
-                        'Criteria': 'b > 0',
-                        'Recommendation': ['REC-002'],  # Small, seen second
-                    },
-                ]
-            },
-        }
-
-        execute_fn = AsyncMock(side_effect=lambda *args, **kwargs: _make_count_response(1))
+        async def mock_progress(current, total):
+            progress_calls.append((current, total))
 
         result = await run_review(
             cluster_identifier='test-cluster',
             database='dev',
-            queries_config=QUERIES_CONFIG,
-            signals_config=signals_config,
-            recommendations_config=recs_config,
             execute_fn=execute_fn,
+            progress_fn=mock_progress,
         )
 
-        small_recs = [r for r in result.recommendations if r.effort == 'Small']
-        assert len(small_recs) == 2
-        # REC-004 was encountered first, so it should come before REC-002
-        assert small_recs[0].id == 'REC-004'
-        assert small_recs[1].id == 'REC-002'
-
-
-# ---------------------------------------------------------------------------
-# Property 9: Recommendation triggered_by aggregation
-# ---------------------------------------------------------------------------
-
-
-class TestRecommendationTriggeredBy:
-    """Property 9: triggered_by_signals aggregation."""
-
-    @pytest.mark.asyncio
-    async def test_triggered_by_aggregates_across_findings(self):
-        """A recommendation triggered by multiple signals lists all of them."""
-        signals_config: dict[str, SectionEntry] = {
-            'NodeDetails': {
-                'Signals': [
-                    {
-                        'Signal': 'signal-alpha',
-                        'Criteria': 'a > 0',
-                        'Recommendation': ['REC-001'],
-                    },
-                    {
-                        'Signal': 'signal-beta',
-                        'Criteria': 'b > 0',
-                        'Recommendation': ['REC-001'],
-                    },
-                ]
-            },
-        }
-
-        execute_fn = AsyncMock(side_effect=lambda *args, **kwargs: _make_count_response(2))
-
-        result = await run_review(
-            cluster_identifier='test-cluster',
-            database='dev',
-            queries_config=QUERIES_CONFIG,
-            signals_config=signals_config,
-            recommendations_config=RECOMMENDATIONS_CONFIG,
-            execute_fn=execute_fn,
-        )
-
-        assert len(result.recommendations) == 1
-        rec = result.recommendations[0]
-        assert rec.id == 'REC-001'
-        assert 'signal-alpha' in rec.triggered_by_signals
-        assert 'signal-beta' in rec.triggered_by_signals
-        assert len(rec.triggered_by_signals) == 2
+        total = result.signals_evaluated
+        assert len(progress_calls) == total
+        assert progress_calls[-1] == (total, total)
 
 
 # ---------------------------------------------------------------------------
@@ -432,179 +194,72 @@ class TestFullPipeline:
 
     @pytest.mark.asyncio
     async def test_full_pipeline_returns_complete_review_result(self):
-        """Full pipeline with multiple signals produces a complete ReviewResult."""
-        signals_config: dict[str, SectionEntry] = {
-            'NodeDetails': {
-                'Signals': [
-                    {
-                        'Signal': 'high storage utilization',
-                        'Criteria': 'storage_utilization_pct > 80',
-                        'Recommendation': ['REC-001'],
-                    },
-                ]
-            },
-            'TableInfo': {
-                'Signals': [
-                    {
-                        'Signal': 'unsorted tables',
-                        'Criteria': 'unsorted > 50',
-                        'Recommendation': ['REC-002'],
-                    },
-                    {
-                        'Signal': 'no compression',
-                        'Criteria': 'encoded = false',
-                        'Recommendation': ['REC-003'],
-                    },
-                ]
-            },
-        }
-
-        call_count = 0
-
-        async def mock_execute(cluster_id, database, sql, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            # Call 1: NodeDetails signal — triggered (count=3)
-            if call_count == 1:
-                return _make_count_response(3)
-            # Call 2: TableInfo signal 1 — triggered (count=10)
-            if call_count == 2:
-                return _make_count_response(10)
-            # Call 3: TableInfo signal 2 — not triggered (count=0)
-            return _make_count_response(0)
+        """Full pipeline produces a complete ReviewResult."""
+        execute_fn = AsyncMock(
+            side_effect=lambda *a, **kw: _make_response([(1, 'REC_007'), (0, 'REC_008')])
+        )
 
         result = await run_review(
             cluster_identifier='test-cluster',
             database='dev',
-            queries_config=QUERIES_CONFIG,
-            signals_config=signals_config,
-            recommendations_config=RECOMMENDATIONS_CONFIG,
-            execute_fn=mock_execute,
+            execute_fn=execute_fn,
         )
 
-        # 3 signals evaluated
-        assert result.signals_evaluated == 3
-
-        # 2 findings (third signal had count=0)
-        assert len(result.findings) == 2
-        finding_names = [f.signal_name for f in result.findings]
-        assert 'high storage utilization' in finding_names
-        assert 'unsorted tables' in finding_names
-
-        # Recommendations ordered by effort: Small (REC-002) → Large (REC-001)
-        assert len(result.recommendations) == 2
-        assert result.recommendations[0].effort == 'Small'
-        assert result.recommendations[1].effort == 'Large'
-
-        # Queries executed
-        assert 'NodeDetails' in result.queries_executed
-        assert 'TableInfo' in result.queries_executed
+        assert result.signals_evaluated > 0
+        assert len(result.queries_executed) > 0
+        # REC_007 triggered, REC_008 not
+        rec_ids = [r.id for r in result.recommendations]
+        assert 'REC_007' in rec_ids
+        assert 'REC_008' not in rec_ids
 
     @pytest.mark.asyncio
-    async def test_progress_fn_called_for_each_signal(self):
-        """progress_fn is called with (current, total) after each signal."""
-        signals_config: dict[str, SectionEntry] = {
-            'NodeDetails': {
-                'Signals': [
-                    {'Signal': 'sig1', 'Criteria': 'x > 0', 'Recommendation': []},
-                    {'Signal': 'sig2', 'Criteria': 'y > 0', 'Recommendation': []},
-                ]
-            },
-        }
-
-        async def mock_execute(cluster_id, database, sql, **kwargs):
-            return _make_count_response(0)
-
-        progress_calls = []
-
-        async def mock_progress(current, total):
-            progress_calls.append((current, total))
+    async def test_empty_records_returns_no_findings(self):
+        """Empty Records in response produces no findings."""
+        execute_fn = AsyncMock(side_effect=lambda *a, **kw: _make_empty_response())
 
         result = await run_review(
             cluster_identifier='test-cluster',
             database='dev',
-            queries_config=QUERIES_CONFIG,
-            signals_config=signals_config,
-            recommendations_config=RECOMMENDATIONS_CONFIG,
-            execute_fn=mock_execute,
-            progress_fn=mock_progress,
+            execute_fn=execute_fn,
         )
 
-        assert result.signals_evaluated == 2
-        assert progress_calls == [(1, 2), (2, 2)]
-
-    @pytest.mark.asyncio
-    async def test_skips_query_with_no_sql(self):
-        """Queries with empty SQL are skipped."""
-        signals_config: dict[str, SectionEntry] = {
-            'NodeDetails': {
-                'Signals': [
-                    {'Signal': 'sig1', 'Criteria': 'x > 0', 'Recommendation': []},
-                ]
-            },
-        }
-        queries_with_empty_sql: dict[str, QueryEntry] = {
-            'NodeDetails': {'SQL': ''},
-        }
-
-        async def mock_execute(cluster_id, database, sql, **kwargs):
-            return _make_count_response(0)
-
-        result = await run_review(
-            cluster_identifier='test-cluster',
-            database='dev',
-            queries_config=queries_with_empty_sql,
-            signals_config=signals_config,
-            recommendations_config=RECOMMENDATIONS_CONFIG,
-            execute_fn=mock_execute,
-        )
-        assert result.signals_evaluated == 0
-
-    @pytest.mark.asyncio
-    async def test_empty_records_returns_count_zero(self):
-        """Empty Records in response treated as count=0."""
-        signals_config: dict[str, SectionEntry] = {
-            'NodeDetails': {
-                'Signals': [
-                    {'Signal': 'sig1', 'Criteria': 'x > 0', 'Recommendation': []},
-                ]
-            },
-        }
-
-        async def mock_execute(cluster_id, database, sql, **kwargs):
-            return ({'Records': []}, 'qid')
-
-        result = await run_review(
-            cluster_identifier='test-cluster',
-            database='dev',
-            queries_config=QUERIES_CONFIG,
-            signals_config=signals_config,
-            recommendations_config=RECOMMENDATIONS_CONFIG,
-            execute_fn=mock_execute,
-        )
-        assert result.signals_evaluated == 1
         assert len(result.findings) == 0
+        assert len(result.recommendations) == 0
 
     @pytest.mark.asyncio
     async def test_missing_recommendation_id_skipped(self):
-        """Recommendation IDs not in config are silently skipped."""
-        signals_config: dict[str, SectionEntry] = {
-            'NodeDetails': {
-                'Signals': [
-                    {'Signal': 'sig1', 'Criteria': 'x > 0', 'Recommendation': ['NONEXISTENT']},
-                ]
-            },
-        }
-
-        execute_fn = AsyncMock(side_effect=lambda *args, **kwargs: _make_count_response(5))
+        """Recommendation IDs not in RECOMMENDATIONS are silently skipped."""
+        execute_fn = AsyncMock(side_effect=lambda *a, **kw: _make_response([(5, 'NONEXISTENT')]))
 
         result = await run_review(
             cluster_identifier='test-cluster',
             database='dev',
-            queries_config=QUERIES_CONFIG,
-            signals_config=signals_config,
-            recommendations_config=RECOMMENDATIONS_CONFIG,
             execute_fn=execute_fn,
         )
-        assert len(result.findings) == 1
+
+        assert len(result.findings) > 0
         assert len(result.recommendations) == 0
+
+
+# ---------------------------------------------------------------------------
+# Review queries constants validation
+# ---------------------------------------------------------------------------
+
+
+class TestReviewQueriesConstants:
+    """Validate the REVIEW_QUERIES and RECOMMENDATIONS constants."""
+
+    def test_all_queries_have_sql(self):
+        """Every entry in REVIEW_QUERIES has non-empty SQL."""
+        for name, sql, _ in REVIEW_QUERIES:
+            assert sql.strip(), f'{name} has empty SQL'
+
+    def test_recommendations_not_empty(self):
+        """RECOMMENDATIONS dict is not empty."""
+        assert len(RECOMMENDATIONS) > 0
+
+    def test_provisioned_only_flags(self):
+        """NodeDetails and WLMConfig are marked provisioned-only."""
+        provisioned = {name for name, _, flag in REVIEW_QUERIES if flag}
+        assert 'NodeDetails' in provisioned
+        assert 'WLMConfig' in provisioned
