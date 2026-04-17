@@ -10,6 +10,8 @@ Integrating the DataProcessing MCP server into AI code assistants transforms dat
 ### AWS Glue Integration
 
 * Data Catalog Management: Enables users to explore, create, and manage databases, tables, and partitions through natural language requests, automatically translating them into appropriate AWS Glue Data Catalog operations.
+* Connection Type Discovery: Discover and describe available AWS Glue connection types, including their supported properties, authentication methods, and compute environments.
+* Connection Metadata & Entity Exploration: Explore entities available through Glue connections (e.g., SaaS objects, database tables), describe entity schemas, and preview entity data records from connected data sources.
 * Interactive Sessions: Provides interactive development environment for Spark and Ray workloads, enabling data exploration, debugging, and iterative development through managed Jupyter-like sessions.
 * Workflows and Triggers: Orchestrates complex ETL activities through visual workflows and automated triggers, supporting scheduled, conditional, and event-based execution patterns.
 * Commons: Enables users to create and manage usage profiles, security configurations, catalog encryption settings and resource policies, which provide users with the ability to manage the configuration and encryption of several Glue resources like ETL jobs, catalogs, etc.
@@ -57,6 +59,11 @@ For read operations, the following permissions are required:
         "glue:GetPartition*",
         "glue:GetCrawler*",
         "glue:GetConnection*",
+        "glue:DescribeConnectionType",
+        "glue:ListConnectionTypes",
+        "glue:ListEntities",
+        "glue:DescribeEntity",
+        "glue:GetEntityRecords",
         "glue:GetDatabases",
         "glue:GetTables",
         "glue:ListCrawlers",
@@ -337,9 +344,11 @@ Controls whether the MCP server adds and verifies MCP-managed tags on resources.
 |-----------|-------------|----------------|--------------|
 | manage_aws_glue_databases | Manage AWS Glue Data Catalog databases | create-database, delete-database, get-database, list-databases, update-database | --allow-write flag for create/delete/update operations, appropriate AWS permissions |
 | manage_aws_glue_tables | Manage AWS Glue Data Catalog tables | create-table, delete-table, get-table, list-tables, update-table, search-tables | --allow-write flag for create/delete/update operations, database must exist, appropriate AWS permissions |
-| manage_aws_glue_connections | Manage AWS Glue Data Catalog connections | create-connection, delete-connection, get-connection, list-connections, update-connection | --allow-write flag for create/delete/update operations, appropriate AWS permissions |
+| manage_aws_glue_connections | Manage AWS Glue Data Catalog connections | create-connection, delete-connection, get-connection, list-connections, update-connection, test-connection, batch-delete-connection | --allow-write flag for create/delete/update/test/batch-delete operations, appropriate AWS permissions |
 | manage_aws_glue_partitions | Manage AWS Glue Data Catalog partitions | create-partition, delete-partition, get-partition, list-partitions, update-partition | --allow-write flag for create/delete/update operations, database and table must exist, appropriate AWS permissions |
 | manage_aws_glue_catalog | Manage AWS Glue Data Catalog | create-catalog, delete-catalog, get-catalog, list-catalogs, import-catalog-to-glue | --allow-write flag for create/delete/import operations, appropriate AWS permissions |
+| manage_aws_glue_connection_types | Discover and describe AWS Glue connection types | describe-connection-type, list-connection-types | Appropriate AWS permissions (read-only operations) |
+| manage_aws_glue_connection_metadata | Access connection metadata and preview entity data from Glue connections | list-entities, describe-entity, get-entity-records | --allow-sensitive-data-access flag for get-entity-records, valid connection with credentials, appropriate AWS permissions |
 
 ### Glue Interactive Sessions Handler Tools
 
@@ -447,4 +456,4 @@ Controls whether the MCP server adds and verifies MCP-managed tags on resources.
 
 ## Version
 
-Current MCP server version: 0.1.0
+Current MCP server version: 0.1.28
