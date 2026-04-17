@@ -170,67 +170,6 @@
     },
     {
       "category": "Infrastructure & Deployment",
-      "description": "Direct CloudFormation resource management via Cloud Control API",
-      "icon": "\ud83c\udfd7\ufe0f",
-      "id": "cfn-mcp-server",
-      "name": "AWS CloudFormation MCP Server",
-      "source_path": "src/cfn-mcp-server/",
-      "subcategory": "Infrastructure as Code",
-      "tags": [
-        "infrastructure-as-code",
-        "cloudformation",
-        "cloud-control-api",
-        "resource-management",
-        "vibe-coding",
-        "infrastructure-deployment"
-      ],
-      "workflows": [
-        "vibe-coding"
-      ]
-    },
-    {
-      "category": "Infrastructure & Deployment",
-      "description": "AWS CDK development with security compliance",
-      "icon": "\ud83c\udfd7\ufe0f",
-      "id": "cdk-mcp-server",
-      "name": "AWS CDK MCP Server",
-      "source_path": "src/cdk-mcp-server/",
-      "subcategory": "Infrastructure as Code",
-      "tags": [
-        "infrastructure-as-code",
-        "cdk",
-        "security",
-        "compliance",
-        "best-practices",
-        "vibe-coding",
-        "infrastructure-deployment"
-      ],
-      "workflows": [
-        "vibe-coding"
-      ]
-    },
-    {
-      "category": "Infrastructure & Deployment",
-      "description": "Terraform workflows with integrated security scanning",
-      "icon": "\ud83c\udfd7\ufe0f",
-      "id": "terraform-mcp-server",
-      "name": "AWS Terraform MCP Server",
-      "source_path": "src/terraform-mcp-server/",
-      "subcategory": "Infrastructure as Code",
-      "tags": [
-        "infrastructure-as-code",
-        "terraform",
-        "security-scanning",
-        "workflows",
-        "vibe-coding",
-        "infrastructure-deployment"
-      ],
-      "workflows": [
-        "vibe-coding"
-      ]
-    },
-    {
-      "category": "Infrastructure & Deployment",
       "description": "Kubernetes cluster management and application deployment",
       "icon": "\ud83c\udfd7\ufe0f",
       "id": "eks-mcp-server",
@@ -449,48 +388,6 @@
         "pdf-parsing",
         "office-documents",
         "image-analysis",
-        "conversational",
-        "content-processing"
-      ],
-      "workflows": [
-        "conversational"
-      ]
-    },
-    {
-      "category": "AI & Machine Learning",
-      "description": "AI image generation with text and color guidance",
-      "icon": "\ud83e\udd16",
-      "id": "nova-canvas-mcp-server",
-      "name": "Amazon Nova Canvas MCP Server",
-      "source_path": "src/nova-canvas-mcp-server/",
-      "subcategory": "Content Processing & Generation",
-      "tags": [
-        "ai-ml",
-        "image-generation",
-        "nova-canvas",
-        "text-guidance",
-        "color-guidance",
-        "conversational",
-        "content-generation"
-      ],
-      "workflows": [
-        "conversational"
-      ]
-    },
-    {
-      "category": "AI & Machine Learning",
-      "description": "Analyze documents, images, videos, and audio files",
-      "icon": "\ud83e\udd16",
-      "id": "aws-bedrock-data-automation-mcp-server",
-      "name": "Amazon Bedrock Data Automation MCP Server",
-      "source_path": "src/aws-bedrock-data-automation-mcp-server/",
-      "subcategory": "Content Processing & Generation",
-      "tags": [
-        "ai-ml",
-        "bedrock",
-        "data-automation",
-        "document-analysis",
-        "media-analysis",
         "conversational",
         "content-processing"
       ],
@@ -838,89 +735,6 @@
       ]
     },
     {
-      "category": "Developer Tools & Support",
-      "description": "Semantic code search and repository analysis",
-      "icon": "\ud83d\udee0\ufe0f",
-      "id": "git-repo-research-mcp-server",
-      "name": "Git Repo Research MCP Server",
-      "source_path": "src/git-repo-research-mcp-server/",
-      "subcategory": "Code Analysis",
-      "tags": [
-        "developer-tools",
-        "git",
-        "repository-analysis",
-        "semantic-search",
-        "code-analysis",
-        "vibe-coding",
-        "core-development"
-      ],
-      "workflows": [
-        "vibe-coding"
-      ]
-    },
-    {
-      "category": "Developer Tools & Support",
-      "description": "Automated documentation from code analysis",
-      "icon": "\ud83d\udee0\ufe0f",
-      "id": "code-doc-gen-mcp-server",
-      "name": "Code Documentation Generation MCP Server",
-      "source_path": "src/code-doc-gen-mcp-server/",
-      "subcategory": "Documentation",
-      "tags": [
-        "developer-tools",
-        "documentation",
-        "code-analysis",
-        "automation",
-        "vibe-coding",
-        "application-development"
-      ],
-      "workflows": [
-        "vibe-coding"
-      ]
-    },
-    {
-      "category": "Developer Tools & Support",
-      "description": "React and modern web development guidance",
-      "icon": "\ud83d\udee0\ufe0f",
-      "id": "frontend-mcp-server",
-      "name": "Frontend MCP Server",
-      "source_path": "src/frontend-mcp-server/",
-      "subcategory": "Web Development",
-      "tags": [
-        "developer-tools",
-        "frontend",
-        "react",
-        "web-development",
-        "modern-development",
-        "vibe-coding",
-        "application-development"
-      ],
-      "workflows": [
-        "vibe-coding"
-      ]
-    },
-    {
-      "category": "Developer Tools & Support",
-      "description": "Generate realistic test data for development and ML",
-      "icon": "\ud83d\udee0\ufe0f",
-      "id": "syntheticdata-mcp-server",
-      "name": "Synthetic Data MCP Server",
-      "source_path": "src/syntheticdata-mcp-server/",
-      "subcategory": "Testing & Data",
-      "tags": [
-        "developer-tools",
-        "synthetic-data",
-        "test-data",
-        "machine-learning",
-        "development",
-        "vibe-coding",
-        "testing-data"
-      ],
-      "workflows": [
-        "vibe-coding"
-      ]
-    },
-    {
       "category": "Integration & Messaging",
       "description": "Dynamic API integration through OpenAPI specifications",
       "icon": "\ud83d\udce1",
@@ -1075,28 +889,6 @@
     },
     {
       "category": "Cost & Operations",
-      "description": "Detailed cost analysis and reporting",
-      "icon": "\ud83d\udcb0",
-      "id": "cost-explorer-mcp-server",
-      "name": "AWS Cost Explorer MCP Server",
-      "source_path": "src/cost-explorer-mcp-server/",
-      "subcategory": "Cost Analysis",
-      "tags": [
-        "cost-operations",
-        "cost-explorer",
-        "detailed-analysis",
-        "reporting",
-        "autonomous",
-        "conversational",
-        "operations-monitoring"
-      ],
-      "workflows": [
-        "autonomous",
-        "conversational"
-      ]
-    },
-    {
-      "category": "Cost & Operations",
       "description": "Prometheus-compatible operations",
       "icon": "\ud83d\udcb0",
       "id": "prometheus-mcp-server",
@@ -1114,26 +906,6 @@
       ],
       "workflows": [
         "autonomous"
-      ]
-    },
-    {
-      "category": "Core",
-      "description": "Intelligent planning and orchestration of MCP servers for AWS.",
-      "icon": "\u26a1",
-      "id": "core-mcp-server",
-      "name": "Core MCP Server",
-      "source_path": "src/core-mcp-server/",
-      "subcategory": "Orchestration",
-      "tags": [
-        "core",
-        "orchestration",
-        "planning",
-        "intelligent",
-        "vibe-coding",
-        "core-development"
-      ],
-      "workflows": [
-        "vibe-coding"
       ]
     },
     {
@@ -1305,30 +1077,6 @@
         "vibe-coding"
       ],
       "workflows": [
-        "vibe-coding"
-      ]
-    },
-    {
-      "category": "Developer Tools & Support",
-      "description": "Manage, monitor, and optimize Amazon MSK clusters with best practices",
-      "icon": "\ud83d\udee0\ufe0f",
-      "id": "aws-msk-mcp-server",
-      "name": "AWS MSK MCP Server",
-      "source_path": "src/aws-msk-mcp-server/",
-      "subcategory": "Messaging & Streaming",
-      "tags": [
-        "developer-tools",
-        "msk",
-        "kafka",
-        "streaming",
-        "messaging",
-        "cluster-management",
-        "monitoring",
-        "autonomous",
-        "vibe-coding"
-      ],
-      "workflows": [
-        "autonomous",
         "vibe-coding"
       ]
     },
