@@ -549,7 +549,6 @@ class TestRunReviewTool:
                 node_count=2,
                 region='us-east-1',
             ),
-            concern='full',
             signals_evaluated=55,
             findings=findings or [],
             recommendations=[
@@ -607,7 +606,6 @@ class TestRunReviewTool:
             ctx=mock_ctx,
             cluster_identifier='test-cluster',
             database='dev',
-            concern='full',
             workgroup=None,
         )
 
@@ -625,7 +623,6 @@ class TestRunReviewTool:
         call_kwargs = mock_pipeline.call_args.kwargs
         assert call_kwargs['cluster_identifier'] == 'test-cluster'
         assert call_kwargs['database'] == 'dev'
-        assert call_kwargs['concern'] == 'full'
         assert call_kwargs['workgroup'] is None
 
     @pytest.mark.asyncio
@@ -643,7 +640,6 @@ class TestRunReviewTool:
             ctx=mock_ctx,
             cluster_identifier='test-cluster',
             database='dev',
-            concern='full',
             workgroup=None,
         )
 
@@ -667,21 +663,6 @@ class TestRunReviewTool:
                 ctx=mock_ctx,
                 cluster_identifier='test-cluster',
                 database='dev',
-                concern='full',
-                workgroup=None,
-            )
-
-    @pytest.mark.asyncio
-    async def test_run_review_invalid_concern(self, mocker):
-        """Test run_review rejects invalid concern categories."""
-        mock_ctx = self._make_mock_ctx(mocker)
-
-        with pytest.raises(ValueError, match="Invalid concern category: 'invalid'"):
-            await run_review_tool(
-                ctx=mock_ctx,
-                cluster_identifier='test-cluster',
-                database='dev',
-                concern='invalid',
                 workgroup=None,
             )
 
@@ -700,14 +681,12 @@ class TestRunReviewTool:
             ctx=mock_ctx,
             cluster_identifier='my-cluster',
             database='analytics',
-            concern='performance',
             workgroup='my-workgroup',
         )
 
         call_kwargs = mock_pipeline.call_args.kwargs
         assert call_kwargs['cluster_identifier'] == 'my-cluster'
         assert call_kwargs['database'] == 'analytics'
-        assert call_kwargs['concern'] == 'performance'
         assert call_kwargs['workgroup'] == 'my-workgroup'
 
     @pytest.mark.asyncio
@@ -732,7 +711,6 @@ class TestRunReviewTool:
             ctx=mock_ctx,
             cluster_identifier='test-cluster',
             database='dev',
-            concern='full',
             workgroup=None,
         )
 

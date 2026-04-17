@@ -22,7 +22,6 @@ from awslabs.redshift_mcp_server.consts import (
     REDSHIFT_BEST_PRACTICES,
 )
 from awslabs.redshift_mcp_server.models import (
-    ConcernCategory,
     QueryResult,
     RedshiftCluster,
     RedshiftColumn,
@@ -695,10 +694,6 @@ async def run_review_tool(
         ...,
         description='The database name to run the review against. Must be a valid database name from the list_databases tool.',
     ),
-    concern: str = Field(
-        'full',
-        description="The concern category to focus the review on. One of: 'performance', 'cost', 'storage', 'scaling', 'full'. Defaults to 'full'.",
-    ),
     workgroup: str | None = Field(
         None,
         description='The serverless workgroup name. When provided, provisioned-only queries (WLMConfig, NodeDetails) are excluded.',
@@ -710,24 +705,14 @@ async def run_review_tool(
     returning findings with counts and actionable
     recommendations ordered by effort.
     """
-    # Validate concern category
-    valid_concerns: list[ConcernCategory] = ['performance', 'cost', 'storage', 'scaling', 'full']
-    if concern not in valid_concerns:
-        raise ValueError(
-            f"Invalid concern category: '{concern}'. Must be one of: {valid_concerns}"
-        )
-
     # Get config from lifespan context
     app_ctx: ReviewAppContext = ctx.request_context.lifespan_context
 
-    logger.info(
-        f'Running review on cluster {cluster_identifier}, database {database}, concern={concern}'
-    )
+    logger.info(f'Running review on cluster {cluster_identifier}, database {database}')
 
     result = await run_review(
         cluster_identifier=cluster_identifier,
         database=database,
-        concern=concern,
         queries_config=app_ctx.queries_config,
         signals_config=app_ctx.signals_config,
         recommendations_config=app_ctx.recommendations_config,

@@ -15,7 +15,6 @@
 """Tests for review pipeline orchestration."""
 
 import pytest
-from awslabs.redshift_mcp_server.models import CONCERN_QUERY_MAP, ConcernCategory
 from awslabs.redshift_mcp_server.review.config_loader import (
     QueryEntry,
     RecommendationEntry,
@@ -103,65 +102,6 @@ def _make_node_details_response() -> tuple[dict, str]:
 
 
 # ---------------------------------------------------------------------------
-# Property 4: Concern category scopes query execution
-# ---------------------------------------------------------------------------
-
-
-class TestConcernFiltering:
-    """Property 4: Concern category scopes query execution."""
-
-    @pytest.mark.parametrize('concern', list(CONCERN_QUERY_MAP.keys()))
-    @pytest.mark.asyncio
-    async def test_only_mapped_queries_executed(self, concern: ConcernCategory):
-        """For each concern, only the queries in CONCERN_QUERY_MAP are used."""
-        expected_queries = set(CONCERN_QUERY_MAP[concern])
-
-        # Build a signals config with one signal per query so we can track execution
-        signals_config: dict[str, SectionEntry] = {}
-        for qname in expected_queries:
-            signals_config[qname] = {
-                'Signals': [
-                    {
-                        'Signal': f'sig-{qname}',
-                        'Criteria': 'x > 0',
-                        'Recommendation': ['REC-001'],
-                    }
-                ]
-            }
-
-        execute_fn = AsyncMock(side_effect=lambda *args, **kwargs: _make_count_response(0))
-
-        result = await run_review(
-            cluster_identifier='test-cluster',
-            database='dev',
-            concern=concern,
-            queries_config=QUERIES_CONFIG,
-            signals_config=signals_config,
-            recommendations_config=RECOMMENDATIONS_CONFIG,
-            execute_fn=execute_fn,
-        )
-
-        # Collect the SQL strings passed to execute_fn
-        executed_sqls = [call.args[2] for call in execute_fn.call_args_list]
-
-        # The metadata extraction call uses the NodeDetails base SQL directly
-        # Signal calls use CTE-wrapped SQL. Verify only expected query names appear.
-        for sql in executed_sqls:
-            # Each CTE SQL starts with "WITH <query_name> AS ("
-            # or is the raw NodeDetails base SQL for metadata
-            found_any = False
-            for qname in expected_queries:
-                if f'WITH {qname} AS (' in sql or sql == QUERIES_CONFIG.get(qname, {}).get('SQL'):
-                    found_any = True
-                    break
-            assert found_any, f'Unexpected SQL executed: {sql[:80]}...'
-
-        # Verify queries_executed only contains expected queries
-        for qname in result.queries_executed:
-            assert qname in expected_queries
-
-
-# ---------------------------------------------------------------------------
 # Serverless exclusion
 # ---------------------------------------------------------------------------
 
@@ -207,7 +147,6 @@ class TestServerlessExclusion:
         result = await run_review(
             cluster_identifier='test-cluster',
             database='dev',
-            concern='full',
             queries_config=QUERIES_CONFIG,
             signals_config=signals_config,
             recommendations_config=RECOMMENDATIONS_CONFIG,
@@ -255,7 +194,6 @@ class TestSignalTriggered:
         result = await run_review(
             cluster_identifier='test-cluster',
             database='dev',
-            concern='storage',
             queries_config=QUERIES_CONFIG,
             signals_config=SIGNALS_CONFIG_SIMPLE,
             recommendations_config=RECOMMENDATIONS_CONFIG,
@@ -281,7 +219,6 @@ class TestSignalTriggered:
         result = await run_review(
             cluster_identifier='test-cluster',
             database='dev',
-            concern='storage',
             queries_config=QUERIES_CONFIG,
             signals_config=SIGNALS_CONFIG_SIMPLE,
             recommendations_config=RECOMMENDATIONS_CONFIG,
@@ -336,7 +273,6 @@ class TestErrorIsolation:
         result = await run_review(
             cluster_identifier='test-cluster',
             database='dev',
-            concern='storage',
             queries_config=QUERIES_CONFIG,
             signals_config=signals_config,
             recommendations_config=RECOMMENDATIONS_CONFIG,
@@ -401,7 +337,6 @@ class TestRecommendationOrdering:
         result = await run_review(
             cluster_identifier='test-cluster',
             database='dev',
-            concern='storage',
             queries_config=QUERIES_CONFIG,
             signals_config=signals_config,
             recommendations_config=RECOMMENDATIONS_CONFIG,
@@ -452,7 +387,6 @@ class TestRecommendationDeduplication:
         result = await run_review(
             cluster_identifier='test-cluster',
             database='dev',
-            concern='storage',
             queries_config=QUERIES_CONFIG,
             signals_config=signals_config,
             recommendations_config=RECOMMENDATIONS_CONFIG,
@@ -507,7 +441,6 @@ class TestRecommendationDeduplication:
         result = await run_review(
             cluster_identifier='test-cluster',
             database='dev',
-            concern='storage',
             queries_config=QUERIES_CONFIG,
             signals_config=signals_config,
             recommendations_config=recs_config,
@@ -561,7 +494,6 @@ class TestRecommendationTriggeredBy:
         result = await run_review(
             cluster_identifier='test-cluster',
             database='dev',
-            concern='storage',
             queries_config=QUERIES_CONFIG,
             signals_config=signals_config,
             recommendations_config=RECOMMENDATIONS_CONFIG,
@@ -633,7 +565,6 @@ class TestFullPipeline:
         result = await run_review(
             cluster_identifier='test-cluster',
             database='dev',
-            concern='storage',
             queries_config=QUERIES_CONFIG,
             signals_config=signals_config,
             recommendations_config=RECOMMENDATIONS_CONFIG,
@@ -644,7 +575,6 @@ class TestFullPipeline:
         assert result.cluster_metadata.cluster_id == 'test-cluster'
         assert result.cluster_metadata.node_type == 'ra3.xlplus'
         assert result.cluster_metadata.node_count == 1
-        assert result.concern == 'storage'
 
         # 3 signals evaluated
         assert result.signals_evaluated == 3
@@ -696,7 +626,6 @@ class TestFullPipeline:
         result = await run_review(
             cluster_identifier='test-cluster',
             database='dev',
-            concern='storage',
             queries_config=QUERIES_CONFIG,
             signals_config=signals_config,
             recommendations_config=RECOMMENDATIONS_CONFIG,
@@ -727,7 +656,6 @@ class TestFullPipeline:
         result = await run_review(
             cluster_identifier='test-cluster',
             database='dev',
-            concern='storage',
             queries_config=queries_with_empty_sql,
             signals_config=signals_config,
             recommendations_config=RECOMMENDATIONS_CONFIG,
@@ -758,7 +686,6 @@ class TestFullPipeline:
         result = await run_review(
             cluster_identifier='test-cluster',
             database='dev',
-            concern='storage',
             queries_config=QUERIES_CONFIG,
             signals_config=signals_config,
             recommendations_config=RECOMMENDATIONS_CONFIG,
@@ -785,13 +712,14 @@ class TestFullPipeline:
         result = await run_review(
             cluster_identifier='test-cluster',
             database='dev',
-            concern='storage',
             queries_config=no_sql_config,
             signals_config=signals_config,
             recommendations_config=RECOMMENDATIONS_CONFIG,
             execute_fn=mock_execute,
         )
-        assert result.cluster_metadata.node_type == 'unknown'
+        # NodeDetails with empty SQL is excluded from query_names,
+        # so metadata extraction falls back to serverless defaults
+        assert result.cluster_metadata.node_type == 'serverless'
 
     @pytest.mark.asyncio
     async def test_metadata_fallback_on_execute_error(self):
@@ -816,7 +744,6 @@ class TestFullPipeline:
         result = await run_review(
             cluster_identifier='test-cluster',
             database='dev',
-            concern='storage',
             queries_config=QUERIES_CONFIG,
             signals_config=signals_config,
             recommendations_config=RECOMMENDATIONS_CONFIG,
@@ -847,7 +774,6 @@ class TestFullPipeline:
         result = await run_review(
             cluster_identifier='test-cluster',
             database='dev',
-            concern='storage',
             queries_config=QUERIES_CONFIG,
             signals_config=signals_config,
             recommendations_config=RECOMMENDATIONS_CONFIG,

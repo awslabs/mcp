@@ -143,30 +143,6 @@ class QueryResult(BaseModel):
 
 # --- Review models ---
 
-ConcernCategory = Literal['performance', 'cost', 'storage', 'scaling', 'full']
-
-CONCERN_QUERY_MAP: dict[ConcernCategory, list[str]] = {
-    'performance': ['Top50QueriesByRunTime', 'UsagePattern', 'WLMConfig', 'TableInfo'],
-    'cost': ['NodeDetails', 'WorkloadEvaluation', 'UsagePattern'],
-    'storage': ['NodeDetails', 'TableInfo', 'AlterTableRecommendations'],
-    'scaling': ['UsagePattern', 'WLMConfig', 'WorkloadEvaluation', 'NodeDetails'],
-    'full': [
-        'NodeDetails',
-        'WLMConfig',
-        'UsagePattern',
-        'TableInfo',
-        'AlterTableRecommendations',
-        'MaterializedView',
-        'Top50QueriesByRunTime',
-        'CopyPerformance',
-        'ExtQueryPerformance',
-        'DataShareProducerObject',
-        'DataShareConsumerUsage',
-        'ATOWorkerActions',
-        'WorkloadEvaluation',
-    ],
-}
-
 PROVISIONED_ONLY_QUERIES = {'WLMConfig', 'NodeDetails'}
 
 
@@ -211,7 +187,6 @@ class ReviewResult(BaseModel):
     """Complete result of a run_review tool call."""
 
     cluster_metadata: ClusterMetadata
-    concern: str
     signals_evaluated: int
     findings: list[ReviewFinding]
     recommendations: list[ReviewRecommendation]

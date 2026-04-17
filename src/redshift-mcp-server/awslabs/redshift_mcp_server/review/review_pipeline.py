@@ -15,10 +15,8 @@
 """Review pipeline orchestrating CTE-based signal evaluation."""
 
 from awslabs.redshift_mcp_server.models import (
-    CONCERN_QUERY_MAP,
     PROVISIONED_ONLY_QUERIES,
     ClusterMetadata,
-    ConcernCategory,
     QueryFailureInfo,
     ReviewFinding,
     ReviewRecommendation,
@@ -44,7 +42,6 @@ EFFORT_ORDER = {'Small': 0, 'Medium': 1, 'Large': 2}
 async def run_review(
     cluster_identifier: str,
     database: str,
-    concern: ConcernCategory,
     queries_config: Mapping[str, QueryEntry],
     signals_config: Mapping[str, SectionEntry],
     recommendations_config: Mapping[str, RecommendationEntry],
@@ -55,7 +52,7 @@ async def run_review(
     """Execute a full cluster review.
 
     Pipeline stages:
-    1. Resolve concern -> query names via CONCERN_QUERY_MAP
+    1. Gather all query names from queries_config that have signals
     2. Filter out provisioned-only queries if workgroup is set
     3. For each query, for each signal: build CTE SQL, validate, execute, extract count
     4. Build findings list (signal triggered if count > 0)
@@ -64,8 +61,10 @@ async def run_review(
     7. Aggregate triggered_by_signals per recommendation
     8. Extract cluster metadata from NodeDetails results (fallback for serverless)
     """
-    # Stage 1: Resolve concern -> query names
-    query_names = list(CONCERN_QUERY_MAP[concern])
+    # Stage 1: Gather all query names that have both SQL and signals
+    query_names = [
+        q for q in queries_config if q in signals_config and queries_config[q].get('SQL')
+    ]
 
     # Stage 2: Filter out provisioned-only queries when workgroup is set (serverless)
     if workgroup:
@@ -200,7 +199,6 @@ async def run_review(
 
     return ReviewResult(
         cluster_metadata=cluster_metadata,
-        concern=concern,
         signals_evaluated=signals_evaluated,
         findings=findings,
         recommendations=recommendations,
