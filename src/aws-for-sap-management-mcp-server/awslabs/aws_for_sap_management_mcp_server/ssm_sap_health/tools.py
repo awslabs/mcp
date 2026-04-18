@@ -15,7 +15,6 @@
 """SSM for SAP health summary and report tools for MCP server."""
 
 import asyncio
-from boto3 import Session
 from awslabs.aws_for_sap_management_mcp_server.client_factory import get_aws_client
 from awslabs.aws_for_sap_management_mcp_server.common import format_datetime
 from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.models import (
@@ -31,6 +30,7 @@ from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.models import (
     RuleResultEntry,
     SubCheckEntry,
 )
+from boto3 import Session
 from datetime import datetime, timedelta, timezone
 from loguru import logger
 from mcp.server.fastmcp import Context
