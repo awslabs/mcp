@@ -910,7 +910,7 @@
     },
     {
       "category": "Data & Analytics",
-      "description": "Comprehensive data processing tools and real-time pipeline visibility across AWS Glue and Amazon EMR-EC2",
+      "description": "Comprehensive data processing tools and real-time pipeline visibility across AWS Glue, Amazon EMR-EC2, and Amazon Athena",
       "icon": "\ud83d\udcca",
       "id": "aws-dataprocessing-mcp-server",
       "name": "Amazon Data Processing MCP Server",
@@ -920,6 +920,7 @@
         "data-analytics",
         "glue",
         "emr",
+        "athena",
         "data-processing",
         "etl",
         "pipeline",
