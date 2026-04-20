@@ -14,7 +14,16 @@
 
 """Tests for AgentCore management tools."""
 
+import pytest
 from awslabs.amazon_bedrock_agentcore_mcp_server.tools import gateway, memory
+from awslabs.amazon_bedrock_agentcore_mcp_server.tools.policy.guide import (
+    POLICY_GUIDE,
+    GuideTools,
+)
+from awslabs.amazon_bedrock_agentcore_mcp_server.tools.policy.models import (
+    PolicyGuideResponse,
+)
+from unittest.mock import MagicMock
 
 
 class TestMemoryTool:
@@ -39,3 +48,20 @@ class TestGatewayTool:
         assert 'deployment_guide' in result
         assert isinstance(result['deployment_guide'], str)
         assert len(result['deployment_guide']) > 0
+
+
+class TestPolicyTool:
+    """Test cases for the policy guide tool (sub-package entry point)."""
+
+    @pytest.mark.asyncio
+    async def test_get_policy_guide_returns_guide(self):
+        """Test that the policy guide tool returns a Pydantic guide response."""
+        tools = GuideTools()
+        result = await tools.get_policy_guide(ctx=MagicMock())
+        assert isinstance(result, PolicyGuideResponse)
+        assert len(result.guide) > 0
+
+    def test_guide_constant_is_populated(self):
+        """Test that the POLICY_GUIDE constant has substantial content."""
+        assert isinstance(POLICY_GUIDE, str)
+        assert len(POLICY_GUIDE) > 100

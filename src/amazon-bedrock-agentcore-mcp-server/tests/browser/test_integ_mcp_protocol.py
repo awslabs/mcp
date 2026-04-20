@@ -68,6 +68,29 @@ BASE_TOOLS = {
     'manage_agentcore_gateway',
 }
 
+# All 15 policy tools (sub-package)
+POLICY_TOOLS = {
+    # Policy engines (5)
+    'policy_engine_create',
+    'policy_engine_get',
+    'policy_engine_update',
+    'policy_engine_delete',
+    'policy_engine_list',
+    # Policies (5)
+    'policy_create',
+    'policy_get',
+    'policy_update',
+    'policy_delete',
+    'policy_list',
+    # Policy generations (4)
+    'policy_generation_start',
+    'policy_generation_get',
+    'policy_generation_list',
+    'policy_generation_list_assets',
+    # Guide (1)
+    'get_policy_guide',
+}
+
 # All 25 browser tools
 BROWSER_TOOLS = {
     'start_browser_session',
@@ -138,6 +161,13 @@ def _build_server(*, disable: str | None = None, enable: str | None = None) -> F
         if _is_service_enabled('gateway'):
             server.tool()(gateway.manage_agentcore_gateway)
 
+        if _is_service_enabled('policy'):
+            from awslabs.amazon_bedrock_agentcore_mcp_server.tools.policy import (
+                register_policy_tools,
+            )
+
+            register_policy_tools(server)
+
         if _is_service_enabled('browser'):
             from awslabs.amazon_bedrock_agentcore_mcp_server.tools.browser import (
                 register_browser_tools,
@@ -167,13 +197,13 @@ class TestToolDiscovery:
     """Verify tool listing through the MCP protocol under different configs."""
 
     async def test_list_tools_default_config(self):
-        """Default config registers all tools (base + browser)."""
+        """Default config registers all tools (base + policy + browser)."""
         server = _build_server()
         async with create_connected_server_and_client_session(server) as client:
             result = await client.list_tools()
             names = {t.name for t in result.tools}
 
-            assert names == BASE_TOOLS | BROWSER_TOOLS
+            assert names == BASE_TOOLS | POLICY_TOOLS | BROWSER_TOOLS
 
     async def test_list_tools_browser_disabled(self):
         """AGENTCORE_DISABLE_TOOLS=browser removes all browser tools."""
@@ -182,11 +212,23 @@ class TestToolDiscovery:
             result = await client.list_tools()
             names = {t.name for t in result.tools}
 
-            assert names == BASE_TOOLS
+            assert names == BASE_TOOLS | POLICY_TOOLS
             assert names.isdisjoint(BROWSER_TOOLS)
 
+    async def test_list_tools_policy_disabled(self):
+        """AGENTCORE_DISABLE_TOOLS=policy removes all policy tools."""
+        server = _build_server(disable='policy')
+        async with create_connected_server_and_client_session(server) as client:
+            result = await client.list_tools()
+            names = {t.name for t in result.tools}
+
+            assert names.isdisjoint(POLICY_TOOLS)
+            # Other groups still present
+            assert 'search_agentcore_docs' in names
+            assert 'start_browser_session' in names
+
     async def test_list_tools_browser_and_docs_only(self):
-        """AGENTCORE_ENABLE_TOOLS=browser,docs registers browser + docs, no guides or runtime."""
+        """AGENTCORE_ENABLE_TOOLS=browser,docs registers browser + docs, no guides, runtime, or policy."""
         server = _build_server(enable='browser,docs')
         async with create_connected_server_and_client_session(server) as client:
             result = await client.list_tools()
@@ -195,15 +237,16 @@ class TestToolDiscovery:
             # Docs always on + browser enabled
             assert 'search_agentcore_docs' in names
             assert 'start_browser_session' in names
-            # Runtime, memory, gateway disabled
+            # Runtime, memory, gateway, policy disabled
             assert 'get_runtime_guide' not in names
             assert 'create_agent_runtime' not in names
             assert 'manage_agentcore_memory' not in names
             assert 'manage_agentcore_gateway' not in names
+            assert names.isdisjoint(POLICY_TOOLS)
 
     async def test_list_tools_only_docs(self):
         """Disabling all services still leaves docs tools."""
-        server = _build_server(disable='browser,runtime,memory,gateway')
+        server = _build_server(disable='browser,runtime,memory,gateway,policy')
         async with create_connected_server_and_client_session(server) as client:
             result = await client.list_tools()
             names = {t.name for t in result.tools}
@@ -270,6 +313,54 @@ class TestToolSchemas:
             assert 'viewport_height' in props
             assert 'timeout_seconds' in props
             assert 'region' in props
+
+    async def test_policy_tools_require_policy_engine_id(self):
+        """Most policy tools require policy_engine_id.
+
+        Exempt tools (engine-create/list and the guide) don't operate on
+        a specific engine and are excluded.
+        """
+        exempt = {
+            'policy_engine_create',  # creates the engine itself
+            'policy_engine_list',  # lists all engines in account
+            'get_policy_guide',  # static guide, no API call
+        }
+
+        server = _build_server()
+        async with create_connected_server_and_client_session(server) as client:
+            result = await client.list_tools()
+
+            for tool in result.tools:
+                if tool.name not in POLICY_TOOLS:
+                    continue
+                if tool.name in exempt:
+                    continue
+
+                schema = tool.inputSchema
+                required = schema.get('required', [])
+                properties = schema.get('properties', {})
+                assert 'policy_engine_id' in properties, (
+                    f'Policy tool {tool.name} missing policy_engine_id'
+                )
+                assert 'policy_engine_id' in required, (
+                    f'Policy tool {tool.name} should require policy_engine_id'
+                )
+
+    async def test_policy_engine_create_has_optional_params(self):
+        """policy_engine_create exposes description, encryption_key_arn, and tags."""
+        server = _build_server()
+        async with create_connected_server_and_client_session(server) as client:
+            result = await client.list_tools()
+
+            tool = next(t for t in result.tools if t.name == 'policy_engine_create')
+            props = tool.inputSchema.get('properties', {})
+            required = tool.inputSchema.get('required', [])
+
+            assert 'name' in required
+            assert 'description' in props
+            assert 'encryption_key_arn' in props
+            assert 'tags' in props
+            assert 'client_token' in props
 
 
 # ===========================================================================
@@ -393,6 +484,18 @@ class TestToolInvocation:
             result = await client.call_tool('search_agentcore_docs', {'query': 'browser'})
 
             assert len(result.content) > 0
+
+    async def test_policy_guide_invocation(self):
+        """get_policy_guide can be called through protocol and returns text."""
+        server = _build_server()
+        async with create_connected_server_and_client_session(server) as client:
+            result = await client.call_tool('get_policy_guide', {})
+
+            assert len(result.content) > 0
+            first = result.content[0]
+            assert isinstance(first, TextContent)
+            # Guide should include at least one CLI command reference
+            assert 'agentcore' in first.text.lower()
 
     async def test_calling_nonexistent_tool_raises(self):
         """Calling a tool that doesn't exist raises an error."""
