@@ -14,7 +14,16 @@
 
 """Tests for AgentCore management tools."""
 
+import pytest
 from awslabs.amazon_bedrock_agentcore_mcp_server.tools import gateway, memory
+from awslabs.amazon_bedrock_agentcore_mcp_server.tools.identity.guide import (
+    IDENTITY_GUIDE,
+    GuideTools,
+)
+from awslabs.amazon_bedrock_agentcore_mcp_server.tools.identity.models import (
+    IdentityGuideResponse,
+)
+from unittest.mock import AsyncMock, MagicMock
 
 
 class TestMemoryTool:
@@ -39,3 +48,24 @@ class TestGatewayTool:
         assert 'deployment_guide' in result
         assert isinstance(result['deployment_guide'], str)
         assert len(result['deployment_guide']) > 0
+
+
+class TestIdentityTool:
+    """Test cases for the identity management tool."""
+
+    @pytest.mark.asyncio
+    async def test_get_identity_guide_returns_guide(self):
+        """Test that get_identity_guide returns an IdentityGuideResponse."""
+        ctx = MagicMock()
+        ctx.info = AsyncMock()
+        ctx.error = AsyncMock()
+        tools = GuideTools()
+        result = await tools.get_identity_guide(ctx=ctx)
+        assert isinstance(result, IdentityGuideResponse)
+        assert result.status == 'success'
+        assert len(result.guide) > 0
+
+    def test_guide_constant_is_populated(self):
+        """Test that the IDENTITY_GUIDE constant has substantial content."""
+        assert isinstance(IDENTITY_GUIDE, str)
+        assert len(IDENTITY_GUIDE) > 100

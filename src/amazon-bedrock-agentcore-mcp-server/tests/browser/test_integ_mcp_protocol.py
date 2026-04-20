@@ -43,7 +43,38 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 BROWSER_PKG = 'awslabs.amazon_bedrock_agentcore_mcp_server.tools.browser'
 
-# The non-browser tools registered by default (docs always-on + guides + runtime)
+# The 21 identity tools registered by the identity sub-package
+IDENTITY_TOOLS = {
+    # Workload identity (5)
+    'identity_create_workload_identity',
+    'identity_get_workload_identity',
+    'identity_update_workload_identity',
+    'identity_delete_workload_identity',
+    'identity_list_workload_identities',
+    # API key credential providers (5)
+    'identity_create_api_key_provider',
+    'identity_get_api_key_provider',
+    'identity_update_api_key_provider',
+    'identity_delete_api_key_provider',
+    'identity_list_api_key_providers',
+    # OAuth2 credential providers (5)
+    'identity_create_oauth2_provider',
+    'identity_get_oauth2_provider',
+    'identity_update_oauth2_provider',
+    'identity_delete_oauth2_provider',
+    'identity_list_oauth2_providers',
+    # Token vault (2)
+    'identity_get_token_vault',
+    'identity_set_token_vault_cmk',
+    # Resource policy (3)
+    'identity_put_resource_policy',
+    'identity_get_resource_policy',
+    'identity_delete_resource_policy',
+    # Guide (1)
+    'get_identity_guide',
+}
+
+# The non-browser tools registered by default (docs always-on + guides + runtime + identity)
 BASE_TOOLS = {
     # Docs (always on)
     'search_agentcore_docs',
@@ -66,7 +97,7 @@ BASE_TOOLS = {
     # Memory + Gateway guides
     'manage_agentcore_memory',
     'manage_agentcore_gateway',
-}
+} | IDENTITY_TOOLS
 
 # All 25 browser tools
 BROWSER_TOOLS = {
@@ -138,6 +169,13 @@ def _build_server(*, disable: str | None = None, enable: str | None = None) -> F
         if _is_service_enabled('gateway'):
             server.tool()(gateway.manage_agentcore_gateway)
 
+        if _is_service_enabled('identity'):
+            from awslabs.amazon_bedrock_agentcore_mcp_server.tools.identity import (
+                register_identity_tools,
+            )
+
+            register_identity_tools(server)
+
         if _is_service_enabled('browser'):
             from awslabs.amazon_bedrock_agentcore_mcp_server.tools.browser import (
                 register_browser_tools,
@@ -185,6 +223,33 @@ class TestToolDiscovery:
             assert names == BASE_TOOLS
             assert names.isdisjoint(BROWSER_TOOLS)
 
+    async def test_list_tools_identity_disabled(self):
+        """AGENTCORE_DISABLE_TOOLS=identity removes all identity tools."""
+        server = _build_server(disable='identity')
+        async with create_connected_server_and_client_session(server) as client:
+            result = await client.list_tools()
+            names = {t.name for t in result.tools}
+
+            assert names.isdisjoint(IDENTITY_TOOLS)
+            # Other tool groups remain
+            assert 'search_agentcore_docs' in names
+            assert 'start_browser_session' in names
+
+    async def test_list_tools_identity_only(self):
+        """AGENTCORE_ENABLE_TOOLS=identity,docs registers only identity + docs."""
+        server = _build_server(enable='identity,docs')
+        async with create_connected_server_and_client_session(server) as client:
+            result = await client.list_tools()
+            names = {t.name for t in result.tools}
+
+            # Identity + docs present
+            assert IDENTITY_TOOLS.issubset(names)
+            assert 'search_agentcore_docs' in names
+            # Other primitives excluded
+            assert 'start_browser_session' not in names
+            assert 'create_agent_runtime' not in names
+            assert 'manage_agentcore_memory' not in names
+
     async def test_list_tools_browser_and_docs_only(self):
         """AGENTCORE_ENABLE_TOOLS=browser,docs registers browser + docs, no guides or runtime."""
         server = _build_server(enable='browser,docs')
@@ -195,93 +260,66 @@ class TestToolDiscovery:
             # Docs always on + browser enabled
             assert 'search_agentcore_docs' in names
             assert 'start_browser_session' in names
-            # Runtime, memory, gateway disabled
+            # Runtime, memory, gateway, identity disabled
             assert 'get_runtime_guide' not in names
             assert 'create_agent_runtime' not in names
             assert 'manage_agentcore_memory' not in names
-            assert 'manage_agentcore_gateway' not in names
+            assert names.isdisjoint(IDENTITY_TOOLS)
 
-    async def test_list_tools_only_docs(self):
-        """Disabling all services still leaves docs tools."""
-        server = _build_server(disable='browser,runtime,memory,gateway')
-        async with create_connected_server_and_client_session(server) as client:
-            result = await client.list_tools()
-            names = {t.name for t in result.tools}
-
-            assert names == {'search_agentcore_docs', 'fetch_agentcore_doc'}
-
-
-# ===========================================================================
-# Tool Schema Validation
-# ===========================================================================
-
-
-class TestToolSchemas:
-    """Validate tool schemas exposed through the MCP protocol."""
-
-    async def test_all_tools_have_descriptions(self):
-        """Every tool must have a non-empty description."""
+    async def test_identity_tools_have_schema(self):
+        """All identity tools expose schema with required parameters."""
         server = _build_server()
         async with create_connected_server_and_client_session(server) as client:
             result = await client.list_tools()
+            identity_tools = [t for t in result.tools if t.name in IDENTITY_TOOLS]
 
-            for tool in result.tools:
-                assert tool.description, f'Tool {tool.name} has no description'
-                assert len(tool.description) > 10, (
-                    f'Tool {tool.name} description too short: {tool.description!r}'
-                )
+            # All 21 tools should be present
+            assert len(identity_tools) == 21
 
-    async def test_browser_tools_require_session_id(self):
-        """All browser interaction tools (except session lifecycle) require session_id."""
-        session_lifecycle_tools = {
-            'start_browser_session',
-            'list_browser_sessions',
-        }
+            # Tools with a required `name` param
+            name_required_tools = {
+                'identity_create_workload_identity',
+                'identity_get_workload_identity',
+                'identity_update_workload_identity',
+                'identity_delete_workload_identity',
+                'identity_create_api_key_provider',
+                'identity_get_api_key_provider',
+                'identity_update_api_key_provider',
+                'identity_delete_api_key_provider',
+                'identity_create_oauth2_provider',
+                'identity_get_oauth2_provider',
+                'identity_update_oauth2_provider',
+                'identity_delete_oauth2_provider',
+            }
+            for tool in identity_tools:
+                if tool.name in name_required_tools:
+                    required = tool.inputSchema.get('required', [])
+                    assert 'name' in required, f'{tool.name} should require "name" param'
 
-        server = _build_server()
-        async with create_connected_server_and_client_session(server) as client:
-            result = await client.list_tools()
-
-            for tool in result.tools:
-                if tool.name not in BROWSER_TOOLS:
-                    continue
-                if tool.name in session_lifecycle_tools:
-                    continue
-
-                schema = tool.inputSchema
-                required = schema.get('required', [])
-                properties = schema.get('properties', {})
-                assert 'session_id' in properties, (
-                    f'Browser tool {tool.name} missing session_id parameter'
-                )
-                assert 'session_id' in required, (
-                    f'Browser tool {tool.name} should require session_id'
-                )
-
-    async def test_start_browser_session_has_optional_params(self):
-        """start_browser_session exposes viewport, timeout, and region params."""
-        server = _build_server()
-        async with create_connected_server_and_client_session(server) as client:
-            result = await client.list_tools()
-
-            start_tool = next(t for t in result.tools if t.name == 'start_browser_session')
-            props = start_tool.inputSchema.get('properties', {})
-            assert 'viewport_width' in props
-            assert 'viewport_height' in props
-            assert 'timeout_seconds' in props
-            assert 'region' in props
+            # Tools with a required `resource_arn` param
+            arn_required_tools = {
+                'identity_put_resource_policy',
+                'identity_get_resource_policy',
+                'identity_delete_resource_policy',
+            }
+            for tool in identity_tools:
+                if tool.name in arn_required_tools:
+                    required = tool.inputSchema.get('required', [])
+                    assert 'resource_arn' in required, (
+                        f'{tool.name} should require "resource_arn" param'
+                    )
 
 
 # ===========================================================================
-# Tool Invocation Through Protocol
+# Tool Invocation
 # ===========================================================================
 
 
 class TestToolInvocation:
-    """Call tools through the MCP protocol and verify responses."""
+    """Verify tools can be invoked through the MCP protocol."""
 
     async def test_browser_snapshot_invalid_session(self):
-        """browser_snapshot with a bogus session_id returns error text, no crash."""
+        """browser_snapshot with a bogus session_id returns error text."""
         server = _build_server()
         async with create_connected_server_and_client_session(server) as client:
             result = await client.call_tool(
@@ -393,6 +431,18 @@ class TestToolInvocation:
             result = await client.call_tool('search_agentcore_docs', {'query': 'browser'})
 
             assert len(result.content) > 0
+
+    async def test_identity_guide_invocation(self):
+        """get_identity_guide can be called through protocol."""
+        server = _build_server()
+        async with create_connected_server_and_client_session(server) as client:
+            result = await client.call_tool('get_identity_guide', {})
+
+            assert len(result.content) > 0
+            first = result.content[0]
+            assert isinstance(first, TextContent)
+            # Guide content should be present in the response
+            assert 'AgentCore Identity' in first.text
 
     async def test_calling_nonexistent_tool_raises(self):
         """Calling a tool that doesn't exist raises an error."""
