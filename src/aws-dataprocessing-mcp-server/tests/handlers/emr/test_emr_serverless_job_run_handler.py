@@ -51,7 +51,9 @@ class TestEMRServerlessJobRunHandler:
             'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client'
         ) as mock_create_client:
             mock_create_client.return_value = MagicMock()
-            handler = EMRServerlessJobRunHandler(mock_mcp, allow_write=False)
+            handler = EMRServerlessJobRunHandler(
+                mock_mcp, allow_write=False, allow_sensitive_data_access=True
+            )
             return handler
 
     @pytest.fixture
@@ -61,7 +63,9 @@ class TestEMRServerlessJobRunHandler:
             'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client'
         ) as mock_create_client:
             mock_create_client.return_value = MagicMock()
-            handler = EMRServerlessJobRunHandler(mock_mcp, allow_write=True)
+            handler = EMRServerlessJobRunHandler(
+                mock_mcp, allow_write=True, allow_sensitive_data_access=True
+            )
             return handler
 
     def extract_data_from_result(self, result: CallToolResult) -> dict:

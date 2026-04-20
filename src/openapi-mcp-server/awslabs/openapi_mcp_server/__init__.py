@@ -15,13 +15,13 @@
 OpenAPI MCP Server - A server that dynamically creates MCP tools and resources from OpenAPI specifications.
 """
 
-__version__ = '0.2.14'
+__version__ = '0.3.0'
 
 
 import inspect
 import sys
 
-from loguru import logger
+from loguru import logger as logger
 
 # Remove default loguru handler
 logger.remove()

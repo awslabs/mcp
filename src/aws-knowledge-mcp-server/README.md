@@ -41,7 +41,6 @@ This MCP server is in general availability.
 - API references
 - What's New posts
 - Getting Started information
-- Builder Center
 - Blog posts
 - Architectural references
 - Well-Architected guidance
@@ -134,7 +133,7 @@ Telemetry data collected through AWS Knowledge MCP server is not used for machin
 
 #### 1. Should I use the local AWS Documentation MCP Server or the remote AWS Knowledge MCP Server?
 
-The Knowledge server indexes a variety of information sources in addition to AWS Documentation including What's New Posts, Getting Started Information, guidance from the Builder Center, Blog posts, Architectural references, and Well-Architected guidance. If your MCP client supports remote servers you can easily try the Knowledge MCP server to see if it suits your needs.
+The Knowledge server indexes a variety of information sources in addition to AWS Documentation including What's New Posts, Getting Started Information, Blog posts, Architectural references, and Well-Architected guidance. If your MCP client supports remote servers you can easily try the Knowledge MCP server to see if it suits your needs.
 
 #### 2. Do I need network access to use the AWS Knowledge MCP Server?
 

@@ -17,10 +17,15 @@
 from awslabs.aws_healthomics_mcp_server.consts import (
     CACHE_BEHAVIORS,
     DEFAULT_MAX_RESULTS,
+    ERROR_CONFIGURATION_NAME_REQUIRES_VPC_MODE,
     ERROR_INVALID_CACHE_BEHAVIOR,
+    ERROR_INVALID_NETWORKING_MODE,
     ERROR_INVALID_RUN_STATUS,
     ERROR_INVALID_STORAGE_TYPE,
     ERROR_STATIC_STORAGE_REQUIRES_CAPACITY,
+    ERROR_VPC_MODE_REQUIRES_CONFIGURATION_NAME,
+    NETWORKING_MODE_VPC,
+    NETWORKING_MODES,
     RUN_STATUSES,
     STORAGE_TYPE_STATIC,
     STORAGE_TYPES,
@@ -163,6 +168,14 @@ async def start_run(
         None,
         description='Optional ID of a run group to associate with this run',
     ),
+    networking_mode: Optional[str] = Field(
+        None,
+        description='Networking mode: RESTRICTED (default) or VPC',
+    ),
+    configuration_name: Optional[str] = Field(
+        None,
+        description='Configuration name (required when networking_mode is VPC)',
+    ),
     aws_profile: Optional[str] = Field(
         None,
         description='AWS profile name for this operation. Overrides the default credential chain.',
@@ -192,6 +205,8 @@ async def start_run(
         cache_id: Optional ID of a run cache to use
         cache_behavior: Optional cache behavior (CACHE_ALWAYS or CACHE_ON_FAILURE)
         run_group_id: Optional ID of a run group to associate with this run
+        networking_mode: Optional networking mode (RESTRICTED or VPC)
+        configuration_name: Optional configuration name (required when networking_mode is VPC)
         aws_profile: Optional AWS profile name override
         aws_region: Optional AWS region override
 
@@ -229,6 +244,32 @@ async def start_run(
             'Invalid cache configuration',
         )
 
+    # Validate networking mode
+    if networking_mode is not None and networking_mode not in NETWORKING_MODES:
+        return await handle_tool_error(
+            ctx,
+            ValueError(ERROR_INVALID_NETWORKING_MODE.format(NETWORKING_MODES)),
+            'Invalid networking mode',
+        )
+
+    # Validate VPC mode requires configuration name
+    if networking_mode == NETWORKING_MODE_VPC and configuration_name is None:
+        return await handle_tool_error(
+            ctx,
+            ValueError(ERROR_VPC_MODE_REQUIRES_CONFIGURATION_NAME),
+            'Missing configuration name',
+        )
+
+    # Validate configuration name requires VPC mode
+    if (
+        networking_mode is None or networking_mode != NETWORKING_MODE_VPC
+    ) and configuration_name is not None:
+        return await handle_tool_error(
+            ctx,
+            ValueError(ERROR_CONFIGURATION_NAME_REQUIRES_VPC_MODE),
+            'Invalid networking configuration',
+        )
+
     # Ensure output URI ends with a slash
     try:
         output_uri = ensure_s3_uri_ends_with_slash(output_uri)
@@ -260,6 +301,10 @@ async def start_run(
 
     if run_group_id:
         params['runGroupId'] = run_group_id
+
+    if networking_mode == NETWORKING_MODE_VPC:
+        params['networkingMode'] = networking_mode
+        params['configurationName'] = configuration_name
 
     try:
         response = client.start_run(**params)
