@@ -43,7 +43,7 @@ class ObservabilityAdminTools:
         mcp.tool(name='get_telemetry_evaluation_status')(self.get_telemetry_evaluation_status)
         mcp.tool(name='start_telemetry_evaluation')(self.start_telemetry_evaluation)
         mcp.tool(name='stop_telemetry_evaluation')(self.stop_telemetry_evaluation)
-        mcp.tool(name='get_telemetry_evaluation_status_for_organization')(
+        mcp.tool(name='awslabs_cloudwatch_get_telemetry_eval_status_for_org')(
             self.get_telemetry_evaluation_status_for_organization
         )
         mcp.tool(name='start_telemetry_evaluation_for_organization')(
