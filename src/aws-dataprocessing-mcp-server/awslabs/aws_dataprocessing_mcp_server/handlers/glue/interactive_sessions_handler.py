@@ -668,6 +668,16 @@ class GlueInteractiveSessionsHandler:
                 if statement_id is None:
                     raise ValueError('statement_id is required for get-statement operation')
 
+                # SECURITY: This operation returns statement execution output (customer data)
+                # Require --allow-sensitive-data-access flag to prevent unauthorized data exposure
+                if not self.allow_sensitive_data_access:
+                    error_message = 'Operation get-statement returns execution output with customer data and requires --allow-sensitive-data-access flag'
+                    log_with_request_id(ctx, LogLevel.ERROR, error_message)
+                    return CallToolResult(
+                        isError=True,
+                        content=[TextContent(type='text', text=error_message)],
+                    )
+
                 # Prepare get statement parameters
                 get_params = {
                     'SessionId': session_id,

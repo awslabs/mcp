@@ -534,6 +534,16 @@ class GlueEtlJobsHandler:
                         'job_name and job_run_id are required for get-job-run operation'
                     )
 
+                # SECURITY: Job run details may contain sensitive data in error messages, arguments, and logs
+                # Require --allow-sensitive-data-access flag to prevent unauthorized data exposure
+                if not self.allow_sensitive_data_access:
+                    error_message = 'Operation get-job-run may contain sensitive data in error messages and job arguments, and requires --allow-sensitive-data-access flag'
+                    log_with_request_id(ctx, LogLevel.ERROR, error_message)
+                    return CallToolResult(
+                        isError=True,
+                        content=[TextContent(type='text', text=error_message)],
+                    )
+
                 # Prepare parameters
                 params = {'JobName': job_name, 'RunId': job_run_id}
                 if predecessors_included is not None:

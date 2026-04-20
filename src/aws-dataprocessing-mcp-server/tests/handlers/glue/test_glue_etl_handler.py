@@ -44,7 +44,7 @@ def mock_aws_helper():
 def handler(mock_aws_helper):
     """Create a mock GlueEtlJobsHandler instance for testing."""
     mcp = Mock()
-    return GlueEtlJobsHandler(mcp, allow_write=True)
+    return GlueEtlJobsHandler(mcp, allow_write=True, allow_sensitive_data_access=True)
 
 
 @pytest.fixture
