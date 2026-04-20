@@ -217,6 +217,23 @@ if _is_service_enabled('policy'):  # pragma: no cover
             f'Set AGENTCORE_DISABLE_TOOLS=policy to suppress.'
         )
 
+if _is_service_enabled('identity'):
+    try:
+        from .tools.identity import register_identity_tools
+
+        register_identity_tools(mcp)
+        logger.info('Identity tools registered (21 tools)')
+    except ImportError as e:
+        logger.error(
+            f'Identity tools disabled — failed to import dependencies: {e}. '
+            f'Ensure boto3 and botocore are installed.'
+        )
+    except Exception as e:
+        logger.error(
+            f'Identity tools disabled — initialization failed: {e}. '
+            f'Set AGENTCORE_DISABLE_TOOLS=identity to suppress.'
+        )
+
 if _is_service_enabled('browser'):
     try:
         from .tools.browser import register_browser_tools
