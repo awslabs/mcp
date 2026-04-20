@@ -340,7 +340,7 @@ def _extract_ec2_ids(detail: dict) -> List[str]:
     return ids
 
 
-async def _get_app_summary(
+async def _get_app_summary(  # type: ignore[reportGeneralTypeIssues]
     client,
     app_id: str,
     ssm_client=None,
@@ -563,7 +563,9 @@ async def _get_app_summary(
                                                     )
                                                 )
                                         except ClientError as e:
-                                            logger.debug(f'AWS API error: {format_client_error(e)}')
+                                            logger.debug(
+                                                f'AWS API error: {format_client_error(e)}'
+                                            )
                                         except Exception as e:
                                             logger.debug(f'Unexpected error: {e}')
                                     subchecks.append(
@@ -898,9 +900,13 @@ async def _get_app_summary(
                                             'StatusMessage'
                                         ) or detail_resp.get('MessageCategory')
                                     except ClientError as e:
-                                        logger.debug(f'AWS API error in backup_client.describe_backup_job: {format_client_error(e)}')
+                                        logger.debug(
+                                            f'AWS API error in backup_client.describe_backup_job: {format_client_error(e)}'
+                                        )
                                     except Exception as e:
-                                        logger.debug(f'Unexpected error in backup_client.describe_backup_job: {e}')
+                                        logger.debug(
+                                            f'Unexpected error in backup_client.describe_backup_job: {e}'
+                                        )
                             backup_entries.append(
                                 BackupStatusEntry(
                                     instance_id=app_id,
@@ -938,13 +944,19 @@ async def _get_app_summary(
                                                     'StatusMessage'
                                                 ) or detail_resp.get('MessageCategory')
                                             except ClientError as e:
-                                                logger.debug(f'AWS API error in backup_client.describe_backup_job: {format_client_error(e)}')
+                                                logger.debug(
+                                                    f'AWS API error in backup_client.describe_backup_job: {format_client_error(e)}'
+                                                )
                                             except Exception as e:
-                                                logger.debug(f'Unexpected error in backup_client.describe_backup_job: {e}')
+                                                logger.debug(
+                                                    f'Unexpected error in backup_client.describe_backup_job: {e}'
+                                                )
                                 else:
                                     b_status = 'No backups'
                             except ClientError as e:
-                                logger.debug(f'AWS API error in detail_resp.get: {format_client_error(e)}')
+                                logger.debug(
+                                    f'AWS API error in detail_resp.get: {format_client_error(e)}'
+                                )
                                 b_status = 'Error'
                             except Exception as e:
                                 logger.debug(f'Unexpected error in detail_resp.get: {e}')
@@ -987,13 +999,19 @@ async def _get_app_summary(
                                                 'StatusMessage'
                                             ) or detail_resp.get('MessageCategory')
                                         except ClientError as e:
-                                            logger.debug(f'AWS API error in backup_client.describe_backup_job: {format_client_error(e)}')
+                                            logger.debug(
+                                                f'AWS API error in backup_client.describe_backup_job: {format_client_error(e)}'
+                                            )
                                         except Exception as e:
-                                            logger.debug(f'Unexpected error in backup_client.describe_backup_job: {e}')
+                                            logger.debug(
+                                                f'Unexpected error in backup_client.describe_backup_job: {e}'
+                                            )
                             else:
                                 b_status = 'No backups'
                         except ClientError as e:
-                            logger.debug(f'AWS API error in detail_resp.get: {format_client_error(e)}')
+                            logger.debug(
+                                f'AWS API error in detail_resp.get: {format_client_error(e)}'
+                            )
                             b_status = 'Error'
                         except Exception as e:
                             logger.debug(f'Unexpected error in detail_resp.get: {e}')
@@ -1036,13 +1054,19 @@ async def _get_app_summary(
                                                 'StatusMessage'
                                             ) or detail_resp.get('MessageCategory')
                                         except ClientError as e:
-                                            logger.debug(f'AWS API error in backup_client.describe_backup_job: {format_client_error(e)}')
+                                            logger.debug(
+                                                f'AWS API error in backup_client.describe_backup_job: {format_client_error(e)}'
+                                            )
                                         except Exception as e:
-                                            logger.debug(f'Unexpected error in backup_client.describe_backup_job: {e}')
+                                            logger.debug(
+                                                f'Unexpected error in backup_client.describe_backup_job: {e}'
+                                            )
                             else:
                                 b_status = 'No backups'
                         except ClientError as e:
-                            logger.debug(f'AWS API error querying per-instance backup: {format_client_error(e)}')
+                            logger.debug(
+                                f'AWS API error querying per-instance backup: {format_client_error(e)}'
+                            )
                             b_status = 'Error'
                         except Exception as e:
                             logger.debug(f'Unexpected error querying per-instance backup: {e}')
@@ -1108,9 +1132,13 @@ async def _get_app_summary(
                                                 fs_info = hist_output[:1000]
                                         break
                             except ClientError as e:
-                                logger.debug(f'AWS API error in ssm_client.get_command_invocation: {format_client_error(e)}')
+                                logger.debug(
+                                    f'AWS API error in ssm_client.get_command_invocation: {format_client_error(e)}'
+                                )
                             except Exception as e:
-                                logger.debug(f'Unexpected error in ssm_client.get_command_invocation: {e}')
+                                logger.debug(
+                                    f'Unexpected error in ssm_client.get_command_invocation: {e}'
+                                )
                     else:
                         fs_status = 'Not managed'
                 except ClientError as e:
@@ -1532,7 +1560,9 @@ def _append_config_checks(
                             operation_id = op['Id']
                             break
                 except ClientError as e:
-                    logger.debug(f'AWS API error in client.list_operations: {format_client_error(e)}')
+                    logger.debug(
+                        f'AWS API error in client.list_operations: {format_client_error(e)}'
+                    )
                 except Exception as e:
                     logger.debug(f'Unexpected error in client.list_operations: {e}')
 
@@ -1834,9 +1864,13 @@ def _append_aws_backup_status(
                                         'StatusMessage'
                                     ) or detail_resp.get('MessageCategory')
                                 except ClientError as e:
-                                    logger.debug(f'AWS API error in backup_client.describe_backup_job: {format_client_error(e)}')
+                                    logger.debug(
+                                        f'AWS API error in backup_client.describe_backup_job: {format_client_error(e)}'
+                                    )
                                 except Exception as e:
-                                    logger.debug(f'Unexpected error in backup_client.describe_backup_job: {e}')
+                                    logger.debug(
+                                        f'Unexpected error in backup_client.describe_backup_job: {e}'
+                                    )
                             failed_jobs.append(
                                 {
                                     'instance': app_id,
@@ -1881,9 +1915,13 @@ def _append_aws_backup_status(
                                         'StatusMessage'
                                     ) or detail_resp.get('MessageCategory')
                                 except ClientError as e:
-                                    logger.debug(f'AWS API error in backup_client.describe_backup_job: {format_client_error(e)}')
+                                    logger.debug(
+                                        f'AWS API error in backup_client.describe_backup_job: {format_client_error(e)}'
+                                    )
                                 except Exception as e:
-                                    logger.debug(f'Unexpected error in backup_client.describe_backup_job: {e}')
+                                    logger.debug(
+                                        f'Unexpected error in backup_client.describe_backup_job: {e}'
+                                    )
                             failed_jobs.append(
                                 {
                                     'instance': instance_id,
@@ -2330,7 +2368,9 @@ async def _append_filesystem_usage(
                                 if output:
                                     break
             except ClientError as e:
-                logger.debug(f'AWS API error in ssm_client.get_command_invocation: {format_client_error(e)}')
+                logger.debug(
+                    f'AWS API error in ssm_client.get_command_invocation: {format_client_error(e)}'
+                )
             except Exception as e:
                 logger.debug(f'Unexpected error in ssm_client.get_command_invocation: {e}')
 

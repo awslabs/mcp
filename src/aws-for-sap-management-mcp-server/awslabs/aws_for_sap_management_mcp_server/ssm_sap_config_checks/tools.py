@@ -212,7 +212,9 @@ class SSMSAPConfigCheckTools:
                                 )
                             )
                     except ClientError as e:
-                        logger.debug(f'Could not fetch subchecks for {operation_id}: {format_client_error(e)}')
+                        logger.debug(
+                            f'Could not fetch subchecks for {operation_id}: {format_client_error(e)}'
+                        )
                     except Exception as e:
                         logger.debug(f'Could not fetch subchecks for {operation_id}: {e}')
 
