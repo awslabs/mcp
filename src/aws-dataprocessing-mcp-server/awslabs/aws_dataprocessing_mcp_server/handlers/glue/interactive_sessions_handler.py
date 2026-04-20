@@ -319,7 +319,7 @@ class GlueInteractiveSessionsHandler:
                     tags = session.get('Tags', {})
 
                     # Construct the ARN for the session
-                    region = AwsHelper.get_aws_region() or 'us-east-1'
+                    region = AwsHelper.get_or_default_aws_region() or 'us-east-1'
                     account_id = AwsHelper.get_aws_account_id()
                     session_arn = f'arn:aws:glue:{region}:{account_id}:session/{session_id}'
 
@@ -439,7 +439,7 @@ class GlueInteractiveSessionsHandler:
                     tags = session.get('Tags', {})
 
                     # Construct the ARN for the session
-                    region = AwsHelper.get_aws_region() or 'us-east-1'
+                    region = AwsHelper.get_or_default_aws_region() or 'us-east-1'
                     account_id = AwsHelper.get_aws_account_id()
                     session_arn = f'arn:aws:glue:{region}:{account_id}:session/{session_id}'
 

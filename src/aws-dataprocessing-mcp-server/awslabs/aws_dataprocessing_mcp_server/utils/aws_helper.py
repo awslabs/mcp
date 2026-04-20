@@ -41,7 +41,7 @@ class AwsHelper:
     """
 
     @staticmethod
-    def get_aws_region() -> str:
+    def get_or_default_aws_region() -> str:
         """Get the AWS region from environment, AWS config, or default.
 
         This method follows the standard AWS SDK credential/config resolution chain:
@@ -161,7 +161,9 @@ class AwsHelper:
             A boto3 client for the specified service
         """
         # Get region from parameter or environment if set
-        region: Optional[str] = region_name if region_name is not None else cls.get_aws_region()
+        region: Optional[str] = (
+            region_name if region_name is not None else cls.get_or_default_aws_region()
+        )
 
         # Get profile from environment if set
         profile = cls.get_aws_profile()
@@ -244,7 +246,7 @@ class AwsHelper:
         """
         try:
             response = athena_client.list_tags_for_resource(
-                ResourceARN=f'arn:aws:athena:{AwsHelper.get_aws_region()}:{AwsHelper.get_aws_account_id()}:workgroup/{workgroup_name}'
+                ResourceARN=f'arn:aws:athena:{AwsHelper.get_or_default_aws_region()}:{AwsHelper.get_aws_account_id()}:workgroup/{workgroup_name}'
             )
             return response.get('Tags', [])
         except ClientError:
@@ -424,7 +426,7 @@ class AwsHelper:
 
             # Construct the ARN for the data catalog
             account_id = cls.get_aws_account_id()
-            region = cls.get_aws_region()
+            region = cls.get_or_default_aws_region()
             data_catalog_arn = (
                 f'arn:{cls.get_aws_partition()}:athena:{region}:{account_id}:datacatalog/{name}'
             )
