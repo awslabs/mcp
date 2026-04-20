@@ -34,6 +34,9 @@ class ConfigCheckOperation(BaseModel):
     status: str = Field(..., description='Operation status')
     result: Optional[str] = Field(default=None, description='Check result')
     last_updated: Optional[str] = Field(default=None, description='Last updated timestamp')
+    subchecks: Optional[List['SubCheckResult']] = Field(
+        default=None, description='Sub-check results when include_subchecks is True'
+    )
 
 
 class SubCheckResult(BaseModel):

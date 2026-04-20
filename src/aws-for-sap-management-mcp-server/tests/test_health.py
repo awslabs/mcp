@@ -2242,11 +2242,11 @@ class TestRunSsmCommand:
 
 
 class TestRunSsmCommandSync:
-    """Tests for _run_ssm_command_sync function."""
+    """Tests for _run_ssm_command async function."""
 
-    def test_success(self):
+    async def test_success(self):
         from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
-            _run_ssm_command_sync,
+            _run_ssm_command,
         )
 
         mock_ssm = MagicMock()
@@ -2255,52 +2255,52 @@ class TestRunSsmCommandSync:
             'Status': 'Success',
             'StandardOutputContent': 'output',
         }
-        with patch('time.sleep'):
-            result = _run_ssm_command_sync(mock_ssm, 'i-123', 'df -h', timeout_seconds=6)
+        with patch('asyncio.sleep', new_callable=AsyncMock):
+            result = await _run_ssm_command(mock_ssm, 'i-123', 'df -h', timeout_seconds=6)
         assert result == 'output'
 
-    def test_failed(self):
+    async def test_failed(self):
         from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
-            _run_ssm_command_sync,
+            _run_ssm_command,
         )
 
         mock_ssm = MagicMock()
         mock_ssm.send_command.return_value = {'Command': {'CommandId': 'cmd-1'}}
         mock_ssm.get_command_invocation.return_value = {'Status': 'Failed'}
-        with patch('time.sleep'):
-            result = _run_ssm_command_sync(mock_ssm, 'i-123', 'df -h', timeout_seconds=6)
+        with patch('asyncio.sleep', new_callable=AsyncMock):
+            result = await _run_ssm_command(mock_ssm, 'i-123', 'df -h', timeout_seconds=6)
         assert result is None
 
-    def test_no_command_id(self):
+    async def test_no_command_id(self):
         from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
-            _run_ssm_command_sync,
+            _run_ssm_command,
         )
 
         mock_ssm = MagicMock()
         mock_ssm.send_command.return_value = {'Command': {}}
-        result = _run_ssm_command_sync(mock_ssm, 'i-123', 'df -h')
+        result = await _run_ssm_command(mock_ssm, 'i-123', 'df -h')
         assert result is None
 
-    def test_send_exception(self):
+    async def test_send_exception(self):
         from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
-            _run_ssm_command_sync,
+            _run_ssm_command,
         )
 
         mock_ssm = MagicMock()
         mock_ssm.send_command.side_effect = Exception('fail')
-        result = _run_ssm_command_sync(mock_ssm, 'i-123', 'df -h')
+        result = await _run_ssm_command(mock_ssm, 'i-123', 'df -h')
         assert result is None
 
-    def test_poll_exception_continues(self):
+    async def test_poll_exception_continues(self):
         from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
-            _run_ssm_command_sync,
+            _run_ssm_command,
         )
 
         mock_ssm = MagicMock()
         mock_ssm.send_command.return_value = {'Command': {'CommandId': 'cmd-1'}}
         mock_ssm.get_command_invocation.side_effect = Exception('poll fail')
-        with patch('time.sleep'):
-            result = _run_ssm_command_sync(mock_ssm, 'i-123', 'df -h', timeout_seconds=3)
+        with patch('asyncio.sleep', new_callable=AsyncMock):
+            result = await _run_ssm_command(mock_ssm, 'i-123', 'df -h', timeout_seconds=3)
         assert result is None
 
 
@@ -2339,7 +2339,7 @@ class TestBuildOverallSummary:
 class TestCheckAppHealth:
     """Tests for _check_app_health report generation."""
 
-    def test_healthy_app_report(self):
+    async def test_healthy_app_report(self):
         from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
             _check_app_health,
         )
@@ -2357,7 +2357,7 @@ class TestCheckAppHealth:
         mock_client.list_configuration_check_operations.return_value = {
             'ConfigurationCheckOperations': []
         }
-        report, status, disc = _check_app_health(
+        report, status, disc = await _check_app_health(
             mock_client,
             None,
             None,
@@ -2374,7 +2374,7 @@ class TestCheckAppHealth:
         assert disc == 'SUCCESS'
         assert 'app-1' in report
 
-    def test_unhealthy_app_report(self):
+    async def test_unhealthy_app_report(self):
         from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
             _check_app_health,
         )
@@ -2393,7 +2393,7 @@ class TestCheckAppHealth:
         mock_client.list_configuration_check_operations.return_value = {
             'ConfigurationCheckOperations': []
         }
-        report, status, disc = _check_app_health(
+        report, status, disc = await _check_app_health(
             mock_client,
             None,
             None,
@@ -2409,14 +2409,14 @@ class TestCheckAppHealth:
         assert status == 'FAILED'
         assert 'Something broke' in report
 
-    def test_app_retrieval_error(self):
+    async def test_app_retrieval_error(self):
         from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
             _check_app_health,
         )
 
         mock_client = MagicMock()
         mock_client.get_application.side_effect = Exception('Access denied')
-        report, status, disc = _check_app_health(
+        report, status, disc = await _check_app_health(
             mock_client,
             None,
             None,
@@ -2432,7 +2432,7 @@ class TestCheckAppHealth:
         assert status == 'ERROR'
         assert 'Access denied' in report
 
-    def test_with_hana_node_components(self):
+    async def test_with_hana_node_components(self):
         from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
             _check_app_health,
         )
@@ -2481,7 +2481,7 @@ class TestCheckAppHealth:
                 }
             },
         ]
-        report, status, disc = _check_app_health(
+        report, status, disc = await _check_app_health(
             mock_client,
             None,
             None,
@@ -2499,7 +2499,7 @@ class TestCheckAppHealth:
         assert 'i-1' in report
         assert 'i-2' in report
 
-    def test_with_parent_component_skipped(self):
+    async def test_with_parent_component_skipped(self):
         from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
             _check_app_health,
         )
@@ -2536,7 +2536,7 @@ class TestCheckAppHealth:
                 }
             },
         ]
-        report, status, disc = _check_app_health(
+        report, status, disc = await _check_app_health(
             mock_client,
             None,
             None,
@@ -2552,7 +2552,7 @@ class TestCheckAppHealth:
         assert '2.00.070' in report
         assert 'SYSTEMDB' in report
 
-    def test_component_error(self):
+    async def test_component_error(self):
         from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
             _check_app_health,
         )
@@ -2568,7 +2568,7 @@ class TestCheckAppHealth:
         }
         mock_client.list_components.return_value = {'Components': [{'ComponentId': 'comp-1'}]}
         mock_client.get_component.side_effect = Exception('Component error')
-        report, status, disc = _check_app_health(
+        report, status, disc = await _check_app_health(
             mock_client,
             None,
             None,
@@ -2583,7 +2583,7 @@ class TestCheckAppHealth:
         )
         assert 'comp-1' in report
 
-    def test_abap_components(self):
+    async def test_abap_components(self):
         from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
             _check_app_health,
         )
@@ -2618,7 +2618,7 @@ class TestCheckAppHealth:
                 }
             },
         ]
-        report, status, disc = _check_app_health(
+        report, status, disc = await _check_app_health(
             mock_client,
             None,
             None,
@@ -3080,34 +3080,35 @@ class TestAppendCloudwatchMetrics:
 class TestAppendFilesystemUsage:
     """Tests for _append_filesystem_usage."""
 
-    def test_no_instances(self):
+    async def test_no_instances(self):
         from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
             _append_filesystem_usage,
         )
 
         lines = []
-        _append_filesystem_usage(MagicMock(), [], lines)
+        await _append_filesystem_usage(MagicMock(), [], lines)
         assert any('No EC2 instances' in l for l in lines)
 
-    def test_with_ssm_command_output(self):
+    async def test_with_ssm_command_output(self):
         from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
             _append_filesystem_usage,
         )
 
         mock_ssm = MagicMock()
         with patch(
-            'awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools._run_ssm_command_sync',
+            'awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools._run_ssm_command',
+            new_callable=AsyncMock,
             return_value='Filesystem  Size  Used Avail Use% Mounted on\n/dev/xvda   50G   40G   10G  85% /\n/dev/xvdb  100G   96G    4G  96% /hana/data',
         ):
             lines = []
             findings = []
-            _append_filesystem_usage(mock_ssm, ['i-1'], lines, findings=findings)
+            await _append_filesystem_usage(mock_ssm, ['i-1'], lines, findings=findings)
             assert any('/hana/data' in l for l in lines)
             # 96% should be critical, 85% should be warning
             assert any('critically full' in f.get('rule', '') for f in findings)
             assert any('high usage' in f.get('rule', '') for f in findings)
 
-    def test_fallback_to_command_history(self):
+    async def test_fallback_to_command_history(self):
         from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
             _append_filesystem_usage,
         )
@@ -3121,14 +3122,15 @@ class TestAppendFilesystemUsage:
             'StandardOutputContent': 'Filesystem  Size\n/dev/xvda   50G   40G   10G  70% /',
         }
         with patch(
-            'awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools._run_ssm_command_sync',
+            'awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools._run_ssm_command',
+            new_callable=AsyncMock,
             return_value=None,
         ):
             lines = []
-            _append_filesystem_usage(mock_ssm, ['i-1'], lines)
+            await _append_filesystem_usage(mock_ssm, ['i-1'], lines)
             assert any('50G' in l for l in lines)
 
-    def test_no_data_available(self):
+    async def test_no_data_available(self):
         from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
             _append_filesystem_usage,
         )
@@ -3136,26 +3138,28 @@ class TestAppendFilesystemUsage:
         mock_ssm = MagicMock()
         mock_ssm.list_commands.return_value = {'Commands': []}
         with patch(
-            'awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools._run_ssm_command_sync',
+            'awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools._run_ssm_command',
+            new_callable=AsyncMock,
             return_value=None,
         ):
             lines = []
-            _append_filesystem_usage(mock_ssm, ['i-1'], lines)
+            await _append_filesystem_usage(mock_ssm, ['i-1'], lines)
             assert any('No filesystem usage data' in l for l in lines)
 
-    def test_exception_handling(self):
+    async def test_exception_handling(self):
         from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
             _append_filesystem_usage,
         )
 
         mock_ssm = MagicMock()
         with patch(
-            'awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools._run_ssm_command_sync',
+            'awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools._run_ssm_command',
+            new_callable=AsyncMock,
             side_effect=Exception('fail'),
         ):
             mock_ssm.list_commands.side_effect = Exception('fail')
             lines = []
-            _append_filesystem_usage(mock_ssm, ['i-1'], lines)
+            await _append_filesystem_usage(mock_ssm, ['i-1'], lines)
             assert any('No filesystem usage data' in l for l in lines)
 
 
@@ -3894,10 +3898,6 @@ class TestReportFilesystemUsage:
             patch(
                 'awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools._run_ssm_command',
                 new_callable=AsyncMock,
-                return_value=None,
-            ),
-            patch(
-                'awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools._run_ssm_command_sync',
                 return_value='Filesystem  Size  Used Avail Use% Mounted on\n/dev/xvda   50G   40G   10G  80% /',
             ),
         ):
@@ -4609,7 +4609,7 @@ class TestAppendCloudwatchMetricsEdgeCases:
 class TestCheckAppHealthReportEdgeCases:
     """Additional tests for _check_app_health report generation edge cases."""
 
-    def test_report_with_config_checks_and_findings(self):
+    async def test_report_with_config_checks_and_findings(self):
         """Test report with config checks that produce findings (lines 1178-1180, 1231, 1249)."""
         from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
             _check_app_health,
@@ -4663,7 +4663,7 @@ class TestCheckAppHealthReportEdgeCases:
                 },
             ]
         }
-        report, status, disc = _check_app_health(
+        report, status, disc = await _check_app_health(
             mock_client,
             None,
             None,
@@ -4682,7 +4682,7 @@ class TestCheckAppHealthReportEdgeCases:
         assert 'Failures' in report
         assert 'Warnings' in report
 
-    def test_report_with_log_backup_and_backup(self):
+    async def test_report_with_log_backup_and_backup(self):
         """Test report with log backup and AWS backup sections."""
         from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
             _check_app_health,
@@ -4728,7 +4728,7 @@ class TestCheckAppHealthReportEdgeCases:
                 }
             ]
         }
-        report, status, disc = _check_app_health(
+        report, status, disc = await _check_app_health(
             mock_client,
             mock_ssm,
             mock_backup,
@@ -4745,7 +4745,7 @@ class TestCheckAppHealthReportEdgeCases:
         assert 'AWS Backup' in report
         assert 'COMPLETED' in report
 
-    def test_report_with_cloudwatch_metrics(self):
+    async def test_report_with_cloudwatch_metrics(self):
         """Test report with CloudWatch metrics section."""
         from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.tools import (
             _check_app_health,
@@ -4778,7 +4778,7 @@ class TestCheckAppHealthReportEdgeCases:
             {'Datapoints': [{'Average': 50.0, 'Maximum': 70.0}]},  # CPU
             {'Datapoints': [{'Maximum': 0}]},  # StatusCheck
         ]
-        report, status, disc = _check_app_health(
+        report, status, disc = await _check_app_health(
             mock_client,
             None,
             None,

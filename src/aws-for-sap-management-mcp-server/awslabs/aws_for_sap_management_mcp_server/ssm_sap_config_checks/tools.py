@@ -192,10 +192,29 @@ class SSMSAPConfigCheckTools:
                 check_id = check_op.get('ConfigurationCheckId', 'UNKNOWN')
                 check_status = check_op.get('Status', 'UNKNOWN')
                 result = check_op.get('Result', 'UNKNOWN')
-                operation_id = check_op.get('OperationId', '')
+                operation_id = check_op.get('Id') or check_op.get('OperationId', '')
 
                 status_counts[check_status] = status_counts.get(check_status, 0) + 1
                 result_counts[result] = result_counts.get(result, 0) + 1
+
+                subchecks = None
+                if include_subchecks and operation_id:
+                    try:
+                        sc_response = client.list_sub_check_results(OperationId=operation_id)
+                        subchecks = []
+                        for sc in sc_response.get('SubCheckResults', []):
+                            subchecks.append(
+                                SubCheckResult(
+                                    id=sc.get('Id', ''),
+                                    name=sc.get('Name', 'UNKNOWN'),
+                                    result=sc.get('Result', 'UNKNOWN'),
+                                    description=sc.get('Description'),
+                                )
+                            )
+                    except ClientError as e:
+                        logger.debug(f'Could not fetch subchecks for {operation_id}: {format_client_error(e)}')
+                    except Exception as e:
+                        logger.debug(f'Could not fetch subchecks for {operation_id}: {e}')
 
                 checks.append(
                     ConfigCheckOperation(
@@ -204,6 +223,7 @@ class SSMSAPConfigCheckTools:
                         status=check_status,
                         result=result if result != 'UNKNOWN' else None,
                         last_updated=format_datetime(check_op.get('LastUpdatedTime')),
+                        subchecks=subchecks,
                     )
                 )
 

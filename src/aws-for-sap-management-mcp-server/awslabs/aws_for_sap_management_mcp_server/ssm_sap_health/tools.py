@@ -16,7 +16,7 @@
 
 import asyncio
 from awslabs.aws_for_sap_management_mcp_server.client_factory import get_aws_client
-from awslabs.aws_for_sap_management_mcp_server.common import format_datetime
+from awslabs.aws_for_sap_management_mcp_server.common import format_client_error, format_datetime
 from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.models import (
     ApplicationHealthEntry,
     BackupStatusEntry,
@@ -31,6 +31,7 @@ from awslabs.aws_for_sap_management_mcp_server.ssm_sap_health.models import (
     SubCheckEntry,
 )
 from boto3 import Session
+from botocore.exceptions import ClientError
 from datetime import datetime, timedelta, timezone
 from loguru import logger
 from mcp.server.fastmcp import Context
@@ -120,8 +121,10 @@ def _discover_cwagent_dimensions(
         metrics = resp.get('Metrics', [])
         if metrics:
             return metrics[0].get('Dimensions', [])
-    except Exception:
-        pass
+    except ClientError as e:
+        logger.debug(f'AWS API error in cloudwatch_client.list_metrics: {format_client_error(e)}')
+    except Exception as e:
+        logger.debug(f'Unexpected error in cloudwatch_client.list_metrics: {e}')
     return None
 
 
@@ -149,8 +152,10 @@ def _discover_cwagent_disk_dimensions(
             path = dim_map.get('path', '')
             if path in target_paths:
                 results.append(dims)
-    except Exception:
-        pass
+    except ClientError as e:
+        logger.debug(f'AWS API error: {format_client_error(e)}')
+    except Exception as e:
+        logger.debug(f'Unexpected error: {e}')
     return results
 
 
@@ -191,53 +196,18 @@ async def _run_ssm_command(
                     return None
             except ssm_client.exceptions.InvocationDoesNotExist:
                 continue
-            except Exception:
+            except ClientError as e:
+                logger.debug(f'AWS API error in inv_resp.get: {format_client_error(e)}')
+                return None
+            except Exception as e:
+                logger.debug(f'Unexpected error in inv_resp.get: {e}')
                 return None
         return None
-    except Exception:
+    except ClientError as e:
+        logger.debug(f'AWS API error in inv_resp.get: {format_client_error(e)}')
         return None
-
-
-def _run_ssm_command_sync(
-    ssm_client,
-    instance_id: str,
-    command: str,
-    timeout_seconds: int = 30,
-) -> Optional[str]:
-    """Run a shell command on an instance via SSM and return the output (sync version).
-
-    Sends the command via AWS-RunShellScript and polls for completion using time.sleep.
-    Returns the stdout output or None on failure.
-    """
-    import time as _time
-
-    try:
-        resp = ssm_client.send_command(
-            InstanceIds=[instance_id],
-            DocumentName='AWS-RunShellScript',
-            Parameters={'commands': [command]},
-            TimeoutSeconds=60,
-        )
-        cmd_id = resp.get('Command', {}).get('CommandId')
-        if not cmd_id:
-            return None
-
-        for _ in range(timeout_seconds // 3):
-            _time.sleep(3)
-            try:
-                inv_resp = ssm_client.get_command_invocation(
-                    CommandId=cmd_id,
-                    InstanceId=instance_id,
-                )
-                status = inv_resp.get('Status', '')
-                if status in ('Success', 'Failed', 'Cancelled', 'TimedOut'):
-                    if status == 'Success':
-                        return inv_resp.get('StandardOutputContent', '')
-                    return None
-            except Exception:
-                continue
-        return None
-    except Exception:
+    except Exception as e:
+        logger.debug(f'Unexpected error in inv_resp.get: {e}')
         return None
 
 
@@ -277,7 +247,11 @@ def _trigger_config_checks(client, app_id: str) -> list:
             ConfigurationCheckIds=check_ids,
         )
         return response.get('ConfigurationCheckOperations', [])
-    except Exception:
+    except ClientError as e:
+        logger.debug(f'AWS API error in response.get: {format_client_error(e)}')
+        return []
+    except Exception as e:
+        logger.debug(f'Unexpected error in response.get: {e}')
         return []
 
 
@@ -311,9 +285,10 @@ async def _wait_for_config_checks(
                 if status not in terminal_statuses:
                     all_done = False
                     break
-            except Exception:
-                # If we can't poll, skip this one and move on
-                pass
+            except ClientError as e:
+                logger.debug(f'AWS API error in resp.get: {format_client_error(e)}')
+            except Exception as e:
+                logger.debug(f'Unexpected error in resp.get: {e}')
         if all_done:
             return
         await asyncio.sleep(poll_interval_seconds)
@@ -399,6 +374,8 @@ async def _get_app_summary(
         # Components
         components = []
         ec2_instance_ids = []
+        parent_hana_version = None
+        parent_databases = None
         try:
             comp_response = client.list_components(ApplicationId=app_id)
             for comp in comp_response.get('Components', []):
@@ -423,17 +400,23 @@ async def _get_app_summary(
                     # Skip parent components — extract metadata but don't add to output
                     if comp_type in _PARENT_COMPONENT_TYPES:
                         if comp_type == 'HANA':
-                            hdb_info = detail.get('HdbVersion') or detail.get('HanaVersion')
+                            ver = detail.get('HdbVersion') or detail.get('HanaVersion')
+                            if ver and not parent_hana_version:
+                                parent_hana_version = str(ver)
                             dbs = detail.get('Databases')
                             if dbs and isinstance(dbs, list):
-                                # Store on the first child we find later
-                                pass
+                                parent_databases = [
+                                    str(d.get('DatabaseId', d) if isinstance(d, dict) else d)
+                                    for d in dbs
+                                ]
                         continue
 
                     if comp_type in ('HANA_NODE',):
                         hdb_info = detail.get('HdbVersion') or detail.get('HanaVersion')
                         if hdb_info:
                             hana_version = str(hdb_info)
+                        elif parent_hana_version:
+                            hana_version = parent_hana_version
                         # Resilience info (nested in Resilience dict for HANA_NODE)
                         resilience = detail.get('Resilience', {})
                         repl = (
@@ -459,6 +442,8 @@ async def _get_app_summary(
                                 str(d.get('DatabaseId', d) if isinstance(d, dict) else d)
                                 for d in dbs
                             ]
+                        elif parent_databases:
+                            databases = parent_databases
 
                     components.append(
                         ComponentEntry(
@@ -474,10 +459,16 @@ async def _get_app_summary(
                             cluster_status=cluster_status,
                         )
                     )
-                except Exception:
+                except ClientError as e:
+                    logger.debug(f'AWS API error in detail.get: {format_client_error(e)}')
                     components.append(ComponentEntry(component_id=comp_id, status='ERROR'))
-        except Exception:
-            pass
+                except Exception as e:
+                    logger.debug(f'Unexpected error in detail.get: {e}')
+                    components.append(ComponentEntry(component_id=comp_id, status='ERROR'))
+        except ClientError as e:
+            logger.debug(f'AWS API error: {format_client_error(e)}')
+        except Exception as e:
+            logger.debug(f'Unexpected error: {e}')
 
         # Config checks
         config_checks = []
@@ -544,8 +535,10 @@ async def _get_app_summary(
                                     ) == 'CONFIGURATION_CHECK' and list_op.get('Id'):
                                         operation_id = list_op['Id']
                                         break
-                            except Exception:
-                                pass
+                            except ClientError as e:
+                                logger.debug(f'AWS API error: {format_client_error(e)}')
+                            except Exception as e:
+                                logger.debug(f'Unexpected error: {e}')
                         if operation_id:
                             try:
                                 sc_response = client.list_sub_check_results(
@@ -569,8 +562,10 @@ async def _get_app_summary(
                                                         metadata=rule.get('Metadata'),
                                                     )
                                                 )
-                                        except Exception:
-                                            pass
+                                        except ClientError as e:
+                                            logger.debug(f'AWS API error: {format_client_error(e)}')
+                                        except Exception as e:
+                                            logger.debug(f'Unexpected error: {e}')
                                     subchecks.append(
                                         SubCheckEntry(
                                             id=sc_id or None,
@@ -580,8 +575,10 @@ async def _get_app_summary(
                                             rule_results=rule_results,
                                         )
                                     )
-                            except Exception:
-                                pass
+                            except ClientError as e:
+                                logger.debug(f'AWS API error: {format_client_error(e)}')
+                            except Exception as e:
+                                logger.debug(f'Unexpected error: {e}')
 
                     config_checks.append(
                         ConfigCheckEntry(
@@ -595,8 +592,10 @@ async def _get_app_summary(
                             subchecks=subchecks,
                         )
                     )
-            except Exception:
-                pass
+            except ClientError as e:
+                logger.debug(f'AWS API error: {format_client_error(e)}')
+            except Exception as e:
+                logger.debug(f'Unexpected error: {e}')
 
         # CloudWatch metrics
         cw_metrics = []
@@ -621,8 +620,10 @@ async def _get_app_summary(
                     if dps:
                         cpu_avg = round(dps[0].get('Average', 0), 1)
                         cpu_max = round(dps[0].get('Maximum', 0), 1)
-                except Exception:
-                    pass
+                except ClientError as e:
+                    logger.debug(f'AWS API error: {format_client_error(e)}')
+                except Exception as e:
+                    logger.debug(f'Unexpected error: {e}')
                 try:
                     sc_resp = cloudwatch_client.get_metric_statistics(
                         Namespace='AWS/EC2',
@@ -639,7 +640,11 @@ async def _get_app_summary(
                         status_check = 'OK' if failed == 0 else 'FAILED'
                     else:
                         status_check = 'No data'
-                except Exception:
+                except ClientError as e:
+                    logger.debug(f'AWS API error in sc_resp.get: {format_client_error(e)}')
+                    status_check = 'Error'
+                except Exception as e:
+                    logger.debug(f'Unexpected error in sc_resp.get: {e}')
                     status_check = 'Error'
                 # CWAgent metrics (memory, disk, network)
                 memory_used_pct = None
@@ -665,8 +670,10 @@ async def _get_app_summary(
                         dps = mem_resp.get('Datapoints', [])
                         if dps:
                             memory_used_pct = round(dps[0].get('Average', 0), 1)
-                except Exception:
-                    pass
+                except ClientError as e:
+                    logger.debug(f'AWS API error: {format_client_error(e)}')
+                except Exception as e:
+                    logger.debug(f'Unexpected error: {e}')
                 try:
                     # Query SAP-relevant disk paths
                     disk_dim_sets = _discover_cwagent_disk_dimensions(
@@ -691,8 +698,10 @@ async def _get_app_summary(
                                 if dps:
                                     disk_used_pct = round(dps[0].get('Average', 0), 1)
                                 break
-                except Exception:
-                    pass
+                except ClientError as e:
+                    logger.debug(f'AWS API error: {format_client_error(e)}')
+                except Exception as e:
+                    logger.debug(f'Unexpected error: {e}')
                 try:
                     net_dims = _discover_cwagent_dimensions(
                         cloudwatch_client,
@@ -712,8 +721,10 @@ async def _get_app_summary(
                         dps = net_in_resp.get('Datapoints', [])
                         if dps:
                             network_in = round(dps[0].get('Sum', 0), 0)
-                except Exception:
-                    pass
+                except ClientError as e:
+                    logger.debug(f'AWS API error: {format_client_error(e)}')
+                except Exception as e:
+                    logger.debug(f'Unexpected error: {e}')
                 try:
                     net_dims = _discover_cwagent_dimensions(
                         cloudwatch_client,
@@ -733,8 +744,10 @@ async def _get_app_summary(
                         dps = net_out_resp.get('Datapoints', [])
                         if dps:
                             network_out = round(dps[0].get('Sum', 0), 0)
-                except Exception:
-                    pass
+                except ClientError as e:
+                    logger.debug(f'AWS API error: {format_client_error(e)}')
+                except Exception as e:
+                    logger.debug(f'Unexpected error: {e}')
                 cw_metrics.append(
                     CloudWatchMetricsEntry(
                         instance_id=instance_id,
@@ -766,7 +779,11 @@ async def _get_app_summary(
                         agent_version = instances[0].get('AgentVersion')
                     else:
                         agent_status = 'Not managed'
-                except Exception:
+                except ClientError as e:
+                    logger.debug(f'AWS API error in resp.get: {format_client_error(e)}')
+                    agent_status = 'Error'
+                except Exception as e:
+                    logger.debug(f'Unexpected error in resp.get: {e}')
                     agent_status = 'Error'
 
                 # Try to get HANA log backup status via SSM command
@@ -880,8 +897,10 @@ async def _get_app_summary(
                                         failure_reason = detail_resp.get(
                                             'StatusMessage'
                                         ) or detail_resp.get('MessageCategory')
-                                    except Exception:
-                                        pass
+                                    except ClientError as e:
+                                        logger.debug(f'AWS API error in backup_client.describe_backup_job: {format_client_error(e)}')
+                                    except Exception as e:
+                                        logger.debug(f'Unexpected error in backup_client.describe_backup_job: {e}')
                             backup_entries.append(
                                 BackupStatusEntry(
                                     instance_id=app_id,
@@ -918,11 +937,17 @@ async def _get_app_summary(
                                                 failure_reason = detail_resp.get(
                                                     'StatusMessage'
                                                 ) or detail_resp.get('MessageCategory')
-                                            except Exception:
-                                                pass
+                                            except ClientError as e:
+                                                logger.debug(f'AWS API error in backup_client.describe_backup_job: {format_client_error(e)}')
+                                            except Exception as e:
+                                                logger.debug(f'Unexpected error in backup_client.describe_backup_job: {e}')
                                 else:
                                     b_status = 'No backups'
-                            except Exception:
+                            except ClientError as e:
+                                logger.debug(f'AWS API error in detail_resp.get: {format_client_error(e)}')
+                                b_status = 'Error'
+                            except Exception as e:
+                                logger.debug(f'Unexpected error in detail_resp.get: {e}')
                                 b_status = 'Error'
                             backup_entries.append(
                                 BackupStatusEntry(
@@ -932,7 +957,8 @@ async def _get_app_summary(
                                     failure_reason=failure_reason,
                                 )
                             )
-                except Exception:
+                except ClientError as e:
+                    logger.debug(f'AWS API error querying backup jobs: {format_client_error(e)}')
                     # Fallback: query per-instance by EC2 resource ARN
                     for instance_id in ec2_instance_ids:
                         last_backup = None
@@ -960,11 +986,17 @@ async def _get_app_summary(
                                             failure_reason = detail_resp.get(
                                                 'StatusMessage'
                                             ) or detail_resp.get('MessageCategory')
-                                        except Exception:
-                                            pass
+                                        except ClientError as e:
+                                            logger.debug(f'AWS API error in backup_client.describe_backup_job: {format_client_error(e)}')
+                                        except Exception as e:
+                                            logger.debug(f'Unexpected error in backup_client.describe_backup_job: {e}')
                             else:
                                 b_status = 'No backups'
-                        except Exception:
+                        except ClientError as e:
+                            logger.debug(f'AWS API error in detail_resp.get: {format_client_error(e)}')
+                            b_status = 'Error'
+                        except Exception as e:
+                            logger.debug(f'Unexpected error in detail_resp.get: {e}')
                             b_status = 'Error'
                         backup_entries.append(
                             BackupStatusEntry(
@@ -974,8 +1006,59 @@ async def _get_app_summary(
                                 failure_reason=failure_reason,
                             )
                         )
-            except Exception:
-                pass
+                except Exception as e:
+                    logger.debug(f'Unexpected error querying backup jobs: {e}')
+                    # Fallback: query per-instance by EC2 resource ARN
+                    for instance_id in ec2_instance_ids:
+                        last_backup = None
+                        b_status = 'N/A'
+                        failure_reason = None
+                        try:
+                            jobs_resp = backup_client.list_backup_jobs(
+                                ByResourceArn=f'arn:aws:ec2:*:*:instance/{instance_id}',
+                                MaxResults=1,
+                            )
+                            jobs = jobs_resp.get('BackupJobs', [])
+                            if jobs:
+                                b_status = jobs[0].get('State', 'UNKNOWN')
+                                last_backup = format_datetime(jobs[0].get('CompletionDate'))
+                                if b_status in ('FAILED', 'EXPIRED', 'ABORTED'):
+                                    failure_reason = jobs[0].get('StatusMessage') or jobs[0].get(
+                                        'MessageCategory'
+                                    )
+                                    job_id = jobs[0].get('BackupJobId', '')
+                                    if not failure_reason and job_id:
+                                        try:
+                                            detail_resp = backup_client.describe_backup_job(
+                                                BackupJobId=job_id
+                                            )
+                                            failure_reason = detail_resp.get(
+                                                'StatusMessage'
+                                            ) or detail_resp.get('MessageCategory')
+                                        except ClientError as e:
+                                            logger.debug(f'AWS API error in backup_client.describe_backup_job: {format_client_error(e)}')
+                                        except Exception as e:
+                                            logger.debug(f'Unexpected error in backup_client.describe_backup_job: {e}')
+                            else:
+                                b_status = 'No backups'
+                        except ClientError as e:
+                            logger.debug(f'AWS API error querying per-instance backup: {format_client_error(e)}')
+                            b_status = 'Error'
+                        except Exception as e:
+                            logger.debug(f'Unexpected error querying per-instance backup: {e}')
+                            b_status = 'Error'
+                        backup_entries.append(
+                            BackupStatusEntry(
+                                instance_id=instance_id,
+                                last_backup=last_backup,
+                                backup_status=b_status,
+                                failure_reason=failure_reason,
+                            )
+                        )
+            except ClientError as e:
+                logger.debug(f'AWS API error: {format_client_error(e)}')
+            except Exception as e:
+                logger.debug(f'Unexpected error: {e}')
 
         # Filesystem usage via SSM RunCommand
         fs_entries = []
@@ -1024,11 +1107,17 @@ async def _get_app_summary(
                                             if hist_output:
                                                 fs_info = hist_output[:1000]
                                         break
-                            except Exception:
-                                pass
+                            except ClientError as e:
+                                logger.debug(f'AWS API error in ssm_client.get_command_invocation: {format_client_error(e)}')
+                            except Exception as e:
+                                logger.debug(f'Unexpected error in ssm_client.get_command_invocation: {e}')
                     else:
                         fs_status = 'Not managed'
-                except Exception:
+                except ClientError as e:
+                    logger.debug(f'AWS API error in inv_resp.get: {format_client_error(e)}')
+                    fs_status = 'Error'
+                except Exception as e:
+                    logger.debug(f'Unexpected error in inv_resp.get: {e}')
                     fs_status = 'Error'
                 fs_entries.append(
                     FilesystemUsageEntry(
@@ -1061,7 +1150,7 @@ async def _get_app_summary(
         )
 
 
-def _check_app_health(
+async def _check_app_health(
     client,
     ssm_client,
     backup_client,
@@ -1201,7 +1290,10 @@ def _check_app_health(
                                 'instance_ids': instance_ids,
                             }
                         )
-                    except Exception:
+                    except ClientError as e:
+                        logger.debug(f'AWS API error: {format_client_error(e)}')
+                    except Exception as e:
+                        logger.debug(f'Unexpected error: {e}')
                         node_details.append(
                             {
                                 'hostname': comp_id,
@@ -1304,7 +1396,7 @@ def _check_app_health(
 
         # Filesystem usage via SSM
         if include_log_backup_status and ssm_client and ec2_instance_ids:
-            _append_filesystem_usage(ssm_client, ec2_instance_ids, lines, findings=findings)
+            await _append_filesystem_usage(ssm_client, ec2_instance_ids, lines, findings=findings)
 
         # Consolidated Recommended Actions — at the very end
         if findings:
@@ -1439,8 +1531,10 @@ def _append_config_checks(
                         if op.get('Type') == 'CONFIGURATION_CHECK' and op.get('Id'):
                             operation_id = op['Id']
                             break
-                except Exception:
-                    pass
+                except ClientError as e:
+                    logger.debug(f'AWS API error in client.list_operations: {format_client_error(e)}')
+                except Exception as e:
+                    logger.debug(f'Unexpected error in client.list_operations: {e}')
 
             last_updated = format_datetime(
                 check_op.get('EndTime') or check_op.get('LastUpdatedTime')
@@ -1507,10 +1601,14 @@ def _append_config_checks(
                                                     finding['_key'] = key
                                                     findings.append(finding)
                                         lines.append('')
-                                except Exception:
-                                    pass
-                except Exception:
-                    pass
+                                except ClientError as e:
+                                    logger.debug(f'AWS API error: {format_client_error(e)}')
+                                except Exception as e:
+                                    logger.debug(f'Unexpected error: {e}')
+                except ClientError as e:
+                    logger.debug(f'AWS API error: {format_client_error(e)}')
+                except Exception as e:
+                    logger.debug(f'Unexpected error: {e}')
 
         lines.append('')
     except Exception as e:
@@ -1609,15 +1707,27 @@ def _append_log_backup_status(
                                                     else:
                                                         backup_info = f'⚪ {cmd_status}'
                                                     break
-                                    except Exception:
+                                    except ClientError as e:
+                                        logger.debug(f'AWS API error: {format_client_error(e)}')
+                                        backup_info = 'Unable to query invocation'
+                                    except Exception as e:
+                                        logger.debug(f'Unexpected error: {e}')
                                         backup_info = 'Unable to query invocation'
                             else:
                                 backup_info = 'No check history'
-                        except Exception:
+                        except ClientError as e:
+                            logger.debug(f'AWS API error: {format_client_error(e)}')
+                            backup_info = 'Unable to query'
+                        except Exception as e:
+                            logger.debug(f'Unexpected error: {e}')
                             backup_info = 'Unable to query'
                 else:
                     agent_info = '⚪ Not managed by SSM'
-            except Exception:
+            except ClientError as e:
+                logger.debug(f'AWS API error: {format_client_error(e)}')
+                agent_info = '⚠️ Unable to query'
+            except Exception as e:
+                logger.debug(f'Unexpected error: {e}')
                 agent_info = '⚠️ Unable to query'
 
             lines.append(f'| `{instance_id}` | {agent_info} | {backup_info} |')
@@ -1723,8 +1833,10 @@ def _append_aws_backup_status(
                                     failure_reason = detail_resp.get(
                                         'StatusMessage'
                                     ) or detail_resp.get('MessageCategory')
-                                except Exception:
-                                    pass
+                                except ClientError as e:
+                                    logger.debug(f'AWS API error in backup_client.describe_backup_job: {format_client_error(e)}')
+                                except Exception as e:
+                                    logger.debug(f'Unexpected error in backup_client.describe_backup_job: {e}')
                             failed_jobs.append(
                                 {
                                     'instance': app_id,
@@ -1735,8 +1847,10 @@ def _append_aws_backup_status(
                                     'job_id': job_id or 'N/A',
                                 }
                             )
-        except Exception:
-            pass
+        except ClientError as e:
+            logger.debug(f'AWS API error: {format_client_error(e)}')
+        except Exception as e:
+            logger.debug(f'Unexpected error: {e}')
 
         # Fallback: query by EC2 instance resource ARN
         if not sap_jobs_found:
@@ -1766,8 +1880,10 @@ def _append_aws_backup_status(
                                     failure_reason = detail_resp.get(
                                         'StatusMessage'
                                     ) or detail_resp.get('MessageCategory')
-                                except Exception:
-                                    pass
+                                except ClientError as e:
+                                    logger.debug(f'AWS API error in backup_client.describe_backup_job: {format_client_error(e)}')
+                                except Exception as e:
+                                    logger.debug(f'Unexpected error in backup_client.describe_backup_job: {e}')
                             failed_jobs.append(
                                 {
                                     'instance': instance_id,
@@ -1780,7 +1896,10 @@ def _append_aws_backup_status(
                             )
                     else:
                         lines.append(f'| `{instance_id}` | No backups found | ⚪ N/A | - |')
-                except Exception:
+                except ClientError as e:
+                    logger.debug(f'AWS API error in lines.append: {format_client_error(e)}')
+                except Exception as e:
+                    logger.debug(f'Unexpected error: {e}')
                     lines.append(f'| `{instance_id}` | Unable to query | ⚠️ Error | - |')
 
         lines.append('')
@@ -1872,8 +1991,10 @@ def _append_cloudwatch_metrics(
                 dp = datapoints[0]
                 cpu_avg = f'{dp.get("Average", 0):.1f}'
                 cpu_max = f'{dp.get("Maximum", 0):.1f}'
-        except Exception:
-            pass
+        except ClientError as e:
+            logger.debug(f'AWS API error: {format_client_error(e)}')
+        except Exception as e:
+            logger.debug(f'Unexpected error: {e}')
 
         try:
             # Status Check Failed
@@ -1892,7 +2013,11 @@ def _append_cloudwatch_metrics(
                 status_check = '🟢 OK' if failed == 0 else '🔴 FAILED'
             else:
                 status_check = '⚪ No data'
-        except Exception:
+        except ClientError as e:
+            logger.debug(f'AWS API error in status_response.get: {format_client_error(e)}')
+            status_check = '⚠️ Error'
+        except Exception as e:
+            logger.debug(f'Unexpected error in status_response.get: {e}')
             status_check = '⚠️ Error'
 
         # CWAgent metrics
@@ -1915,8 +2040,10 @@ def _append_cloudwatch_metrics(
                 dps = mem_resp.get('Datapoints', [])
                 if dps:
                     mem_pct = f'{dps[0].get("Average", 0):.1f}'
-        except Exception:
-            pass
+        except ClientError as e:
+            logger.debug(f'AWS API error: {format_client_error(e)}')
+        except Exception as e:
+            logger.debug(f'Unexpected error: {e}')
         try:
             disk_dim_sets = _discover_cwagent_disk_dimensions(
                 cloudwatch_client,
@@ -1938,8 +2065,10 @@ def _append_cloudwatch_metrics(
                     if dps:
                         disk_pct = f'{dps[0].get("Average", 0):.1f}'
                     break
-        except Exception:
-            pass
+        except ClientError as e:
+            logger.debug(f'AWS API error: {format_client_error(e)}')
+        except Exception as e:
+            logger.debug(f'Unexpected error: {e}')
 
         instance_data.append(
             {
@@ -2063,10 +2192,14 @@ def _append_cloudwatch_metrics(
                         pct = f'{dps[0].get("Average", 0):.1f}'
                         disk_lines.append(f'| `{instance_id}` | `{path}` | {pct} | `{device}` |')
                         has_disk_detail = True
-                except Exception:
-                    pass
-        except Exception:
-            pass
+                except ClientError as e:
+                    logger.debug(f'AWS API error: {format_client_error(e)}')
+                except Exception as e:
+                    logger.debug(f'Unexpected error: {e}')
+        except ClientError as e:
+            logger.debug(f'AWS API error: {format_client_error(e)}')
+        except Exception as e:
+            logger.debug(f'Unexpected error: {e}')
     disk_lines.append('')
 
     if has_disk_detail:
@@ -2104,8 +2237,10 @@ def _append_cloudwatch_metrics(
                     val = dps[0].get('Sum', 0)
                     net_in = _format_bytes(val)
                     has_network = True
-        except Exception:
-            pass
+        except ClientError as e:
+            logger.debug(f'AWS API error: {format_client_error(e)}')
+        except Exception as e:
+            logger.debug(f'Unexpected error: {e}')
         try:
             sent_dims = _discover_cwagent_dimensions(
                 cloudwatch_client,
@@ -2127,8 +2262,10 @@ def _append_cloudwatch_metrics(
                     val = dps[0].get('Sum', 0)
                     net_out = _format_bytes(val)
                     has_network = True
-        except Exception:
-            pass
+        except ClientError as e:
+            logger.debug(f'AWS API error: {format_client_error(e)}')
+        except Exception as e:
+            logger.debug(f'Unexpected error: {e}')
         net_lines.append(f'| `{instance_id}` | {net_in} | {net_out} |')
     net_lines.append('')
 
@@ -2138,7 +2275,7 @@ def _append_cloudwatch_metrics(
     lines.append('')
 
 
-def _append_filesystem_usage(
+async def _append_filesystem_usage(
     ssm_client,
     ec2_instance_ids: List[str],
     lines: List[str],
@@ -2164,9 +2301,11 @@ def _append_filesystem_usage(
         output = None
         # Try running df -h via SSM
         try:
-            output = _run_ssm_command_sync(ssm_client, instance_id, df_command)
-        except Exception:
-            pass
+            output = await _run_ssm_command(ssm_client, instance_id, df_command)
+        except ClientError as e:
+            logger.debug(f'AWS API error: {format_client_error(e)}')
+        except Exception as e:
+            logger.debug(f'Unexpected error: {e}')
 
         # Fallback: check command history for recent df results
         if not output:
@@ -2190,8 +2329,10 @@ def _append_filesystem_usage(
                                 output = inv_resp.get('StandardOutputContent', '')
                                 if output:
                                     break
-            except Exception:
-                pass
+            except ClientError as e:
+                logger.debug(f'AWS API error in ssm_client.get_command_invocation: {format_client_error(e)}')
+            except Exception as e:
+                logger.debug(f'Unexpected error in ssm_client.get_command_invocation: {e}')
 
         if output and output.strip():
             lines.append(f'**`{instance_id}`:**')
@@ -2593,7 +2734,7 @@ class SSMSAPHealthTools:
             app_reports: List[str] = []
 
             for app_id in app_ids:
-                app_report, app_status, disc_status = _check_app_health(
+                app_report, app_status, disc_status = await _check_app_health(
                     client,
                     ssm_client,
                     backup_client,
