@@ -573,6 +573,20 @@ class K8sHandler:
             # Get Kubernetes client for the cluster
             k8s_client = self.get_client(cluster_name)
 
+            # Check for secret access when allow_sensitive_data_access is not enabled
+            if (
+                not self.allow_sensitive_data_access
+                and kind.lower() == 'secret'
+            ):
+                error_msg = (
+                    'Access to Kubernetes Secrets requires --allow-sensitive-data-access flag'
+                )
+                log_with_request_id(ctx, LogLevel.ERROR, error_msg)
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type='text', text=error_msg)],
+                )
+
             # List resources
             response = k8s_client.list_resources(
                 kind,
