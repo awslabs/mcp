@@ -34,6 +34,9 @@ from .aws_clients import (
     s3_client,
     synthetics_client,
 )
+from .canary_knowledge_base_loader import CanaryKnowledgeBaseLoader
+from .canary_knowledge_base_model import FailureContext
+from .canary_recommendation_engine import CanaryRecommendationEngine
 from .canary_utils import (
     analyze_canary_logs_with_time_window,
     analyze_har_file,
@@ -44,13 +47,10 @@ from .canary_utils import (
     check_resource_arns_correct,
     extract_disk_memory_usage_metrics,
     get_canary_code,
-    get_canary_metrics_and_service_insights
+    get_canary_metrics_and_service_insights,
 )
 from .change_tools import list_change_events
 from .enablement_tools import get_enablement_guide
-from .canary_knowledge_base_loader import CanaryKnowledgeBaseLoader
-from .canary_knowledge_base_model import FailureContext
-from .canary_recommendation_engine import CanaryRecommendationEngine
 from .group_tools import (
     audit_group_health,
     get_group_changes,
@@ -450,7 +450,9 @@ async def audit_services(
         result = await execute_audit_api(input_obj, region, banner)
 
         # Check Synthetics canaries linked to the audited services
-        canary_result = await check_canaries_for_service(normalized_targets, unix_start, unix_end, region)
+        canary_result = await check_canaries_for_service(
+            normalized_targets, unix_start, unix_end, region
+        )
         if canary_result:
             result += canary_result
 
@@ -987,7 +989,9 @@ async def audit_service_operations(
 
 
 @mcp.tool()
-async def analyze_canary_failures(canary_name: str, region: str = AWS_REGION, description: str = '') -> str:
+async def analyze_canary_failures(
+    canary_name: str, region: str = AWS_REGION, description: str = ''
+) -> str:
     """Comprehensive canary failure analysis with deep dive into issues.
 
     Use this tool to:
@@ -1107,14 +1111,20 @@ async def analyze_canary_failures(canary_name: str, region: str = AWS_REGION, de
             if description:
                 try:
                     # Cap description length to mitigate slow regex matching in KB patterns
-                    capped_description = description[:500] if len(description) > 500 else description
+                    capped_description = (
+                        description[:500] if len(description) > 500 else description
+                    )
                     kb_error_messages_healthy: list[str] = [capped_description]
                     failure_context_healthy = FailureContext(
                         error_messages=kb_error_messages_healthy,
                         runtime_version=canary.get('RuntimeVersion', ''),
                     )
-                    engine_healthy = CanaryRecommendationEngine(await CanaryKnowledgeBaseLoader.get_instance())
-                    recommendations_healthy = engine_healthy.get_recommendations(failure_context_healthy)
+                    engine_healthy = CanaryRecommendationEngine(
+                        await CanaryKnowledgeBaseLoader.get_instance()
+                    )
+                    recommendations_healthy = engine_healthy.get_recommendations(
+                        failure_context_healthy
+                    )
                     if recommendations_healthy:
                         result += engine_healthy.format_recommendations(recommendations_healthy)
                 except Exception as e:
@@ -1564,7 +1574,9 @@ async def analyze_canary_failures(canary_name: str, region: str = AWS_REGION, de
             kb_error_messages: list[str] = [selected_reason]
             if description:
                 # Cap description length to mitigate slow regex matching in KB patterns
-                kb_error_messages.append(description[:500] if len(description) > 500 else description)
+                kb_error_messages.append(
+                    description[:500] if len(description) > 500 else description
+                )
             for msg in all_collected_error_messages:
                 if msg and msg not in kb_error_messages:
                     kb_error_messages.append(msg)
@@ -1588,6 +1600,7 @@ async def analyze_canary_failures(canary_name: str, region: str = AWS_REGION, de
 
     except Exception as e:
         return f'❌ Error in comprehensive failure analysis: {str(e)}'
+
 
 @mcp.tool()
 async def list_canaries(region: str = AWS_REGION, max_results: int = 20) -> str:

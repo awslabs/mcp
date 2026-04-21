@@ -1530,6 +1530,7 @@ class TestListGroupingAttributeDefinitions:
 # TESTS: audit_group_health canary integration
 # =============================================================================
 
+
 class TestAuditGroupHealthCanaryIntegration:
     """Tests for the canary health check section in audit_group_health."""
 
@@ -1546,7 +1547,12 @@ class TestAuditGroupHealthCanaryIntegration:
                 'Environment': 'eks:prod',
             },
             'ServiceGroups': [
-                {'GroupName': 'App', 'GroupValue': 'Payments', 'GroupSource': 'TAG', 'GroupIdentifier': 'App=Payments'}
+                {
+                    'GroupName': 'App',
+                    'GroupValue': 'Payments',
+                    'GroupSource': 'TAG',
+                    'GroupIdentifier': 'App=Payments',
+                }
             ],
         }
         mock_appsignals.list_services.return_value = {
@@ -1607,7 +1613,12 @@ class TestAuditGroupHealthCanaryIntegration:
                 'Environment': 'eks:prod',
             },
             'ServiceGroups': [
-                {'GroupName': 'App', 'GroupValue': 'API', 'GroupSource': 'TAG', 'GroupIdentifier': 'App=API'}
+                {
+                    'GroupName': 'App',
+                    'GroupValue': 'API',
+                    'GroupSource': 'TAG',
+                    'GroupIdentifier': 'App=API',
+                }
             ],
         }
         mock_appsignals.list_services.return_value = {
@@ -1619,9 +1630,7 @@ class TestAuditGroupHealthCanaryIntegration:
                 'MetricReferences': [],
             }
         }
-        mock_appsignals.list_service_dependents.return_value = {
-            'ServiceDependents': []
-        }
+        mock_appsignals.list_service_dependents.return_value = {'ServiceDependents': []}
 
         with patch(
             'awslabs.cloudwatch_applicationsignals_mcp_server.group_tools.SLIReportClient'

@@ -15,7 +15,6 @@
 """Tests for canary_recommendation_engine."""
 
 import pytest
-from unittest.mock import MagicMock
 from awslabs.cloudwatch_applicationsignals_mcp_server.canary_knowledge_base_loader import (
     CanaryKnowledgeBaseLoader,
 )
@@ -29,6 +28,7 @@ from awslabs.cloudwatch_applicationsignals_mcp_server.canary_recommendation_engi
     CanaryRecommendationEngine,
     _extract_keywords,
 )
+from unittest.mock import MagicMock
 
 
 @pytest.fixture(autouse=True)
@@ -72,6 +72,7 @@ class TestExtractKeywords:
     """Tests for _extract_keywords helper."""
 
     def test_basic(self):
+        """Test Basic."""
         kw = _extract_keywords('Canary fails with timeout error')
         assert 'canary' in kw
         assert 'fails' in kw
@@ -79,6 +80,7 @@ class TestExtractKeywords:
         assert 'error' in kw
 
     def test_stop_words_removed(self):
+        """Test Stop words removed."""
         kw = _extract_keywords('the canary is not working')
         assert 'the' not in kw
         assert 'is' not in kw
@@ -87,6 +89,7 @@ class TestExtractKeywords:
         assert 'working' in kw
 
     def test_short_words_removed(self):
+        """Test Short words removed."""
         kw = _extract_keywords('a b cd efg')
         assert 'a' not in kw
         assert 'b' not in kw
@@ -94,10 +97,12 @@ class TestExtractKeywords:
         assert 'efg' in kw
 
     def test_preserves_underscores(self):
+        """Test Preserves underscores."""
         kw = _extract_keywords('UPDATE_ROLLBACK_FAILED state')
         assert 'update_rollback_failed' in kw
 
     def test_empty_string(self):
+        """Test Empty string."""
         assert _extract_keywords('') == []
 
 
@@ -105,64 +110,76 @@ class TestScoreErrorPatterns:
     """Tests for _score_error_patterns."""
 
     def test_text_contains_match(self):
+        """Test Text contains match."""
         entry = _make_entry(error_patterns=[ErrorPattern(text_contains='Timeout 60000ms')])
         ctx = _make_context(error_messages=['page.goto: Timeout 60000ms exceeded'])
         engine = CanaryRecommendationEngine(MagicMock())
         assert engine._score_error_patterns(entry, ctx) == 1.0
 
     def test_text_contains_case_insensitive(self):
+        """Test Text contains case insensitive."""
         entry = _make_entry(error_patterns=[ErrorPattern(text_contains='TIMEOUT')])
         ctx = _make_context(error_messages=['timeout occurred'])
         engine = CanaryRecommendationEngine(MagicMock())
         assert engine._score_error_patterns(entry, ctx) == 1.0
 
     def test_regex_match(self):
+        """Test Regex match."""
         entry = _make_entry(error_patterns=[ErrorPattern(regex=r'page\.goto:.*Timeout.*exceeded')])
         ctx = _make_context(error_messages=['page.goto: Timeout 60000ms exceeded'])
         engine = CanaryRecommendationEngine(MagicMock())
         assert engine._score_error_patterns(entry, ctx) == 1.0
 
     def test_regex_no_match(self):
+        """Test Regex no match."""
         entry = _make_entry(error_patterns=[ErrorPattern(regex=r'page\.goto:.*Timeout')])
         ctx = _make_context(error_messages=['something else entirely'])
         engine = CanaryRecommendationEngine(MagicMock())
         assert engine._score_error_patterns(entry, ctx) == 0.0
 
     def test_regex_invalid(self):
+        """Test Regex invalid."""
         entry = _make_entry(error_patterns=[ErrorPattern(regex=r'[invalid')])
         ctx = _make_context(error_messages=['test'])
         engine = CanaryRecommendationEngine(MagicMock())
         assert engine._score_error_patterns(entry, ctx) == 0.0
 
     def test_error_type_match(self):
+        """Test Error type match."""
         entry = _make_entry(error_patterns=[ErrorPattern(error_type='TimeoutError')])
         ctx = _make_context(error_messages=['TimeoutError'])
         engine = CanaryRecommendationEngine(MagicMock())
         assert engine._score_error_patterns(entry, ctx) == 1.0
 
     def test_error_type_no_match(self):
+        """Test Error type no match."""
         entry = _make_entry(error_patterns=[ErrorPattern(error_type='TimeoutError')])
         ctx = _make_context(error_messages=['SomeOtherError'])
         engine = CanaryRecommendationEngine(MagicMock())
         assert engine._score_error_patterns(entry, ctx) == 0.0
 
     def test_no_patterns(self):
+        """Test No patterns."""
         entry = _make_entry(error_patterns=[])
         ctx = _make_context(error_messages=['timeout'])
         engine = CanaryRecommendationEngine(MagicMock())
         assert engine._score_error_patterns(entry, ctx) == 0.0
 
     def test_no_messages(self):
+        """Test No messages."""
         entry = _make_entry()
         ctx = _make_context(error_messages=[])
         engine = CanaryRecommendationEngine(MagicMock())
         assert engine._score_error_patterns(entry, ctx) == 0.0
 
     def test_multiple_patterns_or_semantics(self):
-        entry = _make_entry(error_patterns=[
-            ErrorPattern(text_contains='no match here'),
-            ErrorPattern(text_contains='timeout'),
-        ])
+        """Test Multiple patterns or semantics."""
+        entry = _make_entry(
+            error_patterns=[
+                ErrorPattern(text_contains='no match here'),
+                ErrorPattern(text_contains='timeout'),
+            ]
+        )
         ctx = _make_context(error_messages=['timeout occurred'])
         engine = CanaryRecommendationEngine(MagicMock())
         assert engine._score_error_patterns(entry, ctx) == 1.0
@@ -172,28 +189,34 @@ class TestScoreSymptoms:
     """Tests for _score_symptoms."""
 
     def test_full_match(self):
+        """Test Full match."""
         entry = _make_entry(symptoms=['Canary fails with timeout'])
         ctx = _make_context(error_messages=['Canary fails with timeout error'])
         engine = CanaryRecommendationEngine(MagicMock())
         assert engine._score_symptoms(entry, ctx) == 1.0
 
     def test_partial_match(self):
-        entry = _make_entry(symptoms=[
-            'Canary fails with timeout',
-            'Memory usage exceeds 90%',
-        ])
+        """Test Partial match."""
+        entry = _make_entry(
+            symptoms=[
+                'Canary fails with timeout',
+                'Memory usage exceeds 90%',
+            ]
+        )
         ctx = _make_context(error_messages=['Canary fails with timeout error'])
         engine = CanaryRecommendationEngine(MagicMock())
         score = engine._score_symptoms(entry, ctx)
         assert 0.0 < score < 1.0
 
     def test_no_match(self):
+        """Test No match."""
         entry = _make_entry(symptoms=['Visual baseline overwritten'])
         ctx = _make_context(error_messages=['timeout occurred'])
         engine = CanaryRecommendationEngine(MagicMock())
         assert engine._score_symptoms(entry, ctx) == 0.0
 
     def test_empty_symptoms(self):
+        """Test Empty symptoms."""
         entry = _make_entry(symptoms=[])
         ctx = _make_context()
         engine = CanaryRecommendationEngine(MagicMock())
@@ -204,48 +227,56 @@ class TestScoreRuntimeVersion:
     """Tests for _score_runtime_version."""
 
     def test_exact_match(self):
+        """Test Exact match."""
         entry = _make_entry(runtime_versions=['syn-nodejs-puppeteer-10.0'])
         ctx = _make_context(runtime_version='syn-nodejs-puppeteer-10.0')
         engine = CanaryRecommendationEngine(MagicMock())
         assert engine._score_runtime_version(entry, ctx) == 1.0
 
     def test_no_match(self):
+        """Test No match."""
         entry = _make_entry(runtime_versions=['syn-nodejs-puppeteer-10.0'])
         ctx = _make_context(runtime_version='syn-nodejs-puppeteer-9.0')
         engine = CanaryRecommendationEngine(MagicMock())
         assert engine._score_runtime_version(entry, ctx) == 0.0
 
     def test_wildcard(self):
+        """Test Wildcard."""
         entry = _make_entry(runtime_versions=['*'])
         ctx = _make_context(runtime_version='syn-nodejs-puppeteer-10.0')
         engine = CanaryRecommendationEngine(MagicMock())
         assert engine._score_runtime_version(entry, ctx) == 0.5
 
     def test_suffix_plus_match(self):
+        """Test Suffix plus match."""
         entry = _make_entry(runtime_versions=['syn-nodejs-puppeteer-8.0+'])
         ctx = _make_context(runtime_version='syn-nodejs-puppeteer-10.0')
         engine = CanaryRecommendationEngine(MagicMock())
         assert engine._score_runtime_version(entry, ctx) == 1.0
 
     def test_suffix_plus_no_match(self):
+        """Test Suffix plus no match."""
         entry = _make_entry(runtime_versions=['syn-nodejs-puppeteer-11.0+'])
         ctx = _make_context(runtime_version='syn-nodejs-puppeteer-10.0')
         engine = CanaryRecommendationEngine(MagicMock())
         assert engine._score_runtime_version(entry, ctx) == 0.0
 
     def test_empty_runtime_versions(self):
+        """Test Empty runtime versions."""
         entry = _make_entry(runtime_versions=[])
         ctx = _make_context()
         engine = CanaryRecommendationEngine(MagicMock())
         assert engine._score_runtime_version(entry, ctx) == 1.0
 
     def test_no_context_runtime(self):
+        """Test No context runtime."""
         entry = _make_entry(runtime_versions=['syn-nodejs-puppeteer-10.0'])
         ctx = _make_context(runtime_version='')
         engine = CanaryRecommendationEngine(MagicMock())
         assert engine._score_runtime_version(entry, ctx) == 0.0
 
     def test_different_family_plus(self):
+        """Test Different family plus."""
         entry = _make_entry(runtime_versions=['syn-nodejs-puppeteer-8.0+'])
         ctx = _make_context(runtime_version='syn-nodejs-playwright-10.0')
         engine = CanaryRecommendationEngine(MagicMock())
@@ -256,6 +287,7 @@ class TestScoreEnvironment:
     """Tests for _score_environment."""
 
     def test_overlap(self):
+        """Test Overlap."""
         entry = _make_entry(tags=['timeout', 'puppeteer'], category='test')
         ctx = _make_context(environment_indicators=['timeout', 'lambda'])
         engine = CanaryRecommendationEngine(MagicMock())
@@ -263,12 +295,14 @@ class TestScoreEnvironment:
         assert score > 0.0
 
     def test_no_overlap(self):
+        """Test No overlap."""
         entry = _make_entry(tags=['visual', 'baseline'], category='visual_monitoring')
         ctx = _make_context(environment_indicators=['timeout', 'lambda'])
         engine = CanaryRecommendationEngine(MagicMock())
         assert engine._score_environment(entry, ctx) == 0.0
 
     def test_empty_indicators(self):
+        """Test Empty indicators."""
         entry = _make_entry()
         ctx = _make_context(environment_indicators=[])
         engine = CanaryRecommendationEngine(MagicMock())
@@ -279,14 +313,17 @@ class TestComputeConfidence:
     """Tests for _compute_confidence."""
 
     def test_all_ones(self):
+        """Test All ones."""
         engine = CanaryRecommendationEngine(MagicMock())
         assert engine._compute_confidence(1.0, 1.0, 1.0, 1.0) == 1.0
 
     def test_all_zeros(self):
+        """Test All zeros."""
         engine = CanaryRecommendationEngine(MagicMock())
         assert engine._compute_confidence(0.0, 0.0, 0.0, 0.0) == 0.0
 
     def test_error_only(self):
+        """Test Error only."""
         engine = CanaryRecommendationEngine(MagicMock())
         assert engine._compute_confidence(1.0, 0.0, 0.0, 0.0) == 0.4
 
@@ -302,6 +339,7 @@ class TestGetRecommendations:
     """Tests for get_recommendations end-to-end."""
 
     def test_returns_matches_above_threshold(self):
+        """Test Returns matches above threshold."""
         loader = _load_kb_sync()
         engine = CanaryRecommendationEngine(loader)
 
@@ -314,6 +352,7 @@ class TestGetRecommendations:
         assert results[0].entry.id == 'RUNTIME-001'
 
     def test_no_match_returns_empty(self):
+        """Test No match returns empty."""
         loader = _load_kb_sync()
         engine = CanaryRecommendationEngine(loader)
 
@@ -324,6 +363,7 @@ class TestGetRecommendations:
         assert len(results) == 0
 
     def test_skips_entries_with_no_error_pattern_match(self):
+        """Test Skips entries with no error pattern match."""
         loader = MagicMock()
         entry = _make_entry(error_patterns=[ErrorPattern(text_contains='very specific string')])
         loader.get_active_entries.return_value = [entry]
@@ -334,6 +374,7 @@ class TestGetRecommendations:
         assert len(results) == 0
 
     def test_max_two_results(self):
+        """Test Max two results."""
         loader = MagicMock()
         entries = [
             _make_entry(id=f'TEST-{i:03d}', error_patterns=[ErrorPattern(text_contains='error')])
@@ -342,11 +383,14 @@ class TestGetRecommendations:
         loader.get_active_entries.return_value = entries
 
         engine = CanaryRecommendationEngine(loader)
-        ctx = _make_context(error_messages=['error occurred'], runtime_version='syn-nodejs-puppeteer-10.0')
+        ctx = _make_context(
+            error_messages=['error occurred'], runtime_version='syn-nodejs-puppeteer-10.0'
+        )
         results = engine.get_recommendations(ctx)
         assert len(results) <= 2
 
     def test_sorted_by_confidence_descending(self):
+        """Test Sorted by confidence descending."""
         loader = _load_kb_sync()
         engine = CanaryRecommendationEngine(loader)
 
@@ -365,10 +409,12 @@ class TestFormatRecommendations:
     """Tests for format_recommendations."""
 
     def test_empty_list(self):
+        """Test Empty list."""
         engine = CanaryRecommendationEngine(MagicMock())
         assert engine.format_recommendations([]) == ''
 
     def test_formats_entry(self):
+        """Test Formats entry."""
         entry = _make_entry(
             id='RUNTIME-001',
             title='Playwright timeout',
@@ -396,6 +442,7 @@ class TestFormatRecommendations:
         assert 'script_timeouts' in output
 
     def test_formats_deprecated_entry(self):
+        """Test Formats deprecated entry."""
         entry = _make_entry(deprecated=True)
         match = MatchResult(
             entry=entry,
@@ -410,6 +457,7 @@ class TestFormatRecommendations:
         assert 'DEPRECATED' in output
 
     def test_formats_documentation_links(self):
+        """Test Formats documentation links."""
         entry = _make_entry(
             documentation_links=[
                 {'title': 'AWS Docs', 'url': 'https://docs.aws.amazon.com'},

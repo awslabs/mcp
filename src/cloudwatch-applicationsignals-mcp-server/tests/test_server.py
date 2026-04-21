@@ -3303,6 +3303,7 @@ def test_filter_operation_targets_case_sensitive():
     assert operation_targets[1]['Data']['ServiceOperation']['MetricType'] == 'FAULT'  # unchanged
     assert has_wildcards is False
 
+
 @pytest.mark.asyncio
 async def test_list_canaries_success(mock_aws_clients):
     """Test list_canaries returns formatted canary list."""
@@ -3314,13 +3315,13 @@ async def test_list_canaries_success(mock_aws_clients):
                 'Name': 'my-canary',
                 'Status': {'State': 'RUNNING', 'StateReason': ''},
                 'Schedule': {'Expression': 'rate(5 minutes)'},
-                'RuntimeVersion': 'syn-nodejs-puppeteer-13.0'
+                'RuntimeVersion': 'syn-nodejs-puppeteer-13.0',
             },
             {
                 'Name': 'stopped-canary',
                 'Status': {'State': 'STOPPED', 'StateReason': ''},
                 'Schedule': {'Expression': 'rate(1 hour)'},
-                'RuntimeVersion': 'syn-nodejs-playwright-5.0'
+                'RuntimeVersion': 'syn-nodejs-playwright-5.0',
             },
         ],
         'NextToken': None,
@@ -3376,7 +3377,7 @@ async def test_list_canaries_pagination(mock_aws_clients):
                     'Name': 'canary-1',
                     'Status': {'State': 'RUNNING'},
                     'Schedule': {'Expression': 'rate(5 minutes)'},
-                    'RuntimeVersion': 'syn-nodejs-puppeteer-13.0'
+                    'RuntimeVersion': 'syn-nodejs-puppeteer-13.0',
                 }
             ],
             'NextToken': 'token123',
@@ -3387,7 +3388,7 @@ async def test_list_canaries_pagination(mock_aws_clients):
                     'Name': 'canary-2',
                     'Status': {'State': 'RUNNING'},
                     'Schedule': {'Expression': 'rate(5 minutes)'},
-                    'RuntimeVersion': 'syn-nodejs-puppeteer-13.0'
+                    'RuntimeVersion': 'syn-nodejs-puppeteer-13.0',
                 }
             ],
         },
@@ -3397,6 +3398,7 @@ async def test_list_canaries_pagination(mock_aws_clients):
     assert 'Found 2 canaries' in result
     assert 'canary-1' in result
     assert 'canary-2' in result
+
 
 @pytest.mark.asyncio
 async def test_analyze_canary_failures_kb_recommendations_on_failure(mock_aws_clients):
@@ -3563,8 +3565,7 @@ async def test_analyze_canary_failures_healthy_with_description(mock_aws_clients
     }
 
     result = await analyze_canary_failures(
-        'healthy-canary', 'us-east-1',
-        description='visual monitoring baseline keeps resetting'
+        'healthy-canary', 'us-east-1', description='visual monitoring baseline keeps resetting'
     )
 
     assert 'recovering or healthy' in result

@@ -17,9 +17,8 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Optional, Union
-
 from pydantic import BaseModel, field_validator
+from typing import Optional, Union
 
 
 class ErrorPattern(BaseModel):
@@ -79,6 +78,7 @@ class KBEntry(BaseModel):
     @field_validator('severity')
     @classmethod
     def validate_severity(cls, v: str) -> str:
+        """Validate severity is one of the allowed values."""
         allowed = {'critical', 'high', 'medium', 'low'}
         if v.lower() not in allowed:
             raise ValueError(f'severity must be one of {allowed}')

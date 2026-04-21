@@ -1513,17 +1513,22 @@ async def test_get_canary_code_exception():
     assert 'error' in result
     assert 'No EngineArn or EngineConfigs found for canary' in result['error']
 
+
 @pytest.mark.asyncio
 async def test_check_canaries_for_service_no_canaries():
     """Test check_canaries_for_service when no canaries are linked."""
-
     with patch(
         'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.applicationsignals_client'
     ) as mock_appsignals:
         mock_appsignals.list_service_dependents.return_value = {'ServiceDependents': []}
 
         targets = [
-            {'Type': 'service', 'Data': {'Service': {'Type': 'Service', 'Name': 'my-svc', 'Environment': 'eks:cluster'}}}
+            {
+                'Type': 'service',
+                'Data': {
+                    'Service': {'Type': 'Service', 'Name': 'my-svc', 'Environment': 'eks:cluster'}
+                },
+            }
         ]
         result = await check_canaries_for_service(targets, 1700000000, 1700086400, 'us-east-1')
         assert result == ''
@@ -1532,7 +1537,6 @@ async def test_check_canaries_for_service_no_canaries():
 @pytest.mark.asyncio
 async def test_check_canaries_for_service_with_failing_canary():
     """Test check_canaries_for_service with a failing canary."""
-
     with (
         patch(
             'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.applicationsignals_client'
@@ -1562,7 +1566,12 @@ async def test_check_canaries_for_service_with_failing_canary():
         }
 
         targets = [
-            {'Type': 'service', 'Data': {'Service': {'Type': 'Service', 'Name': 'my-svc', 'Environment': 'eks:cluster'}}}
+            {
+                'Type': 'service',
+                'Data': {
+                    'Service': {'Type': 'Service', 'Name': 'my-svc', 'Environment': 'eks:cluster'}
+                },
+            }
         ]
         result = await check_canaries_for_service(targets, 1700000000, 1700086400, 'us-east-1')
         assert 'Synthetics Canaries' in result
@@ -1573,7 +1582,6 @@ async def test_check_canaries_for_service_with_failing_canary():
 @pytest.mark.asyncio
 async def test_check_canaries_for_service_with_healthy_canary():
     """Test check_canaries_for_service with all healthy canaries."""
-
     with (
         patch(
             'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.applicationsignals_client'
@@ -1603,7 +1611,12 @@ async def test_check_canaries_for_service_with_healthy_canary():
         }
 
         targets = [
-            {'Type': 'service', 'Data': {'Service': {'Type': 'Service', 'Name': 'my-svc', 'Environment': 'eks:cluster'}}}
+            {
+                'Type': 'service',
+                'Data': {
+                    'Service': {'Type': 'Service', 'Name': 'my-svc', 'Environment': 'eks:cluster'}
+                },
+            }
         ]
         result = await check_canaries_for_service(targets, 1700000000, 1700086400, 'us-east-1')
         assert 'healthy' in result
@@ -1613,13 +1626,18 @@ async def test_check_canaries_for_service_with_healthy_canary():
 @pytest.mark.asyncio
 async def test_check_canaries_for_service_missing_name_or_env():
     """Test check_canaries_for_service skips targets without Name or Environment."""
-
     with patch(
         'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.applicationsignals_client'
     ) as mock_appsignals:
         targets = [
-            {'Type': 'service', 'Data': {'Service': {'Type': 'Service', 'Name': 'my-svc'}}},  # no Environment
-            {'Type': 'service', 'Data': {'Service': {'Type': 'Service', 'Environment': 'eks:cluster'}}},  # no Name
+            {
+                'Type': 'service',
+                'Data': {'Service': {'Type': 'Service', 'Name': 'my-svc'}},
+            },  # no Environment
+            {
+                'Type': 'service',
+                'Data': {'Service': {'Type': 'Service', 'Environment': 'eks:cluster'}},
+            },  # no Name
         ]
         result = await check_canaries_for_service(targets, 1700000000, 1700086400, 'us-east-1')
         assert result == ''
@@ -1629,14 +1647,18 @@ async def test_check_canaries_for_service_missing_name_or_env():
 @pytest.mark.asyncio
 async def test_check_canaries_for_service_api_exception():
     """Test check_canaries_for_service handles API exceptions gracefully."""
-
     with patch(
         'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.applicationsignals_client'
     ) as mock_appsignals:
         mock_appsignals.list_service_dependents.side_effect = Exception('API error')
 
         targets = [
-            {'Type': 'service', 'Data': {'Service': {'Type': 'Service', 'Name': 'my-svc', 'Environment': 'eks:cluster'}}}
+            {
+                'Type': 'service',
+                'Data': {
+                    'Service': {'Type': 'Service', 'Name': 'my-svc', 'Environment': 'eks:cluster'}
+                },
+            }
         ]
         result = await check_canaries_for_service(targets, 1700000000, 1700086400, 'us-east-1')
         assert result == ''
@@ -1645,7 +1667,6 @@ async def test_check_canaries_for_service_api_exception():
 @pytest.mark.asyncio
 async def test_check_canaries_for_service_pagination():
     """Test check_canaries_for_service paginates list_service_dependents."""
-
     with (
         patch(
             'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.applicationsignals_client'
@@ -1659,13 +1680,23 @@ async def test_check_canaries_for_service_pagination():
         mock_appsignals.list_service_dependents.side_effect = [
             {
                 'ServiceDependents': [
-                    {'DependentKeyAttributes': {'ResourceType': 'AWS::ECS::Service', 'Identifier': 'other-svc'}},
+                    {
+                        'DependentKeyAttributes': {
+                            'ResourceType': 'AWS::ECS::Service',
+                            'Identifier': 'other-svc',
+                        }
+                    },
                 ],
                 'NextToken': 'page2',
             },
             {
                 'ServiceDependents': [
-                    {'DependentKeyAttributes': {'ResourceType': 'AWS::Synthetics::Canary', 'Identifier': 'paginated-canary'}},
+                    {
+                        'DependentKeyAttributes': {
+                            'ResourceType': 'AWS::Synthetics::Canary',
+                            'Identifier': 'paginated-canary',
+                        }
+                    },
                 ],
             },
         ]
@@ -1680,7 +1711,12 @@ async def test_check_canaries_for_service_pagination():
         }
 
         targets = [
-            {'Type': 'service', 'Data': {'Service': {'Type': 'Service', 'Name': 'my-svc', 'Environment': 'eks:cluster'}}}
+            {
+                'Type': 'service',
+                'Data': {
+                    'Service': {'Type': 'Service', 'Name': 'my-svc', 'Environment': 'eks:cluster'}
+                },
+            }
         ]
         result = await check_canaries_for_service(targets, 1700000000, 1700086400, 'us-east-1')
         assert 'paginated-canary' in result
@@ -1690,7 +1726,6 @@ async def test_check_canaries_for_service_pagination():
 @pytest.mark.asyncio
 async def test_check_canaries_for_service_no_data_runs():
     """Test check_canaries_for_service handles canary with no runs."""
-
     with (
         patch(
             'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.applicationsignals_client'
@@ -1701,13 +1736,23 @@ async def test_check_canaries_for_service_no_data_runs():
     ):
         mock_appsignals.list_service_dependents.return_value = {
             'ServiceDependents': [
-                {'DependentKeyAttributes': {'ResourceType': 'AWS::Synthetics::Canary', 'Identifier': 'empty-canary'}},
+                {
+                    'DependentKeyAttributes': {
+                        'ResourceType': 'AWS::Synthetics::Canary',
+                        'Identifier': 'empty-canary',
+                    }
+                },
             ]
         }
         mock_synthetics.get_canary_runs.return_value = {'CanaryRuns': []}
 
         targets = [
-            {'Type': 'service', 'Data': {'Service': {'Type': 'Service', 'Name': 'my-svc', 'Environment': 'eks:cluster'}}}
+            {
+                'Type': 'service',
+                'Data': {
+                    'Service': {'Type': 'Service', 'Name': 'my-svc', 'Environment': 'eks:cluster'}
+                },
+            }
         ]
         result = await check_canaries_for_service(targets, 1700000000, 1700086400, 'us-east-1')
         # Should still produce output since a canary was found
@@ -1717,7 +1762,6 @@ async def test_check_canaries_for_service_no_data_runs():
 @pytest.mark.asyncio
 async def test_check_canaries_for_service_get_runs_error():
     """Test check_canaries_for_service logs warning when get_canary_runs fails."""
-
     with (
         patch(
             'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.applicationsignals_client'
@@ -1728,13 +1772,23 @@ async def test_check_canaries_for_service_get_runs_error():
     ):
         mock_appsignals.list_service_dependents.return_value = {
             'ServiceDependents': [
-                {'DependentKeyAttributes': {'ResourceType': 'AWS::Synthetics::Canary', 'Identifier': 'error-canary'}},
+                {
+                    'DependentKeyAttributes': {
+                        'ResourceType': 'AWS::Synthetics::Canary',
+                        'Identifier': 'error-canary',
+                    }
+                },
             ]
         }
         mock_synthetics.get_canary_runs.side_effect = Exception('Access denied')
 
         targets = [
-            {'Type': 'service', 'Data': {'Service': {'Type': 'Service', 'Name': 'my-svc', 'Environment': 'eks:cluster'}}}
+            {
+                'Type': 'service',
+                'Data': {
+                    'Service': {'Type': 'Service', 'Name': 'my-svc', 'Environment': 'eks:cluster'}
+                },
+            }
         ]
         result = await check_canaries_for_service(targets, 1700000000, 1700086400, 'us-east-1')
         assert 'Synthetics Canaries' in result
@@ -1743,7 +1797,6 @@ async def test_check_canaries_for_service_get_runs_error():
 @pytest.mark.asyncio
 async def test_check_canaries_for_service_empty_identifier():
     """Test check_canaries_for_service skips canaries with empty identifiers."""
-
     with (
         patch(
             'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.applicationsignals_client'
@@ -1754,8 +1807,18 @@ async def test_check_canaries_for_service_empty_identifier():
     ):
         mock_appsignals.list_service_dependents.return_value = {
             'ServiceDependents': [
-                {'DependentKeyAttributes': {'ResourceType': 'AWS::Synthetics::Canary', 'Identifier': ''}},
-                {'DependentKeyAttributes': {'ResourceType': 'AWS::Synthetics::Canary', 'Identifier': 'real-canary'}},
+                {
+                    'DependentKeyAttributes': {
+                        'ResourceType': 'AWS::Synthetics::Canary',
+                        'Identifier': '',
+                    }
+                },
+                {
+                    'DependentKeyAttributes': {
+                        'ResourceType': 'AWS::Synthetics::Canary',
+                        'Identifier': 'real-canary',
+                    }
+                },
             ]
         }
         mock_synthetics.get_canary_runs.return_value = {
@@ -1769,7 +1832,12 @@ async def test_check_canaries_for_service_empty_identifier():
         }
 
         targets = [
-            {'Type': 'service', 'Data': {'Service': {'Type': 'Service', 'Name': 'my-svc', 'Environment': 'eks:cluster'}}}
+            {
+                'Type': 'service',
+                'Data': {
+                    'Service': {'Type': 'Service', 'Name': 'my-svc', 'Environment': 'eks:cluster'}
+                },
+            }
         ]
         result = await check_canaries_for_service(targets, 1700000000, 1700086400, 'us-east-1')
         assert 'real-canary' in result

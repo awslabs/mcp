@@ -17,11 +17,9 @@
 from __future__ import annotations
 
 import re
-
-from loguru import logger
-
 from .canary_knowledge_base_loader import CanaryKnowledgeBaseLoader
 from .canary_knowledge_base_model import FailureContext, KBEntry, MatchResult
+from loguru import logger
 
 
 # Severity ordering for tiebreaking (higher index = higher priority)
@@ -29,19 +27,101 @@ _SEVERITY_ORDER = {'critical': 3, 'high': 2, 'medium': 1, 'low': 0}
 _SEVERITY_ICONS = {'critical': '🔴', 'high': '🟠', 'medium': '🟡', 'low': '🟢'}
 
 
-_STOP_WORDS = frozenset({
-    'a', 'an', 'the', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
-    'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'as',
-    'into', 'through', 'during', 'before', 'after', 'above', 'below',
-    'and', 'but', 'or', 'nor', 'not', 'so', 'yet', 'both', 'either',
-    'neither', 'each', 'every', 'all', 'any', 'few', 'more', 'most',
-    'other', 'some', 'such', 'no', 'only', 'own', 'same', 'than',
-    'too', 'very', 'can', 'will', 'just', 'should', 'now', 'also',
-    'it', 'its', 'this', 'that', 'these', 'those', 'he', 'she', 'they',
-    'we', 'you', 'i', 'me', 'my', 'your', 'his', 'her', 'our', 'their',
-    'has', 'have', 'had', 'do', 'does', 'did', 'may', 'might', 'must',
-    'shall', 'would', 'could',
-})
+_STOP_WORDS = frozenset(
+    {
+        'a',
+        'an',
+        'the',
+        'is',
+        'are',
+        'was',
+        'were',
+        'be',
+        'been',
+        'being',
+        'in',
+        'on',
+        'at',
+        'to',
+        'for',
+        'of',
+        'with',
+        'by',
+        'from',
+        'as',
+        'into',
+        'through',
+        'during',
+        'before',
+        'after',
+        'above',
+        'below',
+        'and',
+        'but',
+        'or',
+        'nor',
+        'not',
+        'so',
+        'yet',
+        'both',
+        'either',
+        'neither',
+        'each',
+        'every',
+        'all',
+        'any',
+        'few',
+        'more',
+        'most',
+        'other',
+        'some',
+        'such',
+        'no',
+        'only',
+        'own',
+        'same',
+        'than',
+        'too',
+        'very',
+        'can',
+        'will',
+        'just',
+        'should',
+        'now',
+        'also',
+        'it',
+        'its',
+        'this',
+        'that',
+        'these',
+        'those',
+        'he',
+        'she',
+        'they',
+        'we',
+        'you',
+        'i',
+        'me',
+        'my',
+        'your',
+        'his',
+        'her',
+        'our',
+        'their',
+        'has',
+        'have',
+        'had',
+        'do',
+        'does',
+        'did',
+        'may',
+        'might',
+        'must',
+        'shall',
+        'would',
+        'could',
+    }
+)
 
 # Minimum keyword match ratio for a symptom to count as matched
 _SYMPTOM_KEYWORD_THRESHOLD = 0.5
@@ -62,6 +142,7 @@ class CanaryRecommendationEngine:
     """Scores KB entries against failure context and returns ranked matches."""
 
     def __init__(self, loader: CanaryKnowledgeBaseLoader) -> None:
+        """Initialize the engine with a knowledge base loader."""
         self.loader = loader
 
     def _score_error_patterns(self, entry: KBEntry, context: FailureContext) -> float:
@@ -80,7 +161,9 @@ class CanaryRecommendationEngine:
                         if re.search(pattern.regex, msg, re.IGNORECASE):
                             return 1.0
                     except re.error as e:
-                        logger.warning(f'Invalid regex in KB entry {entry.id}: {pattern.regex!r} - {e}')
+                        logger.warning(
+                            f'Invalid regex in KB entry {entry.id}: {pattern.regex!r} - {e}'
+                        )
 
                 # text_contains match (case-insensitive substring)
                 if pattern.text_contains:
@@ -160,11 +243,11 @@ class CanaryRecommendationEngine:
 
     def _score_environment(self, entry: KBEntry, context: FailureContext) -> float:
         """Score based on overlap between context env indicators and entry tags/category."""
-        entry_tags = set(tag.lower() for tag in entry.tags + [entry.category])
+        entry_tags = {tag.lower() for tag in entry.tags + [entry.category]}
         if not entry_tags:
             return 0.0
 
-        context_indicators = set(ind.lower() for ind in context.environment_indicators)
+        context_indicators = {ind.lower() for ind in context.environment_indicators}
         overlap = len(entry_tags & context_indicators)
         return overlap / max(len(entry_tags), 1)
 
@@ -188,7 +271,9 @@ class CanaryRecommendationEngine:
             symptom_score = self._score_symptoms(entry, context)
             runtime_score = self._score_runtime_version(entry, context)
             env_score = self._score_environment(entry, context)
-            confidence = self._compute_confidence(error_score, symptom_score, runtime_score, env_score)
+            confidence = self._compute_confidence(
+                error_score, symptom_score, runtime_score, env_score
+            )
 
             if confidence >= 0.60:
                 results.append(

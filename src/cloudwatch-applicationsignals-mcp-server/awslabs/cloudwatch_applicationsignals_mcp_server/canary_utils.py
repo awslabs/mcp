@@ -891,7 +891,9 @@ async def get_canary_code(canary: dict, region: str = 'us-east-1') -> dict:
         return {'error': f'Canary code analysis failed: {str(e)}'}
 
 
-async def check_canaries_for_service(normalized_targets, unix_start, unix_end, region: str = 'us-east-1'):
+async def check_canaries_for_service(
+    normalized_targets, unix_start, unix_end, region: str = 'us-east-1'
+):
     """Check Synthetics canaries associated with audited services via list_service_dependents."""
     try:
         canary_names = set()
@@ -940,7 +942,9 @@ async def check_canaries_for_service(normalized_targets, unix_start, unix_end, r
                 failed = sum(1 for r in runs if r.get('Status', {}).get('State') == 'FAILED')
                 total = len(runs)
                 success_pct = (passed / total * 100) if total > 0 else 0
-                canary_statuses.append((name, 'ok' if success_pct >= 80 else 'failing', success_pct, failed))
+                canary_statuses.append(
+                    (name, 'ok' if success_pct >= 80 else 'failing', success_pct, failed)
+                )
             except Exception as e:
                 logger.warning(f'Failed to get runs for canary {name}: {e}')
                 canary_statuses.append((name, 'error', 0, 0))
@@ -955,14 +959,17 @@ async def check_canaries_for_service(normalized_targets, unix_start, unix_end, r
             for name, _, pct, fail_count in sorted(failing, key=lambda x: x[2]):
                 result += f'  • {name}: {pct:.0f}% success ({fail_count}/5 recent runs failed)\n'
         if healthy:
-            result += f'✅ {len(healthy)} healthy canaries: {", ".join(n for n, _, _, _ in healthy)}\n'
+            result += (
+                f'✅ {len(healthy)} healthy canaries: {", ".join(n for n, _, _, _ in healthy)}\n'
+            )
 
-        result += f'💡 Use analyze_canary_failures(canary_name="<name>") for detailed analysis of any canary.\n'
+        result += '💡 Use analyze_canary_failures(canary_name="<name>") for detailed analysis of any canary.\n'
         return result
 
     except Exception as e:
         logger.warning(f'Canary check failed: {e}')
         return ''
+
 
 async def get_canary_metrics_and_service_insights(canary_name: str, region: str) -> str:
     """Get canary metrics and service insights using Application Signals audit API."""

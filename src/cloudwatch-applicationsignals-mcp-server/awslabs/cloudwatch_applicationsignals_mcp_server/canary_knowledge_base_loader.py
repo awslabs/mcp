@@ -18,13 +18,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+from .canary_knowledge_base_model import KBEntry
 from datetime import date
+from loguru import logger
 from pathlib import Path
 from typing import Optional
-
-from loguru import logger
-
-from .canary_knowledge_base_model import KBEntry
 
 
 class CanaryKnowledgeBaseLoader:
@@ -41,6 +39,7 @@ class CanaryKnowledgeBaseLoader:
         return cls._instance
 
     def __init__(self) -> None:
+        """Initialize the loader with empty entries."""
         self._entries: dict[str, KBEntry] = {}
         self._loaded: bool = False
 
