@@ -40,6 +40,35 @@ class TestLogGroupMetadata:
         # Verify the string timestamp was returned unchanged
         assert log_group.creationTime == '2023-01-01T00:00:00+00:00'
 
+    def test_stored_bytes_optional(self):
+        """Test that storedBytes is optional since AWS API may omit it."""
+        log_group_data = {
+            'logGroupName': '/aws/test/group',
+            'creationTime': '2023-01-01T00:00:00+00:00',
+            'metricFilterCount': 0,
+            'logGroupClass': 'STANDARD',
+            'logGroupArn': 'arn:aws:logs:us-east-1:123456789012:log-group:/aws/test/group',
+        }
+
+        log_group = LogGroupMetadata(**log_group_data)
+
+        assert log_group.storedBytes is None
+
+    def test_stored_bytes_present(self):
+        """Test that storedBytes is correctly set when provided."""
+        log_group_data = {
+            'logGroupName': '/aws/test/group',
+            'creationTime': '2023-01-01T00:00:00+00:00',
+            'metricFilterCount': 0,
+            'storedBytes': 2048,
+            'logGroupClass': 'STANDARD',
+            'logGroupArn': 'arn:aws:logs:us-east-1:123456789012:log-group:/aws/test/group',
+        }
+
+        log_group = LogGroupMetadata(**log_group_data)
+
+        assert log_group.storedBytes == 2048
+
 
 class TestLogAnomaly:
     """Tests for LogAnomaly model."""
