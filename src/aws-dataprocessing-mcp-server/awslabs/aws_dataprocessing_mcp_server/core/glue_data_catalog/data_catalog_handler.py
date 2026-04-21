@@ -178,7 +178,7 @@ class DataCatalogManager:
 
             try:
                 # Construct the ARN for the connection
-                region = AwsHelper.get_aws_region()
+                region = AwsHelper.get_or_default_aws_region()
                 account_id = catalog_id or AwsHelper.get_aws_account_id()
                 partition = AwsHelper.get_aws_partition()
                 connection_arn = (
@@ -266,6 +266,16 @@ class DataCatalogManager:
             GetConnectionResponse with the connection details
         """
         try:
+            # SECURITY: Enforce hide_password when allow_sensitive_data_access is False
+            # This prevents exposure of plaintext database passwords in connection properties
+            if not self.allow_sensitive_data_access:
+                hide_password = True
+                log_with_request_id(
+                    ctx,
+                    LogLevel.INFO,
+                    f'Enforcing hide_password=True for connection {connection_name} (--allow-sensitive-data-access not enabled)',
+                )
+
             kwargs: Dict[str, Any] = {'Name': connection_name}
             if catalog_id:
                 kwargs['CatalogId'] = catalog_id
@@ -359,6 +369,16 @@ class DataCatalogManager:
             ListConnectionsResponse with the list of connections
         """
         try:
+            # SECURITY: Enforce hide_password when allow_sensitive_data_access is False
+            # This prevents exposure of plaintext database passwords in connection properties
+            if not self.allow_sensitive_data_access:
+                hide_password = True
+                log_with_request_id(
+                    ctx,
+                    LogLevel.INFO,
+                    'Enforcing hide_password=True for list connections (--allow-sensitive-data-access not enabled)',
+                )
+
             kwargs = {}
             if catalog_id:
                 kwargs['CatalogId'] = catalog_id
@@ -459,7 +479,7 @@ class DataCatalogManager:
 
             try:
                 # Construct the ARN for the connection
-                region = AwsHelper.get_aws_region()
+                region = AwsHelper.get_or_default_aws_region()
                 account_id = catalog_id or AwsHelper.get_aws_account_id()
                 partition = AwsHelper.get_aws_partition()
                 connection_arn = (
@@ -609,7 +629,7 @@ class DataCatalogManager:
         """
         try:
             # Verify each connection is MCP-managed before batch delete
-            region = AwsHelper.get_aws_region()
+            region = AwsHelper.get_or_default_aws_region()
             account_id = catalog_id or AwsHelper.get_aws_account_id()
             partition = AwsHelper.get_aws_partition()
 
@@ -1010,6 +1030,16 @@ class DataCatalogManager:
             GetEntityRecordsResponse with the entity records
         """
         try:
+            # SECURITY: This operation returns actual customer data (preview records)
+            # Require --allow-sensitive-data-access flag to prevent unauthorized data exposure
+            if not self.allow_sensitive_data_access:
+                error_message = 'Operation get-entity-records returns preview data and requires --allow-sensitive-data-access flag'
+                log_with_request_id(ctx, LogLevel.ERROR, error_message)
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type='text', text=error_message)],
+                )
+
             kwargs: Dict[str, Any] = {
                 'ConnectionName': connection_name,
                 'EntityName': entity_name,
@@ -1182,7 +1212,7 @@ class DataCatalogManager:
                 parameters = partition.get('Parameters', {})
 
                 # Construct the ARN for the partition
-                region = AwsHelper.get_aws_region()
+                region = AwsHelper.get_or_default_aws_region()
                 account_id = catalog_id or AwsHelper.get_aws_account_id()
                 partition = AwsHelper.get_aws_partition()
                 partition_arn = f'arn:{partition}:glue:{region}:{account_id}:partition/{database_name}/{table_name}/{"/".join(partition_values)}'
@@ -1519,7 +1549,7 @@ class DataCatalogManager:
                 parameters = partition.get('Parameters', {})
 
                 # Construct the ARN for the partition
-                region = AwsHelper.get_aws_region()
+                region = AwsHelper.get_or_default_aws_region()
                 account_id = catalog_id or AwsHelper.get_aws_account_id()
                 partition = AwsHelper.get_aws_partition()
                 partition_arn = f'arn:{partition}:glue:{region}:{account_id}:partition/{database_name}/{table_name}/{"/".join(partition_values)}'
@@ -1699,7 +1729,7 @@ class DataCatalogManager:
                 parameters = catalog.get('Parameters', {})
 
                 # Construct the ARN for the catalog
-                region = AwsHelper.get_aws_region()
+                region = AwsHelper.get_or_default_aws_region()
                 account_id = AwsHelper.get_aws_account_id()  # Get actual account ID
                 partition = AwsHelper.get_aws_partition()
                 catalog_arn = f'arn:{partition}:glue:{region}:{account_id}:catalog/{catalog_id}'

@@ -14,7 +14,7 @@
 
 """Tests for AgentCore management tools."""
 
-from awslabs.amazon_bedrock_agentcore_mcp_server.tools import gateway, memory, runtime
+from awslabs.amazon_bedrock_agentcore_mcp_server.tools import gateway, memory
 
 
 class TestMemoryTool:
@@ -23,24 +23,10 @@ class TestMemoryTool:
     def test_manage_agentcore_memory_returns_guide(self):
         """Test that manage_agentcore_memory returns a memory guide."""
         result = memory.manage_agentcore_memory()
-
         assert isinstance(result, dict)
         assert 'memory_guide' in result
         assert isinstance(result['memory_guide'], str)
         assert len(result['memory_guide']) > 0
-
-
-class TestRuntimeTool:
-    """Test cases for the runtime management tool."""
-
-    def test_manage_agentcore_runtime_returns_guide(self):
-        """Test that manage_agentcore_runtime returns a deployment guide."""
-        result = runtime.manage_agentcore_runtime()
-
-        assert isinstance(result, dict)
-        assert 'deployment_guide' in result
-        assert isinstance(result['deployment_guide'], str)
-        assert len(result['deployment_guide']) > 0
 
 
 class TestGatewayTool:
@@ -49,7 +35,6 @@ class TestGatewayTool:
     def test_manage_agentcore_gateway_returns_guide(self):
         """Test that manage_agentcore_gateway returns a deployment guide."""
         result = gateway.manage_agentcore_gateway()
-
         assert isinstance(result, dict)
         assert 'deployment_guide' in result
         assert isinstance(result['deployment_guide'], str)

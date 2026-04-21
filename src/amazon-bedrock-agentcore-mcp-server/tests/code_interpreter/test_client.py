@@ -68,7 +68,7 @@ class TestGetClient:
         assert client is mock_instance
         mock_ci_class.assert_called_once_with(
             region='us-west-2',
-            integration_source='awslabs-mcp-code-interpreter-server',
+            integration_source='awslabs-agentcore-mcp-server',
         )
 
     @patch(
@@ -110,7 +110,7 @@ class TestGetClient:
 
         mock_ci_class.assert_called_once_with(
             region='ap-northeast-1',
-            integration_source='awslabs-mcp-code-interpreter-server',
+            integration_source='awslabs-agentcore-mcp-server',
         )
 
 
@@ -144,7 +144,7 @@ class TestCreateSessionClient:
 
         mock_ci_class.assert_called_once_with(
             region='eu-west-1',
-            integration_source='awslabs-mcp-code-interpreter-server',
+            integration_source='awslabs-agentcore-mcp-server',
         )
 
 

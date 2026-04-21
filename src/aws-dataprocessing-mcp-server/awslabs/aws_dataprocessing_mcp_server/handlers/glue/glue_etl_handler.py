@@ -312,7 +312,7 @@ class GlueEtlJobsHandler:
 
                 # Verify that the job is managed by MCP before deleting
                 # Construct the ARN for the job
-                region = AwsHelper.get_aws_region() or 'us-east-1'
+                region = AwsHelper.get_or_default_aws_region() or 'us-east-1'
                 account_id = AwsHelper.get_aws_account_id()
                 job_arn = f'arn:aws:glue:{region}:{account_id}:job/{job_name}'
 
@@ -414,7 +414,7 @@ class GlueEtlJobsHandler:
                     parameters = job.get('Parameters', {})
 
                     # Construct the ARN for the job
-                    region = AwsHelper.get_aws_region() or 'us-east-1'
+                    region = AwsHelper.get_or_default_aws_region() or 'us-east-1'
                     account_id = AwsHelper.get_aws_account_id()
                     job_arn = f'arn:aws:glue:{region}:{account_id}:job/{job_name}'
 
@@ -532,6 +532,16 @@ class GlueEtlJobsHandler:
                 if job_name is None or job_run_id is None:
                     raise ValueError(
                         'job_name and job_run_id are required for get-job-run operation'
+                    )
+
+                # SECURITY: Job run details may contain sensitive data in error messages, arguments, and logs
+                # Require --allow-sensitive-data-access flag to prevent unauthorized data exposure
+                if not self.allow_sensitive_data_access:
+                    error_message = 'Operation get-job-run may contain sensitive data in error messages and job arguments, and requires --allow-sensitive-data-access flag'
+                    log_with_request_id(ctx, LogLevel.ERROR, error_message)
+                    return CallToolResult(
+                        isError=True,
+                        content=[TextContent(type='text', text=error_message)],
                     )
 
                 # Prepare parameters

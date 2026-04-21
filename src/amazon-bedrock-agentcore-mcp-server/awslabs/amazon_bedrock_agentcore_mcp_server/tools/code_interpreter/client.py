@@ -24,7 +24,7 @@ from bedrock_agentcore.tools.code_interpreter_client import CodeInterpreter
 from loguru import logger
 
 
-MCP_INTEGRATION_SOURCE = 'awslabs-mcp-code-interpreter-server'
+MCP_INTEGRATION_SOURCE = 'awslabs-agentcore-mcp-server'
 DEFAULT_IDENTIFIER = 'aws.codeinterpreter.v1'
 
 # Per-region clients for region-level operations (get_session, list_sessions)

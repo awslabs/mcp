@@ -30,7 +30,7 @@ def mock_aws_helper():
         'awslabs.aws_dataprocessing_mcp_server.handlers.glue.glue_commons_handler.AwsHelper'
     ) as mock:
         mock.create_boto3_client.return_value = Mock()
-        mock.get_aws_region.return_value = 'us-east-1'
+        mock.get_or_default_aws_region.return_value = 'us-east-1'
         mock.get_aws_account_id.return_value = '123456789012'
         mock.prepare_resource_tags.return_value = {'mcp-managed': 'true'}
         mock.is_resource_mcp_managed.return_value = True
@@ -272,7 +272,7 @@ class TestGlueCommonsHandler:
         with patch(
             'awslabs.aws_dataprocessing_mcp_server.handlers.glue.glue_commons_handler.AwsHelper'
         ) as mock_aws_helper:
-            mock_aws_helper.get_aws_region.return_value = 'us-east-1'
+            mock_aws_helper.get_or_default_aws_region.return_value = 'us-east-1'
             mock_aws_helper.get_aws_account_id.return_value = '123456789012'
             mock_aws_helper.is_resource_mcp_managed.return_value = True
 
@@ -334,7 +334,7 @@ class TestGlueCommonsHandler:
         with patch(
             'awslabs.aws_dataprocessing_mcp_server.handlers.glue.glue_commons_handler.AwsHelper'
         ) as mock_aws_helper:
-            mock_aws_helper.get_aws_region.return_value = None
+            mock_aws_helper.get_or_default_aws_region.return_value = None
             mock_aws_helper.get_aws_account_id.return_value = '123456789012'
             mock_aws_helper.is_resource_mcp_managed.return_value = True
 
@@ -347,7 +347,7 @@ class TestGlueCommonsHandler:
 
             # Should handle None region gracefully (defaults to us-east-1)
             assert result.isError is False
-            mock_aws_helper.get_aws_region.assert_called()
+            mock_aws_helper.get_or_default_aws_region.assert_called()
 
     @pytest.mark.asyncio
     async def test_resource_policy_edge_cases(self, handler, mock_context):
@@ -575,7 +575,7 @@ class TestGlueCommonsHandler:
         with patch(
             'awslabs.aws_dataprocessing_mcp_server.handlers.glue.glue_commons_handler.AwsHelper'
         ) as mock_aws_helper:
-            mock_aws_helper.get_aws_region.return_value = 'us-east-1'
+            mock_aws_helper.get_or_default_aws_region.return_value = 'us-east-1'
             mock_aws_helper.get_aws_account_id.return_value = '123456789012'
             mock_aws_helper.is_resource_mcp_managed.return_value = True
 
@@ -614,7 +614,7 @@ class TestGlueCommonsHandler:
         with patch(
             'awslabs.aws_dataprocessing_mcp_server.handlers.glue.glue_commons_handler.AwsHelper'
         ) as mock_aws_helper:
-            mock_aws_helper.get_aws_region.return_value = 'us-east-1'
+            mock_aws_helper.get_or_default_aws_region.return_value = 'us-east-1'
             mock_aws_helper.get_aws_account_id.return_value = '123456789012'
             mock_aws_helper.is_resource_mcp_managed.return_value = False
 
@@ -650,7 +650,7 @@ class TestGlueCommonsHandler:
         with patch(
             'awslabs.aws_dataprocessing_mcp_server.handlers.glue.glue_commons_handler.AwsHelper'
         ) as mock_aws_helper:
-            mock_aws_helper.get_aws_region.return_value = 'us-east-1'
+            mock_aws_helper.get_or_default_aws_region.return_value = 'us-east-1'
             mock_aws_helper.get_aws_account_id.return_value = '123456789012'
             mock_aws_helper.is_resource_mcp_managed.return_value = True
 
@@ -1019,7 +1019,7 @@ class TestGlueCommonsHandler:
         with patch(
             'awslabs.aws_dataprocessing_mcp_server.handlers.glue.glue_commons_handler.AwsHelper'
         ) as mock_aws_helper:
-            mock_aws_helper.get_aws_region.return_value = 'us-east-1'
+            mock_aws_helper.get_or_default_aws_region.return_value = 'us-east-1'
             mock_aws_helper.get_aws_account_id.return_value = '123456789012'
             mock_aws_helper.is_resource_mcp_managed.return_value = False
 
@@ -1263,7 +1263,7 @@ class TestGlueCommonsHandler:
         with patch(
             'awslabs.aws_dataprocessing_mcp_server.handlers.glue.glue_commons_handler.AwsHelper'
         ) as mock_aws_helper:
-            mock_aws_helper.get_aws_region.return_value = 'us-west-2'
+            mock_aws_helper.get_or_default_aws_region.return_value = 'us-west-2'
             mock_aws_helper.get_aws_account_id.return_value = '987654321098'
             mock_aws_helper.is_resource_mcp_managed.return_value = True
             mock_aws_helper.prepare_resource_tags.return_value = {
@@ -1572,7 +1572,7 @@ class TestGlueCommonsHandler:
         with patch(
             'awslabs.aws_dataprocessing_mcp_server.handlers.glue.glue_commons_handler.AwsHelper'
         ) as mock_aws_helper:
-            mock_aws_helper.get_aws_region.return_value = 'us-east-1'
+            mock_aws_helper.get_or_default_aws_region.return_value = 'us-east-1'
             mock_aws_helper.get_aws_account_id.return_value = '123456789012'
             mock_aws_helper.is_resource_mcp_managed.return_value = True
 
@@ -1647,7 +1647,7 @@ class TestGlueCommonsHandler:
             'awslabs.aws_dataprocessing_mcp_server.handlers.glue.glue_commons_handler.AwsHelper'
         ) as mock_aws_helper:
             # Test with different regions
-            mock_aws_helper.get_aws_region.return_value = 'eu-west-1'
+            mock_aws_helper.get_or_default_aws_region.return_value = 'eu-west-1'
             mock_aws_helper.get_aws_account_id.return_value = '123456789012'
             mock_aws_helper.is_resource_mcp_managed.return_value = True
 
