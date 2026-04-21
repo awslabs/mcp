@@ -66,6 +66,9 @@ class TestRedshiftClientManagerRedshiftClient:
         mock_client = mocker.Mock()
         mock_boto3_session = mocker.patch('boto3.Session')
         mock_boto3_session.return_value.client.return_value = mock_client
+        mock_frozen = mocker.Mock()
+        mock_frozen.token = None
+        mock_boto3_session.return_value.get_credentials.return_value.get_frozen_credentials.return_value = mock_frozen
 
         config = Config()
         manager = RedshiftClientManager(config)
@@ -155,6 +158,9 @@ class TestRedshiftClientManagerServerlessClient:
         mock_client = mocker.Mock()
         mock_boto3_session = mocker.patch('boto3.Session')
         mock_boto3_session.return_value.client.return_value = mock_client
+        mock_frozen = mocker.Mock()
+        mock_frozen.token = None
+        mock_boto3_session.return_value.get_credentials.return_value.get_frozen_credentials.return_value = mock_frozen
 
         config = Config()
         manager = RedshiftClientManager(config)
@@ -225,6 +231,9 @@ class TestRedshiftClientManagerDataClient:
         mock_client = mocker.Mock()
         mock_boto3_session = mocker.patch('boto3.Session')
         mock_boto3_session.return_value.client.return_value = mock_client
+        mock_frozen = mocker.Mock()
+        mock_frozen.token = None
+        mock_boto3_session.return_value.get_credentials.return_value.get_frozen_credentials.return_value = mock_frozen
 
         config = Config()
         manager = RedshiftClientManager(config)
@@ -239,7 +248,114 @@ class TestRedshiftClientManagerDataClient:
         mock_boto3_session.assert_called_once()
 
 
-class TestExecuteProtectedStatement:
+class TestRedshiftClientManagerCredentialRefresh:
+    """Tests for credential refresh on expired token errors."""
+
+    def test_invalidate_clients_clears_all_cached_clients(self, mocker):
+        """Test that invalidate_clients resets all cached clients."""
+        mock_boto3_session = mocker.patch('boto3.Session')
+        mock_boto3_session.return_value.client.return_value = mocker.Mock()
+        mock_frozen = mocker.Mock()
+        mock_frozen.token = None
+        mock_boto3_session.return_value.get_credentials.return_value.get_frozen_credentials.return_value = mock_frozen
+
+        config = Config()
+        manager = RedshiftClientManager(config)
+
+        # Create all clients
+        manager.redshift_client()
+        manager.redshift_serverless_client()
+        manager.redshift_data_client()
+
+        assert manager._redshift_client is not None
+        assert manager._redshift_serverless_client is not None
+        assert manager._redshift_data_client is not None
+
+        manager.invalidate_clients()
+
+        assert manager._redshift_client is None
+        assert manager._redshift_serverless_client is None
+        assert manager._redshift_data_client is None
+        assert manager._session is None
+
+    def test_invalidate_clients_allows_fresh_session(self, mocker):
+        """Test that after invalidation, a new boto3 session is created."""
+        old_client = mocker.Mock()
+        new_client = mocker.Mock()
+        mock_boto3_session = mocker.patch('boto3.Session')
+        mock_boto3_session.return_value.client.side_effect = [old_client, new_client]
+        mock_frozen = mocker.Mock()
+        mock_frozen.token = None
+        mock_boto3_session.return_value.get_credentials.return_value.get_frozen_credentials.return_value = mock_frozen
+
+        config = Config()
+        manager = RedshiftClientManager(config)
+
+        client1 = manager.redshift_data_client()
+        assert client1 == old_client
+
+        manager.invalidate_clients()
+
+        client2 = manager.redshift_data_client()
+        assert client2 == new_client
+        assert mock_boto3_session.call_count == 2
+
+    def test_are_credentials_expired_no_session(self):
+        """Test that _are_credentials_expired returns False when no session exists."""
+        config = Config()
+        manager = RedshiftClientManager(config)
+        assert manager._are_credentials_expired() is False
+
+    def test_are_credentials_expired_with_expired_creds(self, mocker):
+        """Test that _are_credentials_expired detects expired credentials."""
+        from datetime import datetime, timedelta, timezone
+
+        config = Config()
+        manager = RedshiftClientManager(config)
+
+        mock_session = mocker.Mock()
+        mock_credentials = mocker.Mock()
+        mock_credentials._expiry_time = datetime.now(timezone.utc) - timedelta(minutes=5)
+        mock_frozen_creds = mocker.Mock()
+        mock_frozen_creds.token = 'some-token'
+        mock_credentials.get_frozen_credentials.return_value = mock_frozen_creds
+        mock_session.get_credentials.return_value = mock_credentials
+        manager._session = mock_session
+
+        assert manager._are_credentials_expired() is True
+
+    def test_are_credentials_expired_with_valid_creds(self, mocker):
+        """Test that _are_credentials_expired returns False for valid credentials."""
+        from datetime import datetime, timedelta, timezone
+
+        config = Config()
+        manager = RedshiftClientManager(config)
+
+        mock_session = mocker.Mock()
+        mock_credentials = mocker.Mock()
+        mock_credentials._expiry_time = datetime.now(timezone.utc) + timedelta(hours=1)
+        mock_frozen_creds = mocker.Mock()
+        mock_frozen_creds.token = 'some-token'
+        mock_credentials.get_frozen_credentials.return_value = mock_frozen_creds
+        mock_session.get_credentials.return_value = mock_credentials
+        manager._session = mock_session
+
+        assert manager._are_credentials_expired() is False
+
+    def test_are_credentials_expired_no_token(self, mocker):
+        """Test that _are_credentials_expired returns False when no token (long-term creds)."""
+        config = Config()
+        manager = RedshiftClientManager(config)
+
+        mock_session = mocker.Mock()
+        mock_credentials = mocker.Mock()
+        mock_frozen_creds = mocker.Mock()
+        mock_frozen_creds.token = None
+        mock_credentials.get_frozen_credentials.return_value = mock_frozen_creds
+        mock_session.get_credentials.return_value = mock_credentials
+        manager._session = mock_session
+
+        assert manager._are_credentials_expired() is False
     """Tests for _execute_protected_statement function."""
 
     @pytest.mark.asyncio
@@ -638,6 +754,80 @@ class TestExecuteStatement:
         # Verify database and cluster are NOT added when using session
         assert 'Database' not in call_args
         assert 'ClusterIdentifier' not in call_args
+
+
+class TestClientManagerCredentialRefreshOnAccess:
+    """Tests for credential refresh in client accessor methods."""
+
+    def test_redshift_client_refreshes_on_expired_credentials(self, mocker):
+        """Test that redshift_client() invalidates and recreates when credentials are expired."""
+        mock_boto3_session = mocker.patch('boto3.Session')
+        mock_client = mocker.Mock()
+        mock_boto3_session.return_value.client.return_value = mock_client
+
+        config = Config()
+        manager = RedshiftClientManager(config)
+
+        # Create initial client
+        manager.redshift_client()
+        assert manager._redshift_client is not None
+
+        # Simulate expired credentials
+        mocker.patch.object(manager, '_are_credentials_expired', return_value=True)
+
+        # Accessing the client should trigger invalidation and recreation
+        client = manager.redshift_client()
+        assert client == mock_client
+        assert mock_boto3_session.call_count == 2
+
+    def test_redshift_serverless_client_refreshes_on_expired_credentials(self, mocker):
+        """Test that redshift_serverless_client() invalidates and recreates when expired."""
+        mock_boto3_session = mocker.patch('boto3.Session')
+        mock_client = mocker.Mock()
+        mock_boto3_session.return_value.client.return_value = mock_client
+
+        config = Config()
+        manager = RedshiftClientManager(config)
+
+        manager.redshift_serverless_client()
+        mocker.patch.object(manager, '_are_credentials_expired', return_value=True)
+
+        client = manager.redshift_serverless_client()
+        assert client == mock_client
+        assert mock_boto3_session.call_count == 2
+
+    def test_redshift_data_client_refreshes_on_expired_credentials(self, mocker):
+        """Test that redshift_data_client() invalidates and recreates when expired."""
+        mock_boto3_session = mocker.patch('boto3.Session')
+        mock_client = mocker.Mock()
+        mock_boto3_session.return_value.client.return_value = mock_client
+
+        config = Config()
+        manager = RedshiftClientManager(config)
+
+        manager.redshift_data_client()
+        mocker.patch.object(manager, '_are_credentials_expired', return_value=True)
+
+        client = manager.redshift_data_client()
+        assert client == mock_client
+        assert mock_boto3_session.call_count == 2
+
+    def test_no_refresh_when_credentials_valid(self, mocker):
+        """Test that client accessors do not refresh when credentials are valid."""
+        mock_boto3_session = mocker.patch('boto3.Session')
+        mock_client = mocker.Mock()
+        mock_boto3_session.return_value.client.return_value = mock_client
+
+        config = Config()
+        manager = RedshiftClientManager(config)
+
+        manager.redshift_data_client()
+        mocker.patch.object(manager, '_are_credentials_expired', return_value=False)
+
+        client = manager.redshift_data_client()
+        assert client == mock_client
+        # Should only have created session once
+        mock_boto3_session.assert_called_once()
 
 
 class TestRedshiftSessionManager:
