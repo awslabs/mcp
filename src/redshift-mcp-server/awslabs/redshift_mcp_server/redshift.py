@@ -41,6 +41,14 @@ from loguru import logger
 class RedshiftClientManager:
     """Manages AWS clients for Redshift operations."""
 
+    # Error codes that indicate expired or invalid credentials
+    _EXPIRED_TOKEN_ERRORS = frozenset({
+        'ExpiredTokenException',
+        'ExpiredToken',
+        'RequestExpired',
+        'UnauthorizedAccess',
+    })
+
     def __init__(
         self, config: Config, aws_region: str | None = None, aws_profile: str | None = None
     ):
@@ -52,12 +60,34 @@ class RedshiftClientManager:
         self._redshift_data_client = None
         self._config = config
 
+    def _create_session(self):
+        """Create a new boto3 session with current credentials from disk."""
+        return boto3.Session(profile_name=self.aws_profile, region_name=self.aws_region)
+
+    def invalidate_clients(self):
+        """Invalidate all cached clients so they are recreated with fresh credentials."""
+        self._redshift_client = None
+        self._redshift_serverless_client = None
+        self._redshift_data_client = None
+        logger.info('Invalidated all cached AWS clients for credential refresh')
+
+    @staticmethod
+    def is_expired_token_error(error: Exception) -> bool:
+        """Check if an exception is caused by expired AWS credentials."""
+        from botocore.exceptions import ClientError
+
+        if isinstance(error, ClientError):
+            error_code = error.response.get('Error', {}).get('Code', '')
+            return error_code in RedshiftClientManager._EXPIRED_TOKEN_ERRORS
+        # Also check for expired token messages in generic exceptions
+        error_msg = str(error).lower()
+        return 'expired' in error_msg and 'token' in error_msg
+
     def redshift_client(self):
         """Get or create the Redshift client for provisioned clusters."""
         if self._redshift_client is None:
             try:
-                # Session works with None values - uses default credentials/region chain
-                session = boto3.Session(profile_name=self.aws_profile, region_name=self.aws_region)
+                session = self._create_session()
                 self._redshift_client = session.client('redshift', config=self._config)
                 logger.info(
                     f'Created Redshift client with profile: {self.aws_profile or "default"}, region: {self.aws_region or "default"}'
@@ -72,8 +102,7 @@ class RedshiftClientManager:
         """Get or create the Redshift Serverless client."""
         if self._redshift_serverless_client is None:
             try:
-                # Session works with None values - uses default credentials/region chain
-                session = boto3.Session(profile_name=self.aws_profile, region_name=self.aws_region)
+                session = self._create_session()
                 self._redshift_serverless_client = session.client(
                     'redshift-serverless', config=self._config
                 )
@@ -90,8 +119,7 @@ class RedshiftClientManager:
         """Get or create the Redshift Data API client."""
         if self._redshift_data_client is None:
             try:
-                # Session works with None values - uses default credentials/region chain
-                session = boto3.Session(profile_name=self.aws_profile, region_name=self.aws_region)
+                session = self._create_session()
                 self._redshift_data_client = session.client('redshift-data', config=self._config)
                 logger.info(
                     f'Created Redshift Data API client with profile: {self.aws_profile or "default"}, region: {self.aws_region or "default"}'
@@ -363,7 +391,16 @@ async def _execute_statement(
     elif session_keepalive is not None:
         request_params['SessionKeepAliveSeconds'] = session_keepalive
 
-    response = data_client.execute_statement(**request_params)
+    try:
+        response = data_client.execute_statement(**request_params)
+    except Exception as e:
+        if client_manager.is_expired_token_error(e):
+            logger.warning('Credentials expired, refreshing clients and retrying')
+            client_manager.invalidate_clients()
+            data_client = client_manager.redshift_data_client()
+            response = data_client.execute_statement(**request_params)
+        else:
+            raise
     statement_id = response['Id']
 
     logger.debug(

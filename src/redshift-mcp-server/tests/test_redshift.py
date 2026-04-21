@@ -239,7 +239,100 @@ class TestRedshiftClientManagerDataClient:
         mock_boto3_session.assert_called_once()
 
 
-class TestExecuteProtectedStatement:
+class TestRedshiftClientManagerCredentialRefresh:
+    """Tests for credential refresh on expired token errors."""
+
+    def test_invalidate_clients_clears_all_cached_clients(self, mocker):
+        """Test that invalidate_clients resets all cached clients."""
+        mock_boto3_session = mocker.patch('boto3.Session')
+        mock_boto3_session.return_value.client.return_value = mocker.Mock()
+
+        config = Config()
+        manager = RedshiftClientManager(config)
+
+        # Create all clients
+        manager.redshift_client()
+        manager.redshift_serverless_client()
+        manager.redshift_data_client()
+
+        assert manager._redshift_client is not None
+        assert manager._redshift_serverless_client is not None
+        assert manager._redshift_data_client is not None
+
+        manager.invalidate_clients()
+
+        assert manager._redshift_client is None
+        assert manager._redshift_serverless_client is None
+        assert manager._redshift_data_client is None
+
+    def test_invalidate_clients_allows_fresh_session(self, mocker):
+        """Test that after invalidation, a new boto3 session is created."""
+        old_client = mocker.Mock()
+        new_client = mocker.Mock()
+        mock_boto3_session = mocker.patch('boto3.Session')
+        mock_boto3_session.return_value.client.side_effect = [old_client, new_client]
+
+        config = Config()
+        manager = RedshiftClientManager(config)
+
+        client1 = manager.redshift_data_client()
+        assert client1 == old_client
+
+        manager.invalidate_clients()
+
+        client2 = manager.redshift_data_client()
+        assert client2 == new_client
+        assert mock_boto3_session.call_count == 2
+
+    def test_is_expired_token_error_with_client_error(self):
+        """Test detection of expired token ClientError."""
+        from botocore.exceptions import ClientError
+
+        error = ClientError(
+            {'Error': {'Code': 'ExpiredTokenException', 'Message': 'Token expired'}},
+            'ExecuteStatement',
+        )
+        assert RedshiftClientManager.is_expired_token_error(error) is True
+
+    def test_is_expired_token_error_with_expired_token_code(self):
+        """Test detection of ExpiredToken error code."""
+        from botocore.exceptions import ClientError
+
+        error = ClientError(
+            {'Error': {'Code': 'ExpiredToken', 'Message': 'Token expired'}},
+            'ExecuteStatement',
+        )
+        assert RedshiftClientManager.is_expired_token_error(error) is True
+
+    def test_is_expired_token_error_with_request_expired(self):
+        """Test detection of RequestExpired error code."""
+        from botocore.exceptions import ClientError
+
+        error = ClientError(
+            {'Error': {'Code': 'RequestExpired', 'Message': 'Request expired'}},
+            'ExecuteStatement',
+        )
+        assert RedshiftClientManager.is_expired_token_error(error) is True
+
+    def test_is_expired_token_error_with_non_expired_error(self):
+        """Test that non-expired errors are not detected as expired."""
+        from botocore.exceptions import ClientError
+
+        error = ClientError(
+            {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}},
+            'ExecuteStatement',
+        )
+        assert RedshiftClientManager.is_expired_token_error(error) is False
+
+    def test_is_expired_token_error_with_generic_exception(self):
+        """Test that generic exceptions with expired token message are detected."""
+        error = Exception('The security token included in the request is expired')
+        assert RedshiftClientManager.is_expired_token_error(error) is True
+
+    def test_is_expired_token_error_with_unrelated_exception(self):
+        """Test that unrelated exceptions are not detected as expired."""
+        error = Exception('Connection timeout')
+        assert RedshiftClientManager.is_expired_token_error(error) is False
     """Tests for _execute_protected_statement function."""
 
     @pytest.mark.asyncio
@@ -638,6 +731,61 @@ class TestExecuteStatement:
         # Verify database and cluster are NOT added when using session
         assert 'Database' not in call_args
         assert 'ClusterIdentifier' not in call_args
+
+
+class TestExecuteStatementCredentialRefresh:
+    """Tests for expired token retry in _execute_statement."""
+
+    @pytest.mark.asyncio
+    async def test_retry_on_expired_token(self, mocker):
+        """Test that _execute_statement retries once on ExpiredTokenException."""
+        from botocore.exceptions import ClientError
+
+        expired_error = ClientError(
+            {'Error': {'Code': 'ExpiredTokenException', 'Message': 'Token expired'}},
+            'ExecuteStatement',
+        )
+
+        old_client = mocker.Mock()
+        old_client.execute_statement.side_effect = expired_error
+
+        new_client = mocker.Mock()
+        new_client.execute_statement.return_value = {'Id': 'stmt-123'}
+        new_client.describe_statement.return_value = {'Status': 'FINISHED'}
+
+        mock_client_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.client_manager')
+        mock_client_manager.redshift_data_client.side_effect = [old_client, new_client]
+        mock_client_manager.is_expired_token_error.return_value = True
+
+        cluster_info = {'type': 'provisioned'}
+        result = await _execute_statement(cluster_info, 'cluster', 'db', 'SELECT 1')
+
+        assert result == 'stmt-123'
+        mock_client_manager.invalidate_clients.assert_called_once()
+        assert mock_client_manager.redshift_data_client.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_no_retry_on_non_expired_error(self, mocker):
+        """Test that non-expired errors are raised without retry."""
+        from botocore.exceptions import ClientError
+
+        access_error = ClientError(
+            {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}},
+            'ExecuteStatement',
+        )
+
+        mock_client = mocker.Mock()
+        mock_client.execute_statement.side_effect = access_error
+
+        mock_client_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.client_manager')
+        mock_client_manager.redshift_data_client.return_value = mock_client
+        mock_client_manager.is_expired_token_error.return_value = False
+
+        cluster_info = {'type': 'provisioned'}
+        with pytest.raises(ClientError, match='Access denied'):
+            await _execute_statement(cluster_info, 'cluster', 'db', 'SELECT 1')
+
+        mock_client_manager.invalidate_clients.assert_not_called()
 
 
 class TestRedshiftSessionManager:
