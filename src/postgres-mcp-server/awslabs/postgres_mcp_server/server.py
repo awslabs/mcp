@@ -920,7 +920,7 @@ def main():
                 database_type=DatabaseType[args.db_type],
                 connection_method=ConnectionMethod[args.connection_method],
                 cluster_identifier=cluster_identifier,
-                db_endpoint=args.hostname,
+                db_endpoint=args.db_endpoint,
                 port=args.port,
                 database=args.database,
             )
