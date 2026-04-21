@@ -784,8 +784,12 @@ def main():
     if args.debug:
         # Enable more detailed error tracking and performance monitoring
         logger.debug('Enabling detailed performance tracking and error monitoring')
-        # Hook into FastMCP to track performance
-        mcp.settings.debug = True
+        # Enable FastMCP debug mode (compatible with both v2 and v3)
+        try:
+            mcp.settings.debug = True
+        except AttributeError:
+            # FastMCP 3.x removed the .settings attribute
+            mcp.debug = True
         # You could add more diagnostics setup here
 
     logger.debug('Starting awslabs_support_mcp_server MCP server')
