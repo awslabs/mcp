@@ -28,7 +28,7 @@ from awslabs.iam_mcp_server.errors import (
 from awslabs.iam_mcp_server.models import UsersListResponse
 from botocore.exceptions import ClientError as BotoClientError
 from datetime import datetime
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import Mock, patch
 
 
 def test_get_iam_client():
@@ -122,14 +122,12 @@ async def test_list_users_mock():
         'IsTruncated': False,
     }
 
-    mock_ctx = AsyncMock()
-
     with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
         mock_client = Mock()
         mock_client.list_users.return_value = mock_response
         mock_get_client.return_value = mock_client
 
-        result = await list_users(mock_ctx)
+        result = await list_users()
 
         assert isinstance(result, UsersListResponse)
         assert len(result.users) == 1
@@ -146,10 +144,8 @@ async def test_create_user_readonly_mode():
     # Set readonly mode
     Context.initialize(readonly=True)
 
-    mock_ctx = AsyncMock()
-
     with pytest.raises(IamClientError) as exc_info:
-        await create_user(mock_ctx, user_name='test-user', confirmed=False)
+        await create_user(user_name='test-user', confirmed=False)
 
     assert 'read-only mode' in str(exc_info.value)
 
@@ -173,14 +169,12 @@ async def test_create_user_success():
         }
     }
 
-    mock_ctx = AsyncMock()
-
     with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
         mock_client = Mock()
         mock_client.create_user.return_value = mock_response
         mock_get_client.return_value = mock_client
 
-        result = await create_user(mock_ctx, user_name='new-user')
+        result = await create_user(user_name='new-user')
 
         assert isinstance(result, CreateUserResponse)
         assert result.user.user_name == 'new-user'
@@ -507,8 +501,6 @@ async def test_get_user():
         ]
     }
 
-    mock_ctx = AsyncMock()
-
     with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
         mock_client = Mock()
         mock_client.get_user.return_value = mock_user_response
@@ -518,7 +510,7 @@ async def test_get_user():
         mock_client.list_access_keys.return_value = mock_keys_response
         mock_get_client.return_value = mock_client
 
-        result = await get_user(mock_ctx, user_name='test-user')
+        result = await get_user(user_name='test-user')
 
         assert result.user.user_name == 'test-user'
         assert len(result.attached_policies) == 1
@@ -1786,10 +1778,9 @@ async def test_confirmation_gate_create_user():
     from awslabs.iam_mcp_server.server import create_user
 
     Context.initialize(readonly=False, require_confirmation=True)
-    mock_ctx = Mock()
 
     with pytest.raises(IamValidationError) as exc_info:
-        await create_user(mock_ctx, user_name='test-user', confirmed=False)
+        await create_user(user_name='test-user', confirmed=False)
     assert 'CONFIRMATION REQUIRED' in str(exc_info.value)
 
 
@@ -2257,3 +2248,23 @@ async def test_trust_policy_multiple_allow_statements():
             confirmed=True,
         )
         assert result['Role']['RoleName'] == 'multi-principal-role'
+
+
+@pytest.mark.asyncio
+async def test_registered_tool_schemas_have_no_leaked_context_param():
+    """Regression: no registered tool should expose an internal `ctx` parameter.
+
+    Previously, `list_users`, `get_user`, and `create_user` annotated `ctx` as
+    `mcp.types.CallToolResult` (a response type). FastMCP only auto-injects
+    parameters typed as `Context`; anything else becomes a required client-facing
+    argument, which made those tools unusable from every MCP client.
+    """
+    from awslabs.iam_mcp_server.server import mcp
+
+    tools = await mcp.list_tools()
+    offenders = []
+    for tool in tools:
+        params = (tool.inputSchema or {}).get('properties', {}) or {}
+        if 'ctx' in params:
+            offenders.append(tool.name)
+    assert not offenders, f'Tools leaking internal ctx param into public schema: {offenders}'

@@ -38,7 +38,6 @@ from awslabs.iam_mcp_server.models import (
 )
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
-from mcp.types import CallToolResult
 from pydantic import Field
 from typing import Any, Dict, List, Optional, Union
 
@@ -161,7 +160,6 @@ mcp = FastMCP(
 
 @mcp.tool()
 async def list_users(
-    ctx: CallToolResult,
     path_prefix: Optional[str] = Field(
         description='Path prefix to filter users (e.g., "/division_abc/")', default=None
     ),
@@ -178,7 +176,6 @@ async def list_users(
     - Results may be paginated for accounts with many users
 
     Args:
-        ctx: MCP context for error reporting
         path_prefix: Optional path prefix to filter users
         max_items: Maximum number of users to return
 
@@ -229,7 +226,7 @@ async def list_users(
 
 @mcp.tool()
 async def get_user(
-    ctx: CallToolResult, user_name: str = Field(description='The name of the IAM user to retrieve')
+    user_name: str = Field(description='The name of the IAM user to retrieve'),
 ) -> UserDetailsResponse:
     """Get detailed information about a specific IAM user.
 
@@ -243,7 +240,6 @@ async def get_user(
     - Check access keys to identify potential security issues
 
     Args:
-        ctx: MCP context for error reporting
         user_name: The name of the IAM user
 
     Returns:
@@ -317,7 +313,6 @@ async def get_user(
 
 @mcp.tool()
 async def create_user(
-    ctx: CallToolResult,
     user_name: str = Field(description='The name of the new IAM user'),
     path: str = Field(description='The path for the user', default='/'),
     permissions_boundary: Optional[str] = Field(
@@ -339,7 +334,6 @@ async def create_user(
     - Follow the principle of least privilege when assigning permissions later
 
     Args:
-        ctx: MCP context for error reporting
         user_name: The name of the new IAM user
         path: The path for the user (default: '/')
         permissions_boundary: Optional ARN of the permissions boundary policy

@@ -5,6 +5,11 @@ All notable changes to the AWS IAM MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- `list_users`, `get_user`, and `create_user` were unusable because their handler signatures declared `ctx: CallToolResult` as a required parameter. `CallToolResult` is a response type from `mcp.types`, not the FastMCP injectable `Context`, so FastMCP exposed `ctx` in the JSON schema as a required client-facing argument that no MCP client could satisfy. Calls consistently failed with `1 validation error for list_usersArguments: ctx Field required`. The `ctx` parameter was never referenced in the handler bodies and has been removed, matching the signature shape of all other tools in the server.
+
 ## [1.1.0] - 2025-06-23
 
 ### Added
