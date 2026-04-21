@@ -29,8 +29,36 @@ from awslabs.openapi_mcp_server.utils.metrics_provider import metrics
 from awslabs.openapi_mcp_server.utils.openapi import load_openapi_spec
 from awslabs.openapi_mcp_server.utils.openapi_validator import validate_openapi_spec
 from fastmcp import FastMCP
-from fastmcp.server.openapi import FastMCPOpenAPI, MCPType, RouteMap
+from fastmcp.server.providers.openapi import MCPType, OpenAPIProvider, RouteMap
 from typing import Any, Dict
+
+
+_HTTP_METHODS = {'get', 'put', 'post', 'delete', 'patch', 'options', 'head', 'trace'}
+
+
+def _build_route_maps(spec: Dict[str, Any]) -> list:
+    """Build route maps for GET operations with query parameters."""
+    mappings = []
+    for path, path_item in spec.get('paths', {}).items():
+        if not isinstance(path_item, dict):
+            continue
+        for method, operation in path_item.items():
+            if method.lower() not in _HTTP_METHODS or not isinstance(operation, dict):
+                continue
+            if method.lower() == 'get':
+                parameters = operation.get('parameters', [])
+                query_params = [
+                    p for p in parameters if isinstance(p, dict) and p.get('in') == 'query'
+                ]
+                if query_params:
+                    mappings.append(
+                        RouteMap(
+                            methods=['GET'],
+                            pattern=f'^{re.escape(path)}$',
+                            mcp_type=MCPType.TOOL,
+                        )
+                    )
+    return mappings
 
 
 async def create_mcp_server_async(config: Config) -> FastMCP:
@@ -53,12 +81,7 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
 
     logger.info('Creating FastMCP server')
 
-    # Create the FastMCP server
-    server = FastMCP(
-        'awslabs.openapi-mcp-server',
-        instructions='This server acts as a bridge between OpenAPI specifications and LLMs, allowing models to have a better understanding of available API capabilities without requiring manual tool definitions.',
-    )
-
+    server = None
     try:
         # Load OpenAPI spec
         if not config.api_spec_url and not config.api_spec_path:
@@ -165,23 +188,7 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
         )
         logger.info(f'Created HTTP client for API base URL: {config.api_base_url}')
 
-        custom_mappings = []
-
-        # Identify GET operations with query parameters in the OpenAPI spec
-        for path, path_item in openapi_spec.get('paths', {}).items():
-            for method, operation in path_item.items():
-                if method.lower() == 'get':
-                    parameters = operation.get('parameters', [])
-                    query_params = [p for p in parameters if p.get('in') == 'query']
-                    if query_params:
-                        # Create a specific mapping for this path to ensure it's treated as a TOOL
-                        custom_mappings.append(
-                            RouteMap(
-                                methods=['GET'],
-                                pattern=f'^{re.escape(path)}$',
-                                mcp_type=MCPType.TOOL,
-                            )
-                        )
+        custom_mappings = _build_route_maps(openapi_spec)
 
         # Create the FastMCP server with custom route mappings
         logger.info('Creating FastMCP server with OpenAPI specification')
@@ -190,27 +197,121 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
             if 'title' in openapi_spec['info'] and openapi_spec['info']['title']:
                 config.api_name = openapi_spec['info']['title']
                 logger.info(f'Updated API name from OpenAPI spec title: {config.api_name}')
-        server = FastMCPOpenAPI(
-            openapi_spec=openapi_spec,
-            client=client,
+
+        # Parse tag filters
+        include_tags = (
+            {t.strip() for t in config.include_tags.split(',') if t.strip()}
+            if config.include_tags
+            else None
+        )
+        exclude_tags = (
+            {t.strip() for t in config.exclude_tags.split(',') if t.strip()}
+            if config.exclude_tags
+            else None
+        )
+        if include_tags:
+            logger.info(f'Including only operations with tags: {include_tags}')
+        if exclude_tags:
+            logger.info(f'Excluding operations with tags: {exclude_tags}')
+
+        def enrich_component(route: Any, component: Any) -> None:
+            """Enrich MCP tool/resource descriptions with OpenAPI spec details."""
+            parts = []
+            if component.description:
+                parts.append(component.description)
+            # Add response info
+            if hasattr(route, 'responses') and route.responses:
+                codes = ', '.join(sorted(route.responses.keys()))
+                parts.append(f'Returns: {codes}')
+            # Add example values from parameters
+            examples = []
+            if hasattr(route, 'parameters'):
+                for p in route.parameters:
+                    schema = getattr(p, 'schema_', None) or {}
+                    if isinstance(schema, dict) and 'example' in schema:
+                        examples.append(f'{p.name}={schema["example"]}')
+                    elif isinstance(schema, dict) and 'enum' in schema:
+                        examples.append(f'{p.name}={schema["enum"][0]}')
+            if examples:
+                parts.append(f'Example: {", ".join(examples)}')
+            if parts:
+                component.description = ' | '.join(parts)
+
+        provider_kwargs: Dict[str, Any] = {
+            'openapi_spec': openapi_spec,
+            'client': client,
+            'route_maps': custom_mappings,
+            'mcp_component_fn': enrich_component,
+            'validate_output': config.validate_output,
+        }
+
+        providers = [OpenAPIProvider(**provider_kwargs)]
+
+        # Load additional specs for multi-spec composition
+        if config.additional_specs:
+            import json
+
+            try:
+                extra_specs = json.loads(config.additional_specs)
+                if not isinstance(extra_specs, list):
+                    logger.warning(
+                        f'additional_specs must be a JSON array, got {type(extra_specs).__name__}'
+                    )
+                    extra_specs = []
+                for entry in extra_specs:
+                    if not isinstance(entry, dict):
+                        logger.warning(f'Skipping non-dict additional spec entry: {entry}')
+                        continue
+                    extra_name = entry.get('name', 'unknown')
+                    extra_base_url = entry.get('base_url', '')
+                    if not extra_base_url:
+                        logger.warning(
+                            f'Skipping additional spec {extra_name}: base_url is required'
+                        )
+                        continue
+                    logger.info(f'Loading additional spec: {extra_name}')
+                    try:
+                        extra_spec = load_openapi_spec(
+                            url=entry.get('spec_url', ''), path=entry.get('spec_path', '')
+                        )
+                    except Exception as e:
+                        logger.warning(f'Failed to load additional spec {extra_name}: {e}')
+                        continue
+
+                    if not validate_openapi_spec(extra_spec):
+                        logger.warning(
+                            f'Additional spec {extra_name} validation failed, continuing anyway'
+                        )
+                    extra_client = HttpClientFactory.create_client(
+                        base_url=extra_base_url,
+                        headers=auth_headers,
+                        auth=httpx_auth,
+                        cookies=auth_cookies,
+                    )
+                    providers.append(
+                        OpenAPIProvider(
+                            openapi_spec=extra_spec,
+                            client=extra_client,
+                            route_maps=_build_route_maps(extra_spec),
+                            mcp_component_fn=enrich_component,
+                            validate_output=config.validate_output,
+                        )
+                    )
+                    logger.info(f'Added additional spec: {extra_name}')
+            except (json.JSONDecodeError, TypeError) as e:
+                logger.warning(f'Failed to parse additional specs: {e}')
+
+        server = FastMCP(
             name=config.api_name or 'OpenAPI MCP Server',
-            route_maps=custom_mappings,  # Custom mappings take precedence over default mappings
+            instructions='This server acts as a bridge between OpenAPI specifications and LLMs, allowing models to have a better understanding of available API capabilities without requiring manual tool definitions.',
+            providers=providers,
         )
 
-        # Log route information at debug level
-        if logger.level == 'DEBUG':
-            # Use getattr with default value to safely access attributes
-            openapi_router = getattr(server, '_openapi_router', None)
-            if openapi_router is not None:
-                routes = getattr(openapi_router, '_routes', [])
-                logger.debug(f'Server has {len(routes)} routes')
-
-                # Log details of each route
-                for i, route in enumerate(routes):
-                    path = getattr(route, 'path', 'unknown')
-                    method = getattr(route, 'method', 'unknown')
-                    mcp_type = getattr(route, 'mcp_type', 'unknown')
-                    logger.debug(f'Route {i}: {method} {path} - Type: {mcp_type}')
+        # Apply tag filters after server creation
+        if include_tags:
+            server.enable(tags=include_tags, only=True)
+        if exclude_tags:
+            server.disable(tags=exclude_tags)
 
         logger.info(f'Successfully configured API: {config.api_name}')
 
@@ -291,54 +392,33 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
     # Try different ways to access tools based on FastMCP implementation
     if hasattr(server, 'list_tools'):
         try:
-            # Use asyncio to run the async method in a synchronous context
-            tools = await server.list_tools()  # type: ignore
+            tools = await server.list_tools()
             tool_count = len(tools)
-            tool_names = [tool.get('name') for tool in tools]
-
-            # DEBUG - Log detailed information about each tool
+            tool_names = [getattr(t, 'name', 'unknown') for t in tools]
             logger.debug(f'Found {tool_count} tools via list_tools()')
             for i, tool in enumerate(tools):
-                tool_name = tool.get('name', 'unknown')
-                tool_desc = tool.get('description', 'no description')
-                logger.debug(f'Tool {i}: {tool_name} - {tool_desc}')
-
-                # Check if the tool has a schema
-                if 'parameters' in tool:
-                    params = tool.get('parameters', {})
-                    if 'properties' in params:
-                        properties = params.get('properties', {})
-                        logger.debug(f'  Parameters: {list(properties.keys())}')
+                logger.debug(
+                    f'Tool {i}: {getattr(tool, "name", "unknown")} - {getattr(tool, "description", "no description")}'
+                )
         except Exception as e:
             logger.warning(f'Failed to list tools: {e}')
-            import traceback
-
-            logger.debug(f'Tool listing error traceback: {traceback.format_exc()}')
-
-    # DEBUG - Try to access tools directly if available
-    tools = getattr(server, '_tools', {})
-    if tools:
-        logger.debug(f'Server has {len(tools)} tools in _tools attribute')
-        for tool_name, tool in tools.items():
-            logger.debug(f'Direct tool: {tool_name}')
 
     # Log the prompt count
-    prompt_count = (
-        len(server._prompt_manager._prompts)
-        if hasattr(server, '_prompt_manager') and hasattr(server._prompt_manager, '_prompts')
-        else 0
-    )
+    prompt_count = 0
+    prompt_names = []
+    if hasattr(server, 'list_prompts'):
+        try:
+            prompts = await server.list_prompts()
+            prompt_count = len(prompts)
+            prompt_names = [getattr(p, 'name', 'unknown') for p in prompts]
+        except Exception as e:
+            logger.warning(f'Failed to list prompts: {e}')
 
     # Log details of registered components
     if tool_count > 0:
         logger.info(f'Registered tools: {tool_names}')
 
-    if (
-        prompt_count > 0
-        and hasattr(server, '_prompt_manager')
-        and hasattr(server._prompt_manager, '_prompts')
-    ):
-        prompt_names = list(server._prompt_manager._prompts.keys())
+    if prompt_count > 0:
         logger.info(f'Registered prompts: {prompt_names}')
 
     return server
@@ -364,18 +444,18 @@ def create_mcp_server(config: Config) -> FastMCP:
 
 async def get_all_counts(server: FastMCP) -> tuple[int, int, int, int]:
     """Get counts of prompts, tools, resources, and resource templates."""
-    prompts = await server.get_prompts()
-    tools = await server.get_tools()
-    resources = await server.get_resources()
+    prompts = await server.list_prompts()
+    tools = await server.list_tools()
+    resources = await server.list_resources()
 
     # Get resource templates if available
     resource_templates = []
-    if hasattr(server, 'get_resource_templates'):
+    if hasattr(server, 'list_resource_templates'):
         try:
-            resource_templates = await server.get_resource_templates()
+            resource_templates = await server.list_resource_templates()
         except AttributeError as e:
             # This is expected if the method exists but is not implemented
-            logger.debug(f'get_resource_templates exists but not implemented: {e}')
+            logger.debug(f'list_resource_templates exists but not implemented: {e}')
         except Exception as e:
             # Log other unexpected errors
             logger.warning(f'Error retrieving resource templates: {e}')
@@ -482,6 +562,29 @@ def main():
     parser.add_argument(
         '--auth-cognito-scopes',
         help='Comma-separated list of scopes for Cognito OAuth 2.0 client credentials flow',
+    )
+
+    # Tag filtering
+    parser.add_argument(
+        '--include-tags',
+        help='Comma-separated list of OpenAPI tags to include (only expose matching operations)',
+    )
+    parser.add_argument(
+        '--exclude-tags',
+        help='Comma-separated list of OpenAPI tags to exclude (hide matching operations)',
+    )
+
+    # Output validation
+    parser.add_argument(
+        '--no-validate-output',
+        action='store_true',
+        help='Disable validation of API responses against OpenAPI response schemas',
+    )
+
+    # Multi-spec composition
+    parser.add_argument(
+        '--additional-specs',
+        help='JSON array of additional API specs. Each entry requires base_url and either spec_url or spec_path: [{"name":"...","spec_url":"...","base_url":"..."}]',
     )
 
     args = parser.parse_args()

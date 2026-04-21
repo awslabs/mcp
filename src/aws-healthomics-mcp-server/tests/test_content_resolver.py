@@ -476,7 +476,8 @@ class TestInlineContentPassthrough:
 # ---------------------------------------------------------------------------
 
 # Strategy for safe filenames (no path traversal, no OS-reserved chars)
-_safe_filename = st.from_regex(r'[a-zA-Z0-9_]{1,12}\.[a-z]{1,4}', fullmatch=True)
+# Use lowercase-only stems to avoid case-insensitive filesystem collisions on macOS
+_safe_filename = st.from_regex(r'[a-z0-9_]{1,12}\.[a-z]{1,4}', fullmatch=True)
 
 # Strategy for non-empty file content (valid UTF-8 text, no \r or surrogates)
 _file_content = st.text(

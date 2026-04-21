@@ -45,6 +45,14 @@ async def create_sequence_store(
         None,
         description='Tags to apply to the sequence store as a JSON string or object, e.g. {"key": "value"}',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Create a new HealthOmics sequence store.
 
@@ -55,11 +63,13 @@ async def create_sequence_store(
         sse_kms_key_arn: KMS key ARN for server-side encryption
         fallback_location: S3 URI for the fallback location
         tags: Tags as a JSON string or dict
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing the created sequence store information
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     params: Dict[str, Any] = {'name': name}
 
@@ -109,6 +119,14 @@ async def list_sequence_stores(
         None,
         description='Token for pagination from a previous response',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """List HealthOmics sequence stores.
 
@@ -117,11 +135,13 @@ async def list_sequence_stores(
         name_filter: Filter stores by name
         max_results: Maximum number of results to return
         next_token: Token for pagination
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing sequence store list and optional next token
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     params: Dict[str, Any] = {'maxResults': max_results}
 
@@ -162,17 +182,27 @@ async def list_sequence_stores(
 async def get_sequence_store(
     ctx: Context,
     sequence_store_id: Annotated[str, Field(description='The ID of the sequence store')],
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Get details about a specific HealthOmics sequence store.
 
     Args:
         ctx: MCP context for error reporting
         sequence_store_id: The ID of the sequence store
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing sequence store details
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     try:
         response = client.get_sequence_store(id=sequence_store_id)
@@ -207,6 +237,14 @@ async def update_sequence_store(
         None,
         description='New S3 URI for the fallback location',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Update a HealthOmics sequence store.
 
@@ -219,11 +257,13 @@ async def update_sequence_store(
         name: New name for the sequence store
         description: New description for the sequence store
         fallback_location: New S3 URI for the fallback location
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing the updated sequence store details
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     try:
         # Step 1: Fetch current store to get ETag
@@ -302,6 +342,14 @@ async def list_read_sets(
         None,
         description='Token for pagination from a previous response',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """List read sets in a HealthOmics sequence store with optional filtering.
 
@@ -317,11 +365,13 @@ async def list_read_sets(
         created_before: Filter for read sets created before this datetime
         max_results: Maximum number of results to return
         next_token: Token for pagination
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing read set list and optional next token
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     params: Dict[str, Any] = {
         'sequenceStoreId': sequence_store_id,
@@ -386,6 +436,14 @@ async def get_read_set_metadata(
     ctx: Context,
     sequence_store_id: Annotated[str, Field(description='The ID of the sequence store')],
     read_set_id: Annotated[str, Field(description='The ID of the read set')],
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Get metadata for a specific read set in a HealthOmics sequence store.
 
@@ -393,11 +451,13 @@ async def get_read_set_metadata(
         ctx: MCP context for error reporting
         sequence_store_id: The ID of the sequence store
         read_set_id: The ID of the read set
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing read set metadata
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     try:
         response = client.get_read_set_metadata(sequenceStoreId=sequence_store_id, id=read_set_id)
@@ -445,6 +505,14 @@ async def start_read_set_import_job(
         None,
         description='Tags to apply to the import job as a JSON string or object, e.g. {"key": "value"}',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Start a read set import job to import genomic files from S3 into a sequence store.
 
@@ -454,11 +522,13 @@ async def start_read_set_import_job(
         role_arn: IAM role ARN for the import job
         sources: JSON list of import sources
         tags: Tags as a JSON string or dict
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing the import job information
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     try:
         parsed_sources = json.loads(sources)
@@ -503,6 +573,14 @@ async def get_read_set_import_job(
     ctx: Context,
     sequence_store_id: Annotated[str, Field(description='The ID of the sequence store')],
     import_job_id: Annotated[str, Field(description='The ID of the import job')],
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Get details about a read set import job.
 
@@ -510,11 +588,13 @@ async def get_read_set_import_job(
         ctx: MCP context for error reporting
         sequence_store_id: The ID of the sequence store
         import_job_id: The ID of the import job
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing the import job details
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     try:
         response = client.get_read_set_import_job(
@@ -551,6 +631,14 @@ async def list_read_set_import_jobs(
         None,
         description='Token for pagination from a previous response',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """List read set import jobs for a sequence store.
 
@@ -559,11 +647,13 @@ async def list_read_set_import_jobs(
         sequence_store_id: The ID of the sequence store
         max_results: Maximum number of results to return
         next_token: Token for pagination
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing import job list and optional next token
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     params: Dict[str, Any] = {
         'sequenceStoreId': sequence_store_id,
@@ -615,6 +705,14 @@ async def start_read_set_export_job(
             description='List of read set IDs to export as a JSON list or array, e.g. ["id1", "id2"]'
         ),
     ],
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Start a read set export job to export read sets from a sequence store to S3.
 
@@ -624,11 +722,13 @@ async def start_read_set_export_job(
         destination_s3_uri: S3 URI for the export destination
         role_arn: IAM role ARN for the export job
         read_set_ids: List of read set IDs to export
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing the export job information
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     try:
         parsed_ids = parse_id_list(read_set_ids)
@@ -660,6 +760,14 @@ async def get_read_set_export_job(
     ctx: Context,
     sequence_store_id: Annotated[str, Field(description='The ID of the sequence store')],
     export_job_id: Annotated[str, Field(description='The ID of the export job')],
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Get details about a read set export job.
 
@@ -667,11 +775,13 @@ async def get_read_set_export_job(
         ctx: MCP context for error reporting
         sequence_store_id: The ID of the sequence store
         export_job_id: The ID of the export job
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing the export job details
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     try:
         response = client.get_read_set_export_job(
@@ -707,6 +817,14 @@ async def list_read_set_export_jobs(
         None,
         description='Token for pagination from a previous response',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """List read set export jobs for a sequence store.
 
@@ -715,11 +833,13 @@ async def list_read_set_export_jobs(
         sequence_store_id: The ID of the sequence store
         max_results: Maximum number of results to return
         next_token: Token for pagination
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing export job list and optional next token
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     params: Dict[str, Any] = {
         'sequenceStoreId': sequence_store_id,
@@ -769,6 +889,14 @@ async def activate_read_sets(
             description='List of read set IDs to activate as a JSON list or array, e.g. ["id1", "id2"]'
         ),
     ],
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Activate archived read sets in a HealthOmics sequence store.
 
@@ -778,11 +906,13 @@ async def activate_read_sets(
         ctx: MCP context for error reporting
         sequence_store_id: The ID of the sequence store
         read_set_ids: List of read set IDs to activate
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing the activation job information
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     try:
         parsed_ids = parse_id_list(read_set_ids)
