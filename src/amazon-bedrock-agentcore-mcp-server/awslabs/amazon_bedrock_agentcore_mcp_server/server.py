@@ -17,7 +17,7 @@
 import asyncio
 import os
 import signal
-from .tools import docs, gateway, memory, runtime
+from .tools import docs, gateway, memory
 from .utils import cache
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -135,7 +135,19 @@ mcp.tool()(docs.search_agentcore_docs)
 mcp.tool()(docs.fetch_agentcore_doc)
 
 if _is_service_enabled('runtime'):
-    mcp.tool()(runtime.manage_agentcore_runtime)
+    try:
+        from .tools.runtime import register_runtime_tools
+
+        register_runtime_tools(mcp)
+        logger.info('Runtime tools registered')
+    except ImportError as e:
+        logger.error(f'Runtime tools disabled — failed to import dependencies: {e}.')
+    except Exception as e:
+        logger.error(
+            f'Runtime tools disabled — initialization failed: {e}. '
+            f'Set AGENTCORE_DISABLE_TOOLS=runtime to suppress.'
+        )
+
 if _is_service_enabled('memory'):
     mcp.tool()(memory.manage_agentcore_memory)
 if _is_service_enabled('gateway'):
