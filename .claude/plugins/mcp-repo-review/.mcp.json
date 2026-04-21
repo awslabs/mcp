@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "semgrep": {
+      "command": "semgrep",
+      "args": ["--config", "auto"],
+      "env": {}
+    }
+  }
+}
