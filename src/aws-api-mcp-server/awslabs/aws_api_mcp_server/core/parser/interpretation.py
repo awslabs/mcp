@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import boto3
+import hashlib
 import json
 from ..aws.pagination import build_result
 from ..aws.services import (
@@ -59,6 +60,29 @@ _AUTH_ERROR_CODES = frozenset(
 )
 
 
+def _credentials_fingerprint(
+    access_key_id: str, secret_access_key: str, session_token: str | None
+) -> str:
+    """Non-reversible fingerprint so raw secrets do not sit in the cache key."""
+    h = hashlib.sha256()
+    h.update(access_key_id.encode('utf-8'))
+    h.update(b'\0')
+    h.update(secret_access_key.encode('utf-8'))
+    h.update(b'\0')
+    h.update((session_token or '').encode('utf-8'))
+    return h.hexdigest()
+
+
+def _client_cache_key(
+    service_name: str,
+    region: str,
+    credentials_fingerprint: str,
+    endpoint_url: str | None,
+    user_agent_extra: str,
+) -> tuple:
+    return (service_name, region, credentials_fingerprint, endpoint_url, user_agent_extra)
+
+
 def _get_or_create_client(
     service_name: str,
     access_key_id: str,
@@ -69,7 +93,13 @@ def _get_or_create_client(
     endpoint_url: str | None,
 ) -> Any:
     """Return a cached boto3 client, creating one if needed."""
-    key = (service_name, region, access_key_id, secret_access_key, session_token, endpoint_url)
+    key = _client_cache_key(
+        service_name,
+        region,
+        _credentials_fingerprint(access_key_id, secret_access_key, session_token),
+        endpoint_url,
+        getattr(config, 'user_agent_extra', '') or '',
+    )
 
     if key in _client_cache:
         _client_cache.move_to_end(key)
@@ -97,9 +127,16 @@ def _evict_client(
     session_token: str | None,
     region: str,
     endpoint_url: str | None,
+    user_agent_extra: str,
 ) -> None:
     """Remove a client from cache after an auth error."""
-    key = (service_name, region, access_key_id, secret_access_key, session_token, endpoint_url)
+    key = _client_cache_key(
+        service_name,
+        region,
+        _credentials_fingerprint(access_key_id, secret_access_key, session_token),
+        endpoint_url,
+        user_agent_extra,
+    )
     _client_cache.pop(key, None)
 
 
@@ -176,6 +213,7 @@ def interpret(
                     session_token,
                     region,
                     endpoint_url,
+                    getattr(config, 'user_agent_extra', '') or '',
                 )
             raise
 

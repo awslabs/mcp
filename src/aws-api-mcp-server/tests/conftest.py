@@ -17,6 +17,7 @@ def _reset_caches():
     """Reset module-level caches between tests."""
     clear_client_cache()
     _drop_cached_session()
+    _service_command_table_cache.clear()
     yield
     clear_client_cache()
     _drop_cached_session()

@@ -329,10 +329,9 @@ def is_custom_operation(service, operation):
         raise InvalidServiceError(service)
 
     if isinstance(service_command, ServiceCommand):
-        service_name = service_command.name
-        if service_name not in _service_command_table_cache:
-            _service_command_table_cache[service_name] = service_command._get_command_table()
-        service_command_table = _service_command_table_cache[service_name]
+        service_command_table = _get_cached_service_command_table(
+            service_command.name, service_command
+        )
         operation_command = service_command_table.get(operation)
 
         # valid service can have custom operations.
@@ -378,6 +377,14 @@ driver._add_aliases(command_table, parser)
 _service_command_table_cache: dict[str, dict] = {}
 
 
+def _get_cached_service_command_table(service: str, service_command) -> dict:
+    cached = _service_command_table_cache.get(service)
+    if cached is None:
+        cached = service_command._get_command_table()
+        _service_command_table_cache[service] = cached
+    return cached
+
+
 def parse(cli_command: str, default_region_override: str | None = None) -> IRCommand:
     """Parse a CLI command string into an IRCommand object."""
     tokens = split_cli_command(cli_command)
@@ -409,9 +416,7 @@ def _handle_service_command(
         raise MissingOperationError()
 
     service = service_command.name
-    if service not in _service_command_table_cache:
-        _service_command_table_cache[service] = service_command._get_command_table()
-    command_table = _service_command_table_cache[service]
+    command_table = _get_cached_service_command_table(service, service_command)
 
     operation = remaining[0]
     operation_command = command_table.get(operation)
@@ -501,9 +506,7 @@ def _handle_awscli_customization(
 
     # For custom commands, we need to check if the operation exists in the service's command table
     if hasattr(service_command, '_get_command_table'):
-        if service not in _service_command_table_cache:
-            _service_command_table_cache[service] = service_command._get_command_table()
-        service_command_table = _service_command_table_cache[service]
+        service_command_table = _get_cached_service_command_table(service, service_command)
         operation_command = service_command_table.get(operation)
     elif hasattr(service_command, 'subcommand_table'):
         # Handle S3-like services that use subcommand_table
