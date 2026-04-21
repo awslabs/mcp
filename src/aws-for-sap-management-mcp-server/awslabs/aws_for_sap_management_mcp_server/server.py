@@ -142,6 +142,7 @@ to make the output understandable for SAP administrators:
     dependencies=[
         'pydantic',
         'loguru',
+        'boto3',
     ],
 )
 
@@ -169,8 +170,8 @@ except Exception as e:
 
 def main():
     """Run the MCP server."""
-    mcp.run()
     logger.info('SSM for SAP MCP server started')
+    mcp.run()
 
 
 if __name__ == '__main__':

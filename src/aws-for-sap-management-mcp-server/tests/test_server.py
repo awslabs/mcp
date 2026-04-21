@@ -25,11 +25,12 @@ class TestServerInitialization:
         assert mcp is not None
         assert mcp.name == 'awslabs.aws-for-sap-management-mcp-server'
 
-    def test_tools_registered(self):
+    async def test_tools_registered(self):
         """Test that all tool modules are registered on the server."""
         from awslabs.aws_for_sap_management_mcp_server.server import mcp
 
-        tool_names = [t.name for t in mcp._tool_manager.list_tools()]
+        tools = await mcp.list_tools()
+        tool_names = [t.name for t in tools]
         # Application tools
         assert 'list_applications' in tool_names
         assert 'get_application' in tool_names
@@ -53,6 +54,9 @@ class TestServerInitialization:
         assert 'delete_schedule' in tool_names
         assert 'update_schedule_state' in tool_names
         assert 'get_schedule_details' in tool_names
+        # Health tools
+        assert 'get_sap_health_summary' in tool_names
+        assert 'generate_health_report' in tool_names
 
     def test_server_exception_handler(self):
         """Test that server re-raises exceptions during tool registration (lines 165-167)."""
