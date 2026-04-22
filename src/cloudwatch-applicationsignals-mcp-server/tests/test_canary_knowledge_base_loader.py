@@ -211,7 +211,7 @@ class TestCanaryKnowledgeBaseLoader:
 
 
 def test_load_with_missing_subdirectory(tmp_path):
-    """Test that load handles missing subdirectories gracefully"""
+    """Test that load handles missing subdirectories gracefully."""
     import awslabs.cloudwatch_applicationsignals_mcp_server.canary_knowledge_base_loader as mod
 
     # Create canary_knowledge_base dir with only 'runtime', no 'environment'

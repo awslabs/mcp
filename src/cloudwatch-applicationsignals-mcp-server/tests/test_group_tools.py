@@ -1644,7 +1644,6 @@ class TestAuditGroupHealthCanaryIntegration:
             assert 'SYNTHETICS CANARIES' not in result
 
 
-
 class TestMatchesGroupWildcardAll:
     """Tests for _matches_group with bare wildcard '*'."""
 

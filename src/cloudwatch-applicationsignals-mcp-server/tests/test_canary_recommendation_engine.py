@@ -519,7 +519,6 @@ class TestFormatRecommendations:
         assert 'Canary passes' in output
         assert '5 minutes' in output
 
-
     def test_symptom_with_no_extractable_keywords_skipped(self):
         """Test that symptoms with no extractable keywords are skipped."""
         # A symptom made entirely of stop words / short words → no keywords extracted
