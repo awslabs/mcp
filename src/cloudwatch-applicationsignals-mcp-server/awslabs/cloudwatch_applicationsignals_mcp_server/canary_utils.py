@@ -21,11 +21,7 @@ import os
 import re
 import tempfile
 import zipfile
-from .aws_clients import (
-    lambda_client,
-    logs_client,
-    synthetics_client,
-)
+from .aws_clients import get_client
 from botocore.exceptions import ClientError
 from datetime import datetime, timedelta
 from loguru import logger
@@ -597,7 +593,7 @@ async def analyze_canary_logs_with_time_window(
 
         # Get log events in the time window
         try:
-            response = logs_client.filter_log_events(
+            response = get_client('logs').filter_log_events(
                 logGroupName=log_group_name,
                 startTime=start_timestamp,
                 endTime=end_timestamp,
@@ -674,7 +670,7 @@ async def extract_disk_memory_usage_metrics(canary_name: str, region: str = 'us-
     """Extract disk and memory usage metrics from canary log group."""
     try:
         # Get canary details to find the Lambda function name
-        canary_response = synthetics_client.get_canary(Name=canary_name)
+        canary_response = get_client('synthetics').get_canary(Name=canary_name)
         canary = canary_response['Canary']
 
         # Handle both EngineArn and EngineConfigs
@@ -698,7 +694,7 @@ async def extract_disk_memory_usage_metrics(canary_name: str, region: str = 'us-
         | limit 20
         """
 
-        response = logs_client.start_query(
+        response = get_client('logs').start_query(
             logGroupName=log_group_name,
             startTime=int(start_time.timestamp()),
             endTime=int(end_time.timestamp()),
@@ -713,7 +709,7 @@ async def extract_disk_memory_usage_metrics(canary_name: str, region: str = 'us-
         delay = 1
         result = None
         while wait_time < max_wait:
-            result = logs_client.get_query_results(queryId=query_id)
+            result = get_client('logs').get_query_results(queryId=query_id)
             if result['status'] == 'Complete':
                 break
             await asyncio.sleep(delay)
@@ -773,7 +769,7 @@ async def get_canary_code(canary: dict, region: str = 'us-east-1') -> dict:
         function_name = engine_arn.split(':function:')[1].split(':')[0]
 
         # Get function configuration
-        function_response = lambda_client.get_function(FunctionName=function_name)
+        function_response = get_client('lambda').get_function(FunctionName=function_name)
         config = function_response['Configuration']
 
         result = {
@@ -788,7 +784,9 @@ async def get_canary_code(canary: dict, region: str = 'us-east-1') -> dict:
         source_location_arn = canary.get('Code', {}).get('SourceLocationArn', '')
         if source_location_arn and ':layer:' in source_location_arn:
             try:
-                layer_response = lambda_client.get_layer_version_by_arn(Arn=source_location_arn)
+                layer_response = get_client('lambda').get_layer_version_by_arn(
+                    Arn=source_location_arn
+                )
                 if 'Location' in layer_response['Content']:
                     with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp_file:
                         import requests
@@ -830,7 +828,9 @@ async def get_canary_code(canary: dict, region: str = 'us-east-1') -> dict:
 
             for layer in custom_layers:
                 try:
-                    layer_response = lambda_client.get_layer_version_by_arn(Arn=layer['Arn'])
+                    layer_response = get_client('lambda').get_layer_version_by_arn(
+                        Arn=layer['Arn']
+                    )
                     if 'Location' in layer_response['Content']:
                         with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp_file:
                             import requests

@@ -10,7 +10,7 @@ from awslabs.cloudwatch_applicationsignals_mcp_server.sli_report_client import (
 )
 from botocore.exceptions import ClientError
 from datetime import datetime, timedelta, timezone
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 
 class TestAWSConfig:
@@ -133,13 +133,19 @@ class TestSLIReportClient:
     @pytest.fixture
     def mock_aws_clients(self):
         """Mock AWS clients."""
-        with (
-            patch(
-                'awslabs.cloudwatch_applicationsignals_mcp_server.sli_report_client.applicationsignals_client'
-            ) as mock_signals,
-            patch(
-                'awslabs.cloudwatch_applicationsignals_mcp_server.sli_report_client.cloudwatch_client'
-            ) as mock_cloudwatch,
+        mock_signals = MagicMock()
+        mock_cloudwatch = MagicMock()
+
+        def _get_client(service_name):
+            if service_name == 'application-signals':
+                return mock_signals
+            if service_name == 'cloudwatch':
+                return mock_cloudwatch
+            return MagicMock()
+
+        with patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.sli_report_client.get_client',
+            side_effect=_get_client,
         ):
             yield {
                 'signals_client': mock_signals,

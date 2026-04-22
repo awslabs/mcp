@@ -16,7 +16,7 @@
 
 import asyncio
 import json
-from .aws_clients import applicationsignals_client, logs_client, xray_client
+from .aws_clients import get_client
 from .sli_report_client import AWSConfig, SLIReportClient
 from .utils import remove_null_values
 from datetime import datetime, timedelta, timezone
@@ -98,7 +98,7 @@ def check_transaction_search_enabled(region: str = 'us-east-1') -> tuple[bool, s
         tuple: (is_enabled: bool, destination: str, status: str)
     """
     try:
-        response = xray_client.get_trace_segment_destination()
+        response = get_client('xray').get_trace_segment_destination()
 
         destination = response.get('Destination', 'Unknown')
         status = response.get('Status', 'Unknown')
@@ -207,14 +207,14 @@ async def search_transaction_spans(
         }
 
         logger.debug(f'Starting CloudWatch Logs query with limit: {limit}')
-        start_response = logs_client.start_query(**remove_null_values(kwargs))
+        start_response = get_client('logs').start_query(**remove_null_values(kwargs))
         query_id = start_response['queryId']
         logger.info(f'Started CloudWatch Logs query with ID: {query_id}')
 
         # Seconds
         poll_start = timer()
         while poll_start + max_timeout > timer():
-            response = logs_client.get_query_results(queryId=query_id)
+            response = get_client('logs').get_query_results(queryId=query_id)
             status = response['status']
 
             if status in {'Complete', 'Failed', 'Cancelled'}:
@@ -418,11 +418,11 @@ async def query_sampled_traces(
     """
     start_time_perf = timer()
 
-    # Use AWS_REGION environment variable if region not provided
+    # Use get_region() if region not provided
     if not region:
-        from .aws_clients import AWS_REGION
+        from .aws_clients import get_region
 
-        region = AWS_REGION
+        region = get_region()
 
     logger.info(f'Starting query_sampled_traces - region: {region}, filter: {filter_expression}')
 
@@ -457,7 +457,7 @@ async def query_sampled_traces(
 
         # Use pagination helper with a reasonable limit
         traces = get_trace_summaries_paginated(
-            xray_client,
+            get_client('xray'),
             start_datetime,
             end_datetime,
             filter_expression or '',
@@ -646,7 +646,7 @@ async def list_slis(
         logger.debug(f'Time range: {start_time} to {end_time}')
 
         # Get all services
-        services_response = applicationsignals_client.list_services(
+        services_response = get_client('application-signals').list_services(
             StartTime=start_time,  # type: ignore
             EndTime=end_time,  # type: ignore
             MaxResults=100,
