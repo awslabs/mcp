@@ -229,3 +229,151 @@ def validate_and_enrich_service_targets(
         enriched_targets.append(t)
 
     return enriched_targets
+
+
+# Prefixes / instrumentation types that indicate the target is NOT an
+# instrumented application service. These deserve a warning in the audit
+# banner so the user (and the LLM) does not treat the target as equivalent
+# to an instrumented application service.
+_CANARY_PREFIX = 'cwsyn-'
+_UNINSTRUMENTED_TYPES = {'UNINSTRUMENTED', 'AWS_NATIVE'}
+
+
+def detect_uninstrumented_targets(
+    normalized_targets: List[dict],
+    applicationsignals_client,
+    unix_start: int,
+    unix_end: int,
+) -> List[dict]:
+    """Detect non-wildcard service targets that are uninstrumented or are canaries.
+
+    The wildcard expansion path already filters these out in audit_utils.
+    This helper catches the other path: the user (or LLM) explicitly names a
+    service that happens to be a CloudWatch Synthetics canary (`cwsyn-*`) or
+    carries InstrumentationType UNINSTRUMENTED / AWS_NATIVE in its
+    AttributeMaps. We do not block the call; we surface a warning so the
+    response frames the target correctly.
+
+    Args:
+        normalized_targets: Service targets after normalization + enrichment.
+        applicationsignals_client: Boto3 Application Signals client.
+        unix_start: Audit window start (unix seconds).
+        unix_end: Audit window end (unix seconds).
+
+    Returns:
+        List of dicts describing any flagged targets. Each dict has keys
+        'name', 'environment', and 'reason'. Empty list when nothing flagged.
+    """
+    # Gather target names that are not wildcards (wildcards were already
+    # expanded and filtered upstream).
+    explicit_names = []
+    for t in normalized_targets:
+        svc = (t.get('Data') or {}).get('Service') or {}
+        name = svc.get('Name') or ''
+        if name and '*' not in name:
+            explicit_names.append((name, svc.get('Environment', '')))
+
+    if not explicit_names:
+        return []
+
+    # Fast path: flag `cwsyn-*` names without any API call. These are
+    # CloudWatch Synthetics canaries by naming convention.
+    flagged: List[dict] = []
+    needs_api_check = []
+    for name, env in explicit_names:
+        if name.startswith(_CANARY_PREFIX):
+            flagged.append(
+                {
+                    'name': name,
+                    'environment': env,
+                    'reason': 'canary',
+                }
+            )
+        else:
+            needs_api_check.append((name, env))
+
+    # For the remaining targets, look them up in list_services to check
+    # InstrumentationType. We do one API call and scan its results.
+    if needs_api_check:
+        try:
+            response = applicationsignals_client.list_services(
+                StartTime=datetime.fromtimestamp(unix_start, tz=timezone.utc),
+                EndTime=datetime.fromtimestamp(unix_end, tz=timezone.utc),
+                MaxResults=100,
+            )
+            summaries = response.get('ServiceSummaries', [])
+        except Exception as e:
+            # Non-fatal: skip the uninstrumented warning if the lookup fails.
+            # The audit itself can still proceed.
+            logger.debug(f'detect_uninstrumented_targets: list_services failed: {e}')
+            return flagged
+
+        # Index summaries by name for O(1) lookup.
+        by_name = {}
+        for summary in summaries:
+            key_attrs = summary.get('KeyAttributes') or {}
+            sname = key_attrs.get('Name')
+            if sname:
+                by_name.setdefault(sname, summary)
+
+        for name, env in needs_api_check:
+            summary = by_name.get(name)
+            if not summary:
+                continue
+            attribute_maps = summary.get('AttributeMaps') or []
+            for attr_map in attribute_maps:
+                if not isinstance(attr_map, dict):
+                    continue
+                instr = attr_map.get('InstrumentationType')
+                if instr in _UNINSTRUMENTED_TYPES:
+                    flagged.append(
+                        {
+                            'name': name,
+                            'environment': env,
+                            'reason': instr.lower(),
+                        }
+                    )
+                    break
+
+    return flagged
+
+
+def format_uninstrumented_warning(flagged: List[dict]) -> str:
+    """Format the flagged-target list into a banner warning block.
+
+    Returns an empty string when nothing was flagged, so callers can
+    unconditionally concatenate the result.
+    """
+    if not flagged:
+        return ''
+
+    lines = ['⚠️  Uninstrumented or non-application targets detected:']
+    for entry in flagged:
+        name = entry.get('name', 'unknown')
+        env = entry.get('environment', '')
+        reason = entry.get('reason', 'uninstrumented')
+        env_str = f' ({env})' if env else ''
+        if reason == 'canary':
+            lines.append(
+                f"   • '{name}'{env_str} appears to be a CloudWatch Synthetics canary "
+                f'(name prefix "cwsyn-"). Its Duration metric measures canary '
+                f'execution time, NOT application latency. Do not compare its '
+                f'metrics with instrumented application services.'
+            )
+        elif reason == 'aws_native':
+            lines.append(
+                f"   • '{name}'{env_str} is AWS_NATIVE (auto-discovered AWS service, "
+                f'not explicitly instrumented). Metrics are limited.'
+            )
+        else:
+            lines.append(
+                f"   • '{name}'{env_str} is UNINSTRUMENTED (auto-discovered, not "
+                f'explicitly instrumented with Application Signals). Metrics may '
+                f'only include Duration/Errors, not application-level Latency/Fault.'
+            )
+    lines.append(
+        '   Flag this to the user in your response. If the user expected an '
+        'instrumented application service with this name, suggest they confirm '
+        'whether a separate instrumented service exists.'
+    )
+    return '\n'.join(lines) + '\n'

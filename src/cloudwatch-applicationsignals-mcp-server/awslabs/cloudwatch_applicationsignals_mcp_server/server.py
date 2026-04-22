@@ -54,7 +54,12 @@ from .group_tools import (
     list_group_services,
     list_grouping_attribute_definitions,
 )
-from .service_audit_utils import normalize_service_targets, validate_and_enrich_service_targets
+from .service_audit_utils import (
+    detect_uninstrumented_targets,
+    format_uninstrumented_warning,
+    normalize_service_targets,
+    validate_and_enrich_service_targets,
+)
 from .service_tools import (
     get_service_detail,
     list_monitored_services,
@@ -414,6 +419,14 @@ async def audit_services(
             normalized_targets, applicationsignals_client, unix_start, unix_end
         )
 
+        # Detect explicitly-named uninstrumented / canary targets and build a
+        # warning block. Wildcard targets are already filtered upstream, so
+        # this only catches the case where the LLM (or user) named a canary
+        # or uninstrumented service directly.
+        uninstrumented_flagged = detect_uninstrumented_targets(
+            normalized_targets, applicationsignals_client, unix_start, unix_end
+        )
+
         # Parse auditors with service-specific defaults
         auditors_list = parse_auditors(auditors, ['slo', 'operation_metric'])
 
@@ -423,6 +436,10 @@ async def audit_services(
             f'🎯 Scope: {len(normalized_targets)} service target(s) | Region: {region}\n'
             f'⏰ Time: {unix_start}–{unix_end}\n'
         )
+
+        # Add uninstrumented-target warning at the top of the banner so it is
+        # prominent in the response.
+        banner += format_uninstrumented_warning(uninstrumented_flagged)
 
         # Add filtering statistics if services were filtered
         if filtering_stats['total_services'] > 0:
