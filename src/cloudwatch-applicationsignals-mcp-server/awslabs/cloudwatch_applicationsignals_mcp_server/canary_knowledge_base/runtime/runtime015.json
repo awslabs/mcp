@@ -1,0 +1,73 @@
+{
+  "category": "runtime_behavior_change",
+  "documentation_links": [
+    {
+      "title": "CloudWatch Synthetics Python Selenium runtime versions",
+      "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Synthetics_Library_python_selenium.html"
+    }
+  ],
+  "error_patterns": [
+    {
+      "text_contains": "Loading was canceled"
+    },
+    {
+      "text_contains": "ERROR"
+    },
+    {
+      "error_type": "LogLevelChange"
+    }
+  ],
+  "id": "RUNTIME-015",
+  "recommendations": [
+    {
+      "confidence": 95,
+      "estimated_time": "5 minutes",
+      "priority": "critical",
+      "problem": "The log level bug exists only in syn-python-selenium-7.0",
+      "solution": [
+        {
+          "command": "aws synthetics update-canary \\\n  --name <canary-name> \\\n  --region <canary-region> \\\n  --runtime-version syn-python-selenium-8.0\n",
+          "description": "Update the canary to use syn-python-selenium-8.0 or later, which fixes the log level for 'Loading was canceled' messages",
+          "expected_outcome": "The 'Loading was canceled' message will be logged at WARNING level and will not cause canary failure",
+          "step": "Update runtime version"
+        }
+      ],
+      "title": "Upgrade to syn-python-selenium-8.0 or later"
+    },
+    {
+      "confidence": 90,
+      "estimated_time": "5 minutes",
+      "priority": "medium",
+      "problem": "If upgrading to 8.0 is not immediately possible",
+      "solution": [
+        {
+          "command": "aws synthetics update-canary \\\n  --name <canary-name> \\\n  --region <canary-region> \\\n  --runtime-version syn-python-selenium-6.0\n",
+          "description": "Downgrade the canary back to syn-python-selenium-6.0 to restore the original WARNING log level behavior",
+          "expected_outcome": "The canary will pass again as 'Loading was canceled' is logged at WARNING level",
+          "step": "Revert runtime version"
+        }
+      ],
+      "title": "Downgrade to syn-python-selenium-6.0 as a temporary workaround"
+    }
+  ],
+  "root_cause": "syn-python-selenium-7.0 reclassified the Chromium browser message 'Loading was canceled' from WARNING to ERROR level. The Synthetics runtime treats any ERROR-level log entry as a canary failure indicator. Since 'Loading was canceled' is a benign Chromium event that occurs during normal page navigation (especially redirects), canaries that previously passed now fail without any actual endpoint or script issue. Fixed in syn-python-selenium-8.0, which restores the WARNING level.",
+  "runtime_versions": [
+    "syn-python-selenium-7.0"
+  ],
+  "severity": "medium",
+  "symptoms": [
+    "Canary starts failing after upgrading to syn-python-selenium-7.0 from an earlier Selenium runtime",
+    "Canary logs show 'Loading was canceled' at ERROR level instead of WARNING",
+    "Canary reports failure even though the page loads successfully",
+    "No code changes were made \u2014 only the runtime version was updated"
+  ],
+  "tags": [
+    "selenium",
+    "python",
+    "log-level",
+    "loading-canceled",
+    "runtime-upgrade",
+    "behavior-change"
+  ],
+  "title": "syn-python-selenium-7.0 changes 'Loading was canceled' log level from WARNING to ERROR causing canary failures"
+}
