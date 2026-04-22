@@ -113,7 +113,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      contents: write  # SECURITY: Only for branch creation
+      contents: write # SECURITY: Only for branch creation
     outputs:
       release-branch: ${{ steps.make-a-branch.outputs.release-branch }}
     needs: [look-for-changes]
@@ -179,6 +179,8 @@ jobs:
           ref: ${{ needs.create-branch.outputs.release-branch }}
       - name: Install uv
         uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b # v7.3.0
+        with:
+          version: "0.11.1"
       - name: Bump package version
         run: |
           set -euo pipefail
