@@ -14,12 +14,14 @@
 
 """Tests for the Amazon Bedrock AgentCore MCP Server."""
 
+import asyncio
+from awslabs.amazon_bedrock_agentcore_mcp_server import server
 from awslabs.amazon_bedrock_agentcore_mcp_server.tools.docs import (
     fetch_agentcore_doc,
     search_agentcore_docs,
 )
 from awslabs.amazon_bedrock_agentcore_mcp_server.utils import cache, doc_fetcher, indexer
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 
 class TestSearchDocs:
@@ -201,3 +203,146 @@ class TestFetchDoc:
         assert 'error' not in result
         assert result['url'] == test_url
         mock_ensure_page.assert_called_once_with(test_url)
+
+
+class TestIsServiceEnabled:
+    """Test cases for _is_service_enabled."""
+
+    def test_default_all_enabled(self):
+        """All services enabled when no env vars set."""
+        with patch.dict('os.environ', {}, clear=True):
+            assert server._is_service_enabled('runtime') is True
+            assert server._is_service_enabled('browser') is True
+            assert server._is_service_enabled('code_interpreter') is True
+
+    def test_enable_tools_allows_listed(self):
+        """Only listed services enabled when AGENTCORE_ENABLE_TOOLS is set."""
+        with patch.dict('os.environ', {'AGENTCORE_ENABLE_TOOLS': 'runtime,memory'}):
+            assert server._is_service_enabled('runtime') is True
+            assert server._is_service_enabled('memory') is True
+            assert server._is_service_enabled('browser') is False
+
+    def test_enable_tools_case_insensitive(self):
+        """Service matching is case-insensitive."""
+        with patch.dict('os.environ', {'AGENTCORE_ENABLE_TOOLS': 'Runtime,MEMORY'}):
+            assert server._is_service_enabled('runtime') is True
+            assert server._is_service_enabled('MEMORY') is True
+
+    def test_enable_tools_empty_value_enables_all(self):
+        """Empty AGENTCORE_ENABLE_TOOLS enables all services."""
+        with patch.dict('os.environ', {'AGENTCORE_ENABLE_TOOLS': '  , , '}):
+            assert server._is_service_enabled('runtime') is True
+
+    def test_disable_tools_blocks_listed(self):
+        """Listed services disabled when AGENTCORE_DISABLE_TOOLS is set."""
+        with patch.dict('os.environ', {'AGENTCORE_DISABLE_TOOLS': 'browser'}):
+            assert server._is_service_enabled('browser') is False
+            assert server._is_service_enabled('runtime') is True
+
+    def test_enable_takes_precedence_over_disable(self):
+        """AGENTCORE_ENABLE_TOOLS takes precedence when both are set."""
+        with patch.dict(
+            'os.environ',
+            {
+                'AGENTCORE_ENABLE_TOOLS': 'runtime',
+                'AGENTCORE_DISABLE_TOOLS': 'runtime',
+            },
+        ):
+            assert server._is_service_enabled('runtime') is True
+            assert server._is_service_enabled('browser') is False
+
+
+class TestServerLifespan:
+    """Test cases for server_lifespan context manager."""
+
+    async def test_lifespan_no_browser_no_code_interpreter(self):
+        """Lifespan yields cleanly when no services registered."""
+        with (
+            patch.object(server, '_code_interpreter_cleanup', None),
+            patch.object(server, '_browser_cm', None),
+            patch.object(server, '_browser_sm', None),
+        ):
+            mock_server = MagicMock()
+            async with server.server_lifespan(mock_server):
+                pass
+
+    async def test_lifespan_code_interpreter_cleanup_no_browser(self):
+        """Lifespan calls code interpreter cleanup on exit (no browser)."""
+        cleanup = AsyncMock()
+        with (
+            patch.object(server, '_code_interpreter_cleanup', cleanup),
+            patch.object(server, '_browser_cm', None),
+            patch.object(server, '_browser_sm', None),
+        ):
+            mock_server = MagicMock()
+            async with server.server_lifespan(mock_server):
+                pass
+
+        cleanup.assert_awaited_once()
+
+    async def test_lifespan_with_browser_and_code_interpreter(self):
+        """Lifespan manages browser cleanup task and code interpreter cleanup."""
+        mock_cm = MagicMock()
+        mock_cm.cleanup = AsyncMock()
+        mock_sm = MagicMock()
+        ci_cleanup = AsyncMock()
+
+        async def fake_cleanup_stale(cm, sm):
+            try:
+                await asyncio.sleep(3600)
+            except asyncio.CancelledError:
+                return
+
+        with (
+            patch.object(server, '_browser_cm', mock_cm),
+            patch.object(server, '_browser_sm', mock_sm),
+            patch.object(server, '_code_interpreter_cleanup', ci_cleanup),
+            patch(
+                'awslabs.amazon_bedrock_agentcore_mcp_server.server.cleanup_stale_sessions',
+                side_effect=fake_cleanup_stale,
+                create=True,
+            ),
+            patch(
+                'awslabs.amazon_bedrock_agentcore_mcp_server.tools.browser.cleanup_stale_sessions',
+                side_effect=fake_cleanup_stale,
+            ),
+            patch('asyncio.get_running_loop') as mock_loop,
+        ):
+            mock_loop.return_value = MagicMock()
+            mock_server = MagicMock()
+
+            async with server.server_lifespan(mock_server):
+                pass
+
+        mock_cm.cleanup.assert_awaited_once()
+        ci_cleanup.assert_awaited_once()
+
+    async def test_lifespan_browser_without_code_interpreter(self):
+        """Lifespan manages browser cleanup when code interpreter is not registered."""
+        mock_cm = MagicMock()
+        mock_cm.cleanup = AsyncMock()
+        mock_sm = MagicMock()
+
+        async def fake_cleanup_stale(cm, sm):
+            try:
+                await asyncio.sleep(3600)
+            except asyncio.CancelledError:
+                return
+
+        with (
+            patch.object(server, '_browser_cm', mock_cm),
+            patch.object(server, '_browser_sm', mock_sm),
+            patch.object(server, '_code_interpreter_cleanup', None),
+            patch(
+                'awslabs.amazon_bedrock_agentcore_mcp_server.tools.browser.cleanup_stale_sessions',
+                side_effect=fake_cleanup_stale,
+            ),
+            patch('asyncio.get_running_loop') as mock_loop,
+        ):
+            mock_loop.return_value = MagicMock()
+            mock_server = MagicMock()
+
+            async with server.server_lifespan(mock_server):
+                pass
+
+        mock_cm.cleanup.assert_awaited_once()

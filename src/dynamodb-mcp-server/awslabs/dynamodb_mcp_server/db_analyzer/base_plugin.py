@@ -18,7 +18,7 @@
 
 import os
 from abc import ABC, abstractmethod
-from awslabs.dynamodb_mcp_server.common import validate_database_name
+from awslabs.dynamodb_mcp_server.common import validate_source_identifier
 from datetime import datetime
 from typing import Any, Dict
 
@@ -40,7 +40,7 @@ class DatabasePlugin(ABC):
         """Get the display name of the database type.
 
         Returns:
-            Database type name (e.g., 'MySQL', 'PostgreSQL', 'SQL Server')
+            Database type name (e.g., 'MySQL', 'PostgreSQL', 'SQL Server', 'Oracle')
         """
         pass
 
@@ -60,8 +60,54 @@ class DatabasePlugin(ABC):
         sql = sql.rstrip(';')
         return f'{sql} LIMIT {max_results};'
 
+    def get_recommended_command(self, source_identifier: str, output_file: str) -> str:
+        """Get the CLI command for running the generated SQL file and capturing output.
+
+        Override in subclasses for database-specific commands.
+
+        Args:
+            source_identifier: Target database name or schema/owner name
+            output_file: Path to generated SQL file
+
+        Returns:
+            CLI command string to execute queries and capture results
+        """
+        return f'<client> -d {source_identifier} < {output_file} > results.txt'
+
+    def get_run_instructions(
+        self, source_identifier: str, output_file: str, source_db_type: str
+    ) -> str:
+        """Get instructions for running the generated SQL file.
+
+        Override in subclasses for database-specific instructions.
+
+        Args:
+            source_identifier: Target database name or schema/owner name
+            output_file: Path to generated SQL file
+            source_db_type: Database type string
+
+        Returns:
+            Instruction text shown to the user after query generation
+        """
+        recommended_cmd = self.get_recommended_command(source_identifier, output_file)
+
+        return f"""SQL queries have been written to: {output_file}
+
+    Next Steps:
+    1. Run these queries against your {self.get_database_display_name()} database
+    2. Save the results to a text file (pipe-separated format)
+    3. Call this tool again with:
+       - execution_mode='self_service'
+       - query_result_file_path='<path_to_your_results_file>'
+       - Same source_identifier and output_dir
+
+    Recommended command:
+      {recommended_cmd}
+
+    After running queries, provide the results file path to continue analysis."""
+
     def write_queries_to_file(
-        self, target_database: str, max_results: int, output_file: str
+        self, source_identifier: str, max_results: int, output_file: str
     ) -> str:
         """Generate SQL file with all analysis queries.
 
@@ -69,21 +115,21 @@ class DatabasePlugin(ABC):
         apply_result_limit() methods.
 
         Args:
-            target_database: Target database/schema name
+            source_identifier: Target database name or schema/owner name
             max_results: Maximum results per query
             output_file: Path to output SQL file
 
         Returns:
             Path to generated file
         """
-        # Validate database name before using it
-        validate_database_name(target_database)
+        # Validate source identifier before using it
+        validate_source_identifier(source_identifier)
 
         queries = self.get_queries()
 
         sql_content = [
             f'-- {self.get_database_display_name()} Database Analysis Queries',
-            f'-- Target Database: {target_database}',
+            f'-- Target: {source_identifier}',
             f'-- Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}',
             '',
             '-- EXECUTION INSTRUCTIONS:',
@@ -117,7 +163,7 @@ class DatabasePlugin(ABC):
             sql = query_info['sql']
             # Substitute target_database parameter
             if 'target_database' in query_info.get('parameters', []):
-                sql = sql.format(target_database=target_database)
+                sql = sql.format(target_database=source_identifier)
 
             # Apply result limit (database-specific)
             sql = self.apply_result_limit(sql, max_results)

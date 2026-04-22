@@ -43,11 +43,27 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 BROWSER_PKG = 'awslabs.amazon_bedrock_agentcore_mcp_server.tools.browser'
 
-# The 5 non-browser tools that are always registered (docs always-on + 3 guides)
+# The non-browser tools registered by default (docs always-on + guides + runtime)
 BASE_TOOLS = {
+    # Docs (always on)
     'search_agentcore_docs',
     'fetch_agentcore_doc',
-    'manage_agentcore_runtime',
+    # Runtime (14 operational tools)
+    'create_agent_runtime',
+    'get_agent_runtime',
+    'update_agent_runtime',
+    'delete_agent_runtime',
+    'list_agent_runtimes',
+    'list_agent_runtime_versions',
+    'create_agent_runtime_endpoint',
+    'get_agent_runtime_endpoint',
+    'update_agent_runtime_endpoint',
+    'delete_agent_runtime_endpoint',
+    'list_agent_runtime_endpoints',
+    'invoke_agent_runtime',
+    'stop_runtime_session',
+    'get_runtime_guide',
+    # Memory + Gateway guides
     'manage_agentcore_memory',
     'manage_agentcore_gateway',
 }
@@ -94,7 +110,7 @@ def _build_server(*, disable: str | None = None, enable: str | None = None) -> F
         AGENTCORE_MCP_INSTRUCTIONS,
         _is_service_enabled,
     )
-    from awslabs.amazon_bedrock_agentcore_mcp_server.tools import docs, gateway, memory, runtime
+    from awslabs.amazon_bedrock_agentcore_mcp_server.tools import docs, gateway, memory
 
     old_disable = os.environ.pop('AGENTCORE_DISABLE_TOOLS', None)
     old_enable = os.environ.pop('AGENTCORE_ENABLE_TOOLS', None)
@@ -111,7 +127,12 @@ def _build_server(*, disable: str | None = None, enable: str | None = None) -> F
         server.tool()(docs.fetch_agentcore_doc)
 
         if _is_service_enabled('runtime'):
-            server.tool()(runtime.manage_agentcore_runtime)
+            from awslabs.amazon_bedrock_agentcore_mcp_server.tools.runtime import (
+                register_runtime_tools,
+            )
+
+            register_runtime_tools(server)
+
         if _is_service_enabled('memory'):
             server.tool()(memory.manage_agentcore_memory)
         if _is_service_enabled('gateway'):
@@ -146,7 +167,7 @@ class TestToolDiscovery:
     """Verify tool listing through the MCP protocol under different configs."""
 
     async def test_list_tools_default_config(self):
-        """Default config registers all 30 tools (5 base + 25 browser)."""
+        """Default config registers all tools (base + browser)."""
         server = _build_server()
         async with create_connected_server_and_client_session(server) as client:
             result = await client.list_tools()
@@ -165,7 +186,7 @@ class TestToolDiscovery:
             assert names.isdisjoint(BROWSER_TOOLS)
 
     async def test_list_tools_browser_and_docs_only(self):
-        """AGENTCORE_ENABLE_TOOLS=browser,docs registers browser + docs, no guides."""
+        """AGENTCORE_ENABLE_TOOLS=browser,docs registers browser + docs, no guides or runtime."""
         server = _build_server(enable='browser,docs')
         async with create_connected_server_and_client_session(server) as client:
             result = await client.list_tools()
@@ -174,8 +195,9 @@ class TestToolDiscovery:
             # Docs always on + browser enabled
             assert 'search_agentcore_docs' in names
             assert 'start_browser_session' in names
-            # Guides disabled
-            assert 'manage_agentcore_runtime' not in names
+            # Runtime, memory, gateway disabled
+            assert 'get_runtime_guide' not in names
+            assert 'create_agent_runtime' not in names
             assert 'manage_agentcore_memory' not in names
             assert 'manage_agentcore_gateway' not in names
 
