@@ -32,6 +32,7 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/aws-bedrock-custom-model-import-mcp-server                @awslabs/mcp-admins @awslabs/mcp-maintainers  @saidrhs
 /src/aws-dataprocessing-mcp-server                             @awslabs/mcp-admins @awslabs/mcp-maintainers  @naikvaib @LiyuanLD @ckha2000 @raghav1397 @chappidim @yuxiaorun
 /src/aws-documentation-mcp-server                              @awslabs/mcp-admins @awslabs/mcp-maintainers  @Lavoiedavidw @JonLim @tuanknguyen @AadityaBhoota @artb30 @alexisareyn
+/src/aws-for-sap-management-mcp-server                         @awslabs/mcp-admins @awslabs/mcp-maintainers  @conradkchan @jyothihassanramesh
 /src/aws-healthomics-mcp-server                                @awslabs/mcp-admins @awslabs/mcp-maintainers  @markjschreiber @WIIASD @a-li @alxawan @sabeelmansuri
 /src/aws-iac-mcp-server                                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @kdbrogan @vishaalmehrishi @aemada-aws @kumvprat
 /src/aws-iot-sitewise-mcp-server                               @awslabs/mcp-admins @awslabs/mcp-maintainers  @ychamare @ashuanand1226 @charlie-7 @ajain13
