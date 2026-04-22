@@ -1196,6 +1196,32 @@
       "workflows": [
         "autonomous"
       ]
+    },
+    {
+      "category": "Infrastructure & Deployment",
+      "description": "Manage, monitor, and operate SAP applications on AWS with health checks, configuration validation, and scheduling",
+      "icon": "\ud83c\udfd7\ufe0f",
+      "id": "aws-for-sap-management-mcp-server",
+      "name": "AWS Systems Manager for SAP MCP Server",
+      "source_path": "src/aws-for-sap-management-mcp-server/",
+      "subcategory": "SAP Management",
+      "tags": [
+        "infrastructure-deployment",
+        "ssm-sap",
+        "sap",
+        "hana",
+        "operations",
+        "monitoring",
+        "health-checks",
+        "configuration",
+        "scheduling",
+        "autonomous",
+        "conversational"
+      ],
+      "workflows": [
+        "autonomous",
+        "conversational"
+      ]
     }
   ],
   "workflows": [
