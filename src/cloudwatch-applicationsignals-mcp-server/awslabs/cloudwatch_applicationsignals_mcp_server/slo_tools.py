@@ -15,7 +15,8 @@
 """CloudWatch Application Signals MCP Server - SLO-related tools."""
 
 import json
-from .aws_clients import applicationsignals_client
+from .aws_clients import AWS_REGION, applicationsignals_client
+from .utils import console_url_slo
 from botocore.exceptions import ClientError
 from loguru import logger
 from pydantic import Field
@@ -355,6 +356,7 @@ async def list_slos(
             result += f'  ARN: {slo_arn}\n'
             result += f'  Operation: {operation_name}\n'
             result += f'  Created: {created_time}\n'
+            result += f'  Console: {console_url_slo(slo_name, AWS_REGION)}\n'
 
             # Add key attributes if available
             key_attrs = slo.get('KeyAttributes', {})
