@@ -87,6 +87,7 @@ const sidebars: SidebarsConfig = {
             "servers/amazon-neptune-mcp-server",
             "servers/aurora-dsql-mcp-server",
             "servers/mysql-mcp-server",
+            "servers/oracle-mcp-server",
             "servers/postgres-mcp-server",
             "servers/aws-dataprocessing-mcp-server",
             "servers/redshift-mcp-server",
