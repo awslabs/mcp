@@ -508,6 +508,28 @@
     },
     {
       "category": "Data & Analytics",
+      "description": "Microsoft SQL Server operations on AWS RDS via Secrets Manager authentication",
+      "icon": "\ud83d\udcca",
+      "id": "mssql-mcp-server",
+      "name": "Amazon RDS SQL Server MCP Server",
+      "source_path": "src/mssql-mcp-server/",
+      "subcategory": "SQL & NoSQL Databases",
+      "tags": [
+        "data-analytics",
+        "mssql",
+        "sql-server",
+        "rds",
+        "secrets-manager",
+        "sql-database",
+        "autonomous",
+        "data-operations"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Data & Analytics",
       "description": "MySQL database operations via RDS Data API",
       "icon": "\ud83d\udcca",
       "id": "mysql-mcp-server",
