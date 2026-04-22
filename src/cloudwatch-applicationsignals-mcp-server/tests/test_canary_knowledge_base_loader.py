@@ -208,3 +208,26 @@ class TestCanaryKnowledgeBaseLoader:
             CanaryKnowledgeBaseLoader()
             # Manually test with a non-existent path
             assert not (tmp_path / 'nonexistent').is_dir()
+
+
+def test_load_with_missing_subdirectory(tmp_path):
+    """Test that load handles missing subdirectories gracefully"""
+    import awslabs.cloudwatch_applicationsignals_mcp_server.canary_knowledge_base_loader as mod
+
+    # Create canary_knowledge_base dir with only 'runtime', no 'environment'
+    kb_dir = tmp_path / 'canary_knowledge_base'
+    kb_dir.mkdir()
+    (kb_dir / 'runtime').mkdir()
+    # 'environment' subdir intentionally missing
+
+    orig_file = mod.__file__
+    try:
+        # Redirect __file__ so entries_dir = tmp_path / canary_knowledge_base
+        mod.__file__ = str(tmp_path / 'fake.py')
+        loader = CanaryKnowledgeBaseLoader()
+        loader._loaded = False
+        loader.load()
+        # 'environment' dir is missing → warning logged, no crash
+        assert loader._loaded is True
+    finally:
+        mod.__file__ = orig_file

@@ -1841,3 +1841,72 @@ async def test_check_canaries_for_service_empty_identifier():
         ]
         result = await check_canaries_for_service(targets, 1700000000, 1700086400, 'us-east-1')
         assert 'real-canary' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_screenshots_success_type():
+    """Test analyze_screenshots classifies 'loaded'/'success' screenshots."""
+    screenshots = [{'Key': 'canary/step1-loaded-screenshot.png'}]
+    result = await analyze_screenshots(MagicMock(), 'bucket', screenshots, is_failed_run=False)
+    assert result['status'] == 'analyzed'
+    assert 'success' in result['screenshot_types']
+
+
+@pytest.mark.asyncio
+async def test_analyze_screenshots_no_recognized_types_failed_run():
+    """Test analyze_screenshots with unrecognized filenames on a failed run."""
+    screenshots = [{'Key': 'canary/step1-random-screenshot.png'}]
+    result = await analyze_screenshots(MagicMock(), 'bucket', screenshots, is_failed_run=True)
+    assert result['status'] == 'analyzed'
+    # Should contain the "Basic screenshots available" insight
+    assert any('Basic screenshots available' in i for i in result['insights'])
+
+
+@pytest.mark.asyncio
+async def test_analyze_screenshots_exception():
+    """Test analyze_screenshots handles exceptions gracefully."""
+    # Pass a non-iterable to trigger an exception inside the try block
+    bad_screenshots = [None]  # None has no 'Key' attribute
+    result = await analyze_screenshots(MagicMock(), 'bucket', bad_screenshots, True)
+    assert result['status'] == 'error'
+    assert any('Screenshot analysis failed' in i for i in result['insights'])
+
+
+@pytest.mark.asyncio
+async def test_analyze_log_files_info_debug_lines_skipped():
+    """Test analyze_log_files skips INFO/DEBUG lines without error keywords."""
+    mock_s3 = MagicMock()
+    log_content = ' INFO: Normal operation\n DEBUG: All good\nERROR: Something failed'
+    mock_s3.get_object.return_value = {
+        'Body': MagicMock(read=MagicMock(return_value=log_content.encode('utf-8')))
+    }
+    result = await analyze_log_files(mock_s3, 'bucket', [{'Key': 'test.log'}], True)
+    assert result['status'] == 'analyzed'
+    # Should find the ERROR line but skip INFO/DEBUG
+    assert result['error_patterns_found'] >= 1
+
+
+@pytest.mark.asyncio
+async def test_analyze_log_files_no_errors_failed_run():
+    """Test analyze_log_files with no error patterns on a failed run."""
+    mock_s3 = MagicMock()
+    log_content = 'All systems nominal\nEverything is fine'
+    mock_s3.get_object.return_value = {
+        'Body': MagicMock(read=MagicMock(return_value=log_content.encode('utf-8')))
+    }
+    result = await analyze_log_files(mock_s3, 'bucket', [{'Key': 'test.log'}], True)
+    assert result['status'] == 'analyzed'
+    assert result['error_patterns_found'] == 0
+    assert any('No obvious error patterns' in i for i in result['insights'])
+
+
+@pytest.mark.asyncio
+async def test_analyze_log_files_outer_exception():
+    """Test analyze_log_files handles outer exception gracefully."""
+    mock_s3 = MagicMock()
+    # Make get_object raise at the outer try level by passing bad logs structure
+    mock_s3.get_object.side_effect = Exception('Total failure')
+    result = await analyze_log_files(mock_s3, 'bucket', [{'Key': 'test.log'}], True)
+    # The inner exception is caught per-file, so it should still be 'analyzed'
+    assert result['status'] == 'analyzed'
+    assert any('Could not read log' in i for i in result['insights'])

@@ -3672,3 +3672,184 @@ async def test_analyze_canary_failures_kb_with_cw_logs_enrichment(mock_aws_clien
         result = await analyze_canary_failures('test-canary', 'us-east-1')
 
         assert '🔍 Comprehensive Failure Analysis for test-canary' in result
+
+
+@pytest.mark.asyncio
+async def test_list_canaries_unknown_state(mock_aws_clients):
+    """Test list_canaries displays ⚪ for unknown canary states."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import list_canaries
+
+    mock_aws_clients['synthetics_client'].describe_canaries.return_value = {
+        'Canaries': [
+            {
+                'Name': 'weird-canary',
+                'Status': {'State': 'CREATING', 'StateReason': ''},
+                'Schedule': {'Expression': 'rate(5 minutes)'},
+                'RuntimeVersion': 'syn-nodejs-puppeteer-10.0',
+                'Timeline': {'LastStarted': 'Never'},
+            }
+        ]
+    }
+
+    result = await list_canaries('us-east-1')
+    assert '⚪ weird-canary' in result
+
+
+@pytest.mark.asyncio
+async def test_list_canaries_generic_exception(mock_aws_clients):
+    """Test list_canaries handles non-ClientError exceptions."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import list_canaries
+
+    mock_aws_clients['synthetics_client'].describe_canaries.side_effect = RuntimeError(
+        'Unexpected failure'
+    )
+
+    result = await list_canaries('us-east-1')
+    assert 'Error listing canaries' in result
+    assert 'Unexpected failure' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_tags_as_list(mock_aws_clients):
+    """Test analyze_canary_failures handles canary tags as list of dicts."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import analyze_canary_failures
+
+    mock_runs = [
+        {
+            'Id': 'failed-run-1',
+            'Status': {'State': 'FAILED', 'StateReason': 'Navigation timeout'},
+            'Timeline': {'Started': '2024-01-01T01:00:00Z'},
+        },
+        {
+            'Id': 'success-run',
+            'Status': {'State': 'PASSED'},
+            'Timeline': {'Started': '2024-01-01T00:00:00Z'},
+        },
+    ]
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {
+        'Canary': {
+            'Name': 'test-canary',
+            'RuntimeVersion': 'syn-nodejs-puppeteer-10.0',
+            'ArtifactS3Location': '',
+            'Tags': [
+                {'Key': 'env', 'Value': 'production'},
+                {'Key': 'team', 'Value': 'platform'},
+            ],
+        }
+    }
+
+    with (
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+        ) as mock_insights,
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_canary_code'
+        ) as mock_code,
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.analyze_canary_logs_with_time_window'
+        ) as mock_cw_logs,
+    ):
+        mock_insights.return_value = ''
+        mock_code.return_value = {'error': 'no code'}
+        mock_cw_logs.return_value = {'status': 'no_logs', 'insights': ['No log group found']}
+
+        result = await analyze_canary_failures('test-canary', 'us-east-1')
+        assert 'Comprehensive Failure Analysis' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_with_description(mock_aws_clients):
+    """Test analyze_canary_failures passes description to KB (line 1577)."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import analyze_canary_failures
+
+    mock_runs = [
+        {
+            'Id': 'failed-run-1',
+            'Status': {'State': 'FAILED', 'StateReason': 'Navigation timeout'},
+            'Timeline': {'Started': '2024-01-01T01:00:00Z'},
+        },
+        {
+            'Id': 'success-run',
+            'Status': {'State': 'PASSED'},
+            'Timeline': {'Started': '2024-01-01T00:00:00Z'},
+        },
+    ]
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {
+        'Canary': {
+            'Name': 'test-canary',
+            'RuntimeVersion': 'syn-nodejs-puppeteer-10.0',
+            'ArtifactS3Location': '',
+        }
+    }
+
+    with (
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+        ) as mock_insights,
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_canary_code'
+        ) as mock_code,
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.analyze_canary_logs_with_time_window'
+        ) as mock_cw_logs,
+    ):
+        mock_insights.return_value = ''
+        mock_code.return_value = {'error': 'no code'}
+        mock_cw_logs.return_value = {'status': 'no_logs', 'insights': ['No log group found']}
+
+        result = await analyze_canary_failures(
+            'test-canary', 'us-east-1', description='canary keeps timing out on login page'
+        )
+        assert 'Comprehensive Failure Analysis' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_kb_exception(mock_aws_clients):
+    """Test analyze_canary_failures handles KB recommendation exception."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import analyze_canary_failures
+
+    mock_runs = [
+        {
+            'Id': 'failed-run-1',
+            'Status': {'State': 'FAILED', 'StateReason': 'Navigation timeout'},
+            'Timeline': {'Started': '2024-01-01T01:00:00Z'},
+        },
+        {
+            'Id': 'success-run',
+            'Status': {'State': 'PASSED'},
+            'Timeline': {'Started': '2024-01-01T00:00:00Z'},
+        },
+    ]
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {
+        'Canary': {
+            'Name': 'test-canary',
+            'RuntimeVersion': 'syn-nodejs-puppeteer-10.0',
+            'ArtifactS3Location': '',
+        }
+    }
+
+    with (
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+        ) as mock_insights,
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_canary_code'
+        ) as mock_code,
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.analyze_canary_logs_with_time_window'
+        ) as mock_cw_logs,
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.CanaryKnowledgeBaseLoader'
+        ) as mock_kb_loader,
+    ):
+        mock_insights.return_value = ''
+        mock_code.return_value = {'error': 'no code'}
+        mock_cw_logs.return_value = {'status': 'no_logs', 'insights': ['No log group found']}
+        mock_kb_loader.get_instance.side_effect = Exception('KB load failed')
+
+        result = await analyze_canary_failures('test-canary', 'us-east-1')
+        # Should still return a result despite KB failure
+        assert 'Comprehensive Failure Analysis' in result

@@ -1642,3 +1642,69 @@ class TestAuditGroupHealthCanaryIntegration:
             result = await audit_group_health(group_name='API')
 
             assert 'SYNTHETICS CANARIES' not in result
+
+
+
+class TestMatchesGroupWildcardAll:
+    """Tests for _matches_group with bare wildcard '*'."""
+
+    def test_bare_wildcard_matches_any_group(self):
+        """Test that '*' wildcard matches any service with a group (line 68)."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.group_tools import _matches_group
+
+        groups = [_make_group('Team', 'Payments')]
+        assert _matches_group(groups, '*') is True
+
+    def test_bare_wildcard_matches_even_empty_fields(self):
+        """Test that '*' wildcard matches via substring check ('' in '' is True)."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.group_tools import _matches_group
+
+        # '' in '' is True in Python, so bare wildcard matches everything
+        groups = [{'GroupName': '', 'GroupValue': '', 'GroupIdentifier': ''}]
+        assert _matches_group(groups, '*') is True
+
+    def test_bare_wildcard_no_match_empty_list(self):
+        """Test that '*' wildcard doesn't match when no groups exist."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.group_tools import _matches_group
+
+        assert _matches_group([], '*') is False
+
+
+class TestDiscoverServicesByGroupClientError:
+    """Tests for _discover_services_by_group ClientError handling."""
+
+    @pytest.mark.asyncio
+    async def test_client_error_propagates(self, mock_aws_clients):
+        """Test that ClientError in _discover_services_by_group is re-raised."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.group_tools import (
+            _discover_services_by_group,
+        )
+
+        mock_aws_clients['applicationsignals_client'].list_services.side_effect = ClientError(
+            error_response={
+                'Error': {'Code': 'AccessDeniedException', 'Message': 'Not authorized'}
+            },
+            operation_name='ListServices',
+        )
+
+        with pytest.raises(ClientError):
+            await _discover_services_by_group(
+                'Payments',
+                datetime(2024, 1, 1, tzinfo=timezone.utc),
+                datetime(2024, 1, 2, tzinfo=timezone.utc),
+            )
+
+
+class TestFormatNoServicesFoundNoGroups:
+    """Tests for _format_no_services_found when no groups exist."""
+
+    def test_no_available_groups(self):
+        """Test message when no ServiceGroups found at all."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.group_tools import (
+            _format_no_services_found,
+        )
+
+        stats = {'total_services_scanned': 10, 'groups_found': []}
+        result = _format_no_services_found('NonExistent', stats)
+        assert 'No ServiceGroups were found' in result
+        assert 'tags or OpenTelemetry attributes' in result

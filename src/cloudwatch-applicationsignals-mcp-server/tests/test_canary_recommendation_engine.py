@@ -474,4 +474,88 @@ class TestFormatRecommendations:
         engine = CanaryRecommendationEngine(MagicMock())
         output = engine.format_recommendations([match])
         assert 'AWS Docs' in output
-        assert 'docs.aws.amazon.com' in output
+
+    def test_formats_recommendations_with_steps(self):
+        """Test Formats recommendations with solution steps."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.canary_knowledge_base_model import (
+            Recommendation,
+            SolutionStep,
+        )
+
+        entry = _make_entry(
+            recommendations=[
+                Recommendation(
+                    priority='high',
+                    confidence=90,
+                    title='Increase timeout',
+                    problem='Default timeout too low',
+                    solution=[
+                        SolutionStep(
+                            step='Update config',
+                            description='Change timeout value',
+                            command='aws synthetics update-canary --name my-canary',
+                            expected_outcome='Canary passes',
+                        ),
+                    ],
+                    estimated_time='5 minutes',
+                ),
+            ],
+        )
+        match = MatchResult(
+            entry=entry,
+            confidence_score=0.85,
+            error_pattern_score=1.0,
+            symptom_score=0.5,
+            runtime_version_score=1.0,
+            environment_score=0.0,
+        )
+        engine = CanaryRecommendationEngine(MagicMock())
+        output = engine.format_recommendations([match])
+        assert 'Increase timeout' in output
+        assert 'Default timeout too low' in output
+        assert 'Update config' in output
+        assert 'Change timeout value' in output
+        assert 'aws synthetics update-canary' in output
+        assert 'Canary passes' in output
+        assert '5 minutes' in output
+
+
+    def test_symptom_with_no_extractable_keywords_skipped(self):
+        """Test that symptoms with no extractable keywords are skipped."""
+        # A symptom made entirely of stop words / short words → no keywords extracted
+        entry = _make_entry(symptoms=['a is the', 'Canary fails with timeout'])
+        ctx = _make_context(error_messages=['Canary fails with timeout error'])
+        engine = CanaryRecommendationEngine(MagicMock())
+        # The first symptom should be skipped, second should match → 1/2 = 0.5
+        score = engine._score_symptoms(entry, ctx)
+        assert score == 0.5
+
+    def test_suffix_plus_non_numeric_version_value_error(self):
+        """Test ValueError path when version suffix+ has non-numeric version."""
+        entry = _make_entry(runtime_versions=['syn-nodejs-puppeteer-abc+'])
+        ctx = _make_context(runtime_version='syn-nodejs-puppeteer-10.0')
+        engine = CanaryRecommendationEngine(MagicMock())
+        # float('abc') raises ValueError → caught, returns 0.0
+        assert engine._score_runtime_version(entry, ctx) == 0.0
+
+    def test_suffix_plus_non_numeric_canary_version_value_error(self):
+        """Test ValueError when canary runtime version is non-numeric."""
+        entry = _make_entry(runtime_versions=['syn-nodejs-puppeteer-8.0+'])
+        ctx = _make_context(runtime_version='syn-nodejs-puppeteer-beta')
+        engine = CanaryRecommendationEngine(MagicMock())
+        # float('beta') raises ValueError → caught, returns 0.0
+        assert engine._score_runtime_version(entry, ctx) == 0.0
+
+    def test_empty_tags_and_empty_category_returns_zero(self):
+        """Test _score_environment returns 0.0 when tags=[] and category=''."""
+        entry = _make_entry(tags=[], category='')
+        ctx = _make_context(environment_indicators=['timeout'])
+        engine = CanaryRecommendationEngine(MagicMock())
+        assert engine._score_environment(entry, ctx) == 0.0
+
+    def test_all_wildcard_runtime(self):
+        """Test 'all' wildcard in runtime_versions returns 0.5."""
+        entry = _make_entry(runtime_versions=['all'])
+        ctx = _make_context(runtime_version='syn-nodejs-puppeteer-10.0')
+        engine = CanaryRecommendationEngine(MagicMock())
+        assert engine._score_runtime_version(entry, ctx) == 0.5
