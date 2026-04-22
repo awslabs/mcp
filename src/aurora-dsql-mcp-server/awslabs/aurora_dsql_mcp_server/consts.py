@@ -31,9 +31,8 @@ BEGIN_READ_ONLY_TRANSACTION_SQL = 'BEGIN TRANSACTION READ ONLY'
 COMMIT_TRANSACTION_SQL = 'COMMIT'
 ROLLBACK_TRANSACTION_SQL = 'ROLLBACK'
 BEGIN_TRANSACTION_SQL = 'BEGIN'
-GET_SCHEMA_SQL = (
-    'SELECT column_name, data_type FROM information_schema.columns WHERE table_name = %s'
-)
+GET_SCHEMA_SQL = 'SELECT column_name, data_type FROM information_schema.columns WHERE LOWER(table_name) = LOWER(%s)'
+GET_QUALIFIED_SCHEMA_SQL = 'SELECT column_name, data_type FROM information_schema.columns WHERE LOWER(table_schema) = LOWER(%s) AND LOWER(table_name) = LOWER(%s)'
 ERROR_BEGIN_READ_ONLY_TRANSACTION = 'Failed to begin read only transaction'
 INTERNAL_ERROR = 'Internal Error'
 READ_ONLY_QUERY_WRITE_ERROR = 'readonly_query does not support write operations. Use transact'
