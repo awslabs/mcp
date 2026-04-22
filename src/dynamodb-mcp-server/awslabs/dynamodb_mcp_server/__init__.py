@@ -14,4 +14,4 @@
 
 """awslabs.dynamodb-mcp-server"""
 
-__version__ = '2.0.9223372036854775807'
+__version__ = '2.1.1'
