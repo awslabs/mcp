@@ -20,4 +20,7 @@ from . import (
     search_aggregate,
     search_manage_index,
     search_query,
+    valkey_admin,
+    valkey_read,
+    valkey_write,
 )

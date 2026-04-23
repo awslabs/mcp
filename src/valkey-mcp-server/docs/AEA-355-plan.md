@@ -35,7 +35,7 @@ Every tool touches a live Valkey instance. No syntax-teaching wrappers — that'
 | 16 | `hot_keys` | 3 | Top-K keys by LFU frequency, command stats, risk assessment. |
 | 17 | `memory_analysis` | 3 | MEMORY DOCTOR, top-K by size, fragmentation, encoding optimization tips. |
 
-**PR scope:** This PR delivers tools 1–9 (Phase 1). Phase 2 (Command Runner) and Phase 3 (Observability) are future PRs.
+**PR scope:** This PR delivers tools 1–12 (Phase 1 + Phase 2). Phase 3 (Observability) is a future PR.
 
 **3-tier safety:** `valkey_read` (always safe) → `valkey_write` (mutations, no destructive) → `valkey_admin` (opt-in only, disabled by default). An agent cannot accidentally FLUSHALL a staging cluster.
 

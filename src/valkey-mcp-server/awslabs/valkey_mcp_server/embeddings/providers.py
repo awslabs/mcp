@@ -222,7 +222,7 @@ class HashEmbeddings(EmbeddingsProvider):
 
     def get_provider_name(self) -> str:
         """Get provider name."""
-        return f'Dummy ({self._dimensions}d)'
+        return f'Hash ({self._dimensions}d)'
 
 
 class OpenAIEmbeddings(EmbeddingsProvider):

@@ -86,7 +86,7 @@ class TestHashEmbeddings:
         assert len(emb) == 32
 
     def test_provider_name(self):
-        assert 'Dummy' in HashEmbeddings(dimensions=128).get_provider_name()
+        assert 'Hash' in HashEmbeddings(dimensions=128).get_provider_name()
 
     def test_get_dimensions(self):
         assert HashEmbeddings(dimensions=256).get_dimensions() == 256

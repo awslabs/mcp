@@ -76,10 +76,10 @@ async def search(
 
     Modes (auto-detected from parameters, or set explicitly via mode):
 
-    - Semantic: query_text + embedding provider configured
-    - Text: query_text + no embedding provider
-    - Find-similar: document_id provided
+    - Text: query_text + no embedding provider (or mode="text")
     - Hybrid: mode="hybrid" or hybrid_weight explicitly set
+    - Semantic: query_text + embedding provider configured (default)
+    - Find-similar: document_id provided
 
     Args:
         index_name: Valkey Search index name

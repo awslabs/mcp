@@ -4,7 +4,7 @@ An AWS Labs Model Context Protocol (MCP) server for Amazon ElastiCache [Valkey](
 
 ## Features
 
-This MCP server provides 9 purpose-built tools for AI agents working with Valkey Search and JSON data. The tool surface is designed to minimize token costs and agent error rates by accepting structured JSON input and handling command translation internally.
+This MCP server provides 12 purpose-built tools for AI agents working with Valkey. The tool surface is designed to minimize token costs and agent error rates by accepting structured JSON input and handling command translation internally.
 
 ### Valkey AI Search — 4 tools
 
@@ -24,6 +24,16 @@ This MCP server provides 9 purpose-built tools for AI agents working with Valkey
 | `json_arrappend` | Append values to a JSON array at a path. |
 | `json_arrpop` | Pop an element from a JSON array at a path. |
 | `json_arrtrim` | Trim a JSON array to a specified range. |
+
+### Valkey Command Runner — 3 tools (3-tier safety)
+
+| Tool | Tier | What It Does |
+|------|------|-------------|
+| `valkey_read` | Safe | Read-only commands (GET, HGETALL, SCAN, INFO, etc.). Always available, even in readonly mode. |
+| `valkey_write` | Write | Mutating commands (SET, HSET, DEL, LPUSH, etc.). Destructive commands blocked. Disabled in readonly mode. |
+| `valkey_admin` | Admin | Destructive commands (FLUSHALL, CONFIG SET, EVAL, etc.). Disabled by default — requires `VALKEY_ADMIN_ENABLED=true` + `confirm=True`. |
+
+**3-tier safety model:** `valkey_read` (always safe) → `valkey_write` (mutations, no destructive) → `valkey_admin` (opt-in only, disabled by default). An agent cannot accidentally FLUSHALL a staging cluster.
 
 ### Additional Features
 
@@ -234,6 +244,7 @@ docker run -p 8080:8080 \
 | `VALKEY_USE_SSL` | Enable TLS | `false` |
 | `VALKEY_SSL_CA_CERTS` | Path to CA certificate (PEM) for TLS verification | `None` |
 | `VALKEY_CLUSTER_MODE` | Enable cluster mode | `false` |
+| `VALKEY_ADMIN_ENABLED` | Enable admin tier (destructive commands) | `false` |
 
 ### Embeddings Provider
 

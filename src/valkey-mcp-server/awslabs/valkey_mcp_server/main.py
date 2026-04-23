@@ -29,6 +29,9 @@ from awslabs.valkey_mcp_server.tools import (  # noqa: F401
     search_aggregate,
     search_manage_index,
     search_query,
+    valkey_admin,
+    valkey_read,
+    valkey_write,
 )
 from loguru import logger
 from starlette.requests import Request  # noqa: F401
