@@ -1,4 +1,4 @@
-# Open source MCP servers for AWS
+# Open source MCP servers for AWSx
 
 A suite of specialized MCP servers that help you get the most out of AWS, wherever you use MCP.
 
