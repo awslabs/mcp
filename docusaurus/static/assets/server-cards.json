@@ -1222,6 +1222,26 @@
         "autonomous",
         "conversational"
       ]
+    },
+    {
+      "category": "Media Services",
+      "description": "Manage MediaLive channels, inputs, and multiplexes with typed tool parameters",
+      "icon": "\ud83c\udfac",
+      "id": "amazon-medialive-mcp-server",
+      "name": "Amazon MediaLive MCP Server",
+      "source_path": "src/amazon-medialive-mcp-server/",
+      "subcategory": "Live Streaming",
+      "tags": [
+        "media-services",
+        "medialive",
+        "live-streaming",
+        "video-encoding",
+        "channel-management",
+        "vibe-coding"
+      ],
+      "workflows": [
+        "vibe-coding"
+      ]
     }
   ],
   "workflows": [
