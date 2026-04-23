@@ -611,7 +611,10 @@ async def execute_query_tool(
     try:
         logger.info(f'Executing query on cluster {cluster_identifier} in database {database_name}')
         query_result_data = await execute_query(
-            cluster_identifier=cluster_identifier, database_name=database_name, sql=sql, allow_read_write=not read_only
+            cluster_identifier=cluster_identifier,
+            database_name=database_name,
+            sql=sql,
+            allow_read_write=not read_only,
         )
 
         # Convert to QueryResult model

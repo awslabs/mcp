@@ -697,7 +697,9 @@ async def discover_columns(
         raise
 
 
-async def execute_query(cluster_identifier: str, database_name: str, sql: str, allow_read_write: bool = False) -> dict:
+async def execute_query(
+    cluster_identifier: str, database_name: str, sql: str, allow_read_write: bool = False
+) -> dict:
     """Execute a SQL query against a Redshift cluster using the Data API.
 
     Args:
@@ -720,7 +722,10 @@ async def execute_query(cluster_identifier: str, database_name: str, sql: str, a
 
         # Execute the query using the common function
         results_response, query_id = await _execute_protected_statement(
-            cluster_identifier=cluster_identifier, database_name=database_name, sql=sql, allow_read_write=allow_read_write
+            cluster_identifier=cluster_identifier,
+            database_name=database_name,
+            sql=sql,
+            allow_read_write=allow_read_write,
         )
 
         # Calculate execution time
