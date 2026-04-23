@@ -329,8 +329,9 @@ def is_custom_operation(service, operation):
         raise InvalidServiceError(service)
 
     if isinstance(service_command, ServiceCommand):
-        # valid service, unlike s3
-        service_command_table = service_command._get_command_table()
+        service_command_table = _get_cached_service_command_table(
+            service_command.name, service_command
+        )
         operation_command = service_command_table.get(operation)
 
         # valid service can have custom operations.
@@ -371,6 +372,18 @@ cli_data = driver._get_cli_data()
 parser = GlobalArgParser.get_parser()
 driver._add_aliases(command_table, parser)
 
+# _get_command_table() re-parses service model JSON on every call; pymalloc keeps
+# the freed arenas, so RSS grows monotonically without this cache.
+_service_command_table_cache: dict[str, dict] = {}
+
+
+def _get_cached_service_command_table(service: str, service_command) -> dict:
+    cached = _service_command_table_cache.get(service)
+    if cached is None:
+        cached = service_command._get_command_table()
+        _service_command_table_cache[service] = cached
+    return cached
+
 
 def parse(cli_command: str, default_region_override: str | None = None) -> IRCommand:
     """Parse a CLI command string into an IRCommand object."""
@@ -403,7 +416,7 @@ def _handle_service_command(
         raise MissingOperationError()
 
     service = service_command.name
-    command_table = service_command._get_command_table()
+    command_table = _get_cached_service_command_table(service, service_command)
 
     operation = remaining[0]
     operation_command = command_table.get(operation)
@@ -493,7 +506,7 @@ def _handle_awscli_customization(
 
     # For custom commands, we need to check if the operation exists in the service's command table
     if hasattr(service_command, '_get_command_table'):
-        service_command_table = service_command._get_command_table()
+        service_command_table = _get_cached_service_command_table(service, service_command)
         operation_command = service_command_table.get(operation)
     elif hasattr(service_command, 'subcommand_table'):
         # Handle S3-like services that use subcommand_table
