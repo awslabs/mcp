@@ -35,12 +35,11 @@ Run with: uv run pytest tests/browser/test_integ_mcp_protocol.py -v
 
 from __future__ import annotations
 
-from typing import Any, Callable
-
 import pytest
 from mcp.server.fastmcp import FastMCP
 from mcp.shared.memory import create_connected_server_and_client_session
 from mcp.types import TextContent
+from typing import Any, Callable
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -48,9 +47,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 # Tool set constants (always defined — just string sets)
 # ---------------------------------------------------------------------------
 
-BROWSER_PKG = (
-    'awslabs.amazon_bedrock_agentcore_mcp_server.tools.browser'
-)
+BROWSER_PKG = 'awslabs.amazon_bedrock_agentcore_mcp_server.tools.browser'
 
 DOCS_TOOLS = {
     'search_agentcore_docs',
@@ -256,9 +253,7 @@ _ALL_SERVICES = 'browser,runtime,memory,identity,gateway,policy'
 # ---------------------------------------------------------------------------
 
 
-def _build_server(
-    *, disable: str | None = None, enable: str | None = None
-) -> FastMCP:
+def _build_server(*, disable: str | None = None, enable: str | None = None) -> FastMCP:
     """Build a fresh FastMCP server mirroring server.py registration.
 
     Creates an isolated server instance with env-var-driven
@@ -302,10 +297,7 @@ def _build_server(
 
             register_memory_tools(server)
 
-        if (
-            _is_service_enabled('identity')
-            and _reg_identity is not None
-        ):
+        if _is_service_enabled('identity') and _reg_identity is not None:
             _reg_identity(server)
 
         if _is_service_enabled('gateway'):
@@ -318,10 +310,7 @@ def _build_server(
 
                 server.tool()(_gw.manage_agentcore_gateway)
 
-        if (
-            _is_service_enabled('policy')
-            and _reg_policy is not None
-        ):
+        if _is_service_enabled('policy') and _reg_policy is not None:
             _reg_policy(server)
 
         if _is_service_enabled('browser'):
@@ -354,9 +343,7 @@ class TestToolDiscovery:
     async def test_list_tools_default_config(self):
         """Default config registers all available tools."""
         server = _build_server()
-        async with create_connected_server_and_client_session(
-            server
-        ) as client:
+        async with create_connected_server_and_client_session(server) as client:
             result = await client.list_tools()
             names = {t.name for t in result.tools}
 
@@ -365,9 +352,7 @@ class TestToolDiscovery:
     async def test_list_tools_browser_disabled(self):
         """AGENTCORE_DISABLE_TOOLS=browser removes browser tools."""
         server = _build_server(disable='browser')
-        async with create_connected_server_and_client_session(
-            server
-        ) as client:
+        async with create_connected_server_and_client_session(server) as client:
             result = await client.list_tools()
             names = {t.name for t in result.tools}
 
@@ -381,9 +366,7 @@ class TestToolDiscovery:
     async def test_list_tools_identity_disabled(self):
         """AGENTCORE_DISABLE_TOOLS=identity removes identity tools."""
         server = _build_server(disable='identity')
-        async with create_connected_server_and_client_session(
-            server
-        ) as client:
+        async with create_connected_server_and_client_session(server) as client:
             result = await client.list_tools()
             names = {t.name for t in result.tools}
 
@@ -398,9 +381,7 @@ class TestToolDiscovery:
     async def test_list_tools_identity_only(self):
         """AGENTCORE_ENABLE_TOOLS=identity,docs registers only those."""
         server = _build_server(enable='identity,docs')
-        async with create_connected_server_and_client_session(
-            server
-        ) as client:
+        async with create_connected_server_and_client_session(server) as client:
             result = await client.list_tools()
             names = {t.name for t in result.tools}
 
@@ -412,9 +393,7 @@ class TestToolDiscovery:
     async def test_list_tools_browser_and_docs_only(self):
         """AGENTCORE_ENABLE_TOOLS=browser,docs registers only those."""
         server = _build_server(enable='browser,docs')
-        async with create_connected_server_and_client_session(
-            server
-        ) as client:
+        async with create_connected_server_and_client_session(server) as client:
             result = await client.list_tools()
             names = {t.name for t in result.tools}
 
@@ -428,9 +407,7 @@ class TestToolDiscovery:
     async def test_list_tools_only_docs(self):
         """Disabling all services still leaves docs tools."""
         server = _build_server(disable=_ALL_SERVICES)
-        async with create_connected_server_and_client_session(
-            server
-        ) as client:
+        async with create_connected_server_and_client_session(server) as client:
             result = await client.list_tools()
             names = {t.name for t in result.tools}
 
@@ -448,18 +425,13 @@ class TestToolSchemas:
     async def test_all_tools_have_descriptions(self):
         """Every tool must have a non-empty description."""
         server = _build_server()
-        async with create_connected_server_and_client_session(
-            server
-        ) as client:
+        async with create_connected_server_and_client_session(server) as client:
             result = await client.list_tools()
 
             for tool in result.tools:
-                assert tool.description, (
-                    f'Tool {tool.name} has no description'
-                )
+                assert tool.description, f'Tool {tool.name} has no description'
                 assert len(tool.description) > 10, (
-                    f'Tool {tool.name} description too short: '
-                    f'{tool.description!r}'
+                    f'Tool {tool.name} description too short: {tool.description!r}'
                 )
 
     async def test_browser_tools_require_session_id(self):
@@ -470,9 +442,7 @@ class TestToolSchemas:
         }
 
         server = _build_server()
-        async with create_connected_server_and_client_session(
-            server
-        ) as client:
+        async with create_connected_server_and_client_session(server) as client:
             result = await client.list_tools()
 
             for tool in result.tools:
@@ -484,27 +454,18 @@ class TestToolSchemas:
                 schema = tool.inputSchema
                 required = schema.get('required', [])
                 properties = schema.get('properties', {})
-                assert 'session_id' in properties, (
-                    f'Browser tool {tool.name} missing session_id'
-                )
+                assert 'session_id' in properties, f'Browser tool {tool.name} missing session_id'
                 assert 'session_id' in required, (
-                    f'Browser tool {tool.name} should require '
-                    f'session_id'
+                    f'Browser tool {tool.name} should require session_id'
                 )
 
     async def test_start_browser_session_has_optional_params(self):
         """start_browser_session exposes viewport, timeout, region."""
         server = _build_server()
-        async with create_connected_server_and_client_session(
-            server
-        ) as client:
+        async with create_connected_server_and_client_session(server) as client:
             result = await client.list_tools()
 
-            start_tool = next(
-                t
-                for t in result.tools
-                if t.name == 'start_browser_session'
-            )
+            start_tool = next(t for t in result.tools if t.name == 'start_browser_session')
             props = start_tool.inputSchema.get('properties', {})
             assert 'viewport_width' in props
             assert 'viewport_height' in props
@@ -520,9 +481,7 @@ class TestToolSchemas:
         }
 
         server = _build_server()
-        async with create_connected_server_and_client_session(
-            server
-        ) as client:
+        async with create_connected_server_and_client_session(server) as client:
             result = await client.list_tools()
 
             for tool in result.tools:
@@ -533,10 +492,7 @@ class TestToolSchemas:
 
                 schema = tool.inputSchema
                 required = schema.get('required', [])
-                assert 'memory_id' in required, (
-                    f'Memory tool {tool.name} should require '
-                    f'memory_id'
-                )
+                assert 'memory_id' in required, f'Memory tool {tool.name} should require memory_id'
 
     @pytest.mark.skipif(
         not _HAS_IDENTITY,
@@ -545,13 +501,9 @@ class TestToolSchemas:
     async def test_identity_tools_have_schema(self):
         """Identity tools expose schema with required parameters."""
         server = _build_server()
-        async with create_connected_server_and_client_session(
-            server
-        ) as client:
+        async with create_connected_server_and_client_session(server) as client:
             result = await client.list_tools()
-            identity_tools = [
-                t for t in result.tools if t.name in IDENTITY_TOOLS
-            ]
+            identity_tools = [t for t in result.tools if t.name in IDENTITY_TOOLS]
 
             assert len(identity_tools) == 21
 
@@ -572,9 +524,7 @@ class TestToolSchemas:
             for tool in identity_tools:
                 if tool.name in name_required_tools:
                     required = tool.inputSchema.get('required', [])
-                    assert 'name' in required, (
-                        f'{tool.name} should require "name"'
-                    )
+                    assert 'name' in required, f'{tool.name} should require "name"'
 
             arn_required_tools = {
                 'identity_put_resource_policy',
@@ -584,9 +534,7 @@ class TestToolSchemas:
             for tool in identity_tools:
                 if tool.name in arn_required_tools:
                     required = tool.inputSchema.get('required', [])
-                    assert 'resource_arn' in required, (
-                        f'{tool.name} should require "resource_arn"'
-                    )
+                    assert 'resource_arn' in required, f'{tool.name} should require "resource_arn"'
 
     @pytest.mark.skipif(
         not _HAS_GATEWAY_SUB,
@@ -604,9 +552,7 @@ class TestToolSchemas:
         }
 
         server = _build_server()
-        async with create_connected_server_and_client_session(
-            server
-        ) as client:
+        async with create_connected_server_and_client_session(server) as client:
             result = await client.list_tools()
 
             for tool in result.tools:
@@ -620,8 +566,7 @@ class TestToolSchemas:
                     f'{tool.name} missing gateway_identifier'
                 )
                 assert 'gateway_identifier' in required, (
-                    f'{tool.name} should require '
-                    f'gateway_identifier'
+                    f'{tool.name} should require gateway_identifier'
                 )
 
     @pytest.mark.skipif(
@@ -637,9 +582,7 @@ class TestToolSchemas:
         }
 
         server = _build_server()
-        async with create_connected_server_and_client_session(
-            server
-        ) as client:
+        async with create_connected_server_and_client_session(server) as client:
             result = await client.list_tools()
 
             for tool in result.tools:
@@ -648,9 +591,7 @@ class TestToolSchemas:
 
                 schema = tool.inputSchema
                 required = schema.get('required', [])
-                assert 'resource_arn' in required, (
-                    f'{tool.name} should require resource_arn'
-                )
+                assert 'resource_arn' in required, f'{tool.name} should require resource_arn'
 
     @pytest.mark.skipif(
         not _HAS_POLICY,
@@ -665,9 +606,7 @@ class TestToolSchemas:
         }
 
         server = _build_server()
-        async with create_connected_server_and_client_session(
-            server
-        ) as client:
+        async with create_connected_server_and_client_session(server) as client:
             result = await client.list_tools()
 
             for tool in result.tools:
@@ -679,12 +618,9 @@ class TestToolSchemas:
                 schema = tool.inputSchema
                 required = schema.get('required', [])
                 properties = schema.get('properties', {})
-                assert 'policy_engine_id' in properties, (
-                    f'{tool.name} missing policy_engine_id'
-                )
+                assert 'policy_engine_id' in properties, f'{tool.name} missing policy_engine_id'
                 assert 'policy_engine_id' in required, (
-                    f'{tool.name} should require '
-                    f'policy_engine_id'
+                    f'{tool.name} should require policy_engine_id'
                 )
 
     @pytest.mark.skipif(
@@ -694,16 +630,10 @@ class TestToolSchemas:
     async def test_policy_engine_create_has_optional_params(self):
         """policy_engine_create exposes optional params."""
         server = _build_server()
-        async with create_connected_server_and_client_session(
-            server
-        ) as client:
+        async with create_connected_server_and_client_session(server) as client:
             result = await client.list_tools()
 
-            tool = next(
-                t
-                for t in result.tools
-                if t.name == 'policy_engine_create'
-            )
+            tool = next(t for t in result.tools if t.name == 'policy_engine_create')
             props = tool.inputSchema.get('properties', {})
             required = tool.inputSchema.get('required', [])
 
@@ -725,9 +655,7 @@ class TestToolInvocation:
     async def test_browser_snapshot_invalid_session(self):
         """browser_snapshot with bogus session_id returns error."""
         server = _build_server()
-        async with create_connected_server_and_client_session(
-            server
-        ) as client:
+        async with create_connected_server_and_client_session(server) as client:
             result = await client.call_tool(
                 'browser_snapshot',
                 {'session_id': 'nonexistent-session-id'},
@@ -736,17 +664,12 @@ class TestToolInvocation:
             assert len(result.content) > 0
             first = result.content[0]
             assert isinstance(first, TextContent)
-            assert (
-                'error' in first.text.lower()
-                or 'Error' in first.text
-            )
+            assert 'error' in first.text.lower() or 'Error' in first.text
 
     async def test_browser_navigate_invalid_session(self):
         """browser_navigate with bogus session_id returns error."""
         server = _build_server()
-        async with create_connected_server_and_client_session(
-            server
-        ) as client:
+        async with create_connected_server_and_client_session(server) as client:
             result = await client.call_tool(
                 'browser_navigate',
                 {
@@ -757,17 +680,12 @@ class TestToolInvocation:
 
             first = result.content[0]
             assert isinstance(first, TextContent)
-            assert (
-                'error' in first.text.lower()
-                or 'Error' in first.text
-            )
+            assert 'error' in first.text.lower() or 'Error' in first.text
 
     async def test_browser_click_invalid_session(self):
         """browser_click with bogus session_id returns error."""
         server = _build_server()
-        async with create_connected_server_and_client_session(
-            server
-        ) as client:
+        async with create_connected_server_and_client_session(server) as client:
             result = await client.call_tool(
                 'browser_click',
                 {
@@ -778,17 +696,12 @@ class TestToolInvocation:
 
             first = result.content[0]
             assert isinstance(first, TextContent)
-            assert (
-                'error' in first.text.lower()
-                or 'Error' in first.text
-            )
+            assert 'error' in first.text.lower() or 'Error' in first.text
 
     async def test_browser_resize_validation(self):
         """browser_resize with out-of-bounds dimensions returns error."""
         server = _build_server()
-        async with create_connected_server_and_client_session(
-            server
-        ) as client:
+        async with create_connected_server_and_client_session(server) as client:
             result = await client.call_tool(
                 'browser_resize',
                 {
@@ -800,10 +713,7 @@ class TestToolInvocation:
 
             first = result.content[0]
             assert isinstance(first, TextContent)
-            assert (
-                'out of bounds' in first.text.lower()
-                or 'Error' in first.text
-            )
+            assert 'out of bounds' in first.text.lower() or 'Error' in first.text
 
     async def test_start_session_mocked_api(self):
         """start_browser_session with mocked AWS API."""
@@ -830,13 +740,10 @@ class TestToolInvocation:
             return_value=mock_client,
         ):
             with patch(
-                f'{BROWSER_PKG}.connection_manager'
-                '.BrowserConnectionManager.connect',
+                f'{BROWSER_PKG}.connection_manager.BrowserConnectionManager.connect',
                 new_callable=AsyncMock,
             ):
-                async with create_connected_server_and_client_session(
-                    server
-                ) as client:
+                async with create_connected_server_and_client_session(server) as client:
                     result = await client.call_tool(
                         'start_browser_session',
                         {'timeout_seconds': 300},
@@ -871,12 +778,8 @@ class TestToolInvocation:
             f'{BROWSER_PKG}.session.get_browser_client',
             return_value=mock_client,
         ):
-            async with create_connected_server_and_client_session(
-                server
-            ) as client:
-                result = await client.call_tool(
-                    'list_browser_sessions', {}
-                )
+            async with create_connected_server_and_client_session(server) as client:
+                result = await client.call_tool('list_browser_sessions', {})
 
                 first = result.content[0]
                 assert isinstance(first, TextContent)
@@ -886,30 +789,20 @@ class TestToolInvocation:
     async def test_docs_tool_invocation(self):
         """search_agentcore_docs can be called through protocol."""
         server = _build_server()
-        async with create_connected_server_and_client_session(
-            server
-        ) as client:
-            result = await client.call_tool(
-                'search_agentcore_docs', {'query': 'browser'}
-            )
+        async with create_connected_server_and_client_session(server) as client:
+            result = await client.call_tool('search_agentcore_docs', {'query': 'browser'})
 
             assert len(result.content) > 0
 
     async def test_calling_nonexistent_tool_raises(self):
         """Calling a nonexistent tool raises an error."""
         server = _build_server()
-        async with create_connected_server_and_client_session(
-            server
-        ) as client:
+        async with create_connected_server_and_client_session(server) as client:
             try:
                 await client.call_tool('nonexistent_tool', {})
                 assert False, 'Expected an error'
             except Exception as e:
-                assert (
-                    'nonexistent_tool' in str(e).lower()
-                    or 'unknown' in str(e).lower()
-                    or True
-                )
+                assert 'nonexistent_tool' in str(e).lower() or 'unknown' in str(e).lower() or True
 
 
 # ===========================================================================
@@ -923,18 +816,14 @@ class TestServerCapabilities:
     async def test_server_has_tools_capability(self):
         """Server advertises tools capability after init."""
         server = _build_server()
-        async with create_connected_server_and_client_session(
-            server
-        ) as client:
+        async with create_connected_server_and_client_session(server) as client:
             result = await client.list_tools()
             assert len(result.tools) > 0
 
     async def test_ping(self):
         """Server responds to ping."""
         server = _build_server()
-        async with create_connected_server_and_client_session(
-            server
-        ) as client:
+        async with create_connected_server_and_client_session(server) as client:
             await client.send_ping()
 
 
@@ -956,9 +845,7 @@ class TestGracefulDegradation:
         server.tool()(docs.search_agentcore_docs)
         server.tool()(docs.fetch_agentcore_doc)
 
-        async with create_connected_server_and_client_session(
-            server
-        ) as client:
+        async with create_connected_server_and_client_session(server) as client:
             result = await client.list_tools()
             names = {t.name for t in result.tools}
 
@@ -968,10 +855,9 @@ class TestGracefulDegradation:
 
     async def test_browser_evaluate_disabled_env(self):
         """BROWSER_DISABLE_EVALUATE=true omits browser_evaluate."""
+        import awslabs.amazon_bedrock_agentcore_mcp_server.tools.browser.observation as obs_mod
         import importlib
         import os
-
-        import awslabs.amazon_bedrock_agentcore_mcp_server.tools.browser.observation as obs_mod
 
         old = os.environ.get('BROWSER_DISABLE_EVALUATE')
         os.environ['BROWSER_DISABLE_EVALUATE'] = 'true'
@@ -979,9 +865,7 @@ class TestGracefulDegradation:
             importlib.reload(obs_mod)
 
             server = _build_server()
-            async with create_connected_server_and_client_session(
-                server
-            ) as client:
+            async with create_connected_server_and_client_session(server) as client:
                 result = await client.list_tools()
                 names = {t.name for t in result.tools}
 

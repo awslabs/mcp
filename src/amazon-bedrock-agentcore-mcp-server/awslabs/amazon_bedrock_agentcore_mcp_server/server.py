@@ -77,9 +77,7 @@ def _is_service_enabled(name: str) -> bool:
         )
 
     if enable:
-        allowed = {
-            t.strip().lower() for t in enable.split(',') if t.strip()
-        }
+        allowed = {t.strip().lower() for t in enable.split(',') if t.strip()}
         if not allowed:
             logger.warning(
                 'AGENTCORE_ENABLE_TOOLS is set but contains no valid '
@@ -88,9 +86,7 @@ def _is_service_enabled(name: str) -> bool:
             return True
         return name.lower() in allowed
     if disable:
-        blocked = {
-            t.strip().lower() for t in disable.split(',') if t.strip()
-        }
+        blocked = {t.strip().lower() for t in disable.split(',') if t.strip()}
         return name.lower() not in blocked
     return True
 
@@ -120,9 +116,7 @@ async def server_lifespan(server: FastMCP) -> AsyncIterator[None]:
 
         from .tools.browser import cleanup_stale_sessions
 
-        task = asyncio.create_task(
-            cleanup_stale_sessions(_browser_cm, _browser_sm)
-        )
+        task = asyncio.create_task(cleanup_stale_sessions(_browser_cm, _browser_sm))
         try:
             yield
         finally:
@@ -159,9 +153,7 @@ if _is_service_enabled('runtime'):
         register_runtime_tools(mcp)
         logger.info('Runtime tools registered')
     except ImportError as e:
-        logger.error(
-            f'Runtime tools disabled — failed to import: {e}.'
-        )
+        logger.error(f'Runtime tools disabled — failed to import: {e}.')
     except Exception as e:
         logger.error(
             f'Runtime tools disabled — initialization failed: {e}. '
@@ -175,9 +167,7 @@ if _is_service_enabled('memory'):
         register_memory_tools(mcp)
         logger.info('Memory tools registered (21 tools)')
     except ImportError as e:
-        logger.error(
-            f'Memory tools disabled — failed to import: {e}.'
-        )
+        logger.error(f'Memory tools disabled — failed to import: {e}.')
     except Exception as e:
         logger.error(
             f'Memory tools disabled — initialization failed: {e}. '
@@ -191,9 +181,7 @@ if _is_service_enabled('identity'):
         register_identity_tools(mcp)
         logger.info('Identity tools registered (21 tools)')
     except ImportError as e:
-        logger.error(
-            f'Identity tools disabled — failed to import: {e}.'
-        )
+        logger.error(f'Identity tools disabled — failed to import: {e}.')
     except Exception as e:
         logger.error(
             f'Identity tools disabled — initialization failed: {e}. '
@@ -227,9 +215,7 @@ if _is_service_enabled('policy'):
         register_policy_tools(mcp)
         logger.info('Policy tools registered (15 tools)')
     except ImportError as e:
-        logger.error(
-            f'Policy tools disabled — failed to import: {e}.'
-        )
+        logger.error(f'Policy tools disabled — failed to import: {e}.')
     except Exception as e:
         logger.error(
             f'Policy tools disabled — initialization failed: {e}. '

@@ -20,10 +20,11 @@ at import time and their tests are skipped automatically.
 """
 
 import importlib
-
 import pytest
 from awslabs.amazon_bedrock_agentcore_mcp_server.tools.memory.guide import (
     MEMORY_GUIDE,
+)
+from awslabs.amazon_bedrock_agentcore_mcp_server.tools.memory.guide import (
     GuideTools as MemoryGuideTools,
 )
 from awslabs.amazon_bedrock_agentcore_mcp_server.tools.memory.models import (
@@ -89,9 +90,7 @@ class TestIdentityTool:
     async def test_get_identity_guide_returns_guide(self):
         """Test that get_identity_guide returns guide response."""
         mod_guide = importlib.import_module(f'{_PKG}.identity.guide')
-        mod_models = importlib.import_module(
-            f'{_PKG}.identity.models'
-        )
+        mod_models = importlib.import_module(f'{_PKG}.identity.models')
 
         ctx = MagicMock()
         ctx.info = AsyncMock()
@@ -120,9 +119,7 @@ class TestGatewayTool:
     async def test_get_gateway_guide_returns_guide(self):
         """Test that guide tool returns a GatewayGuideResponse."""
         mod_guide = importlib.import_module(f'{_PKG}.gateway.guide')
-        mod_models = importlib.import_module(
-            f'{_PKG}.gateway.models'
-        )
+        mod_models = importlib.import_module(f'{_PKG}.gateway.models')
 
         tools = mod_guide.GuideTools()
         result = await tools.get_gateway_guide(ctx=MagicMock())
@@ -148,9 +145,7 @@ class TestPolicyTool:
     async def test_get_policy_guide_returns_guide(self):
         """Test that policy guide tool returns a PolicyGuideResponse."""
         mod_guide = importlib.import_module(f'{_PKG}.policy.guide')
-        mod_models = importlib.import_module(
-            f'{_PKG}.policy.models'
-        )
+        mod_models = importlib.import_module(f'{_PKG}.policy.models')
 
         tools = mod_guide.GuideTools()
         result = await tools.get_policy_guide(ctx=MagicMock())
