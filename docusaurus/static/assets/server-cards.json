@@ -910,7 +910,7 @@
     },
     {
       "category": "Data & Analytics",
-      "description": "Comprehensive data processing tools and real-time pipeline visibility across AWS Glue and Amazon EMR-EC2",
+      "description": "Comprehensive data processing tools and real-time pipeline visibility across AWS Glue, Amazon EMR-EC2, and Amazon Athena",
       "icon": "\ud83d\udcca",
       "id": "aws-dataprocessing-mcp-server",
       "name": "Amazon Data Processing MCP Server",
@@ -920,6 +920,7 @@
         "data-analytics",
         "glue",
         "emr",
+        "athena",
         "data-processing",
         "etl",
         "pipeline",
@@ -1194,6 +1195,32 @@
       ],
       "workflows": [
         "autonomous"
+      ]
+    },
+    {
+      "category": "Infrastructure & Deployment",
+      "description": "Manage, monitor, and operate SAP applications on AWS with health checks, configuration validation, and scheduling",
+      "icon": "\ud83c\udfd7\ufe0f",
+      "id": "aws-for-sap-management-mcp-server",
+      "name": "AWS Systems Manager for SAP MCP Server",
+      "source_path": "src/aws-for-sap-management-mcp-server/",
+      "subcategory": "SAP Management",
+      "tags": [
+        "infrastructure-deployment",
+        "ssm-sap",
+        "sap",
+        "hana",
+        "operations",
+        "monitoring",
+        "health-checks",
+        "configuration",
+        "scheduling",
+        "autonomous",
+        "conversational"
+      ],
+      "workflows": [
+        "autonomous",
+        "conversational"
       ]
     }
   ],

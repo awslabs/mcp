@@ -254,7 +254,7 @@ class CrawlerHandler:
 
                 # Verify that the crawler is managed by MCP before deleting
                 # Construct the ARN for the crawler
-                region = AwsHelper.get_aws_region() or 'us-east-1'
+                region = AwsHelper.get_or_default_aws_region() or 'us-east-1'
                 account_id = AwsHelper.get_aws_account_id()
                 crawler_arn = f'arn:aws:glue:{region}:{account_id}:crawler/{crawler_name}'
 
