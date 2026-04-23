@@ -11,6 +11,7 @@ This MCP server provides comprehensive access to Amazon Bedrock AgentCore docume
 - **Browser Automation**: 25 cloud-based browser tools for web navigation, interaction, and data extraction — no local browser installation required
 - **Comprehensive Coverage**: Access documentation for all AgentCore services including Runtime, Memory, Code Interpreter, Browser, Gateway, Observability, and Identity
 - **Smart Caching**: Efficient document caching with on-demand content loading for optimal performance
+- **Registry Discovery**: Search, list, and inspect AWS Agent Registry records and registries
 - **Curated Documentation List**: Uses llm.txt as a curated list of relevant AgentCore documentations, always fetching the latest version of the file
 
 ## Prerequisites
@@ -261,3 +262,75 @@ Complete gateway deployment guide covering:
 - Common patterns and troubleshooting
 
 Use this tool when deploying MCP Gateways to provide managed endpoints for Model Context Protocol servers.
+
+### search_registry
+
+Search AWS Agent Registry for MCP tools, A2A agents, or custom resources using natural language.
+
+```python
+search_registry(query: str, registry_arn: str, max_results: int = 5) -> str
+```
+
+**Parameters:**
+- `query` (str, required): Natural language search query describing what you need
+- `registry_arn` (str, required): Registry ARN to search within
+- `max_results` (int, optional, default: 5): Maximum number of results to return
+
+**Returns:**
+JSON string of matching records with name, description, type, status, and relevance score. MCP descriptor records include endpoint, transport type, and tool names.
+
+### list_records
+
+List all records in a specific Agent Registry.
+
+```python
+list_records(registry_id: str) -> str
+```
+
+**Parameters:**
+- `registry_id` (str, required): Registry ID to list records from
+
+**Returns:**
+JSON array of records with name, record ID, descriptor type, and status.
+
+### get_record
+
+Get full details of a specific registry record including descriptors.
+
+```python
+get_record(registry_id: str, record_id: str) -> str
+```
+
+**Parameters:**
+- `registry_id` (str, required): Registry ID
+- `record_id` (str, required): Record ID
+
+**Returns:**
+Full record details as JSON with parsed inline descriptor content.
+
+### list_registries
+
+List all Agent Registries in the AWS account.
+
+```python
+list_registries() -> str
+```
+
+**Parameters:** None
+
+**Returns:**
+JSON array of registries with name, registry ID, status, and auto-approval configuration.
+
+## Environment Variables
+
+### `AGENTCORE_ENABLE_TOOLS`
+
+Comma-separated list of service names to enable. When set, only the listed services are registered. If not set, all services are enabled by default.
+
+### `AGENTCORE_DISABLE_TOOLS`
+
+Comma-separated list of service names to disable. When set, the listed services are excluded from registration. If both `AGENTCORE_ENABLE_TOOLS` and `AGENTCORE_DISABLE_TOOLS` are set, `AGENTCORE_ENABLE_TOOLS` takes precedence.
+
+**Valid service names:** `runtime`, `memory`, `gateway`, `registry`, `browser`, `code_interpreter`
+
+> **Note:** Documentation tools (`search_agentcore_docs`, `fetch_agentcore_doc`) are always registered and cannot be disabled.

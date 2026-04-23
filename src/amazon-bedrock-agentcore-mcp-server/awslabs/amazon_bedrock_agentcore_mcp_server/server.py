@@ -180,6 +180,15 @@ if _is_service_enabled('memory'):
 if _is_service_enabled('gateway'):
     mcp.tool()(gateway.manage_agentcore_gateway)
 
+if _is_service_enabled('registry'):
+    from .tools.registry import get_record, list_records, list_registries, search_registry
+
+    mcp.tool()(search_registry)
+    mcp.tool()(list_records)
+    mcp.tool()(get_record)
+    mcp.tool()(list_registries)
+    logger.info('Registry tools registered (4 tools)')
+
 if _is_service_enabled('browser'):
     try:
         from .tools.browser import register_browser_tools
