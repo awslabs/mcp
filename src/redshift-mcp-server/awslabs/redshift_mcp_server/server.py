@@ -570,6 +570,9 @@ async def execute_query_tool(
     - database_name: The database name to execute the query against.
                     IMPORTANT: Use a valid database name from the list_databases tool.
     - sql: The SQL statement to execute. Should be a single SQL statement.
+    - read_only: Whether to run the query in a READ ONLY transaction (default: True).
+                Set to False for queries that require write access, such as queries against
+                external/federated tables via Spectrum or Glue.
 
     ## Response Structure
 
@@ -602,8 +605,8 @@ async def execute_query_tool(
 
     - Avoid dynamic SQL construction with user input.
     - Consider database object permissions.
-    - Currently, the execute_query tool runs the query in a READ ONLY transaction to prevent unintentional modifications.
-    - The READ WRITE mode will be added in the future versions with additional protection mechanisms.
+    - By default, queries run in a READ ONLY transaction to prevent unintentional modifications.
+    - Set read_only=False only when necessary (e.g. Spectrum/Glue federated queries).
     """
     try:
         logger.info(f'Executing query on cluster {cluster_identifier} in database {database_name}')
