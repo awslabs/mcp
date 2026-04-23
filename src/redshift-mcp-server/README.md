@@ -119,6 +119,7 @@ or docker after a successful `docker build -t awslabs/redshift-mcp-server:latest
 2. **List Databases**: Explore databases in a specific cluster
 3. **Browse Database Structures**: Navigate through schemas, tables, columns
 4. **Query Data**: Execute SQL queries safely with a natural language prompt
+5. **Analyze Performance**: Get execution plans to optimize query performance
 
 ### Simple Examples
 
@@ -126,6 +127,7 @@ or docker after a successful `docker build -t awslabs/redshift-mcp-server:latest
 - "List databases in cluster 'my-redshift-cluster'"
 - "What tables are in the 'public' schema of database 'analytics'?"
 - "Execute: SELECT COUNT(*) FROM users WHERE created_date > '2024-01-01'"
+- "Explain the execution plan for my query to identify performance issues"
 
 ### Advanced Examples
 
@@ -275,6 +277,90 @@ ORDER BY saletime DESC, salesid DESC
 LIMIT 10;
 ```
 
+#### Query Performance Analysis
+
+```log
+> Explain the execution plan for: SELECT s.salesid, s.pricepaid, e.eventname
+  FROM tickit.sales s JOIN tickit.event e ON s.eventid = e.eventid
+  WHERE s.saletime > '2008-06-01' ORDER BY s.pricepaid DESC LIMIT 50
+
+...auto-discovery of cluster (redshift-cluster-1), database (sample_data_dev), and tickit schema...
+
+Here's the execution plan breakdown:
+
+XN Limit  (rows=50)
+└─ XN Merge  (rows=432,650)
+   └─ XN Network  (Send to leader)
+      └─ XN Sort  (Sort Key: s.pricepaid DESC)
+         └─ XN Hash Join DS_BCAST_INNER  (rows=432,650)
+            ├─ XN Seq Scan on sales s  (rows=209,317)
+            │     Filter: saletime > '2008-06-01'
+            └─ XN Hash
+               └─ XN Seq Scan on event e  (rows=17,596)
+
+Step-by-step execution (bottom-up):
+
+1. Seq Scan on event (cost: 175.96) — Full table scan of the event table, reading all
+   17,596 rows. No filter needed since every event row is a potential join match.
+
+2. Hash (cost: 175.96) — Builds an in-memory hash table from the event rows, keyed on
+   eventid. This is the "inner" side of the join.
+
+3. Seq Scan on sales (cost: 4,311.40) — Full table scan of the sales table with a filter
+   on saletime > '2008-06-01'. The planner estimates ~209,317 rows pass the filter out of
+   344,912 total (~61%).
+
+4. Hash Join DS_BCAST_INNER (cost: 5,630,735,660.65) — Joins sales and event on eventid.
+   The DS_BCAST_INNER distribution means the event table (inner side) is broadcast to all
+   compute nodes. This happens because the tables have different distribution keys (sales
+   is distributed on listid, event on eventid).
+
+5. Sort (cost: 1,005,630,776,162.84) — Each compute node sorts its local join results by
+   pricepaid DESC. This is the most expensive step.
+
+6. Network — Sends sorted results from compute nodes to the leader node.
+
+7. Merge — Leader node merge-sorts the pre-sorted streams from each node.
+
+8. Limit — Returns only the top 50 rows.
+
+Table design details:
+
+| Table         | Rows    | DISTKEY          | SORTKEY |
+|---------------|---------|------------------|---------|
+| tickit.sales  | 344,912 | listid (KEY)     | dateid  |
+| tickit.event  | 17,596  | eventid (KEY)    | dateid  |
+
+Column planner statistics (from pg_stats):
+
+| Column            | Correlation | n_distinct | Encoding | SORTKEY |
+|-------------------|-------------|------------|----------|---------|
+| sales.pricepaid   | 0.005       | 4,485      | az64     | —       |
+| sales.saletime    | 0.467       | ~49%       | az64     | —       |
+| sales.dateid      | 0.469       | 367        | none     | 1       |
+| sales.eventid     | 0.003       | 8,202      | az64     | —       |
+| event.eventid     | 0.003       | ~48%       | az64     | —       |
+
+Key observations:
+
+- DS_BCAST_INNER on Hash Join — The event table is being broadcast to all nodes because
+  sales.eventid doesn't match the sales DISTKEY (listid). With only 17K rows this is
+  tolerable, but it's still unnecessary data movement.
+- Sort is the dominant cost — Sorting 432K joined rows across nodes accounts for the vast
+  majority of the query cost. The pricepaid column has very low correlation (0.005).
+- No SORTKEY benefit for the WHERE filter — saletime is not a sort key on the sales table
+  (the sort key is dateid), so Redshift can't skip blocks via zone maps.
+
+Optimization recommendations:
+
+1. Change event to DISTSTYLE ALL — Since event is a small dimension table (17K rows),
+   replicating it to all nodes would eliminate the broadcast entirely.
+2. Add saletime as a SORTKEY on sales — This would let Redshift use zone maps to skip
+   blocks that don't match the WHERE saletime > '2008-06-01' filter.
+3. Add compression to dateid columns — Both tables have dateid with ENCODE none. Using
+   ENCODE AUTO or az64 would reduce storage and I/O.
+```
+
 ## Tools
 
 ### list_clusters
@@ -349,8 +435,16 @@ list_tables(cluster_identifier: str, table_database_name: str, table_schema_name
 **Returns**: List of table information including:
 
 - Table name and type (TABLE/VIEW/EXTERNAL TABLE)
-- Access permissions
-- Remarks and metadata
+- Access permissions and remarks
+- Redshift-specific metadata (from pg_catalog tables, may be None on serverless):
+  - Distribution style (KEY, EVEN, ALL, AUTO)
+  - Estimated row count
+- Table activity statistics (from pg_stat_user_tables):
+  - Sequential scan counts and tuples read
+  - DML activity (rows inserted, updated, deleted)
+- External table properties (for Spectrum tables):
+  - S3 location
+  - JSON parameters (partition columns, etc.)
 
 ### list_columns
 
@@ -379,6 +473,11 @@ list_columns(
 - Numeric precision and scale
 - Character length limits
 - Ordinal position and remarks
+- Redshift-specific properties (encoding, distkey, sortkey position)
+- External table column properties (external type, partition key)
+
+Note: Column planner statistics (n_distinct, null_frac, avg_width, correlation from pg_stats)
+are only populated when columns are returned as part of `describe_execution_plan` table designs.
 
 ### execute_query
 
@@ -400,6 +499,30 @@ execute_query(cluster_identifier: str, database_name: str, sql: str) -> QueryRes
 - Result rows with proper type conversion
 - Row count and execution time
 - Query ID for reference
+
+### describe_execution_plan
+
+Generates the query execution plan for a SQL statement without executing the query.
+
+```python
+describe_execution_plan(cluster_identifier: str, database_name: str, sql: str) -> ExecutionPlan
+```
+
+**Parameters**:
+
+- `cluster_identifier`: The cluster identifier from `list_clusters`
+- `database_name`: Database where the query would run against
+- `sql`: SQL statement to explain (do not include EXPLAIN keyword)
+
+**Returns**: Execution plan including:
+
+- Structured plan nodes with costs, rows, and distribution info
+- Table design information (DISTKEY, SORTKEY, encoding) for referenced tables
+- Column planner statistics (n_distinct, null_frac, correlation, most_common_vals) for referenced columns
+- Human-readable plan text (summarized for large plans)
+- Rule-based performance optimization suggestions derived from plan analysis, table design, and column statistics
+
+**Permissions note**: Column planner statistics from `pg_stats` require SELECT privilege on the table. Table activity statistics from `pg_stat_user_tables` are visible to all users regardless of permissions.
 
 ## Permissions
 
