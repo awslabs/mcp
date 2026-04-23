@@ -161,7 +161,7 @@ class TestCrawlerHandler:
         with patch(
             'awslabs.aws_dataprocessing_mcp_server.handlers.glue.crawler_handler.AwsHelper'
         ) as mock_aws_helper:
-            mock_aws_helper.get_aws_region.return_value = 'us-east-1'
+            mock_aws_helper.get_or_default_aws_region.return_value = 'us-east-1'
             mock_aws_helper.get_aws_account_id.return_value = '123456789012'
             mock_aws_helper.is_resource_mcp_managed.return_value = True
 
@@ -187,7 +187,7 @@ class TestCrawlerHandler:
         with patch(
             'awslabs.aws_dataprocessing_mcp_server.handlers.glue.crawler_handler.AwsHelper'
         ) as mock_aws_helper:
-            mock_aws_helper.get_aws_region.return_value = 'us-east-1'
+            mock_aws_helper.get_or_default_aws_region.return_value = 'us-east-1'
             mock_aws_helper.get_aws_account_id.return_value = '123456789012'
             mock_aws_helper.is_resource_mcp_managed.return_value = False
 
@@ -572,7 +572,7 @@ class TestCrawlerHandler:
         with patch(
             'awslabs.aws_dataprocessing_mcp_server.handlers.glue.crawler_handler.AwsHelper'
         ) as mock_aws_helper:
-            mock_aws_helper.get_aws_region.return_value = 'us-east-1'
+            mock_aws_helper.get_or_default_aws_region.return_value = 'us-east-1'
             mock_aws_helper.get_aws_account_id.return_value = '123456789012'
 
             # Test
@@ -1052,7 +1052,7 @@ class TestCrawlerHandler:
         with patch(
             'awslabs.aws_dataprocessing_mcp_server.handlers.glue.crawler_handler.AwsHelper'
         ) as mock_aws_helper:
-            mock_aws_helper.get_aws_region.return_value = 'us-east-1'
+            mock_aws_helper.get_or_default_aws_region.return_value = 'us-east-1'
             mock_aws_helper.get_aws_account_id.return_value = '123456789012'
             mock_aws_helper.is_resource_mcp_managed.return_value = True
 

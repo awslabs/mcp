@@ -1013,6 +1013,8 @@ async def test_start_run_success():
         'status': 'PENDING',
         'name': 'test-run',
         'workflowId': 'wfl-12345',
+        'uuid': 'uuid-abc-123',
+        'tags': {},
     }
 
     # Mock context and client
@@ -1057,6 +1059,49 @@ async def test_start_run_success():
     assert result['name'] == 'test-run'
     assert result['workflowId'] == 'wfl-12345'
     assert result['runGroupId'] is None
+    assert result['tags'] == {}
+    assert result['uuid'] == 'uuid-abc-123'
+    assert result['networkingMode'] == 'RESTRICTED'
+
+
+@pytest.mark.asyncio
+async def test_start_run_null_response_fields():
+    """Test start_run handles null/missing uuid and tags in API response."""
+    mock_response = {
+        'id': 'run-99999',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:run/run-99999',
+        'status': 'PENDING',
+    }
+
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.start_run.return_value = mock_response
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await start_run(
+            mock_ctx,
+            workflow_id='wfl-99999',
+            role_arn='arn:aws:iam::123456789012:role/OmicsRole',
+            name='null-test-run',
+            output_uri='s3://bucket/output/',
+            parameters=None,
+            workflow_version_name=None,
+            storage_type='DYNAMIC',
+            storage_capacity=None,
+            cache_id=None,
+            cache_behavior=None,
+            run_group_id=None,
+            networking_mode=None,
+            configuration_name=None,
+        )
+
+    assert result['id'] == 'run-99999'
+    assert result['tags'] == {}
+    assert result['uuid'] is None
+    assert result['networkingMode'] == 'RESTRICTED'
 
 
 @pytest.mark.asyncio

@@ -1,0 +1,109 @@
+{
+  "category": "metrics_visibility",
+  "documentation_links": [
+    {
+      "title": "CloudWatch Synthetics Runtime Versions",
+      "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Synthetics_Canaries_Library.html"
+    },
+    {
+      "title": "Troubleshooting Canary Failures",
+      "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Synthetics_Canaries_Troubleshoot.html"
+    },
+    {
+      "title": "Canary RunConfig Timeout Settings",
+      "url": "https://docs.aws.amazon.com/AmazonSynthetics/latest/APIReference/API_CanaryRunConfigInput.html"
+    }
+  ],
+  "error_patterns": [
+    {
+      "text_contains": "missing runs"
+    },
+    {
+      "text_contains": "missing data points"
+    },
+    {
+      "text_contains": "console"
+    },
+    {
+      "text_contains": "metric not emitted"
+    }
+  ],
+  "id": "RUNTIME-003",
+  "recommendations": [
+    {
+      "confidence": 95,
+      "estimated_time": "15 minutes",
+      "priority": "critical",
+      "problem": "Older runtime versions don't emit metrics when canary times out",
+      "solution": [
+        {
+          "command": "# Via AWS Console:\n# 1. Navigate to CloudWatch Synthetics console\n# 2. Select your canary\n# 3. Check \"Configuration\" tab for Runtime version\n\n# Via AWS CLI:\naws synthetics get-canary \\\n  --name <canary-name> \\\n  --region <canary-region>\n",
+          "description": "Identify which runtime version the canary is using",
+          "expected_outcome": "Current runtime version displayed (e.g., syn-nodejs-puppeteer-10.0)",
+          "step": "Check current runtime version"
+        },
+        {
+          "command": "# Via AWS Console:\n# 1. Navigate to CloudWatch Synthetics console\n# 2. Select your canary\n# 3. Click \"Action\" and select \"Edit\" in the dropdown\n# 4. Update runtime version from \"Runtime version\" dropdown to syn-nodejs-puppeteer-11.0 or later\n# 5. Save changes\n\n# Via AWS CLI:\naws synthetics update-canary \\\n  --name <canary-name> \\\n  --region <canary-region> \\\n  --runtime-version syn-nodejs-puppeteer-11.0\n",
+          "description": "Upgrade runtime to version that emits metrics on timeout",
+          "expected_outcome": "Canary updated to new runtime version",
+          "step": "Update to syn-nodejs-puppeteer-11.0 or later"
+        },
+        {
+          "command": "# Monitor canary runs and check console graph\n# Even timed-out runs should now appear as data points\n",
+          "description": "Confirm that timed-out runs now show in console graph",
+          "expected_outcome": "All canary runs visible in console graph, including timeouts",
+          "step": "Verify metrics emission after timeout"
+        }
+      ],
+      "title": "Upgrade to syn-nodejs-puppeteer-11.0 or later"
+    },
+    {
+      "confidence": 85,
+      "estimated_time": "30-60 minutes",
+      "priority": "high",
+      "problem": "Canary timing out indicates underlying performance issue",
+      "solution": [
+        {
+          "command": "# Via AWS Console:\n# 1. Navigate to CloudWatch Synthetics console\n# 2. Select your canary\n# 3. Select a failed canary run from the canary run availability graph\n# 4. Check the canary run execution log under \"Logs\" tab. \n\n# Look for patterns like:\n# - Slow page loads\n# - Network timeouts\n# - Resource exhaustion\n",
+          "description": "Identify what's causing the timeout",
+          "expected_outcome": "Identified specific timeout cause (e.g., page load > 60s)",
+          "step": "Review canary logs for timeout patterns"
+        },
+        {
+          "command": "aws synthetics update-canary \\\n  --name <canary-name> \\\n  --region <canary-region> \\\n  --run-config '{\n    \"TimeoutInSeconds\": 180\n  }'\n",
+          "description": "Adjust canary timeout to accommodate slow operations",
+          "expected_outcome": "Canary timeout increased, fewer timeout failures",
+          "step": "Increase timeout configuration if needed"
+        },
+        {
+          "command": "# Script optimization techniques:\n# 1. Reduce wait times\n# 2. Optimize page load strategies (networkidle vs load)\n# 3. Remove unnecessary steps\n# 4. Increase Lambda memory for better CPU performance\n\n# Example: Change wait strategy\nawait page.goto('https://example.com', {\n  waitUntil: 'domcontentloaded'  // Faster than 'load'\n});\n",
+          "description": "Reduce execution time to prevent timeouts",
+          "expected_outcome": "Canary execution time reduced, fewer timeouts",
+          "step": "Optimize canary script for performance"
+        }
+      ],
+      "title": "Investigate and resolve timeout root cause"
+    }
+  ],
+  "root_cause": "Runtime versions prior to syn-nodejs-puppeteer-11.0 only emit CloudWatch metrics (SuccessPercent, Duration, etc.) after the canary script completes successfully or fails gracefully. When Lambda times out mid-execution, the runtime never reaches the metric-emission code path, so no metric data point is published for that run. The Synthetics console availability graph is driven by these metrics, so timed-out runs appear as gaps rather than failures. The canary did execute \u2014 it just timed out before emitting metrics. This was fixed in syn-nodejs-puppeteer-11.0, which emits metrics even on timeout.",
+  "runtime_versions": [
+    "syn-nodejs-puppeteer-8.0",
+    "syn-nodejs-puppeteer-9.0",
+    "syn-nodejs-puppeteer-9.1"
+  ],
+  "severity": "medium",
+  "symptoms": [
+    "Canary runs appear missing in CloudWatch console availability graph",
+    "Data points missing from console graph despite canary being scheduled",
+    "Canary configured to run every X minutes but shows missing runs",
+    "Console graph shows incomplete data visualization"
+  ],
+  "tags": [
+    "missing-runs",
+    "timeout",
+    "metrics",
+    "console-graph",
+    "metric-emission"
+  ],
+  "title": "Missing canary runs in CloudWatch console due to timeout without metric emission"
+}
