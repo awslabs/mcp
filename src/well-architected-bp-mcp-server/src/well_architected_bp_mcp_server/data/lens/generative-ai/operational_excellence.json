@@ -1,0 +1,186 @@
+[
+  {
+    "area": [
+      "Model performance evaluation"
+    ],
+    "description": "Implement periodic evaluations using stratified sampling and custom metrics to maintain the performance and reliability of large language models. This practice verifies that models remain accurate and relevant over time by regularly assessing their performance against ground truth data and specific evaluation criteria. By employing stratified sampling, organizations can obtain a representative subset of data that reflects the diversity of real-world inputs, leading to more reliable performance metrics. Custom metrics allow for tailored assessments that align with specific business goals and user expectations. This practice helps customers achieve consistent model performance, detect and address model drift promptly, and integrate evaluation results into continuous improvement processes.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genops01-bp01.html",
+    "id": "GENOPS01-BP01",
+    "lens": "GENERATIVE_AI",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS11-BP11"
+    ],
+    "risk": "HIGH",
+    "title": "Periodically evaluate functional performance",
+    "title_full": "GENOPS01-BP01 Periodically evaluate functional performance"
+  },
+  {
+    "area": [
+      "Model performance evaluation"
+    ],
+    "description": "Supplement model performance evaluation with direct feedback from users. Implement continuous feedback loops to optimize application performance and enhance user satisfaction. Systematically collect, analyze, and act on user feedback to drive continuous improvement. By integrating this approach, you can achieve higher operational excellence and reliability, which keeps applications performant and aligned with user expectations. This proactive strategy helps to improve user satisfaction and foster a culture of ongoing enhancement and innovation.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genops01-bp02.html",
+    "id": "GENOPS01-BP02",
+    "lens": "GENERATIVE_AI",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS04-BP03"
+    ],
+    "risk": "HIGH",
+    "title": "Collect and monitor user feedback",
+    "title_full": "GENOPS01-BP02 Collect and monitor user feedback"
+  },
+  {
+    "area": [
+      "Monitor and manage operational health"
+    ],
+    "description": "Implement comprehensive monitoring and logging across all layers of your generative AI application to maintain operational health, provide reliability, and optimize performance. This best practice aims to provide clear visibility into the application's behavior at every level, from user interactions to core model performance. By tracking key metrics, organizations can quickly identify and address issues, enhance user experiences, and make data-driven decisions to improve their AI systems.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genops02-bp01.html",
+    "id": "GENOPS02-BP01",
+    "lens": "GENERATIVE_AI",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS08-BP01",
+      "OPS08-BP02",
+      "OPS08-BP03",
+      "OPS08-BP04",
+      "OPS08-BP05"
+    ],
+    "risk": "HIGH",
+    "title": "Monitor all application layers",
+    "title_full": "GENOPS02-BP01 Monitor all application layers"
+  },
+  {
+    "area": [
+      "Monitor and manage operational health"
+    ],
+    "description": "It's critical to set up continuous monitoring and alerting for foundation models for performance, security, and cost-efficiency. This best practice offers a structured approach to monitor models that fosters rapid identification and resolution of issues like data drift, model degradation, and security threats. Adopting this practice enhances reliability, efficiency, and trust in your applications, driving better business outcomes and user satisfaction. It can also help you with regulatory compliance and optimizes resource utilization.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genops02-bp02.html",
+    "id": "GENOPS02-BP02",
+    "lens": "GENERATIVE_AI",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS08-BP01",
+      "OPS08-BP02",
+      "OPS08-BP04",
+      "OPS08-BP05"
+    ],
+    "risk": "HIGH",
+    "title": "Monitor foundation model metrics",
+    "title_full": "GENOPS02-BP02 Monitor foundation model metrics"
+  },
+  {
+    "area": [
+      "Monitor and manage operational health"
+    ],
+    "description": "Implement rate limiting and throttling for AI application stability and performance. These practices control request processing rates to prevent system overload, which provides consistent application health and a better user experience. By adopting these measures, you can achieve balanced workload distribution, reduce service disruption risks, and enhance application reliability. This approach safeguards against excessive demand, optimizes resource utilization, and improves cost efficiency and performance.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genops02-bp03.html",
+    "id": "GENOPS02-BP03",
+    "lens": "GENERATIVE_AI",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS08-BP04",
+      "OPS10-BP02"
+    ],
+    "risk": "MEDIUM",
+    "title": "Implement rate limiting and throttling to mitigate the risk of system overload",
+    "title_full": "GENOPS02-BP03 Implement rate limiting and throttling to mitigate the risk of system overload"
+  },
+  {
+    "area": [
+      "Observability in workloads"
+    ],
+    "description": "Implement and maintain a versioned prompt template management system to achieve consistent and optimized performance of language models. This best practice aims to provide a structured approach to managing prompt templates, which helps teams systematically version, test, and optimize prompts. By adhering to this practice, you can achieve greater predictability in model behavior, enhance traceability of changes, and improve overall operational efficiency. This leads to more reliable language model deployments, reduced risks associated with prompt modifications, and the ability to quickly roll back to previous versions if needed. Ultimately, this best practice helps you deliver higher-quality outputs and maintain compliance with security and governance standards.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genops03-bp01.html",
+    "id": "GENOPS03-BP01",
+    "lens": "GENERATIVE_AI",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS05-BP01",
+      "OPS05-BP10"
+    ],
+    "risk": "HIGH",
+    "title": "Implement prompt template management",
+    "title_full": "GENOPS03-BP01 Implement prompt template management"
+  },
+  {
+    "area": [
+      "Observability in workloads"
+    ],
+    "description": "Implement comprehensive tracing for generative AI agents and RAG workflows to enhance operational excellence and performance efficiency. This practice offers clear visibility into model decision-making, which helps you identify inefficiencies, optimize performance, and debug efficiently. By adopting tracing, customers achieve more reliable and efficient workflows, which improves model accuracy, speeds up decision-making, and enhances overall system performance. This approach supports continuous improvement while keeping data secure throughout the tracing process.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genops03-bp02.html",
+    "id": "GENOPS03-BP02",
+    "lens": "GENERATIVE_AI",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS08-BP03"
+    ],
+    "risk": "HIGH",
+    "title": "Enable tracing for agents and RAG workflows",
+    "title_full": "GENOPS03-BP02 Enable tracing for agents and RAG workflows"
+  },
+  {
+    "area": [
+      "Automate lifecycle management"
+    ],
+    "description": "Implementing and managing IaC is crucial for consistent, version-controlled, and automated infrastructure deployment across environments. This practice streamlines deployment, reduces errors, and enhances team collaboration. IaC helps customers achieve efficiency, reliability, and scalability in infrastructure management, which allows for rapid iteration, straightforward rollback, and improved governance and results in secure deployments aligned with compliance standards.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genops04-bp01.html",
+    "id": "GENOPS04-BP01",
+    "lens": "GENERATIVE_AI",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS05-BP01",
+      "OPS05-BP08",
+      "OPS05-BP10",
+      "OPS06-BP03",
+      "OPS06-BP04"
+    ],
+    "risk": "HIGH",
+    "title": "Automate generative AI application lifecycle with infrastructure as code (IaC)",
+    "title_full": "GENOPS04-BP01 Automate generative AI application lifecycle with infrastructure as code (IaC)"
+  },
+  {
+    "area": [
+      "Automate lifecycle management"
+    ],
+    "description": "To optimize generative AI workloads, organizations should implement GenAIOps, a best practice that automates the development, deployment, and management of models. This approach establishes CI/CD pipelines for training, tuning, and deploying foundation models. GenAIOps enhances operational efficiency, reduces time-to-market, and enables consistent, high-quality model performance. It creates a robust, automated framework that supports the entire generative AI project lifecycle from development to production deployment. Through GenAIOps, customers can achieve greater agility, improved model reliability, and quick adaptation to changing business requirements, driving innovation and competitive advantage.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genops04-bp02.html",
+    "id": "GENOPS04-BP02",
+    "lens": "GENERATIVE_AI",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS08-BP04",
+      "OPS10-BP02"
+    ],
+    "risk": "HIGH",
+    "title": "Follow GenAIOps practices to optimize the application lifecycle",
+    "title_full": "GENOPS04-BP02 Follow GenAIOps practices to optimize the application lifecycle"
+  },
+  {
+    "area": [
+      "Model customization"
+    ],
+    "description": "Prioritize prompt engineering and RAG before model customization to optimize resources and enhance performance in developing generative AI solutions. This best practice aims to guide you in making informed decisions about when and how to customize AI models, which helps you verify that they achieve the best balance between efficiency and effectiveness. By starting with prompt engineering and RAG, you can leverage existing model capabilities to meet their needs, reducing the time, cost, and complexity associated with model customization. This approach allows organizations to quickly iterate on solutions, minimize resource consumption, and focus on achieving desired outcomes with minimal upfront investment.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genops05-bp01.html",
+    "id": "GENOPS05-BP01",
+    "lens": "GENERATIVE_AI",
+    "outcome": "You have an approach to decide when to customize models.",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS04-BP01"
+    ],
+    "risk": "HIGH",
+    "title": "Learn when to customize models",
+    "title_full": "GENOPS05-BP01 Learn when to customize models"
+  }
+]
