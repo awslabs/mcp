@@ -16,18 +16,23 @@
 
 from __future__ import annotations
 
+import threading
+
 from .base import EmbeddingsProvider
 from .factory import create_embeddings_provider
 from .providers import BedrockEmbeddings, HashEmbeddings, OllamaEmbeddings, OpenAIEmbeddings
 
 _provider: EmbeddingsProvider | None = None
+_provider_lock = threading.Lock()
 
 
 def get_provider() -> EmbeddingsProvider:
-    """Get or create the embeddings provider singleton."""
+    """Get or create the embeddings provider singleton (thread-safe)."""
     global _provider
     if _provider is None:
-        _provider = create_embeddings_provider()
+        with _provider_lock:
+            if _provider is None:
+                _provider = create_embeddings_provider()
     return _provider
 
 

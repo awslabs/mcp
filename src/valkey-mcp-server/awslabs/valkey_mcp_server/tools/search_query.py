@@ -207,15 +207,17 @@ async def _find_similar(client, index_name, doc_id, vector_field, filt, ret, off
     emb = list(struct.unpack(f'{n}f', raw))
     blob = pack_embedding(emb)
     f = filt or '*'
-    query = f'{f}=>[KNN {limit + 1} @{vector_field} $vector AS score]'
+    query = f'{f}=>[KNN {limit + offset + 1} @{vector_field} $vector AS score]'
     results = await ft.search(
         client=client,
         index_name=index_name,
         query=query,
-        options=FtSearchOptions(params={'vector': blob}, limit=FtSearchLimit(offset, limit + 1)),
+        options=FtSearchOptions(
+            params={'vector': blob}, limit=FtSearchLimit(0, limit + offset + 1)
+        ),
     )
     docs = _decode_docs(results, ret, skip_field=vector_field)
-    docs = [d for d in docs if d.get('id') != doc_id][:limit]
+    docs = [d for d in docs if d.get('id') != doc_id][offset : offset + limit]
     return {'status': 'success', 'mode': 'find_similar', 'results': docs, 'total': len(docs)}
 
 

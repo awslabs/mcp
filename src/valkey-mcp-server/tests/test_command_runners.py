@@ -88,7 +88,9 @@ class TestValkeyRead:
         assert result['status'] == 'success'
 
     async def test_error_handling(self, mock_client):
-        mock_client.custom_command.side_effect = Exception('connection lost')
+        from glide_shared.exceptions import RequestError
+
+        mock_client.custom_command.side_effect = RequestError('connection lost')
         result = await valkey_read(command='GET', args=['k'])
         assert result['status'] == 'error'
         assert 'connection lost' in result['reason']
@@ -224,7 +226,9 @@ class TestValkeyAdmin:
         assert result['status'] == 'error'
 
     async def test_error_handling(self, mock_client):
-        mock_client.custom_command.side_effect = Exception('refused')
+        from glide_shared.exceptions import RequestError
+
+        mock_client.custom_command.side_effect = RequestError('refused')
         with patch.dict('os.environ', {'VALKEY_ADMIN_ENABLED': 'true'}):
             result = await valkey_admin(command='FLUSHALL', confirm=True)
         assert result['status'] == 'error'

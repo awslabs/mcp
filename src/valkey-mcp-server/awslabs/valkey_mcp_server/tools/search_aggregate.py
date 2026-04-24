@@ -182,14 +182,10 @@ async def aggregate(
     try:
         client = await get_client()
 
-        # Reject wildcard '*' — some Valkey versions reject it with "Invalid: query
-        # string syntax".
-        if query.strip() == '*':
-            return {
-                'status': 'error',
-                'reason': "Wildcard '*' is not supported as an aggregate query. "
-                "Use a field filter (e.g., '@price:[0 inf]', '@category:{Books}').",
-            }
+        # Note: '*' as query may fail on some Valkey versions with "Invalid: query string
+        # syntax". The fd redirect in main.py prevents GLIDE's native logger from
+        # corrupting the MCP stdio transport, so the RequestError is caught normally
+        # by @tool_errors. See: https://github.com/valkey-io/valkey-glide/issues/XXXX
 
         # Build typed GLIDE clauses from pipeline stages
         clauses: list[FtAggregateClause] = []

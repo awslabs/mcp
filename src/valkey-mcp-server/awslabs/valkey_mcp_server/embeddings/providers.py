@@ -208,20 +208,12 @@ class HashEmbeddings(EmbeddingsProvider):
         self._dimensions = dimensions
 
     async def generate_embedding(self, text: str) -> list[float]:
-        """Generate deterministic embedding using hash."""
-        # Create a hash of the text
-        hash_obj = hashlib.sha256(text.encode('utf-8'))
-        hash_bytes = hash_obj.digest()
+        """Generate deterministic embedding using hash-seeded PRNG."""
+        import random
 
-        # Convert hash bytes to floats and normalize to [-1, 1] range
-        embedding = []
-        for i in range(self._dimensions):
-            byte_val = hash_bytes[i % len(hash_bytes)]
-            # Normalize to [-1, 1] range
-            normalized_val = (byte_val / 255.0) * 2.0 - 1.0
-            embedding.append(normalized_val)
-
-        return embedding
+        hash_hex = hashlib.sha256(text.encode('utf-8')).hexdigest()
+        rng = random.Random(hash_hex)
+        return [rng.uniform(-1, 1) for _ in range(self._dimensions)]
 
     def get_dimensions(self) -> int:
         """Get embedding dimensions."""

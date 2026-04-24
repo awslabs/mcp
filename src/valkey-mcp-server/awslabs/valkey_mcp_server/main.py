@@ -117,7 +117,26 @@ def main():
     _configure_logging()
     Context.initialize(args.readonly)
 
-    atexit.register(lambda: asyncio.run(close_client()))
+    async def _async_shutdown():
+        await close_client()
+        from awslabs.valkey_mcp_server.embeddings import get_provider
+        from awslabs.valkey_mcp_server.embeddings.providers import OllamaEmbeddings
+
+        try:
+            provider = get_provider()
+            if isinstance(provider, OllamaEmbeddings):
+                await provider.close()
+        except Exception:
+            pass
+
+    def _shutdown():
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(_async_shutdown())
+        except RuntimeError:
+            asyncio.run(_async_shutdown())
+
+    atexit.register(_shutdown)
 
     logger.info('Amazon ElastiCache/MemoryDB Valkey MCP Server Started...')
 

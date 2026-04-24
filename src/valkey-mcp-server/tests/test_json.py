@@ -64,7 +64,9 @@ class TestJsonGet:
         assert 'not found' in result['reason']
 
     async def test_get_error(self, mock_client):
-        mock_client.custom_command.side_effect = Exception('fail')
+        from glide_shared.exceptions import RequestError
+
+        mock_client.custom_command.side_effect = RequestError('fail')
         result = await json_get(key='k')
         assert result['status'] == 'error'
 

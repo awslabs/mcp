@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from awslabs.valkey_mcp_server.common.config import VALKEY_CFG
 from glide import (
@@ -86,16 +87,23 @@ def _build_config() -> GlideClientConfiguration | GlideClusterClientConfiguratio
     return GlideClientConfiguration(**kwargs)
 
 
+_client_lock = asyncio.Lock()
+
+
 async def get_client() -> GlideClientType:
-    """Get or create the GLIDE client singleton."""
+    """Get or create the GLIDE client singleton (thread-safe via asyncio.Lock)."""
     global _client
     if _client is None:
-        config = _build_config()
-        if isinstance(config, GlideClusterClientConfiguration):
-            _client = await GlideClusterClient.create(config)
-        else:
-            _client = await GlideClient.create(config)
-        logger.info('GLIDE client connected to %s:%s', VALKEY_CFG['host'], VALKEY_CFG['port'])
+        async with _client_lock:
+            if _client is None:  # double-check after acquiring lock
+                config = _build_config()
+                if isinstance(config, GlideClusterClientConfiguration):
+                    _client = await GlideClusterClient.create(config)
+                else:
+                    _client = await GlideClient.create(config)
+                logger.info(
+                    'GLIDE client connected to %s:%s', VALKEY_CFG['host'], VALKEY_CFG['port']
+                )
     return _client
 
 

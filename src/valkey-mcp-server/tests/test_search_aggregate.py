@@ -146,11 +146,6 @@ class TestAggregate:
         assert result['status'] == 'error'
         assert 'BOGUS' in result['reason']
 
-    async def test_wildcard_query_rejected(self):
-        result = await aggregate(index_name='idx', query='*')
-        assert result['status'] == 'error'
-        assert 'not supported' in result['reason']
-
     async def test_command_error(self, mock_client):
         with patch(f'{MODULE}.ft') as mock_ft:
             mock_ft.aggregate = AsyncMock(side_effect=RequestError('bad'))

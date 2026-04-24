@@ -118,7 +118,8 @@ async def json_set(
         key: Valkey key name
         value: Value to set (string, number, boolean, array, object, or null)
         path: JSONPath expression (default: "$" for root)
-        ttl: Optional TTL in seconds
+        ttl: Optional TTL in seconds. Note: JSON.SET + EXPIRE is not atomic —
+            if the server crashes between the two calls, the key persists without TTL.
 
     Returns:
         Dict with "status".

@@ -64,21 +64,19 @@ def readonly_guard(fn):
 
 
 def tool_errors(fn):
-    """Decorator that catches exceptions and returns structured error dicts."""
-    import logging
+    """Decorator that catches Valkey/GLIDE errors and returns structured error dicts.
+
+    Only catches RequestError (Valkey operational errors). Programming errors
+    (TypeError, AttributeError, etc.) propagate for debugging.
+    """
     from functools import wraps
     from glide_shared.exceptions import RequestError
-
-    logger = logging.getLogger(fn.__module__)
 
     @wraps(fn)
     async def wrapper(*args, **kwargs):
         try:
             return await fn(*args, **kwargs)
         except RequestError as e:
-            return {'status': 'error', 'reason': str(e)}
-        except Exception as e:
-            logger.exception('%s failed: %s', fn.__name__, e)
             return {'status': 'error', 'reason': str(e)}
 
     return wrapper
