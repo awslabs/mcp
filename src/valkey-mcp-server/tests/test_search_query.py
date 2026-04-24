@@ -104,14 +104,14 @@ class TestTextSearch:
                 }
             )
         )
-        with patch(f'{MODULE}._has_provider', return_value=False):
+        with patch(f'{MODULE}.has_provider', return_value=False):
             result = await search(index_name='idx', query_text='machine')
         assert result['status'] == 'success'
         assert result['mode'] == 'text'
         assert len(result['results']) == 1
 
     async def test_text_with_filter(self, mock_ft):
-        with patch(f'{MODULE}._has_provider', return_value=False):
+        with patch(f'{MODULE}.has_provider', return_value=False):
             await search(
                 index_name='idx', query_text='hello', filter_expression='@year:[2020 2024]'
             )
@@ -129,8 +129,8 @@ class TestSemanticSearch:
             )
         )
         with (
-            patch(f'{MODULE}._has_provider', return_value=True),
-            patch(f'{MODULE}._get_provider', return_value=mock_provider),
+            patch(f'{MODULE}.has_provider', return_value=True),
+            patch(f'{MODULE}.get_provider', return_value=mock_provider),
         ):
             result = await search(index_name='idx', query_text='animals')
         assert result['status'] == 'success'
@@ -141,8 +141,8 @@ class TestSemanticSearch:
 class TestHybridSearch:
     async def test_hybrid_mode(self, mock_ft, mock_provider):
         with (
-            patch(f'{MODULE}._has_provider', return_value=True),
-            patch(f'{MODULE}._get_provider', return_value=mock_provider),
+            patch(f'{MODULE}.has_provider', return_value=True),
+            patch(f'{MODULE}.get_provider', return_value=mock_provider),
         ):
             result = await search(index_name='idx', query_text='animals', hybrid_weight=0.8)
         assert result['mode'] == 'hybrid'

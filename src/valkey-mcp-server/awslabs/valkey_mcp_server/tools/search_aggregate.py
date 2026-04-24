@@ -50,8 +50,8 @@ VALID_REDUCE_FUNCTIONS = {
     'STDDEV',
     'QUANTILE',
     'TOLIST',
-    'FIRST_VALUE',
-    'RANDOM_SAMPLE',
+    'FIRST_VALUE',  # Requires Valkey Search >= 1.3
+    'RANDOM_SAMPLE',  # Requires Valkey Search >= 1.3
 }
 
 VALID_STAGE_TYPES = {'GROUPBY', 'SORTBY', 'APPLY', 'FILTER', 'LIMIT'}
@@ -130,11 +130,9 @@ def _decode_aggregate_response(raw: Any) -> list[dict[str, Any]]:
         elif isinstance(row, list):
             d = {}
             for i in range(0, len(row) - 1, 2):
-                key = row[i].decode() if isinstance(row[i], bytes) else str(row[i])
-                val = row[i + 1]
-                if isinstance(val, bytes):
-                    val = val.decode()
-                d[key] = val
+                k = row[i].decode() if isinstance(row[i], bytes) else str(row[i])
+                v = row[i + 1]
+                d[k] = v.decode() if isinstance(v, bytes) else v
             rows.append(d)
     return rows
 
@@ -181,11 +179,6 @@ async def aggregate(
     """
     try:
         client = await get_client()
-
-        # Note: '*' as query may fail on some Valkey versions with "Invalid: query string
-        # syntax". The fd redirect in main.py prevents GLIDE's native logger from
-        # corrupting the MCP stdio transport, so the RequestError is caught normally
-        # by @tool_errors. See: https://github.com/valkey-io/valkey-glide/issues/XXXX
 
         # Build typed GLIDE clauses from pipeline stages
         clauses: list[FtAggregateClause] = []

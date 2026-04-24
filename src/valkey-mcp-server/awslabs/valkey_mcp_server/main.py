@@ -124,6 +124,8 @@ def main():
 
         try:
             provider = get_provider()
+            # Only OllamaEmbeddings holds an httpx.AsyncClient that needs closing.
+            # Bedrock uses boto3 (no persistent connection), OpenAI/Hash are stateless.
             if isinstance(provider, OllamaEmbeddings):
                 await provider.close()
         except Exception:  # nosec B110 — best-effort cleanup during shutdown

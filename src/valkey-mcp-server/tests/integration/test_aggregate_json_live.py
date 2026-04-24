@@ -28,6 +28,7 @@ from awslabs.valkey_mcp_server.tools.json import json_get, json_set
 from awslabs.valkey_mcp_server.tools.search_add_documents import add_documents
 from awslabs.valkey_mcp_server.tools.search_aggregate import aggregate
 from awslabs.valkey_mcp_server.tools.search_manage_index import manage_index
+from awslabs.valkey_mcp_server.tools.search_query import search
 from unittest.mock import AsyncMock, patch
 
 
@@ -197,7 +198,7 @@ class TestJsonSetSubPath:
         result = await json_get(key=key, path='$.settings.theme')
         assert result['status'] == 'success'
         assert result['value'] == 'light'  # NOT '"light"'
-        await client.custom_command(['DEL', key])
+        await client.delete([key])
 
     async def test_number_subpath(self, client):
         """Setting a number at a sub-path."""
@@ -207,7 +208,7 @@ class TestJsonSetSubPath:
         result = await json_get(key=key, path='$.count')
         assert result['status'] == 'success'
         assert result['value'] == 42
-        await client.custom_command(['DEL', key])
+        await client.delete([key])
 
     async def test_root_set_string(self, client):
         """Setting a string at root path."""
@@ -216,7 +217,7 @@ class TestJsonSetSubPath:
         result = await json_get(key=key)
         assert result['status'] == 'success'
         assert result['value'] == 'hello'
-        await client.custom_command(['DEL', key])
+        await client.delete([key])
 
 
 class TestAddDocumentsStatus:
@@ -244,4 +245,54 @@ class TestAddDocumentsStatus:
         assert result['status'] == 'success'
         assert result['added'] == 1
         assert result['errors'] == 1
-        await client.custom_command(['DEL', f'{_P}:1'])
+        await client.delete([f'{_P}:1'])
+
+
+class TestJsonIndexSearch:
+    """Search against a JSON-backed index."""
+
+    @pytest.fixture()
+    async def json_index(self, client):
+        idx = f'{_P}_json'
+        prefix = f'{_P}_jdoc:'
+        await manage_index(action='drop', index_name=idx)
+        await manage_index(
+            action='create',
+            index_name=idx,
+            schema=[
+                {'name': 'title', 'type': 'TEXT'},
+                {'name': 'category', 'type': 'TAG'},
+            ],
+            prefix=[prefix],
+            index_type='JSON',
+        )
+        import json as json_mod
+        from glide import glide_json
+
+        for i, (title, cat) in enumerate(
+            [('laptop', 'Electronics'), ('cookbook', 'Books'), ('headphones', 'Electronics')]
+        ):
+            doc = json_mod.dumps({'title': title, 'category': cat})
+            await glide_json.set(client, f'{prefix}{i}', '$', doc)
+        await asyncio.sleep(1)
+        yield idx
+        await manage_index(action='drop', index_name=idx)
+
+    async def test_text_search_json_index(self, json_index):
+        result = await search(
+            index_name=json_index,
+            query='laptop',
+            mode='text',
+        )
+        assert result['status'] == 'success'
+        assert result['total'] >= 1
+        assert any('laptop' in str(d) for d in result['results'])
+
+    async def test_filter_search_json_index(self, json_index):
+        result = await search(
+            index_name=json_index,
+            query='@category:{Electronics}',
+            mode='text',
+        )
+        assert result['status'] == 'success'
+        assert result['total'] >= 2

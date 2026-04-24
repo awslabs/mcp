@@ -20,6 +20,7 @@ import logging
 from awslabs.valkey_mcp_server.common.connection import get_client
 from awslabs.valkey_mcp_server.common.server import mcp
 from awslabs.valkey_mcp_server.context import Context
+from enum import Enum
 from glide import ft
 from glide_shared.commands.server_modules.ft_options.ft_create_options import (
     DataType,
@@ -40,7 +41,16 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-VALID_FIELD_TYPES = {'TEXT', 'NUMERIC', 'TAG', 'VECTOR'}
+
+class FieldType(str, Enum):
+    """Valid field types for index schema definitions."""
+
+    TEXT = 'TEXT'
+    NUMERIC = 'NUMERIC'
+    TAG = 'TAG'
+    VECTOR = 'VECTOR'
+
+
 VALID_DISTANCE_METRICS = {'COSINE', 'L2', 'IP'}
 VALID_STRUCTURE_TYPES = {'FLAT', 'HNSW'}
 VALID_INDEX_TYPES = {'HASH', 'JSON'}
@@ -68,9 +78,10 @@ def _build_field(
     """Translate a schema field dict into a GLIDE Field object."""
     name = field['name']
     ftype = field.get('type', 'TEXT').upper()
-    if ftype not in VALID_FIELD_TYPES:
+    if ftype not in FieldType.__members__:
         raise ValueError(
-            f"Invalid field type '{ftype}' for '{name}'. Must be: {VALID_FIELD_TYPES}"
+            f"Invalid field type '{ftype}' for '{name}'. "
+            f'Must be one of: {[e.value for e in FieldType]}'
         )
 
     if ftype == 'VECTOR':
@@ -173,7 +184,7 @@ async def manage_index(
                 if val not in valid:
                     return {
                         'status': 'error',
-                        'reason': f"Invalid {name} '{val}'. Must be: {valid}",
+                        'reason': f"Invalid {name} '{val}'. Must be one of: {valid}",
                     }
 
             fields = []

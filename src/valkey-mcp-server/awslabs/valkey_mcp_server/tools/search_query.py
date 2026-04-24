@@ -23,8 +23,7 @@ from awslabs.valkey_mcp_server.common.server import mcp
 from awslabs.valkey_mcp_server.common.utils import (
     pack_embedding,
 )
-from awslabs.valkey_mcp_server.embeddings import get_provider as _get_provider
-from awslabs.valkey_mcp_server.embeddings import has_provider as _has_provider
+from awslabs.valkey_mcp_server.embeddings import get_provider, has_provider
 from glide import ft
 from glide_shared.commands.server_modules.ft_options.ft_search_options import (
     FtSearchLimit,
@@ -119,8 +118,8 @@ async def search(
                 limit,
             )
 
-        has = _has_provider()
-        if mode == 'text' or (not mode and not has):
+        embeddings_available = has_provider()
+        if mode == 'text' or (not mode and not embeddings_available):
             return await _text(
                 client,
                 index_name,
@@ -130,7 +129,7 @@ async def search(
                 offset,
                 limit,
             )
-        if mode == 'hybrid' or (has and hybrid_weight != 0.5):
+        if mode == 'hybrid' or (embeddings_available and hybrid_weight != 0.5):
             return await _hybrid(
                 client,
                 index_name,
@@ -161,7 +160,13 @@ async def search(
 
 
 def _build_text_query(query_text: str, filt: str | None) -> str:
-    """Build a text query string, combining filter and query safely."""
+    """Build a text query string, combining filter and query safely.
+
+    Note: A bare '*' query may return "Invalid: query string syntax" on some
+    Valkey Search versions. When a filter is present, we use the filter alone
+    instead of '*' to avoid this. If Valkey Search fixes this in a future
+    release, this workaround can be simplified.
+    """
     if filt and query_text.strip() == '*':
         return filt
     if filt:
@@ -170,7 +175,7 @@ def _build_text_query(query_text: str, filt: str | None) -> str:
 
 
 async def _semantic(client, index_name, query_text, vector_field, filt, ret, offset, limit):
-    provider = _get_provider()
+    provider = get_provider()
     emb = await provider.generate_embedding(query_text)
     blob = pack_embedding(emb)
     f = filt or '*'
@@ -222,7 +227,7 @@ async def _find_similar(client, index_name, doc_id, vector_field, filt, ret, off
 
 
 async def _hybrid(client, index_name, query_text, vector_field, filt, ret, offset, limit, weight):
-    provider = _get_provider()
+    provider = get_provider()
     emb = await provider.generate_embedding(query_text)
     blob = pack_embedding(emb)
     tf = _build_text_query(query_text, filt)

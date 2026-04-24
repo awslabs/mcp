@@ -105,11 +105,11 @@ class BedrockEmbeddings(EmbeddingsProvider):
         self.client = session.client('bedrock-runtime', config=config)
         self._session = session
         self._config = config
-        self._credentials_validated = False
+        self._credentials_validated = False  # validated on first generate_embedding() call
 
         self._model_id: str | None = None
         self._is_nova_model = False
-        self.model_id = model_id  # Use property setter
+        self.model_id = model_id
         self.normalize = normalize
         self.dimensions = dimensions
         self.input_type = input_type
@@ -158,7 +158,6 @@ class BedrockEmbeddings(EmbeddingsProvider):
                     f'using AWS CLI, environment variables, or IAM roles. Error: {e}'
                 ) from e
 
-        # boto3 is synchronous — run in executor to avoid blocking the event loop.
         def _invoke():
             # Check if this is a Nova model using cached result
             if self._is_nova_model:
