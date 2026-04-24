@@ -118,6 +118,13 @@ const sidebars: SidebarsConfig = {
         },
         {
           type: "category",
+          label: "Media Services",
+          items: [
+            "servers/amazon-mediapackagev2-mcp-server",
+          ],
+        },
+        {
+          type: "category",
           label: "Cost & Operations",
           items: [
             "servers/aws-pricing-mcp-server",
