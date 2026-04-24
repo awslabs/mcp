@@ -94,7 +94,6 @@ class BedrockEmbeddings(EmbeddingsProvider):
         """Initialize Bedrock embeddings provider."""
         import boto3
         from botocore.config import Config
-        from botocore.exceptions import NoCredentialsError, PartialCredentialsError
 
         config = Config(
             region_name=region_name,
@@ -104,16 +103,9 @@ class BedrockEmbeddings(EmbeddingsProvider):
 
         session = boto3.Session()
         self.client = session.client('bedrock-runtime', config=config)
-
-        # Validate credentials are available
-        try:
-            sts_client = session.client('sts', config=config)
-            sts_client.get_caller_identity()
-        except (NoCredentialsError, PartialCredentialsError) as e:
-            raise ValueError(
-                f'AWS credentials not found or incomplete. Please configure AWS credentials using '
-                f'AWS CLI, environment variables, or IAM roles. Error: {e}'
-            )
+        self._session = session
+        self._config = config
+        self._credentials_validated = False
 
         self._model_id: str | None = None
         self._is_nova_model = False
@@ -148,7 +140,25 @@ class BedrockEmbeddings(EmbeddingsProvider):
         import asyncio
         import json
 
-        # Bedrock SDK is synchronous, run in executor
+        # Validate credentials on first use (deferred from __init__ to avoid
+        # blocking the event loop at startup)
+        if not self._credentials_validated:
+            from botocore.exceptions import NoCredentialsError, PartialCredentialsError
+
+            def _validate():
+                sts_client = self._session.client('sts', config=self._config)
+                sts_client.get_caller_identity()
+
+            try:
+                await asyncio.get_running_loop().run_in_executor(None, _validate)
+                self._credentials_validated = True
+            except (NoCredentialsError, PartialCredentialsError) as e:
+                raise ValueError(
+                    'AWS credentials not found or incomplete. Please configure AWS credentials '
+                    f'using AWS CLI, environment variables, or IAM roles. Error: {e}'
+                ) from e
+
+        # boto3 is synchronous — run in executor to avoid blocking the event loop.
         def _invoke():
             # Check if this is a Nova model using cached result
             if self._is_nova_model:
