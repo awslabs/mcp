@@ -290,12 +290,41 @@ class K8sHandler:
                 resource['metadata'].pop('managedFields')
         return resource
 
+    def redact_secret_data(self, resource: Dict[str, Any]) -> Dict[str, Any]:
+        """Redact Secret data values with HIDDEN_FOR_SECURITY_REASONS.
+
+        This implements the documented redaction behavior for Kubernetes Secrets.
+
+        Args:
+            resource: The Kubernetes resource dictionary
+
+        Returns:
+            The resource with Secret data values redacted
+        """
+        kind = resource.get('kind', '').lower()
+        if kind != 'secret':
+            return resource
+
+        # Redact .data fields (base64-encoded secret values)
+        if 'data' in resource and isinstance(resource['data'], dict):
+            for key in resource['data']:
+                resource['data'][key] = 'HIDDEN_FOR_SECURITY_REASONS'
+
+        # Redact .stringData fields (plaintext secrets)
+        if 'stringData' in resource and isinstance(resource['stringData'], dict):
+            for key in resource['stringData']:
+                resource['stringData'][key] = 'HIDDEN_FOR_SECURITY_REASONS'
+
+        return resource
+
     def cleanup_resource_response(self, resource: Any) -> Any:
         """Clean up a Kubernetes resource response by removing managed fields and null values.
 
         This method:
         1. Removes metadata.managed_fields which is typically large and not useful
-        2. Recursively removes null values to reduce response size
+        2. Redacts Secret data with HIDDEN_FOR_SECURITY_REASONS when
+           allow_sensitive_data_access is False
+        3. Recursively removes null values to reduce response size
 
         Args:
             resource: The Kubernetes resource to clean up
@@ -305,6 +334,10 @@ class K8sHandler:
         """
         # First remove managed fields
         resource = self.remove_managed_fields(resource)
+
+        # Redact Secret data if sensitive data access is not allowed
+        if not self.allow_sensitive_data_access:
+            resource = self.redact_secret_data(resource)
 
         # Then filter out null values
         return self.filter_null_values(resource)
