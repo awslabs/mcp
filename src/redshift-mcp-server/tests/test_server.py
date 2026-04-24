@@ -22,6 +22,9 @@ from awslabs.redshift_mcp_server.models import (
     RedshiftDatabase,
     RedshiftSchema,
     RedshiftTable,
+    ReviewFinding,
+    ReviewRecommendation,
+    ReviewResult,
 )
 from awslabs.redshift_mcp_server.server import (
     execute_query_tool,
@@ -30,6 +33,8 @@ from awslabs.redshift_mcp_server.server import (
     list_databases_tool,
     list_schemas_tool,
     list_tables_tool,
+    mcp,
+    review_cluster_tool,
 )
 from mcp.server.fastmcp import Context
 
@@ -528,3 +533,153 @@ class TestExecuteQueryTool:
         mock_ctx.error.assert_called_once_with(
             'Failed to execute query on cluster test-cluster in database test-db: Query error'
         )
+
+
+class TestReviewClusterTool:
+    """Tests for the review_cluster MCP tool."""
+
+    def _make_review_result(self, findings=None):
+        """Helper to build a ReviewResult with sensible defaults."""
+        return ReviewResult(
+            signals_evaluated=13,
+            findings=findings or [],
+            recommendations=[
+                ReviewRecommendation(
+                    id='REC_020',
+                    text='## For additional scalability, enable short query acceleration\n\n...',
+                    triggered_by_signals=['WLMConfig'],
+                ),
+            ]
+            if findings
+            else [],
+            queries_executed=['NodeDetails', 'WLMConfig'],
+        )
+
+    def _make_mock_ctx(self, mocker):
+        """Build a mock Context."""
+        mock_ctx = mocker.Mock(spec=Context)
+        mock_ctx.error = mocker.AsyncMock()
+        mock_ctx.request_context = mocker.Mock()
+        return mock_ctx
+
+    @pytest.mark.asyncio
+    async def test_review_cluster_success(self, mocker):
+        """Test review_cluster returns a ReviewResult on success."""
+        findings = [
+            ReviewFinding(
+                signal_name='HighSQAEligibility',
+                section='WLMConfig',
+                affected_row_count=3,
+                recommendation_ids=['REC_020'],
+            ),
+        ]
+        expected = self._make_review_result(findings=findings)
+
+        mock_pipeline = mocker.patch(
+            'awslabs.redshift_mcp_server.server.run_review',
+            return_value=expected,
+        )
+        mock_ctx = self._make_mock_ctx(mocker)
+
+        result = await review_cluster_tool(
+            ctx=mock_ctx,
+            cluster_identifier='test-cluster',
+            database='dev',
+            workgroup=None,
+        )
+
+        assert isinstance(result, ReviewResult)
+        assert result.signals_evaluated == 13
+        assert len(result.findings) == 1
+        assert result.findings[0].signal_name == 'HighSQAEligibility'
+        assert result.findings[0].affected_row_count == 3
+        assert len(result.recommendations) == 1
+        assert result.recommendations[0].id == 'REC_020'
+
+        mock_pipeline.assert_called_once()
+        call_kwargs = mock_pipeline.call_args.kwargs
+        assert call_kwargs['cluster_identifier'] == 'test-cluster'
+        assert call_kwargs['database'] == 'dev'
+        assert call_kwargs['workgroup'] is None
+
+    @pytest.mark.asyncio
+    async def test_review_cluster_empty_results(self, mocker):
+        """Test review_cluster with no findings returns a clean response."""
+        expected = self._make_review_result(findings=[])
+
+        mocker.patch(
+            'awslabs.redshift_mcp_server.server.run_review',
+            return_value=expected,
+        )
+        mock_ctx = self._make_mock_ctx(mocker)
+
+        result = await review_cluster_tool(
+            ctx=mock_ctx,
+            cluster_identifier='test-cluster',
+            database='dev',
+            workgroup=None,
+        )
+
+        assert isinstance(result, ReviewResult)
+        assert result.findings == []
+        assert result.recommendations == []
+        assert result.signals_evaluated == 13
+
+    @pytest.mark.asyncio
+    async def test_review_cluster_error(self, mocker):
+        """Test review_cluster propagates pipeline errors."""
+        mocker.patch(
+            'awslabs.redshift_mcp_server.server.run_review',
+            side_effect=Exception('Data API timeout'),
+        )
+        mock_ctx = self._make_mock_ctx(mocker)
+
+        with pytest.raises(Exception, match='Data API timeout'):
+            await review_cluster_tool(
+                ctx=mock_ctx,
+                cluster_identifier='test-cluster',
+                database='dev',
+                workgroup=None,
+            )
+
+    @pytest.mark.asyncio
+    async def test_review_cluster_parameters(self, mocker):
+        """Test review_cluster passes all parameters correctly including workgroup."""
+        expected = self._make_review_result()
+
+        mock_pipeline = mocker.patch(
+            'awslabs.redshift_mcp_server.server.run_review',
+            return_value=expected,
+        )
+        mock_ctx = self._make_mock_ctx(mocker)
+
+        await review_cluster_tool(
+            ctx=mock_ctx,
+            cluster_identifier='my-cluster',
+            database='analytics',
+            workgroup='my-workgroup',
+        )
+
+        call_kwargs = mock_pipeline.call_args.kwargs
+        assert call_kwargs['cluster_identifier'] == 'my-cluster'
+        assert call_kwargs['database'] == 'analytics'
+        assert call_kwargs['workgroup'] == 'my-workgroup'
+
+    def test_no_removed_tools_registered(self):
+        """Verify export_csv and import_and_analyze are not registered as tools."""
+        tool_names = set()
+        for tool in mcp._tool_manager._tools.values():
+            tool_names.add(tool.name)
+
+        assert 'export_csv' not in tool_names, 'export_csv should not be registered'
+        assert 'import_and_analyze' not in tool_names, (
+            'import_and_analyze should not be registered'
+        )
+
+    def test_review_cluster_tool_is_registered(self):
+        """Verify review_cluster is registered as an MCP tool."""
+        tool_names = set()
+        for tool in mcp._tool_manager._tools.values():
+            tool_names.add(tool.name)
+
+        assert 'review_cluster' in tool_names, 'review_cluster should be registered as a tool'

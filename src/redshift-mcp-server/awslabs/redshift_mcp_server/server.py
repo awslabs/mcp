@@ -28,8 +28,10 @@ from awslabs.redshift_mcp_server.models import (
     RedshiftDatabase,
     RedshiftSchema,
     RedshiftTable,
+    ReviewResult,
 )
 from awslabs.redshift_mcp_server.redshift import (
+    _execute_protected_statement,
     discover_clusters,
     discover_columns,
     discover_databases,
@@ -37,6 +39,7 @@ from awslabs.redshift_mcp_server.redshift import (
     discover_tables,
     execute_query,
 )
+from awslabs.redshift_mcp_server.review.review_pipeline import run_review
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
@@ -82,6 +85,12 @@ This tool queries the SVV_ALL_COLUMNS system view to discover available columns.
 ### execute_query
 Executes SQL queries against a Redshift cluster or serverless workgroup.
 This tool uses the Redshift Data API to run queries and return results.
+
+### review_cluster
+Runs a diagnostic review of a Redshift cluster or serverless workgroup.
+Evaluates up to 55 signals across 13 diagnostic queries, returning findings
+with counts and actionable recommendations ordered by effort.
+Supports concern categories: performance, cost, storage, scaling, full.
 
 ## Getting Started
 
@@ -621,6 +630,42 @@ async def execute_query_tool(
             f'Failed to execute query on cluster {cluster_identifier} in database {database_name}: {str(e)}'
         )
         raise
+
+
+@mcp.tool(name='review_cluster')
+async def review_cluster_tool(
+    ctx: Context,
+    cluster_identifier: str = Field(
+        ...,
+        description='The cluster identifier to run the review on. Must be a valid cluster identifier from the list_clusters tool.',
+    ),
+    database: str = Field(
+        ...,
+        description='The database name to run the review against. Must be a valid database name from the list_databases tool.',
+    ),
+    workgroup: str | None = Field(
+        None,
+        description='The serverless workgroup name. When provided, provisioned-only queries (WLMConfig, NodeDetails) are excluded.',
+    ),
+) -> ReviewResult:
+    """Run a diagnostic review of a Redshift cluster.
+
+    Evaluates signals across diagnostic queries, returning findings
+    with counts and actionable recommendations. Each recommendation
+    includes documentation links — always include these links when
+    presenting results to the user.
+    """
+    logger.info(f'Running review on cluster {cluster_identifier}, database {database}')
+
+    result = await run_review(
+        cluster_identifier=cluster_identifier,
+        database=database,
+        execute_fn=_execute_protected_statement,
+        workgroup=workgroup,
+        progress_fn=lambda current, total: ctx.report_progress(current, total),
+    )
+
+    return result
 
 
 def main():
