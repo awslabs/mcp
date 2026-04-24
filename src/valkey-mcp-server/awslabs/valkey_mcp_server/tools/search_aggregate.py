@@ -183,14 +183,15 @@ async def aggregate(
         client = await get_client()
 
         # Pre-validate on every call: GLIDE errors are catchable RequestErrors,
-        # but FastMCP's stdio transport crashes on exceptions during concurrent
-        # tool calls. Pre-validating avoids the error path.
+        # but GLIDE's native Rust logger writes warnings to stdout before the
+        # exception reaches Python, corrupting the MCP stdio transport.
         if not await index_exists(client, index_name):
             return {'status': 'error', 'reason': f"Index '{index_name}' does not exist"}
 
         # Reject wildcard '*' — some Valkey versions reject it with "Invalid: query string
-        # syntax". The resulting RequestError is catchable, but FastMCP's stdio transport
-        # crashes when exceptions occur during concurrent tool calls.
+        # syntax". The resulting RequestError is catchable, but GLIDE's native Rust logger
+        # writes warnings to stdout before the exception reaches Python, corrupting the
+        # MCP stdio transport.
         if query.strip() == '*':
             return {
                 'status': 'error',

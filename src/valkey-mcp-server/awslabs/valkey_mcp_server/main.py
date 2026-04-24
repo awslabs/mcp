@@ -104,6 +104,16 @@ def main():
     )
 
     args = parser.parse_args()
+
+    # Redirect the native stdout fd to stderr BEFORE GLIDE initializes.
+    # GLIDE's Rust logger_core writes ANSI-colored warnings directly to the native
+    # stdout fd, which corrupts the MCP stdio JSON-RPC transport. By redirecting
+    # fd 1 to stderr, native writes go to stderr while Python's sys.stdout (used
+    # by the MCP transport) continues to use the original fd via its buffered wrapper.
+    _original_stdout_fd = os.dup(1)
+    os.dup2(2, 1)  # fd 1 (stdout) now points to stderr
+    sys.stdout = os.fdopen(_original_stdout_fd, 'w')  # Python stdout uses the saved fd
+
     _configure_logging()
     Context.initialize(args.readonly)
 

@@ -109,8 +109,9 @@ async def search(
         client = await get_client()
 
         # Pre-validate on every call: while GLIDE raises a catchable RequestError
-        # for non-existent indices, FastMCP's stdio transport crashes when exceptions
-        # occur during concurrent tool calls. Pre-validating avoids the error path.
+        # for non-existent indices, GLIDE's native Rust logger writes warnings to
+        # stdout before the exception reaches Python. This corrupts the MCP stdio
+        # JSON-RPC transport. Pre-validating avoids the error path entirely.
         if not await index_exists(client, index_name):
             return {'status': 'error', 'reason': f"Index '{index_name}' does not exist"}
 
