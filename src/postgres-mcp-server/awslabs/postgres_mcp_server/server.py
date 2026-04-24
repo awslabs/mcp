@@ -288,6 +288,7 @@ async def connect_to_database(
     db_endpoint: Annotated[str, Field(description='database endpoint')],
     port: Annotated[int, Field(description='Postgres port')],
     database: Annotated[str, Field(description='database name')],
+    secret_arn: Annotated[Optional[str], Field(description='ARN of Secrets Manager secret (fallback when MasterUserSecret is not set)')] = None,
 ) -> str:
     """Connect to a specific database save the connection internally.
 
@@ -323,6 +324,7 @@ async def connect_to_database(
             db_endpoint=db_endpoint,
             port=port,
             database=database,
+            secret_arn_override=secret_arn,
         )
 
         # Eagerly initialize the connection pool so it's ready for queries
@@ -595,6 +597,7 @@ def internal_create_connection(
     db_endpoint: Annotated[str, Field(description='database endpoint')],
     port: Annotated[int, Field(description='Postgres port')],
     database: Annotated[str, Field(description='database name')] = 'postgres',
+    secret_arn_override: Optional[str] = None,
 ) -> Tuple:
     """Connect to a specific database save the connection internally.
 
@@ -665,6 +668,8 @@ def internal_create_connection(
         masteruser = cluster_properties.get('MasterUsername', '')
         cluster_arn = cluster_properties.get('DBClusterArn', '')
         secret_arn = cluster_properties.get('MasterUserSecret', {}).get('SecretArn')
+        if not secret_arn and secret_arn_override:
+            secret_arn = secret_arn_override
 
         if not db_endpoint:
             # if db_endpoint not set, we will use cluster's endpoint
@@ -675,6 +680,8 @@ def internal_create_connection(
         instance_properties = internal_get_instance_properties(db_endpoint, region)
         masteruser = instance_properties.get('MasterUsername', '')
         secret_arn = instance_properties.get('MasterUserSecret', {}).get('SecretArn')
+        if not secret_arn and secret_arn_override:
+            secret_arn = secret_arn_override
         port = int(instance_properties.get('Endpoint', {}).get('Port'))
 
     logger.info(
@@ -893,6 +900,8 @@ def main():
     )
     parser.add_argument('--database', help='Database name')
     parser.add_argument('--port', type=int, default=5432, help='Database port (default: 5432)')
+    parser.add_argument('--secret_arn', help='ARN of the Secrets Manager secret containing database credentials. '
+                        'Used as fallback when the cluster does not have MasterUserSecret (e.g. CDK-managed secrets).')
     args = parser.parse_args()
 
     logger.info(
@@ -920,9 +929,10 @@ def main():
                 database_type=DatabaseType[args.db_type],
                 connection_method=ConnectionMethod[args.connection_method],
                 cluster_identifier=cluster_identifier,
-                db_endpoint=args.hostname,
+                db_endpoint=args.db_endpoint,
                 port=args.port,
                 database=args.database,
+                secret_arn_override=args.secret_arn,
             )
 
             # Test database connection
