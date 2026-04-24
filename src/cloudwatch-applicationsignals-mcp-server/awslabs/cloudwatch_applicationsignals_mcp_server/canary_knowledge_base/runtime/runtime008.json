@@ -1,0 +1,89 @@
+{
+  "category": "screenshot",
+  "documentation_links": [
+    {
+      "title": "CloudWatch Synthetics Configuration Options",
+      "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Synthetics_Library_SyntheticsLogger_SyntheticsConfiguration.html"
+    },
+    {
+      "title": "CloudWatch Synthetics Runtime Versions",
+      "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Synthetics_Library_nodejs_puppeteer.html"
+    },
+    {
+      "title": "Puppeteer captureScreenshot issue",
+      "url": "https://github.com/puppeteer/puppeteer/issues/12712"
+    }
+  ],
+  "error_patterns": [
+    {
+      "text_contains": "Page.captureScreenshot timed out"
+    },
+    {
+      "text_contains": "ProtocolError: Page.captureScreenshot"
+    },
+    {
+      "text_contains": "TargetCloseError: Protocol error (Page.captureScreenshot): Target closed"
+    },
+    {
+      "text_contains": "protocolTimeout"
+    },
+    {
+      "text_contains": "captureScreenshot"
+    }
+  ],
+  "id": "RUNTIME-008",
+  "recommendations": [
+    {
+      "confidence": 75,
+      "estimated_time": "10 minutes",
+      "priority": "high",
+      "problem": "Puppeteer regression in 10.0 causes consistent screenshot timeouts on certain URLs",
+      "solution": [
+        {
+          "command": "// Add at the start of your canary handler:\nconst defaultLaunchOptions = await synthetics.getDefaultLaunchOptions();\nconst newLaunchArgs = defaultLaunchOptions.args.filter(\n  launchArg => launchArg !== '--single-process'\n);\nawait synthetics.launch({ args: newLaunchArgs });\n",
+          "description": "Add the following code at the start of your canary handler to remove the --single-process flag. NOTE: This workaround is NOT compatible with syn-nodejs-puppeteer-9.1 and earlier.",
+          "expected_outcome": "Canary completes successfully with screenshots enabled on syn-nodejs-puppeteer-10.0.",
+          "step": "Override Chromium launch args to remove --single-process"
+        }
+      ],
+      "title": "For syn-nodejs-puppeteer-10.0: remove --single-process flag from Chromium launch args"
+    },
+    {
+      "confidence": 90,
+      "estimated_time": "5 minutes",
+      "priority": "high",
+      "problem": "Screenshot operation exceeds Puppeteer protocol timeout",
+      "solution": [
+        {
+          "command": "// Disable all step screenshots:\nsyntheticsConfiguration.disableStepScreenshots();\n\n// Or selectively via setConfig:\nsyntheticsConfiguration.setConfig({\n  screenshotOnStepStart: false,\n  screenshotOnStepSuccess: false,\n  screenshotOnStepFailure: false,\n});\n",
+          "description": "Disable screenshots to prevent the timeout. This removes screenshots from canary artifacts but does not affect the pass/fail result.",
+          "expected_outcome": "Canary no longer times out on screenshot capture. Pass/fail detection is unaffected.",
+          "step": "Disable step screenshots in syntheticsConfiguration"
+        }
+      ],
+      "title": "Disable screenshots for the failing step"
+    }
+  ],
+  "root_cause": "Puppeteer's Page.captureScreenshot sends a CDP command to Chromium, which must render the full page and encode it as a PNG before responding. Two distinct failure modes exist:\n\n1. General (all runtimes): Pages with large/complex DOMs or many images exceed the CDP protocol timeout during screenshot encoding. This is intermittent because rendering time depends on page state and Lambda CPU availability.\n\n2. syn-nodejs-puppeteer-10.0 regression: The bundled Puppeteer version introduced a regression where the --single-process Chromium flag causes consistent screenshot timeouts on certain URLs in Lambda. Removing --single-process from launch args resolves this variant.",
+  "runtime_versions": [
+    "syn-nodejs-puppeteer-10.0+"
+  ],
+  "severity": "high",
+  "symptoms": [
+    "Canary fails with 'ProtocolError: Page.captureScreenshot timed out. Increase the protocolTimeout setting in launch/connect calls for a higher timeout if needed.'",
+    "Variant: 'TargetCloseError: Protocol error (Page.captureScreenshot): Target closed'",
+    "Error occurs during step execution when Synthetics attempts to take a screenshot",
+    "Issue may be intermittent (most runs succeed) or consistent depending on the runtime version and page",
+    "On syn-nodejs-puppeteer-10.0: same canary script works fine on 9.1 or earlier; disabling screenshots allows canary to pass",
+    "Memory and ephemeral storage usage are within limits",
+    "The page being tested may be large or complex with many DOM elements or images"
+  ],
+  "tags": [
+    "protocolTimeout",
+    "puppeteer",
+    "intermittent",
+    "runtime-regression",
+    "single-process"
+  ],
+  "title": "Canary fails with 'ProtocolError: Page.captureScreenshot timed out'"
+}
