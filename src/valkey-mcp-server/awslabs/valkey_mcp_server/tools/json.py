@@ -21,6 +21,7 @@ import logging
 from awslabs.valkey_mcp_server.common.connection import get_client
 from awslabs.valkey_mcp_server.common.server import mcp
 from awslabs.valkey_mcp_server.common.utils import decode_value, readonly_guard, tool_errors
+from glide import glide_json
 from glide_shared.exceptions import RequestError
 from typing import Any
 
@@ -51,7 +52,7 @@ def _unwrap_single(val: Any, path: str) -> Any:
 async def _get_json_type(client: Any, key: str, path: str) -> str | None:
     """Get the JSON type at a path. Returns None if key/path doesn't exist."""
     try:
-        result = await client.custom_command(['JSON.TYPE', key, path])
+        result = await glide_json.type(client, key, path)
         if result is None:
             return None
         if isinstance(result, list):
@@ -92,23 +93,14 @@ async def json_get(
         are unwrapped from the JSONPath array.
     """
     client = await get_client()
-    result = await client.custom_command(['JSON.GET', key, path])
+    result = await glide_json.get(client, key, paths=path)
     if result is None:
         return {
             'status': 'error',
             'reason': f"Key '{key}' not found or path '{path}' does not exist",
         }
     parsed = _parse_json_response(result)
-    unwrapped = _unwrap_single(parsed, path)
-    logger.debug(
-        'json_get: key=%r path=%r raw=%r parsed=%r unwrapped=%r',
-        key,
-        path,
-        result,
-        parsed,
-        unwrapped,
-    )
-    return {'status': 'success', 'value': unwrapped}
+    return {'status': 'success', 'value': _unwrap_single(parsed, path)}
 
 
 @mcp.tool()
@@ -133,15 +125,7 @@ async def json_set(
     """
     client = await get_client()
     encoded = json_stdlib.dumps(value)
-    logger.debug(
-        'json_set: key=%r path=%r value=%r type=%s encoded=%r',
-        key,
-        path,
-        value,
-        type(value).__name__,
-        encoded,
-    )
-    await client.custom_command(['JSON.SET', key, path, encoded])
+    await glide_json.set(client, key, path, encoded)
     if ttl is not None:
         await client.expire(key, ttl)
     return {'status': 'success'}
@@ -168,8 +152,8 @@ async def json_arrappend(
     client = await get_client()
     if err := await _require_array(client, key, path):
         return err
-    cmd: list = ['JSON.ARRAPPEND', key, path] + [json_stdlib.dumps(v) for v in values]
-    result = await client.custom_command(cmd)
+    encoded_values: list = [json_stdlib.dumps(v) for v in values]
+    result = await glide_json.arrappend(client, key, path, encoded_values)
     parsed = result if isinstance(result, list) else [result]
     length = _unwrap_single(parsed, path)
     return {'status': 'success', 'new_length': length}
@@ -193,10 +177,12 @@ async def json_arrpop(
     Returns:
         Dict with "status" and "popped" value.
     """
+    from glide_shared.commands.server_modules.json_options import JsonArrPopOptions
+
     client = await get_client()
     if err := await _require_array(client, key, path):
         return err
-    result = await client.custom_command(['JSON.ARRPOP', key, path, str(index)])
+    result = await glide_json.arrpop(client, key, JsonArrPopOptions(path=path, index=index))
     if isinstance(result, list):
         popped = [_parse_json_response(v) for v in result]
         return {'status': 'success', 'popped': _unwrap_single(popped, path)}
@@ -227,7 +213,7 @@ async def json_arrtrim(
     client = await get_client()
     if err := await _require_array(client, key, path):
         return err
-    result = await client.custom_command(['JSON.ARRTRIM', key, path, str(start), str(stop)])
+    result = await glide_json.arrtrim(client, key, path, start, stop)
     parsed = result if isinstance(result, list) else [result]
     length = _unwrap_single(parsed, path)
     return {'status': 'success', 'new_length': length}

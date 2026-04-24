@@ -244,6 +244,8 @@ docker run -p 8080:8080 \
 | `VALKEY_USE_SSL` | Enable TLS | `false` |
 | `VALKEY_SSL_CA_CERTS` | Path to CA certificate (PEM) for TLS verification | `None` |
 | `VALKEY_CLUSTER_MODE` | Enable cluster mode | `false` |
+| `VALKEY_VECTOR_ALGORITHM` | Default vector index algorithm (`HNSW` or `FLAT`) | `HNSW` |
+| `VALKEY_VECTOR_DISTANCE_METRIC` | Default vector distance metric (`COSINE`, `L2`, or `IP`) | `COSINE` |
 | `VALKEY_ADMIN_ENABLED` | Enable admin tier (destructive commands) | `false` |
 
 ### Embeddings Provider

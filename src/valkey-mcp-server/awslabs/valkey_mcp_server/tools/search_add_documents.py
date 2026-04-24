@@ -34,6 +34,7 @@ from glide_shared.commands.server_modules.ft_options.ft_create_options import (
     FtCreateOptions,
     VectorAlgorithm,
     VectorField,
+    VectorFieldAttributesFlat,
     VectorFieldAttributesHnsw,
     VectorType,
 )
@@ -44,18 +45,37 @@ logger = logging.getLogger(__name__)
 
 
 async def _auto_create_index(client, index_name, prefix, embedding_field, dimensions):
-    """Create a minimal vector index for auto-creation."""
-    schema: list = [
-        VectorField(
-            embedding_field,
-            VectorAlgorithm.HNSW,
-            VectorFieldAttributesHnsw(
-                dimensions=dimensions,
-                distance_metric=DistanceMetricType.COSINE,
-                type=VectorType.FLOAT32,
-            ),
-        ),
-    ]
+    """Create a minimal vector index for auto-creation.
+
+    Reads defaults from VALKEY_VECTOR_ALGORITHM and VALKEY_VECTOR_DISTANCE_METRIC
+    environment variables (falling back to HNSW and COSINE).
+    """
+    from awslabs.valkey_mcp_server.common.config import VALKEY_CFG
+
+    algo_map = {'HNSW': VectorAlgorithm.HNSW, 'FLAT': VectorAlgorithm.FLAT}
+    metric_map = {
+        'COSINE': DistanceMetricType.COSINE,
+        'L2': DistanceMetricType.L2,
+        'IP': DistanceMetricType.IP,
+    }
+    algo = algo_map.get(VALKEY_CFG.get('vector_algorithm', 'HNSW'), VectorAlgorithm.HNSW)
+    metric = metric_map.get(
+        VALKEY_CFG.get('vector_distance_metric', 'COSINE'), DistanceMetricType.COSINE
+    )
+
+    if algo == VectorAlgorithm.HNSW:
+        attrs = VectorFieldAttributesHnsw(
+            dimensions=dimensions,
+            distance_metric=metric,
+            type=VectorType.FLOAT32,
+        )
+    else:
+        attrs = VectorFieldAttributesFlat(
+            dimensions=dimensions,
+            distance_metric=metric,
+            type=VectorType.FLOAT32,
+        )
+    schema: list = [VectorField(embedding_field, algo, attrs)]
     prefixes: list[str | bytes | bytearray | memoryview] = [prefix]
     await ft.create(
         client,

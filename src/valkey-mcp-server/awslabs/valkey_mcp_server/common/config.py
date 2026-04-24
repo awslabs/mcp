@@ -30,6 +30,8 @@ VALKEY_CFG = {
     'ssl': os.getenv('VALKEY_USE_SSL', False) in ('true', '1', 't'),
     'ssl_ca_certs': os.getenv('VALKEY_SSL_CA_CERTS', None),
     'cluster_mode': os.getenv('VALKEY_CLUSTER_MODE', False) in ('true', '1', 't'),
+    'vector_algorithm': os.getenv('VALKEY_VECTOR_ALGORITHM', 'HNSW').upper(),
+    'vector_distance_metric': os.getenv('VALKEY_VECTOR_DISTANCE_METRIC', 'COSINE').upper(),
 }
 
 
