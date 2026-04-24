@@ -45,6 +45,13 @@ const sidebars: SidebarsConfig = {
         },
         {
           type: "category",
+          label: "Migration & Modernization",
+          items: [
+            "servers/aws-transform-mcp-server",
+          ],
+        },
+        {
+          type: "category",
           label: "Infrastructure & Deployment",
           items: [
             "servers/aws-iac-mcp-server",
