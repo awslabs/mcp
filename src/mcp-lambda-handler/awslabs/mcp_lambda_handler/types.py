@@ -69,12 +69,14 @@ class ServerInfo:
 
 @dataclass
 class Capabilities:
-    tools: Dict[str, bool]
+    tools: Optional[Dict[str, bool]] = None
     resources: Optional[Dict[str, bool]] = None
 
     def model_dump(self) -> Dict:
-        data = {'tools': self.tools}
-        if self.resources:
+        data: Dict[str, Any] = {}
+        if self.tools is not None:
+            data['tools'] = self.tools
+        if self.resources is not None:
             data['resources'] = self.resources
         return data
 
@@ -84,13 +86,17 @@ class InitializeResult:
     protocolVersion: str
     serverInfo: ServerInfo
     capabilities: Capabilities
+    instructions: Optional[str] = None
 
     def model_dump(self) -> Dict:
-        return {
+        data = {
             'protocolVersion': self.protocolVersion,
             'serverInfo': self.serverInfo.model_dump(),
             'capabilities': self.capabilities.model_dump(),
         }
+        if self.instructions is not None:
+            data['instructions'] = self.instructions
+        return data
 
     def model_dump_json(self) -> str:
         import json
@@ -148,6 +154,21 @@ class ImageContent:
     data: str
     mimeType: str
     type: str = 'image'
+
+    def model_dump(self) -> Dict:
+        return {'type': self.type, 'data': self.data, 'mimeType': self.mimeType}
+
+    def model_dump_json(self) -> str:
+        import json
+
+        return json.dumps(self.model_dump())
+
+
+@dataclass
+class AudioContent:
+    data: str
+    mimeType: str
+    type: str = 'audio'
 
     def model_dump(self) -> Dict:
         return {'type': self.type, 'data': self.data, 'mimeType': self.mimeType}

@@ -7,6 +7,7 @@ import typing
 from awslabs.mcp_lambda_handler.mcp_lambda_handler import MCPLambdaHandler, SessionData
 from awslabs.mcp_lambda_handler.session import DynamoDBSessionStore, NoOpSessionStore
 from awslabs.mcp_lambda_handler.types import (
+    AudioContent,
     Capabilities,
     ErrorContent,
     FileResource,
@@ -272,9 +273,9 @@ def test_serverinfo_model_dump():
 
 def test_capabilities_model_dump():
     """Test Capabilities model_dump method."""
-    cap = Capabilities(tools={'foo': True})
+    cap = Capabilities(tools={'listChanged': True})
     d = cap.model_dump()
-    assert d['tools']['foo'] is True
+    assert d['tools']['listChanged'] is True
 
 
 def test_initialize_result_model_dump_json():
@@ -781,6 +782,8 @@ def test_dynamodb_sessionstore_create_session_exception():
         (ErrorContent, {'text': ''}, []),
         (ImageContent, {'data': 'abc', 'mimeType': 'image/png'}, ['image/png']),
         (ImageContent, {'data': '', 'mimeType': ''}, []),
+        (AudioContent, {'data': 'abc', 'mimeType': 'audio/mpeg'}, ['audio/mpeg']),
+        (AudioContent, {'data': '', 'mimeType': ''}, []),
     ],
 )
 def test_types_model_dump_json(model_class, test_data, expected_checks):
@@ -806,8 +809,8 @@ def test_types_model_dump_json(model_class, test_data, expected_checks):
         (ServerInfo, {'name': 'n', 'version': 'v'}, {'name': 'n', 'version': 'v'}),
         (ServerInfo, {'name': '', 'version': ''}, {'name': '', 'version': ''}),
         # Capabilities tests
-        (Capabilities, {'tools': {'foo': True}}, {'tools': {'foo': True}}),
-        (Capabilities, {'tools': {}}, {'tools': {}}),
+        (Capabilities, {'tools': {'listChanged': True}}, {'tools': {'listChanged': True}}),
+        (Capabilities, {'tools': {'listChanged': False}, 'resources': {'listChanged': True}}, {'tools': {'listChanged': False}, 'resources': {'listChanged': True}}),
     ],
 )
 def test_types_model_dump(model_class, test_data, expected_values):
@@ -1375,7 +1378,7 @@ def test_handle_resources_read_not_found():
     assert resp['statusCode'] == 404
     body = json.loads(resp['body'])
     assert 'error' in body
-    assert body['error']['code'] == -32601
+    assert body['error']['code'] == -32002
     assert 'Resource not found: nonexistent://resource' in body['error']['message']
 
 
@@ -1409,22 +1412,33 @@ def test_handle_resources_read_exception():
 
 
 def test_initialize_includes_resources_capability():
-    """Test that initialize response includes resources capability."""
+    """Test that initialize response includes resources capability when resources are registered."""
     handler = MCPLambdaHandler('test-server')
 
-    req = {'jsonrpc': '2.0', 'id': 1, 'method': 'initialize', 'params': {}}
+    # Add a resource so capabilities include resources
+    static_resource = StaticResource(
+        uri='static://test', name='Static Test', content='Hello World'
+    )
+    handler.add_resource(static_resource)
+
+    req = {
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'initialize',
+        'params': {'protocolVersion': '2025-11-25'},
+    }
     event = make_lambda_event(req)
     resp = handler.handle_request(event, None)
 
     assert resp['statusCode'] == 200
     body = json.loads(resp['body'])
     assert 'result' in body
+    assert body['result']['protocolVersion'] == '2025-11-25'
     assert 'capabilities' in body['result']
 
     capabilities = body['result']['capabilities']
     assert 'resources' in capabilities
-    assert capabilities['resources']['list'] is True
-    assert capabilities['resources']['read'] is True
+    assert 'listChanged' in capabilities['resources']
 
 
 def test_tool_names_preserve_snake_case():
@@ -1483,6 +1497,205 @@ def test_tool_names_preserve_snake_case():
     body = json.loads(resp['body'])
     assert 'result' in body
     assert body['result']['content'][0]['text'] == 'Searching for: laptop'
+
+
+def test_initialize_protocol_version_negotiation():
+    """Test protocol version negotiation during initialization."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def dummy() -> str:
+        """Dummy tool."""
+        return 'ok'
+
+    # Client sends a supported version
+    req = {
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'initialize',
+        'params': {'protocolVersion': '2025-11-25', 'capabilities': {}, 'clientInfo': {'name': 'test', 'version': '1.0'}},
+    }
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+    body = json.loads(resp['body'])
+    assert body['result']['protocolVersion'] == '2025-11-25'
+
+    # Client sends an older supported version
+    req['params']['protocolVersion'] = '2024-11-05'
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+    body = json.loads(resp['body'])
+    assert body['result']['protocolVersion'] == '2024-11-05'
+
+    # Client sends an unsupported version — server responds with latest
+    req['params']['protocolVersion'] = '9999-12-31'
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+    body = json.loads(resp['body'])
+    assert body['result']['protocolVersion'] == '2025-11-25'
+
+
+def test_initialize_with_instructions():
+    """Test that instructions are included in initialize response when set."""
+    handler = MCPLambdaHandler('test-server', instructions='Use tools to query data.')
+
+    @handler.tool()
+    def dummy() -> str:
+        """Dummy tool."""
+        return 'ok'
+
+    req = {
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'initialize',
+        'params': {'protocolVersion': '2025-11-25'},
+    }
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+    body = json.loads(resp['body'])
+    assert body['result']['instructions'] == 'Use tools to query data.'
+
+
+def test_initialize_without_instructions():
+    """Test that instructions field is omitted when not set."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def dummy() -> str:
+        """Dummy tool."""
+        return 'ok'
+
+    req = {
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'initialize',
+        'params': {'protocolVersion': '2025-11-25'},
+    }
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+    body = json.loads(resp['body'])
+    assert 'instructions' not in body['result']
+
+
+def test_initialize_capabilities_only_registered():
+    """Test that capabilities only advertise registered tools/resources."""
+    handler = MCPLambdaHandler('test-server')
+
+    # No tools or resources registered
+    req = {
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'initialize',
+        'params': {'protocolVersion': '2025-11-25'},
+    }
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+    body = json.loads(resp['body'])
+    capabilities = body['result']['capabilities']
+    assert 'tools' not in capabilities
+    assert 'resources' not in capabilities
+
+    # Register a tool
+    @handler.tool()
+    def dummy() -> str:
+        """Dummy tool."""
+        return 'ok'
+
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+    body = json.loads(resp['body'])
+    capabilities = body['result']['capabilities']
+    assert 'tools' in capabilities
+    assert 'resources' not in capabilities
+
+
+def test_mcp_protocol_version_header():
+    """Test that responses include the MCP-Protocol-Version header."""
+    handler = MCPLambdaHandler('test-server')
+
+    req = {'jsonrpc': '2.0', 'id': 1, 'method': 'ping'}
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+    assert resp['headers']['MCP-Protocol-Version'] == '2025-11-25'
+
+
+def test_tools_call_includes_is_error():
+    """Test that tools/call response includes isError field."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def echo(msg: str) -> str:
+        """Echo message.
+
+        Args:
+            msg: message to echo
+        """
+        return msg
+
+    req = {
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'tools/call',
+        'params': {'name': 'echo', 'arguments': {'msg': 'hello'}},
+    }
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+    body = json.loads(resp['body'])
+    assert body['result']['isError'] is False
+
+
+def test_handle_audio_byte_streams():
+    """Test handling of audio byte streams."""
+    handler = MCPLambdaHandler('test-server')
+
+    audio_data = {
+        'mp3_id3': {
+            'bytes': b'ID3\x04\x00\x00\x00\x00\x00\x00',
+            'mime': 'audio/mpeg',
+        },
+        'mp3_sync': {
+            'bytes': b'\xff\xfb\x90\x00\x00\x00\x00\x00',
+            'mime': 'audio/mpeg',
+        },
+        'wav': {
+            'bytes': b'RIFF\x24\x00\x00\x00WAVEfmt ',
+            'mime': 'audio/wav',
+        },
+        'ogg': {
+            'bytes': b'OggS\x00\x02\x00\x00\x00\x00',
+            'mime': 'audio/ogg',
+        },
+        'flac': {
+            'bytes': b'fLaC\x00\x00\x00\x22\x00\x00',
+            'mime': 'audio/flac',
+        },
+    }
+
+    for format_name, format_data in audio_data.items():
+
+        @handler.tool()
+        def get_audio() -> bytes:
+            """Return audio bytes."""
+            return format_data['bytes']
+
+        req = {
+            'jsonrpc': '2.0',
+            'id': 1,
+            'method': 'tools/call',
+            'params': {'name': 'get_audio', 'arguments': {}},
+        }
+        event = make_lambda_event(req)
+        resp = handler.handle_request(event, None)
+
+        body = json.loads(resp['body'])
+        content = body['result']['content'][0]
+        assert content['type'] == 'audio', f'Wrong content type for {format_name}'
+        assert content['mimeType'] == format_data['mime'], f'Wrong MIME type for {format_name}'
+
+        import base64
+
+        decoded_bytes = base64.b64decode(content['data'])
+        assert decoded_bytes == format_data['bytes'], f'Data mismatch for {format_name}'
 
 
 def test_multiple_resources_same_handler():

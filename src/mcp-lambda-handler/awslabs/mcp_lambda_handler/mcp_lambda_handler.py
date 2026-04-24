@@ -18,6 +18,7 @@ import json
 import logging
 from awslabs.mcp_lambda_handler.session import DynamoDBSessionStore, NoOpSessionStore, SessionStore
 from awslabs.mcp_lambda_handler.types import (
+    AudioContent,
     Capabilities,
     ErrorContent,
     ImageContent,
@@ -31,6 +32,9 @@ from awslabs.mcp_lambda_handler.types import (
     StaticResource,
     TextContent,
 )
+
+LATEST_PROTOCOL_VERSION = '2025-11-25'
+SUPPORTED_PROTOCOL_VERSIONS = {'2024-11-05', '2025-03-26', '2025-06-18', '2025-11-25'}
 from contextvars import ContextVar
 from enum import Enum
 from typing import (
@@ -84,6 +88,7 @@ class MCPLambdaHandler:
         name: str,
         version: str = '1.0.0',
         session_store: Optional[Union[SessionStore, str]] = None,
+        instructions: Optional[str] = None,
     ):
         """Initialize the MCP handler.
 
@@ -94,10 +99,12 @@ class MCPLambdaHandler:
                          - None for no sessions
                          - A SessionStore instance
                          - A string for DynamoDB table name (for backwards compatibility)
+            instructions: Optional instructions for LLM on how to use this server
 
         """
         self.name = name
         self.version = version
+        self.instructions = instructions
         self.tools: Dict[str, Dict] = {}
         self.tool_implementations: Dict[str, Callable] = {}
         self.resources: Dict[str, Resource] = {}
@@ -332,7 +339,7 @@ class MCPLambdaHandler:
             jsonrpc='2.0', id=request_id, error=error, errorContent=error_content
         )
 
-        headers = {'Content-Type': 'application/json', 'MCP-Version': '0.6'}
+        headers = {'Content-Type': 'application/json', 'MCP-Protocol-Version': LATEST_PROTOCOL_VERSION}
         if session_id:
             headers['MCP-Session-Id'] = session_id
 
@@ -350,6 +357,7 @@ class MCPLambdaHandler:
             -32601: 404,  # Method not found
             -32602: 400,  # Invalid params
             -32603: 500,  # Internal error
+            -32002: 404,  # Resource not found
         }
         return error_map.get(error_code, 500)
 
@@ -378,10 +386,23 @@ class MCPLambdaHandler:
                 mime_type = 'image/gif'
             elif result.startswith(b'RIFF') and result[8:12] == b'WEBP':  # WebP
                 mime_type = 'image/webp'
+            # Check for common audio signatures
+            elif result.startswith(b'ID3') or result[:2] == b'\xff\xfb':  # MP3
+                mime_type = 'audio/mpeg'
+            elif result.startswith(b'RIFF') and result[8:12] == b'WAVE':  # WAV
+                mime_type = 'audio/wav'
+            elif result.startswith(b'OggS'):  # OGG
+                mime_type = 'audio/ogg'
+            elif result.startswith(b'fLaC'):  # FLAC
+                mime_type = 'audio/flac'
 
             # Convert bytes to base64 string
             base64_data = base64.b64encode(result).decode('utf-8')
-            return [ImageContent(data=base64_data, mimeType=mime_type).model_dump()]
+
+            if mime_type.startswith('audio/'):
+                return [AudioContent(data=base64_data, mimeType=mime_type).model_dump()]
+            else:
+                return [ImageContent(data=base64_data, mimeType=mime_type).model_dump()]
         else:
             # Default to text content for other result types
             return [TextContent(text=str(result)).model_dump()]
@@ -392,7 +413,7 @@ class MCPLambdaHandler:
         """Create a standardized success response."""
         response = JSONRPCResponse(jsonrpc='2.0', id=request_id, result=result)
 
-        headers = {'Content-Type': 'application/json', 'MCP-Version': '0.6'}
+        headers = {'Content-Type': 'application/json', 'MCP-Protocol-Version': LATEST_PROTOCOL_VERSION}
         if session_id:
             headers['MCP-Session-Id'] = session_id
 
@@ -441,7 +462,7 @@ class MCPLambdaHandler:
                     return {
                         'statusCode': 202,
                         'body': '',
-                        'headers': {'Content-Type': 'application/json', 'MCP-Version': '0.6'},
+                        'headers': {'Content-Type': 'application/json', 'MCP-Protocol-Version': LATEST_PROTOCOL_VERSION},
                     }
 
                 # Validate basic JSON-RPC structure
@@ -465,12 +486,27 @@ class MCPLambdaHandler:
                 # Create new session
                 session_id = self.session_store.create_session()
                 current_session_id.set(session_id)
+
+                # Protocol version negotiation
+                client_version = (request.params or {}).get(
+                    'protocolVersion', LATEST_PROTOCOL_VERSION
+                )
+                if client_version in SUPPORTED_PROTOCOL_VERSIONS:
+                    negotiated_version = client_version
+                else:
+                    negotiated_version = LATEST_PROTOCOL_VERSION
+
+                capabilities = Capabilities()
+                if self.tools:
+                    capabilities.tools = {'listChanged': False}
+                if self.resources:
+                    capabilities.resources = {'listChanged': False}
+
                 result = InitializeResult(
-                    protocolVersion='2024-11-05',
+                    protocolVersion=negotiated_version,
                     serverInfo=ServerInfo(name=self.name, version=self.version),
-                    capabilities=Capabilities(
-                        tools={'list': True, 'call': True}, resources={'list': True, 'read': True}
-                    ),
+                    capabilities=capabilities,
+                    instructions=self.instructions,
                 )
                 return self._create_success_response(result.model_dump(), request.id, session_id)
 
@@ -521,7 +557,7 @@ class MCPLambdaHandler:
                     result = tool_func(**converted_args)
                     content = self._convert_result_to_content(result)
                     return self._create_success_response(
-                        {'content': content}, request.id, session_id
+                        {'content': content, 'isError': False}, request.id, session_id
                     )
                 except Exception as e:
                     logger.error(f'Error executing tool {tool_name}: {e}')
@@ -561,7 +597,7 @@ class MCPLambdaHandler:
 
                 if resource_uri not in self.resources:
                     return self._create_error_response(
-                        -32601,
+                        -32002,
                         f'Resource not found: {resource_uri}',
                         request.id,
                         session_id=session_id,
