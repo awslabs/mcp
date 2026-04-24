@@ -273,6 +273,10 @@ def resolve_influxdb_config(
 ) -> tuple:
     """Resolve InfluxDB configuration from parameters or environment variables.
 
+    To prevent SSRF and credential leakage, caller-supplied connection parameters
+    and server environment credentials are never mixed. Either ALL parameters come
+    from the caller, or ALL come from environment variables.
+
     Args:
         url: The URL of the InfluxDB server (optional, falls back to INFLUXDB_URL env var).
         token: The authentication token (optional, falls back to INFLUXDB_TOKEN env var).
@@ -283,24 +287,54 @@ def resolve_influxdb_config(
         A tuple of (resolved_url, resolved_token, resolved_org).
 
     Raises:
-        ValueError: If required parameters are not provided.
+        ValueError: If required parameters are not provided or if caller-supplied
+            and server credentials are mixed.
     """
-    resolved_url = url or INFLUXDB_URL
-    resolved_token = token or INFLUXDB_TOKEN
-    resolved_org = org or INFLUXDB_ORG
+    # Determine whether the caller is providing custom connection parameters.
+    # Any caller-supplied parameter signals a custom connection — in that case
+    # ALL connection parameters must come from the caller to prevent mixing
+    # server-resident credentials with attacker-controlled endpoints (SSRF).
+    caller_supplied = any(p is not None for p in (url, token, org))
 
-    if not resolved_url:
-        raise ValueError(
-            'URL must be provided either as parameter or via INFLUXDB_URL environment variable'
-        )
-    if not resolved_token:
-        raise ValueError(
-            'Token must be provided either as parameter or via INFLUXDB_TOKEN environment variable'
-        )
-    if require_org and not resolved_org:
-        raise ValueError(
-            'Organization must be provided either as parameter or via INFLUXDB_ORG environment variable'
-        )
+    if caller_supplied:
+        # Do not fall back to environment variables for any parameter.
+        resolved_url = url
+        resolved_token = token
+        resolved_org = org
+
+        if not resolved_url:
+            raise ValueError(
+                'When custom connection parameters are provided, url is required. '
+                'Server credentials cannot be mixed with caller-supplied parameters.'
+            )
+        if not resolved_token:
+            raise ValueError(
+                'When custom connection parameters are provided, token is required. '
+                'Server credentials cannot be mixed with caller-supplied parameters.'
+            )
+        if require_org and not resolved_org:
+            raise ValueError(
+                'When custom connection parameters are provided, org is required. '
+                'Server credentials cannot be mixed with caller-supplied parameters.'
+            )
+    else:
+        # All parameters come from environment variables.
+        resolved_url = INFLUXDB_URL
+        resolved_token = INFLUXDB_TOKEN
+        resolved_org = INFLUXDB_ORG
+
+        if not resolved_url:
+            raise ValueError(
+                'URL must be provided either as parameter or via INFLUXDB_URL environment variable'
+            )
+        if not resolved_token:
+            raise ValueError(
+                'Token must be provided either as parameter or via INFLUXDB_TOKEN environment variable'
+            )
+        if require_org and not resolved_org:
+            raise ValueError(
+                'Organization must be provided either as parameter or via INFLUXDB_ORG environment variable'
+            )
 
     return resolved_url, resolved_token, resolved_org
 

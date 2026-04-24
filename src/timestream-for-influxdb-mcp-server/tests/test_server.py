@@ -2294,7 +2294,7 @@ class TestResolveInfluxDBConfig:
         with pytest.raises(ValueError) as excinfo:
             resolve_influxdb_config(url=None, token='test-token', org='test-org')
 
-        assert 'URL must be provided' in str(excinfo.value)
+        assert 'url is required' in str(excinfo.value)
 
     def test_resolve_influxdb_config_missing_token(self):
         """Test resolve_influxdb_config when token is missing."""
@@ -2303,7 +2303,7 @@ class TestResolveInfluxDBConfig:
         with pytest.raises(ValueError) as excinfo:
             resolve_influxdb_config(url='https://example.com', token=None, org='test-org')
 
-        assert 'Token must be provided' in str(excinfo.value)
+        assert 'token is required' in str(excinfo.value)
 
     def test_resolve_influxdb_config_missing_org_when_required(self):
         """Test resolve_influxdb_config when org is missing and required."""
@@ -2314,7 +2314,7 @@ class TestResolveInfluxDBConfig:
                 url='https://example.com', token='test-token', org=None, require_org=True
             )
 
-        assert 'Organization must be provided' in str(excinfo.value)
+        assert 'org is required' in str(excinfo.value)
 
     def test_resolve_influxdb_config_org_not_required(self):
         """Test resolve_influxdb_config when org is not required."""
@@ -2327,6 +2327,77 @@ class TestResolveInfluxDBConfig:
         assert url == 'https://example.com'
         assert token == 'test-token'
         assert org is None
+
+    def test_resolve_rejects_custom_url_without_token(self):
+        """Test that providing a custom URL without a token is rejected (SSRF prevention)."""
+        from awslabs.timestream_for_influxdb_mcp_server.server import resolve_influxdb_config
+
+        with pytest.raises(ValueError) as excinfo:
+            resolve_influxdb_config(url='https://evil.example.com', token=None, org=None)
+
+        assert 'token is required' in str(excinfo.value)
+        assert 'Server credentials cannot be mixed' in str(excinfo.value)
+
+    def test_resolve_rejects_custom_token_without_url(self):
+        """Test that providing a custom token without a URL is rejected (mixed trust prevention)."""
+        from awslabs.timestream_for_influxdb_mcp_server.server import resolve_influxdb_config
+
+        with pytest.raises(ValueError) as excinfo:
+            resolve_influxdb_config(url=None, token='attacker-token', org=None)
+
+        assert 'url is required' in str(excinfo.value)
+        assert 'Server credentials cannot be mixed' in str(excinfo.value)
+
+    def test_resolve_rejects_custom_org_without_url_and_token(self):
+        """Test that providing only a custom org is rejected (mixed trust prevention)."""
+        from awslabs.timestream_for_influxdb_mcp_server.server import resolve_influxdb_config
+
+        with pytest.raises(ValueError) as excinfo:
+            resolve_influxdb_config(url=None, token=None, org='attacker-org')
+
+        assert 'url is required' in str(excinfo.value)
+        assert 'Server credentials cannot be mixed' in str(excinfo.value)
+
+    def test_resolve_accepts_all_caller_supplied_params(self):
+        """Test that providing all custom params works correctly."""
+        from awslabs.timestream_for_influxdb_mcp_server.server import resolve_influxdb_config
+
+        url, token, org = resolve_influxdb_config(
+            url='https://custom.example.com', token='custom-token', org='custom-org'
+        )
+
+        assert url == 'https://custom.example.com'
+        assert token == 'custom-token'
+        assert org == 'custom-org'
+
+    @patch(
+        'awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_URL', 'https://env.example.com'
+    )
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_TOKEN', 'env-token')
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_ORG', 'env-org')
+    def test_resolve_uses_env_vars_when_no_caller_params(self):
+        """Test that env vars are used when no caller params are provided."""
+        from awslabs.timestream_for_influxdb_mcp_server.server import resolve_influxdb_config
+
+        url, token, org = resolve_influxdb_config()
+
+        assert url == 'https://env.example.com'
+        assert token == 'env-token'
+        assert org == 'env-org'
+
+    @patch(
+        'awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_URL', 'https://env.example.com'
+    )
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_TOKEN', 'env-token')
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_ORG', 'env-org')
+    def test_resolve_does_not_leak_env_token_to_custom_url(self):
+        """Test that env token is never sent to a caller-supplied URL (SSRF prevention)."""
+        from awslabs.timestream_for_influxdb_mcp_server.server import resolve_influxdb_config
+
+        with pytest.raises(ValueError) as excinfo:
+            resolve_influxdb_config(url='https://evil.example.com', token=None, org=None)
+
+        assert 'Server credentials cannot be mixed' in str(excinfo.value)
 
 
 class TestInfluxDBAsyncWriteMode:
