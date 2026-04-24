@@ -46,6 +46,10 @@ def mock_aws_clients():
     """Mock all AWS clients to prevent real API calls during tests."""
     mock_applicationsignals_client = MagicMock()
     mock_cloudwatch_client = MagicMock()
+    mock_synthetics_client = MagicMock()
+
+    # Default return for canary check pagination — prevents infinite loop in check_canaries_for_service
+    mock_applicationsignals_client.list_service_dependents.return_value = {'ServiceDependents': []}
 
     patches = [
         patch(
@@ -56,6 +60,14 @@ def mock_aws_clients():
             'awslabs.cloudwatch_applicationsignals_mcp_server.group_tools.cloudwatch_client',
             mock_cloudwatch_client,
         ),
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.applicationsignals_client',
+            mock_applicationsignals_client,
+        ),
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.synthetics_client',
+            mock_synthetics_client,
+        ),
     ]
 
     for p in patches:
@@ -65,6 +77,7 @@ def mock_aws_clients():
         yield {
             'applicationsignals_client': mock_applicationsignals_client,
             'cloudwatch_client': mock_cloudwatch_client,
+            'synthetics_client': mock_synthetics_client,
         }
     finally:
         for p in patches:
@@ -1511,3 +1524,186 @@ class TestListGroupingAttributeDefinitions:
         result = await list_grouping_attribute_definitions()
 
         assert 'aws:tag:CostCenter, otel.resource.cost_center, custom.attribute.cc' in result
+
+
+# =============================================================================
+# TESTS: audit_group_health canary integration
+# =============================================================================
+
+
+class TestAuditGroupHealthCanaryIntegration:
+    """Tests for the canary health check section in audit_group_health."""
+
+    @pytest.mark.asyncio
+    async def test_canary_section_with_failing_canary(self, mock_aws_clients):
+        """Test audit_group_health includes failing canary info."""
+        mock_appsignals = mock_aws_clients['applicationsignals_client']
+
+        # Setup: list_services returns a service with a canary dependent
+        svc = {
+            'KeyAttributes': {
+                'Name': 'payment-service',
+                'Type': 'Service',
+                'Environment': 'eks:prod',
+            },
+            'ServiceGroups': [
+                {
+                    'GroupName': 'App',
+                    'GroupValue': 'Payments',
+                    'GroupSource': 'TAG',
+                    'GroupIdentifier': 'App=Payments',
+                }
+            ],
+        }
+        mock_appsignals.list_services.return_value = {
+            'ServiceSummaries': [svc],
+        }
+        mock_appsignals.get_service.return_value = {
+            'Service': {
+                'KeyAttributes': svc['KeyAttributes'],
+                'MetricReferences': [],
+            }
+        }
+        mock_appsignals.list_service_dependents.return_value = {
+            'ServiceDependents': [
+                {
+                    'DependentKeyAttributes': {
+                        'ResourceType': 'AWS::Synthetics::Canary',
+                        'Identifier': 'payment-canary',
+                    }
+                }
+            ]
+        }
+
+        # Mock synthetics_client for canary runs
+        mock_synthetics = mock_aws_clients['synthetics_client']
+        mock_synthetics.get_canary_runs.return_value = {
+            'CanaryRuns': [
+                {'Status': {'State': 'FAILED'}},
+                {'Status': {'State': 'FAILED'}},
+                {'Status': {'State': 'FAILED'}},
+                {'Status': {'State': 'PASSED'}},
+                {'Status': {'State': 'PASSED'}},
+            ]
+        }
+
+        # Mock SLI report to avoid real API calls
+        with patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.group_tools.SLIReportClient'
+        ) as mock_sli:
+            mock_sli_instance = MagicMock()
+            mock_sli_instance.generate_sli_report.side_effect = Exception('No SLOs')
+            mock_sli.return_value = mock_sli_instance
+
+            result = await audit_group_health(group_name='Payments')
+
+            assert 'SYNTHETICS CANARIES' in result
+            assert 'payment-canary' in result
+            assert 'failing' in result
+
+    @pytest.mark.asyncio
+    async def test_canary_section_no_canaries(self, mock_aws_clients):
+        """Test audit_group_health when no canaries are linked."""
+        mock_appsignals = mock_aws_clients['applicationsignals_client']
+
+        svc = {
+            'KeyAttributes': {
+                'Name': 'api-service',
+                'Type': 'Service',
+                'Environment': 'eks:prod',
+            },
+            'ServiceGroups': [
+                {
+                    'GroupName': 'App',
+                    'GroupValue': 'API',
+                    'GroupSource': 'TAG',
+                    'GroupIdentifier': 'App=API',
+                }
+            ],
+        }
+        mock_appsignals.list_services.return_value = {
+            'ServiceSummaries': [svc],
+        }
+        mock_appsignals.get_service.return_value = {
+            'Service': {
+                'KeyAttributes': svc['KeyAttributes'],
+                'MetricReferences': [],
+            }
+        }
+        mock_appsignals.list_service_dependents.return_value = {'ServiceDependents': []}
+
+        with patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.group_tools.SLIReportClient'
+        ) as mock_sli:
+            mock_sli_instance = MagicMock()
+            mock_sli_instance.generate_sli_report.side_effect = Exception('No SLOs')
+            mock_sli.return_value = mock_sli_instance
+
+            result = await audit_group_health(group_name='API')
+
+            assert 'SYNTHETICS CANARIES' not in result
+
+
+class TestMatchesGroupWildcardAll:
+    """Tests for _matches_group with bare wildcard '*'."""
+
+    def test_bare_wildcard_matches_any_group(self):
+        """Test that '*' wildcard matches any service with a group (line 68)."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.group_tools import _matches_group
+
+        groups = [_make_group('Team', 'Payments')]
+        assert _matches_group(groups, '*') is True
+
+    def test_bare_wildcard_matches_even_empty_fields(self):
+        """Test that '*' wildcard matches via substring check ('' in '' is True)."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.group_tools import _matches_group
+
+        # '' in '' is True in Python, so bare wildcard matches everything
+        groups = [{'GroupName': '', 'GroupValue': '', 'GroupIdentifier': ''}]
+        assert _matches_group(groups, '*') is True
+
+    def test_bare_wildcard_no_match_empty_list(self):
+        """Test that '*' wildcard doesn't match when no groups exist."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.group_tools import _matches_group
+
+        assert _matches_group([], '*') is False
+
+
+class TestDiscoverServicesByGroupClientError:
+    """Tests for _discover_services_by_group ClientError handling."""
+
+    @pytest.mark.asyncio
+    async def test_client_error_propagates(self, mock_aws_clients):
+        """Test that ClientError in _discover_services_by_group is re-raised."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.group_tools import (
+            _discover_services_by_group,
+        )
+
+        mock_aws_clients['applicationsignals_client'].list_services.side_effect = ClientError(
+            error_response={
+                'Error': {'Code': 'AccessDeniedException', 'Message': 'Not authorized'}
+            },
+            operation_name='ListServices',
+        )
+
+        with pytest.raises(ClientError):
+            await _discover_services_by_group(
+                'Payments',
+                datetime(2024, 1, 1, tzinfo=timezone.utc),
+                datetime(2024, 1, 2, tzinfo=timezone.utc),
+            )
+
+
+class TestFormatNoServicesFoundNoGroups:
+    """Tests for _format_no_services_found when no groups exist."""
+
+    def test_no_available_groups(self):
+        """Test message when no ServiceGroups found at all."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.group_tools import (
+            _format_no_services_found,
+        )
+
+        stats = {'total_services_scanned': 10, 'groups_found': []}
+        result = _format_no_services_found('NonExistent', stats)
+        assert 'No ServiceGroups were found' in result
+        assert 'tags or OpenTelemetry attributes' in result

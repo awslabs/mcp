@@ -13,6 +13,8 @@ This server enables AI assistants like Kiro, Claude, and GitHub Copilot to help 
 5. **100% Trace Visibility** - Query OpenTelemetry spans data via Transaction Search for complete observability
 6. **Multi-Service Analysis** - Audit multiple services simultaneously with automatic batching
 7. **Natural Language Insights** - Generate business insights from telemetry data through natural language queries
+8. **Synthetics Canary Analysis** - Deep dive into canary failures with knowledge base-powered recommendations for known runtime and environment issues
+9. **Canary-Service Correlation** - Automatically detect and report Synthetics canaries linked to audited services and groups
 
 ## Prerequisites
 
@@ -104,6 +106,7 @@ IaC code: [ABSOLUTE_PATH_TO_IAC]"
 - Root cause analysis with traces, logs, and metrics correlation
 - Issue prioritization by severity (critical, warning, info findings)
 - **Wildcard Pattern Support**: Use `*payment*` for automatic service discovery
+- **Synthetics Canary Correlation**: Automatically detects and reports canary health for audited services
 - Performance optimized for fast execution across multiple targets
 
 **Key Use Cases:**
@@ -239,6 +242,12 @@ FILTER attributes.aws.local.service = "payment-service" and attributes.aws.local
 - **Actionable Remediation**: Provides specific steps based on AWS operational best practices
 - **IAM Analysis**: Validates IAM roles and permissions for common canary access issues
 - **Backend Service Integration**: Correlates canary failures with backend service errors and exceptions
+- **Knowledge Base Recommendations**: Automatically matches failure patterns against a curated knowledge base of known Synthetics runtime and environment issues, providing targeted fix recommendations
+
+**Parameters:**
+- `canary_name` (required): Name of the CloudWatch Synthetics canary to analyze
+- `region` (optional): AWS region where the canary is deployed
+- `description` (optional): User's description of the issue they are experiencing. This is matched against the knowledge base to surface relevant recommendations even when the canary error logs alone may not contain enough context. Examples: "missing runs in console", "visual monitoring baseline keeps resetting", "CloudFormation rollback failed after runtime upgrade"
 
 **Common Use Cases:**
 - Incident Response: Rapid diagnosis of canary failures during outages
@@ -248,8 +257,26 @@ FILTER attributes.aws.local.service = "payment-service" and attributes.aws.local
 - Root Cause Analysis: Deep dive into specific failure scenarios with full context
 - Infrastructure Issues: Diagnose S3 access, VPC connectivity, and browser target problems
 - Backend Service Debugging: Identify application code issues affecting canary success
+- Known Issue Detection: Automatically identify known runtime bugs and get targeted fix recommendations
 
-#### 13. **`list_change_events`** - AWS Application Signals Change Event Query
+#### 13. **`list_canaries`** - Canary Discovery and Status
+**List all CloudWatch Synthetics canaries in the account**
+
+- Discover all canaries with their current status (Running, Stopped, Error)
+- View schedule, runtime version, and last run time for each canary
+- Useful for identifying canaries before deep-diving with `analyze_canary_failures()`
+- Output is capped to avoid overwhelming LLM context windows in large accounts
+
+**Parameters:**
+- `region` (optional): AWS region to query (defaults to configured region)
+- `max_results` (optional): Maximum number of canaries to display (default: 20, max: 200)
+
+**Key Use Cases:**
+- `list_canaries()` - List canaries in the default region (first 20)
+- `list_canaries(region="eu-west-1")` - List canaries in a specific region
+- `list_canaries(max_results=100)` - List up to 100 canaries
+
+#### 14. **`list_change_events`** - AWS Application Signals Change Event Query
 **Query AWS Application Signals change events to correlate infrastructure and application changes with service performance issues**
 
 This tool provides access to AWS Application Signals' change detection capabilities through two complementary APIs:
@@ -290,7 +317,7 @@ This tool provides access to AWS Application Signals' change detection capabilit
 - **Supports audit_service_operations()**: Adds timeline context for operation performance investigations
 - **Complements analyze_canary_failures()**: Provides deployment correlation for canary issues
 
-#### 14. **`list_slis`** - Legacy SLI Status Report (Specialized Tool)
+#### 15. **`list_slis`** - Legacy SLI Status Report (Specialized Tool)
 **Use `audit_services()` as the PRIMARY tool for service auditing**
 
 - Basic report showing summary counts (total, healthy, breached, insufficient data)
@@ -300,7 +327,7 @@ This tool provides access to AWS Application Signals' change detection capabilit
 
 ### 🏢 Group-Level Monitoring Tools
 
-#### 15. **`list_group_services`** - Group Service Discovery
+#### 16. **`list_group_services`** - Group Service Discovery
 **Discover all services belonging to a specific group**
 
 - List services by group name with wildcard support (`*payment*`)
@@ -311,19 +338,20 @@ This tool provides access to AWS Application Signals' change detection capabilit
 - `list_group_services(group_name="Payments")` - List all services in Payments group
 - `list_group_services(group_name="*prod*")` - Find all production groups
 
-#### 16. **`audit_group_health`** - Group Health Monitoring
+#### 17. **`audit_group_health`** - Group Health Monitoring
 **Comprehensive health assessment for all services in a group**
 
 - Automatic health detection using SLOs and metrics
 - Configurable thresholds for fault, error, and latency
 - Categorizes services as Healthy, Warning, Critical, or Unknown
 - Provides actionable recommendations for unhealthy services
+- **Synthetics Canary Integration**: Automatically detects and reports canary health for services in the group
 
 **Key Use Cases:**
 - `audit_group_health(group_name="Payments")` - Audit all payment services
 - `audit_group_health(group_name="Frontend", fault_threshold_critical=10.0)` - Custom thresholds
 
-#### 17. **`get_group_dependencies`** - Group Dependency Mapping
+#### 18. **`get_group_dependencies`** - Group Dependency Mapping
 **Map dependencies within and across service groups**
 
 - Identifies intra-group dependencies (services calling each other)
@@ -334,7 +362,7 @@ This tool provides access to AWS Application Signals' change detection capabilit
 - `get_group_dependencies(group_name="Payments")` - Map payment service dependencies
 - Useful for understanding service architecture and blast radius
 
-#### 18. **`get_group_changes`** - Group Change Tracking
+#### 19. **`get_group_changes`** - Group Change Tracking
 **Track deployments across a group**
 
 - Lists recent deployments
@@ -346,7 +374,7 @@ This tool provides access to AWS Application Signals' change detection capabilit
 - `get_group_changes(group_name="Payments")` - Recent deployments in last 24 hours
 - `get_group_changes(group_name="API", start_time="2024-01-15 00:00:00")` - Deployments since specific time
 
-#### 19. **`list_grouping_attribute_definitions`** - Group Configuration
+#### 20. **`list_grouping_attribute_definitions`** - Group Configuration
 **List all custom grouping attribute definitions**
 
 - Shows configured grouping attributes (Team, BusinessUnit, etc.)
@@ -895,6 +923,7 @@ The server requires the following AWS IAM permissions:
         "application-signals:ListEntityEvents",
         "application-signals:ListServiceStates",
         "application-signals:ListServiceDependencies",
+        "application-signals:ListServiceDependents",
         "application-signals:ListGroupingAttributeDefinitions",
         "cloudwatch:GetMetricData",
         "cloudwatch:GetMetricStatistics",
@@ -907,6 +936,7 @@ The server requires the following AWS IAM permissions:
         "xray:GetTraceSegmentDestination",
         "synthetics:GetCanary",
         "synthetics:GetCanaryRuns",
+        "synthetics:DescribeCanaries",
         "s3:GetObject",
         "s3:ListBucket",
         "iam:GetRole",
