@@ -14,34 +14,70 @@
 
 """awslabs valkey MCP Server implementation."""
 
+from __future__ import annotations
+
 import argparse
+import asyncio
+import atexit
+import logging
+import os
+import sys
+from awslabs.valkey_mcp_server.common.connection import close_client
 from awslabs.valkey_mcp_server.common.server import mcp
 from awslabs.valkey_mcp_server.context import Context
-from awslabs.valkey_mcp_server.tools import (
-    bitmap,  # noqa: F401
-    hash,  # noqa: F401
-    hyperloglog,  # noqa: F401
-    json,  # noqa: F401
-    list,  # noqa: F401
-    misc,  # noqa: F401
-    server_management,  # noqa: F401
-    set,  # noqa: F401
-    sorted_set,  # noqa: F401
-    stream,  # noqa: F401
-    string,  # noqa: F401
+from awslabs.valkey_mcp_server.tools import (  # noqa: F401
+    json,
+    search_add_documents,
+    search_aggregate,
+    search_manage_index,
+    search_query,
+    valkey_admin,
+    valkey_read,
+    valkey_write,
 )
 from loguru import logger
 from starlette.requests import Request  # noqa: F401
 from starlette.responses import Response
 
 
-# Add a health check route directly to the MCP server
+def _configure_logging():
+    """Configure loguru file sink and bridge stdlib logging into loguru."""
+    log_file = os.environ.get('MCP_LOG_FILE', 'valkey-mcp-server.log')
+    log_level = os.environ.get('MCP_LOG_LEVEL', 'DEBUG')
+
+    # File sink — persists across crashes for post-mortem analysis
+    logger.add(
+        log_file,
+        level=log_level,
+        rotation='10 MB',
+        retention='3 days',
+        backtrace=True,
+        diagnose=True,
+        format='{time:YYYY-MM-DD HH:mm:ss.SSS} | {level:<8} | {name}:{function}:{line} | {message}',
+    )
+
+    # Bridge stdlib logging → loguru so tool modules (which use logging.getLogger) are captured
+    class _LoguruHandler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            try:
+                level = logger.level(record.levelname).name
+            except ValueError:
+                level = record.levelno
+            # depth=6: logging.info() → Logger.info() → Logger._log() → Logger.handle()
+            #          → Handler.emit() → _LoguruHandler.emit() → loguru
+            # See: https://loguru.readthedocs.io/en/stable/overview.html#entirely-compatible-with-standard-logging
+            frame, depth = sys._getframe(6), 6
+            while frame and frame.f_code.co_filename == logging.__file__:
+                frame = frame.f_back
+                depth += 1
+            logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
+
+    logging.basicConfig(handlers=[_LoguruHandler()], level=logging.DEBUG, force=True)
+
+
 @mcp.custom_route('/health', methods=['GET'])
 async def health_check(request):
-    """Simple health check endpoint for ALB Target Group.
-
-    Always returns 200 OK to indicate the service is running.
-    """
+    """Simple health check endpoint for ALB Target Group."""
     return Response(content='healthy', status_code=200, media_type='text/plain')
 
 
@@ -68,7 +104,41 @@ def main():
     )
 
     args = parser.parse_args()
+
+    # Redirect the native stdout fd to stderr BEFORE GLIDE initializes.
+    # GLIDE's Rust logger_core writes ANSI-colored warnings directly to the native
+    # stdout fd, which corrupts the MCP stdio JSON-RPC transport. By redirecting
+    # fd 1 to stderr, native writes go to stderr while Python's sys.stdout (used
+    # by the MCP transport) continues to use the original fd via its buffered wrapper.
+    _original_stdout_fd = os.dup(1)
+    os.dup2(2, 1)  # fd 1 (stdout) now points to stderr
+    sys.stdout = os.fdopen(_original_stdout_fd, 'w')  # Python stdout uses the saved fd
+
+    _configure_logging()
     Context.initialize(args.readonly)
+
+    async def _async_shutdown():
+        await close_client()
+        from awslabs.valkey_mcp_server.embeddings import get_provider
+        from awslabs.valkey_mcp_server.embeddings.providers import OllamaEmbeddings
+
+        try:
+            provider = get_provider()
+            # Only OllamaEmbeddings holds an httpx.AsyncClient that needs closing.
+            # Bedrock uses boto3 (no persistent connection), OpenAI/Hash are stateless.
+            if isinstance(provider, OllamaEmbeddings):
+                await provider.close()
+        except Exception:  # nosec B110 — best-effort cleanup during shutdown
+            pass
+
+    def _shutdown():
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(_async_shutdown())
+        except RuntimeError:
+            asyncio.run(_async_shutdown())
+
+    atexit.register(_shutdown)
 
     logger.info('Amazon ElastiCache/MemoryDB Valkey MCP Server Started...')
 
