@@ -97,13 +97,36 @@ async def get_client() -> GlideClientType:
         async with _client_lock:
             if _client is None:  # double-check after acquiring lock
                 config = _build_config()
+                # Configure GLIDE's internal logger (Rust core)
+                from glide import Logger as GlideLogger
+                from glide.logger import Level as GlideLogLevel
+
+                level_map = {
+                    'ERROR': GlideLogLevel.ERROR,
+                    'WARN': GlideLogLevel.WARN,
+                    'INFO': GlideLogLevel.INFO,
+                    'DEBUG': GlideLogLevel.DEBUG,
+                    'TRACE': GlideLogLevel.TRACE,
+                    'OFF': GlideLogLevel.OFF,
+                }
+                glide_level = level_map.get(
+                    VALKEY_CFG.get('glide_log_level', 'WARN'), GlideLogLevel.WARN
+                )
+                GlideLogger.init(glide_level)
                 if isinstance(config, GlideClusterClientConfiguration):
                     _client = await GlideClusterClient.create(config)
+                    logger.info(
+                        'GLIDE cluster client connected to %s:%s',
+                        VALKEY_CFG['host'],
+                        VALKEY_CFG['port'],
+                    )
                 else:
                     _client = await GlideClient.create(config)
-                logger.info(
-                    'GLIDE client connected to %s:%s', VALKEY_CFG['host'], VALKEY_CFG['port']
-                )
+                    logger.info(
+                        'GLIDE standalone client connected to %s:%s',
+                        VALKEY_CFG['host'],
+                        VALKEY_CFG['port'],
+                    )
     return _client
 
 
@@ -115,7 +138,9 @@ async def close_client() -> None:
         _client = None
 
 
-def reset_client() -> None:
-    """Reset client reference (for testing)."""
+async def reset_client() -> None:
+    """Close and reset client reference (for testing)."""
     global _client
+    if _client is not None:
+        await _client.close()
     _client = None

@@ -31,10 +31,10 @@ MODULE = 'awslabs.valkey_mcp_server.common.connection'
 
 
 @pytest.fixture(autouse=True)
-def _reset():
-    reset_client()
+async def _reset():
+    await reset_client()
     yield
-    reset_client()
+    await reset_client()
 
 
 class TestBuildConfig:
@@ -221,6 +221,6 @@ class TestResetClient:
         ):
             mock_cls.create = AsyncMock(side_effect=[mock1, mock2])
             c1 = await get_client()
-            reset_client()
+            await reset_client()
             c2 = await get_client()
         assert c1 is not c2

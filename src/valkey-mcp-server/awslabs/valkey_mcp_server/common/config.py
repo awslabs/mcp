@@ -32,6 +32,7 @@ VALKEY_CFG = {
     'cluster_mode': os.getenv('VALKEY_CLUSTER_MODE', False) in ('true', '1', 't'),
     'vector_algorithm': os.getenv('VALKEY_VECTOR_ALGORITHM', 'HNSW').upper(),
     'vector_distance_metric': os.getenv('VALKEY_VECTOR_DISTANCE_METRIC', 'COSINE').upper(),
+    'glide_log_level': os.getenv('VALKEY_GLIDE_LOG_LEVEL', 'WARN').upper(),
 }
 
 
