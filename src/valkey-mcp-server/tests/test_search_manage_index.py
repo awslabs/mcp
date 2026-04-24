@@ -170,6 +170,17 @@ class TestManageIndexCreate:
             )
         assert result['status'] == 'error'
 
+    async def test_create_geo_field_rejected(self):
+        """GEO field type is not supported by GLIDE — should return validation error."""
+        with _exists(False):
+            result = await manage_index(
+                action='create',
+                index_name='new',
+                schema=[{'name': 'loc', 'type': 'GEO'}],
+            )
+        assert result['status'] == 'error'
+        assert 'GEO' in result['reason']
+
     async def test_create_readonly(self):
         with patch(f'{MODULE}.Context') as ctx:
             ctx.readonly_mode.return_value = True

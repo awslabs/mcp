@@ -108,7 +108,12 @@ def _build_clause(stage: Dict[str, Any]) -> FtAggregateClause:
 
 
 def _decode_aggregate_response(raw: Any) -> List[Dict[str, Any]]:
-    """Decode ft.aggregate response into list of dicts."""
+    """Decode ft.aggregate response into list of dicts.
+
+    Handles two response formats: GLIDE may return rows as dicts (bytes keys/values)
+    or as flat lists of alternating key-value pairs, depending on the Valkey version
+    and GLIDE client version.
+    """
     if not raw or not isinstance(raw, list):
         return []
     rows = []
@@ -174,9 +179,15 @@ async def aggregate(
     try:
         client = await get_client()
 
+        # Pre-validate on every call: GLIDE errors are catchable RequestErrors,
+        # but FastMCP's stdio transport crashes on exceptions during concurrent
+        # tool calls. Pre-validating avoids the error path.
         if not await index_exists(client, index_name):
             return {'status': 'error', 'reason': f"Index '{index_name}' does not exist"}
 
+        # Reject wildcard '*' — some Valkey versions reject it with "Invalid: query string
+        # syntax". The resulting RequestError is catchable, but FastMCP's stdio transport
+        # crashes when exceptions occur during concurrent tool calls.
         if query.strip() == '*':
             return {
                 'status': 'error',

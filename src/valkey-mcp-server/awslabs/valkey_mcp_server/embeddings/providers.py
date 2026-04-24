@@ -177,6 +177,7 @@ class BedrockEmbeddings(EmbeddingsProvider):
                 response = self.client.invoke_model(modelId=self.model_id, body=json.dumps(body))
                 return json.loads(response['body'].read())['embedding']
 
+        # boto3 is synchronous — run in executor to avoid blocking the event loop.
         return await asyncio.get_running_loop().run_in_executor(None, _invoke)
 
     def get_dimensions(self) -> int:
