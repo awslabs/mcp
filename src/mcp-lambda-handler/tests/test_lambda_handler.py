@@ -926,9 +926,9 @@ def test_handle_request_malformed_jsonrpc():
 
 
 def test_handle_request_finally_clears_context():
-    """Test that handle_request finally clears the context variable."""
+    """Test that handle_request finally clears the context variables."""
     handler = MCPLambdaHandler('test-server')
-    from awslabs.mcp_lambda_handler.mcp_lambda_handler import current_session_id
+    from awslabs.mcp_lambda_handler.mcp_lambda_handler import current_protocol_version, current_session_id
 
     token = current_session_id.set('sid123')
     # Cause an exception in handle_request
@@ -937,8 +937,9 @@ def test_handle_request_finally_clears_context():
         handler.handle_request(event, None)
     except Exception:
         pass
-    # Should be cleared to None
+    # Should be cleared to defaults
     assert current_session_id.get() is None
+    assert current_protocol_version.get() == '2025-11-25'
     current_session_id.reset(token)
 
 
@@ -1519,6 +1520,7 @@ def test_initialize_protocol_version_negotiation():
     resp = handler.handle_request(event, None)
     body = json.loads(resp['body'])
     assert body['result']['protocolVersion'] == '2025-11-25'
+    assert resp['headers']['MCP-Protocol-Version'] == '2025-11-25'
 
     # Client sends an older supported version
     req['params']['protocolVersion'] = '2024-11-05'
@@ -1526,6 +1528,7 @@ def test_initialize_protocol_version_negotiation():
     resp = handler.handle_request(event, None)
     body = json.loads(resp['body'])
     assert body['result']['protocolVersion'] == '2024-11-05'
+    assert resp['headers']['MCP-Protocol-Version'] == '2024-11-05'
 
     # Client sends an unsupported version — server responds with latest
     req['params']['protocolVersion'] = '9999-12-31'
@@ -1533,6 +1536,7 @@ def test_initialize_protocol_version_negotiation():
     resp = handler.handle_request(event, None)
     body = json.loads(resp['body'])
     assert body['result']['protocolVersion'] == '2025-11-25'
+    assert resp['headers']['MCP-Protocol-Version'] == '2025-11-25'
 
 
 def test_initialize_with_instructions():

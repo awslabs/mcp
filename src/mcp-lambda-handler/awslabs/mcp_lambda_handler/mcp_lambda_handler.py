@@ -32,9 +32,6 @@ from awslabs.mcp_lambda_handler.types import (
     StaticResource,
     TextContent,
 )
-
-LATEST_PROTOCOL_VERSION = '2025-11-25'
-SUPPORTED_PROTOCOL_VERSIONS = {'2024-11-05', '2025-03-26', '2025-06-18', '2025-11-25'}
 from contextvars import ContextVar
 from enum import Enum
 from typing import (
@@ -51,11 +48,17 @@ from typing import (
     get_type_hints,
 )
 
+LATEST_PROTOCOL_VERSION = '2025-11-25'
+SUPPORTED_PROTOCOL_VERSIONS = {'2024-11-05', '2025-03-26', '2025-06-18', '2025-11-25'}
 
 logger = logging.getLogger(__name__)
 
 # Context variable to store current session ID
 current_session_id: ContextVar[Optional[str]] = ContextVar('current_session_id', default=None)
+# Context variable to store negotiated protocol version for the current request
+current_protocol_version: ContextVar[str] = ContextVar(
+    'current_protocol_version', default=LATEST_PROTOCOL_VERSION
+)
 
 T = TypeVar('T')
 
@@ -339,7 +342,7 @@ class MCPLambdaHandler:
             jsonrpc='2.0', id=request_id, error=error, errorContent=error_content
         )
 
-        headers = {'Content-Type': 'application/json', 'MCP-Protocol-Version': LATEST_PROTOCOL_VERSION}
+        headers = {'Content-Type': 'application/json', 'MCP-Protocol-Version': current_protocol_version.get()}
         if session_id:
             headers['MCP-Session-Id'] = session_id
 
@@ -371,13 +374,11 @@ class MCPLambdaHandler:
             A list of content objects as dictionaries
         """
         if isinstance(result, bytes):
-            # Handle byte stream (likely an image)
             import base64
 
-            # Try to determine MIME type from the first few bytes
-            mime_type = 'application/octet-stream'  # Default MIME type
+            mime_type = 'application/octet-stream'
 
-            # Check for common image signatures
+            # Detect image formats
             if result.startswith(b'\xff\xd8\xff'):  # JPEG
                 mime_type = 'image/jpeg'
             elif result.startswith(b'\x89PNG\r\n\x1a\n'):  # PNG
@@ -413,7 +414,7 @@ class MCPLambdaHandler:
         """Create a standardized success response."""
         response = JSONRPCResponse(jsonrpc='2.0', id=request_id, result=result)
 
-        headers = {'Content-Type': 'application/json', 'MCP-Protocol-Version': LATEST_PROTOCOL_VERSION}
+        headers = {'Content-Type': 'application/json', 'MCP-Protocol-Version': current_protocol_version.get()}
         if session_id:
             headers['MCP-Session-Id'] = session_id
 
@@ -488,13 +489,13 @@ class MCPLambdaHandler:
                 current_session_id.set(session_id)
 
                 # Protocol version negotiation
-                client_version = (request.params or {}).get(
-                    'protocolVersion', LATEST_PROTOCOL_VERSION
-                )
+                params = request.params if isinstance(request.params, dict) else {}
+                client_version = params.get('protocolVersion', LATEST_PROTOCOL_VERSION)
                 if client_version in SUPPORTED_PROTOCOL_VERSIONS:
                     negotiated_version = client_version
                 else:
                     negotiated_version = LATEST_PROTOCOL_VERSION
+                current_protocol_version.set(negotiated_version)
 
                 capabilities = Capabilities()
                 if self.tools:
@@ -643,5 +644,5 @@ class MCPLambdaHandler:
             logger.error(f'Error processing request: {str(e)}', exc_info=True)
             return self._create_error_response(-32000, str(e), request_id, session_id=session_id)
         finally:
-            # Clear session context
             current_session_id.set(None)
+            current_protocol_version.set(LATEST_PROTOCOL_VERSION)
