@@ -29,12 +29,11 @@ from glide import (
     NodeAddress,
     ServerCredentials,
 )
-from typing import Union
 
 
 logger = logging.getLogger(__name__)
 
-GlideClientType = Union[GlideClient, GlideClusterClient]
+GlideClientType = GlideClient | GlideClusterClient
 
 _client: GlideClientType | None = None
 

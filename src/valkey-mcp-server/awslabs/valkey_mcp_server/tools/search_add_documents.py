@@ -14,11 +14,17 @@
 
 """Document ingestion tool for Valkey Search (GLIDE)."""
 
+from __future__ import annotations
+
 import json
 import logging
 from awslabs.valkey_mcp_server.common.connection import get_client
 from awslabs.valkey_mcp_server.common.server import mcp
-from awslabs.valkey_mcp_server.common.utils import index_exists, pack_embedding
+from awslabs.valkey_mcp_server.common.utils import (
+    index_exists,
+    pack_embedding,
+    readonly_guard,
+)
 from awslabs.valkey_mcp_server.context import Context
 from awslabs.valkey_mcp_server.embeddings import get_provider as _get_provider
 from glide import ft
@@ -31,7 +37,7 @@ from glide_shared.commands.server_modules.ft_options.ft_create_options import (
     VectorFieldAttributesHnsw,
     VectorType,
 )
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 logger = logging.getLogger(__name__)
@@ -60,15 +66,16 @@ async def _auto_create_index(client, index_name, prefix, embedding_field, dimens
 
 
 @mcp.tool()
+@readonly_guard
 async def add_documents(
     index_name: str,
-    documents: List[Dict[str, Any]],
+    documents: list[dict[str, Any]],
     id_field: str = 'id',
-    prefix: Optional[str] = None,
-    embedding_field: Optional[str] = None,
-    text_fields: Optional[List[str]] = None,
-    embedding_dimensions: Optional[int] = None,
-) -> Dict[str, Any]:
+    prefix: str | None = None,
+    embedding_field: str | None = None,
+    text_fields: list[str] | None = None,
+    embedding_dimensions: int | None = None,
+) -> dict[str, Any]:
     """Add documents to a Valkey Search index with optional embedding generation.
 
     Stores documents as Valkey hashes. When embedding_field and text_fields are
@@ -147,7 +154,7 @@ async def add_documents(
                 errors += 1
 
         status = 'success' if added > 0 else 'error'
-        result: Dict[str, Any] = {
+        result: dict[str, Any] = {
             'status': status,
             'added': added,
             'errors': errors,

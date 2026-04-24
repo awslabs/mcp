@@ -14,11 +14,16 @@
 
 """Unified search tool — semantic, text, hybrid, and find-similar (GLIDE)."""
 
+from __future__ import annotations
+
 import logging
 import struct
 from awslabs.valkey_mcp_server.common.connection import get_client
 from awslabs.valkey_mcp_server.common.server import mcp
-from awslabs.valkey_mcp_server.common.utils import index_exists, pack_embedding
+from awslabs.valkey_mcp_server.common.utils import (
+    index_exists,
+    pack_embedding,
+)
 from awslabs.valkey_mcp_server.embeddings import get_provider as _get_provider
 from awslabs.valkey_mcp_server.embeddings import has_provider as _has_provider
 from glide import ft
@@ -27,13 +32,13 @@ from glide_shared.commands.server_modules.ft_options.ft_search_options import (
     FtSearchOptions,
 )
 from glide_shared.exceptions import RequestError
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 logger = logging.getLogger(__name__)
 
 
-def _decode_docs(results, return_fields=None, skip_field=None) -> List[Dict[str, Any]]:
+def _decode_docs(results, return_fields=None, skip_field=None) -> list[dict[str, Any]]:
     """Decode GLIDE ft.search results into list of dicts.
 
     GLIDE returns: [count, {b'key': {b'field': b'value', ...}, ...}]
@@ -43,7 +48,7 @@ def _decode_docs(results, return_fields=None, skip_field=None) -> List[Dict[str,
     if count > 0 and len(results) > 1:
         for key, fields in results[1].items():
             str_key = key.decode() if isinstance(key, bytes) else key
-            d: Dict[str, Any] = {'id': str_key}
+            d: dict[str, Any] = {'id': str_key}
             for fk, fv in fields.items():
                 str_fk = fk.decode() if isinstance(fk, bytes) else fk
                 if str_fk == skip_field:
@@ -62,16 +67,16 @@ def _decode_docs(results, return_fields=None, skip_field=None) -> List[Dict[str,
 @mcp.tool()
 async def search(
     index_name: str,
-    query_text: Optional[str] = None,
-    document_id: Optional[str] = None,
+    query_text: str | None = None,
+    document_id: str | None = None,
     vector_field: str = 'embedding',
-    filter_expression: Optional[str] = None,
-    return_fields: Optional[List[str]] = None,
+    filter_expression: str | None = None,
+    return_fields: list[str] | None = None,
     offset: int = 0,
     limit: int = 10,
-    mode: Optional[str] = None,
+    mode: str | None = None,
     hybrid_weight: float = 0.5,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Search a Valkey Search index with auto-detected mode.
 
     Modes (auto-detected from parameters, or set explicitly via mode):

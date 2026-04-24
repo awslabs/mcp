@@ -139,7 +139,7 @@ class TestValkeyWrite:
         assert 'not in the write allowlist' in result['reason']
 
     async def test_readonly_mode(self):
-        with patch(f'{WRITE_MOD}.Context') as ctx:
+        with patch('awslabs.valkey_mcp_server.context.Context') as ctx:
             ctx.readonly_mode.return_value = True
             result = await valkey_write(command='SET', args=['k', 'v'])
         assert result['status'] == 'error'
@@ -205,7 +205,7 @@ class TestValkeyAdmin:
     async def test_readonly_mode(self):
         with (
             patch.dict('os.environ', {'VALKEY_ADMIN_ENABLED': 'true'}),
-            patch(f'{ADMIN_MOD}.Context') as ctx,
+            patch('awslabs.valkey_mcp_server.context.Context') as ctx,
         ):
             ctx.readonly_mode.return_value = True
             result = await valkey_admin(command='FLUSHALL', confirm=True)

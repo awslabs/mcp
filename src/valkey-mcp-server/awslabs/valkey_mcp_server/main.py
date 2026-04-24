@@ -14,6 +14,8 @@
 
 """awslabs valkey MCP Server implementation."""
 
+from __future__ import annotations
+
 import argparse
 import asyncio
 import atexit

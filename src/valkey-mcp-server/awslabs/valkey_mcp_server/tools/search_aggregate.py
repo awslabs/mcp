@@ -14,10 +14,12 @@
 
 """FT.AGGREGATE structured pipeline builder for Valkey Search (GLIDE)."""
 
+from __future__ import annotations
+
 import logging
 from awslabs.valkey_mcp_server.common.connection import get_client
 from awslabs.valkey_mcp_server.common.server import mcp
-from awslabs.valkey_mcp_server.common.utils import index_exists
+from awslabs.valkey_mcp_server.common.utils import index_exists, tool_errors
 from glide import ft
 from glide_shared.commands.server_modules.ft_options.ft_aggregate_options import (
     FtAggregateApply,
@@ -32,7 +34,7 @@ from glide_shared.commands.server_modules.ft_options.ft_aggregate_options import
     OrderBy,
 )
 from glide_shared.exceptions import RequestError
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 logger = logging.getLogger(__name__)
@@ -55,7 +57,7 @@ VALID_REDUCE_FUNCTIONS = {
 VALID_STAGE_TYPES = {'GROUPBY', 'SORTBY', 'APPLY', 'FILTER', 'LIMIT'}
 
 
-def _build_reducer(r: Dict[str, Any]) -> FtAggregateReducer:
+def _build_reducer(r: dict[str, Any]) -> FtAggregateReducer:
     """Translate a reducer dict into a GLIDE FtAggregateReducer."""
     func = r.get('function', '').upper()
     if func not in VALID_REDUCE_FUNCTIONS:
@@ -69,7 +71,7 @@ def _build_reducer(r: Dict[str, Any]) -> FtAggregateReducer:
     return FtAggregateReducer(func, args, name=r.get('alias'))
 
 
-def _build_clause(stage: Dict[str, Any]) -> FtAggregateClause:
+def _build_clause(stage: dict[str, Any]) -> FtAggregateClause:
     """Translate a pipeline stage dict into a GLIDE FtAggregateClause."""
     stype = stage.get('type', '').upper()
 
@@ -107,7 +109,7 @@ def _build_clause(stage: Dict[str, Any]) -> FtAggregateClause:
     raise ValueError(f"Unknown stage type '{stype}'. Must be: {VALID_STAGE_TYPES}")
 
 
-def _decode_aggregate_response(raw: Any) -> List[Dict[str, Any]]:
+def _decode_aggregate_response(raw: Any) -> list[dict[str, Any]]:
     """Decode ft.aggregate response into list of dicts.
 
     Handles two response formats: GLIDE may return rows as dicts (bytes keys/values)
@@ -119,7 +121,7 @@ def _decode_aggregate_response(raw: Any) -> List[Dict[str, Any]]:
     rows = []
     for row in raw:
         if isinstance(row, dict):
-            d: Dict[str, Any] = {}
+            d: dict[str, Any] = {}
             for k, v in row.items():
                 str_k = k.decode() if isinstance(k, bytes) else str(k)
                 str_v = v.decode() if isinstance(v, bytes) else v
@@ -138,11 +140,12 @@ def _decode_aggregate_response(raw: Any) -> List[Dict[str, Any]]:
 
 
 @mcp.tool()
+@tool_errors
 async def aggregate(
     index_name: str,
     query: str = '*',
-    pipeline: Optional[List[Dict[str, Any]]] = None,
-) -> Dict[str, Any]:
+    pipeline: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """Run an FT.AGGREGATE pipeline on a Valkey Search index.
 
     Translates structured JSON pipeline stages into FT.AGGREGATE syntax,

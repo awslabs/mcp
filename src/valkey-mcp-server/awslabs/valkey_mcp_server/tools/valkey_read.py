@@ -14,11 +14,14 @@
 
 """Read-only Valkey command runner (safe tier)."""
 
+from __future__ import annotations
+
 import logging
 from awslabs.valkey_mcp_server.common.connection import get_client
 from awslabs.valkey_mcp_server.common.server import mcp
 from awslabs.valkey_mcp_server.common.utils import decode_value as _decode
-from typing import Any, Dict, List, Optional
+from awslabs.valkey_mcp_server.common.utils import tool_errors
+from typing import Any
 
 
 logger = logging.getLogger(__name__)
@@ -103,10 +106,11 @@ READ_COMMANDS = frozenset(
 
 
 @mcp.tool()
+@tool_errors
 async def valkey_read(
     command: str,
-    args: Optional[List[str]] = None,
-) -> Dict[str, Any]:
+    args: list[str] | None = None,
+) -> dict[str, Any]:
     """Execute a read-only Valkey command.
 
     Safe tier — always available, even in readonly mode. Only allowlisted
@@ -133,10 +137,7 @@ async def valkey_read(
             f'Use valkey_write for mutations or valkey_admin for destructive commands.',
         }
 
-    try:
-        client = await get_client()
-        full_cmd: list = [cmd] + (args or [])
-        raw = await client.custom_command(full_cmd)
-        return {'status': 'success', 'result': _decode(raw)}
-    except Exception as e:
-        return {'status': 'error', 'reason': str(e)}
+    client = await get_client()
+    full_cmd: list = [cmd] + (args or [])
+    raw = await client.custom_command(full_cmd)
+    return {'status': 'success', 'result': _decode(raw)}

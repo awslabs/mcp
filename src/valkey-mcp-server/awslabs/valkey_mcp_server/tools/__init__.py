@@ -14,6 +14,8 @@
 
 """Tool imports for Valkey MCP Server."""
 
+from __future__ import annotations
+
 from . import (
     json,
     search_add_documents,

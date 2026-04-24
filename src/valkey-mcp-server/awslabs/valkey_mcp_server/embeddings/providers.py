@@ -14,10 +14,12 @@
 
 """Concrete implementations of embeddings providers."""
 
+from __future__ import annotations
+
 import hashlib
 import httpx
 from .base import EmbeddingsProvider
-from typing import Any, List
+from typing import Any
 
 
 class OllamaEmbeddings(EmbeddingsProvider):
@@ -43,7 +45,7 @@ class OllamaEmbeddings(EmbeddingsProvider):
         self._dimensions = dimensions
         self._client = httpx.AsyncClient(timeout=30.0)
 
-    async def generate_embedding(self, text: str) -> List[float]:
+    async def generate_embedding(self, text: str) -> list[float]:
         """Generate embedding using Ollama."""
         response = await self._client.post(
             f'{self.base_url}/api/embeddings',
@@ -137,7 +139,7 @@ class BedrockEmbeddings(EmbeddingsProvider):
         self._model_id = value
         self._is_nova_model = bool(re.match(r'^\w+\.nova\b', value))
 
-    async def generate_embedding(self, text: str) -> List[float]:
+    async def generate_embedding(self, text: str) -> list[float]:
         """Generate embedding using Bedrock."""
         import asyncio
         import json
@@ -201,7 +203,7 @@ class HashEmbeddings(EmbeddingsProvider):
         """Initialize dummy embeddings provider."""
         self._dimensions = dimensions
 
-    async def generate_embedding(self, text: str) -> List[float]:
+    async def generate_embedding(self, text: str) -> list[float]:
         """Generate deterministic embedding using hash."""
         # Create a hash of the text
         hash_obj = hashlib.sha256(text.encode('utf-8'))
@@ -249,7 +251,7 @@ class OpenAIEmbeddings(EmbeddingsProvider):
         self.model = model
         self._dimensions = 1536 if '3-small' in model else 3072
 
-    async def generate_embedding(self, text: str) -> List[float]:
+    async def generate_embedding(self, text: str) -> list[float]:
         """Generate embedding using OpenAI."""
         response = await self.client.embeddings.create(model=self.model, input=text)
         return response.data[0].embedding

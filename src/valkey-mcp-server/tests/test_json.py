@@ -86,7 +86,7 @@ class TestJsonSet:
         mock_client.expire.assert_not_called()
 
     async def test_set_readonly(self):
-        with patch(f'{MODULE}.Context') as mock_ctx:
+        with patch('awslabs.valkey_mcp_server.context.Context') as mock_ctx:
             mock_ctx.readonly_mode.return_value = True
             result = await json_set(key='k', value='x')
         assert result['status'] == 'error'
@@ -105,7 +105,7 @@ class TestJsonArrappend:
         assert result == {'status': 'success', 'new_length': 3}
 
     async def test_append_readonly(self):
-        with patch(f'{MODULE}.Context') as mock_ctx:
+        with patch('awslabs.valkey_mcp_server.context.Context') as mock_ctx:
             mock_ctx.readonly_mode.return_value = True
             result = await json_arrappend(key='k', values=[1])
         assert result['status'] == 'error'
@@ -140,7 +140,7 @@ class TestJsonArrpop:
         assert result['popped'] == 42
 
     async def test_pop_readonly(self):
-        with patch(f'{MODULE}.Context') as mock_ctx:
+        with patch('awslabs.valkey_mcp_server.context.Context') as mock_ctx:
             mock_ctx.readonly_mode.return_value = True
             result = await json_arrpop(key='k')
         assert result['status'] == 'error'
@@ -165,7 +165,7 @@ class TestJsonArrtrim:
         assert cmd == ['JSON.ARRTRIM', 'k', '$', '0', '2']
 
     async def test_trim_readonly(self):
-        with patch(f'{MODULE}.Context') as mock_ctx:
+        with patch('awslabs.valkey_mcp_server.context.Context') as mock_ctx:
             mock_ctx.readonly_mode.return_value = True
             result = await json_arrtrim(key='k', start=0, stop=1)
         assert result['status'] == 'error'

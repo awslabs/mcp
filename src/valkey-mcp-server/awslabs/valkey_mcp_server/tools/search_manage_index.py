@@ -14,6 +14,8 @@
 
 """Index management tool for Valkey Search (GLIDE)."""
 
+from __future__ import annotations
+
 import logging
 from awslabs.valkey_mcp_server.common.connection import get_client
 from awslabs.valkey_mcp_server.common.server import mcp
@@ -34,7 +36,7 @@ from glide_shared.commands.server_modules.ft_options.ft_create_options import (
     VectorType,
 )
 from glide_shared.exceptions import RequestError
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 logger = logging.getLogger(__name__)
@@ -61,7 +63,7 @@ _DATA_TYPE_MAP = {
 }
 
 
-def _build_field(field: Dict[str, Any], structure_type: str, distance_metric: str):
+def _build_field(field: dict[str, Any], structure_type: str, distance_metric: str):
     """Translate a schema field dict into a GLIDE Field object."""
     name = field['name']
     ftype = field.get('type', 'TEXT').upper()
@@ -101,13 +103,13 @@ def _build_field(field: Dict[str, Any], structure_type: str, distance_metric: st
 @mcp.tool()
 async def manage_index(
     action: str,
-    index_name: Optional[str] = None,
-    schema: Optional[List[Dict[str, Any]]] = None,
-    prefix: Optional[List[str]] = None,
+    index_name: str | None = None,
+    schema: list[dict[str, Any]] | None = None,
+    prefix: list[str] | None = None,
     index_type: str = 'HASH',
     structure_type: str = 'HNSW',
     distance_metric: str = 'COSINE',
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Manage Valkey Search indices: create, drop, inspect, or list.
 
     Handles FT.CREATE, FT.DROPINDEX, FT.INFO, and FT._LIST through structured

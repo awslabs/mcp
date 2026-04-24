@@ -14,12 +14,14 @@
 
 """Mutating Valkey command runner (write tier)."""
 
+from __future__ import annotations
+
 import logging
 from awslabs.valkey_mcp_server.common.connection import get_client
 from awslabs.valkey_mcp_server.common.server import mcp
 from awslabs.valkey_mcp_server.common.utils import decode_value as _decode
-from awslabs.valkey_mcp_server.context import Context
-from typing import Any, Dict, List, Optional
+from awslabs.valkey_mcp_server.common.utils import readonly_guard, tool_errors
+from typing import Any
 
 
 logger = logging.getLogger(__name__)
@@ -129,10 +131,12 @@ BLOCKED_COMMANDS = frozenset(
 
 
 @mcp.tool()
+@readonly_guard
+@tool_errors
 async def valkey_write(
     command: str,
-    args: Optional[List[str]] = None,
-) -> Dict[str, Any]:
+    args: list[str] | None = None,
+) -> dict[str, Any]:
     """Execute a mutating Valkey command.
 
     Write tier — allowlisted mutations only. Destructive commands
@@ -151,9 +155,6 @@ async def valkey_write(
         valkey_write(command="DEL", args=["tempkey"])
         valkey_write(command="EXPIRE", args=["mykey", "3600"])
     """
-    if Context.readonly_mode():
-        return {'status': 'error', 'reason': 'Readonly mode — write commands are disabled.'}
-
     cmd = command.upper()
 
     if cmd in BLOCKED_COMMANDS or cmd.split()[0] in BLOCKED_COMMANDS:
@@ -169,10 +170,7 @@ async def valkey_write(
             f'Use valkey_read for read-only commands.',
         }
 
-    try:
-        client = await get_client()
-        full_cmd: list = [cmd] + (args or [])
-        raw = await client.custom_command(full_cmd)
-        return {'status': 'success', 'result': _decode(raw)}
-    except Exception as e:
-        return {'status': 'error', 'reason': str(e)}
+    client = await get_client()
+    full_cmd: list = [cmd] + (args or [])
+    raw = await client.custom_command(full_cmd)
+    return {'status': 'success', 'result': _decode(raw)}

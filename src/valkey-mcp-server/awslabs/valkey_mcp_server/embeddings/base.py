@@ -14,8 +14,9 @@
 
 """Base class for embeddings providers."""
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import List
 
 
 class EmbeddingsProvider(ABC):
@@ -26,7 +27,7 @@ class EmbeddingsProvider(ABC):
     """
 
     @abstractmethod
-    async def generate_embedding(self, text: str) -> List[float]:
+    async def generate_embedding(self, text: str) -> list[float]:
         """Generate an embedding vector from text.
 
         Args:

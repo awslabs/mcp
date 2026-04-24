@@ -14,6 +14,8 @@
 
 """Embeddings provider abstraction layer."""
 
+from __future__ import annotations
+
 from .base import EmbeddingsProvider
 from .factory import create_embeddings_provider
 from .providers import BedrockEmbeddings, HashEmbeddings, OllamaEmbeddings, OpenAIEmbeddings

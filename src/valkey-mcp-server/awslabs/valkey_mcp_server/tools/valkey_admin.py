@@ -14,13 +14,15 @@
 
 """Destructive Valkey command runner (admin tier, opt-in)."""
 
+from __future__ import annotations
+
 import logging
 import os
 from awslabs.valkey_mcp_server.common.connection import get_client
 from awslabs.valkey_mcp_server.common.server import mcp
 from awslabs.valkey_mcp_server.common.utils import decode_value as _decode
-from awslabs.valkey_mcp_server.context import Context
-from typing import Any, Dict, List, Optional
+from awslabs.valkey_mcp_server.common.utils import readonly_guard, tool_errors
+from typing import Any
 
 
 logger = logging.getLogger(__name__)
@@ -58,11 +60,13 @@ def _is_admin_enabled() -> bool:
 
 
 @mcp.tool()
+@readonly_guard
+@tool_errors
 async def valkey_admin(
     command: str,
-    args: Optional[List[str]] = None,
+    args: list[str] | None = None,
     confirm: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Execute a destructive Valkey command.
 
     Admin tier — disabled by default. Requires both:
@@ -83,9 +87,6 @@ async def valkey_admin(
         valkey_admin(command="FLUSHALL", confirm=True)
         valkey_admin(command="CONFIG SET", args=["maxmemory", "2gb"], confirm=True)
     """
-    if Context.readonly_mode():
-        return {'status': 'error', 'reason': 'Readonly mode — admin commands are disabled.'}
-
     if not _is_admin_enabled():
         return {
             'status': 'error',
@@ -110,11 +111,8 @@ async def valkey_admin(
             f'Use valkey_read or valkey_write instead.',
         }
 
-    try:
-        client = await get_client()
-        full_cmd: list = cmd_parts + (args or [])
-        raw = await client.custom_command(full_cmd)
-        logger.warning('Admin command executed: %s', cmd)
-        return {'status': 'success', 'result': _decode(raw)}
-    except Exception as e:
-        return {'status': 'error', 'reason': str(e)}
+    client = await get_client()
+    full_cmd: list = cmd_parts + (args or [])
+    raw = await client.custom_command(full_cmd)
+    logger.warning('Admin command executed: %s', cmd)
+    return {'status': 'success', 'result': _decode(raw)}

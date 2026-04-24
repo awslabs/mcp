@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import struct
 from typing import Any
 
@@ -44,3 +46,39 @@ async def index_exists(client: Any, index_name: str) -> bool:
     existing = await ft.list(client)
     names = {i.decode() if isinstance(i, bytes) else str(i) for i in (existing or [])}
     return index_name in names
+
+
+def readonly_guard(fn):
+    """Decorator that returns an error dict if readonly mode is active."""
+    from functools import wraps
+
+    @wraps(fn)
+    async def wrapper(*args, **kwargs):
+        from awslabs.valkey_mcp_server.context import Context
+
+        if Context.readonly_mode():
+            return {'status': 'error', 'reason': 'Readonly mode'}
+        return await fn(*args, **kwargs)
+
+    return wrapper
+
+
+def tool_errors(fn):
+    """Decorator that catches exceptions and returns structured error dicts."""
+    import logging
+    from functools import wraps
+    from glide_shared.exceptions import RequestError
+
+    logger = logging.getLogger(fn.__module__)
+
+    @wraps(fn)
+    async def wrapper(*args, **kwargs):
+        try:
+            return await fn(*args, **kwargs)
+        except RequestError as e:
+            return {'status': 'error', 'reason': str(e)}
+        except Exception as e:
+            logger.exception('%s failed: %s', fn.__name__, e)
+            return {'status': 'error', 'reason': str(e)}
+
+    return wrapper

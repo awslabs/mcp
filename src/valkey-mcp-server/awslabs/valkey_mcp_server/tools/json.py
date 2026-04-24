@@ -14,14 +14,15 @@
 
 """JSON Intelligence tools for Valkey (GLIDE)."""
 
+from __future__ import annotations
+
 import json as json_stdlib
 import logging
 from awslabs.valkey_mcp_server.common.connection import get_client
 from awslabs.valkey_mcp_server.common.server import mcp
-from awslabs.valkey_mcp_server.common.utils import decode_value
-from awslabs.valkey_mcp_server.context import Context
+from awslabs.valkey_mcp_server.common.utils import decode_value, readonly_guard, tool_errors
 from glide_shared.exceptions import RequestError
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 
 logger = logging.getLogger(__name__)
@@ -47,7 +48,7 @@ def _unwrap_single(val: Any, path: str) -> Any:
     return val
 
 
-async def _get_json_type(client: Any, key: str, path: str) -> Optional[str]:
+async def _get_json_type(client: Any, key: str, path: str) -> str | None:
     """Get the JSON type at a path. Returns None if key/path doesn't exist."""
     try:
         result = await client.custom_command(['JSON.TYPE', key, path])
@@ -61,7 +62,7 @@ async def _get_json_type(client: Any, key: str, path: str) -> Optional[str]:
         return None
 
 
-async def _require_array(client: Any, key: str, path: str) -> Optional[Dict[str, Any]]:
+async def _require_array(client: Any, key: str, path: str) -> dict[str, Any] | None:
     """Validate key exists and path is an array. Returns error dict or None."""
     jtype = await _get_json_type(client, key, path)
     if jtype is None:
@@ -75,10 +76,11 @@ async def _require_array(client: Any, key: str, path: str) -> Optional[Dict[str,
 
 
 @mcp.tool()
+@tool_errors
 async def json_get(
     key: str,
     path: str = '$',
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Get a JSON value at a path from a Valkey key.
 
     Args:
@@ -89,36 +91,35 @@ async def json_get(
         Dict with "status" and "value". For non-wildcard paths, single values
         are unwrapped from the JSONPath array.
     """
-    try:
-        client = await get_client()
-        result = await client.custom_command(['JSON.GET', key, path])
-        if result is None:
-            return {
-                'status': 'error',
-                'reason': f"Key '{key}' not found or path '{path}' does not exist",
-            }
-        parsed = _parse_json_response(result)
-        unwrapped = _unwrap_single(parsed, path)
-        logger.debug(
-            'json_get: key=%r path=%r raw=%r parsed=%r unwrapped=%r',
-            key,
-            path,
-            result,
-            parsed,
-            unwrapped,
-        )
-        return {'status': 'success', 'value': unwrapped}
-    except Exception as e:
-        return {'status': 'error', 'reason': str(e)}
+    client = await get_client()
+    result = await client.custom_command(['JSON.GET', key, path])
+    if result is None:
+        return {
+            'status': 'error',
+            'reason': f"Key '{key}' not found or path '{path}' does not exist",
+        }
+    parsed = _parse_json_response(result)
+    unwrapped = _unwrap_single(parsed, path)
+    logger.debug(
+        'json_get: key=%r path=%r raw=%r parsed=%r unwrapped=%r',
+        key,
+        path,
+        result,
+        parsed,
+        unwrapped,
+    )
+    return {'status': 'success', 'value': unwrapped}
 
 
 @mcp.tool()
+@readonly_guard
+@tool_errors
 async def json_set(
     key: str,
-    value: Union[str, int, float, bool, list, dict, None],
+    value: str | int | float | bool | list | dict | None,
     path: str = '$',
-    ttl: Optional[int] = None,
-) -> Dict[str, Any]:
+    ttl: int | None = None,
+) -> dict[str, Any]:
     """Set a JSON value at a path on a Valkey key.
 
     Args:
@@ -130,33 +131,30 @@ async def json_set(
     Returns:
         Dict with "status".
     """
-    if Context.readonly_mode():
-        return {'status': 'error', 'reason': 'Readonly mode'}
-    try:
-        client = await get_client()
-        encoded = json_stdlib.dumps(value)
-        logger.debug(
-            'json_set: key=%r path=%r value=%r type=%s encoded=%r',
-            key,
-            path,
-            value,
-            type(value).__name__,
-            encoded,
-        )
-        await client.custom_command(['JSON.SET', key, path, encoded])
-        if ttl is not None:
-            await client.expire(key, ttl)
-        return {'status': 'success'}
-    except Exception as e:
-        return {'status': 'error', 'reason': str(e)}
+    client = await get_client()
+    encoded = json_stdlib.dumps(value)
+    logger.debug(
+        'json_set: key=%r path=%r value=%r type=%s encoded=%r',
+        key,
+        path,
+        value,
+        type(value).__name__,
+        encoded,
+    )
+    await client.custom_command(['JSON.SET', key, path, encoded])
+    if ttl is not None:
+        await client.expire(key, ttl)
+    return {'status': 'success'}
 
 
 @mcp.tool()
+@readonly_guard
+@tool_errors
 async def json_arrappend(
     key: str,
-    values: List[Any],
+    values: list[Any],
     path: str = '$',
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Append values to a JSON array at a path.
 
     Args:
@@ -167,27 +165,24 @@ async def json_arrappend(
     Returns:
         Dict with "status" and "new_length".
     """
-    if Context.readonly_mode():
-        return {'status': 'error', 'reason': 'Readonly mode'}
-    try:
-        client = await get_client()
-        if err := await _require_array(client, key, path):
-            return err
-        cmd: list = ['JSON.ARRAPPEND', key, path] + [json_stdlib.dumps(v) for v in values]
-        result = await client.custom_command(cmd)
-        parsed = result if isinstance(result, list) else [result]
-        length = _unwrap_single(parsed, path)
-        return {'status': 'success', 'new_length': length}
-    except Exception as e:
-        return {'status': 'error', 'reason': str(e)}
+    client = await get_client()
+    if err := await _require_array(client, key, path):
+        return err
+    cmd: list = ['JSON.ARRAPPEND', key, path] + [json_stdlib.dumps(v) for v in values]
+    result = await client.custom_command(cmd)
+    parsed = result if isinstance(result, list) else [result]
+    length = _unwrap_single(parsed, path)
+    return {'status': 'success', 'new_length': length}
 
 
 @mcp.tool()
+@readonly_guard
+@tool_errors
 async def json_arrpop(
     key: str,
     path: str = '$',
     index: int = -1,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Pop an element from a JSON array at a path.
 
     Args:
@@ -198,29 +193,26 @@ async def json_arrpop(
     Returns:
         Dict with "status" and "popped" value.
     """
-    if Context.readonly_mode():
-        return {'status': 'error', 'reason': 'Readonly mode'}
-    try:
-        client = await get_client()
-        if err := await _require_array(client, key, path):
-            return err
-        result = await client.custom_command(['JSON.ARRPOP', key, path, str(index)])
-        if isinstance(result, list):
-            popped = [_parse_json_response(v) for v in result]
-            return {'status': 'success', 'popped': _unwrap_single(popped, path)}
-        parsed = _parse_json_response(result)
-        return {'status': 'success', 'popped': parsed}
-    except Exception as e:
-        return {'status': 'error', 'reason': str(e)}
+    client = await get_client()
+    if err := await _require_array(client, key, path):
+        return err
+    result = await client.custom_command(['JSON.ARRPOP', key, path, str(index)])
+    if isinstance(result, list):
+        popped = [_parse_json_response(v) for v in result]
+        return {'status': 'success', 'popped': _unwrap_single(popped, path)}
+    parsed = _parse_json_response(result)
+    return {'status': 'success', 'popped': parsed}
 
 
 @mcp.tool()
+@readonly_guard
+@tool_errors
 async def json_arrtrim(
     key: str,
     start: int,
     stop: int,
     path: str = '$',
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Trim a JSON array to a specified range.
 
     Args:
@@ -232,15 +224,10 @@ async def json_arrtrim(
     Returns:
         Dict with "status" and "new_length".
     """
-    if Context.readonly_mode():
-        return {'status': 'error', 'reason': 'Readonly mode'}
-    try:
-        client = await get_client()
-        if err := await _require_array(client, key, path):
-            return err
-        result = await client.custom_command(['JSON.ARRTRIM', key, path, str(start), str(stop)])
-        parsed = result if isinstance(result, list) else [result]
-        length = _unwrap_single(parsed, path)
-        return {'status': 'success', 'new_length': length}
-    except Exception as e:
-        return {'status': 'error', 'reason': str(e)}
+    client = await get_client()
+    if err := await _require_array(client, key, path):
+        return err
+    result = await client.custom_command(['JSON.ARRTRIM', key, path, str(start), str(stop)])
+    parsed = result if isinstance(result, list) else [result]
+    length = _unwrap_single(parsed, path)
+    return {'status': 'success', 'new_length': length}

@@ -14,6 +14,8 @@
 
 """Factory for creating embeddings provider instances."""
 
+from __future__ import annotations
+
 from .base import EmbeddingsProvider
 from .providers import BedrockEmbeddings, HashEmbeddings, OllamaEmbeddings, OpenAIEmbeddings
 from awslabs.valkey_mcp_server.common.config import EMBEDDING_CFG
