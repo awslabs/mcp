@@ -15,10 +15,22 @@
 """FT.AGGREGATE structured pipeline builder for Valkey Search (GLIDE)."""
 
 import logging
-import re
 from awslabs.valkey_mcp_server.common.connection import get_client
 from awslabs.valkey_mcp_server.common.server import mcp
 from awslabs.valkey_mcp_server.common.utils import index_exists
+from glide import ft
+from glide_shared.commands.server_modules.ft_options.ft_aggregate_options import (
+    FtAggregateApply,
+    FtAggregateClause,
+    FtAggregateFilter,
+    FtAggregateGroupBy,
+    FtAggregateLimit,
+    FtAggregateOptions,
+    FtAggregateReducer,
+    FtAggregateSortBy,
+    FtAggregateSortProperty,
+    OrderBy,
+)
 from glide_shared.exceptions import RequestError
 from typing import Any, Dict, List, Optional
 
@@ -43,93 +55,63 @@ VALID_REDUCE_FUNCTIONS = {
 VALID_STAGE_TYPES = {'GROUPBY', 'SORTBY', 'APPLY', 'FILTER', 'LIMIT'}
 
 
-def _build_groupby(stage: Dict[str, Any]) -> list:
-    fields = stage.get('fields', [])
-    args = ['GROUPBY', str(len(fields))] + fields
-    for reducer in stage.get('reducers', []):
-        func = reducer.get('function', '').upper()
-        if func not in VALID_REDUCE_FUNCTIONS:
-            raise ValueError(
-                f"Unknown REDUCE function '{func}'. Must be: {VALID_REDUCE_FUNCTIONS}"
-            )
-        args.append('REDUCE')
-        args.append(func)
-        field = reducer.get('field')
-        if func == 'COUNT':
-            args.append('0')
-        elif func in ('QUANTILE', 'FIRST_VALUE'):
-            extra = reducer.get('value')
-            if field and extra is not None:
-                args += ['2', field, str(extra)]
-            elif field:
-                args += ['1', field]
+def _build_reducer(r: Dict[str, Any]) -> FtAggregateReducer:
+    """Translate a reducer dict into a GLIDE FtAggregateReducer."""
+    func = r.get('function', '').upper()
+    if func not in VALID_REDUCE_FUNCTIONS:
+        raise ValueError(f"Unknown REDUCE function '{func}'. Must be: {VALID_REDUCE_FUNCTIONS}")
+    field = r.get('field')
+    args: list = [field] if field else []
+    if func in ('QUANTILE', 'FIRST_VALUE') and r.get('value') is not None:
+        args.append(str(r['value']))
+    if func == 'RANDOM_SAMPLE' and r.get('size') is not None:
+        args.append(str(r['size']))
+    return FtAggregateReducer(func, args, name=r.get('alias'))
+
+
+def _build_clause(stage: Dict[str, Any]) -> FtAggregateClause:
+    """Translate a pipeline stage dict into a GLIDE FtAggregateClause."""
+    stype = stage.get('type', '').upper()
+
+    if stype == 'GROUPBY':
+        fields = stage.get('fields', [])
+        reducers = [_build_reducer(r) for r in stage.get('reducers', [])]
+        return FtAggregateGroupBy(fields, reducers)
+
+    if stype == 'SORTBY':
+        props = []
+        for f in stage.get('fields', []):
+            if isinstance(f, dict):
+                order = OrderBy.DESC if f.get('order', 'ASC').upper() == 'DESC' else OrderBy.ASC
+                props.append(FtAggregateSortProperty(f.get('field', ''), order))
             else:
-                args.append('0')
-        elif func == 'RANDOM_SAMPLE':
-            sample_size = reducer.get('size', 1)
-            if field:
-                args += ['2', field, str(sample_size)]
-            else:
-                args.append('0')
-        elif field:
-            args += ['1', field]
-        else:
-            args.append('0')
-        alias = reducer.get('alias')
-        if alias:
-            args += ['AS', alias]
-    return args
+                props.append(FtAggregateSortProperty(f, OrderBy.ASC))
+        return FtAggregateSortBy(props)
+
+    if stype == 'APPLY':
+        expr = stage.get('expression', '')
+        alias = stage.get('alias', '')
+        if not expr or not alias:
+            raise ValueError("APPLY stage requires 'expression' and 'alias'")
+        return FtAggregateApply(expr, alias)
+
+    if stype == 'FILTER':
+        expr = stage.get('expression', '')
+        if not expr:
+            raise ValueError("FILTER stage requires 'expression'")
+        return FtAggregateFilter(expr)
+
+    if stype == 'LIMIT':
+        return FtAggregateLimit(stage.get('offset', 0), stage.get('count', 10))
+
+    raise ValueError(f"Unknown stage type '{stype}'. Must be: {VALID_STAGE_TYPES}")
 
 
-def _build_sortby(stage: Dict[str, Any]) -> list:
-    fields = stage.get('fields', [])
-    sort_args: list = []
-    for f in fields:
-        if isinstance(f, dict):
-            sort_args.append(f.get('field', ''))
-            sort_args.append(f.get('order', 'ASC').upper())
-        else:
-            sort_args += [f, 'ASC']
-    args = ['SORTBY', str(len(sort_args))] + sort_args
-    if stage.get('max'):
-        args += ['MAX', str(stage['max'])]
-    return args
-
-
-def _build_apply(stage: Dict[str, Any]) -> list:
-    expr = stage.get('expression', '')
-    alias = stage.get('alias', '')
-    if not expr or not alias:
-        raise ValueError("APPLY stage requires 'expression' and 'alias'")
-    return ['APPLY', expr, 'AS', alias]
-
-
-def _build_filter(stage: Dict[str, Any]) -> list:
-    expr = stage.get('expression', '')
-    if not expr:
-        raise ValueError("FILTER stage requires 'expression'")
-    return ['FILTER', expr]
-
-
-def _build_limit(stage: Dict[str, Any]) -> list:
-    return ['LIMIT', str(stage.get('offset', 0)), str(stage.get('count', 10))]
-
-
-_STAGE_BUILDERS = {
-    'GROUPBY': _build_groupby,
-    'SORTBY': _build_sortby,
-    'APPLY': _build_apply,
-    'FILTER': _build_filter,
-    'LIMIT': _build_limit,
-}
-
-
-def _decode_aggregate_response(raw) -> List[Dict[str, Any]]:
+def _decode_aggregate_response(raw: Any) -> List[Dict[str, Any]]:
     """Decode ft.aggregate response into list of dicts."""
-    if not raw or len(raw) < 1:
+    if not raw or not isinstance(raw, list):
         return []
     rows = []
-    # ft.aggregate returns a list; each element after index 0 is a row dict or list
     for row in raw:
         if isinstance(row, dict):
             d: Dict[str, Any] = {}
@@ -163,7 +145,7 @@ async def aggregate(
 
     Args:
         index_name: Valkey Search index name
-        query: Filter query (default: "*" for all documents)
+        query: Filter query (e.g., "@price:[0 inf]", "@category:{Books}")
         pipeline: Ordered list of pipeline stages. Each stage is a dict
             with a "type" key. Supported types:
 
@@ -192,7 +174,6 @@ async def aggregate(
     try:
         client = await get_client()
 
-        # Pre-validate: avoid GLIDE crashes on error responses
         if not await index_exists(client, index_name):
             return {'status': 'error', 'reason': f"Index '{index_name}' does not exist"}
 
@@ -203,73 +184,24 @@ async def aggregate(
                 "Use a field filter (e.g., '@price:[0 inf]', '@category:{Books}').",
             }
 
-        # Build the pipeline args for custom_command.
-        # TODO: Migrate to ft.aggregate() when GLIDE adds full pipeline stage support.
-        cmd: list = ['FT.AGGREGATE', index_name, query]
-
+        # Build typed GLIDE clauses from pipeline stages
+        clauses: list[FtAggregateClause] = []
         if pipeline:
-            # Collect document fields that need LOAD and track pipeline aliases.
-            load_fields: set = set()
-            pipeline_aliases: set = set()
-
-            def _extract_expr_fields(expr: str) -> None:
-                """Add @field references from an expression, skipping pipeline aliases."""
-                for match in re.findall(r'@(\w+)', expr):
-                    if match not in pipeline_aliases:
-                        load_fields.add(f'@{match}')
-
-            for stage in pipeline:
-                stype = stage.get('type', '').upper()
-                if stype == 'GROUPBY':
-                    for f in stage.get('fields', []):
-                        load_fields.add(f)
-                    for reducer in stage.get('reducers', []):
-                        field = reducer.get('field')
-                        if field and reducer.get('function', '').upper() != 'COUNT':
-                            load_fields.add(field)
-                        alias = reducer.get('alias')
-                        if alias:
-                            pipeline_aliases.add(alias)
-                elif stype == 'SORTBY':
-                    for f in stage.get('fields', []):
-                        name = f.get('field', f) if isinstance(f, dict) else f
-                        if isinstance(name, str) and name.startswith('@'):
-                            field_name = name[1:]
-                            if field_name not in pipeline_aliases:
-                                load_fields.add(name)
-                elif stype == 'APPLY':
-                    _extract_expr_fields(stage.get('expression', ''))
-                    alias = stage.get('alias')
-                    if alias:
-                        pipeline_aliases.add(alias)
-                elif stype == 'FILTER':
-                    _extract_expr_fields(stage.get('expression', ''))
-
-            if load_fields:
-                cmd += ['LOAD', str(len(load_fields))] + list(load_fields)
-
             for i, stage in enumerate(pipeline):
-                stype = stage.get('type', '').upper()
-                if stype not in VALID_STAGE_TYPES:
-                    return {
-                        'status': 'error',
-                        'reason': f"Stage {i}: unknown type '{stype}'. Must be: {VALID_STAGE_TYPES}",
-                    }
-                builder = _STAGE_BUILDERS[stype]
                 try:
-                    cmd += builder(stage)
+                    clauses.append(_build_clause(stage))
                 except ValueError as e:
-                    return {'status': 'error', 'reason': f'Stage {i} ({stype}): {e}'}
+                    return {'status': 'error', 'reason': f'Stage {i}: {e}'}
 
-        logger.debug('aggregate command: %s', ' '.join(str(x) for x in cmd))
-        raw = await client.custom_command(cmd)
-        logger.debug('aggregate raw response type=%s value=%r', type(raw).__name__, raw)
+        options = FtAggregateOptions(loadAll=True, clauses=clauses)
 
-        # GLIDE custom_command returns a list of row dicts for FT.AGGREGATE
-        rows: List[Dict[str, Any]] = []
-        if isinstance(raw, list):
-            rows = _decode_aggregate_response(raw)
+        logger.debug('aggregate: index=%s query=%s clauses=%d', index_name, query, len(clauses))
+        raw = await ft.aggregate(
+            client=client, index_name=index_name, query=query, options=options
+        )
+        logger.debug('aggregate raw response type=%s', type(raw).__name__)
 
+        rows = _decode_aggregate_response(raw)
         return {'status': 'success', 'results': rows, 'total': len(rows)}
 
     except RequestError as e:

@@ -20,6 +20,7 @@ import logging
 from awslabs.valkey_mcp_server.common.config import VALKEY_CFG
 from glide import (
     AdvancedGlideClientConfiguration,
+    AdvancedGlideClusterClientConfiguration,
     BackoffStrategy,
     GlideClient,
     GlideClientConfiguration,
@@ -69,9 +70,14 @@ def _build_config() -> GlideClientConfiguration | GlideClusterClientConfiguratio
         ca_path = VALKEY_CFG['ssl_ca_certs']
         with open(ca_path, 'rb') as f:
             ca_cert = f.read()
-        kwargs['advanced_config'] = AdvancedGlideClientConfiguration(
-            tls_config=TlsAdvancedConfiguration(root_pem_cacerts=ca_cert),
-        )
+        if VALKEY_CFG['cluster_mode']:
+            kwargs['advanced_config'] = AdvancedGlideClusterClientConfiguration(
+                tls_config=TlsAdvancedConfiguration(root_pem_cacerts=ca_cert),
+            )
+        else:
+            kwargs['advanced_config'] = AdvancedGlideClientConfiguration(
+                tls_config=TlsAdvancedConfiguration(root_pem_cacerts=ca_cert),
+            )
 
     if VALKEY_CFG['cluster_mode']:
         return GlideClusterClientConfiguration(**kwargs)

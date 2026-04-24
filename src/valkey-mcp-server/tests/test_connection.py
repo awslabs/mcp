@@ -113,6 +113,42 @@ class TestBuildConfig:
             config = _build_config()
         assert isinstance(config, GlideClientConfiguration)
 
+    def test_cluster_tls_uses_correct_advanced_config(self, tmp_path):
+        ca_file = tmp_path / 'ca.pem'
+        ca_file.write_bytes(b'fake-ca-cert')
+        with patch(
+            f'{MODULE}.VALKEY_CFG',
+            {
+                'host': 'cluster.example.com',
+                'port': 6379,
+                'password': '',
+                'username': None,
+                'ssl': True,
+                'ssl_ca_certs': str(ca_file),
+                'cluster_mode': True,
+            },
+        ):
+            config = _build_config()
+        assert isinstance(config, GlideClusterClientConfiguration)
+
+    def test_standalone_tls_uses_correct_advanced_config(self, tmp_path):
+        ca_file = tmp_path / 'ca.pem'
+        ca_file.write_bytes(b'fake-ca-cert')
+        with patch(
+            f'{MODULE}.VALKEY_CFG',
+            {
+                'host': 'localhost',
+                'port': 6379,
+                'password': '',
+                'username': None,
+                'ssl': True,
+                'ssl_ca_certs': str(ca_file),
+                'cluster_mode': False,
+            },
+        ):
+            config = _build_config()
+        assert isinstance(config, GlideClientConfiguration)
+
 
 class TestGetClient:
     async def test_creates_standalone_client(self):

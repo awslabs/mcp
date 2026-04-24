@@ -39,7 +39,7 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-VALID_FIELD_TYPES = {'TEXT', 'NUMERIC', 'TAG', 'GEO', 'VECTOR'}
+VALID_FIELD_TYPES = {'TEXT', 'NUMERIC', 'TAG', 'VECTOR'}
 VALID_DISTANCE_METRICS = {'COSINE', 'L2', 'IP'}
 VALID_STRUCTURE_TYPES = {'FLAT', 'HNSW'}
 VALID_INDEX_TYPES = {'HASH', 'JSON'}
@@ -117,7 +117,7 @@ async def manage_index(
         action: "create", "drop", "info", or "list"
         index_name: Index name (required for create, drop, info)
         schema: Field definitions for create. Each field dict needs "name" and
-            "type" (TEXT, NUMERIC, TAG, GEO, VECTOR). VECTOR fields also need
+            "type" (TEXT, NUMERIC, TAG, VECTOR). VECTOR fields also need
             "dimensions". Example:
             [{"name": "title", "type": "TEXT"},
              {"name": "embedding", "type": "VECTOR", "dimensions": 768},
