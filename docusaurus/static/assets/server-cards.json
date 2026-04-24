@@ -529,6 +529,27 @@
     },
     {
       "category": "Data & Analytics",
+      "description": "Oracle Database operations on AWS RDS via Secrets Manager authentication",
+      "icon": "\ud83d\udcca",
+      "id": "oracle-mcp-server",
+      "name": "Amazon RDS Oracle MCP Server",
+      "source_path": "src/oracle-mcp-server/",
+      "subcategory": "SQL & NoSQL Databases",
+      "tags": [
+        "data-analytics",
+        "oracle",
+        "rds",
+        "secrets-manager",
+        "sql-database",
+        "autonomous",
+        "data-operations"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Data & Analytics",
       "description": "Distributed SQL with PostgreSQL compatibility",
       "icon": "\ud83d\udcca",
       "id": "aurora-dsql-mcp-server",
