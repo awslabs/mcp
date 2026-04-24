@@ -16,7 +16,6 @@
 
 import asyncio
 import os
-import signal
 from .tools import docs, gateway
 from .utils import cache
 from collections.abc import AsyncIterator
@@ -107,13 +106,6 @@ async def server_lifespan(server: FastMCP) -> AsyncIterator[None]:
     graceful shutdown.
     """
     if _browser_cm is not None and _browser_sm is not None:
-        loop = asyncio.get_running_loop()
-        for sig in (signal.SIGTERM, signal.SIGINT):
-            loop.add_signal_handler(
-                sig,
-                lambda cm=_browser_cm: asyncio.ensure_future(cm.cleanup()),
-            )
-
         from .tools.browser import cleanup_stale_sessions
 
         task = asyncio.create_task(cleanup_stale_sessions(_browser_cm, _browser_sm))
