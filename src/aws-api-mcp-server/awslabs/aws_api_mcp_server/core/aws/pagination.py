@@ -111,5 +111,6 @@ def build_result(
         _merge_page_into_result(result, page, page_iterator)
 
         response_metadata = page.get('ResponseMetadata')
+        logger.debug(f'Received response with metadata: {response_metadata}')
 
     return _finalize_result(result, page_iterator, response_metadata, client_side_filter)

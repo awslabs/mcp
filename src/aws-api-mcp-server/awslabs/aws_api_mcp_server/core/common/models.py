@@ -45,15 +45,6 @@ class ValidationFailure(BaseModel):
     context: Context | None
 
 
-class InterpretationMetadata(BaseModel):
-    """Metadata for an interpretation, including service and operation details."""
-
-    service: str | None
-    service_full_name: str | None
-    operation: str | None
-    region_name: str | None = None
-
-
 class ProgramValidationResponse(BaseModel):
     """Response for a program validation request."""
 
@@ -106,16 +97,6 @@ class AwsCliAliasResponse(BaseModel):
 
     response: str | None = Field(None)
     error: str | None = Field(None)
-
-
-class ProgramInterpretationResponse(BaseModel):
-    """Response of the program interpretation."""
-
-    response: InterpretationResponse | None = Field(None)
-    metadata: InterpretationMetadata | None = Field(default=None)
-    validation_failures: list[ValidationFailure] | None = Field(default=None)
-    missing_context_failures: list[ValidationFailure] | None = Field(default=None)
-    failed_constraints: list[str] | None = Field(default=None)
 
 
 class Consent(BaseModel):
@@ -195,9 +176,6 @@ class InterpretedProgram:
     """The pagination token returned by paginated APIs"""
     pagination_token: str | None = None
 
-    """List of constraints that failed validation on the underlying intermediate representation"""
-    failed_constraints: list[str] | None = None
-
     """The region where program is interpreted"""
     region_name: str | None = None
 
@@ -215,7 +193,7 @@ class CallAWSResponse(BaseModel):
     """The result from running a single CLI command."""
 
     cli_command: str
-    response: ProgramInterpretationResponse | AwsCliAliasResponse | None = None
+    response: InterpretationResponse | AwsCliAliasResponse | None = None
     error: str | None = None
 
     @model_validator(mode='after')
