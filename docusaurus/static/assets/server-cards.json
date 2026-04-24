@@ -1222,6 +1222,26 @@
         "autonomous",
         "conversational"
       ]
+    },
+    {
+      "category": "Media Services",
+      "description": "Manage MediaPackage v2 channel groups, channels, origin endpoints, and harvest jobs with typed tool parameters",
+      "icon": "\ud83d\udce6",
+      "id": "amazon-mediapackagev2-mcp-server",
+      "name": "Amazon MediaPackage V2 MCP Server",
+      "source_path": "src/amazon-mediapackagev2-mcp-server/",
+      "subcategory": "Live Streaming",
+      "tags": [
+        "media-services",
+        "mediapackage",
+        "live-streaming",
+        "video-packaging",
+        "content-delivery",
+        "vibe-coding"
+      ],
+      "workflows": [
+        "vibe-coding"
+      ]
     }
   ],
   "workflows": [
