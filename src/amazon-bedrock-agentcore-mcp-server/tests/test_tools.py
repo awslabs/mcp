@@ -14,33 +14,33 @@
 
 """Tests for AgentCore management tools."""
 
-from awslabs.amazon_bedrock_agentcore_mcp_server.tools import gateway, memory, runtime
+from awslabs.amazon_bedrock_agentcore_mcp_server.tools import gateway
+from awslabs.amazon_bedrock_agentcore_mcp_server.tools.memory.guide import (
+    MEMORY_GUIDE,
+    GuideTools,
+)
+from awslabs.amazon_bedrock_agentcore_mcp_server.tools.memory.models import (
+    MemoryGuideResponse,
+)
 
 
 class TestMemoryTool:
-    """Test cases for the memory management tool."""
+    """Test cases for the memory guide tool."""
 
-    def test_manage_agentcore_memory_returns_guide(self):
-        """Test that manage_agentcore_memory returns a memory guide."""
-        result = memory.manage_agentcore_memory()
+    async def test_get_memory_guide_returns_guide(self):
+        """Test that get_memory_guide returns a MemoryGuideResponse."""
+        from unittest.mock import MagicMock
 
-        assert isinstance(result, dict)
-        assert 'memory_guide' in result
-        assert isinstance(result['memory_guide'], str)
-        assert len(result['memory_guide']) > 0
+        tools = GuideTools()
+        result = await tools.get_memory_guide(ctx=MagicMock())
+        assert isinstance(result, MemoryGuideResponse)
+        assert len(result.guide) > 0
 
-
-class TestRuntimeTool:
-    """Test cases for the runtime management tool."""
-
-    def test_manage_agentcore_runtime_returns_guide(self):
-        """Test that manage_agentcore_runtime returns a deployment guide."""
-        result = runtime.manage_agentcore_runtime()
-
-        assert isinstance(result, dict)
-        assert 'deployment_guide' in result
-        assert isinstance(result['deployment_guide'], str)
-        assert len(result['deployment_guide']) > 0
+    def test_memory_guide_constant_is_populated(self):
+        """Test that MEMORY_GUIDE constant has substantial content."""
+        assert isinstance(MEMORY_GUIDE, str)
+        assert len(MEMORY_GUIDE) > 100
+        assert 'AgentCore Memory' in MEMORY_GUIDE
 
 
 class TestGatewayTool:
@@ -49,7 +49,6 @@ class TestGatewayTool:
     def test_manage_agentcore_gateway_returns_guide(self):
         """Test that manage_agentcore_gateway returns a deployment guide."""
         result = gateway.manage_agentcore_gateway()
-
         assert isinstance(result, dict)
         assert 'deployment_guide' in result
         assert isinstance(result['deployment_guide'], str)

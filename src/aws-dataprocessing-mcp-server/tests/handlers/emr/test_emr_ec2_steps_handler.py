@@ -47,7 +47,7 @@ def steps_handler_with_write_access():
     ) as mock_create_client:
         mock_emr_client = MagicMock()
         mock_create_client.return_value = mock_emr_client
-        handler = EMREc2StepsHandler(mcp_mock, allow_write=True)
+        handler = EMREc2StepsHandler(mcp_mock, allow_write=True, allow_sensitive_data_access=True)
     return handler
 
 

@@ -1,0 +1,73 @@
+{
+  "category": "http_monitoring",
+  "documentation_links": [
+    {
+      "title": "CloudWatch Synthetics Configuration Options",
+      "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Synthetics_Canaries_Library_Nodejs.html#CloudWatch_Synthetics_Library_SyntheticsConfiguration"
+    },
+    {
+      "title": "CloudWatch Synthetics Runtime Versions",
+      "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Synthetics_Canaries_Library.html"
+    }
+  ],
+  "error_patterns": [
+    {
+      "text_contains": "restrictedHeaders"
+    },
+    {
+      "text_contains": "redact"
+    },
+    {
+      "text_contains": "executeHttpStep"
+    }
+  ],
+  "id": "RUNTIME-006",
+  "recommendations": [
+    {
+      "confidence": 95,
+      "estimated_time": "15 minutes",
+      "priority": "critical",
+      "problem": "Runtime bug in syn-nodejs-puppeteer-11.0 causes restrictedHeaders to be ignored",
+      "solution": [
+        {
+          "command": "# Via AWS Console:\n# 1. Navigate to CloudWatch Synthetics console\n# 2. Select your canary\n# 3. Click on a recent run > \"HTTP steps\" tab\n# 4. Check if restricted headers (e.g., Authorization) appear in plain text\n\n# Via AWS CLI:\naws synthetics get-canary \\\n  --name <canary-name> \\\n  --region <canary-region>\n",
+          "description": "Verify headers are not being redacted in canary reports",
+          "expected_outcome": "Confirms canary is on syn-nodejs-puppeteer-11.0 and headers are unredacted",
+          "step": "Confirm the issue"
+        },
+        {
+          "command": "# Via AWS Console:\n# 1. Navigate to CloudWatch Synthetics console\n# 2. Select your canary\n# 3. Click \"Actions\" > \"Edit\"\n# 4. Update runtime version to syn-nodejs-puppeteer-12.0 or later\n# 5. Save changes\n\n# Via AWS CLI:\naws synthetics update-canary \\\n  --name <canary-name> \\\n  --region <canary-region> \\\n  --runtime-version syn-nodejs-puppeteer-12.0\n",
+          "description": "Update runtime to the version where the restrictedHeaders fix is included",
+          "expected_outcome": "Canary updated to runtime with restrictedHeaders fix",
+          "step": "Upgrade to syn-nodejs-puppeteer-12.0"
+        },
+        {
+          "command": "# Via AWS Console:\n# 1. Navigate to CloudWatch Synthetics console\n# 2. Select your canary and trigger a run\n# 3. Click on the new run > \"HTTP steps\" tab\n# 4. Verify restricted headers show as \"REDACTED\"\n",
+          "description": "Confirm restricted headers no longer appear in reports",
+          "expected_outcome": "Restricted headers appear as REDACTED in HTTP step reports",
+          "step": "Verify headers are redacted after upgrade"
+        }
+      ],
+      "title": "Upgrade to syn-nodejs-puppeteer-12.0 or later"
+    }
+  ],
+  "root_cause": "A regression in syn-nodejs-puppeteer-11.0 causes the executeHttpStep function to skip the header redaction logic when building HTTPRequestReports. The restrictedHeaders array is accepted but never applied during report generation, so sensitive headers (e.g., Authorization, X-Api-Key) appear in plain text in step logs and HAR artifacts. This is a code-path regression from syn-nodejs-puppeteer-10.0, fixed in syn-nodejs-puppeteer-12.0.",
+  "runtime_versions": [
+    "syn-nodejs-puppeteer-11.0"
+  ],
+  "severity": "high",
+  "symptoms": [
+    "Headers specified in restrictedHeaders are not redacted in HTTPRequestReports",
+    "Sensitive headers visible in HTTPSteps logs and reports",
+    "restrictedHeaders configuration ignored by executeHttpStep",
+    "Same code works correctly on syn-nodejs-puppeteer-10.0 but not 11.0"
+  ],
+  "tags": [
+    "restricted-headers",
+    "redaction",
+    "executeHttpStep",
+    "http-monitoring",
+    "runtime-bug"
+  ],
+  "title": "syn-nodejs-puppeteer-11.0 ignoring 'restrictedHeaders' in executeHttpStep"
+}

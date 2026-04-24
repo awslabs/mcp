@@ -34,12 +34,16 @@ from .aws_clients import (
     s3_client,
     synthetics_client,
 )
+from .canary_knowledge_base_loader import CanaryKnowledgeBaseLoader
+from .canary_knowledge_base_model import FailureContext
+from .canary_recommendation_engine import CanaryRecommendationEngine
 from .canary_utils import (
     analyze_canary_logs_with_time_window,
     analyze_har_file,
     analyze_iam_role_and_policies,
     analyze_log_files,
     analyze_screenshots,
+    check_canaries_for_service,
     check_resource_arns_correct,
     extract_disk_memory_usage_metrics,
     get_canary_code,
@@ -444,6 +448,13 @@ async def audit_services(
 
         # Execute audit API using shared utility
         result = await execute_audit_api(input_obj, region, banner)
+
+        # Check Synthetics canaries linked to the audited services
+        canary_result = await check_canaries_for_service(
+            normalized_targets, unix_start, unix_end, region
+        )
+        if canary_result:
+            result += canary_result
 
         # Add prominent pagination information when wildcards were used
         result += format_pagination_info(
@@ -978,7 +989,9 @@ async def audit_service_operations(
 
 
 @mcp.tool()
-async def analyze_canary_failures(canary_name: str, region: str = AWS_REGION) -> str:
+async def analyze_canary_failures(
+    canary_name: str, region: str = AWS_REGION, description: str = ''
+) -> str:
     """Comprehensive canary failure analysis with deep dive into issues.
 
     Use this tool to:
@@ -1014,6 +1027,11 @@ async def analyze_canary_failures(canary_name: str, region: str = AWS_REGION) ->
     Args:
         canary_name (str): Name of the CloudWatch Synthetics canary to analyze
         region (str, optional): AWS region where the canary is deployed.
+        description (str, optional): User's description of the issue they are experiencing.
+            This is matched against the knowledge base to surface relevant recommendations
+            even when the canary error logs alone may not contain enough context.
+            Examples: "missing runs in console", "visual monitoring baseline keeps resetting",
+            "CloudFormation rollback failed after runtime upgrade".
 
     Returns:
         dict: Comprehensive failure analysis containing:
@@ -1088,6 +1106,30 @@ async def analyze_canary_failures(canary_name: str, region: str = AWS_REGION) ->
         if not unique_reasons:
             result += '✅ No consecutive failures to analyze\n'
             result += '💡 Canary appears to be recovering or healthy\n'
+
+            # Still run KB lookup when user provided an issue description
+            if description:
+                try:
+                    # Cap description length to mitigate slow regex matching in KB patterns
+                    capped_description = (
+                        description[:500] if len(description) > 500 else description
+                    )
+                    kb_error_messages_healthy: list[str] = [capped_description]
+                    failure_context_healthy = FailureContext(
+                        error_messages=kb_error_messages_healthy,
+                        runtime_version=canary.get('RuntimeVersion', ''),
+                    )
+                    engine_healthy = CanaryRecommendationEngine(
+                        await CanaryKnowledgeBaseLoader.get_instance()
+                    )
+                    recommendations_healthy = engine_healthy.get_recommendations(
+                        failure_context_healthy
+                    )
+                    if recommendations_healthy:
+                        result += engine_healthy.format_recommendations(recommendations_healthy)
+                except Exception as e:
+                    logger.warning(f'Knowledge base recommendation failed (healthy path): {e}')
+
             return result
 
         if len(unique_reasons) == 1:
@@ -1109,6 +1151,11 @@ async def analyze_canary_failures(canary_name: str, region: str = AWS_REGION) ->
         screenshots = []
         logs = []
         bucket_name = ''
+        # Accumulate detailed error messages from all sources for KB matching
+        all_collected_error_messages: list[str] = []
+        all_collected_log_patterns: list[str] = []
+        s3_log_analysis: dict = {}
+        cw_log_analysis: dict = {}
 
         # Direct S3 artifact analysis integration
         artifact_location = canary.get('ArtifactS3Location', '')
@@ -1260,14 +1307,24 @@ async def analyze_canary_failures(canary_name: str, region: str = AWS_REGION) ->
 
                         # Log analysis
                         if logs:
-                            log_analysis = await analyze_log_files(
+                            s3_log_analysis = await analyze_log_files(
                                 s3_client, bucket_name, logs, is_failed_run=True
                             )
-                            if log_analysis.get('insights'):
+                            if s3_log_analysis.get('insights'):
                                 result += '📋 LOG ANALYSIS:\n'
-                                for insight in log_analysis['insights'][:3]:
+                                for insight in s3_log_analysis['insights'][:3]:
                                     result += f'• {insight}\n'
+                                    all_collected_log_patterns.append(str(insight))
                                 result += '\n'
+                            # Collect error messages from S3 log artifacts
+                            for evt in s3_log_analysis.get('error_events', []):
+                                msg = str(evt.get('message', ''))
+                                if msg:
+                                    all_collected_error_messages.append(msg)
+                            for insight in s3_log_analysis.get('insights', []):
+                                msg = str(insight)
+                                if msg:
+                                    all_collected_error_messages.append(msg)
 
                 except Exception:
                     artifacts_available = False
@@ -1279,24 +1336,47 @@ async def analyze_canary_failures(canary_name: str, region: str = AWS_REGION) ->
 
             failure_time = selected_failure.get('Timeline', {}).get('Started')
             if failure_time:
-                log_analysis = await analyze_canary_logs_with_time_window(
+                cw_log_analysis = await analyze_canary_logs_with_time_window(
                     canary_name, failure_time, canary, window_minutes=5, region=region
                 )
 
-                if log_analysis.get('status') == 'success':
+                if cw_log_analysis.get('status') == 'success':
                     result += '📋 CLOUDWATCH LOGS ANALYSIS (±5 min around failure):\n'
-                    result += f'Time window: {log_analysis["time_window"]}\n'
-                    result += f'Log events found: {log_analysis["total_events"]}\n\n'
+                    result += f'Time window: {cw_log_analysis["time_window"]}\n'
+                    result += f'Log events found: {cw_log_analysis["total_events"]}\n\n'
 
-                    error_logs = log_analysis.get('error_events', [])
+                    error_logs = cw_log_analysis.get('error_events', [])
                     if error_logs:
                         result += '📋 ERROR LOGS AROUND FAILURE:\n'
                         for error in error_logs:
                             result += f'• {error["timestamp"].strftime("%H:%M:%S")}: {error["message"]}\n'
+                            all_collected_error_messages.append(str(error.get('message', '')))
+                    for insight in cw_log_analysis.get('insights', []):
+                        all_collected_log_patterns.append(str(insight))
                 else:
-                    result += f'📋 {log_analysis.get("insights", ["Log analysis failed"])[0]}\n'
+                    result += f'📋 {cw_log_analysis.get("insights", ["Log analysis failed"])[0]}\n'
             else:
                 result += '📋 No failure timestamp available for targeted log analysis\n'
+
+        # Always attempt CloudWatch Logs analysis for KB enrichment, even when S3 artifacts were available
+        if artifacts_available:
+            failure_time = selected_failure.get('Timeline', {}).get('Started')
+            if failure_time:
+                try:
+                    cw_log_analysis = await analyze_canary_logs_with_time_window(
+                        canary_name, failure_time, canary, window_minutes=5, region=region
+                    )
+                    if cw_log_analysis.get('status') == 'success':
+                        for evt in cw_log_analysis.get('error_events', []):
+                            msg = str(evt.get('message', ''))
+                            if msg and msg not in all_collected_error_messages:
+                                all_collected_error_messages.append(msg)
+                        for insight in cw_log_analysis.get('insights', []):
+                            pattern = str(insight)
+                            if pattern and pattern not in all_collected_log_patterns:
+                                all_collected_log_patterns.append(pattern)
+                except Exception as e:
+                    logger.debug(f'CloudWatch Logs enrichment for KB failed: {e}')
 
         # Add critical IAM checking guidance for systematic issues
         if (
@@ -1478,11 +1558,133 @@ async def analyze_canary_failures(canary_name: str, region: str = AWS_REGION) ->
         except Exception as e:
             result += f'Note: Could not retrieve canary code: {str(e)}\n'
 
+        # --- Knowledge Base Recommendations ---
+        try:
+            # Build environment_indicators from canary tags and category context
+            kb_env_indicators: list[str] = []
+            canary_tags = canary.get('Tags', {})
+            if isinstance(canary_tags, dict):
+                kb_env_indicators.extend(canary_tags.values())
+            elif isinstance(canary_tags, list):
+                for tag in canary_tags:
+                    if isinstance(tag, dict):
+                        kb_env_indicators.append(tag.get('Value', ''))
+
+            # Build error_messages: StateReason + all collected detailed errors + user description
+            kb_error_messages: list[str] = [selected_reason]
+            if description:
+                # Cap description length to mitigate slow regex matching in KB patterns
+                kb_error_messages.append(
+                    description[:500] if len(description) > 500 else description
+                )
+            for msg in all_collected_error_messages:
+                if msg and msg not in kb_error_messages:
+                    kb_error_messages.append(msg)
+
+            failure_context = FailureContext(
+                error_messages=kb_error_messages,
+                state_reasons=[selected_reason],
+                runtime_version=canary.get('RuntimeVersion', ''),
+                log_patterns=all_collected_log_patterns,
+                environment_indicators=kb_env_indicators,
+            )
+            engine = CanaryRecommendationEngine(await CanaryKnowledgeBaseLoader.get_instance())
+            recommendations = engine.get_recommendations(failure_context)
+            if recommendations:
+                result += engine.format_recommendations(recommendations)
+        except Exception as e:
+            logger.warning(f'Knowledge base recommendation failed: {e}')
+
         result += '\n'
         return result
 
     except Exception as e:
         return f'❌ Error in comprehensive failure analysis: {str(e)}'
+
+
+@mcp.tool()
+async def list_canaries(region: str = AWS_REGION, max_results: int = 20) -> str:
+    """List all CloudWatch Synthetics canaries in the account.
+
+    Use this tool to discover canaries before analyzing them with analyze_canary_failures().
+    Returns canary names, status, schedule, runtime version, and last run state.
+
+    Args:
+        region: AWS region to query (defaults to configured region).
+        max_results: Maximum number of canaries to display (default: 20, max: 200).
+
+    Returns:
+        Formatted list of all canaries with their current status and configuration.
+    """
+    from botocore.exceptions import ClientError
+
+    max_results = min(max(max_results, 1), 200)
+
+    try:
+        canaries: list = []
+        paginator_token = None
+
+        while True:
+            kwargs: dict = {'MaxResults': 20}
+            if paginator_token:
+                kwargs['NextToken'] = paginator_token
+
+            response = synthetics_client.describe_canaries(**kwargs)
+            canaries.extend(response.get('Canaries', []))
+            paginator_token = response.get('NextToken')
+            if not paginator_token or len(canaries) >= max_results:
+                break
+
+        if not canaries:
+            return 'No canaries found in this account/region.'
+
+        total_fetched = len(canaries)
+        display_canaries = canaries[:max_results]
+
+        result = f'Found {total_fetched} canaries'
+        if total_fetched > max_results:
+            result += f' (showing first {max_results})'
+        result += ':\n\n'
+
+        for c in display_canaries:
+            name = c.get('Name', 'Unknown')
+            status_obj = c.get('Status', {})
+            state = status_obj.get('State', 'Unknown')
+            state_reason = status_obj.get('StateReason', '')
+            schedule_expr = c.get('Schedule', {}).get('Expression', 'N/A')
+            runtime = c.get('RuntimeVersion', 'N/A')
+
+            last_run = c.get('Timeline', {})
+            last_started = last_run.get('LastStarted', 'Never')
+
+            if state == 'RUNNING':
+                emoji = '🟢'
+            elif state == 'STOPPED':
+                emoji = '🔴'
+            elif state == 'ERROR':
+                emoji = '🟠'
+            else:
+                emoji = '⚪'
+
+            result += f'{emoji} {name}\n'
+            result += f'   State: {state}'
+            if state_reason:
+                result += f' ({state_reason})'
+            result += '\n'
+            result += f'   Schedule: {schedule_expr}\n'
+            result += f'   Runtime: {runtime}\n'
+            result += f'   Last started: {last_started}\n'
+            result += '\n'
+
+        result += (
+            'Use analyze_canary_failures(canary_name="<name>") to investigate a specific canary.'
+        )
+        return result
+
+    except ClientError as e:
+        return f'Error listing canaries: {e}'
+    except Exception as e:
+        return f'Error listing canaries: {str(e)}'
 
 
 # Register all imported tools with the MCP server
