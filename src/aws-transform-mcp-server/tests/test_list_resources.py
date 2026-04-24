@@ -141,30 +141,6 @@ class TestListResourcesHandler:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_sigv4_configured',
-        return_value=False,
-    )
-    async def test_account_connectors_requires_sigv4(self, _, handler, ctx):
-        result = await handler.list_resources(ctx, resource=ResourceType.account_connectors)
-        parsed = _parse_result(result)
-        assert parsed['success'] is False
-        assert parsed['error']['code'] == 'SIGV4_NOT_CONFIGURED'
-
-    @pytest.mark.asyncio
-    @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_sigv4_configured',
-        return_value=False,
-    )
-    async def test_profiles_requires_sigv4(self, _, handler, ctx):
-        result = await handler.list_resources(
-            ctx, resource=ResourceType.profiles, awsAccountId='123456789012'
-        )
-        parsed = _parse_result(result)
-        assert parsed['success'] is False
-        assert parsed['error']['code'] == 'SIGV4_NOT_CONFIGURED'
-
-    @pytest.mark.asyncio
-    @patch(
         'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=False
     )
     async def test_fes_resources_require_configured(self, _, handler, ctx):
@@ -172,89 +148,6 @@ class TestListResourcesHandler:
         parsed = _parse_result(result)
         assert parsed['success'] is False
         assert parsed['error']['code'] == 'NOT_CONFIGURED'
-
-    # ── account_connectors ─────────────────────────────────────────────
-
-    @pytest.mark.asyncio
-    @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.call_tcp', new_callable=AsyncMock
-    )
-    @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_sigv4_configured',
-        return_value=True,
-    )
-    async def test_account_connectors_success(self, _, mock_tcp, handler, ctx):
-        mock_tcp.return_value = {'sourceConnectors': [], 'targetConnectors': []}
-        result = await handler.list_resources(
-            ctx,
-            resource=ResourceType.account_connectors,
-            sourceNextToken='s-tok',
-            targetNextToken='t-tok',
-            maxResults=5,
-        )
-        parsed = _parse_result(result)
-        assert parsed['success'] is True
-        mock_tcp.assert_called_once_with(
-            'ListConnectors',
-            {'sourceNextToken': 's-tok', 'targetNextToken': 't-tok', 'maxResults': 5},
-        )
-
-    @pytest.mark.asyncio
-    @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.call_tcp', new_callable=AsyncMock
-    )
-    @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_sigv4_configured',
-        return_value=True,
-    )
-    async def test_account_connectors_failure(self, _, mock_tcp, handler, ctx):
-        mock_tcp.side_effect = RuntimeError('network error')
-        result = await handler.list_resources(ctx, resource=ResourceType.account_connectors)
-        parsed = _parse_result(result)
-        assert parsed['success'] is False
-        assert parsed['error']['code'] == 'REQUEST_FAILED'
-
-    # ── profiles ───────────────────────────────────────────────────────
-
-    @pytest.mark.asyncio
-    @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_sigv4_configured',
-        return_value=True,
-    )
-    async def test_profiles_requires_account_id(self, _, handler, ctx):
-        result = await handler.list_resources(ctx, resource=ResourceType.profiles)
-        parsed = _parse_result(result)
-        assert parsed['success'] is False
-        assert parsed['error']['code'] == 'VALIDATION_ERROR'
-
-    @pytest.mark.asyncio
-    @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.call_tcp', new_callable=AsyncMock
-    )
-    @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_sigv4_configured',
-        return_value=True,
-    )
-    async def test_profiles_success(self, _, mock_tcp, handler, ctx):
-        mock_tcp.return_value = {'profiles': [{'name': 'default'}]}
-        result = await handler.list_resources(
-            ctx,
-            resource=ResourceType.profiles,
-            awsAccountId='123456789012',
-            maxResults=10,
-            nextToken='page2',
-        )
-        parsed = _parse_result(result)
-        assert parsed['success'] is True
-        mock_tcp.assert_called_once_with(
-            'ListProfiles',
-            {
-                'retrieveDetails': True,
-                'awsAccountId': '123456789012',
-                'maxResults': 10,
-                'nextToken': 'page2',
-            },
-        )
 
     # ── workspaces ─────────────────────────────────────────────────────
 
@@ -564,12 +457,12 @@ class TestListResourcesHandler:
             ctx,
             resource=ResourceType.messages,
             workspaceId='ws1',
-            startTimestamp='2024-01-01T00:00:00Z',
+            startTimestamp=1704067200.0,
         )
         parsed = _parse_result(result)
         assert parsed['success'] is True
         call_body = mock_fes.call_args[0][1]
-        assert call_body['startTimestamp'] == '2024-01-01T00:00:00Z'
+        assert call_body['startTimestamp'] == 1704067200.0
 
     @pytest.mark.asyncio
     @patch(

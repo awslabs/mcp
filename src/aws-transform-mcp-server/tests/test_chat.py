@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for chat tools (send_message, poll_message)."""
+"""Tests for chat tools (send_message)."""
 # ruff: noqa: D101, D102, D103
 
 import json
@@ -21,7 +21,6 @@ from unittest.mock import AsyncMock, patch
 
 
 _SEND_MOD = 'awslabs.aws_transform_mcp_server.tools.chat.send_message'
-_POLL_MOD = 'awslabs.aws_transform_mcp_server.tools.chat.poll_message'
 _COMMON_MOD = 'awslabs.aws_transform_mcp_server.tools.chat._common'
 
 
@@ -79,8 +78,7 @@ class TestSkipPolling:
         assert parsed['success'] is True
         assert mock_fes.call_count == 1
         assert mock_fes.call_args[0][0] == 'SendMessage'
-        assert 'poll_message(' in parsed['data']['note']
-        assert 'workspaceId="ws-1"' in parsed['data']['note']
+        assert 'Polling skipped' in parsed['data']['note']
 
 
 # ── send_message: Polling finds response ───────────────────────────────
@@ -160,7 +158,7 @@ class TestPollingTimeout:
         assert parsed['success'] is True
         assert parsed['data']['response'] is None
         assert 'note' in parsed['data']
-        assert 'poll_message' in parsed['data']['note']
+        assert 'list_resources' in parsed['data']['note']
         # First iteration has no sleep, remaining 29 do
         assert mock_sleep.call_count == 29
 
@@ -314,10 +312,10 @@ class TestSendTimeoutNote:
     @patch(f'{_COMMON_MOD}.call_fes', new_callable=AsyncMock)
     @patch(f'{_SEND_MOD}.is_configured', return_value=True)
     @patch(f'{_SEND_MOD}.call_fes', new_callable=AsyncMock)
-    async def test_timeout_note_includes_poll_message_call(
+    async def test_timeout_note_includes_send_message_call(
         self, mock_send_fes, _mock_configured, mock_poll_fes, mock_sleep, ctx
     ):
-        """Timeout note should contain exact poll_message call with IDs."""
+        """Timeout note should contain list_resources guidance with workspace and job IDs."""
         from awslabs.aws_transform_mcp_server.tools.chat.send_message import send_message
 
         mock_send_fes.return_value = {'message': {'messageId': 'msg-abc'}}
@@ -327,10 +325,10 @@ class TestSendTimeoutNote:
         parsed = _parse(result)
         note = parsed['data']['note']
 
-        assert 'poll_message(' in note
+        assert 'list_resources' in note
         assert 'workspaceId="ws-1"' in note
-        assert 'sentMessageId="msg-abc"' in note
         assert 'jobId="job-1"' in note
+        assert 'parentMessageId="msg-abc"' in note
 
     @patch(f'{_COMMON_MOD}.asyncio.sleep', new_callable=AsyncMock)
     @patch(f'{_COMMON_MOD}.call_fes', new_callable=AsyncMock)
@@ -349,7 +347,7 @@ class TestSendTimeoutNote:
         parsed = _parse(result)
         note = parsed['data']['note']
 
-        assert 'poll_message(' in note
+        assert 'list_resources' in note
         assert 'jobId' not in note
 
 
@@ -383,242 +381,6 @@ class TestNotConfigured:
 
         assert parsed['success'] is False
         assert parsed['error']['code'] == 'NOT_CONFIGURED'
-
-
-# ── poll_message ───────────────────────────────────────────────────────
-
-
-class TestPollMessage:
-    @patch(f'{_COMMON_MOD}.asyncio.sleep', new_callable=AsyncMock)
-    @patch(f'{_COMMON_MOD}.call_fes', new_callable=AsyncMock)
-    @patch(f'{_POLL_MOD}.is_configured', return_value=True)
-    async def test_finds_response(self, _mock_configured, mock_fes, mock_sleep, ctx):
-        from awslabs.aws_transform_mcp_server.tools.chat.poll_message import poll_message
-
-        mock_fes.side_effect = [
-            {'messageIds': ['msg-sent', 'msg-final']},
-            {
-                'messages': [
-                    {
-                        'messageId': 'msg-final',
-                        'parentMessageId': 'msg-sent',
-                        'messageOrigin': 'SYSTEM',
-                        'processingInfo': {'messageType': 'FINAL_RESPONSE'},
-                        'text': 'Hello!',
-                        'interactions': [],
-                        'createdAt': '2025-01-01T00:00:00Z',
-                    }
-                ]
-            },
-        ]
-
-        result = await poll_message(ctx, workspaceId='ws-1', sentMessageId='msg-sent')
-        parsed = _parse(result)
-
-        assert parsed['success'] is True
-        assert parsed['data']['response']['text'] == 'Hello!'
-        # Found on first iteration — no sleep needed
-        assert mock_sleep.call_count == 0
-
-    @patch(f'{_COMMON_MOD}.asyncio.sleep', new_callable=AsyncMock)
-    @patch(f'{_COMMON_MOD}.call_fes', new_callable=AsyncMock)
-    @patch(f'{_POLL_MOD}.is_configured', return_value=True)
-    async def test_timeout_suggests_retry(self, _mock_configured, mock_fes, mock_sleep, ctx):
-        from awslabs.aws_transform_mcp_server.tools.chat.poll_message import poll_message
-
-        mock_fes.return_value = {'messageIds': []}
-
-        result = await poll_message(ctx, workspaceId='ws-1', sentMessageId='msg-sent')
-        parsed = _parse(result)
-
-        assert parsed['success'] is True
-        assert parsed['data']['response'] is None
-        assert 'poll_message' in parsed['data']['note']
-
-    @patch(f'{_POLL_MOD}.is_configured', return_value=False)
-    async def test_not_configured(self, _mock_configured, ctx):
-        from awslabs.aws_transform_mcp_server.tools.chat.poll_message import poll_message
-
-        result = await poll_message(ctx, workspaceId='ws-1', sentMessageId='msg-sent')
-        parsed = _parse(result)
-
-        assert parsed['success'] is False
-        assert parsed['error']['code'] == 'NOT_CONFIGURED'
-
-    @patch(f'{_COMMON_MOD}.asyncio.sleep', new_callable=AsyncMock)
-    @patch(f'{_COMMON_MOD}.call_fes', new_callable=AsyncMock)
-    @patch(f'{_POLL_MOD}.is_configured', return_value=True)
-    async def test_timeout_includes_thinking_message(
-        self, _mock_configured, mock_fes, mock_sleep, ctx
-    ):
-        """When poll_message times out but THINKING was seen, include it."""
-        from awslabs.aws_transform_mcp_server.tools.chat.poll_message import poll_message
-
-        mock_fes.side_effect = [
-            {'messageIds': ['msg-think']},
-            {
-                'messages': [
-                    {
-                        'messageId': 'msg-think',
-                        'parentMessageId': 'msg-sent',
-                        'messageOrigin': 'SYSTEM',
-                        'processingInfo': {'messageType': 'THINKING'},
-                        'text': 'Analyzing...',
-                    }
-                ]
-            },
-        ] + [{'messageIds': []}] * 29  # remaining 29 polls (1 used + 29 = 30)
-
-        result = await poll_message(ctx, workspaceId='ws-1', sentMessageId='msg-sent')
-        parsed = _parse(result)
-
-        assert parsed['success'] is True
-        assert parsed['data']['response'] is None
-        assert parsed['data']['lastThinkingMessage']['text'] == 'Analyzing...'
-        assert parsed['data']['lastThinkingMessage']['messageType'] == 'THINKING'
-
-    @patch(f'{_COMMON_MOD}.asyncio.sleep', new_callable=AsyncMock)
-    @patch(f'{_COMMON_MOD}.call_fes', new_callable=AsyncMock)
-    @patch(f'{_POLL_MOD}.is_configured', return_value=True)
-    async def test_timeout_no_thinking(self, _mock_configured, mock_fes, mock_sleep, ctx):
-        """When poll_message times out with no messages, no lastThinkingMessage."""
-        from awslabs.aws_transform_mcp_server.tools.chat.poll_message import poll_message
-
-        mock_fes.return_value = {'messageIds': []}
-
-        result = await poll_message(ctx, workspaceId='ws-1', sentMessageId='msg-sent')
-        parsed = _parse(result)
-
-        assert parsed['success'] is True
-        assert parsed['data']['response'] is None
-        assert 'lastThinkingMessage' not in parsed['data']
-
-    @patch(f'{_COMMON_MOD}.asyncio.sleep', new_callable=AsyncMock)
-    @patch(f'{_COMMON_MOD}.call_fes', new_callable=AsyncMock)
-    @patch(f'{_POLL_MOD}.is_configured', return_value=True)
-    async def test_timeout_note_includes_exact_call(
-        self, _mock_configured, mock_fes, mock_sleep, ctx
-    ):
-        """Timeout note should include exact poll_message call with IDs."""
-        from awslabs.aws_transform_mcp_server.tools.chat.poll_message import poll_message
-
-        mock_fes.return_value = {'messageIds': []}
-
-        result = await poll_message(
-            ctx, workspaceId='ws-1', sentMessageId='msg-abc', jobId='job-1'
-        )
-        parsed = _parse(result)
-        note = parsed['data']['note']
-
-        assert 'poll_message(' in note
-        assert 'workspaceId="ws-1"' in note
-        assert 'sentMessageId="msg-abc"' in note
-        assert 'jobId="job-1"' in note
-
-    @patch(f'{_COMMON_MOD}.asyncio.sleep', new_callable=AsyncMock)
-    @patch(f'{_COMMON_MOD}.call_fes', new_callable=AsyncMock)
-    @patch(f'{_POLL_MOD}.is_configured', return_value=True)
-    async def test_finds_response_on_first_poll(self, _mock_configured, mock_fes, mock_sleep, ctx):
-        """Response found on first poll should return immediately."""
-        from awslabs.aws_transform_mcp_server.tools.chat.poll_message import poll_message
-
-        mock_fes.side_effect = [
-            {'messageIds': ['msg-final']},
-            {
-                'messages': [
-                    {
-                        'messageId': 'msg-final',
-                        'parentMessageId': 'msg-sent',
-                        'messageOrigin': 'SYSTEM',
-                        'processingInfo': {'messageType': 'FINAL_RESPONSE'},
-                        'text': 'Here is the answer.',
-                        'interactions': [{'actionType': 'SELECT'}],
-                        'createdAt': '2025-06-01T00:00:00Z',
-                    }
-                ]
-            },
-        ]
-
-        result = await poll_message(ctx, workspaceId='ws-1', sentMessageId='msg-sent')
-        parsed = _parse(result)
-
-        assert parsed['data']['response']['messageType'] == 'FINAL_RESPONSE'
-        assert parsed['data']['response']['interactions'] == [{'actionType': 'SELECT'}]
-        assert parsed['data']['response']['createdAt'] == '2025-06-01T00:00:00Z'
-        # Found on first iteration — no sleep needed
-        assert mock_sleep.call_count == 0
-
-    @patch(f'{_COMMON_MOD}.asyncio.sleep', new_callable=AsyncMock)
-    @patch(f'{_COMMON_MOD}.call_fes', new_callable=AsyncMock)
-    @patch(f'{_POLL_MOD}.is_configured', return_value=True)
-    async def test_fes_exception_returns_failure(
-        self, _mock_configured, mock_fes, mock_sleep, ctx
-    ):
-        """FES exceptions during polling should be caught."""
-        from awslabs.aws_transform_mcp_server.tools.chat.poll_message import poll_message
-
-        mock_fes.side_effect = Exception('Connection lost')
-
-        result = await poll_message(ctx, workspaceId='ws-1', sentMessageId='msg-sent')
-        parsed = _parse(result)
-
-        assert parsed['success'] is False
-
-    @patch(f'{_COMMON_MOD}.asyncio.sleep', new_callable=AsyncMock)
-    @patch(f'{_COMMON_MOD}.call_fes', new_callable=AsyncMock)
-    @patch(f'{_POLL_MOD}.is_configured', return_value=True)
-    async def test_ignores_user_messages(self, _mock_configured, mock_fes, mock_sleep, ctx):
-        """Messages with messageOrigin=USER should be ignored."""
-        from awslabs.aws_transform_mcp_server.tools.chat.poll_message import poll_message
-
-        mock_fes.side_effect = [
-            {'messageIds': ['msg-user']},
-            {
-                'messages': [
-                    {
-                        'messageId': 'msg-user',
-                        'parentMessageId': 'msg-sent',
-                        'messageOrigin': 'USER',
-                        'text': 'user echo',
-                    }
-                ]
-            },
-        ] + [{'messageIds': []}] * 29
-
-        result = await poll_message(ctx, workspaceId='ws-1', sentMessageId='msg-sent')
-        parsed = _parse(result)
-
-        assert parsed['success'] is True
-        assert parsed['data']['response'] is None
-        assert 'lastThinkingMessage' not in parsed['data']
-
-    @patch(f'{_COMMON_MOD}.asyncio.sleep', new_callable=AsyncMock)
-    @patch(f'{_COMMON_MOD}.call_fes', new_callable=AsyncMock)
-    @patch(f'{_POLL_MOD}.is_configured', return_value=True)
-    async def test_ignores_unrelated_parent(self, _mock_configured, mock_fes, mock_sleep, ctx):
-        """Messages with a different parentMessageId should be ignored."""
-        from awslabs.aws_transform_mcp_server.tools.chat.poll_message import poll_message
-
-        mock_fes.side_effect = [
-            {'messageIds': ['msg-other']},
-            {
-                'messages': [
-                    {
-                        'messageId': 'msg-other',
-                        'parentMessageId': 'msg-different',
-                        'messageOrigin': 'SYSTEM',
-                        'processingInfo': {'messageType': 'FINAL_RESPONSE'},
-                        'text': 'Wrong parent',
-                    }
-                ]
-            },
-        ] + [{'messageIds': []}] * 29
-
-        result = await poll_message(ctx, workspaceId='ws-1', sentMessageId='msg-sent')
-        parsed = _parse(result)
-
-        assert parsed['success'] is True
-        assert parsed['data']['response'] is None
 
 
 # ── send_message: ERROR messageType ───────────────────────────────────
@@ -678,41 +440,3 @@ class TestSendMessageIdExtraction:
         assert parsed['success'] is False
         assert parsed['error']['code'] == 'MESSAGE_ID_EXTRACTION_FAILED'
         assert 'list_resources' in parsed['error']['suggestedAction']
-
-
-# ── poll_message: ERROR messageType ───────────────────────────────────
-
-
-class TestPollErrorMessageType:
-    @patch(f'{_COMMON_MOD}.asyncio.sleep', new_callable=AsyncMock)
-    @patch(f'{_COMMON_MOD}.call_fes', new_callable=AsyncMock)
-    @patch(f'{_POLL_MOD}.is_configured', return_value=True)
-    async def test_error_message_returns_assistant_error(
-        self, _mock_configured, mock_fes, mock_sleep, ctx
-    ):
-        """ERROR messageType should return error_result with ASSISTANT_ERROR."""
-        from awslabs.aws_transform_mcp_server.tools.chat.poll_message import poll_message
-
-        mock_fes.side_effect = [
-            {'messageIds': ['msg-err']},
-            {
-                'messages': [
-                    {
-                        'messageId': 'msg-err',
-                        'parentMessageId': 'msg-sent',
-                        'messageOrigin': 'SYSTEM',
-                        'processingInfo': {'messageType': 'ERROR'},
-                        'text': 'Something went wrong.',
-                    }
-                ]
-            },
-        ]
-
-        result = await poll_message(ctx, workspaceId='ws-1', sentMessageId='msg-sent')
-        parsed = _parse(result)
-
-        assert parsed['success'] is False
-        assert parsed['error']['code'] == 'ASSISTANT_ERROR'
-        assert 'Something went wrong' in parsed['error']['message']
-        assert 'sentMessageId=msg-sent' in parsed['error']['suggestedAction']
-        assert mock_sleep.call_count == 0

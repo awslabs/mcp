@@ -39,7 +39,7 @@ All tools are always visible — if auth is missing, the tool returns a
 structured error with the exact setup step to follow.
 
 - `configure` → browser/SSO auth (FES). Used by most tools.
-- `configure_sigv4` → AWS IAM credentials (TCP). Used by account-level connectors, profiles, and agent registry.
+- `configure_sigv4` → AWS IAM credentials (TCP). Used by accept_connector.
 - `accept_connector` requires BOTH.
 - `configure`, `configure_sigv4`, and `get_status` work without auth.
 
@@ -62,17 +62,15 @@ NEVER auto-submit. Never guess response content — use `_outputSchema` and
 `artifactId`. If `agentArtifactContent` is `{}`, check worklogs — the agent
 may still be generating.
 
-## Chat
-
-Use `poll_message` to wait for a response. Do NOT poll via `list_resources` +
-`get_resource` in a loop.
-
 # Tool Selection
-
+- **Job status / progress** → ALWAYS use `send_message` scoped to the job FIRST.
+  The assistant has full job context. Also call `list_resources(resource="worklogs")`
+  for recent activity. Only fall back to `list_resources` / `get_resource` if
+  you need more information the assistant didn't cover or send message has no useful information.
 - Browse collections → `list_resources`
 - Fetch a single resource with full details → `get_resource`
+- Basic job metadata only → `get_resource(resource="job")`
 - Workspace-level connectors → `list_resources(resource="connectors")` (FES)
-- Account-level connectors → `list_resources(resource="account_connectors")` (SigV4)
 - Create a new connector → `create_connector`
 - Associate an IAM role with an existing connector → `accept_connector`
 - Check connection health → `get_status`
@@ -110,7 +108,6 @@ def _register_handlers(mcp: FastMCP) -> None:
     Auth is checked at call time — tools return NOT_CONFIGURED or
     SIGV4_NOT_CONFIGURED with a suggestedAction if auth is missing.
     """
-    from awslabs.aws_transform_mcp_server.tools.agent_registry import AgentRegistryHandler
     from awslabs.aws_transform_mcp_server.tools.approve_hitl import ApproveHitlHandler
     from awslabs.aws_transform_mcp_server.tools.artifact import ArtifactHandler
     from awslabs.aws_transform_mcp_server.tools.chat import ChatHandler
@@ -133,7 +130,6 @@ def _register_handlers(mcp: FastMCP) -> None:
     ArtifactHandler(mcp)
     ChatHandler(mcp)
     ConnectorHandler(mcp)
-    AgentRegistryHandler(mcp)
     ListResourcesHandler(mcp)
     GetResourceHandler(mcp)
     CollaboratorHandler(mcp)

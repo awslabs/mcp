@@ -57,6 +57,7 @@ async def poll_for_response(
     workspaceId: str,
     sent_message_id: str,
     max_attempts: int,
+    start_timestamp: Optional[float] = None,
 ) -> PollResult:
     """Poll ListMessages + BatchGetMessage for a terminal response.
 
@@ -67,42 +68,49 @@ async def poll_for_response(
 
     Only these messageType values are handled: FINAL_RESPONSE (terminal success),
     ERROR (terminal failure), THINKING (intermediate). Other types are ignored.
+
+    When *start_timestamp* is provided it is forwarded to ListMessages so the
+    backend only returns messages created after that point, avoiding stale
+    results in busy workspaces.  A *seen_ids* set deduplicates across
+    iterations so BatchGetMessage only fetches genuinely new messages.
     """
     last_thinking: Optional[Dict] = None
+    seen_ids: set = set()
 
     for attempt in range(max_attempts):
         if attempt > 0:
             await asyncio.sleep(POLL_INTERVAL_SECS)
 
-        list_result = await call_fes(
-            'ListMessages',
-            {
-                'metadata': metadata,
-                'maxResults': 10,
-            },
-        )
+        list_body: Dict[str, Any] = {
+            'metadata': metadata,
+            'maxResults': 10,
+        }
+        if start_timestamp is not None:
+            list_body['startTimestamp'] = start_timestamp
+
+        list_result = await call_fes('ListMessages', list_body)
         message_ids = list_result.get('messageIds', []) if isinstance(list_result, dict) else []
-        if not message_ids:
+        new_ids = [mid for mid in message_ids if mid not in seen_ids]
+        if not new_ids:
             continue
 
         batch_result = await call_fes(
             'BatchGetMessage',
             {
-                'messageIds': message_ids,
+                'messageIds': new_ids,
                 'workspaceId': workspaceId,
             },
         )
         messages = batch_result.get('messages', []) if isinstance(batch_result, dict) else []
 
-        responses = [
-            m
-            for m in messages
-            if isinstance(m, dict)
-            and m.get('parentMessageId') == sent_message_id
-            and m.get('messageOrigin') == 'SYSTEM'
-        ]
-
-        for m in responses:
+        for m in messages:
+            if not isinstance(m, dict):
+                continue
+            mid = m.get('messageId')
+            if mid:
+                seen_ids.add(mid)
+            if m.get('parentMessageId') != sent_message_id or m.get('messageOrigin') != 'SYSTEM':
+                continue
             pi = m.get('processingInfo')
             if not isinstance(pi, dict):
                 continue
@@ -128,29 +136,26 @@ def format_response(msg: dict) -> dict:
     }
 
 
-def build_poll_call(
+def build_timeout_data(
+    timeout_secs: int,
+    last_thinking: Optional[Dict],
     workspaceId: str,
     sentMessageId: str,
     jobId: Optional[str] = None,
-) -> str:
-    """Build the exact poll_message(...) call string for timeout notes."""
-    call = f'poll_message(workspaceId="{workspaceId}", sentMessageId="{sentMessageId}"'
-    if jobId:
-        call += f', jobId="{jobId}"'
-    return call + ')'
-
-
-def build_timeout_data(
-    poll_call: str,
-    timeout_secs: int,
-    last_thinking: Optional[Dict],
 ) -> dict:
     """Build the standard timeout response dict with retry guidance."""
+    job_filter = f', jobId="{jobId}"' if jobId else ''
     data: dict = {
         'response': None,
+        'sentMessageId': sentMessageId,
         'note': (
-            f'No final response within {timeout_secs}s. Call {poll_call} to keep '
-            f'waiting. Stop after 3 retries (~3 min total) if no response.'
+            f'No final response within {timeout_secs}s. The assistant is still processing. '
+            f'To check for the reply, call '
+            f'list_resources(resource="messages", workspaceId="{workspaceId}"{job_filter}) '
+            f'then get_resource(resource="messages", workspaceId="{workspaceId}", '
+            f'messageIds=[<IDs from list>]) and look for a message with '
+            f'parentMessageId="{sentMessageId}" and messageType="FINAL_RESPONSE". '
+            f'Stop after 3 retries.'
         ),
     }
     if last_thinking:

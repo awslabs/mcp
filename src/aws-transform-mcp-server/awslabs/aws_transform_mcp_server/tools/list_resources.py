@@ -18,11 +18,9 @@ import asyncio
 from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.config_store import (
     is_configured,
-    is_sigv4_configured,
 )
 from awslabs.aws_transform_mcp_server.fes_client import FESOperation, call_fes, paginate_all
 from awslabs.aws_transform_mcp_server.guidance_nudge import job_needs_check
-from awslabs.aws_transform_mcp_server.tcp_client import call_tcp
 from awslabs.aws_transform_mcp_server.tool_utils import (
     READ_ONLY,
     error_result,
@@ -37,15 +35,6 @@ from typing import Annotated, Any, Callable, Dict, Optional
 
 
 # ── Constants ──────────────────────────────────────────────────────────────
-
-
-def SIGV4_NOT_CONFIGURED() -> Dict[str, Any]:
-    """Return error result for unconfigured SigV4 state."""
-    return error_result(
-        'SIGV4_NOT_CONFIGURED',
-        'SigV4 credentials not configured.',
-        'Call "configure_sigv4" to set up AWS credentials.',
-    )
 
 
 def NOT_CONFIGURED() -> Dict[str, Any]:
@@ -71,8 +60,6 @@ class ResourceType(str, Enum):
     messages = 'messages'
     worklogs = 'worklogs'
     plan = 'plan'
-    account_connectors = 'account_connectors'
-    profiles = 'profiles'
     agents = 'agents'
     collaborators = 'collaborators'
     users = 'users'
@@ -183,10 +170,15 @@ TOOL_DESCRIPTION = (
     'workspaces, jobs, connectors, tasks, artifacts, worklogs, agents, collaborators. '
     'These return ALL results in one call — do NOT pass nextToken. '
     'Manual pagination (nextToken) is used by: messages, plan '
-    '(stepsNextToken/updatesNextToken), account_connectors '
-    '(sourceNextToken/targetNextToken).\n\n'
+    '(stepsNextToken/updatesNextToken).\n\n'
+    'IMPORTANT: To check job status or progress, use send_message scoped to the job FIRST — '
+    'the assistant has full context and provides actionable guidance. '
+    'Use list_resources only to supplement with raw data or when send_message times out. '
+    'When checking status, also call list_resources(resource="worklogs") for recent activity.\n\n'
     'Use this to browse collections. Use get_resource to fetch a single item with '
-    'full details. Do NOT use this in a polling loop for messages — use poll_message instead.\n\n'
+    'full details. To check for a reply after send_message times out, call '
+    'list_resources(resource="messages", startTimestamp=...) then '
+    'get_resource(resource="messages", messageIds=[...]).\n\n'
     'Resource types and required parameters:\n'
     '- workspaces → (none)\n'
     '- jobs → workspaceId\n'
@@ -197,11 +189,11 @@ TOOL_DESCRIPTION = (
     'Connector assets include connectorId and assetKey — use '
     'get_resource resource="asset" to download them.\n'
     '- messages → workspaceId (jobId optional). Returns full message content. '
-    'Uses nextToken for pagination (not auto-paginated).\n'
+    'Uses nextToken for pagination (not auto-paginated). '
+    'Use startTimestamp (epoch seconds) to filter messages after a point in time — '
+    'this is how you check for a reply after send_message times out.\n'
     '- worklogs → workspaceId, jobId (optional: stepId OR startTime/endTime)\n'
     '- plan → workspaceId, jobId. Uses stepsNextToken/updatesNextToken (not auto-paginated).\n'
-    '- account_connectors → (none, requires SigV4 auth). Uses sourceNextToken/targetNextToken.\n'
-    '- profiles → awsAccountId (requires SigV4 auth)\n'
     '- agents → (none). Optional filters: agentType, ownerType, or jobOrchestrator.\n'
     '- collaborators → workspaceId. Returns members with enriched user details '
     '(userName, displayName, email).\n'
@@ -284,8 +276,14 @@ class ListResourcesHandler:
             ),
         ] = None,
         startTimestamp: Annotated[
-            Optional[str],
-            Field(description='ISO 8601 timestamp filter (messages only)'),
+            Optional[float],
+            Field(
+                description=(
+                    'Epoch seconds timestamp filter (messages only). '
+                    'Returns only messages created after this time, newest first. '
+                    'Example: 1745452800.0'
+                )
+            ),
         ] = None,
         stepId: Annotated[
             Optional[str],
@@ -306,18 +304,6 @@ class ListResourcesHandler:
                     'ISO 8601 end time filter (worklogs only, mutually exclusive with stepId)'
                 )
             ),
-        ] = None,
-        sourceNextToken: Annotated[
-            Optional[str],
-            Field(description='Pagination token for source connectors (account_connectors only)'),
-        ] = None,
-        targetNextToken: Annotated[
-            Optional[str],
-            Field(description='Pagination token for target connectors (account_connectors only)'),
-        ] = None,
-        awsAccountId: Annotated[
-            Optional[str],
-            Field(description='AWS account ID (REQUIRED for profiles)'),
         ] = None,
         agentType: Annotated[
             Optional[AgentTypeEnum],
@@ -362,8 +348,8 @@ class ListResourcesHandler:
             Optional[int],
             Field(
                 description=(
-                    'Max results per page. Only used by: messages, plan, '
-                    'account_connectors, profiles. Ignored for auto-paginated resources.'
+                    'Max results per page. Only used by: messages, plan. '
+                    'Ignored for auto-paginated resources.'
                 )
             ),
         ] = None,
@@ -371,50 +357,15 @@ class ListResourcesHandler:
             Optional[str],
             Field(
                 description=(
-                    'Pagination token. Only used by: messages, account_connectors, '
-                    'profiles. For plan use stepsNextToken/updatesNextToken. '
+                    'Pagination token. Only used by: messages. '
+                    'For plan use stepsNextToken/updatesNextToken. '
                     'Ignored for auto-paginated resources.'
                 )
             ),
         ] = None,
     ) -> Dict[str, Any]:
         """List AWS Transform resources by type."""
-        # ── account_connectors: TCP / SigV4 ────────────────────────────────
-        if resource == ResourceType.account_connectors:
-            if not is_sigv4_configured():
-                return SIGV4_NOT_CONFIGURED()
-            try:
-                body: Dict[str, Any] = {}
-                if sourceNextToken:
-                    body['sourceNextToken'] = sourceNextToken
-                if targetNextToken:
-                    body['targetNextToken'] = targetNextToken
-                if maxResults is not None:
-                    body['maxResults'] = maxResults
-                return success_result(await call_tcp('ListConnectors', body))
-            except Exception as error:
-                return failure_result(error)
-
-        # ── profiles: TCP / SigV4 ──────────────────────────────────────────
-        if resource == ResourceType.profiles:
-            if not is_sigv4_configured():
-                return SIGV4_NOT_CONFIGURED()
-            if not awsAccountId:
-                return error_result(
-                    'VALIDATION_ERROR',
-                    'awsAccountId is required for listing profiles.',
-                )
-            try:
-                body = with_pagination(
-                    {'retrieveDetails': True, 'awsAccountId': awsAccountId},
-                    maxResults,
-                    nextToken,
-                )
-                return success_result(await call_tcp('ListProfiles', body))
-            except Exception as error:
-                return failure_result(error)
-
-        # ── All other resources: FES ───────────────────────────────────────
+        # ── All resources: FES ─────────────────────────────────────────────
         if not is_configured():
             return NOT_CONFIGURED()
 

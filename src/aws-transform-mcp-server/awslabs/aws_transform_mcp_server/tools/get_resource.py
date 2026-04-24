@@ -18,7 +18,7 @@ import asyncio
 import json
 from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.config_store import is_configured
-from awslabs.aws_transform_mcp_server.fes_client import call_fes, paginate_all
+from awslabs.aws_transform_mcp_server.fes_client import call_fes
 from awslabs.aws_transform_mcp_server.guidance_nudge import job_needs_check
 from awslabs.aws_transform_mcp_server.tool_utils import (
     READ_ONLY,
@@ -89,14 +89,16 @@ TOOL_DESCRIPTION = (
     'Required parameters per resource:\n'
     '- session → (none)\n'
     '- workspace → workspaceId\n'
-    '- job → workspaceId, jobId. Pass detailed=true to fetch job details, tasks, worklogs, '
-    'and messages in a single call — use this when the user asks about job status or what to do next.\n'
+    '- job → workspaceId, jobId. Returns basic job metadata. To check job status or '
+    'determine next steps, use send_message scoped to the job instead.\n'
     '- connector → workspaceId, connectorId\n'
     '- task → workspaceId, jobId, taskId\n'
     '- artifact → workspaceId, jobId, artifactId\n'
     '- asset → workspaceId, jobId, connectorId, assetKey\n'
     '- messages → workspaceId, messageIds (array of strings, e.g. ["msg-abc", "msg-def"]). '
-    'To wait for a response to a sent message, use poll_message instead of calling this in a loop.\n'
+    'Use this after list_resources(resource="messages") to hydrate message IDs into full content. '
+    'When retrying after a send_message timeout, look for parentMessageId matching the '
+    'sentMessageId and messageType="FINAL_RESPONSE".\n'
     '- plan → workspaceId, jobId\n\n'
     'IMPORTANT (task): After fetching a task, ALWAYS present the details and artifact content '
     'to the user and wait for their decision before calling complete_task.\n'
@@ -137,16 +139,6 @@ class GetResourceHandler:
         jobId: Annotated[
             Optional[str],
             Field(description='Job ID. REQUIRED for: job, task, artifact, asset, plan'),
-        ] = None,
-        detailed: Annotated[
-            Optional[bool],
-            Field(
-                description=(
-                    'When true and resource="job", fetches job details, tasks, worklogs, '
-                    'and messages in parallel. Use this when the user asks about job status '
-                    'or what they need to do next.'
-                )
-            ),
         ] = None,
         connectorId: Annotated[
             Optional[str],
@@ -226,97 +218,9 @@ class GetResourceHandler:
                 if not jobId:
                     return error_result('VALIDATION_ERROR', 'jobId is required for getting a job.')
 
-                if not detailed:
-                    return success_result(
-                        await call_fes('GetJob', {'workspaceId': workspaceId, 'jobId': jobId})
-                    )
-
-                ws_meta = {'workspaceId': workspaceId}
-                job_meta = {**ws_meta, 'jobId': jobId}
-                msg_body = {
-                    'metadata': {
-                        'resourcesOnScreen': {
-                            'workspace': {
-                                **ws_meta,
-                                'jobs': [{'jobId': jobId, 'focusState': 'ACTIVE'}],
-                            }
-                        }
-                    }
-                }
-
-                results = await asyncio.gather(
-                    call_fes('GetJob', job_meta),
-                    paginate_all('ListHitlTasks', {**job_meta, 'taskType': 'NORMAL'}, 'hitlTasks'),
-                    paginate_all('ListWorklogs', job_meta, 'worklogs', token_key='outputToken'),
-                    call_fes('ListMessages', msg_body),
-                    return_exceptions=True,
+                return success_result(
+                    await call_fes('GetJob', {'workspaceId': workspaceId, 'jobId': jobId})
                 )
-
-                job_data = None if isinstance(results[0], Exception) else results[0]
-                tasks_data = None if isinstance(results[1], Exception) else results[1]
-                worklogs_data = None if isinstance(results[2], Exception) else results[2]
-                messages_list = None if isinstance(results[3], Exception) else results[3]
-
-                if not job_data:
-                    return (
-                        failure_result(results[0])
-                        if isinstance(results[0], Exception)
-                        else error_result('REQUEST_FAILED', 'Failed to fetch job details.')
-                    )
-
-                # Hydrate message content from IDs
-                messages_data = None
-                if isinstance(messages_list, dict):
-                    # Paginate all message IDs
-                    all_msg_ids = messages_list.get('messageIds', [])
-                    next_token = messages_list.get('nextToken')
-                    while next_token:
-                        try:
-                            page = await call_fes(
-                                'ListMessages', {**msg_body, 'nextToken': next_token}
-                            )
-                            if isinstance(page, dict):
-                                all_msg_ids.extend(page.get('messageIds', []))
-                                next_token = page.get('nextToken')
-                            else:
-                                break
-                        except Exception:
-                            break
-                    if all_msg_ids:
-                        try:
-                            all_messages = []
-                            for i in range(0, len(all_msg_ids), 100):
-                                batch = await call_fes(
-                                    'BatchGetMessage',
-                                    {'messageIds': all_msg_ids[i : i + 100], **ws_meta},
-                                )
-                                if isinstance(batch, dict):
-                                    all_messages.extend(batch.get('messages', []))
-                            messages_data = all_messages
-                        except Exception:
-                            messages_data = None
-
-                # Enrich tasks if hitl_schemas available
-                if tasks_data:
-                    try:
-                        from awslabs.aws_transform_mcp_server.hitl_schemas import enrich_tasks
-
-                        tasks_data = enrich_tasks(tasks_data)
-                    except ImportError:
-                        pass
-
-                composite: Dict[str, Any] = {'job': job_data}
-                _DETAIL_LIMIT = 25
-                if tasks_data is not None:
-                    tasks_data['hitlTasks'] = tasks_data.get('hitlTasks', [])[-_DETAIL_LIMIT:]
-                    composite['tasks'] = tasks_data
-                if worklogs_data is not None:
-                    worklogs_data['worklogs'] = worklogs_data.get('worklogs', [])[-_DETAIL_LIMIT:]
-                    composite['worklogs'] = worklogs_data
-                if messages_data is not None:
-                    composite['messages'] = messages_data[-_DETAIL_LIMIT:]
-
-                return success_result(composite)
 
             # ── connector ──────────────────────────────────────────────────
             elif resource == GetResourceType.connector:

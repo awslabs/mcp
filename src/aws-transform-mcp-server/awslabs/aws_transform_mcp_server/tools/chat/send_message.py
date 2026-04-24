@@ -14,6 +14,7 @@
 
 """send_message tool — sends a chat message and polls for the response."""
 
+import time
 import uuid
 from awslabs.aws_transform_mcp_server.config_store import is_configured
 from awslabs.aws_transform_mcp_server.fes_client import call_fes
@@ -25,7 +26,6 @@ from awslabs.aws_transform_mcp_server.tool_utils import (
 )
 from awslabs.aws_transform_mcp_server.tools.chat._common import (
     build_metadata,
-    build_poll_call,
     build_timeout_data,
     format_response,
     not_configured_error,
@@ -64,14 +64,14 @@ async def send_message(
 ) -> dict:
     """Send a chat message to the AWS Transform assistant and poll for a response.
 
-    Polls up to 60s for the assistant's reply. If no response arrives, the
-    result includes the exact poll_message call to continue waiting.
+    This is the PRIMARY tool for interacting with jobs. Always use send_message
+    first when checking job status, asking about progress, or determining next
+    steps. The assistant has full context about the job and provides actionable
+    guidance. Only fall back to list_resources if send_message times out or
+    you need raw data the assistant didn't cover.
 
-    Do NOT use this to check for responses to previously sent messages — use
-    poll_message instead.
-
-    Use skipPolling=true to return immediately if you have other work to do
-    before checking the reply.
+    Polls up to 60s for the assistant's reply. On timeout the result includes
+    sentMessageId and guidance on how to check for the reply.
     """
     resolved_text: Optional[str] = text if isinstance(text, str) else None
     if not resolved_text:
@@ -93,6 +93,7 @@ async def send_message(
 
     try:
         metadata = build_metadata(workspaceId, _jobId)
+        start_timestamp = time.time()
 
         body = {
             'text': resolved_text,
@@ -111,13 +112,11 @@ async def send_message(
                 'Use list_resources(resource="messages") to check for a reply.',
             )
 
-        poll_call = build_poll_call(workspaceId, sent_message_id, _jobId)
-
         if _skipPolling:
             return success_result(
                 {
                     'sentMessage': sent_msg,
-                    'note': f'Polling skipped. Call {poll_call} to check for the reply.',
+                    'note': 'Polling skipped. Call send_message again to follow up.',
                 }
             )
 
@@ -126,6 +125,7 @@ async def send_message(
             workspaceId,
             sent_message_id,
             max_attempts=30,
+            start_timestamp=start_timestamp,
         )
 
         if result['terminal']:
@@ -136,14 +136,20 @@ async def send_message(
                     resp.get('text') or 'The assistant returned an error.',
                     f'sentMessageId={sent_message_id}, workspaceId={workspaceId}',
                 )
-            return success_result(
-                {
-                    'sentMessage': sent_msg,
-                    'response': resp,
-                }
-            )
+            data = {
+                'sentMessage': sent_msg,
+                'response': resp,
+            }
+            if _jobId:
+                data['hint'] = (
+                    f'For recent activity details if user is asking for status/progress, also call '
+                    f'list_resources(resource="worklogs", workspaceId="{workspaceId}", jobId="{_jobId}").'
+                )
+            return success_result(data)
 
-        timeout_data = build_timeout_data(poll_call, 60, result['last_thinking'])
+        timeout_data = build_timeout_data(
+            60, result['last_thinking'], workspaceId, sent_message_id, _jobId
+        )
         timeout_data['sentMessage'] = sent_msg
         return success_result(timeout_data)
     except Exception as error:
