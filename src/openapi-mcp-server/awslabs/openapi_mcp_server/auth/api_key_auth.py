@@ -114,8 +114,10 @@ class ApiKeyAuthProvider(BaseAuthProvider):
             str: Hash of the API key
 
         """
-        # Create a hash of the API key to use as a cache key
-        return bcrypt.hashpw(api_key.encode('utf-8'), bcrypt.gensalt(rounds=10)).hex()
+        # Truncate API key to bcrypt's 72-byte limit before hashing
+        # The hash is only used as a cache key; the full key is used in requests
+        api_key_bytes = api_key.encode('utf-8')[:72]
+        return bcrypt.hashpw(api_key_bytes, bcrypt.gensalt(rounds=10)).hex()
 
     @cached_auth_data(ttl=3600)  # Cache for 1 hour by default
     def _generate_auth_headers(self, api_key_hash: str, api_key_name: str) -> Dict[str, str]:
