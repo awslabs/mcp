@@ -57,6 +57,7 @@ def audited_tool(mcp, name, **tool_kwargs):
     def decorator(func):
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
+            safe: dict = {}
             try:
                 safe = _safe_args(func, args, kwargs)
                 logger.info('[tool:{}] invoked | {}', name, safe)
@@ -65,13 +66,32 @@ def audited_tool(mcp, name, **tool_kwargs):
             try:
                 result = await func(*args, **kwargs)
                 if isinstance(result, dict) and result.get('isError'):
-                    logger.warning('[tool:{}] error response', name)
+                    error_text = _extract_error(result)
+                    logger.warning('[tool:{}] error response | {} | {}', name, safe, error_text)
                 return result
-            except Exception:
-                logger.warning('[tool:{}] exception raised', name)
+            except Exception as exc:
+                logger.opt(exception=True).warning(
+                    '[tool:{}] exception | {} | {}', name, safe, exc
+                )
                 raise
 
         mcp.tool(name=name, **tool_kwargs)(wrapper)
         return wrapper
 
     return decorator
+
+
+def _extract_error(result: dict) -> str:
+    """Best-effort extract of error text from an MCP result envelope."""
+    try:
+        import json
+
+        payload = json.loads(result['content'][0]['text'])
+        err = payload.get('error', {})
+        parts = [err.get('code', ''), err.get('message', '')]
+        action = err.get('suggestedAction')
+        if action:
+            parts.append(action)
+        return ' | '.join(p for p in parts if p)
+    except Exception:
+        return '(could not extract error)'

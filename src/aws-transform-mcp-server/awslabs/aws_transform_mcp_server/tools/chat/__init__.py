@@ -15,10 +15,7 @@
 """Chat tools for AWS Transform MCP server."""
 
 from awslabs.aws_transform_mcp_server.audit import audited_tool
-from awslabs.aws_transform_mcp_server.tool_utils import MUTATE, READ_ONLY
-from awslabs.aws_transform_mcp_server.tools.chat.poll_message import (
-    poll_message as _poll_message_fn,
-)
+from awslabs.aws_transform_mcp_server.tool_utils import MUTATE
 from awslabs.aws_transform_mcp_server.tools.chat.send_message import (
     send_message as _send_message_fn,
 )
@@ -41,9 +38,3 @@ class ChatHandler:
             title='Send Chat Message',
             annotations=MUTATE,
         )(_send_message_fn)
-        audited_tool(
-            mcp,
-            'poll_message',
-            title='Poll for Chat Response',
-            annotations=READ_ONLY,
-        )(_poll_message_fn)

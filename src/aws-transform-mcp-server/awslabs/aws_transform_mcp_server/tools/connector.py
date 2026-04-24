@@ -14,7 +14,6 @@
 
 """Connector tool handlers for AWS Transform MCP server."""
 
-import re
 import uuid
 from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.config_store import (
@@ -42,8 +41,6 @@ _NOT_CONFIGURED_ACTION = 'Call "configure" first.'
 _SIGV4_NOT_CONFIGURED_CODE = 'SIGV4_NOT_CONFIGURED'
 _SIGV4_NOT_CONFIGURED_MSG = 'SigV4 credentials not configured.'
 _SIGV4_NOT_CONFIGURED_ACTION = 'Call "configure_sigv4" to set up AWS credentials.'
-
-_PROFILE_NAME_RE = re.compile(r'^[a-zA-Z][a-zA-Z0-9_-]{0,99}$')
 
 
 def _build_verification_link(
@@ -77,7 +74,6 @@ class ConnectorHandler:
     def __init__(self, mcp: Any) -> None:
         """Register connector tools on the MCP server."""
         audited_tool(mcp, 'create_connector')(self.create_connector)
-        audited_tool(mcp, 'create_profile')(self.create_profile)
         audited_tool(mcp, 'accept_connector')(self.accept_connector)
 
     async def create_connector(
@@ -162,149 +158,6 @@ class ConnectorHandler:
                 'STOP here and ask the user to confirm once their AWS admin has approved '
                 'the connector.'
             )
-            return success_result(data)
-        except Exception as error:
-            return failure_result(error)
-
-    async def create_profile(
-        self,
-        ctx: Context,
-        profileName: str = Field(
-            ...,
-            description=(
-                'Display name for the profile (alphanumeric, underscore, hyphen; 1-100 chars)'
-            ),
-        ),
-        identityType: str = Field(
-            ..., description='Identity provider type: "sso" or "externalIdp"'
-        ),
-        ssoInstanceArn: Optional[str] = Field(
-            None, description='SSO instance ARN (required when identityType="sso")'
-        ),
-        ssoRegion: Optional[str] = Field(
-            None, description='SSO region (required when identityType="sso")'
-        ),
-        clientId: Optional[str] = Field(
-            None,
-            description='OAuth client ID (required when identityType="externalIdp")',
-        ),
-        clientSecretArn: Optional[str] = Field(
-            None,
-            description=(
-                'ARN of the secret containing the OAuth client secret '
-                '(required when identityType="externalIdp")'
-            ),
-        ),
-        authorizationUrl: Optional[str] = Field(
-            None,
-            description=(
-                'OAuth authorization endpoint URL (required when identityType="externalIdp")'
-            ),
-        ),
-        tokenUrl: Optional[str] = Field(
-            None,
-            description='OAuth token endpoint URL (required when identityType="externalIdp")',
-        ),
-        userInfoUrl: Optional[str] = Field(
-            None,
-            description='OAuth userinfo endpoint URL (required when identityType="externalIdp")',
-        ),
-        customerKmsArn: Optional[str] = Field(
-            None, description='Customer-managed KMS key ARN for encryption'
-        ),
-    ) -> dict:
-        """Create a new ATX profile via the Transform Control Plane (TCP).
-
-        Requires AWS credentials -- call configure_sigv4 first.
-
-        Identity type determines which params are needed:
-          - "sso" -> ssoInstanceArn, ssoRegion
-          - "externalIdp" -> clientId, clientSecretArn, authorizationUrl, tokenUrl, userInfoUrl
-        """
-        if not is_sigv4_configured():
-            return error_result(
-                _SIGV4_NOT_CONFIGURED_CODE,
-                _SIGV4_NOT_CONFIGURED_MSG,
-                _SIGV4_NOT_CONFIGURED_ACTION,
-            )
-
-        # Validate profileName format
-        if not _PROFILE_NAME_RE.match(profileName):
-            return error_result(
-                'VALIDATION_ERROR',
-                'profileName must be 1-100 characters: alphanumeric, underscore, or hyphen.',
-            )
-
-        # Validate identity-type-specific required params
-        if identityType == 'sso':
-            if not ssoInstanceArn:
-                return error_result(
-                    'VALIDATION_ERROR',
-                    'ssoInstanceArn is required when identityType="sso".',
-                )
-            if not ssoRegion:
-                return error_result(
-                    'VALIDATION_ERROR',
-                    'ssoRegion is required when identityType="sso".',
-                )
-        else:
-            if not clientId:
-                return error_result(
-                    'VALIDATION_ERROR',
-                    'clientId is required when identityType="externalIdp".',
-                )
-            if not clientSecretArn:
-                return error_result(
-                    'VALIDATION_ERROR',
-                    'clientSecretArn is required when identityType="externalIdp".',
-                )
-            if not authorizationUrl:
-                return error_result(
-                    'VALIDATION_ERROR',
-                    'authorizationUrl is required when identityType="externalIdp".',
-                )
-            if not tokenUrl:
-                return error_result(
-                    'VALIDATION_ERROR',
-                    'tokenUrl is required when identityType="externalIdp".',
-                )
-            if not userInfoUrl:
-                return error_result(
-                    'VALIDATION_ERROR',
-                    'userInfoUrl is required when identityType="externalIdp".',
-                )
-
-        try:
-            # Build identitySource in the format the TCP API expects
-            if identityType == 'sso':
-                identity_source = {
-                    'ssoIdentitySource': {
-                        'instanceArn': ssoInstanceArn,
-                        'ssoRegion': ssoRegion,
-                    },
-                }
-            else:
-                external_idp: dict = {
-                    'clientId': clientId,
-                    'clientSecretArn': clientSecretArn,
-                }
-                if authorizationUrl is not None:
-                    external_idp['authorizationUrl'] = authorizationUrl
-                if tokenUrl is not None:
-                    external_idp['tokenUrl'] = tokenUrl
-                if userInfoUrl is not None:
-                    external_idp['userInfoUrl'] = userInfoUrl
-                identity_source = {'externalIdpIdentitySource': external_idp}
-
-            body: dict = {
-                'profileName': profileName,
-                'identitySource': identity_source,
-                'clientToken': str(uuid.uuid4()),
-            }
-            if customerKmsArn:
-                body['customerKmsArn'] = customerKmsArn
-
-            data = await call_tcp('CreateProfile', body)
             return success_result(data)
         except Exception as error:
             return failure_result(error)

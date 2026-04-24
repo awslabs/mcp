@@ -62,7 +62,6 @@ class TestInstructions:
             'complete_task',
             'list_resources',
             'get_resource',
-            'SigV4',
             'NEVER auto-submit',
         ],
     )
@@ -82,7 +81,6 @@ _HANDLER_MODULES = {
     'ArtifactHandler': 'awslabs.aws_transform_mcp_server.tools.artifact',
     'ChatHandler': 'awslabs.aws_transform_mcp_server.tools.chat',
     'ConnectorHandler': 'awslabs.aws_transform_mcp_server.tools.connector',
-    'AgentRegistryHandler': 'awslabs.aws_transform_mcp_server.tools.agent_registry',
     'ListResourcesHandler': 'awslabs.aws_transform_mcp_server.tools.list_resources',
     'GetResourceHandler': 'awslabs.aws_transform_mcp_server.tools.get_resource',
     'CollaboratorHandler': 'awslabs.aws_transform_mcp_server.tools.collaborator',
@@ -116,8 +114,8 @@ class TestRegisterHandlers:
                 p.stop()
 
     def test_handler_count(self):
-        """There should be exactly 14 handler classes registered."""
-        assert len(_HANDLER_MODULES) == 14
+        """There should be exactly 13 handler classes registered."""
+        assert len(_HANDLER_MODULES) == 13
 
 
 # ── main ───────────────────────────────────────────────────────────────────
