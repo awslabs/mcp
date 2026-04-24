@@ -24,8 +24,6 @@ Run:
     uv run pytest tests/test_search_live.py -m live -v
 """
 
-import asyncio
-import os
 import pytest
 import time
 import uuid
@@ -47,24 +45,6 @@ def _idx(name):
 
 def _key(name):
     return f'{_PREFIX}_{name}:'
-
-
-@pytest.fixture()
-async def client():
-    """Create a GLIDE client connected to $VALKEY_HOST. One per test."""
-    if not os.environ.get('VALKEY_HOST'):
-        pytest.skip('VALKEY_HOST not set')
-    from glide import GlideClient, GlideClientConfiguration, NodeAddress
-
-    host = os.environ['VALKEY_HOST']
-    port = int(os.environ.get('VALKEY_PORT', '6379'))
-    config = GlideClientConfiguration(
-        addresses=[NodeAddress(host, port)],
-        request_timeout=5000,
-    )
-    c = await asyncio.wait_for(GlideClient.create(config), timeout=10)
-    yield c
-    await c.close()
 
 
 @pytest.fixture(autouse=True)

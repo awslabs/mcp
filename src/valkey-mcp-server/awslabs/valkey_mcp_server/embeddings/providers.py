@@ -45,6 +45,10 @@ class OllamaEmbeddings(EmbeddingsProvider):
         self._dimensions = dimensions
         self._client = httpx.AsyncClient(timeout=30.0)
 
+    async def close(self) -> None:
+        """Close the httpx client."""
+        await self._client.aclose()
+
     async def generate_embedding(self, text: str) -> list[float]:
         """Generate embedding using Ollama."""
         response = await self._client.post(

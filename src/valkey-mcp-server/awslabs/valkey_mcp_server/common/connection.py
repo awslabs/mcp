@@ -67,8 +67,11 @@ def _build_config() -> GlideClientConfiguration | GlideClusterClientConfiguratio
         from glide_shared.config import TlsAdvancedConfiguration
 
         ca_path = VALKEY_CFG['ssl_ca_certs']
-        with open(ca_path, 'rb') as f:
-            ca_cert = f.read()
+        try:
+            with open(ca_path, 'rb') as f:
+                ca_cert = f.read()
+        except (FileNotFoundError, PermissionError) as e:
+            raise ValueError(f'Failed to read TLS CA certificate at {ca_path}: {e}') from e
         if VALKEY_CFG['cluster_mode']:
             kwargs['advanced_config'] = AdvancedGlideClusterClientConfiguration(
                 tls_config=TlsAdvancedConfiguration(root_pem_cacerts=ca_cert),

@@ -12,50 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Shared fixtures for integration tests using testcontainers."""
+"""Shared fixtures for live integration tests."""
 
+from __future__ import annotations
+
+import asyncio
+import os
 import pytest
-from unittest.mock import patch
-
-
-@pytest.fixture(scope='session')
-def valkey_container():
-    """Start a valkey-bundle container for the test session.
-
-    Uses testcontainers RedisContainer with the valkey/valkey-bundle image,
-    which includes FT.* search and JSON modules.
-    """
-    from testcontainers.redis import RedisContainer
-
-    with RedisContainer(image='valkey/valkey-bundle:unstable') as container:
-        yield container
 
 
 @pytest.fixture()
-def valkey_connection(valkey_container):
-    """Patch get_client to return a GLIDE client connected to the testcontainer.
+async def client():
+    """Create a GLIDE client connected to $VALKEY_HOST. One per test.
 
-    Returns the mock client for direct use in tests.
+    Skips the test if VALKEY_HOST is not set.
     """
+    if not os.environ.get('VALKEY_HOST'):
+        pytest.skip('VALKEY_HOST not set')
     from glide import GlideClient, GlideClientConfiguration, NodeAddress
 
-    host = valkey_container.get_container_host_ip()
-    port = int(valkey_container.get_exposed_port(6379))
-
-    _client = None
-
-    async def _get_client():
-        nonlocal _client
-        if _client is None:
-            config = GlideClientConfiguration(
-                addresses=[NodeAddress(host, port)],
-                request_timeout=5000,
-            )
-            _client = await GlideClient.create(config)
-        return _client
-
-    with patch(
-        'awslabs.valkey_mcp_server.common.connection.get_client',
-        side_effect=_get_client,
-    ):
-        yield _get_client
+    host = os.environ['VALKEY_HOST']
+    port = int(os.environ.get('VALKEY_PORT', '6379'))
+    config = GlideClientConfiguration(
+        addresses=[NodeAddress(host, port)],
+        request_timeout=5000,
+    )
+    c = await asyncio.wait_for(GlideClient.create(config), timeout=10)
+    yield c
+    await c.close()

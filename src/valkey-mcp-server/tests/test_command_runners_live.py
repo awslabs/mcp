@@ -21,8 +21,6 @@ Run:
     uv run pytest tests/test_command_runners_live.py -m live -v
 """
 
-import asyncio
-import os
 import pytest
 import uuid
 from awslabs.valkey_mcp_server.tools.valkey_admin import valkey_admin
@@ -42,24 +40,6 @@ ADMIN_MOD = 'awslabs.valkey_mcp_server.tools.valkey_admin'
 
 def _k(name):
     return f'{_PREFIX}:{name}'
-
-
-@pytest.fixture()
-async def client():
-    """Create a GLIDE client connected to $VALKEY_HOST."""
-    if not os.environ.get('VALKEY_HOST'):
-        pytest.skip('VALKEY_HOST not set')
-    from glide import GlideClient, GlideClientConfiguration, NodeAddress
-
-    host = os.environ['VALKEY_HOST']
-    port = int(os.environ.get('VALKEY_PORT', '6379'))
-    config = GlideClientConfiguration(
-        addresses=[NodeAddress(host, port)],
-        request_timeout=5000,
-    )
-    c = await asyncio.wait_for(GlideClient.create(config), timeout=10)
-    yield c
-    await c.close()
 
 
 @pytest.fixture(autouse=True)

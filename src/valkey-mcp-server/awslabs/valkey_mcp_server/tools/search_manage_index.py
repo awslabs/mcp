@@ -63,7 +63,9 @@ _DATA_TYPE_MAP = {
 }
 
 
-def _build_field(field: dict[str, Any], structure_type: str, distance_metric: str):
+def _build_field(
+    field: dict[str, Any], structure_type: str, distance_metric: str
+) -> TextField | TagField | NumericField | VectorField:
     """Translate a schema field dict into a GLIDE Field object."""
     name = field['name']
     ftype = field.get('type', 'TEXT').upper()

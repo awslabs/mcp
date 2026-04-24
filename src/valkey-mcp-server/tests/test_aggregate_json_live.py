@@ -22,7 +22,6 @@ Run:
 """
 
 import asyncio
-import os
 import pytest
 import uuid
 from awslabs.valkey_mcp_server.tools.json import json_get, json_set
@@ -41,24 +40,6 @@ MI_MOD = 'awslabs.valkey_mcp_server.tools.search_manage_index'
 AD_MOD = 'awslabs.valkey_mcp_server.tools.search_add_documents'
 AG_MOD = 'awslabs.valkey_mcp_server.tools.search_aggregate'
 SQ_MOD = 'awslabs.valkey_mcp_server.tools.search_query'
-
-
-@pytest.fixture()
-async def client():
-    if not os.environ.get('VALKEY_HOST'):
-        pytest.skip('VALKEY_HOST not set')
-    from glide import GlideClient, GlideClientConfiguration, NodeAddress
-
-    host = os.environ['VALKEY_HOST']
-    port = int(os.environ.get('VALKEY_PORT', '6379'))
-    c = await asyncio.wait_for(
-        GlideClient.create(
-            GlideClientConfiguration(addresses=[NodeAddress(host, port)], request_timeout=5000)
-        ),
-        timeout=10,
-    )
-    yield c
-    await c.close()
 
 
 @pytest.fixture(autouse=True)
