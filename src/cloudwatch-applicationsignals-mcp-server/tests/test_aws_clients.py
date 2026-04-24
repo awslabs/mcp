@@ -1,9 +1,11 @@
 """Tests for aws_clients module public API."""
 
+import os
 import pytest
 from awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients import (
     _DEFAULT_REGION,
     AWS_REGION,
+    _initialize_aws_clients,
     _singleton_clients,
     applicationsignals_client,
     clear_client_factory,
@@ -17,7 +19,7 @@ from awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients import (
     set_region_override,
     xray_client,
 )
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 
 # ---------------------------------------------------------------------------
@@ -149,3 +151,44 @@ class TestBackwardCompatExports:
         assert applicationsignals_client is _singleton_clients['application-signals']
         assert cloudwatch_client is _singleton_clients['cloudwatch']
         assert xray_client is _singleton_clients['xray']
+
+
+# ---------------------------------------------------------------------------
+# _initialize_aws_clients — endpoint override and error paths
+# ---------------------------------------------------------------------------
+
+
+class TestInitializeAwsClients:
+    """Tests for _initialize_aws_clients covering endpoint override and error paths."""
+
+    def test_endpoint_override_applied(self):
+        """Test that endpoint env vars are logged and passed to the client (lines 193, 206)."""
+        with patch.dict(os.environ, {'MCP_LOGS_ENDPOINT': 'https://logs.test.local'}):
+            with patch(
+                'awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.boto3.client'
+            ) as mock_boto:
+                mock_boto.return_value = MagicMock()
+                clients = _initialize_aws_clients()
+                # The logs client should have been created with the endpoint_url override
+                logs_call = next(c for c in mock_boto.call_args_list if c.args[0] == 'logs')
+                assert logs_call.kwargs.get('endpoint_url') == 'https://logs.test.local'
+                assert 'logs' in clients
+
+    def test_initialization_error_reraises(self):
+        """Test module-level except block re-raises when _initialize_aws_clients fails (lines 228-230)."""
+        import importlib
+        import sys
+
+        module_name = 'awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients'
+        original = sys.modules.pop(module_name, None)
+        try:
+            with patch(
+                'awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.boto3.client',
+                side_effect=RuntimeError('init failed'),
+            ):
+                with pytest.raises(RuntimeError, match='init failed'):
+                    importlib.import_module(module_name)
+        finally:
+            sys.modules.pop(module_name, None)
+            if original is not None:
+                sys.modules[module_name] = original

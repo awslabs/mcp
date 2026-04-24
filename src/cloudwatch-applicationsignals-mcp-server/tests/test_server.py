@@ -3269,3 +3269,22 @@ def test_filter_operation_targets_case_sensitive():
     assert operation_targets[0]['Data']['ServiceOperation']['MetricType'] == 'fault'  # unchanged
     assert operation_targets[1]['Data']['ServiceOperation']['MetricType'] == 'FAULT'  # unchanged
     assert has_wildcards is False
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_uses_get_region_when_no_region(mock_aws_clients):
+    """Test analyze_canary_failures calls get_region() when region is not provided (line 1024)."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import analyze_canary_failures
+
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': []}
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {
+        'Canary': {'Name': 'test-canary'}
+    }
+
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_region',
+        return_value='eu-west-1',
+    ) as mock_get_region:
+        result = await analyze_canary_failures('test-canary')  # no region arg
+        mock_get_region.assert_called_once()
+        assert 'test-canary' in result
