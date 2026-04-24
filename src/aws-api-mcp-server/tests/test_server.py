@@ -17,6 +17,8 @@ from awslabs.aws_api_mcp_server.server import (
     _execute_single_command,
     call_aws,
     call_aws_helper,
+    clear_assumed_role_cache,
+    get_credential_cache_stats,
     main,
     suggest_aws_commands,
 )
@@ -1394,3 +1396,159 @@ async def test_call_aws_ecs_deploy_error_sanitization():
     assert result[0].response is None
     assert result[0].error is not None
     assert SECRET_VALUE not in result[0].error
+
+
+# --- Cross-account tests ---
+
+CROSS_ACCOUNT_ROLE = 'arn:aws:iam::123456789012:role/CrossAccountRole'
+
+
+@patch('awslabs.aws_api_mcp_server.server.get_credential_manager')
+@patch('awslabs.aws_api_mcp_server.server.call_aws_helper')
+async def test_call_aws_with_role_arn(mock_helper, mock_get_cm):
+    """call_aws with role_arn should resolve credentials and pass them to helper."""
+    mock_creds = Credentials(
+        access_key_id='cross_key', secret_access_key='cross_secret', session_token='cross_token'
+    )
+    mock_cm = AsyncMock()
+    mock_cm.get_credentials.return_value = mock_creds
+    mock_get_cm.return_value = mock_cm
+
+    mock_response = ProgramInterpretationResponse(
+        response=InterpretationResponse(error=None, json='{}', status_code=200),
+        metadata=None,
+        validation_failures=None,
+        missing_context_failures=None,
+        failed_constraints=None,
+    )
+    mock_helper.return_value = mock_response
+
+    result = await call_aws('aws s3api list-buckets', DummyCtx(), role_arn=CROSS_ACCOUNT_ROLE)
+
+    mock_cm.get_credentials.assert_called_once_with(
+        role_arn=CROSS_ACCOUNT_ROLE, external_id=None, session_name=None
+    )
+    mock_helper.assert_called_once_with('aws s3api list-buckets', DummyCtx(), None, mock_creds)
+    assert len(result) == 1
+
+
+@patch('awslabs.aws_api_mcp_server.server.get_credential_manager')
+@patch('awslabs.aws_api_mcp_server.server.call_aws_helper')
+async def test_call_aws_with_role_arn_and_external_id(mock_helper, mock_get_cm):
+    """call_aws should forward external_id and session_name to credential manager."""
+    mock_cm = AsyncMock()
+    mock_cm.get_credentials.return_value = Credentials(
+        access_key_id='k', secret_access_key='s', session_token='t'
+    )
+    mock_get_cm.return_value = mock_cm
+    mock_helper.return_value = ProgramInterpretationResponse(
+        response=InterpretationResponse(error=None, json='{}', status_code=200),
+        metadata=None,
+        validation_failures=None,
+        missing_context_failures=None,
+        failed_constraints=None,
+    )
+
+    await call_aws(
+        'aws s3api list-buckets',
+        DummyCtx(),
+        role_arn=CROSS_ACCOUNT_ROLE,
+        external_id='ext-456',
+        session_name='my-sess',
+    )
+
+    mock_cm.get_credentials.assert_called_once_with(
+        role_arn=CROSS_ACCOUNT_ROLE, external_id='ext-456', session_name='my-sess'
+    )
+
+
+@patch('awslabs.aws_api_mcp_server.server.call_aws_helper')
+async def test_call_aws_without_role_arn_passes_none_credentials(mock_helper):
+    """call_aws without role_arn should pass None credentials (default path)."""
+    mock_helper.return_value = ProgramInterpretationResponse(
+        response=InterpretationResponse(error=None, json='{}', status_code=200),
+        metadata=None,
+        validation_failures=None,
+        missing_context_failures=None,
+        failed_constraints=None,
+    )
+
+    await call_aws('aws s3api list-buckets', DummyCtx())
+
+    mock_helper.assert_called_once_with('aws s3api list-buckets', DummyCtx(), None, None)
+
+
+@patch('awslabs.aws_api_mcp_server.core.common.config.ENABLE_CROSS_ACCOUNT', False)
+async def test_call_aws_cross_account_disabled():
+    """call_aws with role_arn when cross-account is disabled should raise."""
+    with pytest.raises(AwsApiMcpError, match='Cross-account access is disabled'):
+        await call_aws('aws s3api list-buckets', DummyCtx(), role_arn=CROSS_ACCOUNT_ROLE)
+
+
+@patch('awslabs.aws_api_mcp_server.server.get_credential_manager')
+@patch('awslabs.aws_api_mcp_server.server.call_aws_helper')
+async def test_call_aws_batch_with_role_arn(mock_helper, mock_get_cm):
+    """Batch call_aws with role_arn should reuse same credentials for all commands."""
+    mock_creds = Credentials(
+        access_key_id='batch_key', secret_access_key='batch_secret', session_token='batch_token'
+    )
+    mock_cm = AsyncMock()
+    mock_cm.get_credentials.return_value = mock_creds
+    mock_get_cm.return_value = mock_cm
+    mock_helper.return_value = ProgramInterpretationResponse(
+        response=InterpretationResponse(error=None, json='{}', status_code=200),
+        metadata=None,
+        validation_failures=None,
+        missing_context_failures=None,
+        failed_constraints=None,
+    )
+
+    result = await call_aws(
+        ['aws s3api list-buckets', 'aws ec2 describe-instances'],
+        DummyCtx(),
+        role_arn=CROSS_ACCOUNT_ROLE,
+    )
+
+    # Credentials resolved once, used for both commands
+    mock_cm.get_credentials.assert_called_once()
+    assert mock_helper.call_count == 2
+    assert len(result) == 2
+
+
+@patch('awslabs.aws_api_mcp_server.server.get_credential_manager')
+async def test_clear_assumed_role_cache_all(mock_get_cm):
+    """clear_assumed_role_cache without role_arn should clear all."""
+    mock_cm = AsyncMock()
+    mock_get_cm.return_value = mock_cm
+
+    result = await clear_assumed_role_cache()
+
+    mock_cm.clear_cache.assert_called_once_with(role_arn=None)
+    assert result['status'] == 'success'
+    assert 'All' in result['message']
+
+
+@patch('awslabs.aws_api_mcp_server.server.get_credential_manager')
+async def test_clear_assumed_role_cache_specific(mock_get_cm):
+    """clear_assumed_role_cache with role_arn should clear only that role."""
+    mock_cm = AsyncMock()
+    mock_get_cm.return_value = mock_cm
+
+    result = await clear_assumed_role_cache(role_arn=CROSS_ACCOUNT_ROLE)
+
+    mock_cm.clear_cache.assert_called_once_with(role_arn=CROSS_ACCOUNT_ROLE)
+    assert result['status'] == 'success'
+    assert CROSS_ACCOUNT_ROLE in result['message']
+
+
+@patch('awslabs.aws_api_mcp_server.server.get_credential_manager')
+async def test_get_credential_cache_stats_tool(mock_get_cm):
+    """get_credential_cache_stats should return stats from credential manager."""
+    mock_cm = MagicMock()
+    mock_cm.get_cache_stats.return_value = {'size': 2, 'capacity': 10, 'cached_roles': []}
+    mock_get_cm.return_value = mock_cm
+
+    result = await get_credential_cache_stats()
+
+    assert result['size'] == 2
+    assert result['capacity'] == 10
