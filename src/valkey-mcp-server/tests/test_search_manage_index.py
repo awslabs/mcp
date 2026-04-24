@@ -43,10 +43,6 @@ def _patch(mock_ft):
         yield
 
 
-def _exists(val=True):
-    return patch(f'{MODULE}.index_exists', AsyncMock(return_value=val))
-
-
 class TestManageIndexList:
     async def test_list_returns_decoded_names(self, mock_ft):
         mock_ft.list = AsyncMock(return_value=[b'idx1', b'idx2'])
@@ -61,31 +57,18 @@ class TestManageIndexList:
 
 class TestManageIndexInfo:
     async def test_info_returns_data(self):
-        with _exists(True):
-            result = await manage_index(action='info', index_name='idx')
+        result = await manage_index(action='info', index_name='idx')
         assert result['status'] == 'success'
 
     async def test_info_missing_name(self):
         result = await manage_index(action='info')
         assert result['status'] == 'error'
 
-    async def test_info_not_found(self):
-        with _exists(False):
-            result = await manage_index(action='info', index_name='nope')
-        assert result['status'] == 'error'
-        assert 'does not exist' in result['reason']
-
 
 class TestManageIndexDrop:
     async def test_drop_success(self):
-        with _exists(True):
-            result = await manage_index(action='drop', index_name='idx')
+        result = await manage_index(action='drop', index_name='idx')
         assert result == {'status': 'success', 'index_name': 'idx', 'dropped': True}
-
-    async def test_drop_not_found(self):
-        with _exists(False):
-            result = await manage_index(action='drop', index_name='nope')
-        assert result['status'] == 'error'
 
     async def test_drop_readonly(self):
         with patch(f'{MODULE}.Context') as ctx:
@@ -96,88 +79,68 @@ class TestManageIndexDrop:
 
 class TestManageIndexCreate:
     async def test_create_text_field(self):
-        with _exists(False):
-            result = await manage_index(
-                action='create',
-                index_name='new',
-                schema=[{'name': 'title', 'type': 'TEXT'}],
-            )
+        result = await manage_index(
+            action='create',
+            index_name='new',
+            schema=[{'name': 'title', 'type': 'TEXT'}],
+        )
         assert result['status'] == 'success'
 
     async def test_create_vector_field(self):
-        with _exists(False):
-            result = await manage_index(
-                action='create',
-                index_name='new',
-                schema=[{'name': 'vec', 'type': 'VECTOR', 'dimensions': 128}],
-                prefix=['doc:'],
-            )
+        result = await manage_index(
+            action='create',
+            index_name='new',
+            schema=[{'name': 'vec', 'type': 'VECTOR', 'dimensions': 128}],
+            prefix=['doc:'],
+        )
         assert result['status'] == 'success'
 
     async def test_create_all_field_types(self):
-        with _exists(False):
-            result = await manage_index(
-                action='create',
-                index_name='new',
-                schema=[
-                    {'name': 'title', 'type': 'TEXT'},
-                    {'name': 'year', 'type': 'NUMERIC'},
-                    {'name': 'cat', 'type': 'TAG'},
-                    {'name': 'vec', 'type': 'VECTOR', 'dimensions': 4},
-                ],
-            )
+        result = await manage_index(
+            action='create',
+            index_name='new',
+            schema=[
+                {'name': 'title', 'type': 'TEXT'},
+                {'name': 'year', 'type': 'NUMERIC'},
+                {'name': 'cat', 'type': 'TAG'},
+                {'name': 'vec', 'type': 'VECTOR', 'dimensions': 4},
+            ],
+        )
         assert result['status'] == 'success'
 
     async def test_create_flat_l2(self):
-        with _exists(False):
-            result = await manage_index(
-                action='create',
-                index_name='new',
-                schema=[{'name': 'v', 'type': 'VECTOR', 'dimensions': 4}],
-                structure_type='FLAT',
-                distance_metric='L2',
-            )
+        result = await manage_index(
+            action='create',
+            index_name='new',
+            schema=[{'name': 'v', 'type': 'VECTOR', 'dimensions': 4}],
+            structure_type='FLAT',
+            distance_metric='L2',
+        )
         assert result['status'] == 'success'
 
-    async def test_create_duplicate(self):
-        with _exists(True):
-            result = await manage_index(
-                action='create',
-                index_name='idx',
-                schema=[{'name': 't', 'type': 'TEXT'}],
-            )
-        assert result['status'] == 'error'
-        assert 'already exists' in result['reason']
-
     async def test_create_missing_schema(self):
-        with _exists(False):
-            result = await manage_index(action='create', index_name='new')
+        result = await manage_index(action='create', index_name='new')
         assert result['status'] == 'error'
 
     async def test_create_missing_field_name(self):
-        with _exists(False):
-            result = await manage_index(
-                action='create', index_name='new', schema=[{'type': 'TEXT'}]
-            )
+        result = await manage_index(action='create', index_name='new', schema=[{'type': 'TEXT'}])
         assert result['status'] == 'error'
 
     async def test_create_vector_missing_dimensions(self):
-        with _exists(False):
-            result = await manage_index(
-                action='create',
-                index_name='new',
-                schema=[{'name': 'v', 'type': 'VECTOR'}],
-            )
+        result = await manage_index(
+            action='create',
+            index_name='new',
+            schema=[{'name': 'v', 'type': 'VECTOR'}],
+        )
         assert result['status'] == 'error'
 
     async def test_create_geo_field_rejected(self):
         """GEO field type is not supported by GLIDE — should return validation error."""
-        with _exists(False):
-            result = await manage_index(
-                action='create',
-                index_name='new',
-                schema=[{'name': 'loc', 'type': 'GEO'}],
-            )
+        result = await manage_index(
+            action='create',
+            index_name='new',
+            schema=[{'name': 'loc', 'type': 'GEO'}],
+        )
         assert result['status'] == 'error'
         assert 'GEO' in result['reason']
 
@@ -194,7 +157,6 @@ class TestManageIndexCreate:
 
 class TestManageIndexUnknownAction:
     async def test_unknown_action(self):
-        with _exists(True):
-            result = await manage_index(action='bogus', index_name='x')
+        result = await manage_index(action='bogus', index_name='x')
         assert result['status'] == 'error'
         assert 'bogus' in result['reason']

@@ -45,7 +45,6 @@ def _patch(mock_client, mock_ft):
     with (
         patch(f'{MODULE}.get_client', return_value=mock_client),
         patch(f'{MODULE}.ft', mock_ft),
-        patch(f'{MODULE}.index_exists', AsyncMock(return_value=True)),
     ):
         yield
 
@@ -168,13 +167,7 @@ class TestFindSimilar:
         assert 'doc:1' not in ids
 
     async def test_find_similar_doc_not_found(self, mock_client):
-        mock_client.exists = AsyncMock(return_value=0)
+        mock_client.hget = AsyncMock(return_value=None)
         result = await search(index_name='idx', document_id='missing')
         assert result['status'] == 'error'
         assert 'not found' in result['reason']
-
-    async def test_index_not_found(self):
-        with patch(f'{MODULE}.index_exists', AsyncMock(return_value=False)):
-            result = await search(index_name='nope', query_text='hello')
-        assert result['status'] == 'error'
-        assert 'does not exist' in result['reason']

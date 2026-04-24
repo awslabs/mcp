@@ -43,10 +43,7 @@ def mock_client():
 
 @pytest.fixture(autouse=True)
 def _patch(mock_client):
-    with (
-        patch(f'{MODULE}.get_client', return_value=mock_client),
-        patch(f'{MODULE}.index_exists', AsyncMock(return_value=True)),
-    ):
+    with patch(f'{MODULE}.get_client', return_value=mock_client):
         yield
 
 
@@ -153,12 +150,6 @@ class TestAggregate:
         result = await aggregate(index_name='idx', query='*')
         assert result['status'] == 'error'
         assert 'not supported' in result['reason']
-
-    async def test_nonexistent_index(self):
-        with patch(f'{MODULE}.index_exists', AsyncMock(return_value=False)):
-            result = await aggregate(index_name='nope', query='@f:[0 inf]')
-        assert result['status'] == 'error'
-        assert 'does not exist' in result['reason']
 
     async def test_command_error(self, mock_client):
         with patch(f'{MODULE}.ft') as mock_ft:

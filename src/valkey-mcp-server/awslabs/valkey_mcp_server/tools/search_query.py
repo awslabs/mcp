@@ -21,7 +21,6 @@ import struct
 from awslabs.valkey_mcp_server.common.connection import get_client
 from awslabs.valkey_mcp_server.common.server import mcp
 from awslabs.valkey_mcp_server.common.utils import (
-    index_exists,
     pack_embedding,
 )
 from awslabs.valkey_mcp_server.embeddings import get_provider as _get_provider
@@ -107,13 +106,6 @@ async def search(
 
     try:
         client = await get_client()
-
-        # Pre-validate on every call: while GLIDE raises a catchable RequestError
-        # for non-existent indices, GLIDE's native Rust logger writes warnings to
-        # stdout before the exception reaches Python. This corrupts the MCP stdio
-        # JSON-RPC transport. Pre-validating avoids the error path entirely.
-        if not await index_exists(client, index_name):
-            return {'status': 'error', 'reason': f"Index '{index_name}' does not exist"}
 
         if document_id:
             return await _find_similar(
@@ -206,10 +198,6 @@ async def _text(client, index_name, query_text, filt, ret, offset, limit):
 
 
 async def _find_similar(client, index_name, doc_id, vector_field, filt, ret, offset, limit):
-    # Pre-validate key exists to avoid GLIDE native crash
-    exists = await client.exists([doc_id])
-    if not exists:
-        return {'status': 'error', 'reason': f"Document '{doc_id}' not found"}
     raw = await client.hget(doc_id, vector_field)
     if not raw:
         return {'status': 'error', 'reason': f"'{doc_id}' not found or no '{vector_field}' field"}

@@ -19,7 +19,6 @@ from __future__ import annotations
 import logging
 from awslabs.valkey_mcp_server.common.connection import get_client
 from awslabs.valkey_mcp_server.common.server import mcp
-from awslabs.valkey_mcp_server.common.utils import index_exists
 from awslabs.valkey_mcp_server.context import Context
 from glide import ft
 from glide_shared.commands.server_modules.ft_options.ft_create_options import (
@@ -147,20 +146,13 @@ async def manage_index(
         if not index_name:
             return {'status': 'error', 'reason': f"'index_name' required for '{action}'"}
 
-        # Pre-validate: avoid GLIDE crashes on error responses
-        index_found = await index_exists(client, index_name)
-
         if action == 'info':
-            if not index_found:
-                return {'status': 'error', 'reason': f"Index '{index_name}' does not exist"}
             info = await ft.info(client, index_name)
             return {'status': 'success', 'index_name': index_name, 'info': info}
 
         if action == 'drop':
             if Context.readonly_mode():
                 return {'status': 'error', 'reason': 'Readonly mode'}
-            if not index_found:
-                return {'status': 'error', 'reason': f"Index '{index_name}' does not exist"}
             await ft.dropindex(client, index_name)
             return {'status': 'success', 'index_name': index_name, 'dropped': True}
 
@@ -169,8 +161,6 @@ async def manage_index(
                 return {'status': 'error', 'reason': 'Readonly mode'}
             if not schema:
                 return {'status': 'error', 'reason': "'schema' required for create"}
-            if index_found:
-                return {'status': 'error', 'reason': f"Index '{index_name}' already exists"}
 
             it = index_type.upper()
             st = structure_type.upper()

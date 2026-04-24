@@ -19,7 +19,7 @@ from __future__ import annotations
 import logging
 from awslabs.valkey_mcp_server.common.connection import get_client
 from awslabs.valkey_mcp_server.common.server import mcp
-from awslabs.valkey_mcp_server.common.utils import index_exists, tool_errors
+from awslabs.valkey_mcp_server.common.utils import tool_errors
 from glide import ft
 from glide_shared.commands.server_modules.ft_options.ft_aggregate_options import (
     FtAggregateApply,
@@ -182,16 +182,8 @@ async def aggregate(
     try:
         client = await get_client()
 
-        # Pre-validate on every call: GLIDE errors are catchable RequestErrors,
-        # but GLIDE's native Rust logger writes warnings to stdout before the
-        # exception reaches Python, corrupting the MCP stdio transport.
-        if not await index_exists(client, index_name):
-            return {'status': 'error', 'reason': f"Index '{index_name}' does not exist"}
-
-        # Reject wildcard '*' — some Valkey versions reject it with "Invalid: query string
-        # syntax". The resulting RequestError is catchable, but GLIDE's native Rust logger
-        # writes warnings to stdout before the exception reaches Python, corrupting the
-        # MCP stdio transport.
+        # Reject wildcard '*' — some Valkey versions reject it with "Invalid: query
+        # string syntax".
         if query.strip() == '*':
             return {
                 'status': 'error',
