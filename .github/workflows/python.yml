@@ -78,7 +78,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install uv
-        uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b # v7.3.0
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
 
       - name: Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
@@ -87,7 +87,7 @@ jobs:
           # cache: uv (not supported)
 
       - name: Cache GraphViz
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 #v5.0.3
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae #v5.0.5
         id: cache-graphviz
         with:
           path: "~/graphviz"
@@ -115,7 +115,7 @@ jobs:
         run: bandit -r --severity-level medium --confidence-level medium -f html -o bandit-report-${{ matrix.package }}.html -c "pyproject.toml" . || echo "status=failure" >> $GITHUB_OUTPUT
 
       - name: Store Bandit as Artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: bandit-report-${{ matrix.package }}.html
           path: src/${{ matrix.package }}/bandit-report-${{ matrix.package }}.html
@@ -145,7 +145,7 @@ jobs:
 
       - name: Upload coverage reports to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de #v5.5.2
+        uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 #v6.0.0
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ${{ matrix.package }}-coverage.xml
@@ -154,7 +154,7 @@ jobs:
 
       - name: Upload test reports to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de #v5.5.2
+        uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 #v6.0.0
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ${{ matrix.package }}-junit.xml
@@ -178,7 +178,7 @@ jobs:
         run: uv build
 
       - name: Upload distribution
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: dist-${{ matrix.package }}
           path: src/${{ matrix.package }}/dist/
@@ -291,7 +291,7 @@ jobs:
            python -
 
       - name: Upload Software Bill of Materials
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: sbom-${{ matrix.package }}
           path: src/${{ matrix.package }}/sbom.json
