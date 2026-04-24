@@ -126,7 +126,7 @@ def main():
             provider = get_provider()
             if isinstance(provider, OllamaEmbeddings):
                 await provider.close()
-        except Exception:
+        except Exception:  # nosec B110 — best-effort cleanup during shutdown
             pass
 
     def _shutdown():

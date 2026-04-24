@@ -222,7 +222,7 @@ class HashEmbeddings(EmbeddingsProvider):
         import random
 
         hash_hex = hashlib.sha256(text.encode('utf-8')).hexdigest()
-        rng = random.Random(hash_hex)
+        rng = random.Random(hash_hex)  # nosec B311 — not used for security, only test embeddings
         return [rng.uniform(-1, 1) for _ in range(self._dimensions)]
 
     def get_dimensions(self) -> int:
