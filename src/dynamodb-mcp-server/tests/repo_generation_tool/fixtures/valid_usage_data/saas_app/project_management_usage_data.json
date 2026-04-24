@@ -1,0 +1,380 @@
+{
+  "entities": {
+    "Organization": {
+      "access_pattern_data": {
+        "billing_email": "sample_billing_email",
+        "created_at": "sample_created_at",
+        "domain": "sample_domain",
+        "max_projects": 0,
+        "max_users": 0,
+        "name": "sample_name",
+        "org_id": "sample_org_id",
+        "plan_type": "sample_plan_type",
+        "settings": {},
+        "status": "sample_status",
+        "updated_at": "sample_updated_at"
+      },
+      "sample_data": {
+        "billing_email": "billing@techcorp.com",
+        "created_at": "2024-01-01T00:00:00Z",
+        "domain": "techcorp.com",
+        "max_projects": 25,
+        "max_users": 50,
+        "name": "TechCorp Solutions",
+        "org_id": "org-12345",
+        "plan_type": "premium",
+        "settings": {
+          "notifications": true,
+          "theme": "light"
+        },
+        "status": "active",
+        "updated_at": "2024-01-01T00:00:00Z"
+      },
+      "update_data": {
+        "billing_email": "accounts@techcorp.com",
+        "max_projects": 50,
+        "max_users": 100,
+        "name": "TechCorp Solutions Inc.",
+        "plan_type": "enterprise",
+        "updated_at": "2024-01-15T10:00:00Z"
+      }
+    },
+    "OrganizationInvite": {
+      "access_pattern_data": {
+        "accepted_at": "sample_accepted_at",
+        "created_at": "sample_created_at",
+        "email": "sample_email",
+        "expires_at": "sample_expires_at",
+        "invite_id": "sample_invite_id",
+        "invited_by": "sample_invited_by",
+        "org_id": "sample_org_id",
+        "role": "sample_role",
+        "status": "sample_status"
+      },
+      "sample_data": {
+        "accepted_at": null,
+        "created_at": "2024-01-15T10:00:00Z",
+        "email": "newuser@example.com",
+        "expires_at": "2024-01-22T10:00:00Z",
+        "invite_id": "invite-67890",
+        "invited_by": "user-11111",
+        "org_id": "org-12345",
+        "role": "member",
+        "status": "pending"
+      },
+      "update_data": {
+        "accepted_at": "2024-01-16T14:30:00Z",
+        "role": "admin",
+        "status": "accepted"
+      }
+    },
+    "OrganizationMember": {
+      "access_pattern_data": {
+        "email": "sample_email",
+        "first_name": "sample_first_name",
+        "joined_at": "sample_joined_at",
+        "last_active": "sample_last_active",
+        "last_name": "sample_last_name",
+        "org_id": "sample_org_id",
+        "permissions": [
+          "sample_permission"
+        ],
+        "role": "sample_role",
+        "status": "sample_status",
+        "user_id": "sample_user_id"
+      },
+      "sample_data": {
+        "email": "john.doe@techcorp.com",
+        "first_name": "John",
+        "joined_at": "2024-01-01T00:00:00Z",
+        "last_active": "2024-01-20T16:30:00Z",
+        "last_name": "Doe",
+        "org_id": "org-12345",
+        "permissions": [
+          "read",
+          "write",
+          "admin"
+        ],
+        "role": "admin",
+        "status": "active",
+        "user_id": "user-11111"
+      },
+      "update_data": {
+        "last_active": "2024-01-21T09:15:00Z",
+        "permissions": [
+          "read",
+          "write",
+          "admin",
+          "owner"
+        ],
+        "role": "owner"
+      }
+    },
+    "OrganizationProject": {
+      "access_pattern_data": {
+        "created_at": "sample_created_at",
+        "due_date": "sample_due_date",
+        "org_id": "sample_org_id",
+        "owner_id": "sample_owner_id",
+        "priority": "sample_priority",
+        "project_id": "sample_project_id",
+        "project_name": "sample_project_name",
+        "status": "sample_status",
+        "team_size": 0
+      },
+      "sample_data": {
+        "created_at": "2024-01-10T08:00:00Z",
+        "due_date": "2024-03-15T23:59:59Z",
+        "org_id": "org-12345",
+        "owner_id": "user-11111",
+        "priority": "high",
+        "project_id": "project-22222",
+        "project_name": "Mobile App Development",
+        "status": "active",
+        "team_size": 5
+      },
+      "update_data": {
+        "priority": "medium",
+        "project_name": "Mobile App Development v2.0",
+        "status": "in_progress",
+        "team_size": 7
+      }
+    },
+    "Project": {
+      "access_pattern_data": {
+        "budget": 0.0,
+        "created_at": "sample_created_at",
+        "currency": "sample_currency",
+        "description": "sample_description",
+        "due_date": "sample_due_date",
+        "name": "sample_name",
+        "org_id": "sample_org_id",
+        "owner_id": "sample_owner_id",
+        "priority": "sample_priority",
+        "project_id": "sample_project_id",
+        "start_date": "sample_start_date",
+        "status": "sample_status",
+        "tags": [
+          "sample_tag"
+        ],
+        "team_members": [
+          "sample_team_member"
+        ],
+        "updated_at": "sample_updated_at"
+      },
+      "sample_data": {
+        "budget": 50000.0,
+        "created_at": "2024-01-10T08:00:00Z",
+        "currency": "USD",
+        "description": "Developing a cross-platform mobile application for customer engagement",
+        "due_date": "2024-03-15T23:59:59Z",
+        "name": "Mobile App Development",
+        "org_id": "org-12345",
+        "owner_id": "user-11111",
+        "priority": "high",
+        "project_id": "project-22222",
+        "start_date": "2024-01-10T08:00:00Z",
+        "status": "active",
+        "tags": [
+          "mobile",
+          "cross-platform",
+          "customer-engagement"
+        ],
+        "team_members": [
+          "user-11111",
+          "user-22222",
+          "user-33333"
+        ],
+        "updated_at": "2024-01-10T08:00:00Z"
+      },
+      "update_data": {
+        "budget": 65000.0,
+        "description": "Developing an enhanced cross-platform mobile application with advanced features",
+        "name": "Mobile App Development v2.0",
+        "status": "in_progress",
+        "updated_at": "2024-01-15T10:00:00Z"
+      }
+    },
+    "ProjectMilestone": {
+      "access_pattern_data": {
+        "completed_at": "sample_completed_at",
+        "completion_percentage": 0,
+        "created_at": "sample_created_at",
+        "description": "sample_description",
+        "due_date": "sample_due_date",
+        "milestone_id": "sample_milestone_id",
+        "project_id": "sample_project_id",
+        "status": "sample_status",
+        "title": "sample_title"
+      },
+      "sample_data": {
+        "completed_at": "2024-01-30T17:00:00Z",
+        "completion_percentage": 100,
+        "created_at": "2024-01-12T09:00:00Z",
+        "description": "Complete all user interface and user experience designs",
+        "due_date": "2024-02-01T23:59:59Z",
+        "milestone_id": "milestone-33333",
+        "project_id": "project-22222",
+        "status": "completed",
+        "title": "UI/UX Design Complete"
+      },
+      "update_data": {
+        "completion_percentage": 95,
+        "description": "Complete all user interface and user experience designs with client feedback incorporated",
+        "title": "UI/UX Design Complete - Revised"
+      }
+    },
+    "ProjectTask": {
+      "access_pattern_data": {
+        "assignee_id": "sample_assignee_id",
+        "created_at": "sample_created_at",
+        "due_date": "sample_due_date",
+        "estimated_hours": 0.0,
+        "priority": "sample_priority",
+        "project_id": "sample_project_id",
+        "status": "sample_status",
+        "task_id": "sample_task_id",
+        "title": "sample_title"
+      },
+      "sample_data": {
+        "assignee_id": "user-11111",
+        "created_at": "2024-01-12T09:00:00Z",
+        "due_date": "2024-01-25T17:00:00Z",
+        "estimated_hours": 16.0,
+        "priority": "high",
+        "project_id": "project-22222",
+        "status": "in_progress",
+        "task_id": "task-44444",
+        "title": "Implement user authentication"
+      },
+      "update_data": {
+        "priority": "medium",
+        "status": "completed",
+        "title": "Implement secure user authentication system"
+      }
+    },
+    "Task": {
+      "access_pattern_data": {
+        "actual_hours": 0.0,
+        "assignee_id": "sample_assignee_id",
+        "completed_at": "sample_completed_at",
+        "created_at": "sample_created_at",
+        "dependencies": [
+          "sample_dependency"
+        ],
+        "description": "sample_description",
+        "due_date": "sample_due_date",
+        "estimated_hours": 0.0,
+        "labels": [
+          "sample_label"
+        ],
+        "priority": "sample_priority",
+        "project_id": "sample_project_id",
+        "reporter_id": "sample_reporter_id",
+        "status": "sample_status",
+        "task_id": "sample_task_id",
+        "title": "sample_title",
+        "updated_at": "sample_updated_at"
+      },
+      "sample_data": {
+        "actual_hours": null,
+        "assignee_id": "user-11111",
+        "completed_at": null,
+        "created_at": "2024-01-12T09:00:00Z",
+        "dependencies": [
+          "task-33333"
+        ],
+        "description": "Create secure login and registration system with JWT tokens",
+        "due_date": "2024-01-25T17:00:00Z",
+        "estimated_hours": 16.0,
+        "labels": [
+          "authentication",
+          "security",
+          "backend"
+        ],
+        "priority": "high",
+        "project_id": "project-22222",
+        "reporter_id": "user-22222",
+        "status": "in_progress",
+        "task_id": "task-44444",
+        "title": "Implement user authentication",
+        "updated_at": "2024-01-12T09:00:00Z"
+      },
+      "update_data": {
+        "actual_hours": 18.5,
+        "completed_at": "2024-01-25T16:00:00Z",
+        "description": "Create secure login and registration system with JWT tokens and two-factor authentication",
+        "estimated_hours": 20.0,
+        "status": "completed",
+        "title": "Implement secure user authentication system",
+        "updated_at": "2024-01-25T16:00:00Z"
+      }
+    },
+    "TaskComment": {
+      "access_pattern_data": {
+        "attachments": [
+          "sample_attachment"
+        ],
+        "author_id": "sample_author_id",
+        "comment_id": "sample_comment_id",
+        "comment_type": "sample_comment_type",
+        "content": "sample_content",
+        "created_at": "sample_created_at",
+        "mentions": [
+          "sample_mention"
+        ],
+        "task_id": "sample_task_id",
+        "updated_at": "sample_updated_at"
+      },
+      "sample_data": {
+        "attachments": [
+          "auth-diagram.png"
+        ],
+        "author_id": "user-11111",
+        "comment_id": "comment-55555",
+        "comment_type": "update",
+        "content": "Started working on the authentication flow. JWT implementation is in progress.",
+        "created_at": "2024-01-15T14:30:00Z",
+        "mentions": [
+          "user-22222"
+        ],
+        "task_id": "task-44444",
+        "updated_at": null
+      },
+      "update_data": {
+        "comment_type": "completion",
+        "content": "Completed the authentication flow. JWT implementation is done and tested. Ready for review.",
+        "updated_at": "2024-01-25T15:00:00Z"
+      }
+    },
+    "UserTask": {
+      "access_pattern_data": {
+        "assigned_at": "sample_assigned_at",
+        "due_date": "sample_due_date",
+        "estimated_hours": 0.0,
+        "priority": "sample_priority",
+        "project_id": "sample_project_id",
+        "status": "sample_status",
+        "task_id": "sample_task_id",
+        "title": "sample_title",
+        "user_id": "sample_user_id"
+      },
+      "sample_data": {
+        "assigned_at": "2024-01-12T09:00:00Z",
+        "due_date": "2024-01-25T17:00:00Z",
+        "estimated_hours": 16.0,
+        "priority": "high",
+        "project_id": "project-22222",
+        "status": "in_progress",
+        "task_id": "task-44444",
+        "title": "Implement user authentication",
+        "user_id": "user-11111"
+      },
+      "update_data": {
+        "priority": "medium",
+        "status": "completed",
+        "title": "Implement secure user authentication system"
+      }
+    }
+  }
+}

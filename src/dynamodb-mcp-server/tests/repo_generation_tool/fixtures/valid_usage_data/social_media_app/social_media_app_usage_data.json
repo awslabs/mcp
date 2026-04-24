@@ -1,0 +1,112 @@
+{
+  "entities": {
+    "Comment": {
+      "access_pattern_data": {
+        "comment_id": "comment-99999",
+        "content": "This is exactly what I was looking for. Thanks for the detailed explanation!",
+        "post_id": "post-54321",
+        "timestamp": 1705664000,
+        "user_id": "user-98765",
+        "username": "data_scientist"
+      },
+      "sample_data": {
+        "comment_id": "comment-11111",
+        "content": "Great post! Thanks for sharing this insightful content.",
+        "post_id": "post-67890",
+        "timestamp": 1705751400,
+        "user_id": "user-12345",
+        "username": "techexplorer"
+      },
+      "update_data": {
+        "content": "Great post! Thanks for sharing this very insightful content. Really helpful!",
+        "timestamp": 1705837800
+      }
+    },
+    "Follow": {
+      "access_pattern_data": {
+        "follower_id": "user-22222",
+        "timestamp": 1705492800,
+        "user_id": "user-11111",
+        "username": "ai_researcher"
+      },
+      "sample_data": {
+        "follower_id": "user-67890",
+        "timestamp": 1705579200,
+        "user_id": "user-12345",
+        "username": "techexplorer"
+      },
+      "update_data": {
+        "timestamp": 1705665600
+      }
+    },
+    "Like": {
+      "access_pattern_data": {
+        "liker_user_id": "user-55555",
+        "post_id": "post-44444",
+        "timestamp": 1705406400,
+        "user_id": "user-33333",
+        "username": "ml_engineer"
+      },
+      "sample_data": {
+        "liker_user_id": "user-67890",
+        "post_id": "post-67890",
+        "timestamp": 1705748700,
+        "user_id": "user-12345",
+        "username": "follower_user"
+      },
+      "update_data": {
+        "timestamp": 1705835100
+      }
+    },
+    "Post": {
+      "access_pattern_data": {
+        "content": "Excited to share our latest product update! We've integrated advanced analytics that will help businesses make better data-driven decisions.",
+        "media_urls": [
+          "https://example.com/images/product-screenshot.png",
+          "https://example.com/videos/demo.mp4"
+        ],
+        "post_id": "post-88888",
+        "timestamp": 1705320000,
+        "user_id": "user-77777",
+        "username": "startup_founder"
+      },
+      "sample_data": {
+        "content": "Just finished reading an amazing book about technology trends. Highly recommend it to anyone interested in the future of AI!",
+        "media_urls": [
+          "https://example.com/images/book-cover.jpg"
+        ],
+        "post_id": "post-67890",
+        "timestamp": 1705741200,
+        "user_id": "user-12345",
+        "username": "techexplorer"
+      },
+      "update_data": {
+        "content": "Just finished reading an amazing book about technology trends. Highly recommend it to anyone interested in the future of AI and machine learning!",
+        "media_urls": [
+          "https://example.com/images/book-cover.jpg",
+          "https://example.com/images/ai-diagram.png"
+        ],
+        "timestamp": 1705827600
+      }
+    },
+    "UserProfile": {
+      "access_pattern_data": {
+        "email": "pm.sarah@innovatetech.com",
+        "timestamp": 1703980800,
+        "user_id": "user-99999",
+        "username": "product_manager"
+      },
+      "sample_data": {
+        "email": "techexplorer@example.com",
+        "timestamp": 1704067200,
+        "user_id": "user-12345",
+        "username": "techexplorer"
+      },
+      "update_data": {
+        "email": "techexplorer.ai@example.com",
+        "timestamp": 1705824000,
+        "username": "techexplorer_ai"
+      }
+    }
+  }
+}

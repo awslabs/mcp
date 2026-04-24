@@ -15,6 +15,7 @@
 
 import pytest
 import uuid
+from awslabs.documentdb_mcp_server.config import serverConfig
 from awslabs.documentdb_mcp_server.connection_tools import DocumentDBConnection
 from awslabs.documentdb_mcp_server.query_tools import (
     aggregate,
@@ -313,3 +314,137 @@ class TestAggregateTool:
         # Act/Assert
         with pytest.raises(ValueError, match='Failed to run aggregation: Generic error'):
             await aggregate(connection_id, 'test_db', 'test_collection', pipeline, 10)
+
+    @pytest.mark.asyncio
+    async def test_aggregate_blocks_out_in_read_only_mode(
+        self, mock_ctx, patch_client, monkeypatch
+    ):
+        """Test that $out stage is blocked in read-only mode."""
+        # Arrange
+        monkeypatch.setattr(serverConfig, 'read_only_mode', True)
+
+        mock_client = patch_client()  # noqa: F841
+        connection_info = DocumentDBConnection.create_connection(
+            'mongodb://example.com:27017/?retryWrites=false'
+        )
+        connection_id = connection_info.connection_id
+
+        # Define a pipeline with $out stage
+        pipeline = [
+            {'$group': {'_id': '$category', 'total': {'$sum': '$value'}}},
+            {'$out': 'output_collection'},
+        ]
+
+        # Act/Assert
+        with pytest.raises(
+            ValueError,
+            match='Operation not permitted: Server is configured in read-only mode',
+        ):
+            await aggregate(connection_id, 'test_db', 'test_collection', pipeline, 10)
+
+    @pytest.mark.asyncio
+    async def test_aggregate_blocks_merge_in_read_only_mode(
+        self, mock_ctx, patch_client, monkeypatch
+    ):
+        """Test that $merge stage is blocked in read-only mode."""
+        # Arrange
+        monkeypatch.setattr(serverConfig, 'read_only_mode', True)
+
+        mock_client = patch_client()  # noqa: F841
+        connection_info = DocumentDBConnection.create_connection(
+            'mongodb://example.com:27017/?retryWrites=false'
+        )
+        connection_id = connection_info.connection_id
+
+        # Define a pipeline with $merge stage
+        pipeline = [
+            {'$group': {'_id': '$category', 'total': {'$sum': '$value'}}},
+            {'$merge': {'into': 'output_collection'}},
+        ]
+
+        # Act/Assert
+        with pytest.raises(
+            ValueError,
+            match='Operation not permitted: Server is configured in read-only mode',
+        ):
+            await aggregate(connection_id, 'test_db', 'test_collection', pipeline, 10)
+
+    @pytest.mark.asyncio
+    async def test_aggregate_allows_out_when_write_enabled(
+        self, mock_ctx, patch_client, monkeypatch
+    ):
+        """Test that $out stage is allowed when write operations are enabled."""
+        # Arrange
+        monkeypatch.setattr(serverConfig, 'read_only_mode', False)
+
+        mock_client = patch_client()  # noqa: F841
+        connection_info = DocumentDBConnection.create_connection(
+            'mongodb://example.com:27017/?retryWrites=false'
+        )
+        connection_id = connection_info.connection_id
+
+        # Set up mock data
+        db_name = 'test_db'
+        collection_name = 'test_collection'
+
+        # Add documents to the collection
+        docs = [
+            {'_id': ObjectId(), 'category': 'A', 'value': 10},
+            {'_id': ObjectId(), 'category': 'B', 'value': 20},
+        ]
+
+        mock_collection = mock_client[db_name][collection_name]
+        for doc in docs:
+            mock_collection.insert_one(doc)
+
+        # Define a pipeline with $out stage
+        pipeline = [
+            {'$group': {'_id': '$category', 'total': {'$sum': '$value'}}},
+            {'$out': 'output_collection'},
+        ]
+
+        # Act - should not raise an error
+        result = await aggregate(connection_id, db_name, collection_name, pipeline, 10)
+
+        # Assert - in mock implementation, this should succeed
+        assert isinstance(result, list)
+
+    @pytest.mark.asyncio
+    async def test_aggregate_allows_merge_when_write_enabled(
+        self, mock_ctx, patch_client, monkeypatch
+    ):
+        """Test that $merge stage is allowed when write operations are enabled."""
+        # Arrange
+        monkeypatch.setattr(serverConfig, 'read_only_mode', False)
+
+        mock_client = patch_client()  # noqa: F841
+        connection_info = DocumentDBConnection.create_connection(
+            'mongodb://example.com:27017/?retryWrites=false'
+        )
+        connection_id = connection_info.connection_id
+
+        # Set up mock data
+        db_name = 'test_db'
+        collection_name = 'test_collection'
+
+        # Add documents to the collection
+        docs = [
+            {'_id': ObjectId(), 'category': 'A', 'value': 10},
+            {'_id': ObjectId(), 'category': 'B', 'value': 20},
+        ]
+
+        mock_collection = mock_client[db_name][collection_name]
+        for doc in docs:
+            mock_collection.insert_one(doc)
+
+        # Define a pipeline with $merge stage
+        pipeline = [
+            {'$group': {'_id': '$category', 'total': {'$sum': '$value'}}},
+            {'$merge': {'into': 'output_collection'}},
+        ]
+
+        # Act - should not raise an error
+        result = await aggregate(connection_id, db_name, collection_name, pipeline, 10)
+
+        # Assert - in mock implementation, this should succeed
+        assert isinstance(result, list)

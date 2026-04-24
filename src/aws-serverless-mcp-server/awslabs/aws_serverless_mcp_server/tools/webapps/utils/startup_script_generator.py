@@ -19,6 +19,8 @@ to work with Lambda Web Adapter.
 """
 
 import os
+import re
+import shlex
 import stat
 from loguru import logger
 from typing import Dict, Optional
@@ -68,9 +70,25 @@ async def generate_startup_script(
     """
     startup_script_name = startup_script_name or get_default_startup_script_name(runtime)
     script_path = os.path.join(built_artifacts_path, startup_script_name)
-    entry_point_path = os.path.join(built_artifacts_path, entry_point)
 
     logger.info(f'Generating startup script for runtime: {runtime}, entry point: {entry_point}')
+
+    # Validate entry_point BEFORE checking file existence
+    validate_entry_point(entry_point)
+
+    # Validate environment variables if provided
+    if additional_env:
+        validate_environment_variables(additional_env)
+
+    # Check for path traversal attacks
+    entry_point_path = os.path.join(built_artifacts_path, entry_point)
+    resolved_entry_point = os.path.realpath(entry_point_path)
+    resolved_artifacts_path = os.path.realpath(built_artifacts_path)
+
+    if not resolved_entry_point.startswith(resolved_artifacts_path + os.sep):
+        raise ValueError(
+            'Path traversal detected: entry_point resolves outside built_artifacts_path'
+        )
 
     # Check if entry point exists
     if not os.path.exists(entry_point_path):
@@ -121,6 +139,43 @@ def get_default_startup_script_name(runtime: str) -> str:
     return 'bootstrap'
 
 
+def validate_entry_point(entry_point: str) -> None:
+    """Validate entry point against allowlist regex to prevent command injection.
+
+    Args:
+        entry_point: Application entry point to validate
+
+    Raises:
+        InvalidEntryPointError: If entry point contains invalid characters
+    """
+    # Allowlist: only alphanumeric, dots, underscores, hyphens, and forward slashes
+    if not re.match(r'^[a-zA-Z0-9._/-]+$', entry_point):
+        raise ValueError(
+            'Entry point contains invalid characters. Only alphanumeric characters, dots, underscores, hyphens, and forward slashes are allowed.'
+        )
+
+
+def validate_environment_variables(additional_env: Dict[str, str]) -> None:
+    """Validate environment variable keys and values.
+
+    Args:
+        additional_env: Dictionary of environment variables to validate
+
+    Raises:
+        InvalidEnvironmentVariableError: If any key or value is invalid
+    """
+    for key, value in additional_env.items():
+        # Environment variable keys should follow POSIX naming conventions
+        if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', key):
+            raise ValueError(
+                'Environment variable key must start with a letter or underscore and contain only alphanumeric characters and underscores'
+            )
+
+        # Check for null bytes in values which can cause issues
+        if '\0' in value:
+            raise ValueError('Environment variable value contains null bytes')
+
+
 def generate_script_content(
     runtime: str, entry_point: str, additional_env: Optional[Dict[str, str]] = None
 ) -> str:
@@ -132,25 +187,30 @@ def generate_script_content(
         additional_env: Additional environment variables
 
     Returns:
-        str: Script content
+        str: Script content with properly escaped values
     """
-    # Generate environment variables setup
+    # Sanitize entry_point to prevent command injection
+    safe_entry_point = shlex.quote(entry_point)
+
+    # Generate environment variables setup with proper escaping
     env_setup = ''
     if additional_env:
         env_vars = []
         for key, value in additional_env.items():
-            env_vars.append(f'export {key}="{value}"')
+            # Key is already validated, but value needs escaping
+            safe_value = shlex.quote(value)
+            env_vars.append(f'export {key}={safe_value}')
         env_setup = '\n'.join(env_vars) + '\n\n'
 
     if runtime.startswith('nodejs'):
         return f"""#!/bin/bash
 {env_setup}# Start the application
-exec node {entry_point}
+exec node {safe_entry_point}
 """
     elif runtime.startswith('python'):
         return f"""#!/bin/bash
 {env_setup}# Start the application
-exec python {entry_point}
+exec python {safe_entry_point}
 """
     elif runtime.startswith('java'):
         # Determine if it's a JAR file or a class
@@ -159,31 +219,31 @@ exec python {entry_point}
         if is_jar:
             return f"""#!/bin/bash
 {env_setup}# Start the application
-exec java -jar {entry_point}
+exec java -jar {safe_entry_point}
 """
         else:
             return f"""#!/bin/bash
 {env_setup}# Start the application
-exec java {entry_point}
+exec java {safe_entry_point}
 """
     elif runtime.startswith('dotnet'):
         return f"""#!/bin/bash
 {env_setup}# Start the application
-exec dotnet {entry_point}
+exec dotnet {safe_entry_point}
 """
     elif runtime.startswith('go'):
         return f"""#!/bin/bash
 {env_setup}# Start the application
-exec ./{entry_point}
+exec ./{safe_entry_point}
 """
     elif runtime.startswith('ruby'):
         return f"""#!/bin/bash
 {env_setup}# Start the application
-exec ruby {entry_point}
+exec ruby {safe_entry_point}
 """
     else:
         # Generic script for unknown runtimes
         return f"""#!/bin/bash
 {env_setup}# Start the application
-exec {entry_point}
+exec {safe_entry_point}
 """

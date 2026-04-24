@@ -216,6 +216,18 @@ class MCPLambdaHandler:
 
                 # Get origin type (e.g., Dict from Dict[str, int])
                 origin = get_origin(type_hint)
+
+                # Handle Union types (including Optional[T] which is Union[T, None])
+                if origin is Union:
+                    args = get_args(type_hint)
+                    non_none_args = [arg for arg in args if arg is not type(None)]
+                    if len(non_none_args) == 1:
+                        return get_type_schema(non_none_args[0])
+                    # For Union with multiple non-None types, use first type
+                    return (
+                        get_type_schema(non_none_args[0]) if non_none_args else {'type': 'string'}
+                    )
+
                 if origin is None:
                     return {'type': 'string'}  # Default for unknown types
 

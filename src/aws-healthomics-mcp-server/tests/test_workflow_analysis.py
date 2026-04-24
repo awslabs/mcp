@@ -153,20 +153,20 @@ class TestGetRunLogs:
             operation_name='GetLogEvents',
         )
 
-        # Act & Assert
-        with pytest.raises(botocore.exceptions.ClientError):
-            await get_run_logs(
-                ctx=mock_context,
-                run_id='run-12345',
-                start_time=None,
-                end_time=None,
-                limit=100,
-                next_token=None,
-                start_from_head=True,
-            )
+        # Act
+        result = await get_run_logs(
+            ctx=mock_context,
+            run_id='run-12345',
+            start_time=None,
+            end_time=None,
+            limit=100,
+            next_token=None,
+            start_from_head=True,
+        )
 
-        # Verify error was reported to context
-        mock_context.error.assert_called_once()
+        # Assert
+        assert 'error' in result
+        assert 'Error retrieving run logs' in result['error']
 
     @patch('awslabs.aws_healthomics_mcp_server.tools.workflow_analysis.get_logs_client')
     @pytest.mark.asyncio
@@ -176,20 +176,20 @@ class TestGetRunLogs:
         mock_client = MagicMock()
         mock_get_logs_client.return_value = mock_client
 
-        # Act & Assert
-        with pytest.raises(ValueError):
-            await get_run_logs(
-                ctx=mock_context,
-                run_id='run-12345',
-                start_time='invalid-timestamp',
-                end_time=None,
-                limit=100,
-                next_token=None,
-                start_from_head=True,
-            )
+        # Act
+        result = await get_run_logs(
+            ctx=mock_context,
+            run_id='run-12345',
+            start_time='invalid-timestamp',
+            end_time=None,
+            limit=100,
+            next_token=None,
+            start_from_head=True,
+        )
 
-        # Verify error was reported to context
-        mock_context.error.assert_called_once()
+        # Assert
+        assert 'error' in result
+        assert 'Error retrieving run logs' in result['error']
 
 
 class TestGetRunManifestLogs:
@@ -415,21 +415,21 @@ class TestGetTaskLogs:
         mock_get_logs_client.return_value = mock_client
         mock_client.get_log_events.side_effect = Exception('Unexpected error')
 
-        # Act & Assert
-        with pytest.raises(Exception, match='Unexpected error'):
-            await get_task_logs(
-                ctx=mock_context,
-                run_id='run-12345',
-                task_id='task-67890',
-                start_time=None,
-                end_time=None,
-                limit=100,
-                next_token=None,
-                start_from_head=True,
-            )
+        # Act
+        result = await get_task_logs(
+            ctx=mock_context,
+            run_id='run-12345',
+            task_id='task-67890',
+            start_time=None,
+            end_time=None,
+            limit=100,
+            next_token=None,
+            start_from_head=True,
+        )
 
-        # Verify error was reported to context
-        mock_context.error.assert_called_once()
+        # Assert
+        assert 'error' in result
+        assert 'Error retrieving task logs' in result['error']
 
 
 class TestParameterValidation:
@@ -759,22 +759,20 @@ class TestGetRunLogsErrorHandling:
         mock_get_logs_client.return_value = mock_client
         mock_get_logs_from_stream.side_effect = botocore.exceptions.BotoCoreError()
 
-        # Act & Assert
-        with pytest.raises(botocore.exceptions.BotoCoreError):
-            await get_run_logs(
-                ctx=mock_context,
-                run_id='run-12345',
-                start_time=None,
-                end_time=None,
-                limit=100,
-                next_token=None,
-                start_from_head=True,
-            )
+        # Act
+        result = await get_run_logs(
+            ctx=mock_context,
+            run_id='run-12345',
+            start_time=None,
+            end_time=None,
+            limit=100,
+            next_token=None,
+            start_from_head=True,
+        )
 
-        # Verify error was reported to context
-        mock_context.error.assert_called_once()
-        error_call_args = mock_context.error.call_args[0][0]
-        assert 'AWS error retrieving run logs for run run-12345' in error_call_args
+        # Assert
+        assert 'error' in result
+        assert 'Error retrieving run logs' in result['error']
 
     @patch('awslabs.aws_healthomics_mcp_server.tools.workflow_analysis.get_logs_client')
     @patch('awslabs.aws_healthomics_mcp_server.tools.workflow_analysis._get_logs_from_stream')
@@ -791,22 +789,20 @@ class TestGetRunLogsErrorHandling:
         mock_get_logs_client.return_value = mock_client
         mock_get_logs_from_stream.side_effect = Exception('Unexpected error')
 
-        # Act & Assert
-        with pytest.raises(Exception, match='Unexpected error'):
-            await get_run_logs(
-                ctx=mock_context,
-                run_id='run-12345',
-                start_time=None,
-                end_time=None,
-                limit=100,
-                next_token=None,
-                start_from_head=True,
-            )
+        # Act
+        result = await get_run_logs(
+            ctx=mock_context,
+            run_id='run-12345',
+            start_time=None,
+            end_time=None,
+            limit=100,
+            next_token=None,
+            start_from_head=True,
+        )
 
-        # Verify error was reported to context
-        mock_context.error.assert_called_once()
-        error_call_args = mock_context.error.call_args[0][0]
-        assert 'Unexpected error retrieving run logs for run run-12345' in error_call_args
+        # Assert
+        assert 'error' in result
+        assert 'Error retrieving run logs' in result['error']
 
 
 class TestInternalWrapperFunctions:
@@ -1205,23 +1201,21 @@ class TestGetRunManifestLogsErrorHandling:
         mock_get_logs_client.return_value = mock_client
         mock_client.get_log_events.side_effect = botocore.exceptions.BotoCoreError()
 
-        # Act & Assert
-        with pytest.raises(botocore.exceptions.BotoCoreError):
-            await get_run_manifest_logs(
-                ctx=mock_context,
-                run_id='run-12345',
-                run_uuid='uuid-67890',
-                start_time=None,
-                end_time=None,
-                limit=100,
-                next_token=None,
-                start_from_head=True,
-            )
+        # Act
+        result = await get_run_manifest_logs(
+            ctx=mock_context,
+            run_id='run-12345',
+            run_uuid='uuid-67890',
+            start_time=None,
+            end_time=None,
+            limit=100,
+            next_token=None,
+            start_from_head=True,
+        )
 
-        # Verify error was reported to context
-        mock_context.error.assert_called_once()
-        error_call_args = mock_context.error.call_args[0][0]
-        assert 'AWS error retrieving manifest logs for run run-12345' in error_call_args
+        # Assert
+        assert 'error' in result
+        assert 'Error retrieving manifest logs' in result['error']
 
     @patch('awslabs.aws_healthomics_mcp_server.tools.workflow_analysis.get_logs_client')
     @pytest.mark.asyncio
@@ -1234,23 +1228,21 @@ class TestGetRunManifestLogsErrorHandling:
         mock_get_logs_client.return_value = mock_client
         mock_client.get_log_events.side_effect = Exception('Unexpected manifest error')
 
-        # Act & Assert
-        with pytest.raises(Exception, match='Unexpected manifest error'):
-            await get_run_manifest_logs(
-                ctx=mock_context,
-                run_id='run-12345',
-                run_uuid='uuid-67890',
-                start_time=None,
-                end_time=None,
-                limit=100,
-                next_token=None,
-                start_from_head=True,
-            )
+        # Act
+        result = await get_run_manifest_logs(
+            ctx=mock_context,
+            run_id='run-12345',
+            run_uuid='uuid-67890',
+            start_time=None,
+            end_time=None,
+            limit=100,
+            next_token=None,
+            start_from_head=True,
+        )
 
-        # Verify error was reported to context
-        mock_context.error.assert_called_once()
-        error_call_args = mock_context.error.call_args[0][0]
-        assert 'Unexpected error retrieving manifest logs for run run-12345' in error_call_args
+        # Assert
+        assert 'error' in result
+        assert 'Error retrieving manifest logs' in result['error']
 
     @patch('awslabs.aws_healthomics_mcp_server.tools.workflow_analysis.get_logs_client')
     @pytest.mark.asyncio
@@ -1262,23 +1254,21 @@ class TestGetRunManifestLogsErrorHandling:
         mock_client = MagicMock()
         mock_get_logs_client.return_value = mock_client
 
-        # Act & Assert
-        with pytest.raises(ValueError):
-            await get_run_manifest_logs(
-                ctx=mock_context,
-                run_id='run-12345',
-                run_uuid='uuid-67890',
-                start_time='invalid-timestamp',
-                end_time=None,
-                limit=100,
-                next_token=None,
-                start_from_head=True,
-            )
+        # Act
+        result = await get_run_manifest_logs(
+            ctx=mock_context,
+            run_id='run-12345',
+            run_uuid='uuid-67890',
+            start_time='invalid-timestamp',
+            end_time=None,
+            limit=100,
+            next_token=None,
+            start_from_head=True,
+        )
 
-        # Verify error was reported to context
-        mock_context.error.assert_called_once()
-        error_call_args = mock_context.error.call_args[0][0]
-        assert 'Invalid timestamp format' in error_call_args
+        # Assert
+        assert 'error' in result
+        assert 'Error retrieving manifest logs' in result['error']
 
 
 class TestGetRunEngineLogsErrorHandling:
@@ -1293,22 +1283,20 @@ class TestGetRunEngineLogsErrorHandling:
         mock_get_logs_client.return_value = mock_client
         mock_client.get_log_events.side_effect = botocore.exceptions.BotoCoreError()
 
-        # Act & Assert
-        with pytest.raises(botocore.exceptions.BotoCoreError):
-            await get_run_engine_logs(
-                ctx=mock_context,
-                run_id='run-12345',
-                start_time=None,
-                end_time=None,
-                limit=100,
-                next_token=None,
-                start_from_head=True,
-            )
+        # Act
+        result = await get_run_engine_logs(
+            ctx=mock_context,
+            run_id='run-12345',
+            start_time=None,
+            end_time=None,
+            limit=100,
+            next_token=None,
+            start_from_head=True,
+        )
 
-        # Verify error was reported to context
-        mock_context.error.assert_called_once()
-        error_call_args = mock_context.error.call_args[0][0]
-        assert 'AWS error retrieving engine logs for run run-12345' in error_call_args
+        # Assert
+        assert 'error' in result
+        assert 'Error retrieving engine logs' in result['error']
 
     @patch('awslabs.aws_healthomics_mcp_server.tools.workflow_analysis.get_logs_client')
     @pytest.mark.asyncio
@@ -1319,22 +1307,20 @@ class TestGetRunEngineLogsErrorHandling:
         mock_get_logs_client.return_value = mock_client
         mock_client.get_log_events.side_effect = Exception('Unexpected engine error')
 
-        # Act & Assert
-        with pytest.raises(Exception, match='Unexpected engine error'):
-            await get_run_engine_logs(
-                ctx=mock_context,
-                run_id='run-12345',
-                start_time=None,
-                end_time=None,
-                limit=100,
-                next_token=None,
-                start_from_head=True,
-            )
+        # Act
+        result = await get_run_engine_logs(
+            ctx=mock_context,
+            run_id='run-12345',
+            start_time=None,
+            end_time=None,
+            limit=100,
+            next_token=None,
+            start_from_head=True,
+        )
 
-        # Verify error was reported to context
-        mock_context.error.assert_called_once()
-        error_call_args = mock_context.error.call_args[0][0]
-        assert 'Unexpected error retrieving engine logs for run run-12345' in error_call_args
+        # Assert
+        assert 'error' in result
+        assert 'Error retrieving engine logs' in result['error']
 
     @patch('awslabs.aws_healthomics_mcp_server.tools.workflow_analysis.get_logs_client')
     @pytest.mark.asyncio
@@ -1344,22 +1330,20 @@ class TestGetRunEngineLogsErrorHandling:
         mock_client = MagicMock()
         mock_get_logs_client.return_value = mock_client
 
-        # Act & Assert
-        with pytest.raises(ValueError):
-            await get_run_engine_logs(
-                ctx=mock_context,
-                run_id='run-12345',
-                start_time='invalid-timestamp',
-                end_time=None,
-                limit=100,
-                next_token=None,
-                start_from_head=True,
-            )
+        # Act
+        result = await get_run_engine_logs(
+            ctx=mock_context,
+            run_id='run-12345',
+            start_time='invalid-timestamp',
+            end_time=None,
+            limit=100,
+            next_token=None,
+            start_from_head=True,
+        )
 
-        # Verify error was reported to context
-        mock_context.error.assert_called_once()
-        error_call_args = mock_context.error.call_args[0][0]
-        assert 'Invalid timestamp format' in error_call_args
+        # Assert
+        assert 'error' in result
+        assert 'Error retrieving engine logs' in result['error']
 
 
 class TestGetTaskLogsErrorHandling:
@@ -1374,25 +1358,21 @@ class TestGetTaskLogsErrorHandling:
         mock_get_logs_client.return_value = mock_client
         mock_client.get_log_events.side_effect = botocore.exceptions.BotoCoreError()
 
-        # Act & Assert
-        with pytest.raises(botocore.exceptions.BotoCoreError):
-            await get_task_logs(
-                ctx=mock_context,
-                run_id='run-12345',
-                task_id='task-67890',
-                start_time=None,
-                end_time=None,
-                limit=100,
-                next_token=None,
-                start_from_head=True,
-            )
-
-        # Verify error was reported to context
-        mock_context.error.assert_called_once()
-        error_call_args = mock_context.error.call_args[0][0]
-        assert (
-            'AWS error retrieving task logs for run run-12345, task task-67890' in error_call_args
+        # Act
+        result = await get_task_logs(
+            ctx=mock_context,
+            run_id='run-12345',
+            task_id='task-67890',
+            start_time=None,
+            end_time=None,
+            limit=100,
+            next_token=None,
+            start_from_head=True,
         )
+
+        # Assert
+        assert 'error' in result
+        assert 'Error retrieving task logs' in result['error']
 
     @patch('awslabs.aws_healthomics_mcp_server.tools.workflow_analysis.get_logs_client')
     @pytest.mark.asyncio
@@ -1402,20 +1382,18 @@ class TestGetTaskLogsErrorHandling:
         mock_client = MagicMock()
         mock_get_logs_client.return_value = mock_client
 
-        # Act & Assert
-        with pytest.raises(ValueError):
-            await get_task_logs(
-                ctx=mock_context,
-                run_id='run-12345',
-                task_id='task-67890',
-                start_time='invalid-timestamp',
-                end_time=None,
-                limit=100,
-                next_token=None,
-                start_from_head=True,
-            )
+        # Act
+        result = await get_task_logs(
+            ctx=mock_context,
+            run_id='run-12345',
+            task_id='task-67890',
+            start_time='invalid-timestamp',
+            end_time=None,
+            limit=100,
+            next_token=None,
+            start_from_head=True,
+        )
 
-        # Verify error was reported to context
-        mock_context.error.assert_called_once()
-        error_call_args = mock_context.error.call_args[0][0]
-        assert 'Invalid timestamp format' in error_call_args
+        # Assert
+        assert 'error' in result
+        assert 'Error retrieving task logs' in result['error']

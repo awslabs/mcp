@@ -14,7 +14,6 @@
 
 """AthenaQueryHandler for Data Processing MCP Server."""
 
-import json
 from awslabs.aws_dataprocessing_mcp_server.models.athena_models import (
     BatchGetNamedQueryData,
     BatchGetQueryExecutionData,
@@ -257,7 +256,7 @@ class AthenaQueryHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text='Successfully started query execution'),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -285,7 +284,7 @@ class AthenaQueryHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text='Successfully retrieved query executions'),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -313,7 +312,7 @@ class AthenaQueryHandler:
                             type='text',
                             text=f'Successfully retrieved query execution {query_execution_id}',
                         ),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -321,6 +320,16 @@ class AthenaQueryHandler:
                 if query_execution_id is None:
                     raise ValueError(
                         'query_execution_id is required for get-query-results operation'
+                    )
+
+                # SECURITY: This operation returns actual customer query result data
+                # Require --allow-sensitive-data-access flag to prevent unauthorized data exposure
+                if not self.allow_sensitive_data_access:
+                    error_message = 'Operation get-query-results returns customer query data and requires --allow-sensitive-data-access flag'
+                    log_with_request_id(ctx, LogLevel.ERROR, error_message)
+                    return CallToolResult(
+                        isError=True,
+                        content=[TextContent(type='text', text=error_message)],
                     )
 
                 # Prepare parameters
@@ -350,7 +359,7 @@ class AthenaQueryHandler:
                             type='text',
                             text=f'Successfully retrieved query results for {query_execution_id}',
                         ),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -378,7 +387,7 @@ class AthenaQueryHandler:
                             type='text',
                             text=f'Successfully retrieved query runtime statistics for {query_execution_id}',
                         ),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -407,7 +416,7 @@ class AthenaQueryHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text='Successfully listed query executions'),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -432,7 +441,7 @@ class AthenaQueryHandler:
                             type='text',
                             text=f'Successfully stopped query execution {query_execution_id}',
                         ),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -619,7 +628,7 @@ class AthenaQueryHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text='Successfully retrieved named queries'),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -657,7 +666,7 @@ class AthenaQueryHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=f'Successfully created named query {name}'),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -679,7 +688,7 @@ class AthenaQueryHandler:
                         TextContent(
                             type='text', text=f'Successfully deleted named query {named_query_id}'
                         ),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -703,7 +712,7 @@ class AthenaQueryHandler:
                             type='text',
                             text=f'Successfully retrieved named query {named_query_id}',
                         ),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -732,7 +741,7 @@ class AthenaQueryHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text='Successfully listed named queries'),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -769,7 +778,7 @@ class AthenaQueryHandler:
                         TextContent(
                             type='text', text=f'Successfully updated named query {named_query_id}'
                         ),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 

@@ -12,20 +12,20 @@ class TestServerRouteLogging:
     @patch('awslabs.openapi_mcp_server.auth.get_auth_provider')
     @patch('awslabs.openapi_mcp_server.server.load_openapi_spec')
     @patch('awslabs.openapi_mcp_server.server.validate_openapi_spec')
+    @patch('awslabs.openapi_mcp_server.server.OpenAPIProvider')
     @patch('awslabs.openapi_mcp_server.server.FastMCP')
-    @patch('awslabs.openapi_mcp_server.server.FastMCPOpenAPI')
     @patch('awslabs.openapi_mcp_server.server.HttpClientFactory')
-    def test_create_server_logs_routes(
+    def test_create_server_with_openapi_provider(
         self,
         mock_http_factory,
-        mock_fastmcp_openapi,
+        mock_openapi_provider,
         mock_fastmcp,
         mock_validate,
         mock_load,
         mock_get_auth,
         mock_logger,
     ):
-        """Test that create_mcp_server logs routes when debug is enabled."""
+        """Test that create_mcp_server creates server with OpenAPIProvider."""
         # Set up mocks
         mock_auth = MagicMock()
         mock_auth.is_configured.return_value = True  # This is crucial to prevent sys.exit(1)
@@ -36,7 +36,11 @@ class TestServerRouteLogging:
         mock_auth.provider_name = 'test_auth'  # Add provider_name attribute
         mock_get_auth.return_value = mock_auth
 
-        mock_spec = {'openapi': '3.0.0', 'paths': {}, 'info': {'title': 'Test API'}}
+        mock_spec = {
+            'openapi': '3.0.0',
+            'paths': {},
+            'info': {'title': 'Test API', 'version': '1.0.0'},
+        }
         mock_load.return_value = mock_spec
         mock_validate.return_value = True
 
@@ -44,26 +48,9 @@ class TestServerRouteLogging:
         mock_client = MagicMock()
         mock_http_factory.create_client.return_value = mock_client
 
-        # Create a mock server with routes
+        # Create a mock server
         mock_server = MagicMock()
-
-        # Create mock routes
-        mock_route1 = MagicMock()
-        mock_route1.path = '/api/v1/pets'
-        mock_route1.method = 'GET'
-        mock_route1.mcp_type = 'resource'
-
-        mock_route2 = MagicMock()
-        mock_route2.path = '/api/v1/pets/{id}'
-        mock_route2.method = 'POST'
-        mock_route2.mcp_type = 'tool'
-
-        # Set up the _openapi_router attribute with routes
-        mock_openapi_router = MagicMock()
-        mock_openapi_router._routes = [mock_route1, mock_route2]
-        mock_server._openapi_router = mock_openapi_router
-
-        mock_fastmcp_openapi.return_value = mock_server
+        mock_fastmcp.return_value = mock_server
 
         # Set logger.level to DEBUG
         mock_logger.level = 'DEBUG'
@@ -78,89 +65,61 @@ class TestServerRouteLogging:
         # Call create_mcp_server
         create_mcp_server(config)
 
-        # Verify that logger.debug was called with the expected messages
-        mock_logger.debug.assert_any_call('Server has 2 routes')
-        mock_logger.debug.assert_any_call('Route 0: GET /api/v1/pets - Type: resource')
-        mock_logger.debug.assert_any_call('Route 1: POST /api/v1/pets/{id} - Type: tool')
+        # Verify that the server was created successfully
+        mock_fastmcp.assert_called_once()
+        mock_openapi_provider.assert_called_once()
 
     @patch('awslabs.openapi_mcp_server.server.logger')
     @patch('awslabs.openapi_mcp_server.auth.get_auth_provider')
     @patch('awslabs.openapi_mcp_server.server.load_openapi_spec')
     @patch('awslabs.openapi_mcp_server.server.validate_openapi_spec')
+    @patch('awslabs.openapi_mcp_server.server.OpenAPIProvider')
     @patch('awslabs.openapi_mcp_server.server.FastMCP')
-    @patch('awslabs.openapi_mcp_server.server.FastMCPOpenAPI')
     @patch('awslabs.openapi_mcp_server.server.HttpClientFactory')
     def test_create_server_no_debug_logging(
         self,
         mock_http_factory,
-        mock_fastmcp_openapi,
+        mock_openapi_provider,
         mock_fastmcp,
         mock_validate,
         mock_load,
         mock_get_auth,
         mock_logger,
     ):
-        """Test that create_mcp_server doesn't log routes when debug is disabled."""
+        """Test that create_mcp_server does not log route-level debug messages."""
         # Set up mocks
         mock_auth = MagicMock()
-        mock_auth.is_configured.return_value = True  # This is crucial to prevent sys.exit(1)
+        mock_auth.is_configured.return_value = True
         mock_auth.get_auth_headers.return_value = {}
         mock_auth.get_auth_params.return_value = {}
         mock_auth.get_auth_cookies.return_value = {}
         mock_auth.get_httpx_auth.return_value = None
-        mock_auth.provider_name = 'test_auth'  # Add provider_name attribute
+        mock_auth.provider_name = 'test_auth'
         mock_get_auth.return_value = mock_auth
 
-        mock_spec = {'openapi': '3.0.0', 'paths': {}, 'info': {'title': 'Test API'}}
+        mock_spec = {
+            'openapi': '3.0.0',
+            'paths': {},
+            'info': {'title': 'Test API', 'version': '1.0.0'},
+        }
         mock_load.return_value = mock_spec
         mock_validate.return_value = True
 
-        # Mock HTTP client factory
         mock_client = MagicMock()
         mock_http_factory.create_client.return_value = mock_client
+        mock_fastmcp.return_value = MagicMock()
 
-        # Create a mock server with routes
-        mock_server = MagicMock()
-
-        # Create mock routes
-        mock_route1 = MagicMock()
-        mock_route1.path = '/api/v1/pets'
-        mock_route1.method = 'GET'
-        mock_route1.mcp_type = 'resource'
-
-        # Set up the _openapi_router attribute with routes
-        mock_openapi_router = MagicMock()
-        mock_openapi_router._routes = [mock_route1]
-        mock_server._openapi_router = mock_openapi_router
-
-        mock_fastmcp_openapi.return_value = mock_server
-
-        # Set logger.level to INFO (not DEBUG)
-        mock_logger.level = 'INFO'
-
-        # Create config
         config = Config(
             api_name='test',
             api_base_url='https://api.example.com',
             api_spec_url='https://api.example.com/spec.json',
         )
 
-        # Call create_mcp_server
         create_mcp_server(config)
 
-        # Verify that logger.debug was not called with route information
+        # Route-level debug logging was removed in fastmcp 3.x migration
         debug_calls = [str(call) for call in mock_logger.debug.call_args_list]
         route_debug_messages = [
-            call
-            for call in debug_calls
-            if 'routes' in call
-            and (
-                'Route 0:' in call
-                or 'Route 1:' in call
-                or 'Server has' in call
-                and 'routes' in call
-            )
+            call for call in debug_calls if 'Route 0:' in call or 'Route 1:' in call
         ]
-        assert len(route_debug_messages) == 0, (
-            f'Found unexpected route debug messages: {route_debug_messages}'
-        )
+        assert len(route_debug_messages) == 0

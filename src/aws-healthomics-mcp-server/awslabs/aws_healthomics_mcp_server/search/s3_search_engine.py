@@ -43,12 +43,20 @@ from typing import Any, Dict, List, Optional, Tuple
 class S3SearchEngine:
     """Search engine for genomics files in S3 buckets."""
 
-    def __init__(self, config: SearchConfig, _internal: bool = False):
+    def __init__(
+        self,
+        config: SearchConfig,
+        _internal: bool = False,
+        region_name: Optional[str] = None,
+        profile_name: Optional[str] = None,
+    ):
         """Initialize the S3 search engine.
 
         Args:
             config: Search configuration containing S3 bucket paths and other settings
             _internal: Internal flag to prevent direct instantiation. Use from_environment() instead.
+            region_name: Optional region override
+            profile_name: Optional AWS profile override
 
         Raises:
             RuntimeError: If called directly without _internal=True
@@ -61,12 +69,13 @@ class S3SearchEngine:
             )
 
         self.config = config
-        self.session = get_aws_session()
+        self.session = get_aws_session(region_name=region_name, profile_name=profile_name)
         self.s3_client = self.session.client('s3')
         self.file_type_detector = FileTypeDetector()
         self.pattern_matcher = PatternMatcher()
 
-        # Caching for optimization
+        # Instance-level caches — scoped to this engine's lifetime (typically one tool call).
+        # Cache isolation between profiles/regions relies on creating a new engine per call.
         self._tag_cache = {}  # Cache for object tags
         self._result_cache = {}  # Cache for search results
 
@@ -78,8 +87,16 @@ class S3SearchEngine:
         )
 
     @classmethod
-    def from_environment(cls) -> 'S3SearchEngine':
+    def from_environment(
+        cls,
+        region_name: Optional[str] = None,
+        profile_name: Optional[str] = None,
+    ) -> 'S3SearchEngine':
         """Create an S3SearchEngine using configuration from environment variables.
+
+        Args:
+            region_name: Optional region override
+            profile_name: Optional AWS profile override
 
         Returns:
             S3SearchEngine instance configured from environment
@@ -89,25 +106,30 @@ class S3SearchEngine:
         """
         config = get_genomics_search_config()
 
-        # Validate bucket access during initialization
-        try:
-            accessible_buckets = validate_bucket_access_permissions()
-            # Update config to only include accessible buckets
-            original_count = len(config.s3_bucket_paths)
-            config.s3_bucket_paths = accessible_buckets
+        # Validate bucket access during initialization (only if configured buckets exist)
+        if config.s3_bucket_paths:
+            try:
+                accessible_buckets = validate_bucket_access_permissions()
+                # Update config to only include accessible buckets
+                original_count = len(config.s3_bucket_paths)
+                config.s3_bucket_paths = accessible_buckets
 
-            if len(accessible_buckets) < original_count:
-                logger.warning(
-                    f'Only {len(accessible_buckets)} of {original_count} configured buckets are accessible'
-                )
-            else:
-                logger.info(f'All {len(accessible_buckets)} configured buckets are accessible')
+                if len(accessible_buckets) < original_count:
+                    logger.warning(
+                        f'Only {len(accessible_buckets)} of {original_count} configured buckets are accessible'
+                    )
+                else:
+                    logger.info(f'All {len(accessible_buckets)} configured buckets are accessible')
 
-        except ValueError as e:
-            logger.error(f'S3 bucket access validation failed: {e}')
-            raise ValueError(f'Cannot create S3SearchEngine: {e}') from e
+            except ValueError as e:
+                logger.error(f'S3 bucket access validation failed: {e}')
+                raise ValueError(f'Cannot create S3SearchEngine: {e}') from e
+        else:
+            logger.info(
+                'No configured S3 bucket paths. S3SearchEngine created for adhoc bucket searches.'
+            )
 
-        return cls(config, _internal=True)
+        return cls(config, _internal=True, region_name=region_name, profile_name=profile_name)
 
     @classmethod
     def _create_for_testing(cls, config: SearchConfig) -> 'S3SearchEngine':

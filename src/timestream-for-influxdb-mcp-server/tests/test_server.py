@@ -66,7 +66,10 @@ class TestClientCreation:
 
         # Assert
         mock_boto3.Session.assert_called_once_with(region_name='us-east-1')
-        mock_session.client.assert_called_once_with('timestream-influxdb')
+        mock_session.client.assert_called_once()
+        args, kwargs = mock_session.client.call_args
+        assert args[0] == 'timestream-influxdb'
+        assert 'config' in kwargs
         assert client == mock_client
 
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.boto3')
@@ -139,7 +142,10 @@ class TestClientCreation:
         mock_boto3.Session.assert_called_once_with(
             profile_name='test-profile', region_name='us-west-2'
         )
-        mock_session.client.assert_called_once_with('timestream-influxdb')
+        mock_session.client.assert_called_once()
+        args, kwargs = mock_session.client.call_args
+        assert args[0] == 'timestream-influxdb'
+        assert 'config' in kwargs
         assert client == mock_client
 
 

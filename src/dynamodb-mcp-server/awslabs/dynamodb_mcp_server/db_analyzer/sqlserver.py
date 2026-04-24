@@ -225,6 +225,10 @@ class SQLServerPlugin(DatabasePlugin):
         """Get the display name of the database type."""
         return 'SQL Server'
 
+    def get_recommended_command(self, source_identifier: str, output_file: str) -> str:
+        """Get SQL Server-specific command."""
+        return f'sqlcmd -d {source_identifier} -i {output_file} -o results.txt'
+
     def apply_result_limit(self, sql: str, max_results: int) -> str:
         """Apply result limit using SQL Server TOP syntax.
 

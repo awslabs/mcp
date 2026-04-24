@@ -189,7 +189,7 @@ class DataCatalogTableManager:
                 parameters = table.get('Parameters', {})
 
                 # Construct the ARN for the table
-                region = AwsHelper.get_aws_region()
+                region = AwsHelper.get_or_default_aws_region()
                 account_id = catalog_id or AwsHelper.get_aws_account_id()
                 partition = AwsHelper.get_aws_partition()
                 table_arn = f'arn:{partition}:glue:{region}:{account_id}:table/{database_name}/{table_name}'
@@ -513,7 +513,7 @@ class DataCatalogTableManager:
                 parameters = table.get('Parameters', {})
 
                 # Construct the ARN for the table
-                region = AwsHelper.get_aws_region()
+                region = AwsHelper.get_or_default_aws_region()
                 account_id = catalog_id or AwsHelper.get_aws_account_id()
                 partition = AwsHelper.get_aws_partition()
                 table_arn = f'arn:{partition}:glue:{region}:{account_id}:table/{database_name}/{table_name}'

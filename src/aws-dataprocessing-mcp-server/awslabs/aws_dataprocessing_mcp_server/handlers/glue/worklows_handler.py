@@ -14,7 +14,6 @@
 
 """GlueEtlJobsHandler for Data Processing MCP Server."""
 
-import json
 from awslabs.aws_dataprocessing_mcp_server.models.glue_models import (
     CreateTriggerData,
     CreateWorkflowData,
@@ -199,7 +198,7 @@ class GlueWorkflowAndTriggerHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -213,7 +212,7 @@ class GlueWorkflowAndTriggerHandler:
                     response = self.glue_client.get_workflow(Name=workflow_name)
 
                     # Construct the ARN for the workflow
-                    region = AwsHelper.get_aws_region() or 'us-east-1'
+                    region = AwsHelper.get_or_default_aws_region() or 'us-east-1'
                     account_id = AwsHelper.get_aws_account_id()
                     workflow_arn = f'arn:aws:glue:{region}:{account_id}:workflow/{workflow_name}'
 
@@ -249,7 +248,7 @@ class GlueWorkflowAndTriggerHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -282,7 +281,7 @@ class GlueWorkflowAndTriggerHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -312,7 +311,7 @@ class GlueWorkflowAndTriggerHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -326,7 +325,7 @@ class GlueWorkflowAndTriggerHandler:
                     response = self.glue_client.get_workflow(Name=workflow_name)
 
                     # Construct the ARN for the workflow
-                    region = AwsHelper.get_aws_region() or 'us-east-1'
+                    region = AwsHelper.get_or_default_aws_region() or 'us-east-1'
                     account_id = AwsHelper.get_aws_account_id()
                     workflow_arn = f'arn:aws:glue:{region}:{account_id}:workflow/{workflow_name}'
 
@@ -374,7 +373,7 @@ class GlueWorkflowAndTriggerHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -570,7 +569,7 @@ class GlueWorkflowAndTriggerHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -584,7 +583,7 @@ class GlueWorkflowAndTriggerHandler:
                     response = self.glue_client.get_trigger(Name=trigger_name)
 
                     # Construct the ARN for the trigger
-                    region = AwsHelper.get_aws_region() or 'us-east-1'
+                    region = AwsHelper.get_or_default_aws_region() or 'us-east-1'
                     account_id = AwsHelper.get_aws_account_id()
                     trigger_arn = f'arn:aws:glue:{region}:{account_id}:trigger/{trigger_name}'
 
@@ -620,7 +619,7 @@ class GlueWorkflowAndTriggerHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -644,7 +643,7 @@ class GlueWorkflowAndTriggerHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -670,7 +669,7 @@ class GlueWorkflowAndTriggerHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -684,7 +683,7 @@ class GlueWorkflowAndTriggerHandler:
                     response = self.glue_client.get_trigger(Name=trigger_name)
 
                     # Construct the ARN for the trigger
-                    region = AwsHelper.get_aws_region() or 'us-east-1'
+                    region = AwsHelper.get_or_default_aws_region() or 'us-east-1'
                     account_id = AwsHelper.get_aws_account_id()
                     trigger_arn = f'arn:aws:glue:{region}:{account_id}:trigger/{trigger_name}'
 
@@ -720,7 +719,7 @@ class GlueWorkflowAndTriggerHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -734,7 +733,7 @@ class GlueWorkflowAndTriggerHandler:
                     response = self.glue_client.get_trigger(Name=trigger_name)
 
                     # Construct the ARN for the trigger
-                    region = AwsHelper.get_aws_region() or 'us-east-1'
+                    region = AwsHelper.get_or_default_aws_region() or 'us-east-1'
                     account_id = AwsHelper.get_aws_account_id()
                     trigger_arn = f'arn:aws:glue:{region}:{account_id}:trigger/{trigger_name}'
 
@@ -770,7 +769,7 @@ class GlueWorkflowAndTriggerHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 

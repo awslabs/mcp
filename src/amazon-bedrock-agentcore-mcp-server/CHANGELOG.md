@@ -10,3 +10,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Initial project setup
+- Browser automation tools — 25 tools for cloud-based web interaction across 5 categories (session, navigation, observation, interaction, management)
+- Service opt-in/opt-out via `AGENTCORE_ENABLE_TOOLS` and `AGENTCORE_DISABLE_TOOLS` environment variables
+- Server instructions for MCP clients with browser usage tips

@@ -21,6 +21,7 @@ import json
 import psycopg
 import psycopg.rows
 import sys
+from awslabs.aurora_dsql_mcp_server import __version__
 from awslabs.aurora_dsql_mcp_server.consts import (
     BEGIN_READ_ONLY_TRANSACTION_SQL,
     BEGIN_TRANSACTION_SQL,
@@ -42,6 +43,7 @@ from awslabs.aurora_dsql_mcp_server.consts import (
     ERROR_TRANSACT,
     ERROR_TRANSACTION_BYPASS_ATTEMPT,
     ERROR_WRITE_QUERY_PROHIBITED,
+    GET_QUALIFIED_SCHEMA_SQL,
     GET_SCHEMA_SQL,
     INTERNAL_ERROR,
     READ_ONLY_QUERY_WRITE_ERROR,
@@ -52,11 +54,16 @@ from awslabs.aurora_dsql_mcp_server.mutable_sql_detector import (
     detect_mutating_keywords,
     detect_transaction_bypass_attempt,
 )
+from botocore.config import Config
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Annotated, Any, List
 from urllib.parse import urlparse
+
+
+USER_AGENT_EXTRA = f'md/awslabs#mcp#aurora-dsql-mcp-server#{__version__}'
+_config = Config(user_agent_extra=USER_AGENT_EXTRA)
 
 
 # Global variables
@@ -67,7 +74,7 @@ read_only = False
 dsql_client: Any = None
 persistent_connection = None
 aws_profile = None
-knowledge_server = 'https://xmfe3hc3pk.execute-api.us-east-2.amazonaws.com'
+knowledge_server = 'https://d38p8g9d7yc7ms.cloudfront.net'
 knowledge_timeout = 30.0
 
 mcp = FastMCP(
@@ -372,7 +379,11 @@ async def get_schema(
 
     try:
         conn = await get_connection(ctx)
-        return await execute_query(ctx, conn, GET_SCHEMA_SQL, [table_name])
+        if '.' in table_name:
+            schema, table = table_name.split('.', 1)
+            return await execute_query(ctx, conn, GET_QUALIFIED_SCHEMA_SQL, [schema, table])
+        else:
+            return await execute_query(ctx, conn, GET_SCHEMA_SQL, [table_name])
     except Exception as e:
         await ctx.error(f'{ERROR_GET_SCHEMA}: {str(e)}')
         raise Exception(f'{ERROR_GET_SCHEMA}: {str(e)}')
@@ -729,7 +740,7 @@ def main():
 
     global dsql_client
     session = boto3.Session(profile_name=aws_profile) if aws_profile else boto3.Session()
-    dsql_client = session.client('dsql', region_name=region)
+    dsql_client = session.client('dsql', region_name=region, config=_config)
 
     logger.info('Starting Aurora DSQL MCP server')
     mcp.run()

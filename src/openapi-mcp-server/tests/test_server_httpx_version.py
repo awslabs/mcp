@@ -37,10 +37,9 @@ def mock_config():
     config.version = '1.0.0'
     config.transport = 'stdio'
     return config
-    return config
 
 
-@patch('awslabs.openapi_mcp_server.server.FastMCPOpenAPI')
+@patch('awslabs.openapi_mcp_server.server.OpenAPIProvider')
 @patch('awslabs.openapi_mcp_server.server.FastMCP')
 @patch('awslabs.openapi_mcp_server.server.load_openapi_spec')
 @patch('awslabs.openapi_mcp_server.server.validate_openapi_spec', return_value=True)
@@ -54,14 +53,13 @@ def test_create_mcp_server_httpx_version_error(
     mock_validate,
     mock_load_spec,
     mock_fastmcp,
-    mock_fastmcp_openapi,
+    mock_openapi_provider,
     mock_config,
 ):
     """Test handling of missing httpx.__version__ attribute."""
     # Setup mocks
     mock_server = MagicMock()
-    mock_fastmcp.return_value = MagicMock()
-    mock_fastmcp_openapi.return_value = mock_server
+    mock_fastmcp.return_value = mock_server
     mock_load_spec.return_value = {
         'openapi': '3.0.0',
         'info': {'title': 'Test API', 'version': '1.0.0'},

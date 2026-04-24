@@ -22,13 +22,18 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: "category",
-      label: "Available AWS MCP Servers",
+      label: "Available MCP Servers for AWS",
       collapsed: false,
       items: [
         {
           type: "category",
           label: "Getting Started",
           items: [
+            {
+              type: 'link',
+              label: 'AWS MCP',
+              href: 'https://docs.aws.amazon.com/aws-mcp/latest/userguide/what-is-mcp-server.html',
+            },
             "servers/aws-api-mcp-server",
             "servers/aws-knowledge-mcp-server",
           ],
@@ -44,9 +49,6 @@ const sidebars: SidebarsConfig = {
           items: [
             "servers/aws-iac-mcp-server",
             "servers/ccapi-mcp-server",
-            "servers/cdk-mcp-server",
-            "servers/cfn-mcp-server",
-            "servers/terraform-mcp-server",
             "servers/eks-mcp-server",
             "servers/ecs-mcp-server",
             "servers/finch-mcp-server",
@@ -55,6 +57,7 @@ const sidebars: SidebarsConfig = {
             "servers/aws-serverless-mcp-server",
             "servers/aws-support-mcp-server",
             "servers/aws-network-mcp-server",
+            "servers/aws-for-sap-management-mcp-server",
           ],
         },
         {
@@ -65,7 +68,6 @@ const sidebars: SidebarsConfig = {
             "servers/amazon-qindex-mcp-server",
             "servers/amazon-qbusiness-anonymous-mcp-server",
             "servers/document-loader-mcp-server",
-            "servers/nova-canvas-mcp-server",
             "servers/aws-bedrock-custom-model-import-mcp-server",
             "servers/amazon-bedrock-agentcore-mcp-server",
             "servers/sagemaker-ai-mcp-server",
@@ -99,19 +101,11 @@ const sidebars: SidebarsConfig = {
           type: "category",
           label: "Developer Tools & Support",
           items: [
-            "servers/core-mcp-server",
-            "servers/git-repo-research-mcp-server",
             "servers/openapi-mcp-server",
-            "servers/aws-diagram-mcp-server",
             "servers/prometheus-mcp-server",
-            "servers/code-doc-gen-mcp-server",
-            "servers/frontend-mcp-server",
             "servers/iam-mcp-server",
-            "servers/kendra-index-mcp-server",
-            "servers/syntheticdata-mcp-server",
-            "servers/aws-bedrock-data-automation-mcp-server",
+            "servers/amazon-kendra-index-mcp-server",
             "servers/aws-location-mcp-server",
-            "servers/aws-msk-mcp-server",
           ],
         },
         {
@@ -127,7 +121,6 @@ const sidebars: SidebarsConfig = {
           label: "Cost & Operations",
           items: [
             "servers/aws-pricing-mcp-server",
-            "servers/cost-explorer-mcp-server",
             "servers/cloudwatch-mcp-server",
             "servers/cloudwatch-applicationsignals-mcp-server",
             "servers/well-architected-security-mcp-server",
@@ -140,6 +133,7 @@ const sidebars: SidebarsConfig = {
           label: "Healthcare & Lifesciences",
           items: [
             "servers/aws-healthomics-mcp-server",
+            "servers/healthimaging-mcp-server",
             "servers/healthlake-mcp-server",
           ],
         },

@@ -14,7 +14,6 @@
 
 """Tests for the CloudFormation IaC Generator tool."""
 
-import os
 import pytest
 from awslabs.ccapi_mcp_server.errors import ClientError
 from awslabs.ccapi_mcp_server.iac_generator import create_template
@@ -163,32 +162,6 @@ async def test_create_template_retrieve_json_template(mock_get_aws_client, mock_
 
 
 @pytest.mark.asyncio
-async def test_create_template_save_to_file(mock_get_aws_client, mock_cfn_client, tmpdir):
-    """Test saving a generated template to a file."""
-    mock_get_aws_client.return_value = mock_cfn_client
-    mock_cfn_client.describe_generated_template.return_value = {
-        'Status': 'COMPLETE',
-        'ResourceIdentifiers': [],
-    }
-    mock_cfn_client.get_generated_template.return_value = {'TemplateBody': 'template-content'}
-
-    file_path = os.path.join(tmpdir, 'template.yaml')
-
-    result = await create_template(template_id='test-template-id', save_to_file=file_path)
-
-    assert os.path.exists(file_path)
-    with open(file_path, 'r') as f:
-        assert f.read() == 'template-content'
-
-    mock_cfn_client.get_generated_template.assert_called_once_with(
-        GeneratedTemplateName='test-template-id', Format='YAML'
-    )
-
-    assert result['status'] == 'COMPLETED'
-    assert result['file_path'] == file_path
-
-
-@pytest.mark.asyncio
 async def test_create_template_resource_validation_error(mock_get_aws_client, mock_cfn_client):
     """Test validation error when resources are invalid."""
     mock_get_aws_client.return_value = mock_cfn_client
@@ -235,16 +208,3 @@ async def test_create_template_failed_status(mock_get_aws_client, mock_cfn_clien
 
     assert result['status'] == 'FAILED'
     assert 'Template generation failed' in result['message']
-
-
-@pytest.mark.asyncio
-async def test_create_template_file_write_error(mock_get_aws_client, mock_cfn_client):
-    """Test handling of file write errors."""
-    mock_get_aws_client.return_value = mock_cfn_client
-    mock_cfn_client.describe_generated_template.return_value = {'Status': 'COMPLETE'}
-    mock_cfn_client.get_generated_template.return_value = {'TemplateBody': 'content'}
-
-    with pytest.raises(ClientError):
-        await create_template(
-            template_id='test-template-id', save_to_file='/invalid/path/template.yaml'
-        )

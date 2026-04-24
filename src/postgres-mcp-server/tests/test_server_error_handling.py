@@ -84,14 +84,15 @@ class TestRunQueryErrorHandling:
 class TestConnectToDatabaseErrorHandling:
     """Tests for connect_to_database error handling."""
 
-    def test_connect_to_database_exception_handling(self):
+    @pytest.mark.asyncio
+    async def test_connect_to_database_exception_handling(self):
         """Test connect_to_database handles exceptions properly."""
         with patch(
-            'awslabs.postgres_mcp_server.server.internal_connect_to_database'
+            'awslabs.postgres_mcp_server.server.internal_create_connection'
         ) as mock_connect:
             mock_connect.side_effect = ValueError('Connection failed')
 
-            result = connect_to_database(
+            result = await connect_to_database(
                 region='us-east-1',
                 database_type=DatabaseType.APG,
                 connection_method=ConnectionMethod.RDS_API,
@@ -105,7 +106,8 @@ class TestConnectToDatabaseErrorHandling:
             assert result_dict['status'] == 'Failed'
             assert 'Connection failed' in result_dict['error']
 
-    def test_connect_to_database_success(self):
+    @pytest.mark.asyncio
+    async def test_connect_to_database_success(self):
         """Test connect_to_database success path."""
         mock_connection = MagicMock()
         mock_response = {
@@ -117,11 +119,11 @@ class TestConnectToDatabaseErrorHandling:
         }
 
         with patch(
-            'awslabs.postgres_mcp_server.server.internal_connect_to_database'
+            'awslabs.postgres_mcp_server.server.internal_create_connection'
         ) as mock_connect:
             mock_connect.return_value = (mock_connection, json.dumps(mock_response))
 
-            result = connect_to_database(
+            result = await connect_to_database(
                 region='us-east-1',
                 database_type=DatabaseType.APG,
                 connection_method=ConnectionMethod.RDS_API,
@@ -133,6 +135,94 @@ class TestConnectToDatabaseErrorHandling:
 
             assert 'test-cluster' in result
             assert 'rdsapi' in result
+
+    @pytest.mark.asyncio
+    async def test_connect_to_database_initializes_pool_for_psycopg(self):
+        """Test connect_to_database eagerly initializes pool for PsycopgPoolConnection."""
+        from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import (
+            PsycopgPoolConnection,
+        )
+
+        mock_pool_conn = MagicMock(spec=PsycopgPoolConnection)
+        mock_pool_conn.initialize_pool = AsyncMock()
+        mock_response = json.dumps(
+            {
+                'connection_method': 'pgwire_iam',
+                'cluster_identifier': 'test-cluster',
+                'db_endpoint': 'test.endpoint.com',
+                'database': 'testdb',
+                'port': 5432,
+            }
+        )
+
+        with patch(
+            'awslabs.postgres_mcp_server.server.internal_create_connection'
+        ) as mock_connect:
+            mock_connect.return_value = (mock_pool_conn, mock_response)
+
+            result = await connect_to_database(
+                region='us-east-1',
+                database_type=DatabaseType.APG,
+                connection_method=ConnectionMethod.PG_WIRE_IAM_PROTOCOL,
+                cluster_identifier='test-cluster',
+                db_endpoint='test.endpoint.com',
+                port=5432,
+                database='testdb',
+            )
+
+            mock_pool_conn.initialize_pool.assert_awaited_once()
+            assert 'test-cluster' in result
+
+    @pytest.mark.asyncio
+    async def test_connect_to_database_pool_init_failure(self):
+        """Test connect_to_database returns error and removes connection from map when pool init fails."""
+        from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import (
+            PsycopgPoolConnection,
+        )
+        from awslabs.postgres_mcp_server.server import db_connection_map
+
+        mock_pool_conn = MagicMock(spec=PsycopgPoolConnection)
+        mock_pool_conn.initialize_pool = AsyncMock(
+            side_effect=Exception('pool initialization incomplete after 30 sec')
+        )
+        mock_response = json.dumps(
+            {
+                'connection_method': 'pgwire_iam',
+                'cluster_identifier': 'test-cluster',
+                'db_endpoint': 'test.endpoint.com',
+                'database': 'testdb',
+                'port': 5432,
+            }
+        )
+
+        with patch(
+            'awslabs.postgres_mcp_server.server.internal_create_connection'
+        ) as mock_connect:
+            mock_connect.return_value = (mock_pool_conn, mock_response)
+
+            result = await connect_to_database(
+                region='us-east-1',
+                database_type=DatabaseType.APG,
+                connection_method=ConnectionMethod.PG_WIRE_IAM_PROTOCOL,
+                cluster_identifier='test-cluster',
+                db_endpoint='test.endpoint.com',
+                port=5432,
+                database='testdb',
+            )
+
+            result_dict = json.loads(result)
+            assert result_dict['status'] == 'Failed'
+            assert 'pool initialization incomplete' in result_dict['error']
+
+            # Verify the broken connection was removed from the map
+            conn = db_connection_map.get(
+                ConnectionMethod.PG_WIRE_IAM_PROTOCOL,
+                'test-cluster',
+                'test.endpoint.com',
+                'testdb',
+                5432,
+            )
+            assert conn is None
 
 
 class TestDummyCtx:

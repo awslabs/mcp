@@ -43,6 +43,15 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 
 - **Workload estimate insights**: Query workload estimates to see what usage you have estimated
 
+### AWS Billing Conductor & Proforma Cost Analysis
+
+- **Billing group management**: List and filter billing groups with details on type, status, pricing plans, and member accounts
+- **Account associations**: View linked account associations with billing groups, filter by monitored/unmonitored status
+- **Billing group cost reports**: Retrieve cost report summaries comparing actual AWS charges vs proforma costs with margin analysis
+- **Detailed cost breakdowns**: Get billing group cost reports broken down by service name or billing period
+- **Pricing rules and plans**: List pricing rules (MARKUP, DISCOUNT, TIERING) and pricing plans with their associations
+- **Custom line items**: List custom cost allocations including support fees, shared service costs, taxes, credits, and RI/SP distribution
+
 ### Specialized Cost Optimization Prompts
 
 - **Graviton migration analysis**: Guided analysis to identify EC2 instances suitable for AWS Graviton migration
@@ -252,6 +261,19 @@ Storage Lens (Athena and S3):
 - s3:GetStorageLensConfigurationTagging
 - s3:PutStorageLensConfigurationTagging
 
+AWS Billing Conductor:
+- billingconductor:ListBillingGroups
+- billingconductor:ListBillingGroupCostReports
+- billingconductor:GetBillingGroupCostReport
+- billingconductor:ListAccountAssociations
+- billingconductor:ListPricingPlans
+- billingconductor:ListPricingRules
+- billingconductor:ListPricingRulesAssociatedToPricingPlan
+- billingconductor:ListPricingPlansAssociatedWithPricingRule
+- billingconductor:ListCustomLineItems
+- billingconductor:ListCustomLineItemVersions
+- billingconductor:ListResourcesAssociatedToCustomLineItem
+
 #### Configuration
 
 The server uses these key environment variables:
@@ -324,3 +346,16 @@ The server currently supports the following AWS services
 
 8. **S3 Storage Lens**
    - storage_lens_run_query (custom implementation using Athena)
+
+9. **AWS Billing Conductor**
+   - list_billing_groups
+   - list_billing_group_cost_reports
+   - get_billing_group_cost_report
+   - list_account_associations
+   - list_pricing_plans
+   - list_pricing_rules
+   - list_pricing_rules_associated_to_pricing_plan
+   - list_pricing_plans_associated_with_pricing_rule
+   - list_custom_line_items
+   - list_custom_line_item_versions
+   - list_resources_associated_to_custom_line_item

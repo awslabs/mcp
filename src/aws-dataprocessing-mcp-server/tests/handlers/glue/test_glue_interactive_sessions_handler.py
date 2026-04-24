@@ -32,7 +32,7 @@ async def test_glue_interactive_sessions_handler_initialization(mock_create_clie
     mock_mcp = MagicMock()
 
     # Initialize the Glue Interactive Sessions handler with the mock MCP server
-    GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
+    GlueInteractiveSessionsHandler(mock_mcp, allow_write=True, allow_sensitive_data_access=True)
 
     # Verify that create_boto3_client was called with 'glue'
     mock_create_client.assert_called_once_with('glue')
@@ -69,7 +69,9 @@ async def test_create_session_success(mock_prepare_tags, mock_create_client):
     mock_mcp = MagicMock()
 
     # Initialize the Glue Interactive Sessions handler with the mock MCP server
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=True, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
 
     # Create a mock context
@@ -143,7 +145,9 @@ async def test_create_session_no_write_access(mock_create_client):
     mock_mcp = MagicMock()
 
     # Initialize the Glue Interactive Sessions handler with the mock MCP server without write access
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=False)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=False, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
 
     # Create a mock context
@@ -174,7 +178,9 @@ async def test_create_session_no_write_access(mock_create_client):
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.is_resource_mcp_managed')
 async def test_delete_session_success(
@@ -195,7 +201,9 @@ async def test_delete_session_success(
     mock_mcp = MagicMock()
 
     # Initialize the Glue Interactive Sessions handler with the mock MCP server
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=True, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
 
     # Create a mock context
@@ -229,7 +237,9 @@ async def test_delete_session_success(
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.is_resource_mcp_managed')
 async def test_delete_session_not_mcp_managed(
@@ -250,7 +260,9 @@ async def test_delete_session_not_mcp_managed(
     mock_mcp = MagicMock()
 
     # Initialize the Glue Interactive Sessions handler with the mock MCP server
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=True, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
 
     # Create a mock context
@@ -297,7 +309,7 @@ async def test_get_session_success(mock_create_client):
     mock_mcp = MagicMock()
 
     # Initialize the Glue Interactive Sessions handler with the mock MCP server
-    handler = GlueInteractiveSessionsHandler(mock_mcp)
+    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_sensitive_data_access=True)
     handler.glue_client = mock_glue_client
 
     # Create a mock context
@@ -345,7 +357,7 @@ async def test_list_sessions_success(mock_create_client):
     mock_mcp = MagicMock()
 
     # Initialize the Glue Interactive Sessions handler with the mock MCP server
-    handler = GlueInteractiveSessionsHandler(mock_mcp)
+    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_sensitive_data_access=True)
     handler.glue_client = mock_glue_client
 
     # Create a mock context
@@ -399,7 +411,9 @@ async def test_list_sessions_success(mock_create_client):
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.is_resource_mcp_managed')
 async def test_stop_session_success(
@@ -420,7 +434,9 @@ async def test_stop_session_success(
     mock_mcp = MagicMock()
 
     # Initialize the Glue Interactive Sessions handler with the mock MCP server
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=True, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
 
     # Create a mock context
@@ -463,7 +479,9 @@ async def test_session_not_found(mock_create_client):
     mock_mcp = MagicMock()
 
     # Initialize the Glue Interactive Sessions handler with the mock MCP server
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=True, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
 
     # Create a mock context
@@ -502,7 +520,7 @@ async def test_session_invalid_operation(mock_create_client):
     mock_mcp = MagicMock()
 
     # Initialize the Glue Interactive Sessions handler with the mock MCP server
-    handler = GlueInteractiveSessionsHandler(mock_mcp)
+    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_sensitive_data_access=True)
     handler.glue_client = mock_glue_client
 
     # Create a mock context
@@ -540,7 +558,9 @@ async def test_run_statement_success(mock_create_client):
     mock_mcp = MagicMock()
 
     # Initialize the Glue Interactive Sessions handler with the mock MCP server
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=True, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
 
     # Create a mock context
@@ -586,7 +606,9 @@ async def test_run_statement_no_write_access(mock_create_client):
     mock_mcp = MagicMock()
 
     # Initialize the Glue Interactive Sessions handler with the mock MCP server without write access
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=False)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=False, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
 
     # Create a mock context
@@ -625,7 +647,9 @@ async def test_cancel_statement_success(mock_create_client):
     mock_mcp = MagicMock()
 
     # Initialize the Glue Interactive Sessions handler with the mock MCP server
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=True, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
 
     # Create a mock context
@@ -665,7 +689,7 @@ async def test_get_statement_success(mock_create_client):
     mock_mcp = MagicMock()
 
     # Initialize the Glue Interactive Sessions handler with the mock MCP server
-    handler = GlueInteractiveSessionsHandler(mock_mcp)
+    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_sensitive_data_access=True)
     handler.glue_client = mock_glue_client
 
     # Create a mock context
@@ -720,7 +744,7 @@ async def test_list_statements_success(mock_create_client):
     mock_mcp = MagicMock()
 
     # Initialize the Glue Interactive Sessions handler with the mock MCP server
-    handler = GlueInteractiveSessionsHandler(mock_mcp)
+    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_sensitive_data_access=True)
     handler.glue_client = mock_glue_client
 
     # Create a mock context
@@ -778,7 +802,7 @@ async def test_statement_invalid_operation(mock_create_client):
     mock_mcp = MagicMock()
 
     # Initialize the Glue Interactive Sessions handler with the mock MCP server
-    handler = GlueInteractiveSessionsHandler(mock_mcp)
+    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_sensitive_data_access=True)
     handler.glue_client = mock_glue_client
 
     # Create a mock context
@@ -812,7 +836,9 @@ async def test_missing_role_and_command_for_create_session(mock_create_client):
     mock_mcp = MagicMock()
 
     # Initialize the Glue Interactive Sessions handler with the mock MCP server
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=True, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
 
     # Create a mock context
@@ -842,7 +868,9 @@ async def test_missing_session_id_for_delete_session(mock_create_client):
     mock_mcp = MagicMock()
 
     # Initialize the Glue Interactive Sessions handler with the mock MCP server
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=True, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
 
     # Create a mock context
@@ -867,7 +895,7 @@ async def test_missing_session_id_for_get_session(mock_create_client):
     mock_mcp = MagicMock()
 
     # Initialize the Glue Interactive Sessions handler with the mock MCP server
-    handler = GlueInteractiveSessionsHandler(mock_mcp)
+    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_sensitive_data_access=True)
     handler.glue_client = mock_glue_client
 
     # Create a mock context
@@ -890,7 +918,9 @@ async def test_missing_session_id_for_stop_session(mock_create_client):
     mock_mcp = MagicMock()
 
     # Initialize the Glue Interactive Sessions handler with the mock MCP server
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=True, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
 
     # Create a mock context
@@ -913,7 +943,9 @@ async def test_missing_code_for_run_statement(mock_create_client):
     mock_mcp = MagicMock()
 
     # Initialize the Glue Interactive Sessions handler with the mock MCP server
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=True, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
 
     # Create a mock context
@@ -938,7 +970,9 @@ async def test_missing_statement_id_for_cancel_statement(mock_create_client):
     mock_mcp = MagicMock()
 
     # Initialize the Glue Interactive Sessions handler with the mock MCP server
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=True, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
 
     # Create a mock context
@@ -959,7 +993,9 @@ async def test_delete_session_no_write_access(mock_create_client):
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=False)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=False, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -978,7 +1014,9 @@ async def test_stop_session_no_write_access(mock_create_client):
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=False)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=False, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -999,7 +1037,9 @@ async def test_create_session_with_all_optional_params(mock_prepare_tags, mock_c
     mock_create_client.return_value = mock_glue_client
     mock_prepare_tags.return_value = {'ManagedBy': 'MCP'}
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=True, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1050,7 +1090,9 @@ async def test_create_session_without_user_tags(mock_prepare_tags, mock_create_c
     mock_create_client.return_value = mock_glue_client
     mock_prepare_tags.return_value = {'ManagedBy': 'MCP'}
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=True, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1073,7 +1115,9 @@ async def test_create_session_without_user_tags(mock_prepare_tags, mock_create_c
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 async def test_delete_session_client_error(
     mock_get_account_id, mock_get_region, mock_create_client
@@ -1084,7 +1128,9 @@ async def test_delete_session_client_error(
     mock_get_region.return_value = 'us-east-1'
     mock_get_account_id.return_value = '123456789012'
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=True, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1107,7 +1153,7 @@ async def test_get_session_with_request_origin(mock_create_client):
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp)
+    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_sensitive_data_access=True)
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1134,7 +1180,7 @@ async def test_list_sessions_with_tags(mock_create_client):
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp)
+    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_sensitive_data_access=True)
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1156,7 +1202,9 @@ async def test_list_sessions_with_tags(mock_create_client):
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 async def test_stop_session_client_error(mock_get_account_id, mock_get_region, mock_create_client):
     """Test stop session with non-EntityNotFoundException ClientError."""
@@ -1165,7 +1213,9 @@ async def test_stop_session_client_error(mock_get_account_id, mock_get_region, m
     mock_get_region.return_value = 'us-east-1'
     mock_get_account_id.return_value = '123456789012'
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=True, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1183,7 +1233,9 @@ async def test_stop_session_client_error(mock_get_account_id, mock_get_region, m
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.is_resource_mcp_managed')
 async def test_stop_session_with_request_origin(
@@ -1196,7 +1248,9 @@ async def test_stop_session_with_request_origin(
     mock_get_account_id.return_value = '123456789012'
     mock_is_mcp_managed.return_value = True
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=True, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1225,7 +1279,7 @@ async def test_invalid_session_operation(mock_create_client):
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp)
+    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_sensitive_data_access=True)
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1246,7 +1300,9 @@ async def test_cancel_statement_no_write_access(mock_create_client):
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=False)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=False, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1267,7 +1323,9 @@ async def test_run_statement_with_request_origin(mock_create_client):
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=True, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1293,7 +1351,9 @@ async def test_cancel_statement_with_request_origin(mock_create_client):
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=True, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1317,7 +1377,7 @@ async def test_get_statement_with_request_origin(mock_create_client):
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp)
+    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_sensitive_data_access=True)
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1343,7 +1403,7 @@ async def test_list_statements_with_pagination(mock_create_client):
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp)
+    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_sensitive_data_access=True)
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1373,7 +1433,7 @@ async def test_list_statements_with_request_origin(mock_create_client):
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp)
+    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_sensitive_data_access=True)
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1400,7 +1460,7 @@ async def test_invalid_statement_operation(mock_create_client):
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp)
+    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_sensitive_data_access=True)
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1422,7 +1482,7 @@ async def test_statements_general_exception(mock_create_client):
     mock_glue_client.get_statement.side_effect = Exception('Test exception')
     mock_create_client.return_value = mock_glue_client
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp)
+    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_sensitive_data_access=True)
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1436,7 +1496,9 @@ async def test_statements_general_exception(mock_create_client):
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.is_resource_mcp_managed')
 async def test_stop_session_not_mcp_managed(
@@ -1449,7 +1511,9 @@ async def test_stop_session_not_mcp_managed(
     mock_get_account_id.return_value = '123456789012'
     mock_is_mcp_managed.return_value = False
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=True, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1468,7 +1532,9 @@ async def test_stop_session_not_mcp_managed(
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 async def test_stop_session_not_found(mock_get_account_id, mock_get_region, mock_create_client):
     """Test stop session when session is not found."""
@@ -1477,7 +1543,9 @@ async def test_stop_session_not_found(mock_get_account_id, mock_get_region, mock
     mock_get_region.return_value = 'us-east-1'
     mock_get_account_id.return_value = '123456789012'
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=True, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1503,7 +1571,9 @@ async def test_create_session_individual_params(mock_prepare_tags, mock_create_c
     mock_create_client.return_value = mock_glue_client
     mock_prepare_tags.return_value = {'ManagedBy': 'MCP'}
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=True, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1621,7 +1691,7 @@ async def test_missing_session_id_for_list_statements(mock_create_client):
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp)
+    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_sensitive_data_access=True)
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1634,7 +1704,9 @@ async def test_missing_session_id_for_list_statements(mock_create_client):
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 async def test_delete_session_entity_not_found(
     mock_get_account_id, mock_get_region, mock_create_client
@@ -1645,7 +1717,9 @@ async def test_delete_session_entity_not_found(
     mock_get_region.return_value = 'us-east-1'
     mock_get_account_id.return_value = '123456789012'
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=True, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1669,7 +1743,7 @@ async def test_get_session_without_request_origin(mock_create_client):
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp)
+    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_sensitive_data_access=True)
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1691,7 +1765,7 @@ async def test_list_sessions_without_optional_params(mock_create_client):
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp)
+    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_sensitive_data_access=True)
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1707,7 +1781,9 @@ async def test_list_sessions_without_optional_params(mock_create_client):
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.is_resource_mcp_managed')
 async def test_stop_session_without_request_origin(
@@ -1720,7 +1796,9 @@ async def test_stop_session_without_request_origin(
     mock_get_account_id.return_value = '123456789012'
     mock_is_mcp_managed.return_value = True
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=True, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1742,7 +1820,9 @@ async def test_run_statement_without_request_origin(mock_create_client):
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=True, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1762,7 +1842,7 @@ async def test_get_statement_without_request_origin(mock_create_client):
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp)
+    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_sensitive_data_access=True)
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1782,7 +1862,7 @@ async def test_list_statements_without_optional_params(mock_create_client):
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp)
+    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_sensitive_data_access=True)
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1804,7 +1884,9 @@ async def test_cancel_statement_without_request_origin(mock_create_client):
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=True, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1822,7 +1904,9 @@ async def test_session_parameter_validation_errors(mock_create_client):
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=True, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1841,7 +1925,9 @@ async def test_statement_parameter_validation_errors(mock_create_client):
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=True, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1863,7 +1949,7 @@ async def test_sessions_general_exception(mock_create_client):
     mock_glue_client.get_session.side_effect = Exception('Test exception')
     mock_create_client.return_value = mock_glue_client
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp)
+    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_sensitive_data_access=True)
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1884,7 +1970,9 @@ async def test_create_session_minimal_params(mock_prepare_tags, mock_create_clie
     mock_create_client.return_value = mock_glue_client
     mock_prepare_tags.return_value = {'ManagedBy': 'MCP'}
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=True, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1916,7 +2004,9 @@ async def test_session_no_write_access_fallback(mock_create_client):
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=False)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=False, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 
@@ -1937,7 +2027,9 @@ async def test_statement_no_write_access_fallback(mock_create_client):
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_mcp = MagicMock()
-    handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=False)
+    handler = GlueInteractiveSessionsHandler(
+        mock_mcp, allow_write=False, allow_sensitive_data_access=True
+    )
     handler.glue_client = mock_glue_client
     mock_ctx = MagicMock(spec=Context)
 

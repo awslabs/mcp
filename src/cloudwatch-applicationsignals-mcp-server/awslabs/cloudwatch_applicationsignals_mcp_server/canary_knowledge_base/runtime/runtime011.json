@@ -1,0 +1,70 @@
+{
+  "category": "browser_launch",
+  "documentation_links": [
+    {
+      "title": "CloudWatch Synthetics Canary Settings",
+      "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Synthetics_Canaries_Create.html"
+    }
+  ],
+  "error_patterns": [
+    {
+      "text_contains": "Failed to launch the browser process"
+    },
+    {
+      "text_contains": "Unable to launch Puppeteer browser"
+    },
+    {
+      "text_contains": "Retrying browser launch attempt"
+    }
+  ],
+  "id": "RUNTIME-011",
+  "recommendations": [
+    {
+      "confidence": 90,
+      "estimated_time": "5 minutes",
+      "priority": "high",
+      "problem": "Canary timeout too low to allow browser binary decompression during Lambda cold start",
+      "solution": [
+        {
+          "command": "# Via AWS Console:\n# 1. Navigate to CloudWatch Synthetics console\n# 2. Select your canary\n# 3. Go to the \"Monitoring\" tab\n# 4. Scroll to \"Lambda metrics for selected time range\"\n# 5. Note the typical Duration value from warm runs as your baseline\n",
+          "description": "Check the Lambda Duration metric for your canary to find the normal (warm) execution time. The timeout should be set to at least (normal execution time + cold start overhead buffer).",
+          "expected_outcome": "Identifies the normal execution duration to use as the baseline for setting an appropriate timeout.",
+          "step": "Determine the appropriate timeout value"
+        },
+        {
+          "command": "# Via AWS Console:\n# 1. Navigate to CloudWatch Synthetics console\n# 2. Select your canary\n# 3. Click \"Actions\" > \"Edit\"\n# 4. Under \"Additional configuration\", increase the timeout value\n#    (recommended: normal execution time + 10-15 seconds for cold start buffer)\n# 5. Save changes\n\n# Via AWS CLI:\naws synthetics update-canary \\\n  --name <canary-name> \\\n  --region <canary-region> \\\n  --run-config TimeoutInSeconds=<normal-execution-time-plus-buffer>\n",
+          "description": "Set the canary timeout to at least (normal execution time + buffer for cold start overhead). The cold start decompression adds several seconds of overhead on top of normal execution time.",
+          "expected_outcome": "Browser binary decompression completes within the timeout on cold starts. Canary no longer fails after Lambda container refresh.",
+          "step": "Increase canary timeout"
+        }
+      ],
+      "title": "Increase canary timeout to account for browser binary decompression on cold start"
+    }
+  ],
+  "root_cause": "On Lambda cold start, the Synthetics runtime decompresses the Chromium browser binary from a compressed archive into /tmp before launching it. This decompression takes several seconds. If the canary timeout is shorter than the decompression time, the browser launch fails. A failed decompression can leave a corrupted or incomplete binary in /tmp, causing all subsequent warm-start runs on the same Lambda container to also fail with the same error. The issue self-resolves when Lambda provisions a new container. This is not a bug \u2014 it is expected behavior when the timeout is set below the cold-start decompression threshold.",
+  "runtime_versions": [
+    "syn-nodejs-puppeteer-8.0+",
+    "syn-nodejs-playwright-2.0+"
+  ],
+  "severity": "medium",
+  "symptoms": [
+    "Canary fails with 'Unable to launch Puppeteer Browser, create a new page, setup page for events, and start a HAR file'",
+    "Logs show browser launch retried 2-3 times before failing",
+    "Issue persists for an extended period (e.g. 1-2 hours) then self-resolves",
+    "Canary was working normally before and no changes were made to the canary configuration or script",
+    "Memory usage during failed runs is well below the configured limit",
+    "Issue recurs intermittently, always self-resolving after a period of time",
+    "diskUsage log shows /tmp filesystem usage is low (e.g. 22%)"
+  ],
+  "tags": [
+    "browser-launch",
+    "cold-start",
+    "lambda-timeout",
+    "canary-timeout",
+    "puppeteer",
+    "chromium",
+    "browser-binary",
+    "decompression"
+  ],
+  "title": "Canary fails with 'Failed to launch the browser process' during Lambda cold start due to low timeout"
+}

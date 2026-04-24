@@ -201,6 +201,10 @@ class PostgreSQLPlugin(DatabasePlugin):
         """Get the display name of the database type."""
         return 'PostgreSQL'
 
+    def get_recommended_command(self, source_identifier: str, output_file: str) -> str:
+        """Get PostgreSQL-specific command."""
+        return f'psql -d {source_identifier} -f {output_file} > results.txt'
+
     # write_queries_to_file and apply_result_limit are inherited from DatabasePlugin base class
 
     # parse_results_from_file is inherited from DatabasePlugin base class

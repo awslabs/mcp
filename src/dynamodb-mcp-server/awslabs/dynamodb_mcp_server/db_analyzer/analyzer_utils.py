@@ -87,7 +87,7 @@ def build_connection_params(source_db_type: str, **kwargs) -> Dict[str, Any]:
         return {
             'cluster_arn': cluster_arn,
             'secret_arn': kwargs.get('aws_secret_arn') or os.getenv('MYSQL_SECRET_ARN'),
-            'database': kwargs.get('database_name') or os.getenv('MYSQL_DATABASE'),
+            'database': kwargs.get('source_identifier') or os.getenv('MYSQL_DATABASE'),
             'region': kwargs.get('aws_region') or os.getenv('AWS_REGION'),
             'hostname': hostname,
             'port': port,
@@ -232,15 +232,15 @@ def save_analysis_files(
 
 def generate_query_file(
     plugin,
-    database_name: str,
+    source_identifier: str,
     max_results: int,
     query_output_file: str,
     output_dir: str,
     source_db_type: str,
 ) -> str:
     """Generate SQL query file for self-service mode."""
-    if not database_name:
-        return 'database_name is required for self-service mode to generate queries.'
+    if not source_identifier:
+        return 'source_identifier is required for self-service mode to generate queries.'
 
     resolved_query_file = resolve_and_validate_path(
         query_output_file, output_dir, 'query output file'
@@ -250,33 +250,16 @@ def generate_query_file(
     if query_dir and not os.path.exists(query_dir):
         os.makedirs(query_dir, exist_ok=True)
 
-    output_file = plugin.write_queries_to_file(database_name, max_results, resolved_query_file)
+    output_file = plugin.write_queries_to_file(source_identifier, max_results, resolved_query_file)
 
-    return f"""SQL queries have been written to: {output_file}
-
-Next Steps:
-1. Run these queries against your {source_db_type} database
-2. Save the results to a text file (pipe-separated format)
-3. Call this tool again with:
-   - execution_mode='self_service'
-   - result_input_file='<path_to_your_results_file>'
-   - Same database_name and output_dir
-
-Example commands:
-- MySQL: mysql -u user -p -D {database_name} --table < {output_file} > results.txt
-- PostgreSQL: psql -d {database_name} -f {output_file} > results.txt
-- SQL Server: sqlcmd -d {database_name} -i {output_file} -o results.txt
-
-IMPORTANT for MySQL: The --table flag is required to produce pipe-separated output that can be parsed correctly.
-
-After running queries, provide the results file path to continue analysis."""
+    return plugin.get_run_instructions(source_identifier, output_file, source_db_type)
 
 
 def parse_results_and_generate_analysis(
     plugin,
     result_input_file: str,
     output_dir: str,
-    database_name: str,
+    source_identifier: str,
     pattern_analysis_days: int,
     max_results: int,
     source_db_type: str,
@@ -297,7 +280,7 @@ def parse_results_and_generate_analysis(
     saved_files, save_errors = save_analysis_files(
         results,
         source_db_type,
-        database_name,
+        source_identifier,
         pattern_analysis_days or 30,
         max_results,
         output_dir,
@@ -307,7 +290,7 @@ def parse_results_and_generate_analysis(
     )
 
     return build_analysis_report(
-        saved_files, save_errors, database_name, result_input_file, is_self_service=True
+        saved_files, save_errors, source_identifier, result_input_file, is_self_service=True
     )
 
 
@@ -343,7 +326,7 @@ async def execute_managed_analysis(plugin, connection_params: dict, source_db_ty
 def build_analysis_report(
     saved_files: list,
     save_errors: list,
-    database_name: str,
+    source_identifier: str,
     source_file: str = None,
     is_self_service: bool = False,
     analysis_period: int = None,
@@ -352,7 +335,7 @@ def build_analysis_report(
     mode = 'Self-Service Mode' if is_self_service else 'Managed Mode'
     report = [f'Database Analysis Complete ({mode})', '']
 
-    summary = ['Summary:', f'- Database: {database_name}']
+    summary = ['Summary:', f'- Database: {source_identifier}']
     if source_file:
         summary.append(f'- Source: {source_file}')
     if analysis_period:

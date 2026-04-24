@@ -14,6 +14,14 @@
 
 """Constants for the AWS Security Pillar MCP Server."""
 
+from botocore.config import Config
+
+from awslabs.well_architected_security_mcp_server import __version__
+
+# User agent configuration for AWS API calls
+USER_AGENT_EXTRA = f"md/awslabs#mcp#well-architected-security-mcp-server#{__version__}"
+USER_AGENT_CONFIG = Config(user_agent_extra=USER_AGENT_EXTRA)
+
 # Default AWS regions to use if none are specified
 DEFAULT_REGIONS = ["us-east-1", "us-west-2", "eu-west-1"]
 

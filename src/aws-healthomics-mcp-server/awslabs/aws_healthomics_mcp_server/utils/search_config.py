@@ -28,7 +28,6 @@ from awslabs.aws_healthomics_mcp_server.consts import (
     DEFAULT_GENOMICS_SEARCH_TAG_CACHE_TTL,
     DEFAULT_GENOMICS_SEARCH_TIMEOUT,
     ERROR_INVALID_S3_BUCKET_PATH,
-    ERROR_NO_S3_BUCKETS_CONFIGURED,
     GENOMICS_SEARCH_ENABLE_HEALTHOMICS_ENV,
     GENOMICS_SEARCH_ENABLE_S3_TAG_SEARCH_ENV,
     GENOMICS_SEARCH_MAX_CONCURRENT_ENV,
@@ -98,21 +97,29 @@ def get_s3_bucket_paths() -> List[str]:
     """Get and validate S3 bucket paths from environment variables.
 
     Returns:
-        List of validated S3 bucket paths
+        List of validated S3 bucket paths (may be empty if env var is unset)
 
     Raises:
-        ValueError: If no bucket paths are configured or paths are invalid
+        ValueError: If configured paths are invalid
     """
     bucket_paths_env = os.environ.get(GENOMICS_SEARCH_S3_BUCKETS_ENV, '').strip()
 
     if not bucket_paths_env:
-        raise ValueError(ERROR_NO_S3_BUCKETS_CONFIGURED)
+        logger.info(
+            'No S3 bucket paths configured via environment variable. '
+            'Adhoc buckets can still be provided per-request.'
+        )
+        return []
 
     # Split by comma and clean up paths
     raw_paths = [path.strip() for path in bucket_paths_env.split(',') if path.strip()]
 
     if not raw_paths:
-        raise ValueError(ERROR_NO_S3_BUCKETS_CONFIGURED)
+        logger.info(
+            'No S3 bucket paths configured via environment variable. '
+            'Adhoc buckets can still be provided per-request.'
+        )
+        return []
 
     # Validate and normalize each path
     validated_paths = []

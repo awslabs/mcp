@@ -14,19 +14,25 @@
 
 """Workflow execution tools for the AWS HealthOmics MCP server."""
 
-import botocore.exceptions
 from awslabs.aws_healthomics_mcp_server.consts import (
     CACHE_BEHAVIORS,
     DEFAULT_MAX_RESULTS,
+    ERROR_CONFIGURATION_NAME_REQUIRES_VPC_MODE,
     ERROR_INVALID_CACHE_BEHAVIOR,
+    ERROR_INVALID_NETWORKING_MODE,
     ERROR_INVALID_RUN_STATUS,
     ERROR_INVALID_STORAGE_TYPE,
     ERROR_STATIC_STORAGE_REQUIRES_CAPACITY,
+    ERROR_VPC_MODE_REQUIRES_CONFIGURATION_NAME,
+    NETWORKING_MODE_RESTRICTED,
+    NETWORKING_MODE_VPC,
+    NETWORKING_MODES,
     RUN_STATUSES,
     STORAGE_TYPE_STATIC,
     STORAGE_TYPES,
 )
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_omics_client
+from awslabs.aws_healthomics_mcp_server.utils.error_utils import handle_tool_error
 from awslabs.aws_healthomics_mcp_server.utils.s3_utils import ensure_s3_uri_ends_with_slash
 from datetime import datetime
 from loguru import logger
@@ -159,6 +165,26 @@ async def start_run(
         None,
         description='Optional cache behavior (CACHE_ALWAYS or CACHE_ON_FAILURE)',
     ),
+    run_group_id: Optional[str] = Field(
+        None,
+        description='Optional ID of a run group to associate with this run',
+    ),
+    networking_mode: Optional[str] = Field(
+        None,
+        description='Networking mode: RESTRICTED (default) or VPC',
+    ),
+    configuration_name: Optional[str] = Field(
+        None,
+        description='Configuration name (required when networking_mode is VPC)',
+    ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Start a workflow run.
 
@@ -179,49 +205,79 @@ async def start_run(
         storage_capacity: Storage capacity in GB (required for STATIC)
         cache_id: Optional ID of a run cache to use
         cache_behavior: Optional cache behavior (CACHE_ALWAYS or CACHE_ON_FAILURE)
+        run_group_id: Optional ID of a run group to associate with this run
+        networking_mode: Optional networking mode (RESTRICTED or VPC)
+        configuration_name: Optional configuration name (required when networking_mode is VPC)
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
-        Dictionary containing the run information
+        Dictionary containing the run information or error dict
     """
     # Validate parameters first, before creating client
     # Validate storage type
     if storage_type not in STORAGE_TYPES:
-        error_message = ERROR_INVALID_STORAGE_TYPE.format(STORAGE_TYPES)
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise ValueError(error_message)
+        return await handle_tool_error(
+            ctx,
+            ValueError(ERROR_INVALID_STORAGE_TYPE.format(STORAGE_TYPES)),
+            'Invalid storage type',
+        )
 
     # Validate storage capacity for STATIC storage
     if storage_type == STORAGE_TYPE_STATIC and storage_capacity is None:
-        error_message = ERROR_STATIC_STORAGE_REQUIRES_CAPACITY
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise ValueError(error_message)
+        return await handle_tool_error(
+            ctx, ValueError(ERROR_STATIC_STORAGE_REQUIRES_CAPACITY), 'Missing storage capacity'
+        )
 
     # Validate cache behavior
     if cache_behavior and cache_behavior not in CACHE_BEHAVIORS:
-        error_message = ERROR_INVALID_CACHE_BEHAVIOR.format(CACHE_BEHAVIORS)
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise ValueError(error_message)
+        return await handle_tool_error(
+            ctx,
+            ValueError(ERROR_INVALID_CACHE_BEHAVIOR.format(CACHE_BEHAVIORS)),
+            'Invalid cache behavior',
+        )
 
     # Validate that cache_behavior requires cache_id
     if cache_behavior and not cache_id:
-        error_message = 'cache_behavior requires cache_id to be provided'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise ValueError(error_message)
+        return await handle_tool_error(
+            ctx,
+            ValueError('cache_behavior requires cache_id to be provided'),
+            'Invalid cache configuration',
+        )
+
+    # Validate networking mode
+    if networking_mode is not None and networking_mode not in NETWORKING_MODES:
+        return await handle_tool_error(
+            ctx,
+            ValueError(ERROR_INVALID_NETWORKING_MODE.format(NETWORKING_MODES)),
+            'Invalid networking mode',
+        )
+
+    # Validate VPC mode requires configuration name
+    if networking_mode == NETWORKING_MODE_VPC and configuration_name is None:
+        return await handle_tool_error(
+            ctx,
+            ValueError(ERROR_VPC_MODE_REQUIRES_CONFIGURATION_NAME),
+            'Missing configuration name',
+        )
+
+    # Validate configuration name requires VPC mode
+    if (
+        networking_mode is None or networking_mode != NETWORKING_MODE_VPC
+    ) and configuration_name is not None:
+        return await handle_tool_error(
+            ctx,
+            ValueError(ERROR_CONFIGURATION_NAME_REQUIRES_VPC_MODE),
+            'Invalid networking configuration',
+        )
 
     # Ensure output URI ends with a slash
     try:
         output_uri = ensure_s3_uri_ends_with_slash(output_uri)
     except ValueError as e:
-        error_message = f'Invalid S3 URI: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+        return await handle_tool_error(ctx, e, 'Invalid S3 URI')
 
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     params = {
         'workflowId': workflow_id,
@@ -244,6 +300,13 @@ async def start_run(
         if cache_behavior:
             params['cacheBehavior'] = cache_behavior
 
+    if run_group_id:
+        params['runGroupId'] = run_group_id
+
+    if networking_mode == NETWORKING_MODE_VPC:
+        params['networkingMode'] = networking_mode
+        params['configurationName'] = configuration_name
+
     try:
         response = client.start_run(**params)
 
@@ -255,17 +318,15 @@ async def start_run(
             'workflowId': workflow_id,
             'workflowVersionName': workflow_version_name,
             'outputUri': output_uri,
+            'runGroupId': run_group_id,
+            'tags': response.get('tags', {}),
+            'uuid': response.get('uuid'),
+            'networkingMode': networking_mode
+            if networking_mode is not None
+            else NETWORKING_MODE_RESTRICTED,
         }
-    except botocore.exceptions.BotoCoreError as e:
-        error_message = f'AWS error starting run: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
     except Exception as e:
-        error_message = f'Unexpected error starting run: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+        return await handle_tool_error(ctx, e, 'Error starting run')
 
 
 async def list_runs(
@@ -292,6 +353,18 @@ async def list_runs(
         None,
         description='Filter for runs created before this timestamp (ISO format)',
     ),
+    run_group_id: Optional[str] = Field(
+        None,
+        description='Optional run group ID to filter runs',
+    ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """List workflow runs.
 
@@ -302,37 +375,33 @@ async def list_runs(
         status: Filter by run status
         created_after: Filter for runs created after this timestamp (ISO format)
         created_before: Filter for runs created before this timestamp (ISO format)
+        run_group_id: Optional run group ID to filter runs
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
-        Dictionary containing run information and next token if available
+        Dictionary containing run information and next token if available, or error dict
     """
     # Validate all parameters first, before creating client
     if status and status not in RUN_STATUSES:
-        error_message = ERROR_INVALID_RUN_STATUS.format(RUN_STATUSES)
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise ValueError(error_message)
+        return await handle_tool_error(
+            ctx, ValueError(ERROR_INVALID_RUN_STATUS.format(RUN_STATUSES)), 'Invalid run status'
+        )
 
     # Validate datetime filters
     if created_after:
         try:
             parse_iso_datetime(created_after)
         except ValueError as e:
-            error_message = f'Invalid created_after datetime: {str(e)}'
-            logger.error(error_message)
-            await ctx.error(error_message)
-            raise ValueError(error_message)
+            return await handle_tool_error(ctx, e, 'Invalid created_after datetime')
 
     if created_before:
         try:
             parse_iso_datetime(created_before)
         except ValueError as e:
-            error_message = f'Invalid created_before datetime: {str(e)}'
-            logger.error(error_message)
-            await ctx.error(error_message)
-            raise ValueError(error_message)
+            return await handle_tool_error(ctx, e, 'Invalid created_before datetime')
 
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     # Determine if we need client-side filtering
     needs_filtering = created_after or created_before
@@ -353,6 +422,9 @@ async def list_runs(
 
             if status:
                 params['status'] = status
+
+            if run_group_id:
+                params['runGroupId'] = run_group_id
 
             response = client.list_runs(**params)
 
@@ -430,21 +502,8 @@ async def list_runs(
                 result['nextToken'] = current_token
             return result
 
-    except botocore.exceptions.ClientError as e:
-        error_message = f'AWS error listing runs: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
-    except botocore.exceptions.BotoCoreError as e:
-        error_message = f'AWS error listing runs: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
     except Exception as e:
-        error_message = f'Unexpected error listing runs: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+        return await handle_tool_error(ctx, e, 'Error listing runs')
 
 
 async def get_run(
@@ -453,15 +512,25 @@ async def get_run(
         ...,
         description='ID of the run to retrieve',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Get details about a specific run.
 
     Args:
         ctx: MCP context for error reporting
         run_id: ID of the run to retrieve
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
-        Dictionary containing run details including:
+        Dictionary containing run details or error dict including:
         - Basic run information (id, arn, name, status)
         - Workflow information (workflowId, workflowType, workflowVersionName)
         - Timing information (creationTime, startTime, stopTime)
@@ -470,7 +539,7 @@ async def get_run(
         - Run parameters and metadata
         - Status messages and failure reasons (if applicable)
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     try:
         response = client.get_run(id=run_id)
@@ -507,21 +576,8 @@ async def get_run(
                 result[field] = response[field]
 
         return result
-    except botocore.exceptions.ClientError as e:
-        error_message = f'AWS error getting run {run_id}: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
-    except botocore.exceptions.BotoCoreError as e:
-        error_message = f'AWS error getting run {run_id}: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
     except Exception as e:
-        error_message = f'Unexpected error getting run {run_id}: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+        return await handle_tool_error(ctx, e, f'Error getting run {run_id}')
 
 
 async def list_run_tasks(
@@ -544,6 +600,14 @@ async def list_run_tasks(
         None,
         description='Filter by task status',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """List tasks for a specific run.
 
@@ -553,11 +617,13 @@ async def list_run_tasks(
         max_results: Maximum number of results to return (default: 10)
         next_token: Token for pagination
         status: Filter by task status
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing task information and next token if available
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     params = {
         'id': run_id,
@@ -597,16 +663,8 @@ async def list_run_tasks(
             result['nextToken'] = response['nextToken']
 
         return result
-    except botocore.exceptions.BotoCoreError as e:
-        error_message = f'AWS error listing tasks for run {run_id}: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
     except Exception as e:
-        error_message = f'Unexpected error listing tasks for run {run_id}: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+        return await handle_tool_error(ctx, e, f'Error listing tasks for run {run_id}')
 
 
 async def get_run_task(
@@ -619,6 +677,14 @@ async def get_run_task(
         ...,
         description='ID of the task',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Get details about a specific task.
 
@@ -626,11 +692,13 @@ async def get_run_task(
         ctx: MCP context for error reporting
         run_id: ID of the run
         task_id: ID of the task
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing task details including imageDetails when available
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     try:
         response = client.get_run_task(id=run_id, taskId=task_id)
@@ -659,18 +727,5 @@ async def get_run_task(
             result['imageDetails'] = response['imageDetails']
 
         return result
-    except botocore.exceptions.ClientError as e:
-        error_message = f'AWS error getting task {task_id} for run {run_id}: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
-    except botocore.exceptions.BotoCoreError as e:
-        error_message = f'AWS error getting task {task_id} for run {run_id}: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
     except Exception as e:
-        error_message = f'Unexpected error getting task {task_id} for run {run_id}: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+        return await handle_tool_error(ctx, e, f'Error getting task {task_id} for run {run_id}')

@@ -36,9 +36,14 @@ class PricingFilter(BaseModel):
     """Filter model for AWS Price List API queries."""
 
     field: str = Field(
-        ..., alias='Field', description="The field to filter on (e.g., 'instanceType', 'location')"
+        ...,
+        min_length=1,
+        alias='Field',
+        description="The field to filter on (e.g., 'instanceType', 'location')",
     )
-    type: str = Field(default='EQUALS', alias='Type', description='The type of filter match')
+    type: str = Field(
+        default='EQUALS', min_length=1, alias='Type', description='The type of filter match'
+    )
     value: Union[str, List[str]] = Field(
         ...,
         alias='Value',

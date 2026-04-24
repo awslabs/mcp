@@ -3,19 +3,25 @@ import os
 import pytest
 import pytest_asyncio
 from awslabs.dynamodb_mcp_server.db_analyzer import analyzer_utils
+from awslabs.dynamodb_mcp_server.model_validation_utils import DynamoDBClientConfig
 from awslabs.dynamodb_mcp_server.server import (
     _execute_access_patterns,
     _execute_dynamodb_command,
+    _load_next_steps_prompt,
     app,
     create_server,
+    dynamodb_data_model_schema_converter,
+    dynamodb_data_model_schema_validator,
     dynamodb_data_model_validation,
     dynamodb_data_modeling,
+    generate_data_access_layer,
     generate_resources,
     source_db_analyzer,
 )
 from hypothesis import given, settings
 from hypothesis import strategies as st
-from unittest.mock import mock_open, patch
+from pathlib import Path
+from unittest.mock import Mock, mock_open, patch
 
 
 @pytest_asyncio.fixture
@@ -26,7 +32,7 @@ async def aws_credentials():
 
 @pytest.mark.asyncio
 async def test_dynamodb_data_modeling():
-    """Test the dynamodb_data_modeling tool directly."""
+    """Test the dynamodb_data_modeling tool directly and MCP integration."""
     result = await dynamodb_data_modeling()
 
     assert isinstance(result, str), 'Expected string response'
@@ -67,7 +73,7 @@ async def test_source_db_analyzer_missing_parameters(tmp_path):
     """Test source_db_analyzer with missing database parameter."""
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name=None,
+        source_identifier=None,
         execution_mode='managed',
         pattern_analysis_days=30,
         max_query_results=None,
@@ -85,7 +91,7 @@ async def test_source_db_analyzer_empty_parameters(tmp_path):
     """Test source_db_analyzer with empty string parameters."""
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test',
+        source_identifier='test',
         execution_mode='managed',
         pattern_analysis_days=30,
         max_query_results=None,
@@ -110,7 +116,7 @@ async def test_source_db_analyzer_env_fallback(monkeypatch, tmp_path):
 
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test',
+        source_identifier='test',
         execution_mode='managed',
         pattern_analysis_days=30,
         max_query_results=None,
@@ -129,18 +135,22 @@ async def test_source_db_analyzer_connection_method_precedence(mysql_env_setup, 
     """Test that explicit connection parameters take precedence over environment variables."""
     # mysql_env_setup fixture sets MYSQL_CLUSTER_ARN, MYSQL_SECRET_ARN, AWS_REGION
     # Pass explicit hostname parameter - this should take precedence over env cluster_arn
-    result = await source_db_analyzer(
-        source_db_type='mysql',
-        database_name='test',
-        execution_mode='managed',
-        pattern_analysis_days=30,
-        max_query_results=None,
-        aws_cluster_arn=None,  # No explicit cluster_arn
-        hostname='explicit-hostname',  # Explicit hostname should pass
-        aws_secret_arn=None,  # Will use env var
-        aws_region=None,  # Will use env var
-        output_dir=str(tmp_path),
-    )
+    with patch(
+        'awslabs.dynamodb_mcp_server.db_analyzer.mysql._get_validated_hostname',
+        return_value='explicit-hostname',
+    ):
+        result = await source_db_analyzer(
+            source_db_type='mysql',
+            source_identifier='test',
+            execution_mode='managed',
+            pattern_analysis_days=30,
+            max_query_results=None,
+            aws_cluster_arn=None,  # No explicit cluster_arn
+            hostname='explicit-hostname',  # Explicit hostname should pass
+            aws_secret_arn=None,  # Will use env var
+            aws_region=None,  # Will use env var
+            output_dir=str(tmp_path),
+        )
 
     # The test validates the precedence works: it used Asyncmy connection-based access (hostname)
     # instead of RDS Data API (cluster_arn), even though env had MYSQL_CLUSTER_ARN
@@ -156,18 +166,22 @@ async def test_source_db_analyzer_env_hostname_only_fallback(mysql_env_setup, tm
     os.environ['MYSQL_HOSTNAME'] = 'env-hostname-test'
 
     try:
-        result = await source_db_analyzer(
-            source_db_type='mysql',
-            database_name='test',
-            execution_mode='managed',
-            pattern_analysis_days=30,
-            max_query_results=None,
-            aws_cluster_arn=None,  # No explicit cluster_arn
-            hostname=None,  # No explicit hostname - should use env
-            aws_secret_arn=None,  # Will use env var from fixture
-            aws_region=None,  # Will use env var from fixture
-            output_dir=str(tmp_path),
-        )
+        with patch(
+            'awslabs.dynamodb_mcp_server.db_analyzer.mysql._get_validated_hostname',
+            return_value='env-hostname-test',
+        ):
+            result = await source_db_analyzer(
+                source_db_type='mysql',
+                source_identifier='test',
+                execution_mode='managed',
+                pattern_analysis_days=30,
+                max_query_results=None,
+                aws_cluster_arn=None,  # No explicit cluster_arn
+                hostname=None,  # No explicit hostname - should use env
+                aws_secret_arn=None,  # Will use env var from fixture
+                aws_region=None,  # Will use env var from fixture
+                output_dir=str(tmp_path),
+            )
     finally:
         # Restore original state
         if original_cluster:
@@ -187,7 +201,7 @@ async def test_source_db_analyzer_no_env_connection_params(mysql_env_setup, tmp_
     try:
         result = await source_db_analyzer(
             source_db_type='mysql',
-            database_name='test',
+            source_identifier='test',
             execution_mode='managed',
             pattern_analysis_days=30,
             max_query_results=None,
@@ -212,16 +226,16 @@ async def test_source_db_analyzer_unsupported_database(tmp_path):
     """Test source_db_analyzer with unsupported database type."""
     result = await source_db_analyzer(
         source_db_type='oracle',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='managed',
         pattern_analysis_days=30,
         output_dir=str(tmp_path),
     )
-    assert 'Unsupported database type: oracle' in result
+    assert 'Managed mode is not supported for oracle' in result
 
     result = await source_db_analyzer(
         source_db_type='mongodb',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='managed',
         pattern_analysis_days=30,
         output_dir=str(tmp_path),
@@ -243,7 +257,7 @@ async def test_source_db_analyzer_analysis_exception(tmp_path, monkeypatch):
 
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='managed',
         aws_cluster_arn='test-cluster',
         aws_secret_arn='test-secret',
@@ -278,7 +292,7 @@ async def test_source_db_analyzer_successful_analysis(tmp_path, monkeypatch):
 
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='managed',
         aws_cluster_arn='test-cluster',
         aws_secret_arn='test-secret',
@@ -305,7 +319,7 @@ async def test_source_db_analyzer_exception_handling(tmp_path, monkeypatch):
 
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='managed',
         aws_cluster_arn='test-cluster',
         aws_secret_arn='test-secret',
@@ -338,7 +352,7 @@ async def test_source_db_analyzer_all_queries_failed(tmp_path, monkeypatch):
 
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='managed',
         aws_cluster_arn='test-cluster',
         aws_secret_arn='test-secret',
@@ -376,7 +390,7 @@ async def test_source_db_analyzer_no_files_saved(tmp_path, monkeypatch):
 
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='managed',
         aws_cluster_arn='test-cluster',
         aws_secret_arn='test-secret',
@@ -414,7 +428,7 @@ async def test_source_db_analyzer_only_saved_files_no_errors(tmp_path, monkeypat
 
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='managed',
         aws_cluster_arn='test-cluster',
         aws_secret_arn='test-secret',
@@ -437,7 +451,7 @@ async def test_self_service_query_generation(tmp_path, monkeypatch):
     # Test MySQL
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='self_service',
         queries_file_path='queries.sql',
         query_result_file_path=None,
@@ -451,7 +465,7 @@ async def test_self_service_query_generation(tmp_path, monkeypatch):
     # Test PostgreSQL
     result = await source_db_analyzer(
         source_db_type='postgresql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='self_service',
         queries_file_path='pg_queries.sql',
         query_result_file_path=None,
@@ -463,7 +477,7 @@ async def test_self_service_query_generation(tmp_path, monkeypatch):
     # Test SQL Server
     result = await source_db_analyzer(
         source_db_type='sqlserver',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='self_service',
         queries_file_path='sqlserver_queries.sql',
         query_result_file_path=None,
@@ -475,14 +489,14 @@ async def test_self_service_query_generation(tmp_path, monkeypatch):
     # Test missing database name
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name=None,
+        source_identifier=None,
         execution_mode='self_service',
         queries_file_path='queries.sql',
         query_result_file_path=None,
         pattern_analysis_days=30,
         output_dir=str(tmp_path),
     )
-    assert 'database_name is required' in result
+    assert 'source_identifier is required' in result
 
     # Test exception handling
     def mock_generate_query_file(*args, **kwargs):
@@ -494,7 +508,7 @@ async def test_self_service_query_generation(tmp_path, monkeypatch):
 
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='self_service',
         queries_file_path='queries.sql',
         query_result_file_path=None,
@@ -519,7 +533,7 @@ async def test_self_service_result_parsing(tmp_path, monkeypatch):
 """)
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='self_service',
         queries_file_path=None,
         query_result_file_path=result_file,
@@ -532,7 +546,7 @@ async def test_self_service_result_parsing(tmp_path, monkeypatch):
     # Test result file not found
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='self_service',
         queries_file_path=None,
         query_result_file_path=os.path.join(tmp_path, 'nonexistent_results.txt'),
@@ -544,7 +558,7 @@ async def test_self_service_result_parsing(tmp_path, monkeypatch):
     # Test path traversal protection - absolute path outside base directory
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='self_service',
         queries_file_path=None,
         query_result_file_path='/nonexistent/results.txt',
@@ -567,7 +581,7 @@ async def test_self_service_result_parsing(tmp_path, monkeypatch):
 
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='self_service',
         queries_file_path=None,
         query_result_file_path=result_file,
@@ -583,7 +597,7 @@ async def test_invalid_execution_modes(tmp_path):
     # Test invalid execution mode
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='invalid_mode',
         pattern_analysis_days=30,
         output_dir=str(tmp_path),
@@ -593,7 +607,7 @@ async def test_invalid_execution_modes(tmp_path):
     # Test self-service without query or result file
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='self_service',
         queries_file_path=None,
         query_result_file_path=None,
@@ -605,7 +619,7 @@ async def test_invalid_execution_modes(tmp_path):
     # Test PostgreSQL managed mode not supported
     result = await source_db_analyzer(
         source_db_type='postgresql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='managed',
         aws_cluster_arn='test-cluster',
         aws_secret_arn='test-secret',
@@ -668,14 +682,8 @@ async def test_execute_dynamodb_command_with_endpoint_sets_env_vars():
                 command='aws dynamodb list-tables', endpoint_url='http://localhost:8000'
             )
 
-            assert (
-                os.environ['AWS_ACCESS_KEY_ID']
-                == 'AKIAIOSFODNN7EXAMPLE'  # pragma: allowlist secret
-            )
-            assert (
-                os.environ['AWS_SECRET_ACCESS_KEY']
-                == 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'  # pragma: allowlist secret
-            )
+            assert os.environ['AWS_ACCESS_KEY_ID'] == DynamoDBClientConfig.DUMMY_ACCESS_KEY
+            assert os.environ['AWS_SECRET_ACCESS_KEY'] == DynamoDBClientConfig.DUMMY_SECRET_KEY
             assert 'AWS_DEFAULT_REGION' in os.environ
     finally:
         os.environ.clear()
@@ -857,7 +865,7 @@ def test_create_server():
 
     assert server is not None
     assert hasattr(server, 'name')
-    assert server.name == 'awslabs.dynamodb-mcp-server'
+    assert server.name == 'dynamodb-mcp-server'
 
 
 @settings(max_examples=100)
@@ -939,11 +947,11 @@ def test_property_endpoint_url_credential_configuration(endpoint_url: str):
                 # Verify the expected fake credential values
                 assert (
                     os.environ['AWS_ACCESS_KEY_ID']
-                    == 'AKIAIOSFODNN7EXAMPLE'  # pragma: allowlist secret
+                    == DynamoDBClientConfig.DUMMY_ACCESS_KEY  # pragma: allowlist secret
                 ), 'AWS_ACCESS_KEY_ID should be set to the expected fake value'
                 assert (
                     os.environ['AWS_SECRET_ACCESS_KEY']
-                    == 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'  # pragma: allowlist secret
+                    == DynamoDBClientConfig.DUMMY_SECRET_KEY  # pragma: allowlist secret
                 ), 'AWS_SECRET_ACCESS_KEY should be set to the expected fake value'
 
         # Run the async check
@@ -1105,7 +1113,7 @@ async def test_source_db_analyzer_managed_mode_not_implemented(tmp_path):
 
         result = await source_db_analyzer(
             source_db_type='mysql',
-            database_name='test_db',
+            source_identifier='test_db',
             execution_mode='managed',
             aws_cluster_arn='test-cluster',
             aws_secret_arn='test-secret',
@@ -1121,7 +1129,7 @@ async def test_source_db_analyzer_invalid_execution_mode(tmp_path):
     """Test source_db_analyzer with invalid execution mode."""
     result = await source_db_analyzer(
         source_db_type='mysql',
-        database_name='test_db',
+        source_identifier='test_db',
         execution_mode='invalid_mode',
         output_dir=str(tmp_path),
     )
@@ -1426,3 +1434,835 @@ async def test_generate_resources_mcp_integration():
     assert generate_tool.description is not None
     assert 'generates resources from a dynamodb data model' in generate_tool.description.lower()
     assert 'cdk' in generate_tool.description.lower()
+
+
+# Tests for compute_performances_and_costs function
+@pytest.mark.asyncio
+async def test_compute_performances_and_costs_basic(tmp_path):
+    """Test compute_performances_and_costs with basic access patterns."""
+    from awslabs.dynamodb_mcp_server.server import compute_performances_and_costs
+
+    access_patterns = [
+        {
+            'operation': 'GetItem',
+            'pattern': 'get-user',
+            'description': 'Get user by ID',
+            'table': 'users',
+            'rps': 100,
+            'item_size_bytes': 1024,
+        }
+    ]
+
+    table_list = [
+        {
+            'name': 'users',
+            'item_size_bytes': 2048,
+            'item_count': 1000000,
+            'gsi_list': [],
+        }
+    ]
+
+    result = await compute_performances_and_costs(
+        access_pattern_list=access_patterns,
+        table_list=table_list,
+        workspace_dir=str(tmp_path),
+    )
+
+    assert result['status'] == 'success'
+    assert '1 access patterns' in result['message']
+    assert '1 tables' in result['message']
+    assert 'written to' in result['message']
+
+
+@pytest.mark.asyncio
+async def test_compute_performances_and_costs_appends_to_md_file(tmp_path):
+    """Test compute_performances_and_costs appends to dynamodb_data_model.md when workspace_dir provided."""
+    from awslabs.dynamodb_mcp_server.server import compute_performances_and_costs
+
+    # Create the dynamodb_data_model.md file
+    md_file = tmp_path / 'dynamodb_data_model.md'
+    md_file.write_text('# DynamoDB Data Model\n\nExisting content here.\n')
+
+    access_patterns = [
+        {
+            'operation': 'GetItem',
+            'pattern': 'get-user',
+            'description': 'Get user by ID',
+            'table': 'users',
+            'rps': 100,
+            'item_size_bytes': 1024,
+        }
+    ]
+
+    table_list = [
+        {
+            'name': 'users',
+            'item_size_bytes': 2048,
+            'item_count': 1000000,
+            'gsi_list': [],
+        }
+    ]
+
+    result = await compute_performances_and_costs(
+        access_pattern_list=access_patterns,
+        table_list=table_list,
+        workspace_dir=str(tmp_path),
+    )
+
+    assert result['status'] == 'success'
+    assert 'written to' in result['message']
+
+    # Verify the file was appended
+    content = md_file.read_text()
+    assert 'Existing content here.' in content
+    assert '## Cost Report' in content
+    assert '### Read and Write Request Costs' in content
+
+
+@pytest.mark.asyncio
+async def test_compute_performances_and_costs_md_file_not_found(tmp_path):
+    """Test compute_performances_and_costs when dynamodb_data_model.md doesn't exist - creates new file."""
+    from awslabs.dynamodb_mcp_server.server import compute_performances_and_costs
+
+    # Don't create the md file - it should be created by the tool
+
+    access_patterns = [
+        {
+            'operation': 'GetItem',
+            'pattern': 'get-user',
+            'description': 'Get user by ID',
+            'table': 'users',
+            'rps': 100,
+            'item_size_bytes': 1024,
+        }
+    ]
+
+    table_list = [
+        {
+            'name': 'users',
+            'item_size_bytes': 2048,
+            'item_count': 1000000,
+            'gsi_list': [],
+        }
+    ]
+
+    result = await compute_performances_and_costs(
+        access_pattern_list=access_patterns,
+        table_list=table_list,
+        workspace_dir=str(tmp_path),
+    )
+
+    # Should succeed and create the file
+    assert result['status'] == 'success'
+    assert 'written to' in result['message']
+
+    # Verify the file was created
+    md_file = tmp_path / 'dynamodb_data_model.md'
+    assert md_file.exists()
+    content = md_file.read_text()
+    assert '## Cost Report' in content
+
+
+@pytest.mark.asyncio
+async def test_compute_performances_and_costs_with_query_pattern(tmp_path):
+    """Test compute_performances_and_costs with Query access pattern."""
+    from awslabs.dynamodb_mcp_server.server import compute_performances_and_costs
+
+    md_file = tmp_path / 'dynamodb_data_model.md'
+    md_file.write_text('# DynamoDB Data Model\n')
+
+    access_patterns = [
+        {
+            'operation': 'Query',
+            'pattern': 'query-orders',
+            'description': 'Query user orders',
+            'table': 'orders',
+            'rps': 50,
+            'item_size_bytes': 512,
+            'item_count': 10,
+            'gsi': None,
+        }
+    ]
+
+    table_list = [
+        {
+            'name': 'orders',
+            'item_size_bytes': 1024,
+            'item_count': 5000000,
+            'gsi_list': [],
+        }
+    ]
+
+    result = await compute_performances_and_costs(
+        access_pattern_list=access_patterns,
+        table_list=table_list,
+        workspace_dir=str(tmp_path),
+    )
+
+    assert result['status'] == 'success'
+    content = md_file.read_text()
+    assert '## Cost Report' in content
+
+
+@pytest.mark.asyncio
+async def test_compute_performances_and_costs_validation_error(tmp_path):
+    """Test compute_performances_and_costs with invalid input."""
+    from awslabs.dynamodb_mcp_server.server import compute_performances_and_costs
+
+    # Invalid access pattern - missing required fields
+    access_patterns = [
+        {
+            'operation': 'GetItem',
+            'pattern': 'get-user',
+            'description': 'Get user by ID',
+            'table': 'users',
+            'rps': 0,  # Invalid: must be > 0
+            'item_size_bytes': 1024,
+        }
+    ]
+
+    table_list = [
+        {
+            'name': 'users',
+            'item_size_bytes': 2048,
+            'item_count': 1000000,
+            'gsi_list': [],
+        }
+    ]
+
+    result = await compute_performances_and_costs(
+        access_pattern_list=access_patterns,
+        table_list=table_list,
+        workspace_dir=str(tmp_path),
+    )
+
+    assert result['status'] == 'error'
+    assert 'rps' in result['message'].lower()
+
+
+@pytest.mark.asyncio
+async def test_compute_performances_and_costs_mcp_integration():
+    """Test compute_performances_and_costs tool through MCP client."""
+    tools = await app.list_tools()
+    cost_tool = next(
+        (tool for tool in tools if tool.name == 'compute_performances_and_costs'), None
+    )
+
+    assert cost_tool is not None
+    assert cost_tool.description is not None
+    assert 'capacity' in cost_tool.description.lower()
+    assert 'cost' in cost_tool.description.lower()
+
+
+@pytest.mark.asyncio
+async def test_dynamodb_data_model_schema_converter():
+    """Test the dynamodb_data_model_schema_converter tool directly and MCP integration."""
+    result = await dynamodb_data_model_schema_converter()
+
+    assert isinstance(result, str), 'Expected string response'
+    assert len(result) > 1000, 'Expected substantial content (>1000 characters)'
+
+    expected_sections = [
+        'DynamoDB Schema Generator Expert System Prompt',
+        'Schema Structure',
+        'Type System Overview',
+        'Field Type Mappings',
+        'Operation Mappings',
+        'Return Type Mappings',
+        'Template Syntax Rules',
+        'Conversion Guidelines',
+        'Validation and Iteration',
+    ]
+
+    for section in expected_sections:
+        assert section in result, f"Expected section '{section}' not found in content"
+
+    # Verify tool is registered in the MCP server
+    tools = await app.list_tools()
+    tool_names = [tool.name for tool in tools]
+    assert 'dynamodb_data_model_schema_converter' in tool_names, (
+        'dynamodb_data_model_schema_converter tool not found in MCP server'
+    )
+
+    # Get tool metadata
+    converter_tool = next(
+        (tool for tool in tools if tool.name == 'dynamodb_data_model_schema_converter'), None
+    )
+    assert converter_tool is not None, 'dynamodb_data_model_schema_converter tool not found'
+
+    assert converter_tool.description is not None
+    assert 'schema' in converter_tool.description.lower()
+    assert 'convert' in converter_tool.description.lower()
+
+    # Check for critical type mappings
+    assert 'string' in result
+    assert 'integer' in result
+    assert 'decimal' in result
+    assert 'boolean' in result
+    assert 'array' in result
+    assert 'object' in result
+    assert 'uuid' in result
+
+    # Check for operation types
+    assert 'GetItem' in result
+    assert 'PutItem' in result
+    assert 'Query' in result
+    assert 'UpdateItem' in result
+
+    # Check for return types
+    assert 'single_entity' in result
+    assert 'entity_list' in result
+    assert 'success_flag' in result
+
+    # Check for validation tool reference
+    assert 'dynamodb_data_model_schema_validator' in result
+
+
+@pytest.mark.asyncio
+async def test_dynamodb_data_model_schema_validator_valid_schema():
+    """Test schema validator with a valid schema and MCP integration."""
+    # Use a known valid schema from test fixtures
+    schema_path = str(
+        Path(__file__).parent
+        / 'repo_generation_tool'
+        / 'fixtures'
+        / 'valid_schemas'
+        / 'user_analytics'
+        / 'user_analytics_schema.json'
+    )
+
+    result = await dynamodb_data_model_schema_validator(schema_path, None)
+
+    assert isinstance(result, str), 'Expected string response'
+    assert '✅ Schema validation passed!' in result
+    assert '🎉 Validation completed successfully!' in result
+
+    # Verify tool is registered in the MCP server
+    tools = await app.list_tools()
+    tool_names = [tool.name for tool in tools]
+    assert 'dynamodb_data_model_schema_validator' in tool_names, (
+        'dynamodb_data_model_schema_validator tool not found in MCP server'
+    )
+
+    # Get tool metadata
+    validator_tool = next(
+        (tool for tool in tools if tool.name == 'dynamodb_data_model_schema_validator'), None
+    )
+    assert validator_tool is not None, 'dynamodb_data_model_schema_validator tool not found'
+
+    assert validator_tool.description is not None
+    assert 'schema' in validator_tool.description.lower()
+    assert 'validat' in validator_tool.description.lower()
+
+    # Check that it has the required parameter
+    assert validator_tool.inputSchema is not None
+    assert 'properties' in validator_tool.inputSchema
+    assert 'schema_path' in validator_tool.inputSchema['properties']
+
+
+@pytest.mark.asyncio
+async def test_dynamodb_data_model_schema_validator_invalid_schema():
+    """Test schema validator with an invalid schema."""
+    # Use a known invalid schema from test fixtures
+    schema_path = str(
+        Path(__file__).parent
+        / 'repo_generation_tool'
+        / 'fixtures'
+        / 'invalid_schemas'
+        / 'comprehensive_invalid_schema.json'
+    )
+
+    result = await dynamodb_data_model_schema_validator(schema_path, None)
+
+    assert isinstance(result, str), 'Expected string response'
+    assert '❌ Schema validation failed:' in result
+    # Check for specific validation error format
+    assert '•' in result  # Bullet points for errors
+    assert '💡' in result  # Suggestions
+
+
+@pytest.mark.asyncio
+async def test_dynamodb_data_model_schema_validator_file_not_found(tmp_path, monkeypatch):
+    """Test schema validator with non-existent file."""
+    # Change to tmp_path to ensure we're testing within allowed directory
+    monkeypatch.chdir(tmp_path)
+
+    schema_path = 'nonexistent_schema.json'  # Relative path within CWD
+
+    result = await dynamodb_data_model_schema_validator(schema_path, None)
+
+    assert isinstance(result, str), 'Expected string response'
+    assert 'Error: Schema file not found' in result
+    assert 'nonexistent_schema.json' in result
+
+
+@pytest.mark.asyncio
+async def test_dynamodb_data_model_schema_validator_multiple_valid_schemas():
+    """Test schema validator with multiple different valid schemas."""
+    valid_schema_dirs = [
+        'user_analytics',
+        'ecommerce_app',
+        'saas_app',
+    ]
+
+    fixtures_base = Path(__file__).parent / 'repo_generation_tool' / 'fixtures' / 'valid_schemas'
+
+    for schema_dir in valid_schema_dirs:
+        # Find the schema file in the directory
+        schema_dir_path = fixtures_base / schema_dir
+        if not schema_dir_path.exists():
+            continue
+
+        # Look for *schema.json files only (not usage_data.json)
+        schema_files = list(schema_dir_path.glob('*schema.json'))
+        if not schema_files:
+            continue
+
+        schema_path = str(schema_files[0])
+        result = await dynamodb_data_model_schema_validator(schema_path, None)
+
+        assert '✅ Schema validation passed!' in result, (
+            f'Expected validation to pass for {schema_dir}'
+        )
+        assert '🎉 Validation completed successfully!' in result
+
+
+@pytest.mark.asyncio
+async def test_schema_validator_allows_any_directory(tmp_path):
+    """Test that schema validator allows files in any directory (user's working directory)."""
+    # Create a valid schema file in any directory (simulating user working in /tmp/t1, etc.)
+    user_dir = tmp_path / 'user_workspace' / 'dynamodb_schema_123'
+    user_dir.mkdir(parents=True, exist_ok=True)
+    schema_file = user_dir / 'schema.json'
+
+    # Write a valid minimal schema
+    schema_file.write_text("""{
+        "tables": [{
+            "table_config": {
+                "table_name": "TestTable",
+                "partition_key": "pk",
+                "sort_key": "sk"
+            },
+            "entities": {
+                "TestEntity": {
+                    "entity_type": "TestTable",
+                    "pk_template": "TEST#{{id}}",
+                    "sk_template": "META",
+                    "fields": [
+                        {"name": "id", "type": "string", "required": true}
+                    ],
+                    "access_patterns": []
+                }
+            }
+        }]
+    }""")
+
+    result = await dynamodb_data_model_schema_validator(str(schema_file), None)
+
+    # Should succeed - we allow any directory where the schema file exists
+    # Should not have security error and should have validation result
+    assert 'Security Error' not in result
+    assert '✅' in result or '❌' in result
+
+
+@pytest.mark.asyncio
+async def test_generate_python_data_access_layer_success():
+    """Test generate_data_access_layer with default and custom language parameter."""
+    guide_content = '# Python DynamoDB Data Access Layer Implementation Expert System Prompt'
+
+    mock_result = Mock()
+    mock_result.success = True
+
+    captured_calls = []
+
+    def mock_generate(*args, **kwargs):
+        captured_calls.append(kwargs)
+        # Verify that output_dir is set to the default path (generated_dal in schema's parent dir)
+        assert 'output_dir' in kwargs
+        expected_default = str(Path('/path/to').resolve() / 'generated_dal')
+        assert kwargs['output_dir'] == expected_default
+        return mock_result
+
+    with (
+        patch('awslabs.dynamodb_mcp_server.server.Path.exists', return_value=True),
+        patch('awslabs.dynamodb_mcp_server.server.Path.read_text', return_value=guide_content),
+        patch('awslabs.dynamodb_mcp_server.server.generate', mock_generate),
+    ):
+        # Test without explicit language (default)
+        result = await generate_data_access_layer(
+            schema_path='/path/to/schema.json', usage_data_path=None
+        )
+        assert 'Code generation completed successfully in:' in result
+        assert guide_content in result
+
+        # Test with explicit language parameter
+        result = await generate_data_access_layer(
+            schema_path='/path/to/schema.json', language='python', usage_data_path=None
+        )
+        assert 'Code generation completed successfully in:' in result
+        assert captured_calls[-1]['language'] == 'python'
+
+    # Verify tool is registered in the MCP server
+    tools = await app.list_tools()
+    tool_names = [tool.name for tool in tools]
+    assert 'generate_data_access_layer' in tool_names
+
+    dal_tool = next((tool for tool in tools if tool.name == 'generate_data_access_layer'), None)
+    assert dal_tool is not None
+    assert dal_tool.description is not None
+    assert 'Generate Python code for a data access layer' in dal_tool.description
+    assert dal_tool.inputSchema is not None
+    assert 'schema_path' in dal_tool.inputSchema['properties']
+
+
+@pytest.mark.asyncio
+async def test_generate_data_access_layer_generation_failure():
+    """Test generate_data_access_layer when generation fails."""
+    # Mock failed generation
+    mock_result = Mock()
+    mock_result.success = False
+    mock_result.format_for_mcp.return_value = 'Generation failed: Invalid schema'
+
+    def mock_generate(*args, **kwargs):
+        return mock_result
+
+    with (
+        patch('pathlib.Path.exists', return_value=True),
+        patch('awslabs.dynamodb_mcp_server.server.generate', mock_generate),
+    ):
+        result = await generate_data_access_layer(
+            schema_path='/path/to/invalid_schema.json', usage_data_path=None
+        )
+
+        assert result == 'Generation failed: Invalid schema'
+
+
+@pytest.mark.asyncio
+async def test_generate_data_access_layer_file_not_found():
+    """Test generate_data_access_layer when schema file doesn't exist."""
+    with patch('awslabs.dynamodb_mcp_server.server.Path.exists', return_value=False):
+        result = await generate_data_access_layer(
+            schema_path='/path/to/nonexistent_schema.json', usage_data_path=None
+        )
+
+        # Now returns the full instructional message from MD file
+        assert 'Error: schema.json not found at /path/to/nonexistent_schema.json' in result
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'exception_class,exception_msg,expected_result',
+    [
+        (Exception, 'Test exception', 'Analysis failed: Test exception'),
+        (ValueError, 'Path validation failed', 'Security Error: Path validation failed'),
+    ],
+)
+async def test_generate_data_access_layer_exception_handling(
+    exception_class, exception_msg, expected_result
+):
+    """Test generate_data_access_layer exception handling."""
+
+    def mock_generate(*args, **kwargs):
+        raise exception_class(exception_msg)
+
+    with (
+        patch('awslabs.dynamodb_mcp_server.server.Path.exists', return_value=True),
+        patch('awslabs.dynamodb_mcp_server.server.generate', mock_generate),
+    ):
+        result = await generate_data_access_layer(
+            schema_path='/path/to/schema.json', usage_data_path=None
+        )
+
+        assert expected_result == result
+
+
+# Tests for _load_next_steps_prompt helper function
+@pytest.mark.parametrize(
+    'filename,kwargs,expected_content',
+    [
+        ('dynamodb_data_modeling_complete.md', {}, ['## Next Steps', 'Data modeling complete!']),
+        (
+            'generate_data_access_layer_schema_not_found.md',
+            {'schema_path': '/test/path/schema.json'},
+            ['/test/path/schema.json', 'Error: schema.json not found'],
+        ),
+    ],
+)
+def test_load_next_steps_prompt(filename, kwargs, expected_content):
+    """Test _load_next_steps_prompt with and without variable substitution."""
+    result = _load_next_steps_prompt(filename, **kwargs)
+
+    assert isinstance(result, str)
+    assert len(result) > 0
+    for content in expected_content:
+        assert content in result
+    if kwargs:
+        assert '{schema_path}' not in result  # Variable should be substituted
+
+
+# Tests for usage_data_path resolution and path traversal protection
+@pytest.mark.asyncio
+async def test_usage_data_path_resolved(tmp_path):
+    """Test that usage_data_path is resolved to absolute path in both validator and generator."""
+    schema_file = tmp_path / 'schema.json'
+    usage_data_file = tmp_path / 'usage_data.json'
+
+    schema_content = """{
+        "tables": [{
+            "table_config": {
+                "table_name": "TestTable",
+                "partition_key": "pk",
+                "sort_key": "sk"
+            },
+            "entities": {
+                "TestEntity": {
+                    "entity_type": "TestTable",
+                    "pk_template": "TEST#{{id}}",
+                    "sk_template": "META",
+                    "fields": [
+                        {"name": "id", "type": "string", "required": true}
+                    ],
+                    "access_patterns": []
+                }
+            }
+        }]
+    }"""
+    schema_file.write_text(schema_content)
+
+    usage_data_file.write_text("""{
+        "entities": {
+            "TestEntity": {
+                "sample_data": {"id": "test-123"},
+                "update_data": {"id": "test-456"}
+            }
+        }
+    }""")
+
+    # Test schema validator
+    result = await dynamodb_data_model_schema_validator(str(schema_file), str(usage_data_file))
+    assert 'expected str, bytes or os.PathLike object' not in result
+    assert '✅' in result or '❌' in result
+
+    # Test generate_data_access_layer
+    result = await generate_data_access_layer(
+        schema_path=str(schema_file), usage_data_path=str(usage_data_file)
+    )
+    assert 'expected str, bytes or os.PathLike object' not in result
+    assert 'Code generation completed' in result or '❌' in result or 'Error' in result
+
+
+@pytest.mark.asyncio
+async def test_usage_data_path_none_handled():
+    """Test that None usage_data_path is handled correctly in both validator and generator."""
+    # Test schema validator
+    schema_path = str(
+        Path(__file__).parent
+        / 'repo_generation_tool'
+        / 'fixtures'
+        / 'valid_schemas'
+        / 'user_analytics'
+        / 'user_analytics_schema.json'
+    )
+
+    result = await dynamodb_data_model_schema_validator(schema_path, None)
+
+    # Should not have FieldInfo error
+    assert 'FieldInfo' not in result
+    assert 'expected str, bytes or os.PathLike object' not in result
+    # Should have validation result
+    assert '✅' in result or '❌' in result
+
+    # Test generate_data_access_layer
+    guide_content = '# Python DynamoDB Data Access Layer Implementation Expert System Prompt'
+
+    mock_result = Mock()
+    mock_result.success = True
+
+    captured_kwargs = {}
+
+    def mock_generate(*args, **kwargs):
+        captured_kwargs.update(kwargs)
+        return mock_result
+
+    with (
+        patch('awslabs.dynamodb_mcp_server.server.Path.exists', return_value=True),
+        patch('awslabs.dynamodb_mcp_server.server.Path.read_text', return_value=guide_content),
+        patch('awslabs.dynamodb_mcp_server.server.generate', mock_generate),
+    ):
+        result = await generate_data_access_layer(
+            schema_path='/path/to/schema.json', usage_data_path=None
+        )
+
+        # Verify usage_data_path passed to generate is None
+        usage_data_path_value = captured_kwargs.get('usage_data_path')
+        assert usage_data_path_value is None, (
+            f'Expected None, got {type(usage_data_path_value)}: {usage_data_path_value}'
+        )
+
+        # Should not have FieldInfo error in result
+        assert 'FieldInfo' not in result
+        assert 'expected str, bytes or os.PathLike object' not in result
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('test_func', ['schema_validator', 'generate_dal'])
+async def test_usage_data_path_traversal_blocked(tmp_path, test_func):
+    """Test that path traversal in usage_data_path is blocked with security error."""
+    schema_file = tmp_path / 'schema.json'
+
+    schema_file.write_text("""{
+        "tables": [{
+            "table_config": {
+                "table_name": "TestTable",
+                "partition_key": "pk",
+                "sort_key": "sk"
+            },
+            "entities": {
+                "TestEntity": {
+                    "entity_type": "TestTable",
+                    "pk_template": "TEST#{{id}}",
+                    "sk_template": "META",
+                    "fields": [
+                        {"name": "id", "type": "string", "required": true}
+                    ],
+                    "access_patterns": []
+                }
+            }
+        }]
+    }""")
+
+    # Attempt path traversal - the path gets resolved, then generate() validates it
+    traversal_path = str(tmp_path / '..' / '..' / 'etc' / 'passwd')
+
+    if test_func == 'schema_validator':
+        result = await dynamodb_data_model_schema_validator(str(schema_file), traversal_path)
+    else:
+        result = await generate_data_access_layer(
+            schema_path=str(schema_file), usage_data_path=traversal_path
+        )
+
+    # Path traversal should be blocked - generate() raises ValueError for paths outside allowed_base_dirs
+    assert 'Security Error' in result or 'Error' in result
+
+
+@pytest.mark.asyncio
+async def test_dynamodb_data_model_schema_converter_without_usage_data():
+    """Test schema converter with generate_usage_data=False."""
+    result = await dynamodb_data_model_schema_converter(generate_usage_data=False)
+
+    assert isinstance(result, str), 'Expected string response'
+    assert len(result) > 1000, 'Expected substantial content'
+    # Should have schema generator content but NOT usage data generator content
+    assert 'DynamoDB Schema Generator Expert System Prompt' in result
+    # Should NOT have the usage data generation instructions
+    assert 'ADDITIONAL TASK: Generate Usage Data' not in result
+
+
+@pytest.mark.asyncio
+async def test_dynamodb_data_model_schema_validator_value_error(tmp_path):
+    """Test schema validator ValueError handling."""
+    schema_file = tmp_path / 'schema.json'
+    schema_file.write_text('{"tables": []}')
+
+    with patch('awslabs.dynamodb_mcp_server.server.generate') as mock_generate:
+        mock_generate.side_effect = ValueError('Path outside allowed directories')
+
+        result = await dynamodb_data_model_schema_validator(str(schema_file), None)
+
+        assert 'Security Error' in result
+        assert 'Path outside allowed directories' in result
+
+
+@pytest.mark.asyncio
+async def test_dynamodb_data_model_schema_validator_file_not_found_from_generate(tmp_path):
+    """Test schema validator FileNotFoundError from generate() function.
+
+    This tests the defensive exception handler (lines 292-293) that catches
+    FileNotFoundError from generate() if the early check is bypassed.
+    """
+    schema_file = tmp_path / 'schema.json'
+    schema_file.write_text('{"tables": []}')
+
+    with patch('awslabs.dynamodb_mcp_server.server.generate') as mock_generate:
+        mock_generate.side_effect = FileNotFoundError('Schema file not found')
+
+        result = await dynamodb_data_model_schema_validator(str(schema_file), None)
+
+        assert 'Error: Schema file not found' in result
+        assert str(schema_file) in result
+
+
+@pytest.mark.asyncio
+async def test_dynamodb_data_model_schema_validator_unexpected_exception(tmp_path):
+    """Test schema validator general Exception handling.
+
+    This tests the defensive exception handler (lines 294-295) that catches
+    unexpected exceptions from generate() function.
+    """
+    schema_file = tmp_path / 'schema.json'
+    schema_file.write_text('{"tables": []}')
+
+    with patch('awslabs.dynamodb_mcp_server.server.generate') as mock_generate:
+        mock_generate.side_effect = RuntimeError('Unexpected internal error')
+
+        result = await dynamodb_data_model_schema_validator(str(schema_file), None)
+
+        assert 'Error during schema validation' in result
+        assert 'Unexpected internal error' in result
+
+
+def test_main_function():
+    """Test main() entry point."""
+    from awslabs.dynamodb_mcp_server.server import main
+
+    with patch.object(app, 'run') as mock_run:
+        main()
+        mock_run.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_call_tool_formats_validation_errors():
+    """Test that call_tool intercepts ValidationError and reformats using format_validation_errors."""
+    from mcp.server.fastmcp.exceptions import ToolError
+
+    with pytest.raises(ToolError) as exc_info:
+        await app.call_tool(
+            'compute_performances_and_costs',
+            {
+                'access_pattern_list': [
+                    {
+                        'operation': 'GetItem',
+                        'table': 'users',
+                        'rps': 100,
+                        'item_size_bytes': 1024,
+                    }
+                ],
+                'table_list': [
+                    {
+                        'name': 'users',
+                        'item_size_bytes': 2048,
+                        'item_count': 1000000,
+                    }
+                ],
+                'workspace_dir': '/tmp/test',
+            },
+        )
+
+    error_message = str(exc_info.value)
+    # Should use bracket notation from format_validation_errors
+    assert 'access_pattern_list[0]' in error_message
+    # Should NOT contain raw pydantic error fragments
+    assert 'pydantic.dev' not in error_message
+    assert '[type=missing' not in error_message
+
+
+@pytest.mark.asyncio
+async def test_call_tool_preserves_non_validation_errors():
+    """Test that call_tool does NOT reformat non-ValidationError ToolErrors."""
+    from mcp.server.fastmcp.exceptions import ToolError
+
+    with pytest.raises(ToolError) as exc_info:
+        await app.call_tool('nonexistent_tool_name', {})
+
+    error_message = str(exc_info.value)
+    assert 'Unknown tool' in error_message

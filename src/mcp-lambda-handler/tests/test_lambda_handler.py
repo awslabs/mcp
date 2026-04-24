@@ -584,18 +584,66 @@ def test_tool_decorator_with_no_origin_type_hints():
     handler = MCPLambdaHandler('test-server')
 
     @handler.tool()
-    def foo(a: typing.Any, b: Optional[str]) -> str:
+    def foo(a: typing.Any) -> str:
         """Test tool.
 
         Args:
             a: Any (get_origin returns None)
-            b: Optional (get_origin returns Optional, but it is unsupported)
         """
         return a
 
     schema = handler.tools['foo']
     assert schema['inputSchema']['properties']['a']['type'] == 'string'
-    assert schema['inputSchema']['properties']['b']['type'] == 'string'
+
+
+def test_tool_decorator_optional_type_hints():
+    """Test tool decorator correctly resolves Optional[T] to the underlying type T."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def foo(
+        a: Optional[int],
+        b: Optional[str],
+        c: Optional[float],
+        d: Optional[bool],
+        e: Optional[List[str]],
+    ) -> str:
+        """Test tool.
+
+        Args:
+            a: An optional integer
+            b: An optional string
+            c: An optional float
+            d: An optional boolean
+            e: An optional list of strings
+        """
+        return 'ok'
+
+    schema = handler.tools['foo']
+    props = schema['inputSchema']['properties']
+    assert props['a']['type'] == 'integer'
+    assert props['b']['type'] == 'string'
+    assert props['c']['type'] == 'number'
+    assert props['d']['type'] == 'boolean'
+    assert props['e']['type'] == 'array'
+    assert props['e']['items'] == {'type': 'string'}
+
+
+def test_tool_decorator_union_type_hints():
+    """Test tool decorator correctly resolves Union[T1, T2] to the first non-None type."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def foo(a: typing.Union[int, str]) -> str:
+        """Test tool.
+
+        Args:
+            a: A union of int and str
+        """
+        return 'ok'
+
+    schema = handler.tools['foo']
+    assert schema['inputSchema']['properties']['a']['type'] == 'integer'
 
 
 def test_tool_decorator_dictionary_type_hints():

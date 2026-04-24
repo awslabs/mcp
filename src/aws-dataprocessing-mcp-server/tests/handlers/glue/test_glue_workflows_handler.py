@@ -57,7 +57,9 @@ async def test_glue_workflow_handler_initialization(mock_create_client):
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.prepare_resource_tags')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 async def test_create_workflow_success(
     mock_get_account_id, mock_get_region, mock_prepare_tags, mock_create_client
@@ -345,7 +347,9 @@ async def test_create_workflow_no_write_access(mock_create_client):
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.is_resource_mcp_managed')
 async def test_delete_workflow_success(
@@ -398,7 +402,9 @@ async def test_delete_workflow_success(
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.is_resource_mcp_managed')
 async def test_delete_workflow_not_mcp_managed(
@@ -595,7 +601,9 @@ async def test_list_workflows_success(mock_create_client):
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.is_resource_mcp_managed')
 async def test_start_workflow_run_success(
@@ -658,7 +666,9 @@ async def test_start_workflow_run_success(
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.is_resource_mcp_managed')
 async def test_start_workflow_run_not_mcp_managed(
@@ -751,7 +761,9 @@ async def test_start_workflow_run_no_write_access(mock_create_client):
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.is_resource_mcp_managed')
 async def test_start_workflow_run_not_found(
@@ -802,7 +814,9 @@ async def test_start_workflow_run_not_found(
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.is_resource_mcp_managed')
 async def test_start_workflow_run_without_run_properties(
@@ -1322,7 +1336,9 @@ async def test_create_trigger_no_write_access(mock_create_client):
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.is_resource_mcp_managed')
 async def test_delete_trigger_success(
@@ -1375,7 +1391,9 @@ async def test_delete_trigger_success(
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.is_resource_mcp_managed')
 async def test_delete_trigger_not_mcp_managed(
@@ -1529,7 +1547,9 @@ async def test_get_triggers_success(mock_create_client):
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.is_resource_mcp_managed')
 async def test_start_trigger_success(
@@ -1582,7 +1602,9 @@ async def test_start_trigger_success(
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.is_resource_mcp_managed')
 async def test_stop_trigger_success(
@@ -1795,7 +1817,9 @@ async def test_create_workflow_without_max_concurrent_runs(mock_prepare_tags, mo
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 async def test_delete_workflow_client_error(
     mock_get_account_id, mock_get_region, mock_create_client
@@ -1867,7 +1891,9 @@ async def test_list_workflows_without_pagination(mock_create_client):
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 async def test_start_workflow_run_client_error(
     mock_get_account_id, mock_get_region, mock_create_client
@@ -1896,7 +1922,9 @@ async def test_start_workflow_run_client_error(
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.is_resource_mcp_managed')
 async def test_start_workflow_run_without_run_properties_mcp_managed(
@@ -2052,7 +2080,9 @@ async def test_create_trigger_without_user_tags(mock_prepare_tags, mock_create_c
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 async def test_delete_trigger_client_error(
     mock_get_account_id, mock_get_region, mock_create_client
@@ -2099,7 +2129,9 @@ async def test_get_triggers_without_pagination(mock_create_client):
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 async def test_start_trigger_client_error(
     mock_get_account_id, mock_get_region, mock_create_client
@@ -2128,7 +2160,9 @@ async def test_start_trigger_client_error(
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 async def test_stop_trigger_client_error(mock_get_account_id, mock_get_region, mock_create_client):
     """Test stop trigger with non-EntityNotFoundException ClientError."""
@@ -2283,7 +2317,9 @@ async def test_create_workflow_with_max_concurrent_runs_only(
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 async def test_delete_workflow_entity_not_found(
     mock_get_account_id, mock_get_region, mock_create_client
@@ -2382,7 +2418,9 @@ async def test_list_workflows_with_next_token(mock_create_client):
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 async def test_start_workflow_run_entity_not_found(
     mock_get_account_id, mock_get_region, mock_create_client
@@ -2412,7 +2450,9 @@ async def test_start_workflow_run_entity_not_found(
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.is_resource_mcp_managed')
 async def test_start_workflow_run_with_run_properties(
@@ -2448,7 +2488,9 @@ async def test_start_workflow_run_with_run_properties(
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 async def test_delete_trigger_entity_not_found(
     mock_get_account_id, mock_get_region, mock_create_client
@@ -2522,7 +2564,9 @@ async def test_get_triggers_with_next_token(mock_create_client):
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 async def test_start_trigger_entity_not_found(
     mock_get_account_id, mock_get_region, mock_create_client
@@ -2552,7 +2596,9 @@ async def test_start_trigger_entity_not_found(
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 async def test_stop_trigger_entity_not_found(
     mock_get_account_id, mock_get_region, mock_create_client

@@ -1,4 +1,4 @@
 boto3>=1.40.41
 loguru>=0.7.3
 mcp>=1.23.0
-urllib3>=2.6.0
+urllib3>=2.6.3

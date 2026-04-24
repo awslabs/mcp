@@ -14,7 +14,6 @@
 
 """EMRServerlessJobRunHandler for Data Processing MCP Server."""
 
-import json
 from awslabs.aws_dataprocessing_mcp_server.models.emr_models import (
     CancelJobRunData,
     GetDashboardForJobRunData,
@@ -329,7 +328,7 @@ class EMRServerlessJobRunHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -338,6 +337,13 @@ class EMRServerlessJobRunHandler:
                     error_message = (
                         'application_id and job_run_id are required for get-job-run operation'
                     )
+                    return self._create_error_response(operation, error_message)
+
+                # SECURITY: Job run details may contain sensitive data in arguments, error messages, and logs
+                # Require --allow-sensitive-data-access flag to prevent unauthorized data exposure
+                if not self.allow_sensitive_data_access:
+                    error_message = 'Operation get-job-run may contain sensitive data in job arguments and logs, and requires --allow-sensitive-data-access flag'
+                    log_with_request_id(ctx, LogLevel.ERROR, error_message)
                     return self._create_error_response(operation, error_message)
 
                 # Get job run
@@ -356,7 +362,7 @@ class EMRServerlessJobRunHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -386,7 +392,7 @@ class EMRServerlessJobRunHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -426,7 +432,7 @@ class EMRServerlessJobRunHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -458,7 +464,7 @@ class EMRServerlessJobRunHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 

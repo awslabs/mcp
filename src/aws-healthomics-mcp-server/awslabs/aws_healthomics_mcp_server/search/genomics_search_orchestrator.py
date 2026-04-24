@@ -62,14 +62,26 @@ if TYPE_CHECKING:
 
 
 class GenomicsSearchOrchestrator:
-    """Orchestrates genomics file searches across multiple storage systems."""
+    """Orchestrates genomics file searches across multiple storage systems.
 
-    def __init__(self, config: SearchConfig, s3_engine: Optional['S3SearchEngine'] = None):
+    A new instance should be created for each tool call to ensure cache isolation
+    between AWS profiles and regions.
+    """
+
+    def __init__(
+        self,
+        config: SearchConfig,
+        s3_engine: Optional['S3SearchEngine'] = None,
+        region_name: Optional[str] = None,
+        profile_name: Optional[str] = None,
+    ):
         """Initialize the search orchestrator.
 
         Args:
             config: Search configuration containing settings for all storage systems
             s3_engine: Optional pre-configured S3SearchEngine (for testing)
+            region_name: Optional region override
+            profile_name: Optional AWS profile override
         """
         self.config = config
 
@@ -78,22 +90,34 @@ class GenomicsSearchOrchestrator:
             self.s3_engine = s3_engine
         else:
             try:
-                self.s3_engine = S3SearchEngine.from_environment()
+                self.s3_engine = S3SearchEngine.from_environment(
+                    region_name=region_name, profile_name=profile_name
+                )
             except ValueError as e:
                 logger.warning(
                     f'S3SearchEngine initialization failed: {e}. S3 search will be disabled.'
                 )
                 self.s3_engine = None
 
-        self.healthomics_engine = HealthOmicsSearchEngine(config)
+        self.healthomics_engine = HealthOmicsSearchEngine(
+            config, region_name=region_name, profile_name=profile_name
+        )
         self.association_engine = FileAssociationEngine()
         self.scoring_engine = ScoringEngine()
         self.result_ranker = ResultRanker()
         self.json_builder = JsonResponseBuilder()
 
     @classmethod
-    def from_environment(cls) -> 'GenomicsSearchOrchestrator':
+    def from_environment(
+        cls,
+        region_name: Optional[str] = None,
+        profile_name: Optional[str] = None,
+    ) -> 'GenomicsSearchOrchestrator':
         """Create a GenomicsSearchOrchestrator using configuration from environment variables.
+
+        Args:
+            region_name: Optional region override
+            profile_name: Optional AWS profile override
 
         Returns:
             GenomicsSearchOrchestrator instance configured from environment
@@ -102,7 +126,7 @@ class GenomicsSearchOrchestrator:
             ValueError: If configuration is invalid
         """
         config = get_genomics_search_config()
-        return cls(config)
+        return cls(config, region_name=region_name, profile_name=profile_name)
 
     async def search(self, request: GenomicsFileSearchRequest) -> GenomicsFileSearchResponse:
         """Coordinate searches across multiple storage systems and return ranked results.
@@ -165,7 +189,7 @@ class GenomicsSearchOrchestrator:
 
             # Build comprehensive JSON response
             search_duration_ms = int((time.time() - start_time) * 1000)
-            storage_systems_searched = self._get_searched_storage_systems()
+            storage_systems_searched = self._get_searched_storage_systems(request)
 
             pagination_info = {
                 'offset': request.offset,
@@ -341,7 +365,7 @@ class GenomicsSearchOrchestrator:
 
             # Build comprehensive JSON response
             search_duration_ms = int((time.time() - start_time) * 1000)
-            storage_systems_searched = self._get_searched_storage_systems()
+            storage_systems_searched = self._get_searched_storage_systems(request)
 
             # Create next continuation token
             next_continuation_token = None
@@ -472,6 +496,13 @@ class GenomicsSearchOrchestrator:
         # Combine configured buckets with validated adhoc buckets
         all_bucket_paths = await self._get_all_s3_bucket_paths(request)
 
+        if not all_bucket_paths and not self.config.enable_healthomics_search:
+            raise ValueError(
+                'No S3 bucket paths available for search. Either set the '
+                'GENOMICS_SEARCH_S3_BUCKETS environment variable or provide '
+                'adhoc_s3_buckets in the search request.'
+            )
+
         # Add S3 search task if bucket paths are available and S3 engine is available
         if all_bucket_paths and self.s3_engine is not None:
             logger.info(f'Adding S3 search task for {len(all_bucket_paths)} buckets')
@@ -549,6 +580,13 @@ class GenomicsSearchOrchestrator:
 
         # Combine configured buckets with validated adhoc buckets
         all_bucket_paths = await self._get_all_s3_bucket_paths(request)
+
+        if not all_bucket_paths and not self.config.enable_healthomics_search:
+            raise ValueError(
+                'No S3 bucket paths available for search. Either set the '
+                'GENOMICS_SEARCH_S3_BUCKETS environment variable or provide '
+                'adhoc_s3_buckets in the search request.'
+            )
 
         # Add S3 paginated search task if bucket paths are available and S3 engine is available
         if all_bucket_paths and self.s3_engine is not None:
@@ -1000,15 +1038,23 @@ class GenomicsSearchOrchestrator:
         logger.info(f'Scored {len(scored_results)} results')
         return scored_results
 
-    def _get_searched_storage_systems(self) -> List[str]:
+    def _get_searched_storage_systems(
+        self, request: Optional[GenomicsFileSearchRequest] = None
+    ) -> List[str]:
         """Get the list of storage systems that were searched.
+
+        Args:
+            request: Optional search request to check for adhoc buckets
 
         Returns:
             List of storage system names that were included in the search
         """
         systems = []
 
-        if self.config.s3_bucket_paths and self.s3_engine is not None:
+        has_s3_buckets = bool(self.config.s3_bucket_paths) or (
+            request is not None and bool(request.adhoc_s3_buckets)
+        )
+        if has_s3_buckets and self.s3_engine is not None:
             systems.append('s3')
 
         if self.config.enable_healthomics_search:
