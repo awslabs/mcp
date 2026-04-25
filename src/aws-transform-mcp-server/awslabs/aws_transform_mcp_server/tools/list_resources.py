@@ -458,7 +458,7 @@ class ListResourcesHandler:
                     if is_mainframe and source == SourceEnum.connector:
                         resolved_path_prefix = f'transform-output/{jobId}/'
 
-                body = {'workspaceId': workspaceId}
+                body: Dict[str, Any] = {'workspaceId': workspaceId}
                 if jobId:
                     job_filter: Dict[str, Any] = {'jobId': jobId}
                     if planStepId:
@@ -477,7 +477,9 @@ class ListResourcesHandler:
                 workspace: Dict[str, Any] = {'workspaceId': workspaceId}
                 if jobId:
                     workspace['jobs'] = [{'jobId': jobId, 'focusState': 'ACTIVE'}]
-                body = {'metadata': {'resourcesOnScreen': {'workspace': workspace}}}
+                body: Dict[str, Any] = {
+                    'metadata': {'resourcesOnScreen': {'workspace': workspace}}
+                }
                 if startTimestamp is not None:
                     body['startTimestamp'] = startTimestamp
                 with_pagination(body, maxResults, nextToken)
@@ -521,7 +523,7 @@ class ListResourcesHandler:
                         'VALIDATION_ERROR', 'jobId is required for listing worklogs.'
                     )
 
-                body = {'workspaceId': workspaceId, 'jobId': jobId}
+                body: Dict[str, Any] = {'workspaceId': workspaceId, 'jobId': jobId}
                 if stepId:
                     body['worklogFilter'] = {'stepIdFilter': {'stepId': stepId}}
                 elif startTime or endTime:

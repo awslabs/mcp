@@ -52,7 +52,7 @@ class CollaboratorHandler:
                     'leave = caller removes themselves'
                 )
             ),
-        ] = ...,
+        ] = Field(...),
         userId: Optional[str] = Field(
             None, description='Target user ID. Required for "put" and "remove". Omit for "leave".'
         ),
