@@ -63,10 +63,17 @@ NEVER auto-submit. Never guess response content — use `_outputSchema` and
 may still be generating.
 
 # Tool Selection
-- **Job status / progress** → ALWAYS use `send_message` scoped to the job FIRST.
-  The assistant has full job context. Also call `list_resources(resource="worklogs")`
-  for recent activity. Only fall back to `list_resources` / `get_resource` if
-  you need more information the assistant didn't cover or send message has no useful information.
+- **Job status / progress (polling)** → use `get_job_status` for a complete snapshot
+  (job metadata, worklogs, HITL tasks, messages, plan) in a single call.
+  IMPORTANT: After calling get_job_status, if `_pollingGuidance.isTerminal` is false,
+  you MUST automatically call it again in 1 minute. DO NOT ask the user — just poll.
+  Keep polling until isTerminal is true or the user says stop.
+  If `hasPendingTasks` is true, handle HITL tasks immediately.
+- **Job status / progress (interactive)** → use `send_message` scoped to the job
+  to ask the Transform assistant about status. The assistant has full job context.
+  Also call `list_resources(resource="worklogs")` for recent activity.
+  Only fall back to `list_resources` / `get_resource` if you need more information
+  the assistant didn't cover or send message has no useful information.
 - Browse collections → `list_resources`
 - Fetch a single resource with full details → `get_resource`
 - Basic job metadata only → `get_resource(resource="job")`
@@ -117,6 +124,7 @@ def _register_handlers(mcp: FastMCP) -> None:
     from awslabs.aws_transform_mcp_server.tools.get_resource import GetResourceHandler
     from awslabs.aws_transform_mcp_server.tools.hitl import HitlHandler
     from awslabs.aws_transform_mcp_server.tools.job import JobHandler
+    from awslabs.aws_transform_mcp_server.tools.job_status import JobStatusHandler
     from awslabs.aws_transform_mcp_server.tools.list_resources import ListResourcesHandler
     from awslabs.aws_transform_mcp_server.tools.load_instructions import LoadInstructionsHandler
     from awslabs.aws_transform_mcp_server.tools.sigv4_configure import SigV4ConfigureHandler
@@ -135,6 +143,7 @@ def _register_handlers(mcp: FastMCP) -> None:
     CollaboratorHandler(mcp)
     ApproveHitlHandler(mcp)
     LoadInstructionsHandler(mcp)
+    JobStatusHandler(mcp)
 
 
 def main() -> None:
