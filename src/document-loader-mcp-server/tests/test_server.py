@@ -814,6 +814,45 @@ def test_find_soffice_macos_openoffice():
                 print('✓ _find_soffice finds macOS OpenOffice bundle')
 
 
+def test_find_soffice_windows_program_files():
+    """Test _find_soffice finds Windows LibreOffice in Program Files."""
+    from awslabs.document_loader_mcp_server.server import _SOFFICE_KNOWN_PATHS
+
+    # Find the Windows Program Files path in the known paths list
+    win_path = [p for p in _SOFFICE_KNOWN_PATHS if 'soffice.exe' in p and '(x86)' not in p]
+    assert len(win_path) >= 1, 'Windows Program Files path not in _SOFFICE_KNOWN_PATHS'
+    win_path = win_path[0]
+
+    with patch('awslabs.document_loader_mcp_server.server.shutil.which') as mock_which:
+        mock_which.return_value = None
+        with patch('awslabs.document_loader_mcp_server.server.os.path.isfile') as mock_isfile:
+            with patch('awslabs.document_loader_mcp_server.server.os.access') as mock_access:
+                mock_isfile.side_effect = lambda p: p == win_path
+                mock_access.return_value = True
+                result = _find_soffice()
+                assert result == win_path
+                print('✓ _find_soffice finds Windows LibreOffice in Program Files')
+
+
+def test_find_soffice_windows_program_files_x86():
+    """Test _find_soffice finds Windows LibreOffice in Program Files (x86)."""
+    from awslabs.document_loader_mcp_server.server import _SOFFICE_KNOWN_PATHS
+
+    win_path = [p for p in _SOFFICE_KNOWN_PATHS if 'soffice.exe' in p and '(x86)' in p]
+    assert len(win_path) >= 1, 'Windows x86 path not in _SOFFICE_KNOWN_PATHS'
+    win_path = win_path[0]
+
+    with patch('awslabs.document_loader_mcp_server.server.shutil.which') as mock_which:
+        mock_which.return_value = None
+        with patch('awslabs.document_loader_mcp_server.server.os.path.isfile') as mock_isfile:
+            with patch('awslabs.document_loader_mcp_server.server.os.access') as mock_access:
+                mock_isfile.side_effect = lambda p: p == win_path
+                mock_access.return_value = True
+                result = _find_soffice()
+                assert result == win_path
+                print('✓ _find_soffice finds Windows LibreOffice in Program Files (x86)')
+
+
 def test_find_soffice_not_found():
     """Test _find_soffice returns None when soffice is nowhere."""
     with patch('awslabs.document_loader_mcp_server.server.shutil.which') as mock_which:
