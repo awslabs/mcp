@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
+import httpx
 import json
 import os
+import random
 import sys
 from ..knowledge_models import KnowledgeResult
 from fastmcp.client import Client
@@ -30,12 +33,27 @@ KNOWLEDGE_MCP_ENDPOINT = os.environ.get(
     'KNOWLEDGE_MCP_ENDPOINT', 'https://knowledge-mcp.global.api.aws'
 )
 KNOWLEDGE_MCP_SEARCH_DOCUMENTATION_TOOL = 'aws___search_documentation'
+MAX_RETRIES = 3
+BASE_BACKOFF_SECONDS = 16
+MAX_BACKOFF_SECONDS = 60
+
+
+def _is_rate_limit_error(exc: Exception) -> bool:
+    """Return True if the exception represents an HTTP 429 rate-limit response."""
+    if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code == 429:
+        return True
+    msg = str(exc).lower()
+    return '429' in msg or 'too many requests' in msg
 
 
 async def search_documentation(
     search_phrase: str, topic: str, limit: int = 10
 ) -> List[KnowledgeResult]:
-    """Search AWS documentation.
+    """Search AWS documentation with automatic retry on rate limiting.
+
+    Retries up to MAX_RETRIES times when the Knowledge MCP server returns
+    HTTP 429 (rate limited). Uses exponential backoff with jitter between
+    attempts. Non-rate-limit errors are raised immediately.
 
     Args:
         search_phrase: The search query.
@@ -45,21 +63,32 @@ async def search_documentation(
     Returns:
         List of KnowledgeResult containing search results.
     """
-    try:
-        aws_knowledge_mcp_client = Client(KNOWLEDGE_MCP_ENDPOINT)
+    for attempt in range(MAX_RETRIES):
+        try:
+            aws_knowledge_mcp_client = Client(KNOWLEDGE_MCP_ENDPOINT)
 
-        async with aws_knowledge_mcp_client:
-            request = {'search_phrase': search_phrase, 'limit': limit, 'topics': [topic]}
+            async with aws_knowledge_mcp_client:
+                request = {'search_phrase': search_phrase, 'limit': limit, 'topics': [topic]}
 
-            result = await aws_knowledge_mcp_client.call_tool(
-                KNOWLEDGE_MCP_SEARCH_DOCUMENTATION_TOOL, request
-            )
-            logger.info(f'Received result: {result}')
-            return _parse_search_documentation_result(result)
-    except Exception as e:
-        # For dev team troubleshooting
-        logger.error(f'Error searching documentation: {str(e)}')
-        raise e
+                result = await aws_knowledge_mcp_client.call_tool(
+                    KNOWLEDGE_MCP_SEARCH_DOCUMENTATION_TOOL, request
+                )
+                logger.info(f'Received result: {result}')
+                return _parse_search_documentation_result(result)
+        except Exception as e:
+            if _is_rate_limit_error(e) and attempt < MAX_RETRIES - 1:
+                backoff = min(BASE_BACKOFF_SECONDS * (2**attempt), MAX_BACKOFF_SECONDS)
+                jitter = random.uniform(0, backoff * 0.1)
+                wait_time = backoff + jitter
+                logger.warning(
+                    f'Rate limited by Knowledge MCP server '
+                    f'(attempt {attempt + 1}/{MAX_RETRIES}). '
+                    f'Retrying in {wait_time:.1f}s...'
+                )
+                await asyncio.sleep(wait_time)
+            else:
+                logger.error(f'Error searching documentation: {str(e)}')
+                raise
 
 
 def _parse_search_documentation_result(result: CallToolResult) -> List[KnowledgeResult]:
