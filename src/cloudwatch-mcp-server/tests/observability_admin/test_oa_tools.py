@@ -51,7 +51,7 @@ class TestRegistration:
             'get_telemetry_evaluation_status',
             'start_telemetry_evaluation',
             'stop_telemetry_evaluation',
-            'get_telemetry_evaluation_status_for_organization',
+            'get_telemetry_eval_status_for_org',
             'start_telemetry_evaluation_for_organization',
             'stop_telemetry_evaluation_for_organization',
             'list_resource_telemetry',
@@ -63,6 +63,29 @@ class TestRegistration:
         ]
         for name in expected:
             assert name in tool_names
+
+    def test_tool_names_within_bedrock_limit(self):
+        """Test that all tool names comply with Bedrock Converse API 64-char limit.
+
+        The Bedrock Converse API enforces a maximum of 64 characters for tool names.
+        When MCP clients (e.g. OpenCode) connect to Bedrock, they prefix tool names
+        with the server identifier (e.g. 'awslabs_cloudwatch_'). This test verifies
+        that the resulting full names do not exceed 64 characters.
+        """
+        tools = ObservabilityAdminTools()
+        mock_mcp = Mock()
+        tools.register(mock_mcp)
+
+        tool_names = [call[1]['name'] for call in mock_mcp.tool.call_args_list]
+        # Prefix derived from server name 'awslabs.cloudwatch-mcp-server'
+        server_prefix = 'awslabs_cloudwatch_'
+        bedrock_max_length = 64
+        for name in tool_names:
+            full_name = server_prefix + name
+            assert len(full_name) <= bedrock_max_length, (
+                f"Tool name '{full_name}' exceeds Bedrock's {bedrock_max_length}-char limit "
+                f"(length: {len(full_name)})"
+            )
 
 
 @pytest.mark.asyncio
