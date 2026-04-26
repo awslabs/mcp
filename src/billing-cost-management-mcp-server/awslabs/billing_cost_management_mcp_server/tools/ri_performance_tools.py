@@ -174,10 +174,14 @@ async def get_reservation_coverage(
         )
 
         # Prepare the request parameters
-        request_params = {
+        # IMPORTANT: GroupBy and Granularity are mutually exclusive for coverage.
+        # When group_by is provided, granularity is automatically omitted from the coverage request.
+        request_params: Dict[str, Any] = {
             'TimePeriod': {'Start': start, 'End': end},
-            'Granularity': granularity,
         }
+
+        if not group_by:
+            request_params['Granularity'] = granularity
 
         # Add optional parameters if provided
         if metrics:
