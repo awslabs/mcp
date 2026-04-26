@@ -302,7 +302,52 @@ async def _execute_protected_statement(
 
     # If user SQL failed but END succeeded, raise user SQL error
     if user_sql_error:
-        raise user_sql_error
+        # Retry with READ WRITE if Redshift's internal write for stale Materialized View
+        # staleness tracking conflicts with the READ ONLY transaction constraint.
+        # This can happen when a SELECT targets a view referencing a stale MV, because
+        # Redshift attempts metadata writes at query time even when autorefresh=false.
+        if not allow_read_write and 'transaction is read-only' in str(user_sql_error).lower():
+            logger.info('Retrying with READ WRITE due to read-only transaction conflict')
+            await _execute_statement(
+                cluster_info=cluster_info,
+                cluster_identifier=cluster_identifier,
+                database_name=database_name,
+                sql='BEGIN READ WRITE;',
+                session_id=session_id,
+            )
+            user_query_id = None
+            user_sql_error = None
+            try:
+                user_query_id = await _execute_statement(
+                    cluster_info=cluster_info,
+                    cluster_identifier=cluster_identifier,
+                    database_name=database_name,
+                    sql=sql,
+                    parameters=parameters,
+                    session_id=session_id,
+                )
+            except Exception as e:
+                user_sql_error = e
+                logger.error(f'User SQL execution failed on retry: {e}')
+            try:
+                await _execute_statement(
+                    cluster_info=cluster_info,
+                    cluster_identifier=cluster_identifier,
+                    database_name=database_name,
+                    sql='END;',
+                    session_id=session_id,
+                )
+            except Exception as end_error:
+                logger.error(f'END statement execution failed on retry: {end_error}')
+                if user_sql_error:
+                    raise Exception(
+                        f'User SQL failed: {user_sql_error}; END statement failed: {end_error}'
+                    )
+                raise end_error
+            if user_sql_error:
+                raise user_sql_error
+        else:
+            raise user_sql_error
 
     # Get results from user query
     data_client = client_manager.redshift_data_client()
