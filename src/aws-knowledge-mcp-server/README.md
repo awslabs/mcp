@@ -14,6 +14,7 @@ This MCP server is in general availability.
 - Regional availability information for AWS APIs and CloudFormation resources
 - Full-stack development guidance including Amplify framework documentation, patterns, and best practices
 - Access the latest CDK and CloudFormation documentation, best practices, and high-quality examples to facilitate a better infrastructure-as-code development experience
+- Strands Agents SDK documentation — search and read the full Strands Agents docs (User Guide, API reference, examples, and more)
 - Access to SOPs - step-by-step, tested guidance for common AWS tasks and workflows for AI agents
 
 ### AWS Knowledge capabilities
@@ -24,12 +25,13 @@ This MCP server is in general availability.
 - **The latest information**: Access the latest announcements about new AWS services and features
 - **Full-stack development**: Learn how to build complete applications using AWS Amplify with frontend and backend integration guidance
 - **Infrastructure as code development**: Access the latest CDK and CloudFormation guidance, best practices, and code examples to model your infrastructure in code
+- **Strands Agents SDK**: Search and read the complete Strands Agents documentation including User Guide, API reference (Python & TypeScript), examples, community contributions, and blog posts to build AI agents with the Strands Agents SDK
 - **Well-defined SOPs**: step-wise guidance for AI agents on actionable AWS tasks and workflows such as deployment, troubleshooting, security, infrastructure setup, and more
 
 ### Tools
 
-1. `search_documentation`: Search across all AWS documentation and agent SOPs with optional topic-based filtering for more targeted result
-2. `read_documentation`: Retrieve and convert AWS documentation pages to markdown
+1. `search_documentation`: Search across all AWS documentation, agent SOPs and Strands Agents SDK docs with optional topic-based filtering for more targeted result
+2. `read_documentation`: Retrieve and convert AWS documentation and Strands Agents (strandsagents.com) pages to markdown
 3. `recommend`: Get content recommendations for AWS documentation pages
 4. `list_regions`: Retrieve a list of all AWS regions, including their identifiers and names
 5. `get_regional_availability`: Retrieve AWS regional availability information for Services, Features, SDK service APIs and CloudFormation resources
@@ -48,6 +50,7 @@ This MCP server is in general availability.
 - AWS Amplify Documentation
 - CDK documentation, CLI guides, constructs, and patterns
 - CloudFormation templates and references
+- Strands Agents SDK documentation (User Guide, API reference, examples, community, blog posts)
 - Agent SOPs for common AWS tasks
 
 ### Learn about AWS with natural language
@@ -158,3 +161,7 @@ Yes. The Knowledge MCP server offers guidance for configuring and managing AWS s
 #### 7. Can I use AWS Knowledge MCP Server to find agent-friendly guidance on complex, actionable AWS workflows?
 
 Yes. The Knowledge MCP server is now empowered by a list of high-quality SOPs that provide AI agents step-by-step guidance on complex, error-prone workflows. Such workflows include deployment, troubleshooting, security, infrastructure setup, and more. Leveraging agent SOPs would not only augment the quality of agent responses, but also significantly boost AI efficiency in terms of time and token usage.
+
+#### 8. Can I use AWS Knowledge MCP Server for building AI agents with the Strands Agents SDK?
+
+Yes. The Knowledge MCP server indexes the full Strands Agents SDK documentation — User Guide, API reference (Python & TypeScript), examples, community contributions, and blog posts. You can search using the `strands_docs` topic or just ask questions naturally. The assistant can also fetch full pages from strandsagents.com inline for deeper detail.
