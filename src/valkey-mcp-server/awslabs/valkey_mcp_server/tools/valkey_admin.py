@@ -20,8 +20,14 @@ import logging
 import os
 from awslabs.valkey_mcp_server.common.connection import get_client
 from awslabs.valkey_mcp_server.common.server import mcp
-from awslabs.valkey_mcp_server.common.utils import decode_value as _decode
-from awslabs.valkey_mcp_server.common.utils import readonly_guard, tool_errors
+from awslabs.valkey_mcp_server.common.utils import (
+    check_allowlist,
+    readonly_guard,
+    tool_errors,
+)
+from awslabs.valkey_mcp_server.common.utils import (
+    decode_value as _decode,
+)
 from typing import Any
 
 
@@ -60,8 +66,8 @@ def _is_admin_enabled() -> bool:
 
 
 @mcp.tool()
-@readonly_guard
 @tool_errors
+@readonly_guard
 async def valkey_admin(
     command: str,
     args: list[str] | None = None,
@@ -99,12 +105,9 @@ async def valkey_admin(
             'reason': 'Destructive command requires confirm=True.',
         }
 
-    # Build the full command key for multi-word commands (e.g., "CONFIG SET")
     cmd = command.upper()
-    cmd_parts = cmd.split()
-    cmd_key = ' '.join(cmd_parts[:2]) if len(cmd_parts) >= 2 else cmd_parts[0]
 
-    if cmd_key not in ADMIN_COMMANDS and cmd_parts[0] not in ADMIN_COMMANDS:
+    if not check_allowlist(cmd, args, ADMIN_COMMANDS):
         return {
             'status': 'error',
             'reason': f"Command '{cmd}' is not in the admin allowlist. "
@@ -112,7 +115,7 @@ async def valkey_admin(
         }
 
     client = await get_client()
-    full_cmd: list = cmd_parts + (args or [])
+    full_cmd: list = cmd.split() + (args or [])
     raw = await client.custom_command(full_cmd)
     logger.warning('Admin command executed: %s', cmd)
     return {'status': 'success', 'result': _decode(raw)}

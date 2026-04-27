@@ -66,6 +66,10 @@ def _build_embedding_config() -> dict:
     # Handle optional bedrock_input_type
     config['bedrock_input_type'] = os.getenv('BEDROCK_INPUT_TYPE')
 
+    # Generic dimensions override (used by Ollama, OpenAI; Bedrock uses bedrock_dimensions)
+    dims_env = os.getenv('EMBEDDING_DIMENSIONS')
+    config['embedding_dimensions'] = int(dims_env) if dims_env else None
+
     return config
 
 

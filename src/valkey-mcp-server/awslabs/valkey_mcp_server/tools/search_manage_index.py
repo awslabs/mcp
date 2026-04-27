@@ -19,6 +19,7 @@ from __future__ import annotations
 import logging
 from awslabs.valkey_mcp_server.common.connection import get_client
 from awslabs.valkey_mcp_server.common.server import mcp
+from awslabs.valkey_mcp_server.common.utils import tool_errors
 from awslabs.valkey_mcp_server.context import Context
 from enum import Enum
 from glide import ft
@@ -35,7 +36,6 @@ from glide_shared.commands.server_modules.ft_options.ft_create_options import (
     VectorFieldAttributesHnsw,
     VectorType,
 )
-from glide_shared.exceptions import RequestError
 from typing import Any
 
 
@@ -77,6 +77,7 @@ def _build_field(
 ) -> TextField | TagField | NumericField | VectorField:
     """Translate a schema field dict into a GLIDE Field object."""
     name = field['name']
+    alias = field.get('alias')
     ftype = field.get('type', 'TEXT').upper()
     if ftype not in FieldType.__members__:
         raise ValueError(
@@ -104,15 +105,16 @@ def _build_field(
                 distance_metric=metric,
                 type=VectorType.FLOAT32,
             )
-        return VectorField(name, algo, attrs)
+        return VectorField(name, algo, attrs, alias=alias)
     if ftype == 'TAG':
-        return TagField(name)
+        return TagField(name, alias=alias)
     if ftype == 'NUMERIC':
-        return NumericField(name)
-    return TextField(name)
+        return NumericField(name, alias=alias)
+    return TextField(name, alias=alias)
 
 
 @mcp.tool()
+@tool_errors
 async def manage_index(
     action: str,
     index_name: str | None = None,
@@ -146,68 +148,66 @@ async def manage_index(
         Dict with "status" ("success"/"error") and action-specific data.
     """
     action = action.lower()
-    try:
-        client = await get_client()
+    client = await get_client()
 
-        if action == 'list':
-            raw = await ft.list(client)
-            names = [i.decode() if isinstance(i, bytes) else str(i) for i in (raw or [])]
-            return {'status': 'success', 'indices': names}
+    if action == 'list':
+        raw = await ft.list(client)
+        names = [i.decode() if isinstance(i, bytes) else str(i) for i in (raw or [])]
+        return {'status': 'success', 'indices': names}
 
-        if not index_name:
-            return {'status': 'error', 'reason': f"'index_name' required for '{action}'"}
+    if not index_name:
+        return {'status': 'error', 'reason': f"'index_name' required for '{action}'"}
 
-        if action == 'info':
-            info = await ft.info(client, index_name)
-            return {'status': 'success', 'index_name': index_name, 'info': info}
+    if action == 'info':
+        info = await ft.info(client, index_name)
+        return {'status': 'success', 'index_name': index_name, 'info': info}
 
-        if action == 'drop':
-            if Context.readonly_mode():
-                return {'status': 'error', 'reason': 'Readonly mode'}
-            await ft.dropindex(client, index_name)
-            return {'status': 'success', 'index_name': index_name, 'dropped': True}
+    # Note: @readonly_guard is not used because this tool handles both read (list, info)
+    # and write (create, drop) actions. Readonly checks are inline for write actions only.
+    if action == 'drop':
+        if Context.readonly_mode():
+            return {'status': 'error', 'reason': 'Readonly mode'}
+        await ft.dropindex(client, index_name)
+        return {'status': 'success', 'index_name': index_name, 'dropped': True}
 
-        if action == 'create':
-            if Context.readonly_mode():
-                return {'status': 'error', 'reason': 'Readonly mode'}
-            if not schema:
-                return {'status': 'error', 'reason': "'schema' required for create"}
+    if action == 'create':
+        if Context.readonly_mode():
+            return {'status': 'error', 'reason': 'Readonly mode'}
+        if not schema:
+            return {'status': 'error', 'reason': "'schema' required for create"}
 
-            it = index_type.upper()
-            st = structure_type.upper()
-            dm = distance_metric.upper()
-            for val, name, valid in [
-                (it, 'index_type', VALID_INDEX_TYPES),
-                (st, 'structure_type', VALID_STRUCTURE_TYPES),
-                (dm, 'distance_metric', VALID_DISTANCE_METRICS),
-            ]:
-                if val not in valid:
-                    return {
-                        'status': 'error',
-                        'reason': f"Invalid {name} '{val}'. Must be one of: {valid}",
-                    }
+        it = index_type.upper()
+        st = structure_type.upper()
+        dm = distance_metric.upper()
+        for val, name, valid in [
+            (it, 'index_type', VALID_INDEX_TYPES),
+            (st, 'structure_type', VALID_STRUCTURE_TYPES),
+            (dm, 'distance_metric', VALID_DISTANCE_METRICS),
+        ]:
+            if val not in valid:
+                return {
+                    'status': 'error',
+                    'reason': f"Invalid {name} '{val}'. Must be one of: {valid}",
+                }
 
-            fields = []
-            for f in schema:
-                if 'name' not in f:
-                    return {'status': 'error', 'reason': "Each field needs a 'name' key"}
+        fields = []
+        for f in schema:
+            if 'name' not in f:
+                return {'status': 'error', 'reason': "Each field needs a 'name' key"}
+            try:
                 fields.append(_build_field(f, st, dm))
+            except ValueError as e:
+                return {'status': 'error', 'reason': str(e)}
 
-            options = FtCreateOptions(data_type=_DATA_TYPE_MAP[it])
-            if prefix:
-                typed_prefixes: list[str | bytes | bytearray | memoryview] = list(prefix)
-                options = FtCreateOptions(data_type=_DATA_TYPE_MAP[it], prefixes=typed_prefixes)
+        options = FtCreateOptions(data_type=_DATA_TYPE_MAP[it])
+        if prefix:
+            typed_prefixes: list[str | bytes | bytearray | memoryview] = list(prefix)
+            options = FtCreateOptions(data_type=_DATA_TYPE_MAP[it], prefixes=typed_prefixes)
 
-            await ft.create(client, index_name, fields, options)
-            return {'status': 'success', 'index_name': index_name, 'created': True}
+        await ft.create(client, index_name, fields, options)
+        return {'status': 'success', 'index_name': index_name, 'created': True}
 
-        return {
-            'status': 'error',
-            'reason': f"Unknown action '{action}'. Use: create, drop, info, list",
-        }
-
-    except RequestError as e:
-        return {'status': 'error', 'reason': str(e)}
-    except Exception as e:
-        logger.exception('manage_index failed: %s', e)
-        return {'status': 'error', 'reason': str(e)}
+    return {
+        'status': 'error',
+        'reason': f"Unknown action '{action}'. Use: create, drop, info, list",
+    }

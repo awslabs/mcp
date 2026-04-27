@@ -52,7 +52,7 @@ def _configure_logging():
         rotation='10 MB',
         retention='3 days',
         backtrace=True,
-        diagnose=True,
+        diagnose=False,  # True leaks credentials/data into log tracebacks
         format='{time:YYYY-MM-DD HH:mm:ss.SSS} | {level:<8} | {name}:{function}:{line} | {message}',
     )
 

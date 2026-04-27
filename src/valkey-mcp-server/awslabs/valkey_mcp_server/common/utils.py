@@ -80,3 +80,12 @@ def tool_errors(fn):
             return {'status': 'error', 'reason': str(e)}
 
     return wrapper
+
+
+def check_allowlist(command: str, args: list[str] | None, allowlist: frozenset[str]) -> bool:
+    """Check if a command matches any entry in an allowlist (word-boundary aware).
+
+    Handles single-word (GET), multi-word (MEMORY USAGE), and dotted (JSON.GET) commands.
+    """
+    full = ' '.join([command.upper()] + [a.upper() for a in (args or [])])
+    return any(full == c or full.startswith(c + ' ') for c in allowlist)

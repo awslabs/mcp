@@ -130,8 +130,38 @@ class TestAddDocumentsWithEmbeddings:
 
 class TestAddDocumentsReadonly:
     async def test_readonly_blocked(self):
-        with patch(f'{MODULE}.Context') as mock_ctx:
+        with patch('awslabs.valkey_mcp_server.context.Context') as mock_ctx:
             mock_ctx.readonly_mode.return_value = True
             result = await add_documents(index_name='idx', documents=[{'id': '1'}])
         assert result['status'] == 'error'
         assert 'Readonly' in result['reason']
+
+
+class TestAddDocumentsErrorHandling:
+    async def test_request_error_on_hset(self):
+        """RequestError from GLIDE hset should be caught per-document."""
+        from glide_shared.exceptions import RequestError
+
+        mock_client = AsyncMock()
+        mock_client.hset = AsyncMock(side_effect=RequestError('connection refused'))
+        with patch(f'{MODULE}.get_client', AsyncMock(return_value=mock_client)):
+            result = await add_documents(
+                index_name='idx',
+                documents=[{'id': '1', 'title': 'test'}],
+                prefix='doc:',
+            )
+        assert result['status'] == 'error'
+        assert result['errors'] == 1
+
+    async def test_connection_error_propagates(self):
+        """RequestError from get_client should propagate via @tool_errors."""
+        from glide_shared.exceptions import RequestError
+
+        with patch(f'{MODULE}.get_client', AsyncMock(side_effect=RequestError('no connection'))):
+            result = await add_documents(
+                index_name='idx',
+                documents=[{'id': '1', 'title': 'test'}],
+                prefix='doc:',
+            )
+        assert result['status'] == 'error'
+        assert 'no connection' in result['reason']

@@ -54,6 +54,7 @@ def create_embeddings_provider() -> EmbeddingsProvider:
         return OllamaEmbeddings(
             base_url=EMBEDDING_CFG.get('ollama_host', 'http://localhost:11434'),
             model=EMBEDDING_CFG.get('ollama_embedding_model', 'nomic-embed-text'),
+            dimensions=EMBEDDING_CFG.get('embedding_dimensions'),
         )
 
     elif provider_type == 'bedrock':
@@ -76,7 +77,9 @@ def create_embeddings_provider() -> EmbeddingsProvider:
             raise ValueError('OPENAI_API_KEY environment variable is required for OpenAI provider')
 
         return OpenAIEmbeddings(
-            api_key=api_key, model=EMBEDDING_CFG.get('openai_model', 'text-embedding-3-small')
+            api_key=api_key,
+            model=EMBEDDING_CFG.get('openai_model', 'text-embedding-3-small'),
+            dimensions=EMBEDDING_CFG.get('embedding_dimensions'),
         )
 
     elif provider_type == 'hash':

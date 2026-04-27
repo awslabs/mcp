@@ -19,8 +19,8 @@ from __future__ import annotations
 import logging
 from awslabs.valkey_mcp_server.common.connection import get_client
 from awslabs.valkey_mcp_server.common.server import mcp
+from awslabs.valkey_mcp_server.common.utils import check_allowlist, tool_errors
 from awslabs.valkey_mcp_server.common.utils import decode_value as _decode
-from awslabs.valkey_mcp_server.common.utils import tool_errors
 from typing import Any
 
 
@@ -130,7 +130,7 @@ async def valkey_read(
         valkey_read(command="INFO", args=["memory"])
     """
     cmd = command.upper()
-    if cmd not in READ_COMMANDS:
+    if not check_allowlist(cmd, args, READ_COMMANDS):
         return {
             'status': 'error',
             'reason': f"Command '{cmd}' is not in the read allowlist. "

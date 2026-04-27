@@ -18,10 +18,11 @@ from __future__ import annotations
 
 import logging
 import struct
-from awslabs.valkey_mcp_server.common.connection import get_client
+from awslabs.valkey_mcp_server.common.connection import GlideClientType, get_client
 from awslabs.valkey_mcp_server.common.server import mcp
 from awslabs.valkey_mcp_server.common.utils import (
     pack_embedding,
+    tool_errors,
 )
 from awslabs.valkey_mcp_server.embeddings import get_provider, has_provider
 from glide import ft
@@ -29,7 +30,6 @@ from glide_shared.commands.server_modules.ft_options.ft_search_options import (
     FtSearchLimit,
     FtSearchOptions,
 )
-from glide_shared.exceptions import RequestError
 from typing import Any
 
 
@@ -63,6 +63,7 @@ def _decode_docs(results, return_fields=None, skip_field=None) -> list[dict[str,
 
 
 @mcp.tool()
+@tool_errors
 async def search(
     index_name: str,
     query_text: str | None = None,
@@ -103,45 +104,36 @@ async def search(
     if not query_text and not document_id:
         return {'status': 'error', 'reason': "Provide 'query_text' or 'document_id'"}
 
-    try:
-        client = await get_client()
+    client = await get_client()
 
-        if document_id:
-            return await _find_similar(
-                client,
-                index_name,
-                document_id,
-                vector_field,
-                filter_expression,
-                return_fields,
-                offset,
-                limit,
-            )
+    if document_id:
+        return await _find_similar(
+            client,
+            index_name,
+            document_id,
+            vector_field,
+            filter_expression,
+            return_fields,
+            offset,
+            limit,
+        )
 
-        embeddings_available = has_provider()
-        if mode == 'text' or (not mode and not embeddings_available):
-            return await _text(
-                client,
-                index_name,
-                query_text,
-                filter_expression,
-                return_fields,
-                offset,
-                limit,
-            )
-        if mode == 'hybrid' or (embeddings_available and hybrid_weight != 0.5):
-            return await _hybrid(
-                client,
-                index_name,
-                query_text,
-                vector_field,
-                filter_expression,
-                return_fields,
-                offset,
-                limit,
-                hybrid_weight,
-            )
-        return await _semantic(
+    if query_text is None:
+        return {'status': 'error', 'reason': "Provide 'query_text' for this search mode"}
+
+    embeddings_available = has_provider()
+    if mode == 'text' or (not mode and not embeddings_available):
+        return await _text(
+            client,
+            index_name,
+            query_text,
+            filter_expression,
+            return_fields,
+            offset,
+            limit,
+        )
+    if mode == 'hybrid' or (embeddings_available and hybrid_weight != 0.5):
+        return await _hybrid(
             client,
             index_name,
             query_text,
@@ -150,13 +142,18 @@ async def search(
             return_fields,
             offset,
             limit,
+            hybrid_weight,
         )
-
-    except RequestError as e:
-        return {'status': 'error', 'reason': str(e)}
-    except Exception as e:
-        logger.exception('search failed: %s', e)
-        return {'status': 'error', 'reason': str(e)}
+    return await _semantic(
+        client,
+        index_name,
+        query_text,
+        vector_field,
+        filter_expression,
+        return_fields,
+        offset,
+        limit,
+    )
 
 
 def _build_text_query(query_text: str, filt: str | None) -> str:
@@ -174,7 +171,16 @@ def _build_text_query(query_text: str, filt: str | None) -> str:
     return query_text
 
 
-async def _semantic(client, index_name, query_text, vector_field, filt, ret, offset, limit):
+async def _semantic(
+    client: GlideClientType,
+    index_name: str,
+    query_text: str,
+    vector_field: str,
+    filt: str | None,
+    ret: list[str] | None,
+    offset: int,
+    limit: int,
+) -> dict[str, Any]:
     provider = get_provider()
     emb = await provider.generate_embedding(query_text)
     blob = pack_embedding(emb)
@@ -190,7 +196,15 @@ async def _semantic(client, index_name, query_text, vector_field, filt, ret, off
     return {'status': 'success', 'mode': 'semantic', 'results': docs, 'total': results[0]}
 
 
-async def _text(client, index_name, query_text, filt, ret, offset, limit):
+async def _text(
+    client: GlideClientType,
+    index_name: str,
+    query_text: str,
+    filt: str | None,
+    ret: list[str] | None,
+    offset: int,
+    limit: int,
+) -> dict[str, Any]:
     qs = _build_text_query(query_text, filt)
     results = await ft.search(
         client=client,
@@ -202,7 +216,16 @@ async def _text(client, index_name, query_text, filt, ret, offset, limit):
     return {'status': 'success', 'mode': 'text', 'results': docs, 'total': results[0]}
 
 
-async def _find_similar(client, index_name, doc_id, vector_field, filt, ret, offset, limit):
+async def _find_similar(
+    client: GlideClientType,
+    index_name: str,
+    doc_id: str,
+    vector_field: str,
+    filt: str | None,
+    ret: list[str] | None,
+    offset: int,
+    limit: int,
+) -> dict[str, Any]:
     raw = await client.hget(doc_id, vector_field)
     if not raw:
         return {'status': 'error', 'reason': f"'{doc_id}' not found or no '{vector_field}' field"}
@@ -226,7 +249,17 @@ async def _find_similar(client, index_name, doc_id, vector_field, filt, ret, off
     return {'status': 'success', 'mode': 'find_similar', 'results': docs, 'total': len(docs)}
 
 
-async def _hybrid(client, index_name, query_text, vector_field, filt, ret, offset, limit, weight):
+async def _hybrid(
+    client: GlideClientType,
+    index_name: str,
+    query_text: str,
+    vector_field: str,
+    filt: str | None,
+    ret: list[str] | None,
+    offset: int,
+    limit: int,
+    weight: float,
+) -> dict[str, Any]:
     provider = get_provider()
     emb = await provider.generate_embedding(query_text)
     blob = pack_embedding(emb)

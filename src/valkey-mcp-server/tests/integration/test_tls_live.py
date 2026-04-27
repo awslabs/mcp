@@ -108,6 +108,6 @@ class TestTlsConnection:
 
     async def test_info(self, tls_client):
         """Server info over TLS — verifies full command roundtrip."""
-        result = await tls_client.custom_command(['INFO', 'server'])
+        result = await tls_client.info()
         decoded = result.decode() if isinstance(result, bytes) else result
         assert 'valkey_version' in decoded or 'redis_version' in decoded

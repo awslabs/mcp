@@ -260,8 +260,8 @@ class TestJsonIndexSearch:
             action='create',
             index_name=idx,
             schema=[
-                {'name': 'title', 'type': 'TEXT'},
-                {'name': 'category', 'type': 'TAG'},
+                {'name': '$.title', 'type': 'TEXT', 'alias': 'title'},
+                {'name': '$.category', 'type': 'TAG', 'alias': 'category'},
             ],
             prefix=[prefix],
             index_type='JSON',
@@ -281,7 +281,7 @@ class TestJsonIndexSearch:
     async def test_text_search_json_index(self, json_index):
         result = await search(
             index_name=json_index,
-            query='laptop',
+            query_text='laptop',
             mode='text',
         )
         assert result['status'] == 'success'
@@ -291,7 +291,7 @@ class TestJsonIndexSearch:
     async def test_filter_search_json_index(self, json_index):
         result = await search(
             index_name=json_index,
-            query='@category:{Electronics}',
+            query_text='@category:{Electronics}',
             mode='text',
         )
         assert result['status'] == 'success'

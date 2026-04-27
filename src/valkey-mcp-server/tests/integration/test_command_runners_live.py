@@ -102,6 +102,26 @@ class TestValkeyReadLive:
         assert result['status'] == 'success'
         assert isinstance(result['result'], int)
 
+    async def test_memory_usage(self, client):
+        """Multi-word command: MEMORY USAGE."""
+        key = _k('mem1')
+        await client.set(key, 'hello')
+        result = await valkey_read(command='MEMORY', args=['USAGE', key])
+        assert result['status'] == 'success'
+        assert isinstance(result['result'], int)
+        assert result['result'] > 0
+        await client.delete([key])
+
+    async def test_json_get_multiword(self, client):
+        """Multi-word command: JSON.GET."""
+        from glide import glide_json
+
+        key = _k('jmw')
+        await glide_json.set(client, key, '$', '"test"')
+        result = await valkey_read(command='JSON.GET', args=[key])
+        assert result['status'] == 'success'
+        await client.delete([key])
+
     async def test_scan(self, client):
         key = _k('scan1')
         await client.set(key, 'v')
@@ -173,6 +193,14 @@ class TestValkeyWriteLive:
     async def test_blocked_eval(self):
         result = await valkey_write(command='EVAL', args=['return 1', '0'])
         assert result['status'] == 'error'
+
+    async def test_read_via_write(self):
+        """GETDEL is in the write allowlist and also returns a value."""
+        key = _k('wrv')
+        await valkey_write(command='SET', args=[key, 'hello'])
+        result = await valkey_write(command='GETDEL', args=[key])
+        assert result['status'] == 'success'
+        assert result['result'] == 'hello'
 
 
 class TestValkeyAdminLive:

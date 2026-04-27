@@ -154,6 +154,15 @@ class TestManageIndexCreate:
             )
         assert result['status'] == 'error'
 
+    async def test_create_with_alias(self):
+        result = await manage_index(
+            action='create',
+            index_name='new',
+            schema=[{'name': '$.title', 'type': 'TEXT', 'alias': 'title'}],
+            index_type='JSON',
+        )
+        assert result['status'] == 'success'
+
 
 class TestManageIndexUnknownAction:
     async def test_unknown_action(self):

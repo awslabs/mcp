@@ -90,3 +90,20 @@ class TestEmbeddingConfig:
             reload(cfg_mod)
             assert cfg_mod.EMBEDDING_CFG['provider'] == 'ollama'
             assert cfg_mod.EMBEDDING_CFG['ollama_embedding_model'] == 'mxbai-embed-large'
+
+    def test_embedding_dimensions(self):
+        env = {'EMBEDDING_DIMENSIONS': '512'}
+        with patch.dict('os.environ', env, clear=True):
+            import awslabs.valkey_mcp_server.common.config as cfg_mod
+            from importlib import reload
+
+            reload(cfg_mod)
+            assert cfg_mod.EMBEDDING_CFG['embedding_dimensions'] == 512
+
+    def test_embedding_dimensions_unset(self):
+        with patch.dict('os.environ', {}, clear=True):
+            import awslabs.valkey_mcp_server.common.config as cfg_mod
+            from importlib import reload
+
+            reload(cfg_mod)
+            assert cfg_mod.EMBEDDING_CFG['embedding_dimensions'] is None

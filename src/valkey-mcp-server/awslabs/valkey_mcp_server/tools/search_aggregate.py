@@ -33,7 +33,6 @@ from glide_shared.commands.server_modules.ft_options.ft_aggregate_options import
     FtAggregateSortProperty,
     OrderBy,
 )
-from glide_shared.exceptions import RequestError
 from typing import Any
 
 
@@ -177,31 +176,22 @@ async def aggregate(
     Returns:
         Dict with "status" and "results" (list of row dicts).
     """
-    try:
-        client = await get_client()
+    client = await get_client()
 
-        # Build typed GLIDE clauses from pipeline stages
-        clauses: list[FtAggregateClause] = []
-        if pipeline:
-            for i, stage in enumerate(pipeline):
-                try:
-                    clauses.append(_build_clause(stage))
-                except ValueError as e:
-                    return {'status': 'error', 'reason': f'Stage {i}: {e}'}
+    # Build typed GLIDE clauses from pipeline stages
+    clauses: list[FtAggregateClause] = []
+    if pipeline:
+        for i, stage in enumerate(pipeline):
+            try:
+                clauses.append(_build_clause(stage))
+            except ValueError as e:
+                return {'status': 'error', 'reason': f'Stage {i}: {e}'}
 
-        options = FtAggregateOptions(loadAll=True, clauses=clauses)
+    options = FtAggregateOptions(loadAll=True, clauses=clauses)
 
-        logger.debug('aggregate: index=%s query=%s clauses=%d', index_name, query, len(clauses))
-        raw = await ft.aggregate(
-            client=client, index_name=index_name, query=query, options=options
-        )
-        logger.debug('aggregate raw response type=%s', type(raw).__name__)
+    logger.debug('aggregate: index=%s query=%s clauses=%d', index_name, query, len(clauses))
+    raw = await ft.aggregate(client=client, index_name=index_name, query=query, options=options)
+    logger.debug('aggregate raw response type=%s', type(raw).__name__)
 
-        rows = _decode_aggregate_response(raw)
-        return {'status': 'success', 'results': rows, 'total': len(rows)}
-
-    except RequestError as e:
-        return {'status': 'error', 'reason': str(e)}
-    except Exception as e:
-        logger.exception('aggregate failed: %s', e)
-        return {'status': 'error', 'reason': str(e)}
+    rows = _decode_aggregate_response(raw)
+    return {'status': 'success', 'results': rows, 'total': len(rows)}

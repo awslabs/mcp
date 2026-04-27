@@ -104,8 +104,8 @@ async def json_get(
 
 
 @mcp.tool()
-@readonly_guard
 @tool_errors
+@readonly_guard
 async def json_set(
     key: str,
     value: str | int | float | bool | list | dict | None,
@@ -125,7 +125,21 @@ async def json_set(
         Dict with "status".
     """
     client = await get_client()
-    encoded = json_stdlib.dumps(value)
+    # glide_json.set expects a JSON-formatted string.
+    if isinstance(value, str):
+        # Detect pre-encoded JSON strings from the MCP framework (e.g., '"light"').
+        # json.loads('"light"') → 'light' (str), meaning it was pre-encoded.
+        # json.loads('light') → JSONDecodeError, meaning it's a plain string.
+        # json.loads('123') → 123 (int), meaning the user passed the string "123"
+        # which should be stored as a string, not a number — so we only skip
+        # encoding when the decoded result is also a str.
+        try:
+            decoded = json_stdlib.loads(value)
+            encoded = value if isinstance(decoded, str) else json_stdlib.dumps(value)
+        except (json_stdlib.JSONDecodeError, ValueError):
+            encoded = json_stdlib.dumps(value)
+    else:
+        encoded = json_stdlib.dumps(value)
     await glide_json.set(client, key, path, encoded)
     if ttl is not None:
         await client.expire(key, ttl)
@@ -133,8 +147,8 @@ async def json_set(
 
 
 @mcp.tool()
-@readonly_guard
 @tool_errors
+@readonly_guard
 async def json_arrappend(
     key: str,
     values: list[Any],
@@ -161,8 +175,8 @@ async def json_arrappend(
 
 
 @mcp.tool()
-@readonly_guard
 @tool_errors
+@readonly_guard
 async def json_arrpop(
     key: str,
     path: str = '$',
@@ -192,8 +206,8 @@ async def json_arrpop(
 
 
 @mcp.tool()
-@readonly_guard
 @tool_errors
+@readonly_guard
 async def json_arrtrim(
     key: str,
     start: int,

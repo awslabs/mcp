@@ -58,7 +58,7 @@ class TestBuildConfig:
             f'{MODULE}.VALKEY_CFG',
             {
                 'host': 'cluster.example.com',
-                'port': 6379,
+                'port': 7000,
                 'password': '',
                 'username': None,
                 'ssl': False,
@@ -120,7 +120,7 @@ class TestBuildConfig:
             f'{MODULE}.VALKEY_CFG',
             {
                 'host': 'cluster.example.com',
-                'port': 6379,
+                'port': 7000,
                 'password': '',
                 'username': None,
                 'ssl': True,

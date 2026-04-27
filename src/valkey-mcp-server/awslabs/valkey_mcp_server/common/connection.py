@@ -132,15 +132,13 @@ async def get_client() -> GlideClientType:
 
 async def close_client() -> None:
     """Close the GLIDE client if open."""
-    global _client
-    if _client is not None:
-        await _client.close()
-        _client = None
+    await reset_client()
 
 
 async def reset_client() -> None:
     """Close and reset client reference (for testing)."""
     global _client
-    if _client is not None:
-        await _client.close()
-    _client = None
+    async with _client_lock:
+        if _client is not None:
+            await _client.close()
+        _client = None

@@ -171,3 +171,45 @@ class TestFindSimilar:
         result = await search(index_name='idx', document_id='missing')
         assert result['status'] == 'error'
         assert 'not found' in result['reason']
+
+
+class TestSearchErrorHandling:
+    async def test_request_error_returns_error_dict(self, mock_ft):
+        """RequestError from GLIDE should be caught by @tool_errors."""
+        from glide_shared.exceptions import RequestError
+
+        mock_ft.search = AsyncMock(side_effect=RequestError('index not found'))
+        with patch(f'{MODULE}.has_provider', return_value=False):
+            result = await search(index_name='nonexistent', query_text='hello', mode='text')
+        assert result['status'] == 'error'
+        assert 'index not found' in result['reason']
+
+    async def test_semantic_provider_failure(self, mock_ft, mock_provider):
+        """Embedding provider failure should propagate as error."""
+        mock_provider.generate_embedding = AsyncMock(side_effect=RuntimeError('model offline'))
+        with (
+            patch(f'{MODULE}.has_provider', return_value=True),
+            patch(f'{MODULE}.get_provider', return_value=mock_provider),
+        ):
+            with pytest.raises(RuntimeError, match='model offline'):
+                await search(index_name='idx', query_text='hello')
+
+    async def test_hybrid_provider_failure(self, mock_ft, mock_provider):
+        """Embedding failure in hybrid mode should propagate."""
+        mock_provider.generate_embedding = AsyncMock(side_effect=RuntimeError('timeout'))
+        with (
+            patch(f'{MODULE}.has_provider', return_value=True),
+            patch(f'{MODULE}.get_provider', return_value=mock_provider),
+        ):
+            with pytest.raises(RuntimeError, match='timeout'):
+                await search(index_name='idx', query_text='hello', mode='hybrid')
+
+    async def test_find_similar_request_error(self, mock_client, mock_ft):
+        """RequestError during find_similar should be caught."""
+        from glide_shared.exceptions import RequestError
+
+        mock_client.hget = AsyncMock(return_value=b'\x00' * 16)
+        mock_ft.search = AsyncMock(side_effect=RequestError('connection lost'))
+        result = await search(index_name='idx', document_id='doc:1')
+        assert result['status'] == 'error'
+        assert 'connection lost' in result['reason']

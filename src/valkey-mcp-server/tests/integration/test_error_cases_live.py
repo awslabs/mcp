@@ -33,6 +33,7 @@ from awslabs.valkey_mcp_server.tools.json import (
 )
 from awslabs.valkey_mcp_server.tools.search_manage_index import manage_index
 from awslabs.valkey_mcp_server.tools.search_query import search
+from glide import glide_json
 from unittest.mock import AsyncMock, patch
 
 
@@ -60,31 +61,31 @@ class TestJsonErrorCasesLive:
     async def test_arrpop_nonexistent_key(self):
         result = await json_arrpop(key='nonexistent_crash_test_key')
         assert result['status'] == 'error'
-        assert result['status'] == 'error'
+        assert 'reason' in result
 
     async def test_arrtrim_nonexistent_key(self):
         result = await json_arrtrim(key='nonexistent_crash_test_key', start=0, stop=1)
         assert result['status'] == 'error'
-        assert result['status'] == 'error'
+        assert 'reason' in result
 
     async def test_arrappend_to_non_array(self, client):
-        await client.custom_command(['JSON.SET', 'crash_test_num', '$', '42'])
+        await glide_json.set(client, 'crash_test_num', '$', '42')
         result = await json_arrappend(key='crash_test_num', values=['x'])
         assert result['status'] == 'error'
         assert 'not an array' in result['reason']
-        await client.custom_command(['DEL', 'crash_test_num'])
+        await client.delete(['crash_test_num'])
 
     async def test_arrappend_nonexistent_key(self):
         result = await json_arrappend(key='nonexistent_crash_test_key', values=[1])
         assert result['status'] == 'error'
-        assert result['status'] == 'error'
+        assert 'reason' in result
 
     async def test_server_still_alive_after_errors(self, client):
         """Verify the server didn't crash — this test runs last."""
-        await client.custom_command(['JSON.SET', 'alive_check', '$', '"yes"'])
-        result = await client.custom_command(['JSON.GET', 'alive_check'])
+        await glide_json.set(client, 'alive_check', '$', '"yes"')
+        result = await glide_json.get(client, 'alive_check')
         assert result is not None
-        await client.custom_command(['DEL', 'alive_check'])
+        await client.delete(['alive_check'])
 
 
 class TestManageIndexErrorCasesLive:
@@ -93,7 +94,7 @@ class TestManageIndexErrorCasesLive:
     async def test_info_nonexistent_index(self):
         result = await manage_index(action='info', index_name='nonexistent_crash_test_idx')
         assert result['status'] == 'error'
-        assert result['status'] == 'error'
+        assert 'reason' in result
 
     async def test_create_duplicate_index(self, client):
         # Create an index first
@@ -117,26 +118,26 @@ class TestManageIndexErrorCasesLive:
             schema=[{'name': 'f', 'type': 'TEXT'}],
         )
         assert result['status'] == 'error'
-        assert result['status'] == 'error'
+        assert 'reason' in result
 
         await ft.dropindex(client, idx_name)
 
     async def test_drop_nonexistent_index(self):
         result = await manage_index(action='drop', index_name='nonexistent_crash_test_idx')
         assert result['status'] == 'error'
-        assert result['status'] == 'error'
+        assert 'reason' in result
 
 
 class TestSearchErrorCasesLive:
     """Search on non-existent index would crash without pre-validation."""
 
     async def test_search_nonexistent_index(self):
-        with patch(f'{SQ_MOD}._has_provider', return_value=False):
+        with patch(f'{SQ_MOD}.has_provider', return_value=False):
             result = await search(index_name='nonexistent_crash_test_idx', query_text='hello')
         assert result['status'] == 'error'
-        assert result['status'] == 'error'
+        assert 'reason' in result
 
     async def test_find_similar_nonexistent_index(self):
         result = await search(index_name='nonexistent_crash_test_idx', document_id='doc:1')
         assert result['status'] == 'error'
-        assert result['status'] == 'error'
+        assert 'reason' in result

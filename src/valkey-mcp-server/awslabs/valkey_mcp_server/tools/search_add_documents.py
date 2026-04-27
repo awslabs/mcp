@@ -24,8 +24,8 @@ from awslabs.valkey_mcp_server.common.utils import (
     index_exists,
     pack_embedding,
     readonly_guard,
+    tool_errors,
 )
-from awslabs.valkey_mcp_server.context import Context
 from awslabs.valkey_mcp_server.embeddings import get_provider as _get_provider
 from glide import ft
 from glide_shared.commands.server_modules.ft_options.ft_create_options import (
@@ -86,6 +86,7 @@ async def _auto_create_index(client, index_name, prefix, embedding_field, dimens
 
 
 @mcp.tool()
+@tool_errors
 @readonly_guard
 async def add_documents(
     index_name: str,
@@ -115,9 +116,6 @@ async def add_documents(
     Returns:
         Dict with "status", "added" count, "errors" count, and provider info.
     """
-    if Context.readonly_mode():
-        return {'status': 'error', 'added': 0, 'reason': 'Readonly mode'}
-
     if embedding_field and not text_fields:
         return {
             'status': 'error',
@@ -128,62 +126,60 @@ async def add_documents(
     if prefix is None:
         prefix = f'{index_name}:'
 
-    try:
-        client = await get_client()
-        added = 0
-        errors = 0
-        actual_dims = embedding_dimensions
-        index_checked = False
+    client = await get_client()
+    added = 0
+    errors = 0
+    actual_dims = embedding_dimensions
+    index_checked = False
+    provider = _get_provider() if embedding_field and text_fields else None
 
-        for doc in documents:
-            doc_id = doc.get(id_field)
-            if doc_id is None:
-                logger.warning("Document missing '%s', skipping", id_field)
-                errors += 1
-                continue
+    for doc in documents:
+        doc_id = doc.get(id_field)
+        if doc_id is None:
+            logger.warning("Document missing '%s', skipping", id_field)
+            errors += 1
+            continue
 
-            try:
-                mapping: dict[
-                    str | bytes | bytearray | memoryview, str | bytes | bytearray | memoryview
-                ] = {}
-                for k, v in doc.items():
-                    if k == id_field:
-                        continue
-                    mapping[k] = json.dumps(v) if isinstance(v, (dict, list)) else str(v)
+        try:
+            mapping: dict[
+                str | bytes | bytearray | memoryview, str | bytes | bytearray | memoryview
+            ] = {}
+            for k, v in doc.items():
+                if k == id_field:
+                    continue
+                mapping[k] = json.dumps(v) if isinstance(v, (dict, list)) else str(v)
 
-                if embedding_field and text_fields:
-                    text = ' '.join(str(doc.get(f, '')) for f in text_fields)
-                    provider = _get_provider()
-                    embedding = await provider.generate_embedding(text)
+            if embedding_field and text_fields:
+                text = ' '.join(str(doc.get(f, '')) for f in text_fields)
+                if provider is None:
+                    raise ValueError('Embedding provider not configured')
+                embedding = await provider.generate_embedding(text)
 
-                    if actual_dims is None:
-                        actual_dims = len(embedding)
-                    if not index_checked:
-                        if not await index_exists(client, index_name):
-                            await _auto_create_index(
-                                client, index_name, prefix, embedding_field, actual_dims
-                            )
-                        index_checked = True
+                if actual_dims is None:
+                    actual_dims = len(embedding)
+                if not index_checked:
+                    if not await index_exists(client, index_name):
+                        await _auto_create_index(
+                            client, index_name, prefix, embedding_field, actual_dims
+                        )
+                    index_checked = True
 
-                    mapping[embedding_field] = pack_embedding(embedding)
+                mapping[embedding_field] = pack_embedding(embedding)
 
-                await client.hset(f'{prefix}{doc_id}', mapping)
-                added += 1
-            except Exception as e:
-                logger.warning('Failed to process document %s: %s', doc_id, e)
-                errors += 1
+            await client.hset(f'{prefix}{doc_id}', mapping)
+            added += 1
+        except Exception as e:
+            logger.warning('Failed to process document %s: %s', doc_id, e)
+            errors += 1
 
-        status = 'success' if added > 0 else 'error'
-        result: dict[str, Any] = {
-            'status': status,
-            'added': added,
-            'errors': errors,
-            'index_name': index_name,
-        }
-        if embedding_field:
-            result['embedding_dimensions'] = actual_dims
-            result['embeddings_provider'] = _get_provider().get_provider_name()
-        return result
-
-    except Exception as e:
-        return {'status': 'error', 'added': 0, 'reason': str(e)}
+    status = 'success' if added > 0 else 'error'
+    result: dict[str, Any] = {
+        'status': status,
+        'added': added,
+        'errors': errors,
+        'index_name': index_name,
+    }
+    if embedding_field and provider:
+        result['embedding_dimensions'] = actual_dims
+        result['embeddings_provider'] = provider.get_provider_name()
+    return result

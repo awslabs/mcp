@@ -19,8 +19,14 @@ from __future__ import annotations
 import logging
 from awslabs.valkey_mcp_server.common.connection import get_client
 from awslabs.valkey_mcp_server.common.server import mcp
-from awslabs.valkey_mcp_server.common.utils import decode_value as _decode
-from awslabs.valkey_mcp_server.common.utils import readonly_guard, tool_errors
+from awslabs.valkey_mcp_server.common.utils import (
+    check_allowlist,
+    readonly_guard,
+    tool_errors,
+)
+from awslabs.valkey_mcp_server.common.utils import (
+    decode_value as _decode,
+)
 from typing import Any
 
 
@@ -131,8 +137,8 @@ BLOCKED_COMMANDS = frozenset(
 
 
 @mcp.tool()
-@readonly_guard
 @tool_errors
+@readonly_guard
 async def valkey_write(
     command: str,
     args: list[str] | None = None,
@@ -157,13 +163,13 @@ async def valkey_write(
     """
     cmd = command.upper()
 
-    if cmd in BLOCKED_COMMANDS or cmd.split()[0] in BLOCKED_COMMANDS:
+    if check_allowlist(cmd, args, BLOCKED_COMMANDS):
         return {
             'status': 'error',
             'reason': f"Command '{cmd}' is blocked. Use valkey_admin for destructive commands.",
         }
 
-    if cmd not in WRITE_COMMANDS:
+    if not check_allowlist(cmd, args, WRITE_COMMANDS):
         return {
             'status': 'error',
             'reason': f"Command '{cmd}' is not in the write allowlist. "

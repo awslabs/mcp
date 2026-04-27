@@ -68,6 +68,17 @@ class TestValkeyRead:
         result = await valkey_read(command='FLUSHALL')
         assert result['status'] == 'error'
 
+    async def test_prefix_bypass_blocked(self):
+        """GETDEL should NOT pass the read allowlist even though GET is allowed."""
+        result = await valkey_read(command='GETDEL', args=['mykey'])
+        assert result['status'] == 'error'
+        assert 'not in the read allowlist' in result['reason']
+
+    async def test_multiword_command_allowed(self):
+        """MEMORY USAGE should pass the read allowlist."""
+        result = await valkey_read(command='MEMORY', args=['USAGE', 'mykey'])
+        assert result['status'] == 'success'
+
     async def test_decodes_bytes(self, mock_client):
         mock_client.custom_command.return_value = [b'key1', b'val1']
         result = await valkey_read(command='MGET', args=['key1'])
@@ -233,3 +244,83 @@ class TestValkeyAdmin:
             result = await valkey_admin(command='FLUSHALL', confirm=True)
         assert result['status'] == 'error'
         assert 'refused' in result['reason']
+
+
+class TestCheckAllowlist:
+    """Dedicated unit tests for check_allowlist — security-critical."""
+
+    def test_exact_match(self):
+        from awslabs.valkey_mcp_server.common.utils import check_allowlist
+
+        assert check_allowlist('GET', ['mykey'], frozenset({'GET'})) is True
+
+    def test_exact_match_no_args(self):
+        from awslabs.valkey_mcp_server.common.utils import check_allowlist
+
+        assert check_allowlist('DBSIZE', None, frozenset({'DBSIZE'})) is True
+
+    def test_prefix_bypass_blocked(self):
+        """GETDEL must NOT match GET — word boundary required."""
+        from awslabs.valkey_mcp_server.common.utils import check_allowlist
+
+        assert check_allowlist('GETDEL', ['mykey'], frozenset({'GET'})) is False
+
+    def test_multiword_command(self):
+        from awslabs.valkey_mcp_server.common.utils import check_allowlist
+
+        assert check_allowlist('MEMORY', ['USAGE', 'mykey'], frozenset({'MEMORY USAGE'})) is True
+
+    def test_dotted_command(self):
+        from awslabs.valkey_mcp_server.common.utils import check_allowlist
+
+        assert check_allowlist('JSON.GET', ['mykey'], frozenset({'JSON.GET'})) is True
+
+    def test_no_match(self):
+        from awslabs.valkey_mcp_server.common.utils import check_allowlist
+
+        assert check_allowlist('FLUSHALL', None, frozenset({'GET', 'SET'})) is False
+
+    def test_case_insensitive(self):
+        from awslabs.valkey_mcp_server.common.utils import check_allowlist
+
+        assert check_allowlist('get', ['mykey'], frozenset({'GET'})) is True
+
+    def test_empty_allowlist(self):
+        from awslabs.valkey_mcp_server.common.utils import check_allowlist
+
+        assert check_allowlist('GET', None, frozenset()) is False
+
+
+class TestToolErrorsDecorator:
+    """Dedicated unit tests for @tool_errors — applied to 8+ tools."""
+
+    async def test_catches_request_error(self):
+        from awslabs.valkey_mcp_server.common.utils import tool_errors
+        from glide_shared.exceptions import RequestError
+
+        @tool_errors
+        async def failing():
+            raise RequestError('connection lost')
+
+        result = await failing()
+        assert result == {'status': 'error', 'reason': 'connection lost'}
+
+    async def test_passes_through_success(self):
+        from awslabs.valkey_mcp_server.common.utils import tool_errors
+
+        @tool_errors
+        async def ok():
+            return {'status': 'success', 'data': 42}
+
+        result = await ok()
+        assert result == {'status': 'success', 'data': 42}
+
+    async def test_programming_error_propagates(self):
+        from awslabs.valkey_mcp_server.common.utils import tool_errors
+
+        @tool_errors
+        async def buggy():
+            raise TypeError('bad arg')
+
+        with pytest.raises(TypeError, match='bad arg'):
+            await buggy()

@@ -37,12 +37,12 @@ class OllamaEmbeddings(EmbeddingsProvider):
         self,
         base_url: str = 'http://localhost:11434',
         model: str = 'nomic-embed-text',
-        dimensions: int = 768,
+        dimensions: int | None = None,
     ):
         """Initialize Ollama embeddings provider."""
         self.base_url = base_url if '://' in base_url else f'http://{base_url}'
         self.model = model
-        self._dimensions = dimensions
+        self._dimensions = dimensions if dimensions is not None else 768
         self._client = httpx.AsyncClient(timeout=30.0)
 
     async def close(self) -> None:
@@ -116,9 +116,9 @@ class BedrockEmbeddings(EmbeddingsProvider):
 
         # Set default dimensions based on model type
         if self._is_nova_model:
-            self._dimensions = dimensions or 3072  # Nova default
+            self._dimensions = dimensions if dimensions is not None else 3072  # Nova default
         else:
-            self._dimensions = dimensions or 1536  # Titan default
+            self._dimensions = dimensions if dimensions is not None else 1536  # Titan default
 
     @property
     def model_id(self) -> str:
@@ -247,14 +247,20 @@ class OpenAIEmbeddings(EmbeddingsProvider):
     """
 
     def __init__(
-        self, api_key: str | None, model: str = 'text-embedding-3-small'
+        self,
+        api_key: str | None,
+        model: str = 'text-embedding-3-small',
+        dimensions: int | None = None,
     ):  # pragma: allowlist secret
         """Initialize OpenAI embeddings provider."""
         from openai import AsyncOpenAI
 
         self.client = AsyncOpenAI(api_key=api_key)
         self.model = model
-        self._dimensions = 1536 if '3-small' in model else 3072
+        if dimensions is not None:
+            self._dimensions = dimensions
+        else:
+            self._dimensions = 1536 if '3-small' in model else 3072
 
     async def generate_embedding(self, text: str) -> list[float]:
         """Generate embedding using OpenAI."""
