@@ -1,0 +1,78 @@
+{
+  "category": "visual_monitoring",
+  "documentation_links": [
+    {
+      "title": "CloudWatch Synthetics Visual Monitoring",
+      "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Synthetics_Library_SyntheticsLogger_VisualTesting.html"
+    },
+    {
+      "title": "CloudWatch Synthetics Runtime Versions",
+      "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Synthetics_Library_nodejs_puppeteer.html"
+    }
+  ],
+  "error_patterns": [
+    {
+      "text_contains": "visualReference"
+    },
+    {
+      "text_contains": "visualCompareWithBaseRun"
+    },
+    {
+      "text_contains": "visual monitoring"
+    },
+    {
+      "text_contains": "baseline"
+    },
+    {
+      "text_contains": "clearBaseScreenshots"
+    }
+  ],
+  "id": "RUNTIME-010",
+  "recommendations": [
+    {
+      "confidence": 95,
+      "estimated_time": "15 minutes",
+      "priority": "high",
+      "problem": "Runtime clears visualReference.json when visual monitoring is disabled mid-run, corrupting the baseline",
+      "solution": [
+        {
+          "command": "# Via AWS Console:\n# 1. Navigate to CloudWatch Synthetics console\n# 2. Select your canary\n# 3. Click \"Actions\" > \"Edit\"\n# 4. Under \"Runtime version\", select syn-nodejs-puppeteer-11.0/syn-nodejs-playwright-3.0 or later\n# 5. Save changes\n\n# Via AWS CLI:\naws synthetics update-canary \\\n  --name <canary-name> \\\n  --region <canary-region> \\\n  --runtime-version syn-nodejs-puppeteer-11.0\n",
+          "description": "This bug is fixed in syn-nodejs-puppeteer-11.0/syn-nodejs-playwright-3.0. Upgrade the canary runtime version.",
+          "expected_outcome": "visualReference.json is no longer cleared when a run completes with visual monitoring disabled.",
+          "step": "Upgrade canary runtime to syn-nodejs-puppeteer-11.0+/syn-nodejs-playwright-3.0+"
+        },
+        {
+          "command": "# For syn-nodejs-puppeteer-11.0+ and syn-nodejs-playwright-3.0+ (--visual-references):\naws synthetics update-canary \\\n  --name <canary-name> \\\n  --region <canary-region> \\\n  --visual-references '[{\"BaseCanaryRunId\":\"<known-good-run-id>\"}]'\n\n# For older runtimes (--visual-reference):\naws synthetics update-canary \\\n  --name <canary-name> \\\n  --region <canary-region> \\\n  --visual-reference BaseCanaryRunId=<known-good-run-id>\n",
+          "description": "If visualReference.json was already wiped, restore the baseline using the UpdateCanary API. Use --visual-references for syn-nodejs-puppeteer-11.0+ and syn-nodejs-playwright-3.0+. Use --visual-reference (singular) for older runtimes. This is only supported via the AWS CLI or SDK, not the console.",
+          "expected_outcome": "Visual monitoring baseline is restored to the known-good run and comparisons resume correctly.",
+          "step": "Restore the visual monitoring baseline if already corrupted"
+        }
+      ],
+      "title": "Upgrade to syn-nodejs-puppeteer-11.0/syn-nodejs-playwright-3.0 or later"
+    }
+  ],
+  "root_cause": "When a canary run completes with visual monitoring disabled (getVisualCompareWithBaseRun() returns false), the runtime's VisualValidator detects the mismatch between the disabled state and an existing visualReference.json in S3. It sets clearBaseScreenshots=true and calls updateBaseScreenshots, which overwrites visualReference.json with an empty object. This happens whenever the script exits before calling withVisualCompareWithBaseRun(true) \u2014 for example, if the script throws early or uses conditional logic that skips enabling visual monitoring. The runtime was designed to support permanent opt-out from visual monitoring, but it incorrectly applies the same clearing behavior to transient single-run disablement. Fixed in syn-nodejs-puppeteer-11.0 and syn-nodejs-playwright-3.0.",
+  "runtime_versions": [
+    "syn-nodejs-puppeteer-9.0",
+    "syn-nodejs-puppeteer-9.1",
+    "syn-nodejs-puppeteer-10.0",
+    "syn-nodejs-playwright-2.0"
+  ],
+  "severity": "high",
+  "symptoms": [
+    "visualReference.json is overwritten with empty content ({\"visualReference\":{},\"knownScreenshotNames\":[]}) after a canary run that completed with visual monitoring disabled",
+    "Visual monitoring baseline is unexpectedly lost after a failed or early-exit canary run",
+    "Canary starts failing visual comparison after recovering from failures because baseline was wiped during the failed run",
+    "Customer must manually reset the visual monitoring baseline to recover",
+    "Issue occurs when the canary script throws or exits before withVisualCompareWithBaseRun(true) is called, leaving visual monitoring disabled for that run"
+  ],
+  "tags": [
+    "visual-monitoring",
+    "baseline",
+    "visualReference",
+    "withVisualCompareWithBaseRun",
+    "clearBaseScreenshots",
+    "runtime-bug"
+  ],
+  "title": "Visual monitoring baseline cleared when canary run completes with visual monitoring disabled"
+}
