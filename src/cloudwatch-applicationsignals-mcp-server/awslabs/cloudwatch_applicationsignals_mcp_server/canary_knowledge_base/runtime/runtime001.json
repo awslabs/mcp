@@ -1,0 +1,121 @@
+{
+  "category": "script_timeouts",
+  "documentation_links": [
+    {
+      "title": "Canary RunConfig",
+      "url": "https://docs.aws.amazon.com/AmazonSynthetics/latest/APIReference/API_CanaryRunConfigInput.html"
+    },
+    {
+      "title": "Synthetics Canary Troubleshooting",
+      "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Synthetics_Canaries_Troubleshoot.html"
+    },
+    {
+      "title": "CloudWatch Synthetics Metrics",
+      "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Synthetics_Canaries_metrics.html"
+    }
+  ],
+  "error_patterns": [
+    {
+      "regex": "page\\.goto:.*Timeout.*exceeded"
+    },
+    {
+      "text_contains": "Timeout 60000ms exceeded"
+    },
+    {
+      "text_contains": "waiting until \"load\""
+    },
+    {
+      "error_type": "TimeoutError"
+    }
+  ],
+  "id": "RUNTIME-001",
+  "recommendations": [
+    {
+      "confidence": 90,
+      "estimated_time": "15 minutes",
+      "priority": "critical",
+      "problem": "Default 1024 MB ephemeral storage insufficient for Playwright browser operations",
+      "solution": [
+        {
+          "command": "# Via AWS Console:\n# 1. Navigate to CloudWatch console\n# 2. Go to Metrics > All metrics\n# 3. Search for \"EphemeralStorageUsagePercent\" in the search bar\n# 4. Select CloudWatchSynthetics namespace\n# 5. Filter by your canary name to see storage usage percentage\n",
+          "description": "Verify EphemeralStorageUsagePercent metric in CloudWatch Synthetics",
+          "expected_outcome": "Metric shows high ephemeral storage usage during timeout failures",
+          "step": "Check current ephemeral storage usage"
+        },
+        {
+          "command": "aws synthetics update-canary \\\n  --name <canary-name> \\\n  --region <canary-region> \\\n  --run-config '{\n    \"EphemeralStorage\": 2048\n  }'\n",
+          "description": "Increase ephemeral storage from default 1024 MB to 2048 MB or more",
+          "expected_outcome": "Canary configuration updated with increased ephemeral storage",
+          "step": "Update canary ephemeral storage configuration"
+        },
+        {
+          "command": "aws synthetics get-canary-runs \\\n  --name <canary-name> \\\n  --region <canary-region> \\\n  --max-results 5 \n",
+          "description": "Verify timeout issues resolve with increased storage",
+          "expected_outcome": "Canary passes consistently, EphemeralStorageUsagePercent metric decreases",
+          "step": "Monitor canary executions after change"
+        }
+      ],
+      "title": "Increase Lambda ephemeral storage to 2048 MB or higher"
+    },
+    {
+      "confidence": 85,
+      "estimated_time": "10 minutes",
+      "priority": "high",
+      "problem": "High memory usage may contribute to slower page loads",
+      "solution": [
+        {
+          "command": "aws synthetics update-canary \\\n  --name <canary-name> \\\n  --region <canary-region> \\\n  --run-config '{\n    \"MemoryInMB\": 1920\n  }'\n",
+          "description": "Higher memory allocation provides more CPU and better performance",
+          "expected_outcome": "Improved performance, lower memory usage percentage",
+          "step": "Increase Lambda memory available to the canary while its running"
+        },
+        {
+          "command": "# Via AWS Console:\n# 1. Navigate to CloudWatch Synthetics console\n# 2. Select your canary\n# 3. Select a failed canary run from the canary run availability graph\n# 4. Check the canary run execution log under \"Logs\" tab. \n",
+          "description": "Check that Max Memory Used stays well below allocation",
+          "expected_outcome": "Memory usage decreases",
+          "step": "Verify memory metrics improve"
+        }
+      ],
+      "title": "Increase Lambda memory allocation"
+    },
+    {
+      "confidence": 75,
+      "estimated_time": "5 minutes",
+      "priority": "medium",
+      "problem": "60-second default timeout may be insufficient for JavaScript-heavy pages",
+      "solution": [
+        {
+          "command": "\nawait page.goto('https://example.com', { \n  timeout: 90000, \n  waitUntil: 'networkidle'\n});\n\n\npage.setDefaultTimeout(90000);\n",
+          "description": "For pages with heavy JavaScript",
+          "expected_outcome": "Page loads successfully within extended timeout",
+          "step": "Increase Playwright navigation timeout"
+        }
+      ],
+      "title": "Increase page load timeout for heavy pages"
+    }
+  ],
+  "root_cause": "Playwright-based canaries run Chromium inside Lambda, which writes browser cache, downloads, and temp files to /tmp (ephemeral storage). With the default 1024 MB ephemeral storage, Chromium can exhaust available disk space during page load, causing I/O stalls that prevent the page from finishing within the 60-second navigation timeout. The EphemeralStorageUsagePercent metric exceeds 90% during these failures. Higher memory usage (55-60% of allocation) further reduces available CPU time, compounding the slowdown.",
+  "runtime_versions": [
+    "syn-nodejs-playwright-2.0",
+    "syn-nodejs-playwright-3.0"
+  ],
+  "severity": "high",
+  "symptoms": [
+    "Canary intermittently fails with page load timeout",
+    "Manual testing of same endpoint works fine",
+    "Timeout 60000ms exceeded during page.goto()",
+    "Lambda execution duration exceeds 90 seconds",
+    "Memory usage approaching or exceeding 56% of allocated memory",
+    "Playwright navigation times out waiting for 'load' event"
+  ],
+  "tags": [
+    "playwright",
+    "timeout",
+    "lambda",
+    "ephemeral-storage",
+    "memory",
+    "resource-constraints",
+    "page-load"
+  ],
+  "title": "Playwright page load timeout with high Lambda resource usage"
+}

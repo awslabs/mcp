@@ -17,7 +17,7 @@
 import asyncio
 import os
 import signal
-from .tools import docs, gateway, memory
+from .tools import docs, gateway
 from .utils import cache
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -34,7 +34,8 @@ AGENTCORE_MCP_INSTRUCTIONS = (
     '## Code Interpreter Tools\n'
     'Use start_code_interpreter_session to create a sandbox, then execute_code, '
     'execute_command, or install_packages to run code. Use upload_file and '
-    'download_file to transfer data. Stop sessions when done to release resources.\n\n'
+    'download_file to transfer data. Stop sessions when done to release '
+    'resources.\n\n'
     '## Browser Tools\n'
     'Start a browser session with start_browser_session, then use browser '
     'interaction tools (browser_navigate, browser_snapshot, browser_click, '
@@ -50,15 +51,16 @@ AGENTCORE_MCP_INSTRUCTIONS = (
     '- For data extraction, prefer browser_evaluate over browser_snapshot. '
     'Use querySelectorAll to extract structured JSON (e.g., '
     '`[...document.querySelectorAll("tr")].map(r => r.innerText)`). '
-    'Snapshots are best for understanding page structure and finding element refs; '
-    'evaluate is best for extracting actual text and data.\n'
+    'Snapshots are best for understanding page structure and finding element '
+    'refs; evaluate is best for extracting actual text and data.\n'
     '- To set long text in form fields, use browser_evaluate with '
-    '`document.querySelector("selector").value = "text"` instead of browser_type '
-    'or browser_fill_form, which type character-by-character and may timeout on '
-    'long inputs.\n'
-    '- The timeout_seconds parameter on start_browser_session is an idle timeout '
-    'measured from the last activity, not an absolute session duration. Active '
-    'sessions persist as long as there is interaction within the timeout window.'
+    '`document.querySelector("selector").value = "text"` instead of '
+    'browser_type or browser_fill_form, which type character-by-character '
+    'and may timeout on long inputs.\n'
+    '- The timeout_seconds parameter on start_browser_session is an idle '
+    'timeout measured from the last activity, not an absolute session '
+    'duration. Active sessions persist as long as there is interaction '
+    'within the timeout window.'
 )
 
 
@@ -69,16 +71,17 @@ def _is_service_enabled(name: str) -> bool:
 
     if enable and disable:
         logger.warning(
-            'Both AGENTCORE_ENABLE_TOOLS and AGENTCORE_DISABLE_TOOLS are set. '
-            'AGENTCORE_ENABLE_TOOLS takes precedence; AGENTCORE_DISABLE_TOOLS is ignored.'
+            'Both AGENTCORE_ENABLE_TOOLS and AGENTCORE_DISABLE_TOOLS are set.'
+            ' AGENTCORE_ENABLE_TOOLS takes precedence;'
+            ' AGENTCORE_DISABLE_TOOLS is ignored.'
         )
 
     if enable:
         allowed = {t.strip().lower() for t in enable.split(',') if t.strip()}
         if not allowed:
             logger.warning(
-                'AGENTCORE_ENABLE_TOOLS is set but contains no valid entries. '
-                'All services enabled.'
+                'AGENTCORE_ENABLE_TOOLS is set but contains no valid '
+                'entries. All services enabled.'
             )
             return True
         return name.lower() in allowed
@@ -92,18 +95,23 @@ def _is_service_enabled(name: str) -> bool:
 _browser_cm = None
 _browser_sm = None
 
-# Code interpreter cleanup function — set during registration, used by lifespan
+# Code interpreter cleanup function
 _code_interpreter_cleanup = None
 
 
 @asynccontextmanager
 async def server_lifespan(server: FastMCP) -> AsyncIterator[None]:
-    """Manage server lifecycle — browser cleanup task, code interpreter cleanup, and graceful shutdown."""
+    """Manage server lifecycle.
+
+    Handles browser cleanup task, code interpreter cleanup, and
+    graceful shutdown.
+    """
     if _browser_cm is not None and _browser_sm is not None:
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGTERM, signal.SIGINT):
             loop.add_signal_handler(
-                sig, lambda cm=_browser_cm: asyncio.ensure_future(cm.cleanup())
+                sig,
+                lambda cm=_browser_cm: asyncio.ensure_future(cm.cleanup()),
             )
 
         from .tools.browser import cleanup_stale_sessions
@@ -128,7 +136,11 @@ async def server_lifespan(server: FastMCP) -> AsyncIterator[None]:
                 await _code_interpreter_cleanup()
 
 
-mcp = FastMCP(APP_NAME, instructions=AGENTCORE_MCP_INSTRUCTIONS, lifespan=server_lifespan)
+mcp = FastMCP(
+    APP_NAME,
+    instructions=AGENTCORE_MCP_INSTRUCTIONS,
+    lifespan=server_lifespan,
+)
 
 # Docs tools are always registered (no opt-out)
 mcp.tool()(docs.search_agentcore_docs)
@@ -149,7 +161,22 @@ if _is_service_enabled('runtime'):
         )
 
 if _is_service_enabled('memory'):
-    mcp.tool()(memory.manage_agentcore_memory)
+    try:
+        from .tools.memory import register_memory_tools
+
+        register_memory_tools(mcp)
+        logger.info('Memory tools registered (21 tools)')
+    except ImportError as e:
+        logger.error(
+            f'Memory tools disabled — failed to import dependencies: {e}.'
+            f' Ensure boto3 and botocore are installed.'
+        )
+    except Exception as e:
+        logger.error(
+            f'Memory tools disabled — initialization failed: {e}. '
+            f'Set AGENTCORE_DISABLE_TOOLS=memory to suppress.'
+        )
+
 if _is_service_enabled('gateway'):
     mcp.tool()(gateway.manage_agentcore_gateway)
 
@@ -161,8 +188,8 @@ if _is_service_enabled('browser'):
         logger.info('Browser tools registered (25 tools)')
     except ImportError as e:
         logger.error(
-            f'Browser tools disabled — failed to import dependencies: {e}. '
-            f'Ensure playwright and bedrock-agentcore are installed.'
+            f'Browser tools disabled — failed to import dependencies: '
+            f'{e}. Ensure playwright and bedrock-agentcore are installed.'
         )
     except Exception as e:
         logger.error(
@@ -182,13 +209,14 @@ if _is_service_enabled('code_interpreter'):
         logger.info('Code interpreter tools registered (9 tools)')
     except ImportError as e:
         logger.error(
-            f'Code interpreter tools disabled — failed to import dependencies: {e}. '
-            f'Ensure bedrock-agentcore is installed.'
+            f'Code interpreter tools disabled — failed to import '
+            f'dependencies: {e}. Ensure bedrock-agentcore is installed.'
         )
     except Exception as e:
         logger.error(
-            f'Code interpreter tools disabled — initialization failed: {e}. '
-            f'Set AGENTCORE_DISABLE_TOOLS=code_interpreter to suppress.'
+            f'Code interpreter tools disabled — initialization failed: '
+            f'{e}. Set AGENTCORE_DISABLE_TOOLS=code_interpreter '
+            f'to suppress.'
         )
 
 

@@ -1,0 +1,87 @@
+{
+  "category": "runtime_deprecation",
+  "documentation_links": [
+    {
+      "title": "CloudWatch Synthetics Runtime Versions",
+      "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Synthetics_Canaries_Library.html"
+    },
+    {
+      "title": "CloudFormation Continue Update Rollback",
+      "url": "https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-updating-stacks-continueupdaterollback.html"
+    },
+    {
+      "title": "CloudFormation Synthetics Resource Dry Run",
+      "url": "https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-synthetics-canary.html#cfn-synthetics-canary-dryrunandupdate"
+    },
+    {
+      "title": "Synthetics Safe Upgrade",
+      "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/performing-safe-canary-upgrades.html"
+    }
+  ],
+  "error_patterns": [
+    {
+      "text_contains": "CloudFormation"
+    },
+    {
+      "text_contains": "Rollback"
+    },
+    {
+      "text_contains": "UPDATE_ROLLBACK_FAILED"
+    },
+    {
+      "text_contains": "Runtime upgrade"
+    },
+    {
+      "text_contains": "Deprecated runtime version specified"
+    }
+  ],
+  "id": "RUNTIME-002",
+  "recommendations": [
+    {
+      "confidence": 90,
+      "estimated_time": "35 minutes",
+      "priority": "high",
+      "problem": "CloudFormation stack stuck in failed state preventing forward deployment",
+      "solution": [
+        {
+          "command": "# Via AWS Console:\n# 1. Navigate to CloudFormation console\n# 2. Select the failed stack\n# 3. Choose \"Continue update rollback\"\n# 4. Select resources to skip\n# 5. Confirm skip operation\n\n# Via AWS CLI:\naws cloudformation continue-update-rollback \\\n  --stack-name <stack-name> \\\n  --resources-to-skip <canary-resource-logical-id>\n",
+          "description": "Use CloudFormation console or CLI to skip failing resources",
+          "expected_outcome": "Stack reaches UPDATE_COMPLETE state",
+          "step": "Skip failing canary resources in CloudFormation"
+        },
+        {
+          "command": "# Option 1: Using AWS CLI\n# Create dry run to test runtime compatibility\naws synthetics start-canary-dry-run \\\n  --canary-name <canary-name> \\\n  --runtime-version <new-runtime-version>\n\n# Check dry run results\naws synthetics get-canary-runs \\\n  --canary-name <canary-name> \\\n  --dry-run-id <dry-run-id-from-previous-command>\n\n# Option 2: Using CloudFormation DryRunAndUpdate\n# Add to your CloudFormation template:\nResources:\n  MyCanary:\n    Type: AWS::Synthetics::Canary\n    Properties:\n      Name: canary-name\n      RuntimeVersion: new-runtime-version\n      DryRunAndUpdate: true  # Performs dry run before updating\n      Code:\n        Handler: canary.handler\n        S3Bucket: bucket\n        S3Key: updated-canary-script.zip\n",
+          "description": "Test canary with new runtime version without affecting production",
+          "expected_outcome": "Dry run succeeds, confirming runtime compatibility before deployment",
+          "step": "Validate runtime upgrade using Synthetics dry run"
+        },
+        {
+          "command": "aws synthetics update-canary \\\n  --name <canary-name> \\\n  --dry-run-id <dry-run-id-from-previous-command>\n",
+          "description": "Update production canary after successful dry run validation",
+          "expected_outcome": "Canary executes successfully with the validated runtime version",
+          "step": "Deploy canary with validated runtime version"
+        }
+      ],
+      "title": "Skip failing CloudFormation resources to unblock deployment"
+    }
+  ],
+  "root_cause": "CloudFormation attempted to roll back a canary update to its previous runtime version, but that version has since been deprecated by the Synthetics service. The UpdateCanary API rejects deprecated runtime versions with a 400 error, which causes the CloudFormation rollback itself to fail, leaving the stack in UPDATE_ROLLBACK_FAILED state. The stack cannot move forward (original update failed) or backward (rollback target is deprecated).",
+  "runtime_versions": [
+    "*"
+  ],
+  "severity": "high",
+  "symptoms": [
+    "CloudFormation deployment fails with deprecated runtime version error",
+    "CloudFormation stack stuck in UPDATE_ROLLBACK_FAILED state",
+    "Unable to rollback to previous runtime version",
+    "Canary enters unhealthy state after runtime upgrade attempt",
+    "CloudFormation error: 'Deprecated runtime version specified'"
+  ],
+  "tags": [
+    "runtime-upgrade",
+    "cloudformation",
+    "deprecated-runtime",
+    "rollback-failure"
+  ],
+  "title": "CloudFormation rollback failure due to runtime deprecation"
+}
