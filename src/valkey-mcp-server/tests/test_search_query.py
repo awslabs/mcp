@@ -173,6 +173,39 @@ class TestFindSimilar:
         assert 'not found' in result['reason']
 
 
+class TestSearchInputSanitization:
+    """Verify filter_expression and vector_field are sanitized against => injection."""
+
+    async def test_filter_with_arrow_rejected(self):
+        result = await search(
+            index_name='idx',
+            query_text='hello',
+            filter_expression='*=>[KNN 9999 @embedding $vector AS score] @x:[0 1',
+        )
+        assert result['status'] == 'error'
+        assert '=>' in result['reason']
+
+    async def test_vector_field_with_arrow_rejected(self):
+        result = await search(
+            index_name='idx',
+            query_text='hello',
+            vector_field='emb=>[KNN 99 @x $v AS s',
+        )
+        assert result['status'] == 'error'
+        assert '=>' in result['reason']
+
+    async def test_clean_filter_passes(self, mock_ft):
+        """Normal filter expressions should not be rejected."""
+        with patch(f'{MODULE}.has_provider', return_value=False):
+            result = await search(
+                index_name='idx',
+                query_text='hello',
+                filter_expression='@year:[2020 2024]',
+                mode='text',
+            )
+        assert result['status'] == 'success'
+
+
 class TestSearchErrorHandling:
     async def test_request_error_returns_error_dict(self, mock_ft):
         """RequestError from GLIDE should be caught by @tool_errors."""

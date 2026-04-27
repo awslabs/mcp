@@ -104,6 +104,14 @@ async def search(
     if not query_text and not document_id:
         return {'status': 'error', 'reason': "Provide 'query_text' or 'document_id'"}
 
+    # Sanitize inputs that are interpolated into FT.SEARCH query strings.
+    # The '=>' delimiter separates filter from KNN vector query — if present in
+    # user input, it could inject a KNN clause or alter query structure.
+    if filter_expression and '=>' in filter_expression:
+        return {'status': 'error', 'reason': "filter_expression must not contain '=>'"}
+    if '=>' in vector_field:
+        return {'status': 'error', 'reason': "vector_field must not contain '=>'"}
+
     client = await get_client()
 
     if document_id:
