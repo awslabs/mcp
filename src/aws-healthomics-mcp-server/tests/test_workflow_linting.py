@@ -2237,3 +2237,35 @@ class TestPathTraversalPrevention:
 
         assert result['status'] == 'error'
         assert 'Path traversal detected' in result['message']
+
+    @pytest.mark.asyncio
+    async def test_wdl_bundle_rejects_null_byte_in_file_path(self):
+        """Property: WDL bundle linting rejects file paths with null bytes."""
+        workflow_files = {
+            'malicious\x00.wdl': 'version 1.0\nworkflow evil {}',
+            'main.wdl': 'version 1.0\nworkflow main {}',
+        }
+
+        result = await self.wdl_linter.lint_workflow_bundle(
+            workflow_files=workflow_files,
+            main_workflow_file='main.wdl',
+        )
+
+        assert result['status'] == 'error'
+        assert 'Invalid file path in workflow bundle' in result['message']
+
+    @pytest.mark.asyncio
+    async def test_cwl_bundle_rejects_null_byte_in_file_path(self):
+        """Property: CWL bundle linting rejects file paths with null bytes."""
+        workflow_files = {
+            'malicious\x00.cwl': 'class: Workflow\ncwlVersion: v1.0',
+            'main.cwl': 'class: Workflow\ncwlVersion: v1.0',
+        }
+
+        result = await self.cwl_linter.lint_workflow_bundle(
+            workflow_files=workflow_files,
+            main_workflow_file='main.cwl',
+        )
+
+        assert result['status'] == 'error'
+        assert 'Invalid file path in workflow bundle' in result['message']
