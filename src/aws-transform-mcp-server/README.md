@@ -53,6 +53,7 @@ Add to `~/.kiro/settings/mcp.json`:
       "command": "uvx",
       "args": ["awslabs.aws-transform-mcp-server@latest"],
       "env": {
+        "AWS_REGION": "us-east-1",
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
     }
@@ -77,6 +78,7 @@ Edit the config file for your OS:
       "command": "uvx",
       "args": ["awslabs.aws-transform-mcp-server@latest"],
       "env": {
+        "AWS_REGION": "us-east-1",
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
     }
@@ -98,6 +100,7 @@ Add to your MCP settings file (`.cursor/mcp.json`, `.vscode/mcp.json`, or Cline 
       "command": "uvx",
       "args": ["awslabs.aws-transform-mcp-server@latest"],
       "env": {
+        "AWS_REGION": "us-east-1",
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
     }
@@ -113,7 +116,7 @@ After configuring, restart your MCP client and ask: **"Check my AWS Transform co
 
 ## Authentication
 
-Most tools require **Transform Web API auth**. Some advanced tools additionally require **SigV4 auth** (Control Plane). Configure through your AI assistant after adding the server.
+Most tools require **Transform Web API auth** (browser login). One tool (`accept_connector`) additionally requires **AWS credentials**, which are detected automatically from your environment.
 
 ### Web API Auth (required)
 
@@ -132,14 +135,16 @@ The tool prompts for your IdC start URL (e.g., `https://d-xxx.awsapps.com/start`
 3. Copy the session cookie value
 4. Ask your AI assistant: **"Configure AWS Transform with cookie auth"** and provide the cookie and your tenant URL
 
-### SigV4 Auth (optional)
+### AWS Credential Auth (auto-detected)
 
-Required for Control Plane tools: `accept_connector`, `create_profile`, `get_agent`, `get_agent_runtime_configuration`.
+Required for Control Plane tools such as `accept_connector`.
 
-Ask your AI assistant: **"Configure SigV4 for AWS Transform"** and provide your AWS account ID.
+AWS credentials are detected automatically from your environment — no tool call needed. Set `AWS_PROFILE` in your MCP client config `env` block to select a specific profile. Credentials auto-refresh when temporary tokens expire.
+
+To verify your credentials are working, ask your AI assistant: **"Check my AWS Transform connection status"** — `get_status` validates via STS and shows your account ID, ARN, and the resolved TCP endpoint.
 
 > [!IMPORTANT]
-> The `accept_connector` tool requires **both** Web API auth and SigV4 auth configured.
+> The `accept_connector` tool requires **both** Web API auth and AWS credentials.
 
 ## Available Tools
 
@@ -148,8 +153,7 @@ Ask your AI assistant: **"Configure SigV4 for AWS Transform"** and provide your 
 | Tool | Description | Auth |
 |------|-------------|------|
 | `configure` | Connect via session cookie or SSO/IdC bearer token. | None |
-| `configure_sigv4` | Configure AWS credentials for the Transform Control Plane. | None |
-| `get_status` | Check all connection statuses and server version. | None |
+| `get_status` | Check all connection statuses, validate AWS credentials via STS, and show server version. | None |
 
 ### Workspace Management
 
@@ -186,26 +190,18 @@ Ask your AI assistant: **"Configure SigV4 for AWS Transform"** and provide your 
 |------|-------------|------|
 | `load_instructions` | MUST be called before working on any job. Scans the artifact store for workflow instructions and downloads them if found. Other job-scoped tools block with `INSTRUCTIONS_REQUIRED` until this is called. | Web API |
 
-### Connectors and Profiles
+### Connectors
 
 | Tool | Description | Auth |
 |------|-------------|------|
 | `create_connector` | Create an S3 or code source connector in a workspace. | Web API |
-| `create_profile` | Create a profile with SSO or external IdP identity. | SigV4 |
-| `accept_connector` | Associate an IAM role with a connector. | Web API + SigV4 |
-
-### Agent Registry
-
-| Tool | Description | Auth |
-|------|-------------|------|
-| `get_agent` | Get agent metadata by name. | SigV4 |
-| `get_agent_runtime_configuration` | Get agent runtime config, optionally at a specific version. | SigV4 |
+| `accept_connector` | Associate an IAM role with a connector. | Web API + AWS credentials |
 
 ### Resource Listing and Details
 
 | Tool | Description | Auth |
 |------|-------------|------|
-| `list_resources` | List any resource type: workspaces, jobs, connectors, tasks, artifacts, messages, worklogs, plan, agents, account_connectors, profiles, collaborators. | Web API (SigV4 for account_connectors, profiles) |
+| `list_resources` | List any resource type: workspaces, jobs, connectors, tasks, artifacts, messages, worklogs, plan, agents, collaborators. | Web API |
 | `get_resource` | Get details for any resource by ID. Auto-downloads artifacts and enriches HITL tasks with output schemas. | Web API |
 
 ### Collaborators
@@ -246,11 +242,14 @@ Authentication state is saved to `~/.aws-transform-mcp/config.json` and auto-loa
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `FASTMCP_LOG_LEVEL` | Log level for the MCP server | `INFO` |
-| `AWS_REGION` | AWS region for SigV4 credential resolution | boto3 default |
-| `AWS_PROFILE` | AWS profile for SigV4 credential resolution | boto3 default |
+Set these in your MCP client config `env` block:
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `AWS_PROFILE` | No | `default` profile | AWS profile from `~/.aws/credentials` to use for Control Plane tools (e.g., `accept_connector`). If you have multiple AWS profiles, set this to the one with access to your Transform account. If not set, boto3 uses the `[default]` profile, then falls back to environment variables (`AWS_ACCESS_KEY_ID`), then instance metadata. See [boto3 credential chain](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html#configuring-credentials) for the full resolution order. |
+| `AWS_REGION` | No | Profile region, then `us-east-1` | AWS region for Control Plane API calls. If not set, uses the region from your AWS profile (`~/.aws/config`), then falls back to `us-east-1`. |
+| `ATX_STAGE` | No | `prod` | Environment stage (`prod` or `gamma`). Controls which Transform Control Plane endpoint the server connects to. Gamma only supports `us-east-1` and `us-west-2`. |
+| `FASTMCP_LOG_LEVEL` | No | `INFO` | Log level for the MCP server (`DEBUG`, `INFO`, `WARNING`, `ERROR`). |
 
 ## HITL Task Response System
 

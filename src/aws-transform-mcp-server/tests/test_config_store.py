@@ -26,15 +26,12 @@ from awslabs.aws_transform_mcp_server.config_store import (
     derive_fes_endpoint,
     derive_tcp_endpoint,
     get_config,
-    get_sigv4_config,
     is_configured,
-    is_sigv4_configured,
     load_persisted_config,
     persist_config,
     set_config,
-    set_sigv4_config,
 )
-from awslabs.aws_transform_mcp_server.models import RefreshedTokens, SigV4Config
+from awslabs.aws_transform_mcp_server.models import RefreshedTokens
 from unittest.mock import AsyncMock, patch
 
 
@@ -43,10 +40,8 @@ def _reset_state():
     """Reset default store state before each test."""
     store = config_store._default_store
     store._config = None
-    store._sigv4_config = None
     yield
     store._config = None
-    store._sigv4_config = None
 
 
 # ── derive_fes_endpoint ─────────────────────────────────────────────────
@@ -191,29 +186,6 @@ class TestStateManagement:
         clear_config()
         assert is_configured() is False
         assert get_config() is None
-
-
-class TestSigV4State:
-    """Tests for SigV4 config state management."""
-
-    def test_initial_state(self):
-        assert get_sigv4_config() is None
-        assert is_sigv4_configured() is False
-
-    def test_set_get(self):
-        cfg = SigV4Config(
-            account_id='123456789012',
-            role='MyRole',
-            stage='prod',
-            region='us-east-1',
-            tcp_endpoint='https://transform.us-east-1.api.aws',
-            access_key_id='AKIA...',
-            secret_access_key='secret',  # pragma: allowlist secret
-            session_token='token',
-        )
-        set_sigv4_config(cfg)
-        assert is_sigv4_configured() is True
-        assert get_sigv4_config() is cfg
 
 
 # ── Persistence ─────────────────────────────────────────────────────────

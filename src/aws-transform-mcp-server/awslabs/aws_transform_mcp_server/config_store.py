@@ -21,7 +21,7 @@ import tempfile
 import time
 from awslabs.aws_transform_mcp_server import oauth
 from awslabs.aws_transform_mcp_server.consts import REGION_AIRPORT_CODES
-from awslabs.aws_transform_mcp_server.models import ConnectionConfig, SigV4Config
+from awslabs.aws_transform_mcp_server.models import ConnectionConfig
 from loguru import logger
 
 
@@ -140,7 +140,7 @@ def build_bearer_config(
 
 
 class ConfigStore:
-    """Manages FES and SigV4 connection configuration with persistence.
+    """Manages FES connection configuration with persistence.
 
     Holds in-memory config state and handles reading/writing to disk.
 
@@ -151,7 +151,6 @@ class ConfigStore:
     def __init__(self, config_dir: str | None = None) -> None:
         """Initialize the config store."""
         self._config: ConnectionConfig | None = None
-        self._sigv4_config: SigV4Config | None = None
         self._config_dir = config_dir or os.path.join(
             os.path.expanduser('~'), '.aws-transform-mcp'
         )
@@ -176,22 +175,6 @@ class ConfigStore:
     def clear_config(self) -> None:
         """Clear the current FES connection config."""
         self._config = None
-
-    # ── SigV4 config ────────────────────────────────────────────────────
-
-    @property
-    def sigv4_config(self) -> SigV4Config | None:
-        """The current SigV4 config, or None if not configured."""
-        return self._sigv4_config
-
-    @sigv4_config.setter
-    def sigv4_config(self, value: SigV4Config | None) -> None:
-        self._sigv4_config = value
-
-    @property
-    def is_sigv4_configured(self) -> bool:
-        """True if a SigV4 config has been set."""
-        return self._sigv4_config is not None
 
     # ── Persistence ─────────────────────────────────────────────────────
 
@@ -352,21 +335,6 @@ def is_configured() -> bool:
 def clear_config() -> None:
     """Clear the current FES connection config."""
     _default_store.clear_config()
-
-
-def set_sigv4_config(config: SigV4Config) -> None:
-    """Set the current SigV4 (TCP) config."""
-    _default_store.sigv4_config = config
-
-
-def get_sigv4_config() -> SigV4Config | None:
-    """Return the current SigV4 config, or None if not configured."""
-    return _default_store.sigv4_config
-
-
-def is_sigv4_configured() -> bool:
-    """Return True if a SigV4 config has been set."""
-    return _default_store.is_sigv4_configured
 
 
 def persist_config() -> None:

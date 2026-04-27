@@ -56,8 +56,8 @@ class TestInstructions:
             'AWS Transform',
             'HITL',
             'configure',
-            'configure_sigv4',
             'get_status',
+            'AWS_PROFILE',
             'MUST NOT',
             'complete_task',
             'list_resources',
@@ -74,7 +74,6 @@ class TestInstructions:
 
 _HANDLER_MODULES = {
     'ConfigureHandler': 'awslabs.aws_transform_mcp_server.tools.configure',
-    'SigV4ConfigureHandler': 'awslabs.aws_transform_mcp_server.tools.sigv4_configure',
     'WorkspaceHandler': 'awslabs.aws_transform_mcp_server.tools.workspace',
     'JobHandler': 'awslabs.aws_transform_mcp_server.tools.job',
     'HitlHandler': 'awslabs.aws_transform_mcp_server.tools.hitl',
@@ -86,6 +85,7 @@ _HANDLER_MODULES = {
     'CollaboratorHandler': 'awslabs.aws_transform_mcp_server.tools.collaborator',
     'ApproveHitlHandler': 'awslabs.aws_transform_mcp_server.tools.approve_hitl',
     'LoadInstructionsHandler': 'awslabs.aws_transform_mcp_server.tools.load_instructions',
+    'JobStatusHandler': 'awslabs.aws_transform_mcp_server.tools.job_status',
 }
 
 

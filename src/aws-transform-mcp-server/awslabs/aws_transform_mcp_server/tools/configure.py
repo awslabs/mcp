@@ -14,6 +14,7 @@
 
 """Configure tool handlers for AWS Transform MCP server."""
 
+import os
 import time
 from awslabs.aws_transform_mcp_server import __version__ as SERVER_VERSION
 from awslabs.aws_transform_mcp_server.audit import audited_tool
@@ -23,9 +24,7 @@ from awslabs.aws_transform_mcp_server.config_store import (
     clear_config,
     derive_fes_endpoint,
     get_config,
-    get_sigv4_config,
     is_configured,
-    is_sigv4_configured,
     persist_config,
     set_config,
 )
@@ -101,10 +100,7 @@ class ConfigureHandler:
             ),
         ),
     ) -> dict:
-        """Connect to AWS Transform using a browser session cookie or SSO/IdC bearer token.
-
-        Not related to configure_sigv4 -- these are independent auth systems.
-        """
+        """Connect to AWS Transform using a browser session cookie or SSO/IdC bearer token."""
         # ── Cookie auth ─────────────────────────────────────────────────
         if authMode == 'cookie':
             if not sessionCookie:
@@ -175,7 +171,7 @@ class ConfigureHandler:
             if len(profiles) == 0:
                 return error_result(
                     'NO_PROFILES',
-                    'No ATX Transform profiles found for this account.',
+                    'No AWS Transform profiles found for this account.',
                     'You may need to create a profile first.',
                 )
 
@@ -358,29 +354,48 @@ class ConfigureHandler:
                     'region': config.region,
                 }
 
-        # ── SigV4 status ────────────────────────────────────────────────
-        if not is_sigv4_configured():
-            status['sigv4'] = {
-                'configured': False,
-                'message': 'SigV4 not configured. Use configure_sigv4 to set up TCP credentials.',
-            }
-        else:
-            sigv4 = get_sigv4_config()
-            if sigv4 is None:
+        # ── SigV4 status (auto-detect + STS validation) ────────────────
+        try:
+            from awslabs.aws_transform_mcp_server.aws_helper import AwsHelper
+            from awslabs.aws_transform_mcp_server.config_store import derive_tcp_endpoint
+
+            stage = os.environ.get('ATX_STAGE', 'prod')
+            session = AwsHelper.create_session()
+            region = AwsHelper.resolve_region(session)
+            profile = os.environ.get('AWS_PROFILE')
+            resolved = session.get_credentials()
+            if resolved is None:
                 status['sigv4'] = {
                     'configured': False,
                     'message': (
-                        'SigV4 not configured. Use configure_sigv4 to set up TCP credentials.'
+                        'No AWS credentials detected. '
+                        'Set AWS_PROFILE in your MCP client config env block, '
+                        'or configure via aws configure / environment variables.'
                     ),
                 }
-                return text_result(status, is_error=False)
+            else:
+                sts_client = AwsHelper.create_boto3_client('sts', region_name=region)
+                identity = sts_client.get_caller_identity()
+                tcp_endpoint = derive_tcp_endpoint(stage, region)
+                source = f'AWS_PROFILE={profile}' if profile else 'default credential chain'
+                status['sigv4'] = {
+                    'configured': True,
+                    'source': f'auto-detected from {source}',
+                    'accountId': identity.get('Account'),
+                    'arn': identity.get('Arn'),
+                    'stage': stage,
+                    'region': region,
+                    'tcpEndpoint': tcp_endpoint,
+                }
+        except ValueError as exc:
             status['sigv4'] = {
-                'configured': True,
-                'accountId': sigv4.account_id,
-                'role': sigv4.role,
-                'stage': sigv4.stage,
-                'region': sigv4.region,
-                'tcpEndpoint': sigv4.tcp_endpoint,
+                'configured': False,
+                'message': f'Region configuration error: {exc}',
+            }
+        except Exception as exc:
+            status['sigv4'] = {
+                'configured': False,
+                'message': f'AWS credential validation failed: {exc}',
             }
 
         fes_status = status.get('fes', {})

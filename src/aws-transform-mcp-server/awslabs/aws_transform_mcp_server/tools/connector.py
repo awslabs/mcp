@@ -19,7 +19,6 @@ from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.config_store import (
     get_config,
     is_configured,
-    is_sigv4_configured,
 )
 from awslabs.aws_transform_mcp_server.fes_client import call_fes
 from awslabs.aws_transform_mcp_server.tcp_client import call_tcp
@@ -37,10 +36,6 @@ from urllib.parse import urlencode
 _NOT_CONFIGURED_CODE = 'NOT_CONFIGURED'
 _NOT_CONFIGURED_MSG = 'Transform connection not configured.'
 _NOT_CONFIGURED_ACTION = 'Call "configure" first.'
-
-_SIGV4_NOT_CONFIGURED_CODE = 'SIGV4_NOT_CONFIGURED'
-_SIGV4_NOT_CONFIGURED_MSG = 'SigV4 credentials not configured.'
-_SIGV4_NOT_CONFIGURED_ACTION = 'Call "configure_sigv4" to set up AWS credentials.'
 
 
 def _build_verification_link(
@@ -97,10 +92,15 @@ class ConnectorHandler:
             description='Optional list of target AWS regions (e.g. ["us-east-1", "us-west-2"])',
         ),
     ) -> dict:
-        """Create an S3 or code source connector in a workspace via FES.
+        """Create a connector in a workspace.
 
-        Returns connector status and a verification link to share with your
-        AWS admin for approval.  Requires browser/SSO auth -- call configure first.
+        Returns connector status and a verification link. After creation,
+        the connector must be activated by either:
+        1. Opening the verification link in the AWS console (lets you create
+           an IAM role during approval), OR
+        2. Calling accept_connector with an existing IAM role ARN.
+
+        Requires browser/SSO auth.
         """
         if not is_configured():
             return error_result(_NOT_CONFIGURED_CODE, _NOT_CONFIGURED_MSG, _NOT_CONFIGURED_ACTION)
@@ -167,37 +167,48 @@ class ConnectorHandler:
         ctx: Context,
         workspaceId: str = Field(..., description='The workspace containing the connector'),
         connectorId: str = Field(..., description='The connector to associate the role with'),
-        awsAccountId: str = Field(..., description='AWS account ID that owns the IAM role'),
         roleArn: str = Field(
             ..., description='ARN of the IAM role to associate with the connector'
         ),
     ) -> dict:
-        """Associate an IAM role with a connector via TCP, then return status from FES.
+        """Activate a connector by associating an IAM role with it.
 
-        Requires BOTH auth systems:
-          - AWS credentials (configure_sigv4) for the TCP AssociateConnectorResource call
-          - Browser/SSO auth (configure) for the FES GetConnector status check
+        Alternative to approving via the AWS console verification link.
+        Use this when you already have an IAM role ARN ready. The AWS
+        account ID is inferred from your AWS credentials.
+
+        Requires both AWS credentials (auto-detected) and browser/SSO auth.
         """
-        if not is_sigv4_configured():
-            return error_result(
-                _SIGV4_NOT_CONFIGURED_CODE,
-                _SIGV4_NOT_CONFIGURED_MSG,
-                _SIGV4_NOT_CONFIGURED_ACTION,
-            )
+        from awslabs.aws_transform_mcp_server.aws_helper import AwsHelper
+
         if not is_configured():
             return error_result(
                 _NOT_CONFIGURED_CODE,
                 _NOT_CONFIGURED_MSG,
-                'Call "configure" first (needed to fetch connector status).',
+                _NOT_CONFIGURED_ACTION,
+            )
+
+        session = AwsHelper.create_session()
+        if session.get_credentials() is None:
+            return error_result(
+                'NO_AWS_CREDENTIALS',
+                'No AWS credentials detected.',
+                'Set AWS_PROFILE in your MCP client config env block, '
+                'or configure via aws configure / environment variables. '
+                'Use get_status to verify credentials are working.',
             )
 
         try:
+            region = AwsHelper.resolve_region(session)
+            sts_client = session.client('sts', region_name=region)
+            account_id = sts_client.get_caller_identity()['Account']
+
             await call_tcp(
                 'AssociateConnectorResource',
                 {
                     'connectorId': connectorId,
                     'workspaceId': workspaceId,
-                    'sourceAccount': awsAccountId,
+                    'sourceAccount': account_id,
                     'resource': {'roleArn': roleArn},
                     'clientToken': str(uuid.uuid4()),
                 },

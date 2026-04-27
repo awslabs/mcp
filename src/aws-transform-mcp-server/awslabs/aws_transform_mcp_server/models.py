@@ -39,19 +39,6 @@ class ConnectionConfig(BaseModel):
     oidc_client_secret_expires_at: Optional[int] = None  # unix timestamp (seconds)
 
 
-class SigV4Config(BaseModel):
-    """TCP (Transform Control Plane) SigV4 authentication configuration."""
-
-    account_id: str
-    role: str
-    stage: str
-    region: str
-    tcp_endpoint: str
-    access_key_id: str
-    secret_access_key: str
-    session_token: Optional[str] = None
-
-
 class OAuthTokens(BaseModel):
     """Result of a full OAuth Authorization Code + PKCE flow."""
 

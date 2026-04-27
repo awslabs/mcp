@@ -34,14 +34,16 @@ INSTRUCTIONS = """AWS Transform MCP Server — manage workspaces, jobs, tasks, c
 
 # Authentication
 
-Two independent auth systems. Configuring one does NOT affect the other.
-All tools are always visible — if auth is missing, the tool returns a
-structured error with the exact setup step to follow.
+Two auth systems. AWS credentials are auto-detected from the environment
+(AWS_PROFILE, ~/.aws/credentials, instance profile) — no tool call needed.
+Browser/SSO auth requires the `configure` tool.
 
 - `configure` → browser/SSO auth (FES). Used by most tools.
-- `configure_sigv4` → AWS IAM credentials (TCP). Used by accept_connector.
-- `accept_connector` requires BOTH.
-- `configure`, `configure_sigv4`, and `get_status` work without auth.
+- AWS credentials → auto-detected at startup. Used by `accept_connector`.
+  Set `AWS_PROFILE` in your MCP client config env block to select a profile.
+- `accept_connector` requires BOTH browser auth and AWS credentials.
+- `configure` and `get_status` work without auth.
+- `get_status` validates AWS credentials via STS and shows account ID.
 
 # Workflows
 
@@ -85,7 +87,8 @@ may still be generating.
 # Error Recovery
 
 - `NOT_CONFIGURED` → run `configure` (cookie or SSO).
-- `SIGV4_NOT_CONFIGURED` → run `configure_sigv4`.
+- AWS credential errors → Set `AWS_PROFILE` in your MCP client config env
+  block and restart. Use `get_status` to verify credentials are working.
 - `INSTRUCTIONS_REQUIRED` → run `load_instructions` for the job.
 - Auth errors (401/403) on any tool → run `get_status` to diagnose.
 - When uncertain about parameter values, ask the user — do not guess.
@@ -112,8 +115,8 @@ def _register_handlers(mcp: FastMCP) -> None:
     """Import and instantiate all tool handler classes on *mcp*.
 
     All tools are registered at startup regardless of auth state.
-    Auth is checked at call time — tools return NOT_CONFIGURED or
-    SIGV4_NOT_CONFIGURED with a suggestedAction if auth is missing.
+    Auth is checked at call time — tools return NOT_CONFIGURED with a
+    suggestedAction if auth is missing.
     """
     from awslabs.aws_transform_mcp_server.tools.approve_hitl import ApproveHitlHandler
     from awslabs.aws_transform_mcp_server.tools.artifact import ArtifactHandler
@@ -127,11 +130,9 @@ def _register_handlers(mcp: FastMCP) -> None:
     from awslabs.aws_transform_mcp_server.tools.job_status import JobStatusHandler
     from awslabs.aws_transform_mcp_server.tools.list_resources import ListResourcesHandler
     from awslabs.aws_transform_mcp_server.tools.load_instructions import LoadInstructionsHandler
-    from awslabs.aws_transform_mcp_server.tools.sigv4_configure import SigV4ConfigureHandler
     from awslabs.aws_transform_mcp_server.tools.workspace import WorkspaceHandler
 
     ConfigureHandler(mcp)
-    SigV4ConfigureHandler(mcp)
     WorkspaceHandler(mcp)
     JobHandler(mcp)
     HitlHandler(mcp)

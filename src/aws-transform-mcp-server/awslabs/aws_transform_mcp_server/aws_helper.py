@@ -25,9 +25,24 @@ USER_AGENT = f'md/awslabs#mcp#aws-transform-mcp-server#{__version__}'
 
 
 class AwsHelper:
-    """Singleton helper for creating and caching boto3 clients."""
+    """Helper for boto3 session, region, and client management."""
 
     _client_cache: Dict[str, Any] = {}
+
+    @staticmethod
+    def create_session() -> boto3.Session:
+        """Create a boto3 Session using AWS_PROFILE if set."""
+        profile = os.environ.get('AWS_PROFILE')
+        return boto3.Session(profile_name=profile) if profile else boto3.Session()
+
+    @staticmethod
+    def resolve_region(session: Optional[boto3.Session] = None) -> str:
+        """Resolve AWS region: AWS_REGION env → session profile region → us-east-1."""
+        return (
+            os.environ.get('AWS_REGION')
+            or (session.region_name if session else None)
+            or 'us-east-1'
+        )
 
     @classmethod
     def create_boto3_client(cls, service_name: str, region_name: Optional[str] = None) -> Any:
@@ -35,7 +50,8 @@ class AwsHelper:
 
         Args:
             service_name: AWS service name (e.g., 'sso-oidc', 'sts').
-            region_name: AWS region. Falls back to AWS_REGION env var.
+            region_name: AWS region override. If not provided, uses
+                         resolve_region() (AWS_REGION env → profile region → us-east-1).
 
         Returns:
             A boto3 client for the requested service.
@@ -44,18 +60,12 @@ class AwsHelper:
         if cache_key in cls._client_cache:
             return cls._client_cache[cache_key]
 
+        session = cls.create_session()
+        region = region_name or cls.resolve_region(session)
         config = Config(user_agent_extra=USER_AGENT)
-        region = region_name or os.environ.get('AWS_REGION')
-        profile = os.environ.get('AWS_PROFILE')
 
         try:
-            if profile:
-                session = boto3.Session(profile_name=profile, region_name=region)
-                client = session.client(service_name, config=config)  # type: ignore[call-overload]
-            elif region:
-                client = boto3.client(service_name, region_name=region, config=config)  # type: ignore[call-overload]
-            else:
-                client = boto3.client(service_name, config=config)  # type: ignore[call-overload]
+            client = session.client(service_name, region_name=region, config=config)  # type: ignore[call-overload]
         except Exception as e:
             raise Exception(f'Failed to create boto3 client for {service_name}: {str(e)}') from e
 

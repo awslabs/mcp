@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - First release of AWS Transform MCP Server
 - `configure` tool. Connect to AWS Transform using a browser session cookie or SSO/IdC bearer token
-- `configure_sigv4` tool. Configure AWS IAM credentials for the Transform Control Plane (TCP) API
+- AWS credentials auto-detected from environment (AWS_PROFILE, credential chain) for Control Plane tools
 - `get_status` tool. Check the status of all configured connections (FES and SigV4)
 - `create_workspace` tool. Create a new transformation workspace
 - `delete_workspace` tool. Delete a workspace with explicit confirmation
@@ -26,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `list_resources` tool. Browse collections of workspaces, jobs, connectors, tasks, artifacts, messages, worklogs, plans, agents, profiles, and collaborators
 - `get_resource` tool. Fetch a single resource with full details including HITL task enrichment
 - `create_connector` tool. Create an S3 or code source connector in a workspace
-- `create_profile` tool. Create an ATX profile via the Transform Control Plane
+- `create_profile` tool. Create a profile via the Transform Control Plane
 - `accept_connector` tool. Associate an IAM role with a connector (requires both FES and SigV4 auth)
 - `get_agent` tool. Fetch agent details from the agent registry
 - `get_agent_runtime_configuration` tool. Fetch agent runtime configuration

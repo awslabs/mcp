@@ -18,7 +18,7 @@
 import json
 import pytest
 from awslabs.aws_transform_mcp_server.http_utils import HttpError
-from awslabs.aws_transform_mcp_server.models import ConnectionConfig, OAuthTokens, SigV4Config
+from awslabs.aws_transform_mcp_server.models import ConnectionConfig, OAuthTokens
 from awslabs.aws_transform_mcp_server.tools.configure import ConfigureHandler
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -357,11 +357,11 @@ class TestConfigureSSO:
 
 class TestGetStatus:
     @pytest.mark.asyncio
-    @patch(
-        'awslabs.aws_transform_mcp_server.tools.configure.is_sigv4_configured', return_value=False
-    )
+    @patch('awslabs.aws_transform_mcp_server.aws_helper.boto3')
     @patch('awslabs.aws_transform_mcp_server.tools.configure.is_configured', return_value=False)
-    async def test_not_configured(self, mock_configured, mock_sigv4, handler, mock_context):
+    async def test_not_configured(self, mock_configured, mock_boto3, handler, mock_context):
+        mock_boto3.Session.return_value.get_credentials.return_value = None
+
         result = await handler.get_status(mock_context)
 
         parsed = json.loads(result['content'][0]['text'])
@@ -370,10 +370,7 @@ class TestGetStatus:
         assert result['isError'] is False
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.configure.get_sigv4_config')
-    @patch(
-        'awslabs.aws_transform_mcp_server.tools.configure.is_sigv4_configured', return_value=True
-    )
+    @patch('awslabs.aws_transform_mcp_server.aws_helper.boto3')
     @patch('awslabs.aws_transform_mcp_server.tools.configure.get_config')
     @patch(
         'awslabs.aws_transform_mcp_server.tools.configure.call_fes_direct_cookie',
@@ -385,8 +382,7 @@ class TestGetStatus:
         mock_configured,
         mock_fes_cookie,
         mock_get_config,
-        mock_sigv4_configured,
-        mock_get_sigv4,
+        mock_boto3,
         handler,
         mock_context,
     ):
@@ -399,16 +395,15 @@ class TestGetStatus:
             session_cookie='aws-transform-session=abc',
         )
         mock_fes_cookie.return_value = {'userId': 'user-1'}
-        mock_get_sigv4.return_value = SigV4Config(
-            account_id='123456789012',
-            role='Admin',
-            stage='prod',
-            region='us-east-1',
-            tcp_endpoint='https://transform.us-east-1.api.aws',
-            access_key_id='AKID',
-            secret_access_key='secret',  # pragma: allowlist secret
-            session_token='token',
-        )
+        mock_session = mock_boto3.Session.return_value
+        mock_session.get_credentials.return_value = True
+        mock_session.region_name = 'us-east-1'
+        mock_sts = MagicMock()
+        mock_sts.get_caller_identity.return_value = {
+            'Account': '123456789012',
+            'Arn': 'arn:aws:sts::123456789012:assumed-role/test/session',
+        }
+        mock_session.client.return_value = mock_sts
 
         result = await handler.get_status(mock_context)
 
@@ -417,12 +412,11 @@ class TestGetStatus:
         assert parsed['fes']['authMode'] == 'cookie'
         assert parsed['sigv4']['configured'] is True
         assert parsed['sigv4']['accountId'] == '123456789012'
+        assert parsed['sigv4']['arn'] == 'arn:aws:sts::123456789012:assumed-role/test/session'
         assert result['isError'] is False
 
     @pytest.mark.asyncio
-    @patch(
-        'awslabs.aws_transform_mcp_server.tools.configure.is_sigv4_configured', return_value=False
-    )
+    @patch('awslabs.aws_transform_mcp_server.aws_helper.boto3')
     @patch('awslabs.aws_transform_mcp_server.tools.configure.clear_config')
     @patch('awslabs.aws_transform_mcp_server.tools.configure.get_config')
     @patch(
@@ -436,10 +430,11 @@ class TestGetStatus:
         mock_fes_cookie,
         mock_get_config,
         mock_clear,
-        mock_sigv4,
+        mock_boto3,
         handler,
         mock_context,
     ):
+        mock_boto3.Session.return_value.get_credentials.return_value = None
         mock_get_config.return_value = ConnectionConfig(
             auth_mode='cookie',
             stage='prod',
@@ -461,9 +456,7 @@ class TestGetStatus:
         mock_clear.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch(
-        'awslabs.aws_transform_mcp_server.tools.configure.is_sigv4_configured', return_value=False
-    )
+    @patch('awslabs.aws_transform_mcp_server.aws_helper.boto3')
     @patch('awslabs.aws_transform_mcp_server.tools.configure.get_config')
     @patch(
         'awslabs.aws_transform_mcp_server.tools.configure.call_fes_direct_cookie',
@@ -475,10 +468,11 @@ class TestGetStatus:
         mock_configured,
         mock_fes_cookie,
         mock_get_config,
-        mock_sigv4,
+        mock_boto3,
         handler,
         mock_context,
     ):
+        mock_boto3.Session.return_value.get_credentials.return_value = None
         mock_get_config.return_value = ConnectionConfig(
             auth_mode='cookie',
             stage='prod',

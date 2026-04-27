@@ -45,18 +45,19 @@ class TestCallFesNoneConfig:
     async def test_call_tcp_raises_on_none_config(self):
         from awslabs.aws_transform_mcp_server.tcp_client import call_tcp
 
-        with patch(
-            'awslabs.aws_transform_mcp_server.config_store.get_sigv4_config', return_value=None
-        ):
-            with pytest.raises(RuntimeError, match='[Nn]ot configured'):
+        mock_session = MagicMock()
+        mock_session.get_credentials.return_value = None
+        with patch('awslabs.aws_transform_mcp_server.aws_helper.boto3') as mock_boto3:
+            mock_boto3.Session.return_value = mock_session
+            with pytest.raises(RuntimeError, match='[Nn]o AWS credentials'):
                 await call_tcp('ListConnectors')
 
 
-# ── Category 1b: get_status None-guard on get_config / get_sigv4_config ──
+# ── Category 1b: get_status None-guard on get_config / boto3 credentials ──
 
 
 class TestGetStatusConfigAccess:
-    """get_status accesses attributes on get_config() / get_sigv4_config() results.
+    """get_status accesses attributes on get_config() results and boto3 credentials.
 
     When config IS present, attribute access must work without error.
     """
@@ -99,19 +100,20 @@ class TestGetStatusConfigAccess:
         )
         mock_fes_cookie.return_value = {'userId': 'u1'}
 
+        mock_session = MagicMock()
+        mock_session.get_credentials.return_value = None
         with (
             patch(
                 'awslabs.aws_transform_mcp_server.tools.configure.get_config',
                 return_value=config,
             ),
             patch(
-                'awslabs.aws_transform_mcp_server.tools.configure.is_sigv4_configured',
-                return_value=False,
+                'awslabs.aws_transform_mcp_server.aws_helper.boto3.Session',
+                return_value=mock_session,
             ),
         ):
             result = await handler.get_status(ctx)
 
-        # text_result returns {'content': [{'type': 'text', 'text': ...}]}
         parsed = json.loads(result['content'][0]['text'])
         assert parsed['fes']['configured'] is True
         assert parsed['fes']['authMode'] == 'cookie'
@@ -120,18 +122,16 @@ class TestGetStatusConfigAccess:
 
     @pytest.mark.asyncio
     async def test_get_status_sigv4_config_attributes(self, handler, ctx):
-        """Verify get_status correctly accesses account_id, role, stage, region, tcp_endpoint."""
-        from awslabs.aws_transform_mcp_server.models import SigV4Config
-
-        sigv4 = SigV4Config(
-            account_id='123456789012',
-            role='TestRole',
-            stage='prod',
-            region='us-east-1',
-            tcp_endpoint='https://transform.us-east-1.api.aws',
-            access_key_id='AKID',
-            secret_access_key='secret',  # pragma: allowlist secret
-        )
+        """Verify get_status correctly accesses sigv4 fields when credentials are detected."""
+        mock_session = MagicMock()
+        mock_session.get_credentials.return_value = True
+        mock_session.region_name = 'us-east-1'
+        mock_sts = MagicMock()
+        mock_sts.get_caller_identity.return_value = {
+            'Account': '123456789012',
+            'Arn': 'arn:aws:sts::123456789012:assumed-role/test/session',
+        }
+        mock_session.client.return_value = mock_sts
 
         with (
             patch(
@@ -139,20 +139,19 @@ class TestGetStatusConfigAccess:
                 return_value=False,
             ),
             patch(
-                'awslabs.aws_transform_mcp_server.tools.configure.is_sigv4_configured',
-                return_value=True,
+                'awslabs.aws_transform_mcp_server.aws_helper.boto3.Session',
+                return_value=mock_session,
             ),
-            patch(
-                'awslabs.aws_transform_mcp_server.tools.configure.get_sigv4_config',
-                return_value=sigv4,
-            ),
+            patch.dict('os.environ', {'ATX_STAGE': 'prod', 'AWS_REGION': 'us-east-1'}),
         ):
             result = await handler.get_status(ctx)
 
         parsed = json.loads(result['content'][0]['text'])
         assert parsed['sigv4']['configured'] is True
         assert parsed['sigv4']['accountId'] == '123456789012'
-        assert parsed['sigv4']['role'] == 'TestRole'
+        assert parsed['sigv4']['arn'] == 'arn:aws:sts::123456789012:assumed-role/test/session'
+        assert parsed['sigv4']['stage'] == 'prod'
+        assert parsed['sigv4']['region'] == 'us-east-1'
         assert parsed['sigv4']['tcpEndpoint'] == 'https://transform.us-east-1.api.aws'
 
 
