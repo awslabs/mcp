@@ -23,8 +23,10 @@ from awslabs.cloudwatch_mcp_server.cloudwatch_logs.cwl_insights_batch import (
     _annotate_rows,
     _chunk_list,
     _convert_time,
+    _get_region_context,
     _hit_output_limit,
     _is_splittable_failure,
+    _region_contexts,
     _RegionContext,
     execute_cwl_insights_batch,
 )
@@ -955,3 +957,129 @@ class TestValidation:
             )
 
         assert any('...' in w for w in result.summary.warnings)
+
+
+@pytest.mark.asyncio
+class TestGetRegionContext:
+    """Tests for module-level _get_region_context sharing."""
+
+    async def test_returns_same_context_for_same_region(self):
+        """Same region should return the same _RegionContext instance."""
+        _region_contexts.clear()
+        ctx1 = await _get_region_context('us-east-1')
+        ctx2 = await _get_region_context('us-east-1')
+        assert ctx1 is ctx2
+        _region_contexts.clear()
+
+    async def test_returns_different_context_for_different_regions(self):
+        """Different regions should return different _RegionContext instances."""
+        _region_contexts.clear()
+        ctx1 = await _get_region_context('us-east-1')
+        ctx2 = await _get_region_context('eu-west-1')
+        assert ctx1 is not ctx2
+        _region_contexts.clear()
+
+    async def test_shared_across_concurrent_calls(self, ctx):
+        """Concurrent execute_cwl_insights_batch calls should share region contexts."""
+        _region_contexts.clear()
+        client = _make_logs_client(['msg'])
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_logs.cwl_insights_batch.get_aws_client',
+            return_value=client,
+        ):
+            await asyncio.gather(
+                execute_cwl_insights_batch(
+                    ctx,
+                    log_group_names=['/g1'],
+                    regions=['us-east-1'],
+                    start_time='2025-01-01T00:00:00+00:00',
+                    end_time='2025-01-01T01:00:00+00:00',
+                    query_string='fields @message',
+                ),
+                execute_cwl_insights_batch(
+                    ctx,
+                    log_group_names=['/g2'],
+                    regions=['us-east-1'],
+                    start_time='2025-01-01T00:00:00+00:00',
+                    end_time='2025-01-01T01:00:00+00:00',
+                    query_string='fields @message',
+                ),
+            )
+        # Only one context should exist for us-east-1
+        assert 'us-east-1' in _region_contexts
+        _region_contexts.clear()
+
+
+@pytest.mark.asyncio
+class TestCancellationCleanup:
+    """Tests for CancelledError handling in _start_and_poll."""
+
+    async def test_stop_query_called_on_cancellation(self, ctx):
+        """When a task is cancelled, stop_query should be called for in-flight queries."""
+        client = MagicMock()
+        client.start_query.return_value = {'queryId': 'qid-cancel-cleanup'}
+        client.stop_query.return_value = {}
+        # get_query_results will keep returning Running, so the poll loop continues
+        # until we cancel
+        client.get_query_results.return_value = {
+            'status': 'Running',
+            'results': [],
+            'statistics': {},
+        }
+
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_logs.cwl_insights_batch.get_aws_client',
+            return_value=client,
+        ):
+            task = asyncio.create_task(
+                execute_cwl_insights_batch(
+                    ctx,
+                    log_group_names=['/g1'],
+                    regions=['us-east-1'],
+                    start_time='2025-01-01T00:00:00+00:00',
+                    end_time='2025-01-01T01:00:00+00:00',
+                    query_string='fields @message',
+                    max_timeout=300,
+                )
+            )
+            # Let the query start and enter the polling loop
+            await asyncio.sleep(0.05)
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+
+        client.stop_query.assert_called_with(queryId='qid-cancel-cleanup')
+
+    async def test_cancellation_tolerates_stop_query_failure(self, ctx):
+        """Cancellation should propagate even if stop_query raises."""
+        client = MagicMock()
+        client.start_query.return_value = {'queryId': 'qid-cancel-fail'}
+        client.stop_query.side_effect = Exception('stop failed')
+        client.get_query_results.return_value = {
+            'status': 'Running',
+            'results': [],
+            'statistics': {},
+        }
+
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_logs.cwl_insights_batch.get_aws_client',
+            return_value=client,
+        ):
+            task = asyncio.create_task(
+                execute_cwl_insights_batch(
+                    ctx,
+                    log_group_names=['/g1'],
+                    regions=['us-east-1'],
+                    start_time='2025-01-01T00:00:00+00:00',
+                    end_time='2025-01-01T01:00:00+00:00',
+                    query_string='fields @message',
+                    max_timeout=300,
+                )
+            )
+            await asyncio.sleep(0.05)
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+
+        # stop_query was attempted even though it failed
+        client.stop_query.assert_called()
