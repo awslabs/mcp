@@ -43,6 +43,7 @@ from awslabs.aurora_dsql_mcp_server.consts import (
     ERROR_TRANSACT,
     ERROR_TRANSACTION_BYPASS_ATTEMPT,
     ERROR_WRITE_QUERY_PROHIBITED,
+    GET_QUALIFIED_SCHEMA_SQL,
     GET_SCHEMA_SQL,
     INTERNAL_ERROR,
     READ_ONLY_QUERY_WRITE_ERROR,
@@ -378,7 +379,11 @@ async def get_schema(
 
     try:
         conn = await get_connection(ctx)
-        return await execute_query(ctx, conn, GET_SCHEMA_SQL, [table_name])
+        if '.' in table_name:
+            schema, table = table_name.split('.', 1)
+            return await execute_query(ctx, conn, GET_QUALIFIED_SCHEMA_SQL, [schema, table])
+        else:
+            return await execute_query(ctx, conn, GET_SCHEMA_SQL, [table_name])
     except Exception as e:
         await ctx.error(f'{ERROR_GET_SCHEMA}: {str(e)}')
         raise Exception(f'{ERROR_GET_SCHEMA}: {str(e)}')
