@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Review pipeline orchestrating signal evaluation."""
+"""Review executor orchestrating signal evaluation."""
 
-from awslabs.redshift_mcp_server.models import (
+from awslabs.redshift_mcp_server.review.models import (
     ReviewFinding,
     ReviewRecommendation,
     ReviewResult,
 )
-from awslabs.redshift_mcp_server.review.review_queries import (
+from awslabs.redshift_mcp_server.review.definitions import (
     RECOMMENDATIONS,
     REVIEW_QUERIES,
 )
@@ -30,8 +30,8 @@ from typing import Any
 
 async def run_review(
     cluster_identifier: str,
-    database: str,
     execute_fn: Callable[..., Any],
+    database_name: str = 'dev',
     workgroup: str | None = None,
     progress_fn: Callable[[int, int], Any] | None = None,
 ) -> ReviewResult:
@@ -60,7 +60,7 @@ async def run_review(
 
         results_response, _ = await execute_fn(
             cluster_identifier,
-            database,
+            database_name,
             sql,
             allow_read_write=True,
         )

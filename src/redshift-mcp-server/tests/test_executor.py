@@ -15,8 +15,8 @@
 """Tests for review pipeline orchestration."""
 
 import pytest
-from awslabs.redshift_mcp_server.review.review_pipeline import run_review
-from awslabs.redshift_mcp_server.review.review_queries import (
+from awslabs.redshift_mcp_server.review.executor import run_review
+from awslabs.redshift_mcp_server.review.definitions import (
     RECOMMENDATIONS,
     REVIEW_QUERIES,
 )
@@ -49,7 +49,7 @@ class TestServerlessExclusion:
 
         result = await run_review(
             cluster_identifier='test-cluster',
-            database='dev',
+            database_name='dev',
             execute_fn=execute_fn,
             workgroup='my-workgroup',
         )
@@ -64,7 +64,7 @@ class TestServerlessExclusion:
 
         result = await run_review(
             cluster_identifier='test-cluster',
-            database='dev',
+            database_name='dev',
             execute_fn=execute_fn,
         )
 
@@ -87,7 +87,7 @@ class TestSignalTriggered:
 
         result = await run_review(
             cluster_identifier='test-cluster',
-            database='dev',
+            database_name='dev',
             execute_fn=execute_fn,
         )
 
@@ -102,7 +102,7 @@ class TestSignalTriggered:
 
         result = await run_review(
             cluster_identifier='test-cluster',
-            database='dev',
+            database_name='dev',
             execute_fn=execute_fn,
         )
 
@@ -125,7 +125,7 @@ class TestErrorPropagation:
         with pytest.raises(RuntimeError, match='Data API timeout'):
             await run_review(
                 cluster_identifier='test-cluster',
-                database='dev',
+                database_name='dev',
                 execute_fn=execute_fn,
             )
 
@@ -147,7 +147,7 @@ class TestRecommendationDeduplication:
 
         result = await run_review(
             cluster_identifier='test-cluster',
-            database='dev',
+            database_name='dev',
             execute_fn=execute_fn,
         )
 
@@ -174,7 +174,7 @@ class TestProgressReporting:
 
         result = await run_review(
             cluster_identifier='test-cluster',
-            database='dev',
+            database_name='dev',
             execute_fn=execute_fn,
             progress_fn=mock_progress,
         )
@@ -201,7 +201,7 @@ class TestFullPipeline:
 
         result = await run_review(
             cluster_identifier='test-cluster',
-            database='dev',
+            database_name='dev',
             execute_fn=execute_fn,
         )
 
@@ -219,7 +219,7 @@ class TestFullPipeline:
 
         result = await run_review(
             cluster_identifier='test-cluster',
-            database='dev',
+            database_name='dev',
             execute_fn=execute_fn,
         )
 
@@ -233,7 +233,7 @@ class TestFullPipeline:
 
         result = await run_review(
             cluster_identifier='test-cluster',
-            database='dev',
+            database_name='dev',
             execute_fn=execute_fn,
         )
 

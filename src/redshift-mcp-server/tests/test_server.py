@@ -22,6 +22,8 @@ from awslabs.redshift_mcp_server.models import (
     RedshiftDatabase,
     RedshiftSchema,
     RedshiftTable,
+)
+from awslabs.redshift_mcp_server.review.models import (
     ReviewFinding,
     ReviewRecommendation,
     ReviewResult,
@@ -599,7 +601,7 @@ class TestReviewClusterTool:
         mock_pipeline.assert_called_once()
         call_kwargs = mock_pipeline.call_args.kwargs
         assert call_kwargs['cluster_identifier'] == 'test-cluster'
-        assert call_kwargs['database'] == 'dev'
+        assert call_kwargs['database_name'] == 'dev'
         assert call_kwargs['workgroup'] is None
 
     @pytest.mark.asyncio
@@ -662,7 +664,7 @@ class TestReviewClusterTool:
 
         call_kwargs = mock_pipeline.call_args.kwargs
         assert call_kwargs['cluster_identifier'] == 'my-cluster'
-        assert call_kwargs['database'] == 'analytics'
+        assert call_kwargs['database_name'] == 'analytics'
         assert call_kwargs['workgroup'] == 'my-workgroup'
 
     def test_no_removed_tools_registered(self):
