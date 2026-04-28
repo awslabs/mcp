@@ -40,10 +40,14 @@ LARGE_RESULT_WARNING_THRESHOLD = 100_000  # warn when result set exceeds this
 # Throttle defaults – consume ≤ 25 % of the account/region hard limits so
 # the customer's other workloads are not starved.
 #
-# Account/region hard limits (most regions):
-#   - 30 concurrent Insights queries
-#   - 6 TPS for StartQuery
-#   - 6 TPS for GetQueryResults
+# Account/region hard limits (see per-region values at
+# https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/cloudwatch_limits_cwl.html):
+#   - 30 concurrent Insights queries (default)
+#   - 6 TPS for StartQuery (default)
+#   - 6 TPS for GetQueryResults (default)
+#
+# TODO: Consider exposing these as optional parameters so users with
+# raised service quotas can tune concurrency without forking.
 #
 # 25 % targets:
 #   concurrent queries : 30 × 0.25 = 7.5  → 7
@@ -93,11 +97,25 @@ class _RegionContext:
     async def pace_start_query(self) -> None:
         """Ensure at least _START_QUERY_INTERVAL between StartQuery calls."""
         async with self._lock:
-            now = asyncio.get_event_loop().time()
+            now = asyncio.get_running_loop().time()
             wait = self._last_start + _START_QUERY_INTERVAL - now
             if wait > 0:
                 await asyncio.sleep(wait)
-            self._last_start = asyncio.get_event_loop().time()
+            self._last_start = asyncio.get_running_loop().time()
+
+
+# Module-level region contexts – shared across concurrent tool calls so that
+# the 25 % concurrency budget is enforced globally, not per-invocation.
+_region_contexts: Dict[str, _RegionContext] = {}
+_region_contexts_lock = asyncio.Lock()
+
+
+async def _get_region_context(region: str) -> _RegionContext:
+    """Return the shared _RegionContext for *region*, creating one if needed."""
+    async with _region_contexts_lock:
+        if region not in _region_contexts:
+            _region_contexts[region] = _RegionContext()
+        return _region_contexts[region]
 
 
 # ---------------------------------------------------------------------------
@@ -157,14 +175,17 @@ async def _start_and_poll(
                 'limit': limit,
             }
         )
-        resp = logs_client.start_query(**kwargs)
+        loop = asyncio.get_running_loop()
+        resp = await loop.run_in_executor(None, lambda: logs_client.start_query(**kwargs))
         query_id = resp['queryId']
         logger.debug(f'Started query {query_id} for {len(log_groups)} log groups')
 
         poll_start = timer()
         while timer() - poll_start < max_timeout:
             await asyncio.sleep(_POLL_INTERVAL)
-            resp = logs_client.get_query_results(queryId=query_id)
+            resp = await loop.run_in_executor(
+                None, lambda: logs_client.get_query_results(queryId=query_id)
+            )
             status = resp['status']
             if status in ('Complete', 'Failed', 'Cancelled', 'Timeout'):
                 return {
@@ -178,7 +199,9 @@ async def _start_and_poll(
 
         # Polling timed out on our side – cancel to avoid cost
         try:
-            logs_client.stop_query(queryId=query_id)
+            await loop.run_in_executor(
+                None, lambda: logs_client.stop_query(queryId=query_id)
+            )
         except Exception as e:
             logger.warning(f'Failed to stop query {query_id} after polling timeout: {e}')
         return {
@@ -521,7 +544,7 @@ async def execute_cwl_insights_batch(
 
     tasks = []
     for region in regions:
-        region_ctx = _RegionContext()
+        region_ctx = await _get_region_context(region)
         logs_client = get_aws_client('logs', region, profile_name)
         for chunk in chunks_per_region:
             tasks.append(
