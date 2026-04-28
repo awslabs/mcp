@@ -14,7 +14,7 @@
 
 """Check the current status of a TOOL_APPROVAL task."""
 
-from awslabs.aws_transform_mcp_server.config_store import is_configured
+from awslabs.aws_transform_mcp_server.config_store import is_fes_available
 from awslabs.aws_transform_mcp_server.fes_client import call_fes
 from awslabs.aws_transform_mcp_server.tool_utils import (
     error_result,
@@ -58,7 +58,7 @@ async def get_approval_status(
 
     Requires browser/SSO auth — call configure first.
     """
-    if not is_configured():
+    if not is_fes_available():
         return not_configured_error()
 
     try:

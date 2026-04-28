@@ -29,8 +29,6 @@ from awslabs.aws_transform_mcp_server.consts import (
     TIMEOUT_SECONDS,
 )
 from awslabs.aws_transform_mcp_server.http_utils import request_with_retry
-from botocore.auth import SigV4Auth
-from botocore.awsrequest import AWSRequest
 from botocore.credentials import ReadOnlyCredentials
 from typing import Any, Dict, Literal, NamedTuple, Optional
 from urllib.parse import urlparse
@@ -48,33 +46,6 @@ TCPOperation = Literal[
     'ListAgents',
     'GetAgentRuntimeConfiguration',
 ]
-
-
-def _sign_request(
-    endpoint: str,
-    headers: Dict[str, str],
-    body_bytes: bytes,
-    credentials: ReadOnlyCredentials,
-    region: str,
-) -> Dict[str, str]:
-    """Sign an HTTP request using SigV4 and return the signed headers.
-
-    Follows the same pattern as healthlake-mcp-server: pass the credentials
-    object directly to SigV4Auth.
-
-    Args:
-        endpoint: The full URL to sign against.
-        headers: Pre-signing headers.
-        body_bytes: The encoded request body.
-        credentials: botocore Credentials object from boto3 session.
-        region: AWS region.
-
-    Returns:
-        A dict of signed headers ready for use with httpx.
-    """
-    aws_request = AWSRequest(method='POST', url=endpoint, data=body_bytes, headers=headers)
-    SigV4Auth(credentials, TCP_SERVICE, region).add_auth(aws_request)
-    return dict(aws_request.headers)
 
 
 class TcpConfig(NamedTuple):
@@ -146,11 +117,12 @@ async def call_tcp(operation: TCPOperation, body: Optional[Dict[str, Any]] = Non
         'host': hostname,
     }
 
-    signed_headers = _sign_request(
+    signed_headers = AwsHelper.sign_request(
         endpoint=config.endpoint,
         headers=headers,
         body_bytes=payload,
         credentials=config.credentials,
+        service=TCP_SERVICE,
         region=config.region,
     )
 

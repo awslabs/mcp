@@ -15,7 +15,7 @@
 """Collaborator tool handler for AWS Transform MCP server."""
 
 from awslabs.aws_transform_mcp_server.audit import audited_tool
-from awslabs.aws_transform_mcp_server.config_store import is_configured
+from awslabs.aws_transform_mcp_server.config_store import is_fes_available
 from awslabs.aws_transform_mcp_server.fes_client import call_fes
 from awslabs.aws_transform_mcp_server.tool_utils import (
     error_result,
@@ -76,7 +76,7 @@ class CollaboratorHandler:
         To find a userId by name or email use list_resources resource="users".
         Requires configure (cookie or sso).
         """
-        if not is_configured():
+        if not is_fes_available():
             return error_result(_NOT_CONFIGURED_CODE, _NOT_CONFIGURED_MSG, _NOT_CONFIGURED_ACTION)
 
         try:

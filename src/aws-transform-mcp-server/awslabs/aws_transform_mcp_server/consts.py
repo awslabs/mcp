@@ -29,6 +29,11 @@ TCP_TARGET_PREFIX = 'ElasticGumbyTransformControlPlane'
 HEADER_CLIENT_APP_ID = 'x-amzn-atx-clientAppId'
 CLIENT_APP_ID = 'atx-mcp'
 
+# ── FES SigV4 ───────────────────────────────────────────────────────────
+SIGV4_FES_ENABLED: bool = False
+FES_SERVICE = 'elasticgumbyfrontendservice'
+FES_SIGV4_PROBE_TIMEOUT_SECONDS: float = 6.0
+
 # ── HTTP retry / timeout ─────────────────────────────────────────────────
 TIMEOUT_SECONDS: float = 60.0
 STARTUP_TIMEOUT_SECONDS: float = 5.0

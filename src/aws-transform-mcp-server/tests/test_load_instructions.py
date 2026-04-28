@@ -50,7 +50,7 @@ def _parse(result: dict) -> dict:
 
 class TestLoadInstructions:
     @pytest.mark.asyncio
-    @patch(f'{_MOD}.is_configured', return_value=False)
+    @patch(f'{_MOD}.is_fes_available', return_value=False)
     async def test_not_configured(self, _, handler, ctx):
         result = await handler.load_instructions(ctx, workspaceId='ws-1', jobId='j-1')
         parsed = _parse(result)
@@ -59,7 +59,7 @@ class TestLoadInstructions:
 
     @pytest.mark.asyncio
     @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
-    @patch(f'{_MOD}.is_configured', return_value=True)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_no_instructions_found(self, _, mock_fes, handler, ctx):
         mock_fes.return_value = {'artifacts': []}
         result = await handler.load_instructions(ctx, workspaceId='ws-1', jobId='j-1')
@@ -71,7 +71,7 @@ class TestLoadInstructions:
     @pytest.mark.asyncio
     @patch(f'{_MOD}.download_s3_content', new_callable=AsyncMock)
     @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
-    @patch(f'{_MOD}.is_configured', return_value=True)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_instructions_found_and_downloaded(
         self, _, mock_fes, mock_download, handler, ctx
     ):
@@ -89,7 +89,7 @@ class TestLoadInstructions:
 
     @pytest.mark.asyncio
     @patch(f'{_MOD}.call_fes', new_callable=AsyncMock, side_effect=Exception('API error'))
-    @patch(f'{_MOD}.is_configured', return_value=True)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_does_not_mark_checked_on_error(self, _, mock_fes, handler, ctx):
         result = await handler.load_instructions(ctx, workspaceId='ws-1', jobId='j-1')
         parsed = _parse(result)
@@ -98,7 +98,7 @@ class TestLoadInstructions:
 
     @pytest.mark.asyncio
     @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
-    @patch(f'{_MOD}.is_configured', return_value=True)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_skips_non_matching_artifacts(self, _, mock_fes, handler, ctx):
         mock_fes.return_value = {
             'artifacts': [
@@ -113,7 +113,7 @@ class TestLoadInstructions:
     @pytest.mark.asyncio
     @patch(f'{_MOD}.download_s3_content', new_callable=AsyncMock)
     @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
-    @patch(f'{_MOD}.is_configured', return_value=True)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_empty_content_returns_error_and_does_not_mark_checked(
         self, _, mock_fes, mock_download, handler, ctx
     ):
@@ -130,7 +130,7 @@ class TestLoadInstructions:
 
     @pytest.mark.asyncio
     @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
-    @patch(f'{_MOD}.is_configured', return_value=True)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_missing_presigned_url_returns_error(self, _, mock_fes, handler, ctx):
         mock_fes.side_effect = [
             {'artifacts': [{'artifactId': 'art-1', 'fileMetadata': {'path': 'JOB_INSTRUCTIONS'}}]},
@@ -177,7 +177,9 @@ class TestInstructionGateIntegration:
         chat_send_mod.job_needs_check = _saved['chat']
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.is_configured', return_value=True)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
+    )
     async def test_get_resource_blocks_unchecked_job(self, _, mock_mcp, mock_context):
         from awslabs.aws_transform_mcp_server.tools.get_resource import (
             GetResourceHandler,
@@ -196,7 +198,9 @@ class TestInstructionGateIntegration:
         assert parsed['error']['code'] == 'INSTRUCTIONS_REQUIRED'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.is_configured', return_value=True)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
+    )
     async def test_get_resource_allows_exempt_resources(self, _, mock_mcp, mock_context):
         from awslabs.aws_transform_mcp_server.tools.get_resource import (
             GetResourceHandler,
@@ -214,7 +218,7 @@ class TestInstructionGateIntegration:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
@@ -234,7 +238,7 @@ class TestInstructionGateIntegration:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.list_resources.paginate_all',
@@ -257,7 +261,7 @@ class TestInstructionGateIntegration:
         assert parsed['success'] is True
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.hitl.is_configured', return_value=True)
+    @patch('awslabs.aws_transform_mcp_server.tools.hitl.is_fes_available', return_value=True)
     async def test_hitl_blocks_unchecked_job(self, _, mock_mcp, mock_context):
         from awslabs.aws_transform_mcp_server.tools.hitl import HitlHandler
 
@@ -270,7 +274,8 @@ class TestInstructionGateIntegration:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.chat.send_message.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.chat.send_message.is_fes_available',
+        return_value=True,
     )
     async def test_chat_blocks_unchecked_job(self, _, mock_mcp, mock_context):
         from awslabs.aws_transform_mcp_server.tools.chat.send_message import send_message
@@ -287,7 +292,7 @@ class TestInstructionGateIntegration:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_gated_tool_proceeds_after_mark_checked(
         self, _, mock_paginate, mock_mcp, mock_context

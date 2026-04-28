@@ -16,7 +16,7 @@
 
 import uuid
 from awslabs.aws_transform_mcp_server.audit import audited_tool
-from awslabs.aws_transform_mcp_server.config_store import is_configured
+from awslabs.aws_transform_mcp_server.config_store import is_fes_available
 from awslabs.aws_transform_mcp_server.fes_client import call_fes
 from awslabs.aws_transform_mcp_server.tool_utils import (
     error_result,
@@ -65,7 +65,7 @@ class JobHandler:
         resource="agents" and agentType="ORCHESTRATOR_AGENT" to discover
         available agents before creating a job.
         """
-        if not is_configured():
+        if not is_fes_available():
             return error_result(_NOT_CONFIGURED_CODE, _NOT_CONFIGURED_MSG, _NOT_CONFIGURED_ACTION)
 
         _jobType: Optional[str] = jobType if isinstance(jobType, str) else None
@@ -103,7 +103,7 @@ class JobHandler:
         ),
     ) -> dict:
         """Start or stop a transformation job."""
-        if not is_configured():
+        if not is_fes_available():
             return error_result(_NOT_CONFIGURED_CODE, _NOT_CONFIGURED_MSG, _NOT_CONFIGURED_ACTION)
 
         try:
@@ -122,7 +122,7 @@ class JobHandler:
         confirm: bool = Field(..., description='Must be true to confirm deletion.'),
     ) -> dict:
         """Permanently delete a transformation job."""
-        if not is_configured():
+        if not is_fes_available():
             return error_result(_NOT_CONFIGURED_CODE, _NOT_CONFIGURED_MSG, _NOT_CONFIGURED_ACTION)
 
         if not confirm:

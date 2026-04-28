@@ -49,7 +49,9 @@ class TestGetResourceHandler:
     # ── Auth gating ────────────────────────────────────────────────────
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.is_configured', return_value=False)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=False
+    )
     async def test_not_configured(self, _, handler, ctx):
         result = await handler.get_resource(ctx, resource=GetResourceType.workspace)
         parsed = _parse_result(result)
@@ -60,7 +62,9 @@ class TestGetResourceHandler:
 
     @pytest.mark.asyncio
     @patch('awslabs.aws_transform_mcp_server.tools.get_resource.call_fes', new_callable=AsyncMock)
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.is_configured', return_value=True)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
+    )
     async def test_session_success(self, _, mock_fes, handler, ctx):
         mock_fes.return_value = {'userId': 'user-1', 'tenantId': 'tenant-1'}
         result = await handler.get_resource(ctx, resource=GetResourceType.session)
@@ -71,7 +75,9 @@ class TestGetResourceHandler:
 
     @pytest.mark.asyncio
     @patch('awslabs.aws_transform_mcp_server.tools.get_resource.call_fes', new_callable=AsyncMock)
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.is_configured', return_value=True)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
+    )
     async def test_session_failure(self, _, mock_fes, handler, ctx):
         mock_fes.side_effect = RuntimeError('session expired')
         result = await handler.get_resource(ctx, resource=GetResourceType.session)
@@ -83,7 +89,9 @@ class TestGetResourceHandler:
     # ── workspace ──────────────────────────────────────────────────────
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.is_configured', return_value=True)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
+    )
     async def test_workspace_requires_id(self, _, handler, ctx):
         result = await handler.get_resource(ctx, resource=GetResourceType.workspace)
         parsed = _parse_result(result)
@@ -91,7 +99,9 @@ class TestGetResourceHandler:
 
     @pytest.mark.asyncio
     @patch('awslabs.aws_transform_mcp_server.tools.get_resource.call_fes', new_callable=AsyncMock)
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.is_configured', return_value=True)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
+    )
     async def test_workspace_success(self, _, mock_fes, handler, ctx):
         mock_fes.return_value = {'workspaceId': 'ws1', 'name': 'Test'}
         result = await handler.get_resource(
@@ -105,14 +115,18 @@ class TestGetResourceHandler:
     # ── job ────────────────────────────────────────────────────────────
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.is_configured', return_value=True)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
+    )
     async def test_job_requires_workspace_id(self, _, handler, ctx):
         result = await handler.get_resource(ctx, resource=GetResourceType.job)
         parsed = _parse_result(result)
         assert parsed['error']['code'] == 'VALIDATION_ERROR'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.is_configured', return_value=True)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
+    )
     async def test_job_requires_job_id(self, _, handler, ctx):
         result = await handler.get_resource(ctx, resource=GetResourceType.job, workspaceId='ws1')
         parsed = _parse_result(result)
@@ -120,7 +134,9 @@ class TestGetResourceHandler:
 
     @pytest.mark.asyncio
     @patch('awslabs.aws_transform_mcp_server.tools.get_resource.call_fes', new_callable=AsyncMock)
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.is_configured', return_value=True)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
+    )
     async def test_job_success(self, _, mock_fes, handler, ctx):
         mock_fes.return_value = {'jobId': 'j1', 'status': 'RUNNING'}
         result = await handler.get_resource(
@@ -133,14 +149,18 @@ class TestGetResourceHandler:
     # ── connector ──────────────────────────────────────────────────────
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.is_configured', return_value=True)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
+    )
     async def test_connector_requires_workspace_id(self, _, handler, ctx):
         result = await handler.get_resource(ctx, resource=GetResourceType.connector)
         parsed = _parse_result(result)
         assert parsed['error']['code'] == 'VALIDATION_ERROR'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.is_configured', return_value=True)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
+    )
     async def test_connector_requires_connector_id(self, _, handler, ctx):
         result = await handler.get_resource(
             ctx, resource=GetResourceType.connector, workspaceId='ws1'
@@ -150,7 +170,9 @@ class TestGetResourceHandler:
 
     @pytest.mark.asyncio
     @patch('awslabs.aws_transform_mcp_server.tools.get_resource.call_fes', new_callable=AsyncMock)
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.is_configured', return_value=True)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
+    )
     async def test_connector_success(self, _, mock_fes, handler, ctx):
         mock_fes.return_value = {'connectorId': 'c1'}
         result = await handler.get_resource(
@@ -168,21 +190,27 @@ class TestGetResourceHandler:
     # ── task ───────────────────────────────────────────────────────────
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.is_configured', return_value=True)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
+    )
     async def test_task_requires_workspace_id(self, _, handler, ctx):
         result = await handler.get_resource(ctx, resource=GetResourceType.task)
         parsed = _parse_result(result)
         assert parsed['error']['code'] == 'VALIDATION_ERROR'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.is_configured', return_value=True)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
+    )
     async def test_task_requires_job_id(self, _, handler, ctx):
         result = await handler.get_resource(ctx, resource=GetResourceType.task, workspaceId='ws1')
         parsed = _parse_result(result)
         assert parsed['error']['code'] == 'VALIDATION_ERROR'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.is_configured', return_value=True)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
+    )
     async def test_task_requires_task_id(self, _, handler, ctx):
         result = await handler.get_resource(
             ctx, resource=GetResourceType.task, workspaceId='ws1', jobId='j1'
@@ -192,7 +220,9 @@ class TestGetResourceHandler:
 
     @pytest.mark.asyncio
     @patch('awslabs.aws_transform_mcp_server.tools.get_resource.call_fes', new_callable=AsyncMock)
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.is_configured', return_value=True)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
+    )
     async def test_task_basic_without_hitl_schemas(self, _, mock_fes, handler, ctx):
         """Task works even when hitl_schemas is not importable (guard)."""
         mock_fes.return_value = {
@@ -213,14 +243,18 @@ class TestGetResourceHandler:
     # ── artifact ───────────────────────────────────────────────────────
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.is_configured', return_value=True)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
+    )
     async def test_artifact_requires_workspace_id(self, _, handler, ctx):
         result = await handler.get_resource(ctx, resource=GetResourceType.artifact)
         parsed = _parse_result(result)
         assert parsed['error']['code'] == 'VALIDATION_ERROR'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.is_configured', return_value=True)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
+    )
     async def test_artifact_requires_job_id(self, _, handler, ctx):
         result = await handler.get_resource(
             ctx, resource=GetResourceType.artifact, workspaceId='ws1'
@@ -229,7 +263,9 @@ class TestGetResourceHandler:
         assert parsed['error']['code'] == 'VALIDATION_ERROR'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.is_configured', return_value=True)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
+    )
     async def test_artifact_requires_artifact_id(self, _, handler, ctx):
         result = await handler.get_resource(
             ctx, resource=GetResourceType.artifact, workspaceId='ws1', jobId='j1'
@@ -243,7 +279,9 @@ class TestGetResourceHandler:
         new_callable=AsyncMock,
     )
     @patch('awslabs.aws_transform_mcp_server.tools.get_resource.call_fes', new_callable=AsyncMock)
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.is_configured', return_value=True)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
+    )
     async def test_artifact_download(self, _, mock_fes, mock_dl, handler, ctx):
         mock_fes.return_value = {'s3PreSignedUrl': 'https://s3.example.com/file.txt'}
         mock_dl.return_value = {'content': 'file contents'}
@@ -268,7 +306,9 @@ class TestGetResourceHandler:
     # ── asset ──────────────────────────────────────────────────────────
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.is_configured', return_value=True)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
+    )
     async def test_asset_requires_all_params(self, _, handler, ctx):
         # Missing workspaceId
         r = await handler.get_resource(ctx, resource=GetResourceType.asset)
@@ -300,7 +340,9 @@ class TestGetResourceHandler:
         new_callable=AsyncMock,
     )
     @patch('awslabs.aws_transform_mcp_server.tools.get_resource.call_fes', new_callable=AsyncMock)
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.is_configured', return_value=True)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
+    )
     async def test_asset_download(self, _, mock_fes, mock_dl, handler, ctx):
         mock_fes.return_value = {'s3PreSignedUrl': 'https://s3.example.com/asset.bin'}
         mock_dl.return_value = {'content': 'asset data'}
@@ -325,14 +367,18 @@ class TestGetResourceHandler:
     # ── messages ───────────────────────────────────────────────────────
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.is_configured', return_value=True)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
+    )
     async def test_messages_requires_workspace_id(self, _, handler, ctx):
         result = await handler.get_resource(ctx, resource=GetResourceType.messages)
         parsed = _parse_result(result)
         assert parsed['error']['code'] == 'VALIDATION_ERROR'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.is_configured', return_value=True)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
+    )
     async def test_messages_requires_message_ids(self, _, handler, ctx):
         result = await handler.get_resource(
             ctx, resource=GetResourceType.messages, workspaceId='ws1'
@@ -342,7 +388,9 @@ class TestGetResourceHandler:
 
     @pytest.mark.asyncio
     @patch('awslabs.aws_transform_mcp_server.tools.get_resource.call_fes', new_callable=AsyncMock)
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.is_configured', return_value=True)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
+    )
     async def test_messages_success(self, _, mock_fes, handler, ctx):
         mock_fes.return_value = {'messages': [{'id': 'm1'}]}
         result = await handler.get_resource(
@@ -360,14 +408,18 @@ class TestGetResourceHandler:
     # ── plan ───────────────────────────────────────────────────────────
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.is_configured', return_value=True)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
+    )
     async def test_plan_requires_workspace_id(self, _, handler, ctx):
         result = await handler.get_resource(ctx, resource=GetResourceType.plan)
         parsed = _parse_result(result)
         assert parsed['error']['code'] == 'VALIDATION_ERROR'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.is_configured', return_value=True)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
+    )
     async def test_plan_requires_job_id(self, _, handler, ctx):
         result = await handler.get_resource(ctx, resource=GetResourceType.plan, workspaceId='ws1')
         parsed = _parse_result(result)
@@ -375,7 +427,9 @@ class TestGetResourceHandler:
 
     @pytest.mark.asyncio
     @patch('awslabs.aws_transform_mcp_server.tools.get_resource.call_fes', new_callable=AsyncMock)
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.is_configured', return_value=True)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
+    )
     async def test_plan_success(self, _, mock_fes, handler, ctx):
         async def fes_side_effect(op, body):
             if op == 'ListJobPlanSteps':
@@ -393,7 +447,9 @@ class TestGetResourceHandler:
 
     @pytest.mark.asyncio
     @patch('awslabs.aws_transform_mcp_server.tools.get_resource.call_fes', new_callable=AsyncMock)
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.is_configured', return_value=True)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
+    )
     async def test_plan_both_fail(self, _, mock_fes, handler, ctx):
         mock_fes.side_effect = RuntimeError('api error')
         result = await handler.get_resource(
@@ -406,7 +462,9 @@ class TestGetResourceHandler:
 
     @pytest.mark.asyncio
     @patch('awslabs.aws_transform_mcp_server.tools.get_resource.call_fes', new_callable=AsyncMock)
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.is_configured', return_value=True)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
+    )
     async def test_fes_exception_returns_failure(self, _, mock_fes, handler, ctx):
         mock_fes.side_effect = RuntimeError('unexpected')
         result = await handler.get_resource(

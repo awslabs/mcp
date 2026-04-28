@@ -16,7 +16,7 @@
 
 import time
 import uuid
-from awslabs.aws_transform_mcp_server.config_store import is_configured
+from awslabs.aws_transform_mcp_server.config_store import is_fes_available
 from awslabs.aws_transform_mcp_server.fes_client import call_fes
 from awslabs.aws_transform_mcp_server.guidance_nudge import job_needs_check
 from awslabs.aws_transform_mcp_server.tool_utils import (
@@ -81,7 +81,7 @@ async def send_message(
             'Pass text="your message here".',
         )
 
-    if not is_configured():
+    if not is_fes_available():
         return not_configured_error()
 
     _jobId: Optional[str] = jobId if isinstance(jobId, str) else None

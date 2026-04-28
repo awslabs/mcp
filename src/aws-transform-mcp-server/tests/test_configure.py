@@ -394,6 +394,9 @@ class TestGetStatus:
             origin='https://app.example.com',
             session_cookie='aws-transform-session=abc',
         )
+        from awslabs.aws_transform_mcp_server.aws_helper import AwsHelper
+
+        AwsHelper.clear_cache()
         mock_fes_cookie.return_value = {'userId': 'user-1'}
         mock_session = mock_boto3.Session.return_value
         mock_session.get_credentials.return_value = True
@@ -407,6 +410,7 @@ class TestGetStatus:
 
         result = await handler.get_status(mock_context)
 
+        AwsHelper.clear_cache()
         parsed = json.loads(result['content'][0]['text'])
         assert parsed['fes']['configured'] is True
         assert parsed['fes']['authMode'] == 'cookie'
@@ -489,3 +493,52 @@ class TestGetStatus:
         assert parsed['fes']['configured'] is True
         assert parsed['fes']['error']['code'] == 'SESSION_CHECK_FAILED'
         assert result['isError'] is True
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aws_transform_mcp_server.aws_helper.boto3')
+    @patch('awslabs.aws_transform_mcp_server.tools.configure.is_configured', return_value=False)
+    async def test_sigv4_bad_region(self, mock_configured, mock_boto3, handler, mock_context):
+        """ValueError from derive_tcp_endpoint shows as region error, not credential error."""
+        from awslabs.aws_transform_mcp_server.aws_helper import AwsHelper
+
+        AwsHelper.clear_cache()
+        mock_session = mock_boto3.Session.return_value
+        mock_session.get_credentials.return_value = True
+        mock_session.region_name = 'mars-north-1'
+        mock_sts = MagicMock()
+        mock_sts.get_caller_identity.return_value = {
+            'Account': '123456789012',
+            'Arn': 'arn:aws:sts::123456789012:assumed-role/test/session',
+        }
+        mock_session.client.return_value = mock_sts
+
+        with patch.dict('os.environ', {'ATX_STAGE': 'gamma', 'AWS_REGION': 'mars-north-1'}):
+            result = await handler.get_status(mock_context)
+
+        AwsHelper.clear_cache()
+        parsed = json.loads(result['content'][0]['text'])
+        assert parsed['sigv4']['configured'] is False
+        assert 'Region configuration error' in parsed['sigv4']['message']
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aws_transform_mcp_server.aws_helper.boto3')
+    @patch('awslabs.aws_transform_mcp_server.tools.configure.is_configured', return_value=False)
+    async def test_sigv4_sts_failure(self, mock_configured, mock_boto3, handler, mock_context):
+        """STS API error shows as credential validation failure."""
+        from awslabs.aws_transform_mcp_server.aws_helper import AwsHelper
+
+        AwsHelper.clear_cache()
+        mock_session = mock_boto3.Session.return_value
+        mock_session.get_credentials.return_value = True
+        mock_session.region_name = 'us-east-1'
+        mock_sts = MagicMock()
+        mock_sts.get_caller_identity.side_effect = Exception('ExpiredToken')
+        mock_session.client.return_value = mock_sts
+
+        with patch.dict('os.environ', {'ATX_STAGE': 'prod', 'AWS_REGION': 'us-east-1'}):
+            result = await handler.get_status(mock_context)
+
+        AwsHelper.clear_cache()
+        parsed = json.loads(result['content'][0]['text'])
+        assert parsed['sigv4']['configured'] is False
+        assert 'credential validation failed' in parsed['sigv4']['message'].lower()

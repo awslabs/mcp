@@ -42,7 +42,7 @@ def _parse(result: dict) -> dict:
 
 
 class TestNotConfigured:
-    @patch(f'{_MOD}.is_configured', return_value=False)
+    @patch(f'{_MOD}.is_fes_available', return_value=False)
     async def test_returns_not_configured(self, _mock, handler, ctx):
         result = await handler.manage_collaborator(
             ctx, workspaceId='ws-1', action='put', userId='u-1', role='ADMIN'
@@ -55,7 +55,7 @@ class TestNotConfigured:
 
 class TestPutAction:
     @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
-    @patch(f'{_MOD}.is_configured', return_value=True)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_success(self, _mock_cfg, mock_fes, handler, ctx):
         mock_fes.return_value = {'updated': True}
         result = await handler.manage_collaborator(
@@ -70,7 +70,7 @@ class TestPutAction:
         assert call_args[1]['userId'] == 'u-1'
         assert call_args[1]['roles'] == ['CONTRIBUTOR']
 
-    @patch(f'{_MOD}.is_configured', return_value=True)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_missing_user_id(self, _mock_cfg, handler, ctx):
         result = await handler.manage_collaborator(
             ctx, workspaceId='ws-1', action='put', userId=None, role='ADMIN'
@@ -79,7 +79,7 @@ class TestPutAction:
         assert parsed['success'] is False
         assert parsed['error']['code'] == 'VALIDATION_ERROR'
 
-    @patch(f'{_MOD}.is_configured', return_value=True)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_missing_role(self, _mock_cfg, handler, ctx):
         result = await handler.manage_collaborator(
             ctx, workspaceId='ws-1', action='put', userId='u-1', role=None
@@ -91,7 +91,7 @@ class TestPutAction:
 
 class TestRemoveAction:
     @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
-    @patch(f'{_MOD}.is_configured', return_value=True)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_success(self, _mock_cfg, mock_fes, handler, ctx):
         mock_fes.return_value = {'detail': 'ok'}
         result = await handler.manage_collaborator(
@@ -104,7 +104,7 @@ class TestRemoveAction:
         mock_fes.assert_called_once()
         assert mock_fes.call_args[0][0] == 'DeleteUserRoleMappings'
 
-    @patch(f'{_MOD}.is_configured', return_value=True)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_missing_user_id(self, _mock_cfg, handler, ctx):
         result = await handler.manage_collaborator(
             ctx, workspaceId='ws-1', action='remove', userId=None, confirm=True
@@ -113,7 +113,7 @@ class TestRemoveAction:
         assert parsed['success'] is False
         assert parsed['error']['code'] == 'VALIDATION_ERROR'
 
-    @patch(f'{_MOD}.is_configured', return_value=True)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_missing_confirm(self, _mock_cfg, handler, ctx):
         result = await handler.manage_collaborator(
             ctx, workspaceId='ws-1', action='remove', userId='u-1', confirm=None
@@ -125,7 +125,7 @@ class TestRemoveAction:
 
 class TestLeaveAction:
     @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
-    @patch(f'{_MOD}.is_configured', return_value=True)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_success(self, _mock_cfg, mock_fes, handler, ctx):
         mock_fes.return_value = {'detail': 'left'}
         result = await handler.manage_collaborator(
@@ -138,7 +138,7 @@ class TestLeaveAction:
         mock_fes.assert_called_once()
         assert mock_fes.call_args[0][0] == 'DeleteSelfRoleMappings'
 
-    @patch(f'{_MOD}.is_configured', return_value=True)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_user_id_not_allowed(self, _mock_cfg, handler, ctx):
         result = await handler.manage_collaborator(
             ctx, workspaceId='ws-1', action='leave', userId='u-1', confirm=True
@@ -147,7 +147,7 @@ class TestLeaveAction:
         assert parsed['success'] is False
         assert parsed['error']['code'] == 'VALIDATION_ERROR'
 
-    @patch(f'{_MOD}.is_configured', return_value=True)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_missing_confirm(self, _mock_cfg, handler, ctx):
         result = await handler.manage_collaborator(
             ctx, workspaceId='ws-1', action='leave', confirm=None
@@ -159,7 +159,7 @@ class TestLeaveAction:
 
 class TestExceptionHandling:
     @patch(f'{_MOD}.call_fes', new_callable=AsyncMock, side_effect=RuntimeError('boom'))
-    @patch(f'{_MOD}.is_configured', return_value=True)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_returns_failure(self, _mock_cfg, _mock_fes, handler, ctx):
         result = await handler.manage_collaborator(
             ctx, workspaceId='ws-1', action='put', userId='u-1', role='ADMIN'

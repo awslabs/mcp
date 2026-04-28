@@ -17,7 +17,7 @@
 import asyncio
 from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.config_store import (
-    is_configured,
+    is_fes_available,
 )
 from awslabs.aws_transform_mcp_server.fes_client import FESOperation, call_fes, paginate_all
 from awslabs.aws_transform_mcp_server.guidance_nudge import job_needs_check
@@ -366,7 +366,7 @@ class ListResourcesHandler:
     ) -> Dict[str, Any]:
         """List AWS Transform resources by type."""
         # ── All resources: FES ─────────────────────────────────────────────
-        if not is_configured():
+        if not is_fes_available():
             return NOT_CONFIGURED()
 
         # Nudge: if a jobId is provided but load_instructions hasn't been called for it

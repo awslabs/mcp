@@ -30,7 +30,7 @@ import json
 import os
 import uuid
 from awslabs.aws_transform_mcp_server.audit import audited_tool
-from awslabs.aws_transform_mcp_server.config_store import is_configured
+from awslabs.aws_transform_mcp_server.config_store import is_fes_available
 from awslabs.aws_transform_mcp_server.fes_client import call_fes
 from awslabs.aws_transform_mcp_server.file_validation import validate_read_path
 from awslabs.aws_transform_mcp_server.guidance_nudge import job_needs_check
@@ -160,7 +160,7 @@ class HitlHandler:
         8-step flow: fetch task, validate, upload file, download artifact,
         build content, validate+format, upload response, route to API.
         """
-        if not is_configured():
+        if not is_fes_available():
             return error_result(_NOT_CONFIGURED_CODE, _NOT_CONFIGURED_MSG, _NOT_CONFIGURED_ACTION)
 
         nudge = job_needs_check(jobId)

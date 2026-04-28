@@ -14,7 +14,7 @@
 
 """List pending TOOL_APPROVAL tasks."""
 
-from awslabs.aws_transform_mcp_server.config_store import is_configured
+from awslabs.aws_transform_mcp_server.config_store import is_fes_available
 from awslabs.aws_transform_mcp_server.fes_client import call_fes
 from awslabs.aws_transform_mcp_server.tool_utils import failure_result, success_result
 from awslabs.aws_transform_mcp_server.tools.approve_hitl._common import not_configured_error
@@ -54,7 +54,7 @@ async def list_tool_approvals(
 
     Requires browser/SSO auth — call configure first.
     """
-    if not is_configured():
+    if not is_fes_available():
         return not_configured_error()
 
     try:

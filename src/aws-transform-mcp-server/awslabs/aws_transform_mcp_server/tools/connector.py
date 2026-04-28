@@ -14,11 +14,13 @@
 
 """Connector tool handlers for AWS Transform MCP server."""
 
+import os
 import uuid
 from awslabs.aws_transform_mcp_server.audit import audited_tool
+from awslabs.aws_transform_mcp_server.aws_helper import AwsHelper
 from awslabs.aws_transform_mcp_server.config_store import (
     get_config,
-    is_configured,
+    is_fes_available,
 )
 from awslabs.aws_transform_mcp_server.fes_client import call_fes
 from awslabs.aws_transform_mcp_server.tcp_client import call_tcp
@@ -102,7 +104,7 @@ class ConnectorHandler:
 
         Requires browser/SSO auth.
         """
-        if not is_configured():
+        if not is_fes_available():
             return error_result(_NOT_CONFIGURED_CODE, _NOT_CONFIGURED_MSG, _NOT_CONFIGURED_ACTION)
 
         try:
@@ -134,15 +136,16 @@ class ConnectorHandler:
             )
 
             config = get_config()
-            if config is None:
-                return error_result(
-                    'NOT_CONFIGURED',
-                    'Not connected. Use configure first.',
-                )
+            if config is not None:
+                stage = config.stage
+                region = config.region
+            else:
+                stage = os.environ.get('ATX_STAGE', 'prod')
+                region = AwsHelper.resolve_region(AwsHelper.create_session())
             verification_link = _build_verification_link(
                 connector_id,
-                config.stage,
-                config.region,
+                stage,
+                region,
                 awsAccountId,
                 workspaceId,
             )
@@ -179,9 +182,7 @@ class ConnectorHandler:
 
         Requires both AWS credentials (auto-detected) and browser/SSO auth.
         """
-        from awslabs.aws_transform_mcp_server.aws_helper import AwsHelper
-
-        if not is_configured():
+        if not is_fes_available():
             return error_result(
                 _NOT_CONFIGURED_CODE,
                 _NOT_CONFIGURED_MSG,

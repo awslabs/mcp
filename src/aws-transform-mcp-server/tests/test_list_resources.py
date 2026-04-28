@@ -141,7 +141,8 @@ class TestListResourcesHandler:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=False
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available',
+        return_value=False,
     )
     async def test_fes_resources_require_configured(self, _, handler, ctx):
         result = await handler.list_resources(ctx, resource=ResourceType.workspaces)
@@ -157,7 +158,7 @@ class TestListResourcesHandler:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_workspaces(self, _, mock_paginate, handler, ctx):
         mock_paginate.return_value = {'items': []}
@@ -170,7 +171,7 @@ class TestListResourcesHandler:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_jobs_requires_workspace_id(self, _, handler, ctx):
         result = await handler.list_resources(ctx, resource=ResourceType.jobs)
@@ -183,7 +184,7 @@ class TestListResourcesHandler:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_jobs_success(self, _, mock_paginate, handler, ctx):
         mock_paginate.return_value = {'jobList': [{'jobId': 'j1'}]}
@@ -195,7 +196,7 @@ class TestListResourcesHandler:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_connectors_requires_workspace_id(self, _, handler, ctx):
         result = await handler.list_resources(ctx, resource=ResourceType.connectors)
@@ -208,7 +209,7 @@ class TestListResourcesHandler:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_connectors_success(self, _, mock_paginate, handler, ctx):
         mock_paginate.return_value = {'connectors': []}
@@ -222,7 +223,7 @@ class TestListResourcesHandler:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_tasks_requires_workspace_id(self, _, handler, ctx):
         result = await handler.list_resources(ctx, resource=ResourceType.tasks)
@@ -231,7 +232,7 @@ class TestListResourcesHandler:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_tasks_requires_job_id(self, _, handler, ctx):
         result = await handler.list_resources(ctx, resource=ResourceType.tasks, workspaceId='ws1')
@@ -244,7 +245,7 @@ class TestListResourcesHandler:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_tasks_default_task_type(self, _, mock_paginate, handler, ctx):
         mock_paginate.return_value = {'hitlTasks': []}
@@ -262,7 +263,7 @@ class TestListResourcesHandler:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_tasks_with_category_filter(self, _, mock_paginate, handler, ctx):
         mock_paginate.return_value = {'hitlTasks': []}
@@ -282,7 +283,7 @@ class TestListResourcesHandler:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_artifacts_requires_workspace_id(self, _, handler, ctx):
         result = await handler.list_resources(ctx, resource=ResourceType.artifacts)
@@ -294,7 +295,7 @@ class TestListResourcesHandler:
         'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_artifacts_mainframe_requires_source(self, _, mock_fes, handler, ctx):
         # First call returns the job info (mainframe), second would be ListArtifacts
@@ -314,7 +315,7 @@ class TestListResourcesHandler:
         'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_artifacts_mainframe_connector_auto_prefix(
         self, _, mock_fes, mock_paginate, handler, ctx
@@ -342,7 +343,7 @@ class TestListResourcesHandler:
         'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_artifacts_non_mainframe_ignores_source(
         self, _, mock_fes, mock_paginate, handler, ctx
@@ -370,7 +371,7 @@ class TestListResourcesHandler:
         'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_artifacts_with_path_prefix_skips_get_job(
         self, _, mock_fes, mock_paginate, handler, ctx
@@ -398,7 +399,7 @@ class TestListResourcesHandler:
         'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_artifacts_with_plan_step_filter(self, _, mock_fes, mock_paginate, handler, ctx):
         mock_fes.return_value = {'jobType': 'STANDARD'}
@@ -419,7 +420,7 @@ class TestListResourcesHandler:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_messages_requires_workspace_id(self, _, handler, ctx):
         result = await handler.list_resources(ctx, resource=ResourceType.messages)
@@ -431,7 +432,7 @@ class TestListResourcesHandler:
         'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_messages_with_job_filter(self, _, mock_fes, handler, ctx):
         mock_fes.return_value = {'messages': []}
@@ -449,7 +450,7 @@ class TestListResourcesHandler:
         'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_messages_with_start_timestamp(self, _, mock_fes, handler, ctx):
         mock_fes.return_value = {'messages': []}
@@ -469,7 +470,7 @@ class TestListResourcesHandler:
         'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_messages_hydrates_full_content(self, _, mock_fes, handler, ctx):
         """ListMessages + BatchGetMessage called internally, returns full messages."""
@@ -498,7 +499,7 @@ class TestListResourcesHandler:
         'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_messages_empty_ids_skips_batch_get(self, _, mock_fes, handler, ctx):
         """When ListMessages returns no IDs, BatchGetMessage is not called."""
@@ -518,7 +519,7 @@ class TestListResourcesHandler:
         'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_messages_preserves_pagination_token(self, _, mock_fes, handler, ctx):
         """NextToken from ListMessages is included in the result."""
@@ -538,7 +539,7 @@ class TestListResourcesHandler:
         'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_messages_forwards_max_results(self, _, mock_fes, handler, ctx):
         """MaxResults is forwarded to the ListMessages call."""
@@ -553,7 +554,7 @@ class TestListResourcesHandler:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_worklogs_requires_workspace_id(self, _, handler, ctx):
         result = await handler.list_resources(ctx, resource=ResourceType.worklogs)
@@ -562,7 +563,7 @@ class TestListResourcesHandler:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_worklogs_requires_job_id(self, _, handler, ctx):
         result = await handler.list_resources(
@@ -577,7 +578,7 @@ class TestListResourcesHandler:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_worklogs_with_step_id_filter(self, _, mock_paginate, handler, ctx):
         mock_paginate.return_value = {'worklogs': []}
@@ -599,7 +600,7 @@ class TestListResourcesHandler:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_worklogs_with_time_filter(self, _, mock_paginate, handler, ctx):
         mock_paginate.return_value = {'worklogs': []}
@@ -623,7 +624,7 @@ class TestListResourcesHandler:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_worklogs_invalid_time_range(self, _, handler, ctx):
         result = await handler.list_resources(
@@ -644,7 +645,7 @@ class TestListResourcesHandler:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_worklogs_auto_paginates(self, _, mock_paginate, handler, ctx):
         mock_paginate.return_value = {'worklogs': [{'id': 'w1'}, {'id': 'w2'}]}
@@ -665,7 +666,7 @@ class TestListResourcesHandler:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_plan_requires_workspace_id(self, _, handler, ctx):
         result = await handler.list_resources(ctx, resource=ResourceType.plan)
@@ -674,7 +675,7 @@ class TestListResourcesHandler:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_plan_requires_job_id(self, _, handler, ctx):
         result = await handler.list_resources(ctx, resource=ResourceType.plan, workspaceId='ws1')
@@ -686,7 +687,7 @@ class TestListResourcesHandler:
         'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_plan_merges_results(self, _, mock_fes, handler, ctx):
         async def fes_side_effect(op, body):
@@ -713,7 +714,7 @@ class TestListResourcesHandler:
         'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_plan_both_fail(self, _, mock_fes, handler, ctx):
         mock_fes.side_effect = RuntimeError('api down')
@@ -728,7 +729,7 @@ class TestListResourcesHandler:
         'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_plan_partial_failure(self, _, mock_fes, handler, ctx):
         """When one of the two plan calls fails, result includes the other."""
@@ -758,7 +759,7 @@ class TestListResourcesHandler:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_agents_no_filter(self, _, mock_paginate, handler, ctx):
         mock_paginate.return_value = {'items': []}
@@ -773,7 +774,7 @@ class TestListResourcesHandler:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_agents_type_filter(self, _, mock_paginate, handler, ctx):
         mock_paginate.return_value = {'items': []}
@@ -791,7 +792,7 @@ class TestListResourcesHandler:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_agents_owner_filter(self, _, mock_paginate, handler, ctx):
         mock_paginate.return_value = {'items': []}
@@ -807,7 +808,7 @@ class TestListResourcesHandler:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_agents_job_orchestrator_filter(self, _, mock_paginate, handler, ctx):
         mock_paginate.return_value = {'items': []}
@@ -821,7 +822,7 @@ class TestListResourcesHandler:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_agents_config_availability(self, _, mock_paginate, handler, ctx):
         mock_paginate.return_value = {'items': []}
@@ -839,7 +840,7 @@ class TestListResourcesHandler:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_agents_returns_all_pages(self, _, mock_paginate, handler, ctx):
         mock_paginate.return_value = {
@@ -862,7 +863,7 @@ class TestListResourcesHandler:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.is_configured', return_value=True
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_fes_exception_returns_failure(self, _, mock_paginate, handler, ctx):
         mock_paginate.side_effect = RuntimeError('unexpected error')

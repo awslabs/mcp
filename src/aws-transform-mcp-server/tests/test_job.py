@@ -46,7 +46,7 @@ def _parse(result: dict) -> dict:
 
 class TestCreateJob:
     @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
-    @patch(f'{_MOD}.is_configured', return_value=True)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_create_start_get(self, _mock_configured, mock_fes, handler, ctx):
         """CreateJob -> StartJob -> GetJob chain."""
         mock_fes.side_effect = [
@@ -78,7 +78,7 @@ class TestCreateJob:
         assert calls[2][0][0] == 'GetJob'
         assert calls[2][0][1] == {'workspaceId': 'ws-1', 'jobId': 'job-001'}
 
-    @patch(f'{_MOD}.is_configured', return_value=False)
+    @patch(f'{_MOD}.is_fes_available', return_value=False)
     async def test_not_configured(self, _mock_configured, handler, ctx):
         result = await handler.create_job(
             ctx,
@@ -94,7 +94,7 @@ class TestCreateJob:
 
 class TestControlJob:
     @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
-    @patch(f'{_MOD}.is_configured', return_value=True)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_start(self, _mock_configured, mock_fes, handler, ctx):
         mock_fes.side_effect = [
             {},  # StartJob
@@ -110,7 +110,7 @@ class TestControlJob:
         assert calls[0][0][0] == 'StartJob'
 
     @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
-    @patch(f'{_MOD}.is_configured', return_value=True)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_stop(self, _mock_configured, mock_fes, handler, ctx):
         mock_fes.side_effect = [
             {},  # StopJob
@@ -125,7 +125,7 @@ class TestControlJob:
         calls = mock_fes.call_args_list
         assert calls[0][0][0] == 'StopJob'
 
-    @patch(f'{_MOD}.is_configured', return_value=False)
+    @patch(f'{_MOD}.is_fes_available', return_value=False)
     async def test_not_configured(self, _mock_configured, handler, ctx):
         result = await handler.control_job(ctx, workspaceId='ws-1', jobId='job-1', action='start')
         parsed = _parse(result)
@@ -134,7 +134,7 @@ class TestControlJob:
 
 class TestDeleteJob:
     @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
-    @patch(f'{_MOD}.is_configured', return_value=True)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_success(self, _mock_configured, mock_fes, handler, ctx):
         mock_fes.return_value = {'deleted': True}
 
@@ -145,7 +145,7 @@ class TestDeleteJob:
         mock_fes.assert_called_once()
         assert mock_fes.call_args[0][0] == 'DeleteJob'
 
-    @patch(f'{_MOD}.is_configured', return_value=True)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_requires_confirm(self, _mock_configured, handler, ctx):
         result = await handler.delete_job(ctx, workspaceId='ws-1', jobId='job-1', confirm=False)
         parsed = _parse(result)
@@ -153,7 +153,7 @@ class TestDeleteJob:
         assert parsed['success'] is False
         assert parsed['error']['code'] == 'VALIDATION_ERROR'
 
-    @patch(f'{_MOD}.is_configured', return_value=False)
+    @patch(f'{_MOD}.is_fes_available', return_value=False)
     async def test_not_configured(self, _mock_configured, handler, ctx):
         result = await handler.delete_job(ctx, workspaceId='ws-1', jobId='job-1', confirm=True)
         parsed = _parse(result)

@@ -25,6 +25,7 @@ from awslabs.aws_transform_mcp_server.config_store import (
     derive_fes_endpoint,
     get_config,
     is_configured,
+    is_sigv4_fes_available,
     persist_config,
     set_config,
 )
@@ -268,7 +269,7 @@ class ConfigureHandler:
         )
 
     async def get_status(self, ctx: Context) -> dict:
-        """Check the status of all configured connections (FES browser/SSO and SigV4/TCP)."""
+        """Check the status of all connections (FES cookie/SSO/SigV4 and TCP SigV4)."""
         status: dict = {'serverVersion': SERVER_VERSION}
 
         # ── FES status ──────────────────────────────────────────────────
@@ -397,6 +398,16 @@ class ConfigureHandler:
                 'configured': False,
                 'message': f'AWS credential validation failed: {exc}',
             }
+
+        # ── SigV4 FES status ────────────────────────────────────────────
+        status['sigv4Fes'] = {
+            'available': is_sigv4_fes_available(),
+            'message': (
+                'SigV4 FES auth enabled — FES tools work without configure.'
+                if is_sigv4_fes_available()
+                else 'SigV4 FES auth not available. Use configure for FES tools.'
+            ),
+        }
 
         fes_status = status.get('fes', {})
         has_error = 'error' in fes_status

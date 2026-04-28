@@ -55,7 +55,7 @@ def _parse(result: dict) -> dict:
 
 
 class TestNotConfigured:
-    @patch(f'{_MOD}.is_configured', return_value=False)
+    @patch(f'{_MOD}.is_fes_available', return_value=False)
     async def test_returns_not_configured(self, _mock_configured, handler, ctx):
         result = await handler.get_job_status(ctx, workspaceId='ws-1', jobId='job-1')
         parsed = _parse(result)
@@ -65,7 +65,7 @@ class TestNotConfigured:
 
 class TestInstructionsRequired:
     @patch(f'{_MOD}.job_needs_check', return_value='STOP: call load_instructions first')
-    @patch(f'{_MOD}.is_configured', return_value=True)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_returns_instructions_required(self, _mock_cfg, _mock_nudge, handler, ctx):
         result = await handler.get_job_status(ctx, workspaceId='ws-1', jobId='job-1')
         parsed = _parse(result)
@@ -77,7 +77,7 @@ class TestInProgressJob:
     @patch(f'{_MOD}.paginate_all', new_callable=AsyncMock)
     @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
     @patch(f'{_MOD}.job_needs_check', return_value=None)
-    @patch(f'{_MOD}.is_configured', return_value=True)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_returns_snapshot_with_polling_guidance(
         self, _mock_cfg, _mock_nudge, mock_fes, mock_paginate, handler, ctx
     ):
@@ -122,7 +122,7 @@ class TestCompletedJob:
     @patch(f'{_MOD}.paginate_all', new_callable=AsyncMock)
     @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
     @patch(f'{_MOD}.job_needs_check', return_value=None)
-    @patch(f'{_MOD}.is_configured', return_value=True)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_terminal_state_stops_polling(
         self, _mock_cfg, _mock_nudge, mock_fes, mock_paginate, handler, ctx
     ):
@@ -153,7 +153,7 @@ class TestFailedJob:
     @patch(f'{_MOD}.paginate_all', new_callable=AsyncMock)
     @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
     @patch(f'{_MOD}.job_needs_check', return_value=None)
-    @patch(f'{_MOD}.is_configured', return_value=True)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_failed_is_terminal(
         self, _mock_cfg, _mock_nudge, mock_fes, mock_paginate, handler, ctx
     ):
@@ -179,7 +179,7 @@ class TestPendingHitlTasks:
     @patch(f'{_MOD}.paginate_all', new_callable=AsyncMock)
     @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
     @patch(f'{_MOD}.job_needs_check', return_value=None)
-    @patch(f'{_MOD}.is_configured', return_value=True)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_pending_tasks_flagged(
         self, _mock_cfg, _mock_nudge, mock_fes, mock_paginate, handler, ctx
     ):
@@ -216,7 +216,7 @@ class TestGetJobFails:
     @patch(f'{_MOD}.paginate_all', new_callable=AsyncMock)
     @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
     @patch(f'{_MOD}.job_needs_check', return_value=None)
-    @patch(f'{_MOD}.is_configured', return_value=True)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_returns_error_when_getjob_fails(
         self, _mock_cfg, _mock_nudge, mock_fes, mock_paginate, handler, ctx
     ):
@@ -241,7 +241,7 @@ class TestPartialFailures:
     @patch(f'{_MOD}.paginate_all', new_callable=AsyncMock)
     @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
     @patch(f'{_MOD}.job_needs_check', return_value=None)
-    @patch(f'{_MOD}.is_configured', return_value=True)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_returns_none_for_failed_sections(
         self, _mock_cfg, _mock_nudge, mock_fes, mock_paginate, handler, ctx
     ):
@@ -274,7 +274,7 @@ class TestCancellationInProgress:
     @patch(f'{_MOD}.paginate_all', new_callable=AsyncMock)
     @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
     @patch(f'{_MOD}.job_needs_check', return_value=None)
-    @patch(f'{_MOD}.is_configured', return_value=True)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_cancellation_in_progress_is_not_terminal(
         self, _mock_cfg, _mock_nudge, mock_fes, mock_paginate, handler, ctx
     ):

@@ -16,7 +16,7 @@
 
 import asyncio
 from awslabs.aws_transform_mcp_server.audit import audited_tool
-from awslabs.aws_transform_mcp_server.config_store import is_configured
+from awslabs.aws_transform_mcp_server.config_store import is_fes_available
 from awslabs.aws_transform_mcp_server.fes_client import call_fes, paginate_all
 from awslabs.aws_transform_mcp_server.guidance_nudge import job_needs_check
 from awslabs.aws_transform_mcp_server.tool_utils import (
@@ -79,7 +79,7 @@ class JobStatusHandler:
         jobId: str = Field(..., description='Job ID (UUID format)'),
     ) -> Dict[str, Any]:
         """Fetch a unified job status snapshot for IDE agent polling."""
-        if not is_configured():
+        if not is_fes_available():
             return error_result(
                 'NOT_CONFIGURED',
                 'Not connected to AWS Transform.',

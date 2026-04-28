@@ -34,16 +34,18 @@ INSTRUCTIONS = """AWS Transform MCP Server — manage workspaces, jobs, tasks, c
 
 # Authentication
 
-Two auth systems. AWS credentials are auto-detected from the environment
-(AWS_PROFILE, ~/.aws/credentials, instance profile) — no tool call needed.
-Browser/SSO auth requires the `configure` tool.
+Three auth methods, checked in priority order:
 
-- `configure` → browser/SSO auth (FES). Used by most tools.
-- AWS credentials → auto-detected at startup. Used by `accept_connector`.
-  Set `AWS_PROFILE` in your MCP client config env block to select a profile.
-- `accept_connector` requires BOTH browser auth and AWS credentials.
-- `configure` and `get_status` work without auth.
-- `get_status` validates AWS credentials via STS and shows account ID.
+1. **Cookie/SSO** (explicit) → run `configure` with authMode "cookie" or "sso".
+2. **SigV4** (auto-detected) → if AWS credentials are available and the account
+   has SigV4 FES access enabled, all FES tools work without `configure`.
+   Set `AWS_PROFILE` in your MCP client config env block to select a profile.
+3. **Not configured** → tools return NOT_CONFIGURED with guidance.
+
+- `configure` and `get_status` always work without auth.
+- `get_status` validates AWS credentials via STS, shows account ID, and
+  reports whether SigV4 FES access is available.
+- `accept_connector` requires AWS credentials (for STS + TCP calls).
 
 # Workflows
 
@@ -147,6 +149,62 @@ def _register_handlers(mcp: FastMCP) -> None:
     JobStatusHandler(mcp)
 
 
+async def _startup() -> None:
+    """Load persisted config and probe SigV4 FES if needed."""
+    loaded = await load_persisted_config()
+    if not loaded:
+        await _probe_sigv4_fes()
+
+
+async def _probe_sigv4_fes() -> None:
+    """Probe whether SigV4 auth works for FES at startup.
+
+    Attempts a ListWorkspaces call with SigV4 signing. If it succeeds,
+    FES tools can work without explicit cookie/SSO configure.
+    """
+    import os
+    from awslabs.aws_transform_mcp_server.aws_helper import AwsHelper
+    from awslabs.aws_transform_mcp_server.config_store import (
+        derive_fes_endpoint,
+        set_sigv4_fes_available,
+    )
+    from awslabs.aws_transform_mcp_server.consts import (
+        FES_SIGV4_PROBE_TIMEOUT_SECONDS,
+        SIGV4_FES_ENABLED,
+    )
+    from awslabs.aws_transform_mcp_server.fes_client import call_fes_direct_sigv4
+    from loguru import logger
+
+    if not SIGV4_FES_ENABLED:
+        set_sigv4_fes_available(False)
+        return
+
+    session = AwsHelper.create_session()
+    credentials = session.get_credentials()
+    if credentials is None:
+        logger.info('No AWS credentials found, skipping SigV4 FES probe')
+        set_sigv4_fes_available(False)
+        return
+
+    stage = os.environ.get('ATX_STAGE', 'prod')
+    region = AwsHelper.resolve_region(session)
+    endpoint = derive_fes_endpoint(stage, region)
+
+    try:
+        await call_fes_direct_sigv4(
+            endpoint,
+            'ListWorkspaces',
+            {},
+            timeout_seconds=FES_SIGV4_PROBE_TIMEOUT_SECONDS,
+            max_retries=0,
+        )
+        set_sigv4_fes_available(True)
+        logger.info('SigV4 FES probe succeeded — FES tools available without configure')
+    except Exception as exc:
+        set_sigv4_fes_available(False)
+        logger.info('SigV4 FES probe failed ({}), configure required for FES tools', exc)
+
+
 def main() -> None:
     """Entry point for the AWS Transform MCP server."""
     import os
@@ -167,8 +225,7 @@ def main() -> None:
     )
     parser.parse_args()
 
-    # Restore persisted auth config from ~/.aws-transform-mcp/config.json
-    asyncio.run(load_persisted_config())
+    asyncio.run(_startup())
 
     mcp = create_server()
     _register_handlers(mcp)

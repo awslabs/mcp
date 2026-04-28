@@ -53,7 +53,7 @@ class TestUploadArtifactFromFile:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.artifact.is_configured',
+        'awslabs.aws_transform_mcp_server.tools.artifact.is_fes_available',
         return_value=True,
     )
     async def test_upload_from_file(self, _mock_cfg, mock_fes, mock_httpx_cls, handler, ctx):
@@ -114,7 +114,7 @@ class TestUploadArtifactRawContent:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.artifact.is_configured',
+        'awslabs.aws_transform_mcp_server.tools.artifact.is_fes_available',
         return_value=True,
     )
     async def test_upload_raw_utf8(self, _mock_cfg, mock_fes, mock_httpx_cls, handler, ctx):
@@ -160,7 +160,7 @@ class TestUploadArtifactBase64:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.artifact.is_configured',
+        'awslabs.aws_transform_mcp_server.tools.artifact.is_fes_available',
         return_value=True,
     )
     async def test_upload_base64(self, _mock_cfg, mock_fes, mock_httpx_cls, handler, ctx):
@@ -209,7 +209,7 @@ class TestUploadArtifactNotConfigured:
     """Tests for not-configured state."""
 
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.artifact.is_configured',
+        'awslabs.aws_transform_mcp_server.tools.artifact.is_fes_available',
         return_value=False,
     )
     async def test_not_configured(self, _mock_cfg, handler, ctx):

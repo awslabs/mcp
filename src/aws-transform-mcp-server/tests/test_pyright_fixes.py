@@ -52,6 +52,62 @@ class TestCallFesNoneConfig:
             with pytest.raises(RuntimeError, match='[Nn]o AWS credentials'):
                 await call_tcp('ListConnectors')
 
+    @pytest.mark.asyncio
+    async def test_call_tcp_happy_path(self):
+        """call_tcp resolves creds, signs, and sends request."""
+        from awslabs.aws_transform_mcp_server.tcp_client import call_tcp
+
+        mock_creds = MagicMock()
+        mock_creds.get_frozen_credentials.return_value = MagicMock(
+            access_key='AKID',
+            secret_key='SECRET',  # pragma: allowlist secret
+            token='TOKEN',
+        )
+        mock_session = MagicMock()
+        mock_session.get_credentials.return_value = mock_creds
+        mock_session.region_name = 'us-east-1'
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = {'connectors': []}
+
+        with (
+            patch('awslabs.aws_transform_mcp_server.aws_helper.boto3') as mock_boto3,
+            patch(
+                'awslabs.aws_transform_mcp_server.tcp_client.request_with_retry',
+                new_callable=AsyncMock,
+                return_value=mock_response,
+            ) as mock_retry,
+        ):
+            mock_boto3.Session.return_value = mock_session
+            result = await call_tcp('ListConnectors')
+
+        assert result == {'connectors': []}
+        mock_retry.assert_called_once()
+
+
+# ── Category 1a: AwsHelper.create_boto3_client cache ────────────────────
+
+
+class TestAwsHelperCache:
+    """Verify create_boto3_client caches clients by service:region key."""
+
+    def test_cache_hit(self):
+        from awslabs.aws_transform_mcp_server.aws_helper import AwsHelper
+
+        mock_session = MagicMock()
+        mock_client = MagicMock()
+        mock_session.client.return_value = mock_client
+
+        with patch('awslabs.aws_transform_mcp_server.aws_helper.boto3') as mock_boto3:
+            mock_boto3.Session.return_value = mock_session
+            AwsHelper.clear_cache()
+            first = AwsHelper.create_boto3_client('sts', region_name='us-east-1')
+            second = AwsHelper.create_boto3_client('sts', region_name='us-east-1')
+
+        assert first is second
+        mock_session.client.assert_called_once()
+        AwsHelper.clear_cache()
+
 
 # ── Category 1b: get_status None-guard on get_config / boto3 credentials ──
 
@@ -181,7 +237,9 @@ class TestDownloadAgentArtifactParamNames:
 
     @pytest.mark.asyncio
     @patch('awslabs.aws_transform_mcp_server.tools.get_resource.call_fes', new_callable=AsyncMock)
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.is_configured', return_value=True)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
+    )
     async def test_task_with_artifact_uses_snake_case_params(self, _, mock_fes, handler, ctx):
         """Verify download_agent_artifact is called with snake_case kwargs, not camelCase."""
         mock_fes.return_value = {

@@ -14,7 +14,7 @@
 
 """Shared constants and validation logic for approve_hitl tools."""
 
-from awslabs.aws_transform_mcp_server.config_store import is_configured
+from awslabs.aws_transform_mcp_server.config_store import is_fes_available
 from awslabs.aws_transform_mcp_server.fes_client import call_fes
 from awslabs.aws_transform_mcp_server.tool_utils import (
     error_result,
@@ -53,7 +53,7 @@ async def validate_and_submit(
     Returns:
         MCP result envelope (success or error).
     """
-    if not is_configured():
+    if not is_fes_available():
         return not_configured_error()
 
     try:

@@ -12,14 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""FES (Front End Service) client — RPC-over-HTTP with cookie or bearer auth."""
+"""FES (Front End Service) client — RPC-over-HTTP with cookie, bearer, or SigV4 auth."""
 
 import httpx
 import json
+import os
 import time
 from awslabs.aws_transform_mcp_server import config_store, oauth
+from awslabs.aws_transform_mcp_server.aws_helper import AwsHelper
 from awslabs.aws_transform_mcp_server.consts import (
     CLIENT_APP_ID,
+    FES_SERVICE,
     FES_TARGET_BEARER,
     FES_TARGET_COOKIE,
     HEADER_CLIENT_APP_ID,
@@ -28,10 +31,12 @@ from awslabs.aws_transform_mcp_server.consts import (
     TOKEN_REFRESH_BUFFER_SECS,
 )
 from awslabs.aws_transform_mcp_server.http_utils import (
+    HttpError,
     request_with_retry,
 )
 from loguru import logger
 from typing import TYPE_CHECKING, Any, Dict, Literal, Optional
+from urllib.parse import urlparse
 
 
 if TYPE_CHECKING:
@@ -112,6 +117,84 @@ def _build_bearer_headers(
     if origin and operation != 'ListAvailableProfiles':
         headers['Origin'] = origin
     return headers
+
+
+def _build_sigv4_headers(operation: str) -> Dict[str, str]:
+    """Build unsigned headers for SigV4-authenticated FES calls."""
+    return {
+        'Content-Type': 'application/x-amz-json-1.0',
+        'X-Amz-Target': f'{FES_TARGET_COOKIE}.{operation}',
+    }
+
+
+async def call_fes_direct_sigv4(
+    endpoint: str,
+    operation: FESOperation,
+    body: Optional[Dict[str, Any]] = None,
+    timeout_seconds: float = TIMEOUT_SECONDS,
+    max_retries: int = MAX_RETRIES,
+    region: Optional[str] = None,
+) -> Any:
+    """Direct FES call with SigV4 auth from boto3 credentials.
+
+    Credentials are resolved from boto3's standard chain on every call.
+
+    Args:
+        endpoint: FES endpoint URL.
+        operation: FES operation name.
+        body: Request body (defaults to empty dict).
+        timeout_seconds: Per-request timeout in seconds.
+        max_retries: Maximum number of retries.
+        region: AWS region. If not provided, resolved from session.
+
+    Returns:
+        Parsed JSON response.
+
+    Raises:
+        RuntimeError: If no AWS credentials are available.
+        HttpError: On non-2xx response.
+    """
+    if body is None:
+        body = {}
+
+    session = AwsHelper.create_session()
+    if region is None:
+        region = AwsHelper.resolve_region(session)
+    credentials = session.get_credentials()
+    if credentials is None:
+        raise RuntimeError(
+            'No AWS credentials found. Set AWS_PROFILE in your MCP client config, '
+            'or configure credentials via aws configure, environment variables, '
+            'or instance profile.'
+        )
+
+    parsed = urlparse(endpoint)
+    hostname = parsed.hostname or ''
+    payload = json.dumps(body).encode('utf-8')
+
+    headers = _build_sigv4_headers(operation)
+    headers['host'] = hostname
+
+    signed_headers = AwsHelper.sign_request(
+        endpoint=endpoint,
+        headers=headers,
+        body_bytes=payload,
+        credentials=credentials.get_frozen_credentials(),
+        service=FES_SERVICE,
+        region=region,
+    )
+
+    async with httpx.AsyncClient() as client:
+        response = await request_with_retry(
+            client,
+            'POST',
+            endpoint,
+            signed_headers,
+            payload,
+            timeout_seconds=timeout_seconds,
+            max_retries=max_retries,
+        )
+        return response.json()
 
 
 async def call_fes_direct_cookie(
@@ -269,6 +352,22 @@ async def call_fes(operation: FESOperation, body: Optional[Dict[str, Any]] = Non
 
     config = config_store.get_config()
     if config is None:
+        if config_store.is_sigv4_fes_available():
+            stage = os.environ.get('ATX_STAGE', 'prod')
+            session = AwsHelper.create_session()
+            region = AwsHelper.resolve_region(session)
+            endpoint = config_store.derive_fes_endpoint(stage, region)
+            try:
+                return await call_fes_direct_sigv4(
+                    endpoint,
+                    operation,
+                    body,
+                    region=region,
+                )
+            except HttpError as exc:
+                if exc.status_code in (401, 403):
+                    config_store.set_sigv4_fes_available(False)
+                raise
         raise RuntimeError('Not configured. Call configure first.')
 
     # ── Token refresh (bearer mode only) ────────────────────────────────

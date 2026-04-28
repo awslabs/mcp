@@ -53,7 +53,7 @@ class TestCompleteTaskApprove:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.hitl.is_configured',
+        'awslabs.aws_transform_mcp_server.tools.hitl.is_fes_available',
         return_value=True,
     )
     async def test_approve_standard(self, _mock_cfg, mock_fes, mock_upload, handler, ctx):
@@ -102,7 +102,7 @@ class TestCompleteTaskApprove:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.hitl.is_configured',
+        'awslabs.aws_transform_mcp_server.tools.hitl.is_fes_available',
         return_value=True,
     )
     async def test_approve_critical(self, _mock_cfg, mock_fes, mock_upload, handler, ctx):
@@ -145,7 +145,7 @@ class TestCompleteTaskSaveDraft:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.hitl.is_configured',
+        'awslabs.aws_transform_mcp_server.tools.hitl.is_fes_available',
         return_value=True,
     )
     async def test_save_draft_no_content(self, _mock_cfg, mock_fes, handler, ctx):
@@ -192,7 +192,7 @@ class TestCompleteTaskSaveDraft:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.hitl.is_configured',
+        'awslabs.aws_transform_mcp_server.tools.hitl.is_fes_available',
         return_value=True,
     )
     async def test_save_draft_with_content(self, _mock_cfg, mock_fes, mock_upload, handler, ctx):
@@ -244,7 +244,7 @@ class TestCompleteTaskWithFile:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.hitl.is_configured',
+        'awslabs.aws_transform_mcp_server.tools.hitl.is_fes_available',
         return_value=True,
     )
     async def test_file_upload(
@@ -285,7 +285,7 @@ class TestCompleteTaskWithFile:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.hitl.is_configured',
+        'awslabs.aws_transform_mcp_server.tools.hitl.is_fes_available',
         return_value=True,
     )
     async def test_file_not_found(self, _mock_cfg, mock_fes, handler, ctx):
@@ -320,7 +320,7 @@ class TestSendForApproval:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.hitl.is_configured',
+        'awslabs.aws_transform_mcp_server.tools.hitl.is_fes_available',
         return_value=True,
     )
     async def test_non_critical_fails(self, _mock_cfg, mock_fes, handler, ctx):
@@ -357,7 +357,7 @@ class TestValidationError:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.hitl.is_configured',
+        'awslabs.aws_transform_mcp_server.tools.hitl.is_fes_available',
         return_value=True,
     )
     async def test_invalid_json_content(self, _mock_cfg, mock_fes, handler, ctx):
@@ -389,7 +389,7 @@ class TestNotConfigured:
     """Tests for not-configured state."""
 
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.hitl.is_configured',
+        'awslabs.aws_transform_mcp_server.tools.hitl.is_fes_available',
         return_value=False,
     )
     async def test_not_configured(self, _mock_cfg, handler, ctx):

@@ -46,7 +46,7 @@ def _parse(result: dict) -> dict:
 
 class TestCreateWorkspace:
     @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
-    @patch(f'{_MOD}.is_configured', return_value=True)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_success(self, _mock_configured, mock_fes, handler, ctx):
         mock_fes.return_value = {
             'workspace': {'id': 'ws-123', 'status': 'ACTIVE', 'name': 'My Workspace'}
@@ -65,7 +65,7 @@ class TestCreateWorkspace:
         assert call_args[0][1]['description'] == 'A test'
         assert 'idempotencyToken' in call_args[0][1]
 
-    @patch(f'{_MOD}.is_configured', return_value=False)
+    @patch(f'{_MOD}.is_fes_available', return_value=False)
     async def test_not_configured(self, _mock_configured, handler, ctx):
         result = await handler.create_workspace(ctx, name='Test')
         parsed = _parse(result)
@@ -77,7 +77,7 @@ class TestCreateWorkspace:
 
 class TestDeleteWorkspace:
     @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
-    @patch(f'{_MOD}.is_configured', return_value=True)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_success(self, _mock_configured, mock_fes, handler, ctx):
         mock_fes.return_value = {'status': 'DELETED'}
 
@@ -94,7 +94,7 @@ class TestDeleteWorkspace:
         assert call_args[0][0] == 'DeleteWorkspace'
         assert call_args[0][1] == {'id': 'ws-123'}
 
-    @patch(f'{_MOD}.is_configured', return_value=True)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_requires_confirm(self, _mock_configured, handler, ctx):
         result = await handler.delete_workspace(ctx, workspaceId='ws-123', confirm=False)
         parsed = _parse(result)
@@ -103,7 +103,7 @@ class TestDeleteWorkspace:
         assert parsed['error']['code'] == 'VALIDATION_ERROR'
         assert result['isError'] is True
 
-    @patch(f'{_MOD}.is_configured', return_value=False)
+    @patch(f'{_MOD}.is_fes_available', return_value=False)
     async def test_not_configured(self, _mock_configured, handler, ctx):
         result = await handler.delete_workspace(ctx, workspaceId='ws-123', confirm=True)
         parsed = _parse(result)

@@ -59,8 +59,12 @@ class TestDeriveFesEndpoint:
         assert url == 'https://api.transform-gamma.us-west-2.on.aws/'
 
     def test_other_stage(self):
-        url = derive_fes_endpoint('beta', 'eu-west-1')
-        assert url == 'https://api.transform-beta.eu-west-1.on.aws/'
+        url = derive_fes_endpoint('alpha-intg', 'eu-west-1')
+        assert url == 'https://api.transform-alpha-intg.eu-west-1.on.aws/'
+
+    def test_invalid_stage(self):
+        with pytest.raises(ValueError, match='Invalid stage'):
+            derive_fes_endpoint('beta', 'eu-west-1')
 
 
 # ── derive_tcp_endpoint ─────────────────────────────────────────────────

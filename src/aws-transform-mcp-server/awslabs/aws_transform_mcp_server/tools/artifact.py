@@ -23,7 +23,7 @@ import hashlib
 import httpx
 import os
 from awslabs.aws_transform_mcp_server.audit import audited_tool
-from awslabs.aws_transform_mcp_server.config_store import is_configured
+from awslabs.aws_transform_mcp_server.config_store import is_fes_available
 from awslabs.aws_transform_mcp_server.fes_client import call_fes
 from awslabs.aws_transform_mcp_server.file_validation import validate_read_path
 from awslabs.aws_transform_mcp_server.tool_utils import (
@@ -85,7 +85,7 @@ class ArtifactHandler:
 
         Returns the artifact ID.
         """
-        if not is_configured():
+        if not is_fes_available():
             return error_result(_NOT_CONFIGURED_CODE, _NOT_CONFIGURED_MSG, _NOT_CONFIGURED_ACTION)
 
         try:

@@ -17,7 +17,10 @@
 import boto3
 import os
 from awslabs.aws_transform_mcp_server import __version__
+from botocore.auth import SigV4Auth
+from botocore.awsrequest import AWSRequest
 from botocore.config import Config
+from botocore.credentials import ReadOnlyCredentials
 from typing import Any, Dict, Optional
 
 
@@ -71,6 +74,20 @@ class AwsHelper:
 
         cls._client_cache[cache_key] = client
         return client
+
+    @staticmethod
+    def sign_request(
+        endpoint: str,
+        headers: Dict[str, str],
+        body_bytes: bytes,
+        credentials: ReadOnlyCredentials,
+        service: str,
+        region: str,
+    ) -> Dict[str, str]:
+        """Sign an HTTP request using SigV4 and return the signed headers."""
+        aws_request = AWSRequest(method='POST', url=endpoint, data=body_bytes, headers=headers)
+        SigV4Auth(credentials, service, region).add_auth(aws_request)
+        return dict(aws_request.headers)
 
     @classmethod
     def clear_cache(cls) -> None:

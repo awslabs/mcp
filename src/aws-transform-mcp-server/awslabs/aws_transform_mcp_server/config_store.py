@@ -25,6 +25,9 @@ from awslabs.aws_transform_mcp_server.models import ConnectionConfig
 from loguru import logger
 
 
+_VALID_STAGES = frozenset({'prod', 'gamma', 'alpha-intg'})
+
+
 def derive_fes_endpoint(stage: str, region: str) -> str:
     """Derive the FES (Front End Service) endpoint for a given stage and region.
 
@@ -34,7 +37,12 @@ def derive_fes_endpoint(stage: str, region: str) -> str:
 
     Returns:
         The FES endpoint URL.
+
+    Raises:
+        ValueError: If the stage is not a known value.
     """
+    if stage not in _VALID_STAGES:
+        raise ValueError(f'Invalid stage: {stage!r}. Must be one of: {sorted(_VALID_STAGES)}')
     if stage == 'prod':
         return f'https://api.transform.{region}.on.aws/'
     return f'https://api.transform-{stage}.{region}.on.aws/'
@@ -315,6 +323,24 @@ class ConfigStore:
 
 
 _default_store = ConfigStore()
+
+_sigv4_fes_available: bool | None = None
+
+
+def set_sigv4_fes_available(available: bool) -> None:
+    """Cache whether SigV4 FES auth is available."""
+    global _sigv4_fes_available
+    _sigv4_fes_available = available
+
+
+def is_sigv4_fes_available() -> bool:
+    """Return True if SigV4 FES auth was probed and succeeded."""
+    return _sigv4_fes_available is True
+
+
+def is_fes_available() -> bool:
+    """Return True if FES is reachable via any auth method."""
+    return _default_store.is_configured or is_sigv4_fes_available()
 
 
 def set_config(config: ConnectionConfig) -> None:

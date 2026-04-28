@@ -16,7 +16,7 @@
 
 import uuid
 from awslabs.aws_transform_mcp_server.audit import audited_tool
-from awslabs.aws_transform_mcp_server.config_store import is_configured
+from awslabs.aws_transform_mcp_server.config_store import is_fes_available
 from awslabs.aws_transform_mcp_server.fes_client import call_fes
 from awslabs.aws_transform_mcp_server.tool_utils import (
     error_result,
@@ -51,7 +51,7 @@ class WorkspaceHandler:
 
         Requires configure (cookie or sso).
         """
-        if not is_configured():
+        if not is_fes_available():
             return error_result(_NOT_CONFIGURED_CODE, _NOT_CONFIGURED_MSG, _NOT_CONFIGURED_ACTION)
 
         _description: Optional[str] = description if isinstance(description, str) else None
@@ -81,7 +81,7 @@ class WorkspaceHandler:
         This is irreversible -- all jobs, artifacts, and connectors in the
         workspace will be lost.  Requires confirm=True.
         """
-        if not is_configured():
+        if not is_fes_available():
             return error_result(_NOT_CONFIGURED_CODE, _NOT_CONFIGURED_MSG, _NOT_CONFIGURED_ACTION)
 
         if not confirm:

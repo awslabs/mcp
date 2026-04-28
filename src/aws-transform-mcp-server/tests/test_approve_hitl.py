@@ -81,7 +81,7 @@ class TestListToolApprovals:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.approve_hitl.list_tool_approvals.is_configured',
+        'awslabs.aws_transform_mcp_server.tools.approve_hitl.list_tool_approvals.is_fes_available',
         return_value=True,
     )
     async def test_returns_server_filtered_tasks(self, _mock_cfg, mock_fes, ctx):
@@ -118,7 +118,7 @@ class TestListToolApprovals:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.approve_hitl.list_tool_approvals.is_configured',
+        'awslabs.aws_transform_mcp_server.tools.approve_hitl.list_tool_approvals.is_fes_available',
         return_value=True,
     )
     async def test_empty_tasks(self, _mock_cfg, mock_fes, ctx):
@@ -136,7 +136,7 @@ class TestListToolApprovals:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.approve_hitl.list_tool_approvals.is_configured',
+        'awslabs.aws_transform_mcp_server.tools.approve_hitl.list_tool_approvals.is_fes_available',
         return_value=True,
     )
     async def test_paginates_through_all_pages(self, _mock_cfg, mock_fes, ctx):
@@ -167,7 +167,7 @@ class TestListToolApprovals:
         assert second_call_body['nextToken'] == 'page2'
 
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.approve_hitl.list_tool_approvals.is_configured',
+        'awslabs.aws_transform_mcp_server.tools.approve_hitl.list_tool_approvals.is_fes_available',
         return_value=False,
     )
     async def test_not_configured(self, _mock_cfg, ctx):
@@ -182,7 +182,7 @@ class TestListToolApprovals:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.approve_hitl.list_tool_approvals.is_configured',
+        'awslabs.aws_transform_mcp_server.tools.approve_hitl.list_tool_approvals.is_fes_available',
         return_value=True,
     )
     async def test_fes_error(self, _mock_cfg, mock_fes, ctx):
@@ -204,7 +204,7 @@ class TestApproveToolApproval:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.approve_hitl._common.is_configured',
+        'awslabs.aws_transform_mcp_server.tools.approve_hitl._common.is_fes_available',
         return_value=True,
     )
     async def test_approve_success(self, _mock_cfg, mock_fes, ctx):
@@ -236,7 +236,7 @@ class TestApproveToolApproval:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.approve_hitl._common.is_configured',
+        'awslabs.aws_transform_mcp_server.tools.approve_hitl._common.is_fes_available',
         return_value=True,
     )
     async def test_wrong_category(self, _mock_cfg, mock_fes, ctx):
@@ -255,7 +255,7 @@ class TestApproveToolApproval:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.approve_hitl._common.is_configured',
+        'awslabs.aws_transform_mcp_server.tools.approve_hitl._common.is_fes_available',
         return_value=True,
     )
     async def test_wrong_status(self, _mock_cfg, mock_fes, ctx):
@@ -270,7 +270,7 @@ class TestApproveToolApproval:
         assert parsed['error']['code'] == 'WRONG_STATUS'
 
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.approve_hitl._common.is_configured',
+        'awslabs.aws_transform_mcp_server.tools.approve_hitl._common.is_fes_available',
         return_value=False,
     )
     async def test_not_configured(self, _mock_cfg, ctx):
@@ -285,7 +285,7 @@ class TestApproveToolApproval:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.approve_hitl._common.is_configured',
+        'awslabs.aws_transform_mcp_server.tools.approve_hitl._common.is_fes_available',
         return_value=True,
     )
     async def test_missing_category_rejected(self, _mock_cfg, mock_fes, ctx):
@@ -302,7 +302,7 @@ class TestApproveToolApproval:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.approve_hitl._common.is_configured',
+        'awslabs.aws_transform_mcp_server.tools.approve_hitl._common.is_fes_available',
         return_value=True,
     )
     async def test_missing_status_rejected(self, _mock_cfg, mock_fes, ctx):
@@ -324,7 +324,7 @@ class TestDenyToolApproval:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.approve_hitl._common.is_configured',
+        'awslabs.aws_transform_mcp_server.tools.approve_hitl._common.is_fes_available',
         return_value=True,
     )
     async def test_deny_success(self, _mock_cfg, mock_fes, ctx):
@@ -356,7 +356,7 @@ class TestDenyToolApproval:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.approve_hitl._common.is_configured',
+        'awslabs.aws_transform_mcp_server.tools.approve_hitl._common.is_fes_available',
         return_value=True,
     )
     async def test_wrong_category(self, _mock_cfg, mock_fes, ctx):
@@ -371,7 +371,7 @@ class TestDenyToolApproval:
         assert parsed['error']['code'] == 'WRONG_TASK_TYPE'
 
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.approve_hitl._common.is_configured',
+        'awslabs.aws_transform_mcp_server.tools.approve_hitl._common.is_fes_available',
         return_value=False,
     )
     async def test_not_configured(self, _mock_cfg, ctx):
@@ -391,7 +391,7 @@ class TestGetApprovalStatus:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.approve_hitl.get_approval_status.is_configured',
+        'awslabs.aws_transform_mcp_server.tools.approve_hitl.get_approval_status.is_fes_available',
         return_value=True,
     )
     async def test_get_status_success(self, _mock_cfg, mock_fes, ctx):
@@ -410,7 +410,7 @@ class TestGetApprovalStatus:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.approve_hitl.get_approval_status.is_configured',
+        'awslabs.aws_transform_mcp_server.tools.approve_hitl.get_approval_status.is_fes_available',
         return_value=True,
     )
     async def test_wrong_category_rejected(self, _mock_cfg, mock_fes, ctx):
@@ -425,7 +425,7 @@ class TestGetApprovalStatus:
         assert parsed['error']['code'] == 'WRONG_TASK_TYPE'
 
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.approve_hitl.get_approval_status.is_configured',
+        'awslabs.aws_transform_mcp_server.tools.approve_hitl.get_approval_status.is_fes_available',
         return_value=False,
     )
     async def test_not_configured(self, _mock_cfg, ctx):
@@ -440,7 +440,7 @@ class TestGetApprovalStatus:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.approve_hitl.get_approval_status.is_configured',
+        'awslabs.aws_transform_mcp_server.tools.approve_hitl.get_approval_status.is_fes_available',
         return_value=True,
     )
     async def test_fes_error(self, _mock_cfg, mock_fes, ctx):
