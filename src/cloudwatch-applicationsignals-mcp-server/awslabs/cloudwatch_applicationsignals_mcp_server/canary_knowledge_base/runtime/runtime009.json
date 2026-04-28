@@ -1,0 +1,79 @@
+{
+  "category": "dry_run",
+  "documentation_links": [
+    {
+      "title": "CloudWatch Synthetics Dry Run",
+      "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/performing-safe-canary-upgrades.html"
+    },
+    {
+      "title": "CloudWatch Synthetics Canary Metrics",
+      "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Synthetics_Canaries_metrics.html"
+    }
+  ],
+  "error_patterns": [
+    {
+      "text_contains": "Update Dry run failed"
+    },
+    {
+      "text_contains": "No Test Result Returned"
+    },
+    {
+      "text_contains": "connection timed out"
+    },
+    {
+      "text_contains": "dry run"
+    },
+    {
+      "text_contains": "SuccessPercentDryRun"
+    }
+  ],
+  "id": "RUNTIME-009",
+  "recommendations": [
+    {
+      "confidence": 95,
+      "estimated_time": "10 minutes",
+      "priority": "high",
+      "problem": "Canary timeout set too close to normal execution duration, causing dry run to fail on Lambda cold start",
+      "solution": [
+        {
+          "command": "# Via AWS Console:\n# 1. Navigate to CloudWatch Synthetics console\n# 2. Select your canary\n# 3. Go to the \"Monitoring\" tab\n# 4. Scroll to the \"Lambda metrics for selected time range\" section\n# 5. Find the \"Duration\" graph - compare the spike during a dry run vs normal runs\n#    (dry run data points will be noticeably higher due to cold start)\n",
+          "description": "Check Lambda Duration metrics to understand the gap between warm and cold start execution times",
+          "expected_outcome": "Identifies the maximum Lambda duration including cold start to set an appropriate timeout",
+          "step": "Measure normal execution duration and cold start overhead"
+        },
+        {
+          "command": "# Via AWS Console:\n# 1. Navigate to CloudWatch Synthetics console\n# 2. Select your canary\n# 3. Click \"Actions\" > \"Edit\"\n# 4. Under \"Canary settings\", increase the timeout value\n#    (recommended: normal duration + 10-15 seconds for cold start buffer)\n# 5. Save changes and re-run the dry run to verify\n\n# Via AWS CLI:\naws synthetics update-canary \\\n  --name <canary-name> \\\n  --region <canary-region> \\\n  --run-config TimeoutInSeconds=<new-timeout>\n",
+          "description": "Set canary timeout to at least (max normal duration + cold start overhead + buffer)",
+          "expected_outcome": "Dry run completes successfully without timeout, console no longer shows 'Update Dry Run Failed'",
+          "step": "Increase canary timeout"
+        }
+      ],
+      "title": "Increase canary timeout to account for dry run cold start overhead"
+    }
+  ],
+  "root_cause": "Dry runs always execute on a fresh Lambda function version, forcing a cold start. During cold start, the runtime decompresses the Chromium browser binary into /tmp, adding ~8-9 seconds of overhead. If the canary timeout is set close to the warm-start execution duration, the cold start overhead pushes total Lambda duration past the timeout. The canary script completes and emits metrics (SuccessPercentDryRun = 100%), but Lambda times out before returning the result to the Synthetics service, so the dry run is marked as failed. This is expected behavior, not a bug.",
+  "runtime_versions": [
+    "syn-nodejs-puppeteer-10.0+",
+    "syn-nodejs-playwright-2.0+",
+    "syn-python-selenium-5.1+",
+    "syn-nodejs-3.0+"
+  ],
+  "severity": "medium",
+  "symptoms": [
+    "Console shows 'Update Dry Run Failed' but SuccessPercentDryRun metric is 100%",
+    "Error: 'No Test Result Returned. Connection timed out after Xms'",
+    "Canary logs show 'End Canary. Result: PASSED' with no errors",
+    "Lambda Duration during dry run is significantly higher than normal runs",
+    "Dry run availability tab shows purple dot at 0% despite successful script execution",
+    "Issue only occurs during dry run, not regular canary runs"
+  ],
+  "tags": [
+    "dry-run",
+    "cold-start",
+    "lambda-timeout",
+    "canary-timeout",
+    "SuccessPercentDryRun",
+    "update-dry-run-failed"
+  ],
+  "title": "Update Dry Run Failed despite SuccessPercentDryRun metric showing 100%"
+}

@@ -27,6 +27,7 @@ from awslabs.aurora_dsql_mcp_server.consts import (
     ROLLBACK_TRANSACTION_SQL,
     BEGIN_TRANSACTION_SQL,
     GET_SCHEMA_SQL,
+    GET_QUALIFIED_SCHEMA_SQL,
     INTERNAL_ERROR,
     READ_ONLY_QUERY_WRITE_ERROR,
     ERROR_BEGIN_TRANSACTION,
@@ -237,6 +238,48 @@ async def test_get_schema_failure(mocker):
         mock_conn,
         GET_SCHEMA_SQL,
         ['table1'],
+    )
+
+
+async def test_get_schema_with_schema_qualified_name(mocker):
+    mock_get_connection = mocker.patch(
+        'awslabs.aurora_dsql_mcp_server.server.get_connection'
+    )
+    mock_conn = AsyncMock()
+    mock_get_connection.return_value = mock_conn
+    mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
+    mock_execute_query.return_value = {'col1': 'integer'}
+
+    result = await get_schema('data.Associate', ctx)
+
+    assert result == {'col1': 'integer'}
+
+    mock_execute_query.assert_called_once_with(
+        ctx,
+        mock_conn,
+        GET_QUALIFIED_SCHEMA_SQL,
+        ['data', 'Associate'],
+    )
+
+
+async def test_get_schema_without_schema_uses_table_name_only(mocker):
+    mock_get_connection = mocker.patch(
+        'awslabs.aurora_dsql_mcp_server.server.get_connection'
+    )
+    mock_conn = AsyncMock()
+    mock_get_connection.return_value = mock_conn
+    mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
+    mock_execute_query.return_value = {'col1': 'integer'}
+
+    result = await get_schema('Associate', ctx)
+
+    assert result == {'col1': 'integer'}
+
+    mock_execute_query.assert_called_once_with(
+        ctx,
+        mock_conn,
+        GET_SCHEMA_SQL,
+        ['Associate'],
     )
 
 

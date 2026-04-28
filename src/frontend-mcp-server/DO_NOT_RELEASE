@@ -1,4 +1,0 @@
-This package is deprecated. Do not publish new releases to PyPI.
-
-Replacement: Use Kiro specs or project-level docs
-Migration guide: docs/migration-frontend.md

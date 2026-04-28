@@ -57,14 +57,14 @@ def mock_aws_helper():
 def handler(mock_aws_helper):
     """Create a mock AthenaQueryHandler instance for testing."""
     mcp = Mock()
-    return AthenaQueryHandler(mcp, allow_write=True)
+    return AthenaQueryHandler(mcp, allow_write=True, allow_sensitive_data_access=True)
 
 
 @pytest.fixture
-def read_only_handler(mock_aws_helper):
+def handler_readonly(mock_aws_helper):
     """Create a mock AthenaQueryHandler instance with read-only access for testing."""
     mcp = Mock()
-    return AthenaQueryHandler(mcp, allow_write=False)
+    return AthenaQueryHandler(mcp, allow_write=False, allow_sensitive_data_access=True)
 
 
 @pytest.fixture
@@ -289,10 +289,10 @@ async def test_start_query_execution_missing_parameters(handler):
 
 
 @pytest.mark.asyncio
-async def test_start_query_execution_without_write_permission_non_select(read_only_handler):
+async def test_start_query_execution_without_write_permission_non_select(handler_readonly):
     """Test that starting a non-select query execution fails when write access is disabled."""
     ctx = Mock()
-    response = await read_only_handler.manage_aws_athena_queries(
+    response = await handler_readonly.manage_aws_athena_queries(
         ctx, operation='start-query-execution', query_string='INSERT INTO table VALUES (1, 2, 3)'
     )
 
@@ -301,14 +301,14 @@ async def test_start_query_execution_without_write_permission_non_select(read_on
 
 @pytest.mark.asyncio
 async def test_start_query_execution_without_write_permission_select(
-    read_only_handler, mock_athena_client
+    handler_readonly, mock_athena_client
 ):
     """Test that starting a select query execution succeeds when write access is disabled."""
-    read_only_handler.athena_client = mock_athena_client
+    handler_readonly.athena_client = mock_athena_client
     mock_athena_client.start_query_execution.return_value = {'QueryExecutionId': 'query1'}
 
     ctx = Mock()
-    response = await read_only_handler.manage_aws_athena_queries(
+    response = await handler_readonly.manage_aws_athena_queries(
         ctx, operation='start-query-execution', query_string='SELECT * FROM table'
     )
 
@@ -318,10 +318,10 @@ async def test_start_query_execution_without_write_permission_select(
 
 
 @pytest.mark.asyncio
-async def test_start_query_execution_without_write_permission_ctas(read_only_handler):
+async def test_start_query_execution_without_write_permission_ctas(handler_readonly):
     """Test that starting a CTAS query execution fails when write access is disabled."""
     ctx = Mock()
-    response = await read_only_handler.manage_aws_athena_queries(
+    response = await handler_readonly.manage_aws_athena_queries(
         ctx, operation='start-query-execution', query_string='CREATE TABLE AS SELECT * FROM table'
     )
 
@@ -458,10 +458,10 @@ async def test_create_named_query_missing_parameters(handler):
 
 
 @pytest.mark.asyncio
-async def test_create_named_query_without_write_permission(read_only_handler):
+async def test_create_named_query_without_write_permission(handler_readonly):
     """Test that creating a named query fails when write access is disabled."""
     ctx = Mock()
-    response = await read_only_handler.manage_aws_athena_named_queries(
+    response = await handler_readonly.manage_aws_athena_named_queries(
         ctx,
         operation='create-named-query',
         name='My Query',
@@ -501,10 +501,10 @@ async def test_delete_named_query_missing_parameters(handler):
 
 
 @pytest.mark.asyncio
-async def test_delete_named_query_without_write_permission(read_only_handler):
+async def test_delete_named_query_without_write_permission(handler_readonly):
     """Test that deleting a named query fails when write access is disabled."""
     ctx = Mock()
-    response = await read_only_handler.manage_aws_athena_named_queries(
+    response = await handler_readonly.manage_aws_athena_named_queries(
         ctx, operation='delete-named-query', named_query_id='id1'
     )
 
@@ -615,10 +615,10 @@ async def test_update_named_query_missing_parameters(handler):
 
 
 @pytest.mark.asyncio
-async def test_update_named_query_without_write_permission(read_only_handler):
+async def test_update_named_query_without_write_permission(handler_readonly):
     """Test that updating a named query fails when write access is disabled."""
     ctx = Mock()
-    response = await read_only_handler.manage_aws_athena_named_queries(
+    response = await handler_readonly.manage_aws_athena_named_queries(
         ctx, operation='update-named-query', named_query_id='id1', name='Updated Query'
     )
 
@@ -779,14 +779,14 @@ async def test_update_named_query_with_partial_parameters(handler, mock_athena_c
 
 @pytest.mark.asyncio
 async def test_start_query_execution_with_select_in_uppercase(
-    read_only_handler, mock_athena_client
+    handler_readonly, mock_athena_client
 ):
     """Test that starting a SELECT query (uppercase) execution succeeds when write access is disabled."""
-    read_only_handler.athena_client = mock_athena_client
+    handler_readonly.athena_client = mock_athena_client
     mock_athena_client.start_query_execution.return_value = {'QueryExecutionId': 'query1'}
 
     ctx = Mock()
-    response = await read_only_handler.manage_aws_athena_queries(
+    response = await handler_readonly.manage_aws_athena_queries(
         ctx, operation='start-query-execution', query_string='SELECT * FROM table'
     )
 
@@ -796,10 +796,10 @@ async def test_start_query_execution_with_select_in_uppercase(
 
 
 @pytest.mark.asyncio
-async def test_start_query_execution_with_ctas_in_query_string(read_only_handler):
+async def test_start_query_execution_with_ctas_in_query_string(handler_readonly):
     """Test that starting a query with CTAS in the middle fails when write access is disabled."""
     ctx = Mock()
-    response = await read_only_handler.manage_aws_athena_queries(
+    response = await handler_readonly.manage_aws_athena_queries(
         ctx,
         operation='start-query-execution',
         query_string='WITH temp AS (SELECT * FROM table) CREATE TABLE AS SELECT * FROM temp',
@@ -832,10 +832,10 @@ async def test_get_named_query_with_none_id(handler):
 
 
 @pytest.mark.asyncio
-async def test_sql_injection_prevention_insert(read_only_handler):
+async def test_sql_injection_prevention_insert(handler_readonly):
     """Test that SQL injection with INSERT is prevented when write access is disabled."""
     ctx = Mock()
-    response = await read_only_handler.manage_aws_athena_queries(
+    response = await handler_readonly.manage_aws_athena_queries(
         ctx,
         operation='start-query-execution',
         query_string='INSERT /* SELECT */ INTO table VALUES (1, 2, 3)',
@@ -846,13 +846,13 @@ async def test_sql_injection_prevention_insert(read_only_handler):
 
 
 @pytest.mark.asyncio
-async def test_legitimate_select_query_allowed(read_only_handler, mock_athena_client):
+async def test_legitimate_select_query_allowed(handler_readonly, mock_athena_client):
     """Test that legitimate SELECT queries are allowed when write access is disabled."""
-    read_only_handler.athena_client = mock_athena_client
+    handler_readonly.athena_client = mock_athena_client
     mock_athena_client.start_query_execution.return_value = {'QueryExecutionId': 'query1'}
 
     ctx = Mock()
-    response = await read_only_handler.manage_aws_athena_queries(
+    response = await handler_readonly.manage_aws_athena_queries(
         ctx, operation='start-query-execution', query_string='SELECT * FROM table'
     )
 
@@ -862,10 +862,10 @@ async def test_legitimate_select_query_allowed(read_only_handler, mock_athena_cl
 
 
 @pytest.mark.asyncio
-async def test_ctas_detection_in_handler(read_only_handler):
+async def test_ctas_detection_in_handler(handler_readonly):
     """Test that CTAS is properly detected and blocked by the handler."""
     ctx = Mock()
-    response = await read_only_handler.manage_aws_athena_queries(
+    response = await handler_readonly.manage_aws_athena_queries(
         ctx,
         operation='start-query-execution',
         query_string='CREATE TABLE new_table AS SELECT * FROM existing_table',
@@ -892,10 +892,10 @@ async def test_write_operations_allowed_with_write_access(handler, mock_athena_c
 
 
 @pytest.mark.asyncio
-async def test_error_message_includes_query_type(read_only_handler):
+async def test_error_message_includes_query_type(handler_readonly):
     """Test that error messages include the detected query type for debugging."""
     ctx = Mock()
-    response = await read_only_handler.manage_aws_athena_queries(
+    response = await handler_readonly.manage_aws_athena_queries(
         ctx, operation='start-query-execution', query_string='UPDATE table SET col=1'
     )
 
