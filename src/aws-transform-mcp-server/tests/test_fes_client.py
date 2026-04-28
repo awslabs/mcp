@@ -15,8 +15,13 @@
 """Tests for fes_client: cookie/bearer modes, retry, token refresh, errors."""
 # ruff: noqa: D101, D102, D103
 
+import httpx
 import pytest
 import time
+from awslabs.aws_transform_mcp_server.consts import (
+    FES_TARGET_BEARER,
+    FES_TARGET_COOKIE,
+)
 from awslabs.aws_transform_mcp_server.fes_client import (
     call_fes,
     call_fes_direct_bearer,
@@ -24,85 +29,29 @@ from awslabs.aws_transform_mcp_server.fes_client import (
 )
 from awslabs.aws_transform_mcp_server.http_utils import HttpError
 from awslabs.aws_transform_mcp_server.models import ConnectionConfig, RefreshedTokens
-from botocore.exceptions import ClientError
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 
-def _mock_boto3_client(response: dict | None = None, side_effect=None) -> MagicMock:
-    """Build a mock boto3 FES client."""
-    client = MagicMock()
-    client._endpoint = MagicMock()
-    client._endpoint.make_request = MagicMock()
-
-    if response is not None:
-        full_response = {**response, 'ResponseMetadata': {'HTTPStatusCode': 200}}
-        # Explicitly set common methods
-        for method_name in [
-            'list_workspaces',
-            'create_workspace',
-            'get_workspace',
-            'delete_workspace',
-            'create_job',
-            'get_job',
-            'list_jobs',
-            'start_job',
-            'stop_job',
-            'delete_job',
-            'get_hitl_task',
-            'list_hitl_tasks',
-            'update_hitl_task',
-            'submit_standard_hitl_task',
-            'submit_critical_hitl_task',
-            'create_artifact_upload_url',
-            'complete_artifact_upload',
-            'create_artifact_download_url',
-            'create_asset_download_url',
-            'list_artifacts',
-            'list_job_plan_steps',
-            'list_plan_updates',
-            'list_connectors',
-            'create_connector',
-            'get_connector',
-            'send_message',
-            'list_messages',
-            'batch_get_message',
-            'list_worklogs',
-            'list_agents',
-            'search_users_typeahead',
-            'batch_get_user_details',
-            'list_user_role_mappings',
-            'put_user_role_mappings',
-            'delete_user_role_mappings',
-            'delete_self_role_mappings',
-            'verify_session',
-            'list_available_profiles',
-        ]:
-            getattr(client, method_name).return_value = full_response
-
-    if side_effect is not None:
-        for method_name in [
-            'list_workspaces',
-            'create_job',
-            'get_workspace',
-            'get_job',
-            'list_jobs',
-            'verify_session',
-        ]:
-            getattr(client, method_name).side_effect = side_effect
-
-    return client
+def _mock_response(status_code: int, json_data: dict | None = None) -> httpx.Response:
+    """Build a minimal httpx.Response for testing."""
+    return httpx.Response(
+        status_code=status_code,
+        json=json_data or {},
+        request=httpx.Request('POST', 'https://fes.example.com'),
+    )
 
 
 # ── call_fes_direct_cookie ─────────────────────────────────────────────
 
 
 class TestCallFesDirectCookie:
-    """Tests for call_fes_direct_cookie via boto3."""
+    """Tests for call_fes_direct_cookie."""
 
-    @patch('awslabs.aws_transform_mcp_server.fes_client._create_boto3_client')
-    async def test_cookie_call(self, mock_create: MagicMock):
-        mock_client = _mock_boto3_client({'result': 'ok'})
-        mock_create.return_value = mock_client
+    @patch(
+        'awslabs.aws_transform_mcp_server.fes_client.request_with_retry', new_callable=AsyncMock
+    )
+    async def test_cookie_headers(self, mock_retry: AsyncMock):
+        mock_retry.return_value = _mock_response(200, {'result': 'ok'})
 
         result = await call_fes_direct_cookie(
             endpoint='https://fes.example.com',
@@ -113,38 +62,27 @@ class TestCallFesDirectCookie:
         )
 
         assert result == {'result': 'ok'}
-        mock_create.assert_called_once()
-        mock_client.verify_session.assert_called_once_with(key='value')
-
-    @patch('awslabs.aws_transform_mcp_server.fes_client._create_boto3_client')
-    async def test_cookie_error_maps_to_http_error(self, mock_create: MagicMock):
-        error_response = {
-            'Error': {'Code': 'AccessDeniedException', 'Message': 'expired'},
-            'ResponseMetadata': {'HTTPStatusCode': 401},
-        }
-        mock_client = _mock_boto3_client(side_effect=ClientError(error_response, 'VerifySession'))
-        mock_create.return_value = mock_client
-
-        with pytest.raises(HttpError) as exc_info:
-            await call_fes_direct_cookie(
-                endpoint='https://fes.example.com',
-                origin='https://origin.example.com',
-                cookie='session=abc',
-                operation='VerifySession',
-            )
-        assert exc_info.value.status_code == 401
+        mock_retry.assert_called_once()
+        call_args = mock_retry.call_args
+        # Positional: client, method, url, headers, body
+        headers = call_args[0][3]
+        assert headers['Content-Type'] == 'application/x-amz-json-1.0'
+        assert headers['X-Amz-Target'] == f'{FES_TARGET_COOKIE}.VerifySession'
+        assert headers['Origin'] == 'https://origin.example.com'
+        assert headers['Cookie'] == 'session=abc123'
 
 
 # ── call_fes_direct_bearer ─────────────────────────────────────────────
 
 
 class TestCallFesDirectBearer:
-    """Tests for call_fes_direct_bearer via boto3."""
+    """Tests for call_fes_direct_bearer."""
 
-    @patch('awslabs.aws_transform_mcp_server.fes_client._create_boto3_client')
-    async def test_bearer_call(self, mock_create: MagicMock):
-        mock_client = _mock_boto3_client({'profiles': []})
-        mock_create.return_value = mock_client
+    @patch(
+        'awslabs.aws_transform_mcp_server.fes_client.request_with_retry', new_callable=AsyncMock
+    )
+    async def test_bearer_headers_with_origin(self, mock_retry: AsyncMock):
+        mock_retry.return_value = _mock_response(200, {'profiles': []})
 
         result = await call_fes_direct_bearer(
             endpoint='https://fes.example.com',
@@ -155,12 +93,34 @@ class TestCallFesDirectBearer:
         )
 
         assert result == {'profiles': []}
-        mock_client.list_workspaces.assert_called_once_with()
+        headers = mock_retry.call_args[0][3]
+        assert headers['Content-Type'] == 'application/json; charset=UTF-8'
+        assert headers['Content-Encoding'] == 'amz-1.0'
+        assert headers['X-Amz-Target'] == f'{FES_TARGET_BEARER}.ListWorkspaces'
+        assert headers['Authorization'] == 'Bearer my-bearer-token'
+        assert headers['Origin'] == 'https://origin.example.com'
 
-    @patch('awslabs.aws_transform_mcp_server.fes_client._create_boto3_client')
-    async def test_bearer_no_body(self, mock_create: MagicMock):
-        mock_client = _mock_boto3_client({})
-        mock_create.return_value = mock_client
+    @patch(
+        'awslabs.aws_transform_mcp_server.fes_client.request_with_retry', new_callable=AsyncMock
+    )
+    async def test_bearer_headers_without_origin_for_list_profiles(self, mock_retry: AsyncMock):
+        mock_retry.return_value = _mock_response(200, {'profiles': []})
+
+        await call_fes_direct_bearer(
+            endpoint='https://fes.example.com',
+            token='my-bearer-token',
+            operation='ListAvailableProfiles',
+            origin='https://origin.example.com',
+        )
+
+        headers = mock_retry.call_args[0][3]
+        assert 'Origin' not in headers
+
+    @patch(
+        'awslabs.aws_transform_mcp_server.fes_client.request_with_retry', new_callable=AsyncMock
+    )
+    async def test_bearer_no_origin(self, mock_retry: AsyncMock):
+        mock_retry.return_value = _mock_response(200, {})
 
         await call_fes_direct_bearer(
             endpoint='https://fes.example.com',
@@ -168,14 +128,15 @@ class TestCallFesDirectBearer:
             operation='GetWorkspace',
         )
 
-        mock_client.get_workspace.assert_called_once_with()
+        headers = mock_retry.call_args[0][3]
+        assert 'Origin' not in headers
 
 
 # ── call_fes (with config routing and token refresh) ──────────────────
 
 
 class TestCallFes:
-    """Tests for call_fes with boto3 client, config routing, and token refresh."""
+    """Tests for call_fes with config routing and token refresh."""
 
     def _make_cookie_config(self) -> ConnectionConfig:
         return ConnectionConfig(
@@ -211,38 +172,46 @@ class TestCallFes:
             idc_region=idc_region,
         )
 
-    @patch('awslabs.aws_transform_mcp_server.fes_client._create_boto3_client')
-    async def test_cookie_mode(self, mock_create: MagicMock):
-        mock_client = _mock_boto3_client({'data': 'ok'})
-        mock_create.return_value = mock_client
+    @patch(
+        'awslabs.aws_transform_mcp_server.fes_client.request_with_retry', new_callable=AsyncMock
+    )
+    async def test_cookie_mode(self, mock_retry: AsyncMock):
+        mock_retry.return_value = _mock_response(200, {'data': 'ok'})
         config = self._make_cookie_config()
 
-        with patch(
-            'awslabs.aws_transform_mcp_server.config_store.get_config', return_value=config
+        with (
+            patch('awslabs.aws_transform_mcp_server.config_store.get_config', return_value=config),
         ):
             result = await call_fes('ListWorkspaces')
 
         assert result == {'data': 'ok'}
-        mock_client.list_workspaces.assert_called_once_with()
+        headers = mock_retry.call_args[0][3]
+        assert headers['Cookie'] == 'session=abc'
+        assert headers['X-Amz-Target'] == f'{FES_TARGET_COOKIE}.ListWorkspaces'
 
-    @patch('awslabs.aws_transform_mcp_server.fes_client._create_boto3_client')
-    async def test_bearer_mode_no_refresh_needed(self, mock_create: MagicMock):
-        mock_client = _mock_boto3_client({'data': 'ok'})
-        mock_create.return_value = mock_client
+    @patch(
+        'awslabs.aws_transform_mcp_server.fes_client.request_with_retry', new_callable=AsyncMock
+    )
+    async def test_bearer_mode_no_refresh_needed(self, mock_retry: AsyncMock):
+        mock_retry.return_value = _mock_response(200, {'data': 'ok'})
+        # Token expires far in the future
         config = self._make_bearer_config(token_expiry=int(time.time()) + 3600)
 
-        with patch(
-            'awslabs.aws_transform_mcp_server.config_store.get_config', return_value=config
+        with (
+            patch('awslabs.aws_transform_mcp_server.config_store.get_config', return_value=config),
         ):
             result = await call_fes('GetJob', {'jobId': '123'})
 
         assert result == {'data': 'ok'}
-        mock_client.get_job.assert_called_once_with(jobId='123')
+        headers = mock_retry.call_args[0][3]
+        assert headers['Authorization'] == 'Bearer current-token'
 
-    @patch('awslabs.aws_transform_mcp_server.fes_client._create_boto3_client')
-    async def test_bearer_token_refresh_triggered(self, mock_create: MagicMock):
-        mock_client = _mock_boto3_client({'data': 'refreshed'})
-        mock_create.return_value = mock_client
+    @patch(
+        'awslabs.aws_transform_mcp_server.fes_client.request_with_retry', new_callable=AsyncMock
+    )
+    async def test_bearer_token_refresh_triggered(self, mock_retry: AsyncMock):
+        mock_retry.return_value = _mock_response(200, {'data': 'refreshed'})
+        # Token expires in 60 seconds (< TOKEN_REFRESH_BUFFER_SECS=300)
         config = self._make_bearer_config(token_expiry=int(time.time()) + 60)
 
         mock_refresh = AsyncMock(
@@ -265,49 +234,89 @@ class TestCallFes:
         mock_refresh.assert_called_once()
         mock_set.assert_called_once()
         mock_persist.assert_called_once()
+        # Updated token should be used in the request
+        headers = mock_retry.call_args[0][3]
+        assert headers['Authorization'] == 'Bearer new-token'
 
-    async def test_bearer_client_registration_expired(self):
+    @patch(
+        'awslabs.aws_transform_mcp_server.fes_client.request_with_retry', new_callable=AsyncMock
+    )
+    async def test_bearer_client_registration_expired(self, mock_retry: AsyncMock):
+        # Token near expiry AND client registration already expired
         config = self._make_bearer_config(
             token_expiry=int(time.time()) + 60,
             oidc_client_secret_expires_at=int(time.time()) - 100,
         )
 
-        with patch(
-            'awslabs.aws_transform_mcp_server.config_store.get_config', return_value=config
+        with (
+            patch('awslabs.aws_transform_mcp_server.config_store.get_config', return_value=config),
         ):
             with pytest.raises(RuntimeError, match='Client registration expired'):
                 await call_fes('ListJobs')
 
-    @patch('awslabs.aws_transform_mcp_server.fes_client._create_boto3_client')
-    async def test_http_error_400(self, mock_create: MagicMock):
-        error_response = {
-            'Error': {'Code': 'ValidationException', 'Message': 'bad'},
-            'ResponseMetadata': {'HTTPStatusCode': 400},
-        }
-        mock_client = _mock_boto3_client(side_effect=ClientError(error_response, 'CreateJob'))
-        mock_create.return_value = mock_client
+    @patch(
+        'awslabs.aws_transform_mcp_server.fes_client.request_with_retry', new_callable=AsyncMock
+    )
+    async def test_http_error_400(self, mock_retry: AsyncMock):
+        mock_retry.side_effect = HttpError(400, {'message': 'bad'}, 'HTTP 400: bad')
+
         config = self._make_cookie_config()
 
-        with patch(
-            'awslabs.aws_transform_mcp_server.config_store.get_config', return_value=config
+        with (
+            patch('awslabs.aws_transform_mcp_server.config_store.get_config', return_value=config),
         ):
             with pytest.raises(HttpError) as exc_info:
                 await call_fes('CreateJob', {'name': 'test'})
             assert exc_info.value.status_code == 400
 
-    @patch('awslabs.aws_transform_mcp_server.fes_client._create_boto3_client')
-    async def test_http_error_401(self, mock_create: MagicMock):
-        error_response = {
-            'Error': {'Code': 'AccessDeniedException', 'Message': 'unauthorized'},
-            'ResponseMetadata': {'HTTPStatusCode': 401},
-        }
-        mock_client = _mock_boto3_client(side_effect=ClientError(error_response, 'GetWorkspace'))
-        mock_create.return_value = mock_client
+    @patch(
+        'awslabs.aws_transform_mcp_server.fes_client.request_with_retry', new_callable=AsyncMock
+    )
+    async def test_http_error_401(self, mock_retry: AsyncMock):
+        mock_retry.side_effect = HttpError(401, {'message': 'unauthorized'}, 'HTTP 401')
+
         config = self._make_bearer_config(token_expiry=int(time.time()) + 3600)
 
-        with patch(
-            'awslabs.aws_transform_mcp_server.config_store.get_config', return_value=config
+        with (
+            patch('awslabs.aws_transform_mcp_server.config_store.get_config', return_value=config),
         ):
             with pytest.raises(HttpError) as exc_info:
                 await call_fes('GetWorkspace', {'workspaceId': '123'})
             assert exc_info.value.status_code == 401
+
+
+# ── Retry behavior (via request_with_retry integration) ────────────────
+
+
+class TestFesRetry:
+    """Tests for FES retry behavior via real request_with_retry."""
+
+    @patch('awslabs.aws_transform_mcp_server.http_utils.asyncio.sleep', new_callable=AsyncMock)
+    async def test_retry_on_429_via_direct_cookie(self, mock_sleep: AsyncMock):
+        """Verify that call_fes_direct_cookie retries on 429 with appropriate delay."""
+        responses = [
+            _mock_response(429, {'message': 'throttled'}),
+            _mock_response(200, {'ok': True}),
+        ]
+
+        # Use the real request_with_retry with a mock client
+        with patch('awslabs.aws_transform_mcp_server.fes_client.httpx.AsyncClient') as MockClient:
+            mock_client = AsyncMock()
+            mock_client.request = AsyncMock(side_effect=responses)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            MockClient.return_value = mock_client
+
+            result = await call_fes_direct_cookie(
+                endpoint='https://fes.example.com',
+                origin='https://origin.example.com',
+                cookie='session=abc',
+                operation='VerifySession',
+            )
+
+            assert result == {'ok': True}
+            assert mock_client.request.call_count == 2
+            mock_sleep.assert_called_once()
+            # 429 delay should be in [1.0, 1.1] range
+            delay = mock_sleep.call_args[0][0]
+            assert 1.0 <= delay <= 1.1

@@ -33,6 +33,7 @@ def bypass_instruction_gate(monkeypatch):
         'awslabs.aws_transform_mcp_server.tools.list_resources.job_needs_check', _noop
     )
     monkeypatch.setattr('awslabs.aws_transform_mcp_server.tools.hitl.job_needs_check', _noop)
+    monkeypatch.setattr('awslabs.aws_transform_mcp_server.tools.job_status.job_needs_check', _noop)
     import importlib
 
     chat_send_mod = importlib.import_module(

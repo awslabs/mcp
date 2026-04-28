@@ -100,6 +100,8 @@ async def download_agent_artifact(
                 }
             text = s3_response.text
             try:
+                import json
+
                 return {'content': json.loads(text), 'rawText': text}
             except (ValueError, TypeError):
                 return {

@@ -73,19 +73,19 @@ class TestInstructions:
 
 
 _HANDLER_MODULES = {
-    'ConfigureHandler': 'awslabs.aws_transform_mcp_server.server',
-    'SigV4ConfigureHandler': 'awslabs.aws_transform_mcp_server.server',
-    'WorkspaceHandler': 'awslabs.aws_transform_mcp_server.server',
-    'JobHandler': 'awslabs.aws_transform_mcp_server.server',
-    'HitlHandler': 'awslabs.aws_transform_mcp_server.server',
-    'ArtifactHandler': 'awslabs.aws_transform_mcp_server.server',
-    'ChatHandler': 'awslabs.aws_transform_mcp_server.server',
-    'ConnectorHandler': 'awslabs.aws_transform_mcp_server.server',
-    'ListResourcesHandler': 'awslabs.aws_transform_mcp_server.server',
-    'GetResourceHandler': 'awslabs.aws_transform_mcp_server.server',
-    'CollaboratorHandler': 'awslabs.aws_transform_mcp_server.server',
-    'ApproveHitlHandler': 'awslabs.aws_transform_mcp_server.server',
-    'LoadInstructionsHandler': 'awslabs.aws_transform_mcp_server.server',
+    'ConfigureHandler': 'awslabs.aws_transform_mcp_server.tools.configure',
+    'SigV4ConfigureHandler': 'awslabs.aws_transform_mcp_server.tools.sigv4_configure',
+    'WorkspaceHandler': 'awslabs.aws_transform_mcp_server.tools.workspace',
+    'JobHandler': 'awslabs.aws_transform_mcp_server.tools.job',
+    'HitlHandler': 'awslabs.aws_transform_mcp_server.tools.hitl',
+    'ArtifactHandler': 'awslabs.aws_transform_mcp_server.tools.artifact',
+    'ChatHandler': 'awslabs.aws_transform_mcp_server.tools.chat',
+    'ConnectorHandler': 'awslabs.aws_transform_mcp_server.tools.connector',
+    'ListResourcesHandler': 'awslabs.aws_transform_mcp_server.tools.list_resources',
+    'GetResourceHandler': 'awslabs.aws_transform_mcp_server.tools.get_resource',
+    'CollaboratorHandler': 'awslabs.aws_transform_mcp_server.tools.collaborator',
+    'ApproveHitlHandler': 'awslabs.aws_transform_mcp_server.tools.approve_hitl',
+    'LoadInstructionsHandler': 'awslabs.aws_transform_mcp_server.tools.load_instructions',
 }
 
 

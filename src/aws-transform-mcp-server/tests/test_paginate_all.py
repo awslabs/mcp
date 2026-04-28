@@ -16,11 +16,11 @@
 # ruff: noqa: D101, D102, D103
 
 import pytest
-from awslabs.aws_transform_mcp_server.tool_utils import paginate_all
+from awslabs.aws_transform_mcp_server.fes_client import paginate_all
 from unittest.mock import AsyncMock, patch
 
 
-_MOD = 'awslabs.aws_transform_mcp_server.tool_utils'
+_MOD = 'awslabs.aws_transform_mcp_server.fes_client'
 
 
 class TestPaginateAll:
@@ -107,7 +107,7 @@ class TestPaginateAll:
     async def test_hits_max_pages_safety_limit(self, mock_fes):
         mock_fes.return_value = {'agents': [{'name': 'a'}], 'nextToken': 'always'}
         result = await paginate_all('ListAgents', {}, 'agents')
-        from awslabs.aws_transform_mcp_server.tool_utils import _MAX_PAGES
+        from awslabs.aws_transform_mcp_server.fes_client import _MAX_PAGES
 
         assert len(result['agents']) == _MAX_PAGES
         assert mock_fes.call_count == _MAX_PAGES

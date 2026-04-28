@@ -16,7 +16,6 @@
 
 import functools
 import inspect
-import json
 from loguru import logger
 
 
@@ -85,6 +84,8 @@ def audited_tool(mcp, name, **tool_kwargs):
 def _extract_error(result: dict) -> str:
     """Best-effort extract of error text from an MCP result envelope."""
     try:
+        import json
+
         payload = json.loads(result['content'][0]['text'])
         err = payload.get('error', {})
         parts = [err.get('code', ''), err.get('message', '')]
