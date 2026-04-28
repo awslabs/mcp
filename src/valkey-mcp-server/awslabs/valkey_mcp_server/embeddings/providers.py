@@ -115,10 +115,13 @@ class BedrockEmbeddings(EmbeddingsProvider):
         self.input_type = input_type
 
         # Set default dimensions based on model type
-        if self._is_nova_model:
-            self._dimensions = dimensions if dimensions is not None else 3072  # Nova default
+        if dimensions is None:
+            if self._is_nova_model:
+                self._dimensions = 3072  # Nova default
+            else:
+                self._dimensions = 1536  # Titan default
         else:
-            self._dimensions = dimensions if dimensions is not None else 1536  # Titan default
+            self._dimensions = dimensions
 
     @property
     def model_id(self) -> str:
@@ -135,6 +138,24 @@ class BedrockEmbeddings(EmbeddingsProvider):
         self._model_id = value
         self._is_nova_model = bool(re.match(r'^\w+\.nova\b', value))
 
+    async def _validate_credentials(self) -> None:
+        """Validate AWS credentials."""
+        import asyncio
+        from botocore.exceptions import NoCredentialsError, PartialCredentialsError
+
+        def _validate():
+            sts_client = self._session.client('sts', config=self._config)
+            sts_client.get_caller_identity()
+
+        try:
+            await asyncio.get_running_loop().run_in_executor(None, _validate)
+            self._credentials_validated = True
+        except (NoCredentialsError, PartialCredentialsError) as e:
+            raise ValueError(
+                'AWS credentials not found or incomplete. Please configure AWS credentials '
+                f'using AWS CLI, environment variables, or IAM roles. Error: {e}'
+            ) from e
+
     async def generate_embedding(self, text: str) -> list[float]:
         """Generate embedding using Bedrock."""
         import asyncio
@@ -143,20 +164,7 @@ class BedrockEmbeddings(EmbeddingsProvider):
         # Validate credentials on first use (deferred from __init__ to avoid
         # blocking the event loop at startup)
         if not self._credentials_validated:
-            from botocore.exceptions import NoCredentialsError, PartialCredentialsError
-
-            def _validate():
-                sts_client = self._session.client('sts', config=self._config)
-                sts_client.get_caller_identity()
-
-            try:
-                await asyncio.get_running_loop().run_in_executor(None, _validate)
-                self._credentials_validated = True
-            except (NoCredentialsError, PartialCredentialsError) as e:
-                raise ValueError(
-                    'AWS credentials not found or incomplete. Please configure AWS credentials '
-                    f'using AWS CLI, environment variables, or IAM roles. Error: {e}'
-                ) from e
+            await self._validate_credentials()
 
         def _invoke():
             # Check if this is a Nova model using cached result

@@ -48,7 +48,8 @@ def has_provider() -> bool:
 def reset_provider() -> None:
     """Reset the provider singleton (for testing)."""
     global _provider
-    _provider = None
+    with _provider_lock:
+        _provider = None
 
 
 __all__ = [
