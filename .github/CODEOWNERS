@@ -43,7 +43,7 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/aws-serverless-mcp-server                                 @awslabs/mcp-admins @awslabs/mcp-maintainers  @bx9900 @bnusunny @reedham-aws @roger-zhangg @valerena @Vandita2020 @seshubaws @vicheey @tobixlea @licjun
 /src/aws-support-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @Wook133
 /src/bedrock-kb-retrieval-mcp-server                           @awslabs/mcp-admins @awslabs/mcp-maintainers  @theagenticguy @pranjbh
-/src/billing-cost-management-mcp-server                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @chittev @Rahul-1404 @shsrams @johnwangwyx @somsubhro @wangyuhere
+/src/billing-cost-management-mcp-server                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @chittev @Rahul-1404 @shsrams @johnwangwyx @somsubhro @wangyuhere @Comusus @bhatia-di @callnmm @anniewn @finklen-amazon
 /src/ccapi-mcp-server                                          @awslabs/mcp-admins @awslabs/mcp-maintainers
 /src/cloudtrail-mcp-server                                     @awslabs/mcp-admins @awslabs/mcp-maintainers  @rokafella
 /src/cloudwatch-applicationsignals-mcp-server                  @awslabs/mcp-admins @awslabs/mcp-maintainers  @yiyuan-he @mxiamxia @syed-ahsan-ishtiaque @thpierce @vastin @wangzlei @shiyangy-xray
