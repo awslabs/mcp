@@ -146,7 +146,7 @@ class TestDataCatalogDatabaseManager:
                 return_value=True,
             ),
             patch(
-                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region',
+                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region',
                 return_value='us-east-1',
             ),
         ):
@@ -185,7 +185,7 @@ class TestDataCatalogDatabaseManager:
                 return_value=False,
             ),
             patch(
-                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region',
+                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region',
                 return_value='us-east-1',
             ),
         ):
@@ -393,7 +393,7 @@ class TestDataCatalogDatabaseManager:
                 return_value=True,
             ),
             patch(
-                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region',
+                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region',
                 return_value='us-east-1',
             ),
         ):
@@ -445,7 +445,7 @@ class TestDataCatalogDatabaseManager:
                 return_value=False,
             ),
             patch(
-                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region',
+                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region',
                 return_value='us-east-1',
             ),
         ):

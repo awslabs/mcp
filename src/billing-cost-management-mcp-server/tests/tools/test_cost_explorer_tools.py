@@ -209,6 +209,12 @@ def mock_context():
     return context
 
 
+@pytest.fixture
+def sample_billing_view_arn():
+    """Sample billing view ARN for testing billing view support."""
+    return 'arn:aws:billing::123456789012:billingview/custom-view-abc123'
+
+
 @pytest.mark.asyncio
 async def test_cost_explorer_get_cost_and_usage(mock_context, mock_ce_client):
     """Test the cost_explorer function with getCostAndUsage operation."""
@@ -880,6 +886,7 @@ async def test_ce_real_get_cost_and_usage_passes_all_args_reload_identity_decora
             '{"Dimensions":{"Key":"SERVICE","Values":["AmazonEC2"]}}',
             'tok',
             3,
+            None,
         )
 
 
@@ -923,6 +930,7 @@ async def test_ce_real_get_cost_and_usage_with_resources_passes_args_reload_iden
             '["UnblendedCost"]',
             '[{"Type":"DIMENSION","Key":"SERVICE"}]',
             '{"Tags":{"Key":"Environment","Values":["prod"]}}',
+            None,
         )
 
 
@@ -966,6 +974,7 @@ async def test_ce_real_get_dimension_values_passes_args_reload_identity_decorato
             25,
             'abc',
             2,
+            None,
         )
 
 
@@ -1027,6 +1036,7 @@ async def test_ce_real_get_cost_forecast_passes_args_reload_identity_decorator(m
             'MONTHLY',
             '{}',
             95,
+            None,
         )
 
 
@@ -1088,6 +1098,7 @@ async def test_ce_real_get_usage_forecast_passes_args_reload_identity_decorator(
             'DAILY',
             '{"Dimensions":{"Key":"SERVICE","Values":["Amazon S3"]}}',
             80,
+            None,
         )
 
 
@@ -1141,6 +1152,7 @@ async def test_ce_real_get_tags_and_values_routing_reload_identity_decorator(moc
             None,
             'n1',
             2,
+            None,
         )
         mock_impl.assert_any_await(
             mock_context,
@@ -1151,6 +1163,7 @@ async def test_ce_real_get_tags_and_values_routing_reload_identity_decorator(moc
             'Environment',
             'n2',
             3,
+            None,
         )
 
 
@@ -1205,6 +1218,7 @@ async def test_ce_real_get_cost_categories_and_values_routing_reload_identity_de
             None,  # cost_category_name for getCostCategories
             'p1',
             2,
+            None,
         )
         mock_impl.assert_any_await(
             mock_context,
@@ -1215,6 +1229,7 @@ async def test_ce_real_get_cost_categories_and_values_routing_reload_identity_de
             'Department',
             'p2',
             4,
+            None,
         )
 
 
@@ -1256,6 +1271,272 @@ async def test_ce_real_get_savings_plans_utilization_passes_args_reload_identity
             '{}',
             'tkn',
             5,
+        )
+
+
+@pytest.mark.asyncio
+async def test_ce_real_get_cost_and_usage_with_billing_view_arn_reload_identity_decorator(
+    mock_context,
+    sample_billing_view_arn,
+):
+    """Test cost_explorer getCostAndUsage passes billing_view_arn when provided."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with (
+        patch.object(ce_mod, 'create_aws_client') as mock_create_client,
+        patch.object(ce_mod, 'get_cost_and_usage', new_callable=AsyncMock) as mock_impl,
+    ):
+        fake_client = MagicMock()
+        mock_create_client.return_value = fake_client
+        mock_impl.return_value = {'status': 'success', 'data': {}}
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='getCostAndUsage',
+            start_date='2024-01-01',
+            end_date='2024-02-01',
+            granularity='MONTHLY',
+            metrics='["UnblendedCost"]',
+            billing_view_arn=sample_billing_view_arn,
+        )
+
+        assert res['status'] == 'success'
+        mock_impl.assert_awaited_once_with(
+            mock_context,
+            fake_client,
+            '2024-01-01',
+            '2024-02-01',
+            'MONTHLY',
+            '["UnblendedCost"]',
+            None,
+            None,
+            None,
+            None,
+            sample_billing_view_arn,
+        )
+
+
+@pytest.mark.asyncio
+async def test_ce_real_get_cost_and_usage_with_resources_with_billing_view_arn(
+    mock_context, sample_billing_view_arn
+):
+    """Test cost_explorer getCostAndUsageWithResources passes billing_view_arn."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with (
+        patch.object(ce_mod, 'create_aws_client') as mock_create_client,
+        patch.object(
+            ce_mod, 'get_cost_and_usage_with_resources', new_callable=AsyncMock
+        ) as mock_impl,
+    ):
+        fake_client = MagicMock()
+        mock_create_client.return_value = fake_client
+        mock_impl.return_value = {'status': 'success', 'data': {}}
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='getCostAndUsageWithResources',
+            start_date='2024-01-10',
+            end_date='2024-01-20',
+            billing_view_arn=sample_billing_view_arn,
+        )
+
+        assert res['status'] == 'success'
+        mock_impl.assert_awaited_once_with(
+            mock_context,
+            fake_client,
+            '2024-01-10',
+            '2024-01-20',
+            'DAILY',
+            None,
+            None,
+            None,
+            sample_billing_view_arn,
+        )
+
+
+@pytest.mark.asyncio
+async def test_ce_real_get_dimension_values_with_billing_view_arn(
+    mock_context, sample_billing_view_arn
+):
+    """Test cost_explorer getDimensionValues passes billing_view_arn."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with (
+        patch.object(ce_mod, 'create_aws_client') as mock_create_client,
+        patch.object(ce_mod, 'get_dimension_values', new_callable=AsyncMock) as mock_impl,
+    ):
+        fake_client = MagicMock()
+        mock_create_client.return_value = fake_client
+        mock_impl.return_value = {'status': 'success', 'data': {'DimensionValues': []}}
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='getDimensionValues',
+            dimension='SERVICE',
+            billing_view_arn=sample_billing_view_arn,
+        )
+
+        assert res['status'] == 'success'
+        mock_impl.assert_awaited_once_with(
+            mock_context,
+            fake_client,
+            'SERVICE',
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            sample_billing_view_arn,
+        )
+
+
+@pytest.mark.asyncio
+async def test_ce_real_get_cost_forecast_with_billing_view_arn(
+    mock_context, sample_billing_view_arn
+):
+    """Test cost_explorer getCostForecast passes billing_view_arn."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with (
+        patch.object(ce_mod, 'create_aws_client') as mock_create_client,
+        patch.object(ce_mod, 'get_cost_forecast', new_callable=AsyncMock) as mock_impl,
+    ):
+        fake_client = MagicMock()
+        mock_create_client.return_value = fake_client
+        mock_impl.return_value = {'status': 'success', 'data': {}}
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='getCostForecast',
+            metric='UNBLENDED_COST',
+            billing_view_arn=sample_billing_view_arn,
+        )
+
+        assert res['status'] == 'success'
+        mock_impl.assert_awaited_once_with(
+            mock_context,
+            fake_client,
+            'UNBLENDED_COST',
+            None,
+            None,
+            'DAILY',
+            None,
+            80,
+            sample_billing_view_arn,
+        )
+
+
+@pytest.mark.asyncio
+async def test_ce_real_get_usage_forecast_with_billing_view_arn(
+    mock_context, sample_billing_view_arn
+):
+    """Test cost_explorer getUsageForecast passes billing_view_arn."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with (
+        patch.object(ce_mod, 'create_aws_client') as mock_create_client,
+        patch.object(ce_mod, 'get_usage_forecast', new_callable=AsyncMock) as mock_impl,
+    ):
+        fake_client = MagicMock()
+        mock_create_client.return_value = fake_client
+        mock_impl.return_value = {'status': 'success', 'data': {}}
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='getUsageForecast',
+            metric='USAGE_QUANTITY',
+            billing_view_arn=sample_billing_view_arn,
+        )
+
+        assert res['status'] == 'success'
+        mock_impl.assert_awaited_once_with(
+            mock_context,
+            fake_client,
+            'USAGE_QUANTITY',
+            None,
+            None,
+            'DAILY',
+            None,
+            80,
+            sample_billing_view_arn,
+        )
+
+
+@pytest.mark.asyncio
+async def test_ce_real_get_tags_with_billing_view_arn(mock_context, sample_billing_view_arn):
+    """Test cost_explorer getTagsOrValues passes billing_view_arn."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with (
+        patch.object(ce_mod, 'create_aws_client') as mock_create_client,
+        patch.object(ce_mod, 'get_tags', new_callable=AsyncMock) as mock_impl,
+    ):
+        fake_client = MagicMock()
+        mock_create_client.return_value = fake_client
+        mock_impl.return_value = {'status': 'success', 'data': {}}
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='getTagsOrValues',
+            billing_view_arn=sample_billing_view_arn,
+        )
+
+        assert res['status'] == 'success'
+        mock_impl.assert_awaited_once_with(
+            mock_context,
+            fake_client,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            sample_billing_view_arn,
+        )
+
+
+@pytest.mark.asyncio
+async def test_ce_real_get_cost_categories_with_billing_view_arn(
+    mock_context, sample_billing_view_arn
+):
+    """Test cost_explorer getCostCategories passes billing_view_arn."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with (
+        patch.object(ce_mod, 'create_aws_client') as mock_create_client,
+        patch.object(ce_mod, 'get_cost_categories', new_callable=AsyncMock) as mock_impl,
+    ):
+        fake_client = MagicMock()
+        mock_create_client.return_value = fake_client
+        mock_impl.return_value = {'status': 'success', 'data': {}}
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='getCostCategories',
+            billing_view_arn=sample_billing_view_arn,
+        )
+
+        assert res['status'] == 'success'
+        mock_impl.assert_awaited_once_with(
+            mock_context,
+            fake_client,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            sample_billing_view_arn,
         )
 
 

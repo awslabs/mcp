@@ -26,7 +26,7 @@ class TestSecureOperationPrompt(unittest.TestCase):
         """Set up test environment."""
         # Create a mock server
         self.server = FastMCP(name='test-server')
-        self.server._prompt_manager = MagicMock()
+        self.server.add_prompt = MagicMock()
 
     def test_basic_operation(self):
         """Test creating a basic operation prompt."""
@@ -89,10 +89,10 @@ class TestSecureOperationPrompt(unittest.TestCase):
 
         # Verify prompt was created successfully
         self.assertTrue(success)
-        self.server._prompt_manager.add_prompt.assert_called_once()
+        self.server.add_prompt.assert_called_once()
 
         # Get the prompt that was added
-        prompt = self.server._prompt_manager.add_prompt.call_args[0][0]
+        prompt = self.server.add_prompt.call_args[0][0]
 
         # Verify prompt properties
         self.assertEqual(prompt.name, 'findPetsByStatus')
@@ -170,7 +170,7 @@ class TestSecureOperationPrompt(unittest.TestCase):
         self.assertTrue(success)
 
         # Get the prompt that was added
-        prompt = self.server._prompt_manager.add_prompt.call_args[0][0]
+        prompt = self.server.add_prompt.call_args[0][0]
 
         # Verify prompt arguments
         self.assertEqual(len(prompt.arguments), 1)
@@ -239,7 +239,7 @@ class TestSecureOperationPrompt(unittest.TestCase):
             self.assertTrue(success)
 
             # Get the prompt that was added
-            prompt = self.server._prompt_manager.add_prompt.call_args[0][0]
+            prompt = self.server.add_prompt.call_args[0][0]
 
             # Test the function
             messages = prompt.fn('123')
@@ -322,7 +322,7 @@ class TestSecureOperationPrompt(unittest.TestCase):
         self.assertTrue(success)
 
         # Get the prompt that was added
-        prompt = self.server._prompt_manager.add_prompt.call_args[0][0]
+        prompt = self.server.add_prompt.call_args[0][0]
 
         # Verify prompt arguments
         self.assertEqual(len(prompt.arguments), 3)

@@ -61,32 +61,32 @@ USE THIS TOOL FOR:
 
 1) getCostAndUsage — account-level historical cost/usage
    Required: operation="getCostAndUsage", start_date, end_date, granularity, metrics
-   Optional: group_by, filter, next_token, max_pages
+   Optional: group_by, filter, next_token, max_pages, billing_view_arn
    Example: {"operation": "getCostAndUsage", "start_date": "2024-01-01", "end_date": "2024-02-01", "granularity": "DAILY", "metrics": [\"UnblendedCost\"], "group_by": "[{\"Type\": \"DIMENSION\", \"Key\": \"SERVICE\"}]"}
 
 2. getCostAndUsageWithResources - Resource-level cost data (limited to last 14 days)
    Required: operation="getCostAndUsageWithResources", filter, granularity, start_date, end_date
-   Optional: metrics, group_by
+   Optional: metrics, group_by, billing_view_arn
    Notes: RESOURCE_ID must be included in either filter OR group_by parameters. This operation is limited to past 14 days of data from current date. Hourly granularity is only available for EC2-Instances resource-level data. All other resource-level data is available at daily granularity.
    Example: {"operation": "getCostAndUsageWithResources", "start_date": "2025-08-07", "end_date": "2025-08-21", "granularity": "DAILY", "filter": "{\"Dimensions\": {\"Key\": \"SERVICE\", \"Values\": [\"Amazon Elastic Compute Cloud - Compute\"]}}", "group_by": "[{\"Type\": \"DIMENSION\", \"Key\": \"RESOURCE_ID\"}]"}
    Returns: Cost data with resource-level granularity
 
 3. getDimensionValues - List of available values for specified dimension
    Required: operation="getDimensionValues", dimension, start_date, end_date
-   Optional: context, search_string, filter, max_results
+   Optional: context, search_string, filter, max_results, billing_view_arn
    Example: {"operation": "getDimensionValues", "dimension": "SERVICE", "start_date": "2024-01-01", "end_date": "2024-02-01"}
    Returns: List of values for specified dimension with automatic pagination
 
 4. getCostForecast - Future cost projections
    Required: operation="getCostForecast", metric, granularity, start_date, end_date
-   Optional: filter, prediction_interval_level
+   Optional: filter, prediction_interval_level, billing_view_arn
    Example: {"operation": "getCostForecast", "metric": "UNBLENDED_COST", "granularity": "MONTHLY", "start_date": "2025-08-22", "end_date": "2025-11-22"}
    Notes: metric value for this operation should be in all caps
    Returns: Cost forecast for specified time period and granularity
 
 5. getUsageForecast - Future usage projections
    Required: operation="getUsageForecast", metric, granularity, start_date, end_date, filter
-   Optional: prediction_interval_level
+   Optional: prediction_interval_level, billing_view_arn
    Example 1: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "start_date": "2025-08-22", "end_date": "2025-11-22", "filter": "{\"Dimensions\": {\"Key\": \"USAGE_TYPE_GROUP\", \"Values\": [\"EC2-Instance\"]}}"}
    Example 2: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "start_date": "2025-08-22", "end_date": "2025-11-22", "filter": "{\"And\": [{\"Dimensions\": {\"Key\": \"SERVICE\", \"Values\": [\"Amazon Elastic Compute Cloud - Compute\"]}}, {\"Dimensions\": {\"Key\": \"USAGE_TYPE\", \"Values\": [\"BoxUsage:p4de.24xlarge\"]}}]}"}
    Example 3: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "start_date": "2025-08-22", "end_date": "2025-11-22", "filter": "{\"Dimensions\": {\"Key\": \"USAGE_TYPE\", \"Values\": [\"BoxUsage:p4de.24xlarge\", \"Reservation:p4de.24xlarge\", \"UnusedBox:p4de.24xlarge\"]}}", "group_by": "[{\"Type\": \"DIMENSION\", \"Key\": \"REGION\"}]"}
@@ -95,18 +95,18 @@ USE THIS TOOL FOR:
 
 6. getTagsOrValues - Available cost allocation tags or values
    Required: operation="getTagsOrValues"
-   Optional: start_date, end_date, search_string, next_token, max_pages
+   Optional: start_date, end_date, search_string, next_token, max_pages, billing_view_arn
    Example 1: {"operation": "getTagsOrValues"}
    Example 2: {"operation": "getTagsOrValues", "tag_key": "Environment"}
    Returns: List of available cost allocation tags with automatic pagination. If tag values for a particular key are needed, pass the tag key as a parameter.
 
-8. getCostCategories - Available cost categories
+7. getCostCategories - Available cost categories
    Required: operation="getCostCategories", start_date, end_date
-   Optional: search_string, next_token, max_pages
+   Optional: search_string, next_token, max_pages, billing_view_arn
    Example: {"operation": "getCostCategories", "start_date": "2024-01-01", "end_date": "2024-08-01"}
    Returns: List of available cost categories with automatic pagination
 
-9. getSavingsPlansUtilization - Savings Plans utilization data
+8. getSavingsPlansUtilization - Savings Plans utilization data
    Required: operation="getSavingsPlansUtilization", start_date, end_date
    Optional: granularity, filter
    Example: {"operation": "getSavingsPlansUtilization", "granularity": "MONTHLY"}
@@ -128,7 +128,27 @@ DIMENSION REFERENCE:
 - TAG: Cost allocation tag
 - TENANCY: EC2 tenancy (shared, dedicated)
 - USAGE_TYPE: Usage type (e.g., DataTransfer-In-Bytes)
-- RECORD_TYPE: Charge types (e.g., RI fees, usage costs)""",
+- RECORD_TYPE: Charge types (e.g., RI fees, usage costs)
+
+BILLING VIEW SUPPORT:
+Most Cost Explorer operations support an optional billing_view_arn parameter that allows you to scope
+your query to a specific billing view. If not provided, the query defaults to the account's primary
+billing view. You can use the list-billing-views and get-billing-view tools upon request to discover
+available billing views and their ARNs.
+
+Billing view types:
+- PRIMARY: Default view with all cost data for the account/org. Use for standard cost analysis.
+- BILLING_GROUP: AWS managed view for Billing Conductor billing groups with pro forma cost data.
+- CUSTOM: Customer-created views with filtered cost data that can be shared across accounts and
+  organizations. Use for business-unit, team, or cross-org cost visibility without management
+  account access.
+- BILLING_TRANSFER: Available to Bill Transfer (bill receiver) account, who is responsible for
+  paying the consolidated bill on behalf of the other organization.
+  AWS managed view containing chargeable data, which is what the Bill Transfer (bill receiver)
+  account owes to AWS for their Bill Source accounts' cloud consumption.
+- BILLING_TRANSFER_SHOWBACK: Available to Bill Transfer (bill receiver) account.
+  AWS managed view showing pro forma showback/chargeback data (what Bill Source account owe their partner).
+  Use for showback/chargeback reporting in billing transfer scenarios.""",
 )
 async def cost_explorer(
     ctx: Context,
@@ -148,6 +168,7 @@ async def cost_explorer(
     prediction_interval_level: int = 80,
     tag_key: Optional[str] = None,
     cost_category_name: Optional[str] = None,
+    billing_view_arn: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Main entry point for Cost Explorer operations.
 
@@ -172,6 +193,7 @@ async def cost_explorer(
         prediction_interval_level: Confidence level for forecasts
         tag_key: Tag key to get values for
         cost_category_name: Cost category to get values for
+        billing_view_arn: Optional ARN of a billing view to scope the query
 
     Returns:
         Response from the operation handler
@@ -208,11 +230,20 @@ async def cost_explorer(
                 filter,
                 next_token,
                 max_pages,
+                billing_view_arn,
             )
 
         elif operation == 'getCostAndUsageWithResources':
             return await get_cost_and_usage_with_resources(
-                ctx, ce_client, start_date, end_date, granularity, metrics, group_by, filter
+                ctx,
+                ce_client,
+                start_date,
+                end_date,
+                granularity,
+                metrics,
+                group_by,
+                filter,
+                billing_view_arn,
             )
 
         elif operation == 'getDimensionValues':
@@ -232,6 +263,7 @@ async def cost_explorer(
                 max_results,
                 next_token,
                 max_pages,
+                billing_view_arn,
             )
 
         elif operation == 'getCostForecast':
@@ -249,6 +281,7 @@ async def cost_explorer(
                 granularity,
                 filter,
                 prediction_interval_level,
+                billing_view_arn,
             )
 
         elif operation == 'getUsageForecast':
@@ -266,6 +299,7 @@ async def cost_explorer(
                 granularity,
                 filter,
                 prediction_interval_level,
+                billing_view_arn,
             )
 
         elif operation == 'getTagsOrValues':
@@ -278,6 +312,7 @@ async def cost_explorer(
                 tag_key,
                 next_token,
                 max_pages,
+                billing_view_arn,
             )
 
         elif operation == 'getCostCategories' or operation == 'getCostCategoryValues':
@@ -290,6 +325,7 @@ async def cost_explorer(
                 cost_category_name if operation == 'getCostCategoryValues' else None,
                 next_token,
                 max_pages,
+                billing_view_arn,
             )
 
         elif operation == 'getSavingsPlansUtilization':
