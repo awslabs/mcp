@@ -19,12 +19,13 @@ from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.config_store import (
     is_configured,
 )
-from awslabs.aws_transform_mcp_server.fes_client import FESOperation, call_fes, paginate_all
+from awslabs.aws_transform_mcp_server.fes_client import FESOperation, call_fes
 from awslabs.aws_transform_mcp_server.guidance_nudge import job_needs_check
 from awslabs.aws_transform_mcp_server.tool_utils import (
     READ_ONLY,
     error_result,
     failure_result,
+    paginate_all,
     success_result,
 )
 from enum import Enum

@@ -30,6 +30,7 @@ from awslabs.aws_transform_mcp_server.config_store import (
     set_config,
 )
 from awslabs.aws_transform_mcp_server.fes_client import (
+    call_fes,
     call_fes_direct_bearer,
     call_fes_direct_cookie,
 )
@@ -290,21 +291,7 @@ class ConfigureHandler:
                 }
                 return text_result(status, is_error=False)
             try:
-                if config.auth_mode == 'cookie':
-                    result = await call_fes_direct_cookie(
-                        config.fes_endpoint,
-                        config.origin,
-                        config.session_cookie or '',
-                        'VerifySession',
-                    )
-                else:
-                    result = await call_fes_direct_bearer(
-                        config.fes_endpoint,
-                        config.bearer_token or '',
-                        'VerifySession',
-                        {},
-                        config.origin,
-                    )
+                result = await call_fes('VerifySession')
 
                 info: dict = {
                     'configured': True,

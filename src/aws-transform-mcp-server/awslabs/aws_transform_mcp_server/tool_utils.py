@@ -17,6 +17,8 @@
 import httpx
 import json
 import os
+from awslabs.aws_transform_mcp_server.fes_client import call_fes
+from loguru import logger
 from typing import Any, Dict, Optional
 
 
@@ -137,3 +139,43 @@ async def download_s3_content(
             return {'savedTo': full_path, 'sizeBytes': len(response.content)}
 
         return {'content': response.text}
+
+
+# ── FES pagination helper ─────────────────────────────────────────────────
+
+_MAX_PAGES = 100
+
+
+async def paginate_all(
+    operation: str,
+    body: Dict[str, Any],
+    items_key: str,
+    token_key: str = 'nextToken',
+) -> Dict[str, Any]:
+    """Auto-paginate a FES list call, collecting all items."""
+    all_items: list = []
+    next_token: Optional[str] = None
+    for _page in range(_MAX_PAGES):
+        req = {**body}
+        if next_token:
+            req['nextToken'] = next_token
+        result = await call_fes(operation, req)
+        if not isinstance(result, dict):
+            logger.warning(
+                'paginate_all(%s): non-dict response on page with %d items collected: %s',
+                operation,
+                len(all_items),
+                type(result),
+            )
+            break
+        all_items.extend(result.get(items_key, []))
+        next_token = result.get(token_key)
+        if not next_token:
+            break
+    else:
+        logger.warning(
+            'paginate_all(%s): hit %d-page safety limit, returning partial results',
+            operation,
+            _MAX_PAGES,
+        )
+    return {items_key: all_items}

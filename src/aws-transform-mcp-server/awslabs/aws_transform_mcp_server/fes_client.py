@@ -12,106 +12,98 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""FES (Front End Service) client — RPC-over-HTTP with cookie or bearer auth."""
+"""FES (Front End Service) client — boto3-based with cookie or bearer auth.
 
-import httpx
-import json
+Uses a vendored botocore C2J model so ``boto3.client("elasticgumbyfrontendservice")``
+works without the Brazil-only ElasticGumbyFrontEndServicePythonClient package.
+"""
+
+import asyncio
 import time
 from awslabs.aws_transform_mcp_server import config_store, oauth
+from awslabs.aws_transform_mcp_server._service_model import create_session
 from awslabs.aws_transform_mcp_server.consts import (
     CLIENT_APP_ID,
     FES_TARGET_BEARER,
-    FES_TARGET_COOKIE,
     HEADER_CLIENT_APP_ID,
     MAX_RETRIES,
     TIMEOUT_SECONDS,
     TOKEN_REFRESH_BUFFER_SECS,
 )
-from awslabs.aws_transform_mcp_server.http_utils import (
-    request_with_retry,
-)
+from awslabs.aws_transform_mcp_server.http_utils import HttpError
+from awslabs.aws_transform_mcp_server.models import ConnectionConfig
+from botocore import UNSIGNED, xform_name
+from botocore.config import Config as BotoConfig
+from botocore.exceptions import ClientError
 from loguru import logger
-from typing import TYPE_CHECKING, Any, Dict, Literal, Optional
+from typing import Any, Dict, Optional
 
 
-if TYPE_CHECKING:
-    from awslabs.aws_transform_mcp_server.models import ConnectionConfig
+FESOperation = str
 
 
-# ── FES operations ──────────────────────────────────────────────────────
-FESOperation = Literal[
-    'VerifySession',
-    'ListAvailableProfiles',
-    'ListWorkspaces',
-    'CreateWorkspace',
-    'GetWorkspace',
-    'CreateJob',
-    'GetJob',
-    'ListJobs',
-    'StartJob',
-    'StopJob',
-    'DeleteJob',
-    'GetHitlTask',
-    'ListHitlTasks',
-    'UpdateHitlTask',
-    'SubmitStandardHitlTask',
-    'SubmitCriticalHitlTask',
-    'CreateArtifactUploadUrl',
-    'CompleteArtifactUpload',
-    'CreateArtifactDownloadUrl',
-    'CreateAssetDownloadUrl',
-    'ListArtifacts',
-    'ListJobPlanSteps',
-    'ListPlanUpdates',
-    'ListConnectors',
-    'CreateConnector',
-    'GetConnector',
-    'SendMessage',
-    'ListMessages',
-    'BatchGetMessage',
-    'DeleteWorkspace',
-    'ListWorklogs',
-    'ListAgents',
-    'SearchUsersTypeahead',
-    'BatchGetUserDetails',
-    'ListUserRoleMappings',
-    'PutUserRoleMappings',
-    'DeleteUserRoleMappings',
-    'DeleteSelfRoleMappings',
-]
+def _create_boto3_client(
+    endpoint: str,
+    region: str = 'us-east-1',
+    max_retries: int = MAX_RETRIES,
+    timeout: float = TIMEOUT_SECONDS,
+):
+    """Create a bare boto3 FES client (no auth injected yet)."""
+    session = create_session()
+    return session.client(
+        'elasticgumbyfrontendservice',
+        region_name=region,
+        endpoint_url=endpoint,
+        config=BotoConfig(
+            signature_version=UNSIGNED,
+            retries={'mode': 'adaptive', 'max_attempts': max_retries + 1},
+            connect_timeout=timeout,
+            read_timeout=timeout,
+        ),
+    )
 
 
-def _build_cookie_headers(
-    operation: str,
-    origin: str,
-    cookie: str,
-) -> Dict[str, str]:
-    """Build headers for cookie-authenticated FES calls."""
-    return {
-        'Content-Type': 'application/x-amz-json-1.0',
-        'X-Amz-Target': f'{FES_TARGET_COOKIE}.{operation}',
-        'Origin': origin,
-        'Cookie': cookie,
-    }
+def _inject_cookie_auth(client, origin: str, cookie: str):
+    """Register event handler to inject cookie auth headers on every request."""
+
+    def add_headers(params, **kwargs):
+        params['headers']['Origin'] = origin
+        params['headers']['Cookie'] = cookie
+
+    client.meta.events.register('before-call.elasticgumbyfrontend.*', add_headers)
 
 
-def _build_bearer_headers(
-    operation: str,
-    token: str,
-    origin: Optional[str] = None,
-) -> Dict[str, str]:
-    """Build headers for bearer-token-authenticated FES calls."""
-    headers: Dict[str, str] = {
-        'Content-Type': 'application/json; charset=UTF-8',
-        'Content-Encoding': 'amz-1.0',
-        'X-Amz-Target': f'{FES_TARGET_BEARER}.{operation}',
-        'Authorization': f'Bearer {token}',
-        HEADER_CLIENT_APP_ID: CLIENT_APP_ID,
-    }
-    # Origin is needed for tenant-scoped operations, not for ListAvailableProfiles
-    if origin and operation != 'ListAvailableProfiles':
-        headers['Origin'] = origin
-    return headers
+def _inject_bearer_auth(client, token: str, origin: Optional[str] = None):
+    """Register event handler to inject bearer auth headers on every request."""
+
+    def add_headers(params, model, **kwargs):
+        params['headers']['Authorization'] = f'Bearer {token}'
+        params['headers'][HEADER_CLIENT_APP_ID] = CLIENT_APP_ID
+        params['headers']['Content-Encoding'] = 'amz-1.0'
+        params['headers']['X-Amz-Target'] = f'{FES_TARGET_BEARER}.{model.name}'
+        if origin and model.name != 'ListAvailableProfiles':
+            params['headers']['Origin'] = origin
+
+    client.meta.events.register('before-call.elasticgumbyfrontend.*', add_headers)
+
+
+def _call_boto3(client, operation: str, body: Dict[str, Any]) -> Any:
+    method_name = xform_name(operation)
+    method = getattr(client, method_name, None)
+    if method is None:
+        raise ValueError(f'Unknown FES operation: {operation}')
+    try:
+        result = method(**body)
+    except ClientError as exc:
+        error = exc.response.get('Error', {})
+        status = exc.response.get('ResponseMetadata', {}).get('HTTPStatusCode', 0)
+        raise HttpError(
+            status_code=status,
+            body=error,
+            message=f'HTTP {status}: {error.get("Message", str(exc))}',
+        ) from exc
+    result.pop('ResponseMetadata', None)
+    return result
 
 
 async def call_fes_direct_cookie(
@@ -125,39 +117,12 @@ async def call_fes_direct_cookie(
 ) -> Any:
     """Direct FES call with explicit cookie auth.
 
-    Used by ``configure`` and ``get_status`` before config is stored.
-
-    Args:
-        endpoint: FES endpoint URL.
-        origin: Origin header value.
-        cookie: Session cookie string.
-        operation: FES operation name.
-        body: Request body (defaults to empty dict).
-        timeout_seconds: Per-request timeout in seconds.
-        max_retries: Maximum number of retries.
-
-    Returns:
-        Parsed JSON response.
-
-    Raises:
-        HttpError: On non-2xx response.
+    Used by ``configure`` and by ``config_store`` startup validation
+    before the config is stored.
     """
-    if body is None:
-        body = {}
-    headers = _build_cookie_headers(operation, origin, cookie)
-    payload = json.dumps(body).encode('utf-8')
-
-    async with httpx.AsyncClient() as client:
-        response = await request_with_retry(
-            client,
-            'POST',
-            endpoint,
-            headers,
-            payload,
-            timeout_seconds=timeout_seconds,
-            max_retries=max_retries,
-        )
-        return response.json()
+    client = _create_boto3_client(endpoint, max_retries=max_retries, timeout=timeout_seconds)
+    _inject_cookie_auth(client, origin, cookie)
+    return await asyncio.to_thread(_call_boto3, client, operation, body or {})
 
 
 async def call_fes_direct_bearer(
@@ -170,99 +135,16 @@ async def call_fes_direct_bearer(
     """Direct FES call with explicit bearer auth.
 
     Used by ``configure`` SSO path.
-
-    Args:
-        endpoint: FES endpoint URL.
-        token: Bearer access token.
-        operation: FES operation name.
-        body: Request body (defaults to empty dict).
-        origin: Origin header (omitted for ListAvailableProfiles).
-
-    Returns:
-        Parsed JSON response.
-
-    Raises:
-        HttpError: On non-2xx response.
     """
-    if body is None:
-        body = {}
-    headers = _build_bearer_headers(operation, token, origin)
-    payload = json.dumps(body).encode('utf-8')
-
-    async with httpx.AsyncClient() as client:
-        response = await request_with_retry(
-            client, 'POST', endpoint, headers, payload, timeout_seconds=TIMEOUT_SECONDS
-        )
-        return response.json()
-
-
-_MAX_PAGES = 100
-
-
-async def paginate_all(
-    operation: FESOperation,
-    body: Dict[str, Any],
-    items_key: str,
-    token_key: str = 'nextToken',
-) -> Dict[str, Any]:
-    """Auto-paginate a FES list call, collecting all items.
-
-    Args:
-        operation: FES operation name.
-        body: Base request body (filters etc.). Not mutated.
-        items_key: Key in the response that holds the list of items.
-        token_key: Key in the response that holds the pagination token.
-
-    Returns:
-        Dict with all items under *items_key*.
-    """
-    all_items: list = []
-    next_token: Optional[str] = None
-    for _page in range(_MAX_PAGES):
-        req = {**body}
-        if next_token:
-            req['nextToken'] = next_token
-        result = await call_fes(operation, req)
-        if not isinstance(result, dict):
-            logger.warning(
-                'paginate_all(%s): non-dict response on page with %d items collected: %s',
-                operation,
-                len(all_items),
-                type(result),
-            )
-            break
-        all_items.extend(result.get(items_key, []))
-        next_token = result.get(token_key)
-        if not next_token:
-            break
-    else:
-        logger.warning(
-            'paginate_all(%s): hit %d-page safety limit, returning partial results',
-            operation,
-            _MAX_PAGES,
-        )
-    return {items_key: all_items}
+    client = _create_boto3_client(endpoint)
+    _inject_bearer_auth(client, token, origin)
+    return await asyncio.to_thread(_call_boto3, client, operation, body or {})
 
 
 async def call_fes(operation: FESOperation, body: Optional[Dict[str, Any]] = None) -> Any:
-    """Call FES using the stored connection config, with retry and token refresh.
+    """Call FES using the stored connection config via boto3 client.
 
     This is the main entry point used by all tool handlers.
-
-    Routes to cookie or bearer mode based on the persisted config. For bearer
-    mode, proactively refreshes the access token when it is within
-    TOKEN_REFRESH_BUFFER_SECS of expiry.
-
-    Args:
-        operation: FES operation name.
-        body: Request body (defaults to empty dict).
-
-    Returns:
-        Parsed JSON response.
-
-    Raises:
-        HttpError: On non-2xx responses after retries.
-        RuntimeError: When client registration has expired.
     """
     if body is None:
         body = {}
@@ -271,34 +153,20 @@ async def call_fes(operation: FESOperation, body: Optional[Dict[str, Any]] = Non
     if config is None:
         raise RuntimeError('Not configured. Call configure first.')
 
-    # ── Token refresh (bearer mode only) ────────────────────────────────
     if config.auth_mode == 'bearer':
         config = await _ensure_fresh_token(config)
 
-    # ── Build headers based on auth mode ────────────────────────────────
+    client = _create_boto3_client(config.fes_endpoint, config.region or 'us-east-1')
     if config.auth_mode == 'cookie':
-        headers = _build_cookie_headers(operation, config.origin, config.session_cookie or '')
+        _inject_cookie_auth(client, config.origin, config.session_cookie or '')
     else:
-        headers = _build_bearer_headers(operation, config.bearer_token or '', config.origin)
+        _inject_bearer_auth(client, config.bearer_token or '', config.origin)
 
-    payload = json.dumps(body).encode('utf-8')
-
-    async with httpx.AsyncClient() as client:
-        response = await request_with_retry(
-            client, 'POST', config.fes_endpoint, headers, payload, timeout_seconds=TIMEOUT_SECONDS
-        )
-        return response.json()
+    return await asyncio.to_thread(_call_boto3, client, operation, body)
 
 
-async def _ensure_fresh_token(config: 'ConnectionConfig') -> 'ConnectionConfig':
-    """Proactively refresh the bearer token if near expiry.
-
-    Args:
-        config: The current ConnectionConfig.
-
-    Returns:
-        Updated config (may be the same object if no refresh was needed).
-    """
+async def _ensure_fresh_token(config: ConnectionConfig) -> ConnectionConfig:
+    """Proactively refresh the bearer token if near expiry."""
     if (
         not config.token_expiry
         or not config.refresh_token
@@ -313,7 +181,6 @@ async def _ensure_fresh_token(config: 'ConnectionConfig') -> 'ConnectionConfig':
     if config.token_expiry - now >= TOKEN_REFRESH_BUFFER_SECS:
         return config
 
-    # Client registration expired — refresh would fail
     if config.oidc_client_secret_expires_at and now >= config.oidc_client_secret_expires_at:
         raise RuntimeError(
             'Client registration expired. Re-run configure with authMode "sso" to re-authenticate.'

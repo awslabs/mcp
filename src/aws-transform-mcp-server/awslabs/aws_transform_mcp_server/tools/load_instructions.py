@@ -14,6 +14,7 @@
 
 """Load instructions tool — checks job artifact store for workflow instructions."""
 
+import re
 from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.config_store import is_configured
 from awslabs.aws_transform_mcp_server.fes_client import call_fes
@@ -141,7 +142,5 @@ class LoadInstructionsHandler:
                 }
             )
         except Exception as error:
-            import re
-
             sanitized = re.sub(r'https?://\S+', '<redacted-url>', str(error))
             return failure_result(Exception(sanitized))

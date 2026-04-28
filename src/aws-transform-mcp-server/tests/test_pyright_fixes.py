@@ -244,7 +244,6 @@ class TestPaginatedFesOperationType:
     )
     async def test_paginated_fes_passes_operation_string_directly(self, mock_fes):
         """Ensure the operation string type matches what call_fes expects."""
-        from awslabs.aws_transform_mcp_server.fes_client import FESOperation
         from awslabs.aws_transform_mcp_server.tools.list_resources import paginated_fes
 
         mock_fes.return_value = {'jobs': []}
@@ -252,5 +251,6 @@ class TestPaginatedFesOperationType:
         await paginated_fes(api='ListJobs', body={'workspaceId': 'ws1'})
 
         actual_operation = mock_fes.call_args[0][0]
-        # Verify the value is a valid FESOperation literal
-        assert actual_operation in FESOperation.__args__
+        # FESOperation is now a plain str alias — verify it's a string
+        assert isinstance(actual_operation, str)
+        assert actual_operation == 'ListJobs'

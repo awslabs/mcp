@@ -376,7 +376,7 @@ class TestGetStatus:
     )
     @patch('awslabs.aws_transform_mcp_server.tools.configure.get_config')
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.configure.call_fes_direct_cookie',
+        'awslabs.aws_transform_mcp_server.tools.configure.call_fes',
         new_callable=AsyncMock,
     )
     @patch('awslabs.aws_transform_mcp_server.tools.configure.is_configured', return_value=True)
@@ -426,7 +426,7 @@ class TestGetStatus:
     @patch('awslabs.aws_transform_mcp_server.tools.configure.clear_config')
     @patch('awslabs.aws_transform_mcp_server.tools.configure.get_config')
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.configure.call_fes_direct_cookie',
+        'awslabs.aws_transform_mcp_server.tools.configure.call_fes',
         new_callable=AsyncMock,
     )
     @patch('awslabs.aws_transform_mcp_server.tools.configure.is_configured', return_value=True)
@@ -466,7 +466,7 @@ class TestGetStatus:
     )
     @patch('awslabs.aws_transform_mcp_server.tools.configure.get_config')
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.configure.call_fes_direct_cookie',
+        'awslabs.aws_transform_mcp_server.tools.configure.call_fes',
         new_callable=AsyncMock,
     )
     @patch('awslabs.aws_transform_mcp_server.tools.configure.is_configured', return_value=True)
