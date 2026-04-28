@@ -180,22 +180,31 @@ async def _start_and_poll(
         query_id = resp['queryId']
         logger.debug(f'Started query {query_id} for {len(log_groups)} log groups')
 
-        poll_start = timer()
-        while timer() - poll_start < max_timeout:
-            await asyncio.sleep(_POLL_INTERVAL)
-            resp = await loop.run_in_executor(
-                None, lambda: logs_client.get_query_results(queryId=query_id)
-            )
-            status = resp['status']
-            if status in ('Complete', 'Failed', 'Cancelled', 'Timeout'):
-                return {
-                    'query_id': query_id,
-                    'status': status,
-                    'results': [
-                        {f['field']: f['value'] for f in row} for row in resp.get('results', [])
-                    ],
-                    'statistics': resp.get('statistics', {}),
-                }
+        try:
+            poll_start = timer()
+            while timer() - poll_start < max_timeout:
+                await asyncio.sleep(_POLL_INTERVAL)
+                resp = await loop.run_in_executor(
+                    None, lambda: logs_client.get_query_results(queryId=query_id)
+                )
+                status = resp['status']
+                if status in ('Complete', 'Failed', 'Cancelled', 'Timeout'):
+                    return {
+                        'query_id': query_id,
+                        'status': status,
+                        'results': [
+                            {f['field']: f['value'] for f in row}
+                            for row in resp.get('results', [])
+                        ],
+                        'statistics': resp.get('statistics', {}),
+                    }
+        except asyncio.CancelledError:
+            try:
+                await loop.run_in_executor(None, lambda: logs_client.stop_query(queryId=query_id))
+                logger.info(f'Cancelled and stopped query {query_id}')
+            except Exception as e:
+                logger.warning(f'Failed to stop query {query_id} on cancellation: {e}')
+            raise
 
         # Polling timed out on our side – cancel to avoid cost
         try:
