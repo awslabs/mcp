@@ -96,3 +96,169 @@ class TestAcceptConnector:
         mock_tcp.assert_called_once()
         tcp_body = mock_tcp.call_args[0][1]
         assert tcp_body['sourceAccount'] == '123456789012'
+
+
+class TestBuildVerificationLink:
+    """Tests for _build_verification_link."""
+
+    def test_prod_stage(self):
+        from awslabs.aws_transform_mcp_server.tools.connector import _build_verification_link
+
+        link = _build_verification_link('c-1', 'prod', 'us-east-1')
+        assert link == (
+            'https://us-east-1.console.aws.amazon.com/transform/connector/'
+            'c-1/configure?region=us-east-1'
+        )
+
+    def test_gamma_stage_with_all_params(self):
+        from awslabs.aws_transform_mcp_server.tools.connector import _build_verification_link
+
+        link = _build_verification_link(
+            'c-2',
+            'gamma',
+            'us-west-2',
+            source_account='123456789012',
+            workspace_id='ws-1',
+        )
+        assert link.startswith('https://us-west-2.awsc-integ.aws.amazon.com/')
+        assert 'sourceAccount=123456789012' in link
+        assert 'workspaceId=ws-1' in link
+        assert 'region=us-west-2' in link
+
+    def test_gamma_stage_without_optional_params(self):
+        from awslabs.aws_transform_mcp_server.tools.connector import _build_verification_link
+
+        link = _build_verification_link('c-3', 'gamma', 'eu-west-1')
+        assert link.startswith('https://eu-west-1.awsc-integ.aws.amazon.com/')
+        assert 'region=eu-west-1' in link
+        assert 'sourceAccount' not in link
+        assert 'workspaceId' not in link
+
+
+class TestCreateConnector:
+    """Tests for the create_connector handler."""
+
+    @pytest.mark.asyncio
+    @patch(f'{_MOD}.is_fes_available', return_value=False)
+    async def test_not_configured(self, _, handler, ctx):
+        result = await handler.create_connector(
+            ctx,
+            workspaceId='ws-1',
+            connectorName='test-conn',
+            connectorType='S3',
+            configuration={'s3Uri': 's3://bucket/path'},
+            awsAccountId='123456789012',
+        )
+        parsed = json.loads(result['content'][0]['text'])
+        assert parsed['success'] is False
+        assert parsed['error']['code'] == 'NOT_CONFIGURED'
+
+    @pytest.mark.asyncio
+    @patch(f'{_MOD}.get_config')
+    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
+    async def test_happy_path(self, _, mock_fes, mock_config, handler, ctx):
+        mock_cfg = MagicMock()
+        mock_cfg.stage = 'prod'
+        mock_cfg.region = 'us-east-1'
+        mock_config.return_value = mock_cfg
+
+        mock_fes.side_effect = [
+            # CreateConnector
+            {'connectorId': 'c-new'},
+            # GetConnector
+            {'connectorId': 'c-new', 'status': 'PENDING'},
+        ]
+
+        result = await handler.create_connector(
+            ctx,
+            workspaceId='ws-1',
+            connectorName='test-conn',
+            connectorType='S3',
+            configuration={'s3Uri': 's3://bucket/path'},
+            awsAccountId='123456789012',
+        )
+        parsed = json.loads(result['content'][0]['text'])
+        assert parsed['success'] is True
+        assert parsed['data']['connectorId'] == 'c-new'
+        assert 'verificationLink' in parsed['data']
+        assert 'nextStep' in parsed['data']
+
+    @pytest.mark.asyncio
+    @patch(f'{_MOD}.get_config', return_value=None)
+    @patch(f'{_MOD}.AwsHelper')
+    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
+    async def test_happy_path_no_config_fallback(
+        self, _, mock_fes, mock_helper, mock_config, handler, ctx
+    ):
+        mock_helper.resolve_region.return_value = 'us-west-2'
+        mock_helper.create_session.return_value = MagicMock()
+
+        mock_fes.side_effect = [
+            {'connectorId': 'c-new'},
+            {'connectorId': 'c-new', 'status': 'PENDING'},
+        ]
+
+        result = await handler.create_connector(
+            ctx,
+            workspaceId='ws-1',
+            connectorName='test-conn',
+            connectorType='S3',
+            configuration={'s3Uri': 's3://bucket/path'},
+            awsAccountId='123456789012',
+        )
+        parsed = json.loads(result['content'][0]['text'])
+        assert parsed['success'] is True
+
+    @pytest.mark.asyncio
+    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock, side_effect=Exception('API error'))
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
+    async def test_fes_error_returns_failure(self, _, mock_fes, handler, ctx):
+        result = await handler.create_connector(
+            ctx,
+            workspaceId='ws-1',
+            connectorName='test-conn',
+            connectorType='S3',
+            configuration={'s3Uri': 's3://bucket/path'},
+            awsAccountId='123456789012',
+        )
+        parsed = json.loads(result['content'][0]['text'])
+        assert parsed['success'] is False
+        assert 'API error' in parsed['error']['message']
+
+    @pytest.mark.asyncio
+    @patch(f'{_MOD}.get_config')
+    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
+    async def test_optional_description_and_target_regions(
+        self, _, mock_fes, mock_config, handler, ctx
+    ):
+        mock_cfg = MagicMock()
+        mock_cfg.stage = 'prod'
+        mock_cfg.region = 'us-east-1'
+        mock_config.return_value = mock_cfg
+
+        mock_fes.side_effect = [
+            {'connectorId': 'c-opt'},
+            {'connectorId': 'c-opt', 'status': 'PENDING'},
+        ]
+
+        result = await handler.create_connector(
+            ctx,
+            workspaceId='ws-1',
+            connectorName='test-conn',
+            connectorType='S3',
+            configuration={'s3Uri': 's3://bucket/path'},
+            awsAccountId='123456789012',
+            description='My connector',
+            targetRegions=['us-east-1', 'us-west-2'],
+        )
+        parsed = json.loads(result['content'][0]['text'])
+        assert parsed['success'] is True
+
+        # Verify description and targetRegions were in the payload
+        create_call = mock_fes.call_args_list[0]
+        body = create_call[0][1]
+        assert body['description'] == 'My connector'
+        assert body['targetRegions'] == ['us-east-1', 'us-west-2']

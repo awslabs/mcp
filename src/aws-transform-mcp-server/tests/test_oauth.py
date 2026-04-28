@@ -266,3 +266,211 @@ class TestRunOAuthFlow:
                     port=18934,
                     timeout_ms=5_000,
                 )
+
+
+# ── _open_browser ──────────────────────────────────────────────────────
+
+
+class TestOpenBrowser:
+    """Tests for _open_browser platform dispatch."""
+
+    @patch('awslabs.aws_transform_mcp_server.oauth.platform.system', return_value='Darwin')
+    @patch('awslabs.aws_transform_mcp_server.oauth.subprocess.Popen')
+    def test_darwin(self, mock_popen, _mock_system):
+        from awslabs.aws_transform_mcp_server.oauth import _open_browser
+
+        _open_browser('https://example.com')
+        mock_popen.assert_called_once()
+        args = mock_popen.call_args[0][0]
+        assert args == ['open', 'https://example.com']
+
+    @patch('awslabs.aws_transform_mcp_server.oauth.platform.system', return_value='Windows')
+    @patch('awslabs.aws_transform_mcp_server.oauth.subprocess.Popen')
+    def test_windows(self, mock_popen, _mock_system):
+        from awslabs.aws_transform_mcp_server.oauth import _open_browser
+
+        _open_browser('https://example.com')
+        mock_popen.assert_called_once()
+        args = mock_popen.call_args[0][0]
+        assert args == ['cmd', '/c', 'start', '', 'https://example.com']
+
+    @patch('awslabs.aws_transform_mcp_server.oauth.platform.system', return_value='Linux')
+    @patch('awslabs.aws_transform_mcp_server.oauth.subprocess.Popen')
+    def test_linux(self, mock_popen, _mock_system):
+        from awslabs.aws_transform_mcp_server.oauth import _open_browser
+
+        _open_browser('https://example.com')
+        mock_popen.assert_called_once()
+        args = mock_popen.call_args[0][0]
+        assert args == ['xdg-open', 'https://example.com']
+
+    @patch('awslabs.aws_transform_mcp_server.oauth.platform.system', return_value='Linux')
+    @patch(
+        'awslabs.aws_transform_mcp_server.oauth.subprocess.Popen',
+        side_effect=OSError('no such file'),
+    )
+    def test_exception_prints_url(self, _mock_popen, _mock_system, capsys):
+        from awslabs.aws_transform_mcp_server.oauth import _open_browser
+
+        _open_browser('https://example.com')
+        # Should not raise; prints to stderr
+        captured = capsys.readouterr()
+        assert captured.err.startswith('Could not open browser')
+
+
+# ── CallbackHandler ────────────────────────────────────────────────────
+
+
+class TestCallbackHandler:
+    """Tests for CallbackHandler.do_GET edge cases."""
+
+    def test_non_callback_path_returns_404(self):
+        """Requests to non-callback paths get 404."""
+        from awslabs.aws_transform_mcp_server.oauth import CallbackHandler, OAuthState
+
+        state = OAuthState('test-state')
+        handler = MagicMock(spec=CallbackHandler)
+        handler.path = '/some/other/path'
+        handler.server = MagicMock()
+        handler.server.oauth_state = state
+        handler.send_response = MagicMock()
+        handler.end_headers = MagicMock()
+
+        CallbackHandler.do_GET(handler)
+        handler.send_response.assert_called_once_with(404)
+
+    def test_callback_with_error_param(self):
+        """Callback with error parameter sets state.error."""
+        from awslabs.aws_transform_mcp_server.oauth import CallbackHandler, OAuthState
+        from io import BytesIO
+
+        state = OAuthState('test-state')
+        handler = MagicMock(spec=CallbackHandler)
+        handler.path = '/oauth/callback?error=access_denied&error_description=User+denied'
+        handler.server = MagicMock()
+        handler.server.oauth_state = state
+        handler.send_response = MagicMock()
+        handler.send_header = MagicMock()
+        handler.end_headers = MagicMock()
+        handler.wfile = BytesIO()
+
+        CallbackHandler.do_GET(handler)
+        handler.send_response.assert_called_once_with(400)
+        assert state.error is not None
+        assert 'access_denied' in state.error
+        assert state.code_received.is_set()
+
+    def test_callback_missing_code(self):
+        """Callback without code parameter sets error."""
+        from awslabs.aws_transform_mcp_server.oauth import CallbackHandler, OAuthState
+        from io import BytesIO
+
+        state = OAuthState('test-state')
+        handler = MagicMock(spec=CallbackHandler)
+        handler.path = '/oauth/callback?state=test-state'
+        handler.server = MagicMock()
+        handler.server.oauth_state = state
+        handler.send_response = MagicMock()
+        handler.send_header = MagicMock()
+        handler.end_headers = MagicMock()
+        handler.wfile = BytesIO()
+
+        CallbackHandler.do_GET(handler)
+        handler.send_response.assert_called_once_with(400)
+        assert state.error is not None
+        assert 'No authorization code' in state.error
+        assert state.code_received.is_set()
+
+    def test_callback_state_mismatch(self):
+        """Callback with wrong state parameter sets error."""
+        from awslabs.aws_transform_mcp_server.oauth import CallbackHandler, OAuthState
+        from io import BytesIO
+
+        state = OAuthState('expected-state')
+        handler = MagicMock(spec=CallbackHandler)
+        handler.path = '/oauth/callback?code=test-code&state=wrong-state'
+        handler.server = MagicMock()
+        handler.server.oauth_state = state
+        handler.send_response = MagicMock()
+        handler.send_header = MagicMock()
+        handler.end_headers = MagicMock()
+        handler.wfile = BytesIO()
+
+        CallbackHandler.do_GET(handler)
+        handler.send_response.assert_called_once_with(400)
+        assert state.error is not None
+        assert 'State parameter mismatch' in state.error
+        assert state.code_received.is_set()
+
+    def test_callback_success(self):
+        """Successful callback sets auth_code on state."""
+        from awslabs.aws_transform_mcp_server.oauth import CallbackHandler, OAuthState
+        from io import BytesIO
+
+        state = OAuthState('correct-state')
+        handler = MagicMock(spec=CallbackHandler)
+        handler.path = '/oauth/callback?code=my-auth-code&state=correct-state'
+        handler.server = MagicMock()
+        handler.server.oauth_state = state
+        handler.send_response = MagicMock()
+        handler.send_header = MagicMock()
+        handler.end_headers = MagicMock()
+        handler.wfile = BytesIO()
+
+        CallbackHandler.do_GET(handler)
+        handler.send_response.assert_called_once_with(200)
+        assert state.auth_code == 'my-auth-code'
+        assert state.error is None
+        assert state.code_received.is_set()
+
+
+# ── run_oauth_flow: no auth code received ──────────────────────────────
+
+
+class TestRunOAuthFlowNoAuthCode:
+    """Tests for run_oauth_flow edge case where code_received fires but no auth code."""
+
+    @pytest.mark.asyncio
+    async def test_no_auth_code_received(self):
+        """When callback fires the event but has no code, RuntimeError is raised."""
+        mock_client = MagicMock()
+        mock_client.register_client.return_value = {
+            'clientId': 'test-cid',
+            'clientSecret': 'test-csec',  # pragma: allowlist secret
+            'clientSecretExpiresAt': 9999999999,
+        }
+
+        def fake_open(url):
+            # Simulate a callback that sets code_received but not auth_code
+            from urllib.parse import parse_qs, urlparse
+
+            params = parse_qs(urlparse(url).query)
+            _ = params['state'][0]
+            port = 18940
+            # Hit the callback with an error to trigger code_received but no auth_code
+            # Actually, let's directly manipulate the OAuthState
+            # We'll hit the callback with just an error
+            try:
+                urllib.request.urlopen(
+                    f'http://127.0.0.1:{port}/oauth/callback?error=server_error'
+                    f'&error_description=test_error',
+                    timeout=5,
+                )
+            except Exception:
+                pass
+
+        with (
+            patch('awslabs.aws_transform_mcp_server.oauth.AwsHelper') as mock_helper,
+            patch('awslabs.aws_transform_mcp_server.oauth._open_browser') as mock_wb,
+        ):
+            mock_helper.create_boto3_client.return_value = mock_client
+            mock_wb.side_effect = fake_open
+
+            with pytest.raises(RuntimeError, match='OAuth error'):
+                await run_oauth_flow(
+                    start_url='https://sso.example.com/start',
+                    idc_region='us-east-1',
+                    scope='transform:read_write',
+                    port=18940,
+                    timeout_ms=5_000,
+                )

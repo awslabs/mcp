@@ -542,3 +542,210 @@ class TestGetStatus:
         parsed = json.loads(result['content'][0]['text'])
         assert parsed['sigv4']['configured'] is False
         assert 'credential validation failed' in parsed['sigv4']['message'].lower()
+
+
+class TestConfigureCookieException:
+    """Tests for cookie flow exception handling."""
+
+    @pytest.mark.asyncio
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.configure.call_fes_direct_cookie',
+        new_callable=AsyncMock,
+    )
+    async def test_cookie_flow_exception(self, mock_fes_cookie, handler, mock_context):
+        """Exception in cookie flow returns failure_result with hint."""
+        mock_fes_cookie.side_effect = RuntimeError('connection refused')
+
+        result = await handler.configure(
+            mock_context,
+            authMode='cookie',
+            stage='prod',
+            region='us-east-1',
+            sessionCookie='my-session-value',
+            origin='https://app.transform.us-east-1.on.aws',
+        )
+
+        parsed = json.loads(result['content'][0]['text'])
+        assert parsed['success'] is False
+        assert parsed['error']['code'] == 'REQUEST_FAILED'
+        assert 'connection refused' in parsed['error']['message']
+        assert 'hint' in parsed
+
+
+class TestConfigureSSOException:
+    """Tests for SSO flow exception handling."""
+
+    @pytest.mark.asyncio
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.configure.run_oauth_flow',
+        new_callable=AsyncMock,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.configure.get_scope',
+        return_value='transform:read_write',
+    )
+    async def test_sso_flow_exception(self, mock_scope, mock_oauth, handler, mock_context):
+        """Exception in SSO flow returns failure_result with hint."""
+        mock_oauth.side_effect = TimeoutError('Authentication timed out')
+
+        result = await handler.configure(
+            mock_context,
+            authMode='sso',
+            stage='prod',
+            region='us-east-1',
+            startUrl='https://d-xxx.awsapps.com/start',
+        )
+
+        parsed = json.loads(result['content'][0]['text'])
+        assert parsed['success'] is False
+        assert parsed['error']['code'] == 'REQUEST_FAILED'
+        assert 'hint' in parsed
+
+
+class TestGetStatusConfigNone:
+    """Tests for get_status when config is None despite is_configured=True."""
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aws_transform_mcp_server.aws_helper.boto3')
+    @patch('awslabs.aws_transform_mcp_server.tools.configure.get_config', return_value=None)
+    @patch('awslabs.aws_transform_mcp_server.tools.configure.is_configured', return_value=True)
+    async def test_config_none_early_return(
+        self, mock_configured, mock_get_config, mock_boto3, handler, mock_context
+    ):
+        """When is_configured=True but get_config=None, returns not-configured status."""
+        mock_boto3.Session.return_value.get_credentials.return_value = None
+
+        result = await handler.get_status(mock_context)
+
+        parsed = json.loads(result['content'][0]['text'])
+        assert parsed['fes']['configured'] is False
+        assert result['isError'] is False
+
+
+class TestGetStatusBearerAuth:
+    """Tests for get_status bearer auth path and token expiry."""
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aws_transform_mcp_server.aws_helper.boto3')
+    @patch('awslabs.aws_transform_mcp_server.tools.configure.get_config')
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.configure.call_fes_direct_bearer',
+        new_callable=AsyncMock,
+    )
+    @patch('awslabs.aws_transform_mcp_server.tools.configure.is_configured', return_value=True)
+    async def test_bearer_status_with_token_expiry(
+        self,
+        mock_configured,
+        mock_fes_bearer,
+        mock_get_config,
+        mock_boto3,
+        handler,
+        mock_context,
+    ):
+        """Bearer auth status includes tokenExpiresIn."""
+        import time
+
+        future_expiry = int(time.time()) + 1800
+        mock_get_config.return_value = ConnectionConfig(
+            auth_mode='bearer',
+            stage='prod',
+            region='us-east-1',
+            fes_endpoint='https://api.transform.us-east-1.on.aws/',
+            origin='https://app.example.com',
+            bearer_token='tok-1',
+            token_expiry=future_expiry,
+        )
+        from awslabs.aws_transform_mcp_server.aws_helper import AwsHelper
+
+        AwsHelper.clear_cache()
+        mock_fes_bearer.return_value = {'userId': 'user-bearer'}
+        mock_boto3.Session.return_value.get_credentials.return_value = None
+
+        result = await handler.get_status(mock_context)
+
+        AwsHelper.clear_cache()
+        parsed = json.loads(result['content'][0]['text'])
+        assert parsed['fes']['configured'] is True
+        assert parsed['fes']['authMode'] == 'bearer'
+        assert 'tokenExpiresIn' in parsed['fes']
+        assert parsed['fes']['tokenExpiresIn'].endswith('s')
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aws_transform_mcp_server.aws_helper.boto3')
+    @patch('awslabs.aws_transform_mcp_server.tools.configure.get_config')
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.configure.call_fes_direct_bearer',
+        new_callable=AsyncMock,
+    )
+    @patch('awslabs.aws_transform_mcp_server.tools.configure.is_configured', return_value=True)
+    async def test_bearer_status_expired_token(
+        self,
+        mock_configured,
+        mock_fes_bearer,
+        mock_get_config,
+        mock_boto3,
+        handler,
+        mock_context,
+    ):
+        """Bearer auth with expired token shows EXPIRED."""
+        mock_get_config.return_value = ConnectionConfig(
+            auth_mode='bearer',
+            stage='prod',
+            region='us-east-1',
+            fes_endpoint='https://api.transform.us-east-1.on.aws/',
+            origin='https://app.example.com',
+            bearer_token='tok-1',
+            token_expiry=1000000,  # long past
+        )
+        from awslabs.aws_transform_mcp_server.aws_helper import AwsHelper
+
+        AwsHelper.clear_cache()
+        mock_fes_bearer.return_value = {'userId': 'user-bearer'}
+        mock_boto3.Session.return_value.get_credentials.return_value = None
+
+        result = await handler.get_status(mock_context)
+
+        AwsHelper.clear_cache()
+        parsed = json.loads(result['content'][0]['text'])
+        assert parsed['fes']['tokenExpiresIn'] == 'EXPIRED'
+
+
+class TestGetStatusGenericException:
+    """Tests for get_status with generic (non-HttpError) exceptions."""
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aws_transform_mcp_server.aws_helper.boto3')
+    @patch('awslabs.aws_transform_mcp_server.tools.configure.get_config')
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.configure.call_fes_direct_cookie',
+        new_callable=AsyncMock,
+    )
+    @patch('awslabs.aws_transform_mcp_server.tools.configure.is_configured', return_value=True)
+    async def test_generic_exception(
+        self,
+        mock_configured,
+        mock_fes_cookie,
+        mock_get_config,
+        mock_boto3,
+        handler,
+        mock_context,
+    ):
+        """Non-HttpError exception in FES verification shows SESSION_CHECK_FAILED."""
+        mock_boto3.Session.return_value.get_credentials.return_value = None
+        mock_get_config.return_value = ConnectionConfig(
+            auth_mode='cookie',
+            stage='prod',
+            region='us-east-1',
+            fes_endpoint='https://api.transform.us-east-1.on.aws/',
+            origin='https://app.example.com',
+            session_cookie='aws-transform-session=abc',
+        )
+        mock_fes_cookie.side_effect = ConnectionError('DNS resolution failed')
+
+        result = await handler.get_status(mock_context)
+
+        parsed = json.loads(result['content'][0]['text'])
+        assert parsed['fes']['configured'] is True
+        assert parsed['fes']['error']['code'] == 'SESSION_CHECK_FAILED'
+        assert 'DNS resolution failed' in parsed['fes']['error']['message']
+        assert result['isError'] is True

@@ -171,3 +171,139 @@ class TestInferFileType:
         from awslabs.aws_transform_mcp_server.upload_helper import infer_file_type
 
         assert infer_file_type('data.xyz') == 'TXT'
+
+
+class TestUploadFileArtifact:
+    """Tests for upload_file_artifact."""
+
+    @patch('awslabs.aws_transform_mcp_server.upload_helper.httpx.AsyncClient')
+    @patch(
+        'awslabs.aws_transform_mcp_server.upload_helper.call_fes',
+        new_callable=AsyncMock,
+    )
+    @patch('awslabs.aws_transform_mcp_server.upload_helper.validate_read_path')
+    async def test_success(self, mock_validate, mock_fes, mock_httpx_cls, tmp_path):
+        from awslabs.aws_transform_mcp_server.upload_helper import upload_file_artifact
+
+        # Create a real temp file
+        test_file = tmp_path / 'test_data.json'
+        test_file.write_text('{"key": "value"}')
+        mock_validate.return_value = str(test_file)
+
+        mock_fes.side_effect = [
+            # CreateArtifactUploadUrl
+            {
+                's3PreSignedUrl': 'https://s3.example.com/upload',
+                'artifactId': 'art-file-1',
+                'requestHeaders': {'x-amz-checksum': ['abc123']},
+            },
+            # CompleteArtifactUpload
+            {},
+        ]
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_client = AsyncMock()
+        mock_client.put = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_httpx_cls.return_value = mock_client
+
+        result = await upload_file_artifact('ws-1', 'job-1', str(test_file))
+
+        assert result == 'art-file-1'
+
+        # Verify CreateArtifactUploadUrl was called with fileMetadata
+        create_call = mock_fes.call_args_list[0]
+        body = create_call[0][1]
+        assert body['workspaceId'] == 'ws-1'
+        assert body['jobId'] == 'job-1'
+        assert body['fileMetadata']['fileName'] == 'test_data.json'
+        assert body['artifactReference']['artifactType']['categoryType'] == 'HITL_FROM_USER'
+
+        # Verify CompleteArtifactUpload was called
+        complete_call = mock_fes.call_args_list[1]
+        assert complete_call[0][0] == 'CompleteArtifactUpload'
+        assert complete_call[0][1]['artifactId'] == 'art-file-1'
+
+    async def test_file_too_large_raises(self, tmp_path):
+        from awslabs.aws_transform_mcp_server.upload_helper import upload_file_artifact
+
+        test_file = tmp_path / 'big.json'
+        test_file.write_text('x')
+
+        with patch('awslabs.aws_transform_mcp_server.upload_helper.os.stat') as mock_stat:
+            mock_stat.return_value = MagicMock(st_size=600 * 1024 * 1024)
+            with pytest.raises(Exception, match='File too large'):
+                await upload_file_artifact('ws-1', 'job-1', str(test_file))
+
+    @patch('awslabs.aws_transform_mcp_server.upload_helper.httpx.AsyncClient')
+    @patch(
+        'awslabs.aws_transform_mcp_server.upload_helper.call_fes',
+        new_callable=AsyncMock,
+    )
+    @patch('awslabs.aws_transform_mcp_server.upload_helper.validate_read_path')
+    async def test_s3_failure_raises(self, mock_validate, mock_fes, mock_httpx_cls, tmp_path):
+        from awslabs.aws_transform_mcp_server.upload_helper import upload_file_artifact
+
+        test_file = tmp_path / 'data.json'
+        test_file.write_text('{}')
+        mock_validate.return_value = str(test_file)
+
+        mock_fes.return_value = {
+            's3PreSignedUrl': 'https://s3.example.com/upload',
+            'artifactId': 'art-fail',
+        }
+
+        mock_response = MagicMock()
+        mock_response.status_code = 403
+        mock_response.text = 'Forbidden'
+        mock_client = AsyncMock()
+        mock_client.put = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_httpx_cls.return_value = mock_client
+
+        with pytest.raises(Exception, match='Failed to upload file'):
+            await upload_file_artifact('ws-1', 'job-1', str(test_file))
+
+    @patch('awslabs.aws_transform_mcp_server.upload_helper.httpx.AsyncClient')
+    @patch(
+        'awslabs.aws_transform_mcp_server.upload_helper.call_fes',
+        new_callable=AsyncMock,
+    )
+    @patch('awslabs.aws_transform_mcp_server.upload_helper.validate_read_path')
+    async def test_custom_file_type_and_category(
+        self, mock_validate, mock_fes, mock_httpx_cls, tmp_path
+    ):
+        from awslabs.aws_transform_mcp_server.upload_helper import upload_file_artifact
+
+        test_file = tmp_path / 'report.pdf'
+        test_file.write_bytes(b'%PDF-1.4')
+        mock_validate.return_value = str(test_file)
+
+        mock_fes.side_effect = [
+            {
+                's3PreSignedUrl': 'https://s3.example.com/upload',
+                'artifactId': 'art-pdf-1',
+            },
+            {},
+        ]
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_client = AsyncMock()
+        mock_client.put = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_httpx_cls.return_value = mock_client
+
+        result = await upload_file_artifact(
+            'ws-1', 'job-1', str(test_file), file_type='PDF', category_type='CUSTOMER_INPUT'
+        )
+
+        assert result == 'art-pdf-1'
+        create_call = mock_fes.call_args_list[0]
+        body = create_call[0][1]
+        assert body['artifactReference']['artifactType']['fileType'] == 'PDF'
+        assert body['artifactReference']['artifactType']['categoryType'] == 'CUSTOMER_INPUT'

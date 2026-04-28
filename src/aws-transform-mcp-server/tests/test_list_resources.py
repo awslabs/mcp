@@ -28,7 +28,7 @@ from awslabs.aws_transform_mcp_server.tools.list_resources import (
     paginated_fes,
     with_pagination,
 )
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────
@@ -871,3 +871,95 @@ class TestListResourcesHandler:
         parsed = _parse_result(result)
         assert parsed['success'] is False
         assert parsed['error']['code'] == 'REQUEST_FAILED'
+
+
+class TestListCollaborators:
+    @pytest.fixture
+    def handler(self, mock_mcp):
+        return ListResourcesHandler(mock_mcp)
+
+    @pytest.fixture
+    def mock_mcp(self):
+        mcp = MagicMock()
+        mcp.tool = MagicMock(side_effect=lambda **kwargs: lambda fn: fn)
+        return mcp
+
+    @pytest.fixture
+    def ctx(self):
+        return AsyncMock()
+
+    @pytest.mark.asyncio
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.list_resources.paginate_all',
+        new_callable=AsyncMock,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
+    )
+    async def test_collaborators_success(self, _, mock_paginate, mock_fes, handler, ctx):
+        mock_paginate.return_value = {
+            'items': [{'userId': 'u-1', 'role': 'ADMIN'}],
+        }
+        mock_fes.return_value = {
+            'successfulUserDetails': [
+                {'userId': 'u-1', 'userName': 'alice', 'email': 'alice@example.com'}
+            ]
+        }
+        result = await handler.list_resources(
+            ctx, resource=ResourceType.collaborators, workspaceId='ws-1'
+        )
+        parsed = _parse_result(result)
+        assert parsed['success'] is True
+        assert parsed['data']['items'][0]['userName'] == 'alice'
+
+    @pytest.mark.asyncio
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
+    )
+    async def test_collaborators_missing_workspace(self, _, handler, ctx):
+        result = await handler.list_resources(ctx, resource=ResourceType.collaborators)
+        parsed = _parse_result(result)
+        assert parsed['success'] is False
+        assert 'workspaceId' in parsed['error']['message']
+
+
+class TestListUsers:
+    @pytest.fixture
+    def handler(self, mock_mcp):
+        return ListResourcesHandler(mock_mcp)
+
+    @pytest.fixture
+    def mock_mcp(self):
+        mcp = MagicMock()
+        mcp.tool = MagicMock(side_effect=lambda **kwargs: lambda fn: fn)
+        return mcp
+
+    @pytest.fixture
+    def ctx(self):
+        return AsyncMock()
+
+    @pytest.mark.asyncio
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
+    )
+    async def test_users_success(self, _, mock_fes, handler, ctx):
+        mock_fes.return_value = {'users': [{'userId': 'u-1'}]}
+        result = await handler.list_resources(ctx, resource=ResourceType.users, searchTerm='alice')
+        parsed = _parse_result(result)
+        assert parsed['success'] is True
+
+    @pytest.mark.asyncio
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
+    )
+    async def test_users_missing_search_term(self, _, handler, ctx):
+        result = await handler.list_resources(ctx, resource=ResourceType.users)
+        parsed = _parse_result(result)
+        assert parsed['success'] is False
+        assert 'searchTerm' in parsed['error']['message']

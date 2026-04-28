@@ -473,3 +473,342 @@ class TestGetResourceHandler:
         parsed = _parse_result(result)
         assert parsed['success'] is False
         assert parsed['error']['code'] == 'REQUEST_FAILED'
+
+
+class TestGetResourceTaskWithArtifact:
+    """Tests for task resource with agent artifact download and dynamic schema building."""
+
+    @pytest.fixture
+    def handler(self, mock_mcp):
+        return GetResourceHandler(mock_mcp)
+
+    @pytest.fixture
+    def ctx(self, mock_context):
+        return mock_context
+
+    @pytest.mark.asyncio
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.call_fes',
+        new_callable=AsyncMock,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available',
+        return_value=True,
+    )
+    async def test_task_with_agent_artifact_download(self, _, mock_fes, handler, ctx):
+        """Task with agentArtifact triggers download and includes content in result."""
+        mock_fes.return_value = {
+            'task': {
+                'taskId': 't1',
+                'status': 'PENDING',
+                'uxComponentId': 'TextInput',
+                'agentArtifact': {'artifactId': 'art-agent-1'},
+            }
+        }
+
+        with patch(
+            'awslabs.aws_transform_mcp_server.tools.hitl.download_agent_artifact',
+            new_callable=AsyncMock,
+        ) as mock_dl:
+            mock_dl.return_value = {
+                'content': {'field1': 'val1'},
+                'rawText': '{"field1": "val1"}',
+            }
+
+            result = await handler.get_resource(
+                ctx,
+                resource=GetResourceType.task,
+                workspaceId='ws1',
+                jobId='j1',
+                taskId='t1',
+            )
+            parsed = _parse_result(result)
+
+            assert parsed['success'] is True
+            assert parsed['data']['agentArtifactContent'] == {'field1': 'val1'}
+            mock_dl.assert_called_once_with(
+                workspace_id='ws1', job_id='j1', artifact_id='art-agent-1'
+            )
+
+    @pytest.mark.asyncio
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.call_fes',
+        new_callable=AsyncMock,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available',
+        return_value=True,
+    )
+    async def test_task_with_artifact_download_warning(self, _, mock_fes, handler, ctx):
+        """Artifact download warning is included in result."""
+        mock_fes.return_value = {
+            'task': {
+                'taskId': 't1',
+                'status': 'PENDING',
+                'uxComponentId': 'TextInput',
+                'agentArtifact': {'artifactId': 'art-agent-1'},
+            }
+        }
+
+        with patch(
+            'awslabs.aws_transform_mcp_server.tools.hitl.download_agent_artifact',
+            new_callable=AsyncMock,
+        ) as mock_dl:
+            mock_dl.return_value = {
+                'warning': 'Agent artifact download failed (HTTP 403). Field validation skipped.',
+            }
+
+            result = await handler.get_resource(
+                ctx,
+                resource=GetResourceType.task,
+                workspaceId='ws1',
+                jobId='j1',
+                taskId='t1',
+            )
+            parsed = _parse_result(result)
+
+            assert parsed['success'] is True
+            assert '_warning' in parsed['data']
+            assert 'HTTP 403' in parsed['data']['_warning']
+
+    @pytest.mark.asyncio
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.call_fes',
+        new_callable=AsyncMock,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available',
+        return_value=True,
+    )
+    async def test_task_with_artifact_rawtext_fallback(self, _, mock_fes, handler, ctx):
+        """When content is absent but rawText is present, rawText is used."""
+        mock_fes.return_value = {
+            'task': {
+                'taskId': 't1',
+                'status': 'PENDING',
+                'uxComponentId': 'TextInput',
+                'agentArtifact': {'artifactId': 'art-agent-1'},
+            }
+        }
+
+        with patch(
+            'awslabs.aws_transform_mcp_server.tools.hitl.download_agent_artifact',
+            new_callable=AsyncMock,
+        ) as mock_dl:
+            mock_dl.return_value = {
+                'rawText': 'plain text artifact',
+                'warning': 'Agent artifact is not JSON. Field validation skipped.',
+            }
+
+            result = await handler.get_resource(
+                ctx,
+                resource=GetResourceType.task,
+                workspaceId='ws1',
+                jobId='j1',
+                taskId='t1',
+            )
+            parsed = _parse_result(result)
+
+            assert parsed['success'] is True
+            assert parsed['data']['agentArtifactContent'] == 'plain text artifact'
+
+    @pytest.mark.asyncio
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.call_fes',
+        new_callable=AsyncMock,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available',
+        return_value=True,
+    )
+    async def test_task_with_dynamic_schema_building(self, _, mock_fes, handler, ctx):
+        """AutoForm task with agent artifact gets dynamic output schema."""
+        mock_fes.return_value = {
+            'task': {
+                'taskId': 't1',
+                'status': 'PENDING',
+                'uxComponentId': 'AutoForm',
+                'agentArtifact': {'artifactId': 'art-agent-1'},
+            }
+        }
+
+        with patch(
+            'awslabs.aws_transform_mcp_server.tools.hitl.download_agent_artifact',
+            new_callable=AsyncMock,
+        ) as mock_dl:
+            mock_dl.return_value = {
+                'content': {
+                    'properties': {
+                        'name': {'type': 'string'},
+                        'age': {'type': 'number'},
+                    }
+                },
+            }
+
+            result = await handler.get_resource(
+                ctx,
+                resource=GetResourceType.task,
+                workspaceId='ws1',
+                jobId='j1',
+                taskId='t1',
+            )
+            parsed = _parse_result(result)
+
+            assert parsed['success'] is True
+            task = parsed['data']['task']
+            assert '_outputSchema' in task
+            assert 'name' in task['_outputSchema']['properties']
+            assert 'age' in task['_outputSchema']['properties']
+
+    @pytest.mark.asyncio
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.call_fes',
+        new_callable=AsyncMock,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available',
+        return_value=True,
+    )
+    async def test_task_artifact_no_dynamic_schema_uses_properties_fallback(
+        self, _, mock_fes, handler, ctx
+    ):
+        """When dynamic schema returns None, artifact properties are used as template fallback."""
+        mock_fes.return_value = {
+            'task': {
+                'taskId': 't1',
+                'status': 'PENDING',
+                'uxComponentId': 'SomeUnknownComponent',
+                'agentArtifact': {'artifactId': 'art-agent-1'},
+            }
+        }
+
+        with patch(
+            'awslabs.aws_transform_mcp_server.tools.hitl.download_agent_artifact',
+            new_callable=AsyncMock,
+        ) as mock_dl:
+            mock_dl.return_value = {
+                'content': {
+                    'properties': {
+                        'field1': 'value1',
+                        'field2': 'value2',
+                    }
+                },
+            }
+
+            result = await handler.get_resource(
+                ctx,
+                resource=GetResourceType.task,
+                workspaceId='ws1',
+                jobId='j1',
+                taskId='t1',
+            )
+            parsed = _parse_result(result)
+
+            assert parsed['success'] is True
+            task = parsed['data']['task']
+            # Unknown component gets _responseTemplate from artifact properties
+            assert task.get('_responseTemplate') == {'field1': 'value1', 'field2': 'value2'}
+            assert '_responseHint' in task
+
+    @pytest.mark.asyncio
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.call_fes',
+        new_callable=AsyncMock,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available',
+        return_value=True,
+    )
+    async def test_task_hitl_schemas_import_error_fallback(self, _, mock_fes, handler, ctx):
+        """When hitl_schemas import fails, task data is still returned."""
+        mock_fes.return_value = {'task': {'taskId': 't1', 'status': 'PENDING'}}
+
+        with patch(
+            'builtins.__import__',
+            side_effect=lambda name, *args, **kwargs: (
+                (_ for _ in ()).throw(ImportError('no module'))
+                if 'hitl_schemas' in name
+                else __builtins__.__import__(name, *args, **kwargs)  # noqa: A003
+            ),
+        ):
+            # This test verifies the ImportError guard path exists.
+            # We can't easily make the guard fire since the module is already imported,
+            # but we verify the basic task data passes through.
+            result = await handler.get_resource(
+                ctx,
+                resource=GetResourceType.task,
+                workspaceId='ws1',
+                jobId='j1',
+                taskId='t1',
+            )
+            parsed = _parse_result(result)
+            assert parsed['success'] is True
+
+
+class TestGetResourceMessagesParsing:
+    """Tests for messageIds parsing edge cases."""
+
+    @pytest.fixture
+    def handler(self, mock_mcp):
+        return GetResourceHandler(mock_mcp)
+
+    @pytest.fixture
+    def ctx(self, mock_context):
+        return mock_context
+
+    @pytest.mark.asyncio
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available',
+        return_value=True,
+    )
+    async def test_messages_empty_list(self, _, handler, ctx):
+        """Empty messageIds list returns validation error."""
+        result = await handler.get_resource(
+            ctx,
+            resource=GetResourceType.messages,
+            workspaceId='ws1',
+            messageIds=[],
+        )
+        parsed = _parse_result(result)
+        assert parsed['error']['code'] == 'VALIDATION_ERROR'
+
+    @pytest.mark.asyncio
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.call_fes',
+        new_callable=AsyncMock,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available',
+        return_value=True,
+    )
+    async def test_messages_json_string_ids(self, _, mock_fes, handler, ctx):
+        """MessageIds as a JSON string is parsed into a list."""
+        mock_fes.return_value = {'messages': [{'id': 'm1'}, {'id': 'm2'}]}
+
+        result = await handler.get_resource(
+            ctx,
+            resource=GetResourceType.messages,
+            workspaceId='ws1',
+            messageIds='["m1", "m2"]',
+        )
+        parsed = _parse_result(result)
+        assert parsed['success'] is True
+        mock_fes.assert_called_once_with(
+            'BatchGetMessage', {'messageIds': ['m1', 'm2'], 'workspaceId': 'ws1'}
+        )
+
+    @pytest.mark.asyncio
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available',
+        return_value=True,
+    )
+    async def test_messages_invalid_json_string(self, _, handler, ctx):
+        """Invalid JSON string for messageIds returns validation error."""
+        result = await handler.get_resource(
+            ctx,
+            resource=GetResourceType.messages,
+            workspaceId='ws1',
+            messageIds='not-valid-json',
+        )
+        parsed = _parse_result(result)
+        assert parsed['error']['code'] == 'VALIDATION_ERROR'

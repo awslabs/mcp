@@ -445,3 +445,281 @@ class TestContentCoercion:
 
         adapter = TypeAdapter(JsonContent)
         assert adapter.validate_python(raw) == expected
+
+
+class TestDownloadAgentArtifact:
+    """Tests for download_agent_artifact standalone function."""
+
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        new_callable=AsyncMock,
+    )
+    async def test_success_json(self, mock_fes):
+        """Successful download returns parsed JSON content and rawText."""
+        from awslabs.aws_transform_mcp_server.tools.hitl import download_agent_artifact
+
+        mock_fes.return_value = {'s3PreSignedUrl': 'https://s3.example.com/artifact.json'}
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = '{"key": "value"}'
+
+        with patch('awslabs.aws_transform_mcp_server.tools.hitl.httpx.AsyncClient') as mock_client:
+            mock_client.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
+            mock_client.return_value.__aexit__ = AsyncMock(return_value=False)
+            instance = mock_client.return_value.__aenter__.return_value
+            instance.get = AsyncMock(return_value=mock_response)
+
+            result = await download_agent_artifact('ws-1', 'job-1', 'art-1')
+
+        assert result['content'] == {'key': 'value'}
+        assert result['rawText'] == '{"key": "value"}'
+        assert 'warning' not in result
+
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        new_callable=AsyncMock,
+    )
+    async def test_success_non_json(self, mock_fes):
+        """Non-JSON artifact returns rawText and a warning."""
+        from awslabs.aws_transform_mcp_server.tools.hitl import download_agent_artifact
+
+        mock_fes.return_value = {'s3PreSignedUrl': 'https://s3.example.com/artifact.txt'}
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = 'not valid json <<<'
+
+        with patch('awslabs.aws_transform_mcp_server.tools.hitl.httpx.AsyncClient') as mock_client:
+            mock_client.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
+            mock_client.return_value.__aexit__ = AsyncMock(return_value=False)
+            instance = mock_client.return_value.__aenter__.return_value
+            instance.get = AsyncMock(return_value=mock_response)
+
+            result = await download_agent_artifact('ws-1', 'job-1', 'art-1')
+
+        assert 'content' not in result
+        assert result['rawText'] == 'not valid json <<<'
+        assert 'not JSON' in result['warning']
+
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        new_callable=AsyncMock,
+    )
+    async def test_s3_http_error(self, mock_fes):
+        """S3 download returns HTTP error -> warning about download failure."""
+        from awslabs.aws_transform_mcp_server.tools.hitl import download_agent_artifact
+
+        mock_fes.return_value = {'s3PreSignedUrl': 'https://s3.example.com/artifact.json'}
+
+        mock_response = MagicMock()
+        mock_response.status_code = 403
+
+        with patch('awslabs.aws_transform_mcp_server.tools.hitl.httpx.AsyncClient') as mock_client:
+            mock_client.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
+            mock_client.return_value.__aexit__ = AsyncMock(return_value=False)
+            instance = mock_client.return_value.__aenter__.return_value
+            instance.get = AsyncMock(return_value=mock_response)
+
+            result = await download_agent_artifact('ws-1', 'job-1', 'art-1')
+
+        assert 'warning' in result
+        assert 'HTTP 403' in result['warning']
+
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        new_callable=AsyncMock,
+    )
+    async def test_general_exception(self, mock_fes):
+        """Any exception during download returns a warning."""
+        from awslabs.aws_transform_mcp_server.tools.hitl import download_agent_artifact
+
+        mock_fes.side_effect = RuntimeError('network failure')
+
+        result = await download_agent_artifact('ws-1', 'job-1', 'art-1')
+
+        assert 'warning' in result
+        assert 'network failure' in result['warning']
+
+
+class TestSendForApprovalToolApproval:
+    """Tests for SEND_FOR_APPROVAL with TOOL_APPROVAL category."""
+
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        new_callable=AsyncMock,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.hitl.is_fes_available',
+        return_value=True,
+    )
+    async def test_tool_approval_category_rejected(self, _mock_cfg, mock_fes, handler, ctx):
+        """SEND_FOR_APPROVAL with TOOL_APPROVAL category should fail."""
+        task_data = {
+            'taskId': 't-ta',
+            'uxComponentId': 'TextInput',
+            'severity': 'CRITICAL',
+            'category': 'TOOL_APPROVAL',
+        }
+        mock_fes.return_value = {'task': task_data}
+
+        result = await handler.complete_task(
+            ctx,
+            workspaceId='ws-1',
+            jobId='job-1',
+            taskId='t-ta',
+            content='{}',
+            filePath=None,
+            fileType=None,
+            action='SEND_FOR_APPROVAL',
+        )
+        parsed = _parse(result)
+
+        assert parsed['success'] is False
+        assert parsed['error']['code'] == 'VALIDATION_ERROR'
+        assert 'TOOL_APPROVAL' in parsed['error']['message']
+
+
+class TestSendForApprovalCritical:
+    """Tests for the SEND_FOR_APPROVAL action route for CRITICAL tasks."""
+
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.hitl.upload_json_artifact',
+        new_callable=AsyncMock,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        new_callable=AsyncMock,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.hitl.is_fes_available',
+        return_value=True,
+    )
+    async def test_send_for_approval_critical(
+        self, _mock_cfg, mock_fes, mock_upload, handler, ctx
+    ):
+        """SEND_FOR_APPROVAL on CRITICAL task routes to UpdateHitlTask with postUpdateAction."""
+        task_data = {
+            'taskId': 't-crit',
+            'uxComponentId': 'TextInput',
+            'severity': 'CRITICAL',
+        }
+
+        mock_fes.side_effect = [
+            {'task': task_data},
+            {},  # UpdateHitlTask with SEND_FOR_APPROVAL
+            {'task': {**task_data, 'status': 'PENDING_APPROVAL'}},
+        ]
+        mock_upload.return_value = 'art-resp-crit'
+
+        result = await handler.complete_task(
+            ctx,
+            workspaceId='ws-1',
+            jobId='job-1',
+            taskId='t-crit',
+            content='"text"',
+            filePath=None,
+            fileType=None,
+            action='SEND_FOR_APPROVAL',
+        )
+        parsed = _parse(result)
+
+        assert parsed['success'] is True
+        # Verify UpdateHitlTask was called with postUpdateAction
+        update_call = mock_fes.call_args_list[1]
+        assert update_call[0][0] == 'UpdateHitlTask'
+        assert update_call[0][1]['postUpdateAction'] == 'SEND_FOR_APPROVAL'
+
+
+class TestAgentArtifactDownloadInCompleteTask:
+    """Tests for the agent artifact download step inside complete_task."""
+
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.hitl.upload_json_artifact',
+        new_callable=AsyncMock,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.hitl.download_agent_artifact',
+        new_callable=AsyncMock,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        new_callable=AsyncMock,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.hitl.is_fes_available',
+        return_value=True,
+    )
+    async def test_artifact_download_with_warning(
+        self, _mock_cfg, mock_fes, mock_download, mock_upload, handler, ctx
+    ):
+        """When agent artifact download has a warning, it appears in the result."""
+        task_data = {
+            'taskId': 't-art',
+            'uxComponentId': 'TextInput',
+            'severity': 'STANDARD',
+            'agentArtifact': {'artifactId': 'agent-art-1'},
+        }
+
+        mock_fes.side_effect = [
+            {'task': task_data},
+            {},  # SubmitStandardHitlTask
+            {'task': {**task_data, 'status': 'COMPLETED'}},
+        ]
+        mock_download.return_value = {
+            'content': {'key': 'val'},
+            'warning': 'Agent artifact is not JSON. Field validation skipped.',
+        }
+        mock_upload.return_value = 'art-resp-1'
+
+        result = await handler.complete_task(
+            ctx,
+            workspaceId='ws-1',
+            jobId='job-1',
+            taskId='t-art',
+            content='"hello"',
+            filePath=None,
+            fileType=None,
+            action='APPROVE',
+        )
+        parsed = _parse(result)
+
+        assert parsed['success'] is True
+        assert (
+            parsed['data']['_warning'] == 'Agent artifact is not JSON. Field validation skipped.'
+        )
+        mock_download.assert_called_once_with(
+            workspace_id='ws-1', job_id='job-1', artifact_id='agent-art-1'
+        )
+
+
+class TestCompleteTaskException:
+    """Tests for exception handling in complete_task."""
+
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        new_callable=AsyncMock,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.hitl.is_fes_available',
+        return_value=True,
+    )
+    async def test_fes_exception_returns_failure(self, _mock_cfg, mock_fes, handler, ctx):
+        """An exception during the flow returns failure_result."""
+        mock_fes.side_effect = RuntimeError('unexpected server error')
+
+        result = await handler.complete_task(
+            ctx,
+            workspaceId='ws-1',
+            jobId='job-1',
+            taskId='t-err',
+            content='{}',
+            filePath=None,
+            fileType=None,
+            action='APPROVE',
+        )
+        parsed = _parse(result)
+
+        assert parsed['success'] is False
+        assert parsed['error']['code'] == 'REQUEST_FAILED'
+        assert 'unexpected server error' in parsed['error']['message']

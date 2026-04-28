@@ -228,3 +228,99 @@ class TestUploadArtifactNotConfigured:
 
         assert parsed['success'] is False
         assert parsed['error']['code'] == 'NOT_CONFIGURED'
+
+
+class TestUploadArtifactEdgeCases:
+    @pytest.fixture
+    def handler(self, mock_mcp):
+        from awslabs.aws_transform_mcp_server.tools.artifact import ArtifactHandler
+
+        return ArtifactHandler(mock_mcp)
+
+    @pytest.fixture
+    def mock_mcp(self):
+        mcp = MagicMock()
+        mcp.tool = MagicMock(side_effect=lambda **kwargs: lambda fn: fn)
+        return mcp
+
+    @pytest.fixture
+    def ctx(self):
+        return AsyncMock()
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aws_transform_mcp_server.tools.artifact.httpx.AsyncClient')
+    @patch('awslabs.aws_transform_mcp_server.tools.artifact.call_fes', new_callable=AsyncMock)
+    @patch('awslabs.aws_transform_mcp_server.tools.artifact.is_fes_available', return_value=True)
+    async def test_s3_upload_failure(self, _, mock_fes, mock_httpx, handler, ctx):
+        mock_fes.return_value = {
+            'artifactId': 'a-1',
+            's3PreSignedUrl': 'https://s3.example.com/upload',
+            'requestHeaders': {'x-amz-header': ['val']},
+        }
+        mock_response = MagicMock()
+        mock_response.status_code = 500
+        mock_client = AsyncMock()
+        mock_client.put = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_httpx.return_value = mock_client
+        result = await handler.upload_artifact(
+            ctx,
+            workspaceId='ws-1',
+            jobId='j-1',
+            content='{"key": "val"}',
+            categoryType='GENERAL',
+        )
+        parsed = _parse(result)
+        assert parsed['error']['code'] == 'UPLOAD_FAILED'
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aws_transform_mcp_server.tools.artifact.httpx.AsyncClient')
+    @patch('awslabs.aws_transform_mcp_server.tools.artifact.call_fes', new_callable=AsyncMock)
+    @patch('awslabs.aws_transform_mcp_server.tools.artifact.is_fes_available', return_value=True)
+    async def test_upload_with_plan_step_id(self, _, mock_fes, mock_httpx, handler, ctx):
+        mock_fes.side_effect = [
+            {
+                'artifactId': 'a-1',
+                's3PreSignedUrl': 'https://s3.example.com/upload',
+                'requestHeaders': None,
+            },
+            None,
+        ]
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_client = AsyncMock()
+        mock_client.put = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_httpx.return_value = mock_client
+        result = await handler.upload_artifact(
+            ctx,
+            workspaceId='ws-1',
+            jobId='j-1',
+            content='{"key": "val"}',
+            categoryType='GENERAL',
+            planStepId='step-1',
+        )
+        parsed = _parse(result)
+        assert parsed['success'] is True
+        create_body = mock_fes.call_args_list[0][0][1]
+        assert create_body['planStepId'] == 'step-1'
+
+    @pytest.mark.asyncio
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.artifact.call_fes',
+        new_callable=AsyncMock,
+        side_effect=Exception('fail'),
+    )
+    @patch('awslabs.aws_transform_mcp_server.tools.artifact.is_fes_available', return_value=True)
+    async def test_upload_fes_error(self, _, mock_fes, handler, ctx):
+        result = await handler.upload_artifact(
+            ctx,
+            workspaceId='ws-1',
+            jobId='j-1',
+            content='{"key": "val"}',
+            categoryType='GENERAL',
+        )
+        parsed = _parse(result)
+        assert parsed['success'] is False

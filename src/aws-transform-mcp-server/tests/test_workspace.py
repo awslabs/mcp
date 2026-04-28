@@ -110,3 +110,37 @@ class TestDeleteWorkspace:
 
         assert parsed['success'] is False
         assert parsed['error']['code'] == 'NOT_CONFIGURED'
+
+
+class TestWorkspaceErrors:
+    @pytest.fixture
+    def handler(self, mock_mcp):
+        from awslabs.aws_transform_mcp_server.tools.workspace import WorkspaceHandler
+
+        return WorkspaceHandler(mock_mcp)
+
+    @pytest.fixture
+    def mock_mcp(self):
+        mcp = MagicMock()
+        mcp.tool = MagicMock(side_effect=lambda **kwargs: lambda fn: fn)
+        return mcp
+
+    @pytest.fixture
+    def ctx(self):
+        return AsyncMock()
+
+    @pytest.mark.asyncio
+    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock, side_effect=Exception('fail'))
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
+    async def test_create_workspace_fes_error(self, _, mock_fes, handler, ctx):
+        result = await handler.create_workspace(ctx, name='test')
+        parsed = _parse(result)
+        assert parsed['success'] is False
+
+    @pytest.mark.asyncio
+    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock, side_effect=Exception('fail'))
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
+    async def test_delete_workspace_fes_error(self, _, mock_fes, handler, ctx):
+        result = await handler.delete_workspace(ctx, workspaceId='ws-1', confirm=True)
+        parsed = _parse(result)
+        assert parsed['success'] is False

@@ -158,3 +158,84 @@ class TestDeleteJob:
         result = await handler.delete_job(ctx, workspaceId='ws-1', jobId='job-1', confirm=True)
         parsed = _parse(result)
         assert parsed['error']['code'] == 'NOT_CONFIGURED'
+
+
+class TestCreateJobWithOrchestrator:
+    @pytest.fixture
+    def handler(self, mock_mcp):
+        from awslabs.aws_transform_mcp_server.tools.job import JobHandler
+
+        return JobHandler(mock_mcp)
+
+    @pytest.fixture
+    def mock_mcp(self):
+        mcp = MagicMock()
+        mcp.tool = MagicMock(side_effect=lambda **kwargs: lambda fn: fn)
+        return mcp
+
+    @pytest.fixture
+    def ctx(self):
+        return AsyncMock()
+
+    @pytest.mark.asyncio
+    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
+    async def test_create_job_with_orchestrator(self, _, mock_fes, handler, ctx):
+        mock_fes.side_effect = [
+            {'jobId': 'j-1'},
+            None,
+            {'jobId': 'j-1', 'status': 'STARTING'},
+        ]
+        result = await handler.create_job(
+            ctx,
+            workspaceId='ws-1',
+            jobName='test',
+            objective='test obj',
+            orchestratorAgent='agent-1',
+        )
+        parsed = _parse(result)
+        assert parsed['success'] is True
+        create_body = mock_fes.call_args_list[0][0][1]
+        assert create_body['orchestratorAgent'] == 'agent-1'
+
+    @pytest.mark.asyncio
+    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock, side_effect=Exception('fail'))
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
+    async def test_create_job_fes_error(self, _, mock_fes, handler, ctx):
+        result = await handler.create_job(ctx, workspaceId='ws-1', jobName='test', objective='obj')
+        parsed = _parse(result)
+        assert parsed['success'] is False
+
+
+class TestControlJobError:
+    @pytest.fixture
+    def handler(self, mock_mcp):
+        from awslabs.aws_transform_mcp_server.tools.job import JobHandler
+
+        return JobHandler(mock_mcp)
+
+    @pytest.fixture
+    def mock_mcp(self):
+        mcp = MagicMock()
+        mcp.tool = MagicMock(side_effect=lambda **kwargs: lambda fn: fn)
+        return mcp
+
+    @pytest.fixture
+    def ctx(self):
+        return AsyncMock()
+
+    @pytest.mark.asyncio
+    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock, side_effect=Exception('fail'))
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
+    async def test_control_job_error(self, _, mock_fes, handler, ctx):
+        result = await handler.control_job(ctx, workspaceId='ws-1', jobId='j-1', action='stop')
+        parsed = _parse(result)
+        assert parsed['success'] is False
+
+    @pytest.mark.asyncio
+    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock, side_effect=Exception('fail'))
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
+    async def test_delete_job_fes_error(self, _, mock_fes, handler, ctx):
+        result = await handler.delete_job(ctx, workspaceId='ws-1', jobId='j-1', confirm=True)
+        parsed = _parse(result)
+        assert parsed['success'] is False
