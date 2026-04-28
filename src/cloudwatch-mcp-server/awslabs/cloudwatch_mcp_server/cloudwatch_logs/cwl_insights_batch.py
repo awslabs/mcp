@@ -199,9 +199,7 @@ async def _start_and_poll(
 
         # Polling timed out on our side – cancel to avoid cost
         try:
-            await loop.run_in_executor(
-                None, lambda: logs_client.stop_query(queryId=query_id)
-            )
+            await loop.run_in_executor(None, lambda: logs_client.stop_query(queryId=query_id))
         except Exception as e:
             logger.warning(f'Failed to stop query {query_id} after polling timeout: {e}')
         return {
