@@ -306,9 +306,7 @@ class TestServerLifespan:
                 'awslabs.amazon_bedrock_agentcore_mcp_server.tools.browser.cleanup_stale_sessions',
                 side_effect=fake_cleanup_stale,
             ),
-            patch('asyncio.get_running_loop') as mock_loop,
         ):
-            mock_loop.return_value = MagicMock()
             mock_server = MagicMock()
 
             async with server.server_lifespan(mock_server):
@@ -316,6 +314,44 @@ class TestServerLifespan:
 
         mock_cm.cleanup.assert_awaited_once()
         ci_cleanup.assert_awaited_once()
+
+    async def test_lifespan_does_not_call_add_signal_handler(self):
+        """Regression for #2752: lifespan must not call loop.add_signal_handler.
+
+        On Windows the default ProactorEventLoop raises NotImplementedError from
+        add_signal_handler, which crashed the server on startup. This test
+        simulates that by making add_signal_handler raise and asserts the
+        lifespan still completes — ensuring no future change reintroduces the
+        unconditional call.
+        """
+        mock_cm = MagicMock()
+        mock_cm.cleanup = AsyncMock()
+
+        async def fake_cleanup_stale(cm, sm):
+            try:
+                await asyncio.sleep(3600)
+            except asyncio.CancelledError:
+                return
+
+        loop = asyncio.get_running_loop()
+        with (
+            patch.object(server, '_browser_cm', mock_cm),
+            patch.object(server, '_browser_sm', MagicMock()),
+            patch.object(server, '_code_interpreter_cleanup', None),
+            patch(
+                'awslabs.amazon_bedrock_agentcore_mcp_server.tools.browser.cleanup_stale_sessions',
+                side_effect=fake_cleanup_stale,
+            ),
+            patch.object(
+                loop,
+                'add_signal_handler',
+                side_effect=NotImplementedError('simulated ProactorEventLoop'),
+            ),
+        ):
+            async with server.server_lifespan(MagicMock()):
+                pass
+
+        mock_cm.cleanup.assert_awaited_once()
 
     async def test_lifespan_browser_without_code_interpreter(self):
         """Lifespan manages browser cleanup when code interpreter is not registered."""
@@ -337,9 +373,7 @@ class TestServerLifespan:
                 'awslabs.amazon_bedrock_agentcore_mcp_server.tools.browser.cleanup_stale_sessions',
                 side_effect=fake_cleanup_stale,
             ),
-            patch('asyncio.get_running_loop') as mock_loop,
         ):
-            mock_loop.return_value = MagicMock()
             mock_server = MagicMock()
 
             async with server.server_lifespan(mock_server):

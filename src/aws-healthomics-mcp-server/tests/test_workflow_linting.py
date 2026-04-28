@@ -1846,3 +1846,426 @@ steps:
 
         assert result['status'] == 'error'
         assert 'Unsupported workflow format: nextflow' in result['message']
+
+
+class TestPathTraversalPrevention:
+    """Test cases to ensure path traversal attacks are blocked in bundle linting."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.wdl_linter = WDLWorkflowLinter()
+        self.cwl_linter = CWLWorkflowLinter()
+
+    @pytest.mark.asyncio
+    async def test_wdl_bundle_rejects_dotdot_in_file_path(self):
+        """Property: WDL bundle linting rejects file paths with ../ traversal."""
+        workflow_files = {
+            '../../../etc/malicious.wdl': 'version 1.0\nworkflow evil {}',
+            'main.wdl': 'version 1.0\nworkflow main {}',
+        }
+
+        result = await self.wdl_linter.lint_workflow_bundle(
+            workflow_files=workflow_files,
+            main_workflow_file='main.wdl',
+        )
+
+        assert result['status'] == 'error'
+        assert 'Path traversal detected' in result['message']
+
+    @pytest.mark.asyncio
+    async def test_cwl_bundle_rejects_dotdot_in_file_path(self):
+        """Property: CWL bundle linting rejects file paths with ../ traversal."""
+        workflow_files = {
+            '../../../etc/malicious.cwl': 'class: Workflow\ncwlVersion: v1.0',
+            'main.cwl': 'class: Workflow\ncwlVersion: v1.0',
+        }
+
+        result = await self.cwl_linter.lint_workflow_bundle(
+            workflow_files=workflow_files,
+            main_workflow_file='main.cwl',
+        )
+
+        assert result['status'] == 'error'
+        assert 'Path traversal detected' in result['message']
+
+    @pytest.mark.asyncio
+    async def test_wdl_bundle_rejects_absolute_path(self):
+        """Property: WDL bundle linting rejects absolute file paths."""
+        workflow_files = {
+            '/tmp/malicious.wdl': 'version 1.0\nworkflow evil {}',
+            'main.wdl': 'version 1.0\nworkflow main {}',
+        }
+
+        result = await self.wdl_linter.lint_workflow_bundle(
+            workflow_files=workflow_files,
+            main_workflow_file='main.wdl',
+        )
+
+        assert result['status'] == 'error'
+        assert 'Path traversal detected' in result['message']
+
+    @pytest.mark.asyncio
+    async def test_cwl_bundle_rejects_absolute_path(self):
+        """Property: CWL bundle linting rejects absolute file paths."""
+        workflow_files = {
+            '/tmp/malicious.cwl': 'class: Workflow\ncwlVersion: v1.0',
+            'main.cwl': 'class: Workflow\ncwlVersion: v1.0',
+        }
+
+        result = await self.cwl_linter.lint_workflow_bundle(
+            workflow_files=workflow_files,
+            main_workflow_file='main.cwl',
+        )
+
+        assert result['status'] == 'error'
+        assert 'Path traversal detected' in result['message']
+
+    @pytest.mark.asyncio
+    async def test_wdl_bundle_rejects_nested_traversal(self):
+        """Property: WDL bundle linting rejects deeply nested ../ traversal."""
+        workflow_files = {
+            'subdir/../../outside.wdl': 'version 1.0\nworkflow evil {}',
+            'main.wdl': 'version 1.0\nworkflow main {}',
+        }
+
+        result = await self.wdl_linter.lint_workflow_bundle(
+            workflow_files=workflow_files,
+            main_workflow_file='main.wdl',
+        )
+
+        assert result['status'] == 'error'
+        assert 'Path traversal detected' in result['message']
+
+    @pytest.mark.asyncio
+    async def test_cwl_bundle_rejects_nested_traversal(self):
+        """Property: CWL bundle linting rejects deeply nested ../ traversal."""
+        workflow_files = {
+            'subdir/../../outside.cwl': 'class: Workflow\ncwlVersion: v1.0',
+            'main.cwl': 'class: Workflow\ncwlVersion: v1.0',
+        }
+
+        result = await self.cwl_linter.lint_workflow_bundle(
+            workflow_files=workflow_files,
+            main_workflow_file='main.cwl',
+        )
+
+        assert result['status'] == 'error'
+        assert 'Path traversal detected' in result['message']
+
+    @pytest.mark.asyncio
+    async def test_wdl_bundle_rejects_traversal_in_main_workflow_file(self):
+        """Property: WDL bundle linting rejects ../ traversal in main_workflow_file."""
+        workflow_files = {
+            'main.wdl': 'version 1.0\nworkflow main {}',
+        }
+
+        result = await self.wdl_linter.lint_workflow_bundle(
+            workflow_files=workflow_files,
+            main_workflow_file='../../etc/passwd',
+        )
+
+        assert result['status'] == 'error'
+        assert 'Path traversal detected' in result['message']
+
+    @pytest.mark.asyncio
+    async def test_cwl_bundle_rejects_traversal_in_main_workflow_file(self):
+        """Property: CWL bundle linting rejects ../ traversal in main_workflow_file."""
+        workflow_files = {
+            'main.cwl': 'class: Workflow\ncwlVersion: v1.0',
+        }
+
+        result = await self.cwl_linter.lint_workflow_bundle(
+            workflow_files=workflow_files,
+            main_workflow_file='../../etc/passwd',
+        )
+
+        assert result['status'] == 'error'
+        assert 'Path traversal detected' in result['message']
+
+    @pytest.mark.asyncio
+    async def test_wdl_bundle_rejects_home_dir_traversal(self):
+        """Property: WDL bundle linting rejects paths targeting home directory."""
+        workflow_files = {
+            '../../../home/user/.bashrc': 'malicious content',
+            'main.wdl': 'version 1.0\nworkflow main {}',
+        }
+
+        result = await self.wdl_linter.lint_workflow_bundle(
+            workflow_files=workflow_files,
+            main_workflow_file='main.wdl',
+        )
+
+        assert result['status'] == 'error'
+        assert 'Path traversal detected' in result['message']
+
+    @pytest.mark.asyncio
+    async def test_cwl_bundle_rejects_home_dir_traversal(self):
+        """Property: CWL bundle linting rejects paths targeting home directory."""
+        workflow_files = {
+            '../../../home/user/.ssh/authorized_keys': 'malicious content',
+            'main.cwl': 'class: Workflow\ncwlVersion: v1.0',
+        }
+
+        result = await self.cwl_linter.lint_workflow_bundle(
+            workflow_files=workflow_files,
+            main_workflow_file='main.cwl',
+        )
+
+        assert result['status'] == 'error'
+        assert 'Path traversal detected' in result['message']
+
+    @pytest.mark.asyncio
+    @patch('subprocess.run')
+    async def test_wdl_bundle_allows_valid_subdirectory_paths(self, mock_subprocess):
+        """Property: WDL bundle linting allows legitimate nested file paths."""
+        mock_result = MagicMock()
+        mock_result.stdout = 'Valid'
+        mock_result.stderr = ''
+        mock_result.returncode = 0
+        mock_subprocess.return_value = mock_result
+
+        workflow_files = {
+            'workflows/main.wdl': 'version 1.0\nworkflow main {}',
+            'tasks/align.wdl': 'version 1.0\ntask align { command {} }',
+            'structs/types.wdl': 'version 1.0\nstruct Sample { String name }',
+        }
+
+        result = await self.wdl_linter.lint_workflow_bundle(
+            workflow_files=workflow_files,
+            main_workflow_file='workflows/main.wdl',
+        )
+
+        assert result['status'] == 'success'
+        assert result['linter'] == 'miniwdl'
+
+    @pytest.mark.asyncio
+    @patch('subprocess.run')
+    async def test_cwl_bundle_allows_valid_subdirectory_paths(self, mock_subprocess):
+        """Property: CWL bundle linting allows legitimate nested file paths."""
+        mock_result = MagicMock()
+        mock_result.stdout = 'Valid'
+        mock_result.stderr = ''
+        mock_result.returncode = 0
+        mock_subprocess.return_value = mock_result
+
+        workflow_files = {
+            'workflows/main.cwl': 'class: Workflow\ncwlVersion: v1.0',
+            'tools/align.cwl': 'class: CommandLineTool\ncwlVersion: v1.0',
+        }
+
+        result = await self.cwl_linter.lint_workflow_bundle(
+            workflow_files=workflow_files,
+            main_workflow_file='workflows/main.cwl',
+        )
+
+        assert result['status'] == 'success'
+        assert result['linter'] == 'cwltool'
+
+    @pytest.mark.asyncio
+    async def test_wdl_bundle_rejects_dotdot_disguised_with_valid_prefix(self):
+        """Property: WDL bundle linting rejects traversal even with valid-looking prefix."""
+        workflow_files = {
+            'valid/../../escape.wdl': 'version 1.0\nworkflow evil {}',
+            'main.wdl': 'version 1.0\nworkflow main {}',
+        }
+
+        result = await self.wdl_linter.lint_workflow_bundle(
+            workflow_files=workflow_files,
+            main_workflow_file='main.wdl',
+        )
+
+        assert result['status'] == 'error'
+        assert 'Path traversal detected' in result['message']
+
+    @pytest.mark.asyncio
+    async def test_cwl_bundle_rejects_dotdot_disguised_with_valid_prefix(self):
+        """Property: CWL bundle linting rejects traversal even with valid-looking prefix."""
+        workflow_files = {
+            'valid/../../escape.cwl': 'class: Workflow\ncwlVersion: v1.0',
+            'main.cwl': 'class: Workflow\ncwlVersion: v1.0',
+        }
+
+        result = await self.cwl_linter.lint_workflow_bundle(
+            workflow_files=workflow_files,
+            main_workflow_file='main.cwl',
+        )
+
+        assert result['status'] == 'error'
+        assert 'Path traversal detected' in result['message']
+
+    @pytest.mark.asyncio
+    async def test_wdl_bundle_rejects_rce_via_python_module_overwrite(self):
+        """Property: WDL bundle linting blocks RCE via Python module path overwrite.
+
+        Validates: Requirement that attacker cannot overwrite Python modules
+        (e.g., site-packages/WDL/__init__.py) which would execute on the
+        subsequent subprocess call to 'python -m WDL check'.
+        """
+        workflow_files = {
+            # Attempt to overwrite the WDL module that gets imported by subprocess
+            '../../../../lib/python3.10/site-packages/WDL/__init__.py': (
+                'import os; os.system("echo pwned")'
+            ),
+            'main.wdl': 'version 1.0\nworkflow main {}',
+        }
+
+        result = await self.wdl_linter.lint_workflow_bundle(
+            workflow_files=workflow_files,
+            main_workflow_file='main.wdl',
+        )
+
+        assert result['status'] == 'error'
+        assert 'Path traversal detected' in result['message']
+
+    @pytest.mark.asyncio
+    async def test_cwl_bundle_rejects_rce_via_python_module_overwrite(self):
+        """Property: CWL bundle linting blocks RCE via Python module path overwrite.
+
+        Validates: Requirement that attacker cannot overwrite Python modules
+        (e.g., site-packages/cwltool/__init__.py) which would execute on the
+        subsequent subprocess call to 'python -m cwltool --validate'.
+        """
+        workflow_files = {
+            '../../../../lib/python3.10/site-packages/cwltool/__init__.py': (
+                'import os; os.system("echo pwned")'
+            ),
+            'main.cwl': 'class: Workflow\ncwlVersion: v1.0',
+        }
+
+        result = await self.cwl_linter.lint_workflow_bundle(
+            workflow_files=workflow_files,
+            main_workflow_file='main.cwl',
+        )
+
+        assert result['status'] == 'error'
+        assert 'Path traversal detected' in result['message']
+
+    @pytest.mark.asyncio
+    async def test_wdl_bundle_traversal_does_not_write_files(self):
+        """Property: WDL bundle linting does not write any files when traversal is detected.
+
+        Validates: The error is returned BEFORE any file I/O occurs, preventing
+        partial writes when the malicious path is not the first entry.
+        """
+        import os
+        import tempfile
+
+        # Create a canary file path that should NOT be written to
+        canary_dir = tempfile.mkdtemp()
+        canary_path = os.path.join(canary_dir, 'canary.txt')
+
+        # Calculate relative traversal from a typical /tmp/tmpXXXXXX/ path
+        # Use enough ../ to reach root, then target our canary
+        traversal_path = f'../../../..{canary_path}'
+
+        workflow_files = {
+            traversal_path: 'MALICIOUS CONTENT',
+            'main.wdl': 'version 1.0\nworkflow main {}',
+        }
+
+        result = await self.wdl_linter.lint_workflow_bundle(
+            workflow_files=workflow_files,
+            main_workflow_file='main.wdl',
+        )
+
+        assert result['status'] == 'error'
+        assert 'Path traversal detected' in result['message']
+        # Verify no file was written
+        assert not os.path.exists(canary_path), 'Traversal attack wrote a file outside temp dir!'
+
+        # Cleanup
+        os.rmdir(canary_dir)
+
+    @pytest.mark.asyncio
+    async def test_cwl_bundle_traversal_does_not_write_files(self):
+        """Property: CWL bundle linting does not write any files when traversal is detected.
+
+        Validates: The error is returned BEFORE any file I/O occurs, preventing
+        partial writes when the malicious path is not the first entry.
+        """
+        import os
+        import tempfile
+
+        canary_dir = tempfile.mkdtemp()
+        canary_path = os.path.join(canary_dir, 'canary.txt')
+
+        traversal_path = f'../../../..{canary_path}'
+
+        workflow_files = {
+            traversal_path: 'MALICIOUS CONTENT',
+            'main.cwl': 'class: Workflow\ncwlVersion: v1.0',
+        }
+
+        result = await self.cwl_linter.lint_workflow_bundle(
+            workflow_files=workflow_files,
+            main_workflow_file='main.cwl',
+        )
+
+        assert result['status'] == 'error'
+        assert 'Path traversal detected' in result['message']
+        assert not os.path.exists(canary_path), 'Traversal attack wrote a file outside temp dir!'
+
+        # Cleanup
+        os.rmdir(canary_dir)
+
+    @pytest.mark.asyncio
+    async def test_wdl_bundle_rejects_absolute_main_workflow_file(self):
+        """Property: WDL bundle linting rejects absolute path in main_workflow_file."""
+        workflow_files = {
+            'main.wdl': 'version 1.0\nworkflow main {}',
+        }
+
+        result = await self.wdl_linter.lint_workflow_bundle(
+            workflow_files=workflow_files,
+            main_workflow_file='/etc/passwd',
+        )
+
+        assert result['status'] == 'error'
+        assert 'Path traversal detected' in result['message']
+
+    @pytest.mark.asyncio
+    async def test_cwl_bundle_rejects_absolute_main_workflow_file(self):
+        """Property: CWL bundle linting rejects absolute path in main_workflow_file."""
+        workflow_files = {
+            'main.cwl': 'class: Workflow\ncwlVersion: v1.0',
+        }
+
+        result = await self.cwl_linter.lint_workflow_bundle(
+            workflow_files=workflow_files,
+            main_workflow_file='/etc/passwd',
+        )
+
+        assert result['status'] == 'error'
+        assert 'Path traversal detected' in result['message']
+
+    @pytest.mark.asyncio
+    async def test_wdl_bundle_rejects_null_byte_in_file_path(self):
+        """Property: WDL bundle linting rejects file paths with null bytes."""
+        workflow_files = {
+            'malicious\x00.wdl': 'version 1.0\nworkflow evil {}',
+            'main.wdl': 'version 1.0\nworkflow main {}',
+        }
+
+        result = await self.wdl_linter.lint_workflow_bundle(
+            workflow_files=workflow_files,
+            main_workflow_file='main.wdl',
+        )
+
+        assert result['status'] == 'error'
+        assert 'Invalid file path in workflow bundle' in result['message']
+
+    @pytest.mark.asyncio
+    async def test_cwl_bundle_rejects_null_byte_in_file_path(self):
+        """Property: CWL bundle linting rejects file paths with null bytes."""
+        workflow_files = {
+            'malicious\x00.cwl': 'class: Workflow\ncwlVersion: v1.0',
+            'main.cwl': 'class: Workflow\ncwlVersion: v1.0',
+        }
+
+        result = await self.cwl_linter.lint_workflow_bundle(
+            workflow_files=workflow_files,
+            main_workflow_file='main.cwl',
+        )
+
+        assert result['status'] == 'error'
+        assert 'Invalid file path in workflow bundle' in result['message']
