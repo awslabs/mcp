@@ -2,14 +2,14 @@
   "pagination": {
     "ListArtifacts": {
       "input_token": "nextToken",
-      "limit_key": "maxResults",
       "output_token": "nextToken",
+      "limit_key": "maxResults",
       "result_key": "artifacts"
     },
     "ListAvailableProfiles": {
       "input_token": "nextToken",
-      "limit_key": "maxResults",
       "output_token": "nextToken",
+      "limit_key": "maxResults",
       "result_key": "profiles"
     },
     "ListConnectors": {
@@ -19,20 +19,20 @@
     },
     "ListHitlTasks": {
       "input_token": "nextToken",
-      "limit_key": "maxResults",
       "output_token": "nextToken",
+      "limit_key": "maxResults",
       "result_key": "hitlTasks"
     },
     "ListIamRoleAssignments": {
       "input_token": "nextToken",
-      "limit_key": "maxResults",
       "output_token": "nextToken",
+      "limit_key": "maxResults",
       "result_key": "iamRoleAssignments"
     },
     "ListJobPlanSteps": {
       "input_token": "nextToken",
-      "limit_key": "maxResults",
       "output_token": "nextToken",
+      "limit_key": "maxResults",
       "result_key": "steps"
     },
     "ListJobs": {
@@ -42,8 +42,8 @@
     },
     "ListMessages": {
       "input_token": "nextToken",
-      "limit_key": "maxResults",
       "output_token": "nextToken",
+      "limit_key": "maxResults",
       "result_key": "messageIds"
     },
     "ListPlanUpdates": {
@@ -53,26 +53,26 @@
     },
     "ListPlans": {
       "input_token": "nextToken",
-      "limit_key": "maxResults",
       "output_token": "nextToken",
+      "limit_key": "maxResults",
       "result_key": "items"
     },
     "ListUserRoleMappings": {
       "input_token": "nextToken",
-      "limit_key": "maxResults",
       "output_token": "nextToken",
+      "limit_key": "maxResults",
       "result_key": "items"
     },
     "ListWorkspaces": {
       "input_token": "nextToken",
-      "limit_key": "maxResults",
       "output_token": "nextToken",
+      "limit_key": "maxResults",
       "result_key": "items"
     },
     "SearchUsers": {
       "input_token": "nextToken",
-      "limit_key": "maxResults",
       "output_token": "nextToken",
+      "limit_key": "maxResults",
       "result_key": "users"
     }
   }
