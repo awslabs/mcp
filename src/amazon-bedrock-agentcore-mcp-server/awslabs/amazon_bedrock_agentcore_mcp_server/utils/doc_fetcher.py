@@ -15,6 +15,8 @@
 import html
 import re
 import urllib.request
+from urllib.parse import urljoin
+
 from ..config import doc_config
 from .url_validator import URLValidationError, validate_urls
 from pydantic import BaseModel, Field
@@ -78,6 +80,9 @@ def parse_llms_txt(url: str) -> list[tuple[str, str]]:
     for match in _MD_LINK.finditer(txt):
         title = match.group(1).strip() or match.group(2).strip()
         doc_url = match.group(2).strip()
+
+        if not doc_url.startswith(('http://', 'https://')):
+            doc_url = urljoin(url, doc_url)
 
         try:
             validated_urls = validate_urls(doc_url)
