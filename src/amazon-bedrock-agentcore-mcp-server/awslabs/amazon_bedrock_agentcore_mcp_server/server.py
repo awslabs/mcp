@@ -16,7 +16,6 @@
 
 import asyncio
 import os
-import signal
 from .tools import docs
 from .utils import cache
 from collections.abc import AsyncIterator
@@ -71,9 +70,9 @@ def _is_service_enabled(name: str) -> bool:
 
     if enable and disable:
         logger.warning(
-            'Both AGENTCORE_ENABLE_TOOLS and AGENTCORE_DISABLE_TOOLS are '
-            'set. AGENTCORE_ENABLE_TOOLS takes precedence; '
-            'AGENTCORE_DISABLE_TOOLS is ignored.'
+            'Both AGENTCORE_ENABLE_TOOLS and AGENTCORE_DISABLE_TOOLS are set.'
+            ' AGENTCORE_ENABLE_TOOLS takes precedence;'
+            ' AGENTCORE_DISABLE_TOOLS is ignored.'
         )
 
     if enable:
@@ -146,7 +145,7 @@ if _is_service_enabled('runtime'):
         register_runtime_tools(mcp)
         logger.info('Runtime tools registered')
     except ImportError as e:
-        logger.error(f'Runtime tools disabled — failed to import: {e}.')
+        logger.error(f'Runtime tools disabled — failed to import dependencies: {e}.')
     except Exception as e:
         logger.error(
             f'Runtime tools disabled — initialization failed: {e}. '
@@ -160,7 +159,10 @@ if _is_service_enabled('memory'):
         register_memory_tools(mcp)
         logger.info('Memory tools registered (21 tools)')
     except ImportError as e:
-        logger.error(f'Memory tools disabled — failed to import: {e}.')
+        logger.error(
+            f'Memory tools disabled — failed to import dependencies: {e}.'
+            f' Ensure boto3 and botocore are installed.'
+        )
     except Exception as e:
         logger.error(
             f'Memory tools disabled — initialization failed: {e}. '
@@ -223,8 +225,8 @@ if _is_service_enabled('browser'):
         logger.info('Browser tools registered (25 tools)')
     except ImportError as e:
         logger.error(
-            f'Browser tools disabled — failed to import: {e}. '
-            f'Ensure playwright and bedrock-agentcore are installed.'
+            f'Browser tools disabled — failed to import dependencies: '
+            f'{e}. Ensure playwright and bedrock-agentcore are installed.'
         )
     except Exception as e:
         logger.error(
@@ -244,8 +246,8 @@ if _is_service_enabled('code_interpreter'):
         logger.info('Code interpreter tools registered (9 tools)')
     except ImportError as e:
         logger.error(
-            f'Code interpreter tools disabled — failed to import: {e}. '
-            f'Ensure bedrock-agentcore is installed.'
+            f'Code interpreter tools disabled — failed to import '
+            f'dependencies: {e}. Ensure bedrock-agentcore is installed.'
         )
     except Exception as e:
         logger.error(
