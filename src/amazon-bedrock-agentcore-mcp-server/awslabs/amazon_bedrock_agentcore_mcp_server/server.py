@@ -16,7 +16,7 @@
 
 import asyncio
 import os
-from .tools import docs, gateway
+from .tools import docs
 from .utils import cache
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -169,8 +169,53 @@ if _is_service_enabled('memory'):
             f'Set AGENTCORE_DISABLE_TOOLS=memory to suppress.'
         )
 
-if _is_service_enabled('gateway'):
-    mcp.tool()(gateway.manage_agentcore_gateway)
+if _is_service_enabled('identity'):  # pragma: no cover
+    try:
+        from .tools.identity import register_identity_tools  # type: ignore
+
+        register_identity_tools(mcp)
+        logger.info('Identity tools registered (21 tools)')
+    except ImportError as e:
+        logger.error(f'Identity tools disabled — failed to import: {e}.')
+    except Exception as e:
+        logger.error(
+            f'Identity tools disabled — initialization failed: {e}. '
+            f'Set AGENTCORE_DISABLE_TOOLS=identity to suppress.'
+        )
+
+if _is_service_enabled('gateway'):  # pragma: no cover
+    try:
+        from .tools.gateway import register_gateway_tools  # type: ignore
+
+        register_gateway_tools(mcp)
+        logger.info('Gateway tools registered (15 tools)')
+    except (ImportError, AttributeError):
+        # Sub-package not yet installed — fall back to flat guide
+        try:
+            from .tools import gateway as _gw_flat
+
+            mcp.tool()(_gw_flat.manage_agentcore_gateway)
+        except ImportError:
+            logger.error('Gateway tools disabled — no module found.')
+    except Exception as e:
+        logger.error(
+            f'Gateway tools disabled — initialization failed: {e}. '
+            f'Set AGENTCORE_DISABLE_TOOLS=gateway to suppress.'
+        )
+
+if _is_service_enabled('policy'):  # pragma: no cover
+    try:
+        from .tools.policy import register_policy_tools  # type: ignore
+
+        register_policy_tools(mcp)
+        logger.info('Policy tools registered (15 tools)')
+    except ImportError as e:
+        logger.error(f'Policy tools disabled — failed to import: {e}.')
+    except Exception as e:
+        logger.error(
+            f'Policy tools disabled — initialization failed: {e}. '
+            f'Set AGENTCORE_DISABLE_TOOLS=policy to suppress.'
+        )
 
 if _is_service_enabled('browser'):
     try:
