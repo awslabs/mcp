@@ -88,21 +88,9 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
             logger.error('No API spec URL or path provided')
             raise ValueError('Either api_spec_url or api_spec_path must be provided')
 
-        logger.debug(
-            f'Loading OpenAPI spec from URL: {config.api_spec_url} or path: {config.api_spec_path}'
-        )
-        openapi_spec = load_openapi_spec(url=config.api_spec_url, path=config.api_spec_path)
-
-        # Validate the OpenAPI spec
-        if not validate_openapi_spec(openapi_spec):
-            logger.warning('OpenAPI specification validation failed, but continuing anyway')
-
-        # Create a client for the API
-        if not config.api_base_url:
-            logger.error('No API base URL provided')
-            raise ValueError('API base URL must be provided')
-
         # Configure authentication using the auth factory
+        # Auth is initialized before loading the spec so that the Bearer token
+        # can be passed when fetching a spec URL that requires authentication.
         from awslabs.openapi_mcp_server.auth import get_auth_provider, is_auth_type_available
 
         # Import and register the specific auth provider
@@ -131,6 +119,24 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
         _ = auth_provider.get_auth_params()
         auth_cookies = auth_provider.get_auth_cookies()
         httpx_auth = auth_provider.get_httpx_auth()
+
+        logger.debug(
+            f'Loading OpenAPI spec from URL: {config.api_spec_url} or path: {config.api_spec_path}'
+        )
+        openapi_spec = load_openapi_spec(
+            url=config.api_spec_url,
+            path=config.api_spec_path,
+            headers=auth_headers,
+        )
+
+        # Validate the OpenAPI spec
+        if not validate_openapi_spec(openapi_spec):
+            logger.warning('OpenAPI specification validation failed, but continuing anyway')
+
+        # Create a client for the API
+        if not config.api_base_url:
+            logger.error('No API base URL provided')
+            raise ValueError('API base URL must be provided')
 
         # Helper function to handle authentication configuration errors
         def handle_auth_error(auth_type, error_message):
