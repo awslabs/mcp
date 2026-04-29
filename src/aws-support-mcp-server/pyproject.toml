@@ -17,6 +17,7 @@ dependencies = [
     "pytest>=8.3.5",
     "pytest-asyncio>=0.26.0",
     "pytest-cov>=6.1.1",
+    "python-multipart>=0.0.26",
     "readabilipy>=0.2.0",
     "requests>=2.32.3",
 ]
@@ -126,4 +127,5 @@ update_changelog_on_bump = true
 [dependency-groups]
 dev = [
     "pre-commit>=4.2.0",
+    "pyright>=1.1.400",
 ]

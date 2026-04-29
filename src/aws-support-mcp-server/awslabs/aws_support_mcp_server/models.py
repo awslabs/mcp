@@ -571,7 +571,7 @@ class DescribeCreateCaseOptionsResponse(BaseModel):
     def model_dump(self, **kwargs) -> Dict[str, JsonValue]:  # type: ignore
         """Convert model to dictionary."""
         return {
-            'communicationTypes': self.communication_types,
+            'communicationTypes': cast(JsonValue, self.communication_types),
             'languageAvailability': self.language_availability,
         }
 

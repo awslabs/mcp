@@ -883,12 +883,12 @@ async def _add_attachments_to_set_logic(
             message=f'Attachments added to set: {response["attachmentSetId"]}',
         )
         return result.model_dump(by_alias=True)
+    except ValidationError as e:
+        return await handle_validation_error(ctx, e, 'add_attachments_to_set')
     except ValueError as e:
         logger.error(f'Attachment validation error: {e}')
         await ctx.error(str(e))
         return create_error_response(str(e), status_code=400)
-    except ValidationError as e:
-        return await handle_validation_error(ctx, e, 'add_attachments_to_set')
     except ClientError as e:
         return await handle_client_error(ctx, e, 'add_attachments_to_set')
     except Exception as e:
@@ -1033,10 +1033,11 @@ def main():
         # Enable more detailed error tracking and performance monitoring
         logger.debug('Enabling detailed performance tracking and error monitoring')
         # Hook into FastMCP debug mode where supported (API changed in v3).
-        if hasattr(mcp, 'settings') and hasattr(mcp.settings, 'debug'):
-            mcp.settings.debug = True
+        settings_obj: Any = getattr(mcp, 'settings', None)
+        if settings_obj is not None and hasattr(settings_obj, 'debug'):
+            setattr(settings_obj, 'debug', True)
         elif hasattr(mcp, 'debug'):
-            mcp.debug = True
+            setattr(mcp, 'debug', True)
         else:
             logger.debug('FastMCP debug setting not available on this version')
         # You could add more diagnostics setup here
