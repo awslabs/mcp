@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.aws-support-mcp-server"
-version = "0.1.19"
+version = "0.2.0"
 description = "An Model Context Protocol (MCP) server for AWS SupportAPI."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -122,3 +122,8 @@ version_files = [
     "awslabs/aws_support_mcp_server/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.2.0",
+]
