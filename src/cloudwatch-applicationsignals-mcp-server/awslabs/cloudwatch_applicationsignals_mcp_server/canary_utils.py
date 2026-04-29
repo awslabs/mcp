@@ -22,12 +22,13 @@ import re
 import tempfile
 import zipfile
 from .aws_clients import (
+    applicationsignals_client,
     lambda_client,
     logs_client,
     synthetics_client,
 )
 from botocore.exceptions import ClientError
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from loguru import logger
 
 
@@ -888,6 +889,86 @@ async def get_canary_code(canary: dict, region: str = 'us-east-1') -> dict:
 
     except Exception as e:
         return {'error': f'Canary code analysis failed: {str(e)}'}
+
+
+async def check_canaries_for_service(
+    normalized_targets, unix_start, unix_end, region: str = 'us-east-1'
+):
+    """Check Synthetics canaries associated with audited services via list_service_dependents."""
+    try:
+        canary_names = set()
+        for target in normalized_targets:
+            svc = (target.get('Data') or {}).get('Service') or {}
+            key_attrs = {k: v for k, v in svc.items() if v}
+            if not key_attrs.get('Name') or not key_attrs.get('Environment'):
+                continue
+            try:
+                next_token = None
+                while True:
+                    kwargs = {
+                        'StartTime': datetime.fromtimestamp(unix_start, tz=timezone.utc),
+                        'EndTime': datetime.fromtimestamp(unix_end, tz=timezone.utc),
+                        'KeyAttributes': key_attrs,
+                        'MaxResults': 100,
+                    }
+                    if next_token:
+                        kwargs['NextToken'] = next_token
+                    resp = applicationsignals_client.list_service_dependents(**kwargs)
+                    for dep in resp.get('ServiceDependents', []):
+                        dep_attrs = dep.get('DependentKeyAttributes', {})
+                        if dep_attrs.get('ResourceType') == 'AWS::Synthetics::Canary':
+                            canary_names.add(dep_attrs.get('Identifier', ''))
+                    next_token = resp.get('NextToken')
+                    if not next_token:
+                        break
+            except Exception as e:
+                logger.warning(f'Failed to get dependents for {key_attrs.get("Name")}: {e}')
+
+        if not canary_names:
+            return ''
+
+        # Lightweight check: get recent runs for each canary
+        canary_statuses = []
+        for name in sorted(canary_names):
+            if not name:
+                continue
+            try:
+                runs_resp = synthetics_client.get_canary_runs(Name=name, MaxResults=5)
+                runs = runs_resp.get('CanaryRuns', [])
+                if not runs:
+                    canary_statuses.append((name, 'no_data', 0, 0))
+                    continue
+                passed = sum(1 for r in runs if r.get('Status', {}).get('State') == 'PASSED')
+                failed = sum(1 for r in runs if r.get('Status', {}).get('State') == 'FAILED')
+                total = len(runs)
+                success_pct = (passed / total * 100) if total > 0 else 0
+                canary_statuses.append(
+                    (name, 'ok' if success_pct >= 80 else 'failing', success_pct, failed)
+                )
+            except Exception as e:
+                logger.warning(f'Failed to get runs for canary {name}: {e}')
+                canary_statuses.append((name, 'error', 0, 0))
+
+        # Build output
+        failing = [(n, s, pct, f) for n, s, pct, f in canary_statuses if s == 'failing']
+        healthy = [(n, s, pct, f) for n, s, pct, f in canary_statuses if s == 'ok']
+
+        result = f'\n\n🧪 Synthetics Canaries ({len(canary_names)} linked to service)\n'
+        if failing:
+            result += f'🔴 {len(failing)} failing canaries:\n'
+            for name, _, pct, fail_count in sorted(failing, key=lambda x: x[2]):
+                result += f'  • {name}: {pct:.0f}% success ({fail_count}/5 recent runs failed)\n'
+        if healthy:
+            result += (
+                f'✅ {len(healthy)} healthy canaries: {", ".join(n for n, _, _, _ in healthy)}\n'
+            )
+
+        result += '💡 Use analyze_canary_failures(canary_name="<name>") for detailed analysis of any canary.\n'
+        return result
+
+    except Exception as e:
+        logger.warning(f'Canary check failed: {e}')
+        return ''
 
 
 async def get_canary_metrics_and_service_insights(canary_name: str, region: str) -> str:

@@ -97,7 +97,7 @@ def test_context_initialization():
 
 def test_context_readonly_mode():
     """Test Context readonly mode."""
-    Context.initialize(readonly=False)
+    Context.initialize(readonly=False, require_confirmation=False)
     assert Context.is_readonly() is False
 
     Context.initialize(readonly=True)
@@ -149,7 +149,7 @@ async def test_create_user_readonly_mode():
     mock_ctx = AsyncMock()
 
     with pytest.raises(IamClientError) as exc_info:
-        await create_user(mock_ctx, user_name='test-user')
+        await create_user(mock_ctx, user_name='test-user', confirmed=False)
 
     assert 'read-only mode' in str(exc_info.value)
 
@@ -161,7 +161,7 @@ async def test_create_user_success():
     from awslabs.iam_mcp_server.server import create_user
 
     # Disable readonly mode
-    Context.initialize(readonly=False)
+    Context.initialize(readonly=False, require_confirmation=False)
 
     mock_response = {
         'User': {
@@ -423,7 +423,7 @@ async def test_create_role():
     }
 
     # Disable readonly mode
-    Context.initialize(readonly=False)
+    Context.initialize(readonly=False, require_confirmation=False)
 
     with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
         mock_client = Mock()
@@ -442,7 +442,7 @@ async def test_create_role_invalid_json():
     from awslabs.iam_mcp_server.server import create_role
 
     # Disable readonly mode
-    Context.initialize(readonly=False)
+    Context.initialize(readonly=False, require_confirmation=False)
 
     with pytest.raises(Exception) as exc_info:
         await create_role(role_name='test-role', assume_role_policy_document='invalid json')
@@ -779,7 +779,7 @@ async def test_delete_user_success():
     from awslabs.iam_mcp_server.server import delete_user
 
     # Disable readonly mode
-    Context.initialize(readonly=False)
+    Context.initialize(readonly=False, require_confirmation=False)
 
     with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
         mock_client = Mock()
@@ -816,7 +816,7 @@ async def test_delete_user_force():
     from awslabs.iam_mcp_server.server import delete_user
 
     # Disable readonly mode
-    Context.initialize(readonly=False)
+    Context.initialize(readonly=False, require_confirmation=False)
 
     mock_policies_response = {
         'AttachedPolicies': [{'PolicyArn': 'arn:aws:iam::123456789012:policy/TestPolicy'}]
@@ -851,7 +851,7 @@ async def test_attach_user_policy():
     from awslabs.iam_mcp_server.server import attach_user_policy
 
     # Disable readonly mode
-    Context.initialize(readonly=False)
+    Context.initialize(readonly=False, require_confirmation=False)
 
     with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
         mock_client = Mock()
@@ -888,7 +888,7 @@ async def test_detach_user_policy():
     from awslabs.iam_mcp_server.server import detach_user_policy
 
     # Disable readonly mode
-    Context.initialize(readonly=False)
+    Context.initialize(readonly=False, require_confirmation=False)
 
     with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
         mock_client = Mock()
@@ -925,7 +925,7 @@ async def test_create_access_key():
     from awslabs.iam_mcp_server.server import create_access_key
 
     # Disable readonly mode
-    Context.initialize(readonly=False)
+    Context.initialize(readonly=False, require_confirmation=False)
 
     mock_response = {
         'AccessKey': {
@@ -972,7 +972,7 @@ async def test_delete_access_key():
     from awslabs.iam_mcp_server.server import delete_access_key
 
     # Disable readonly mode
-    Context.initialize(readonly=False)
+    Context.initialize(readonly=False, require_confirmation=False)
 
     with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
         mock_client = Mock()
@@ -1012,19 +1012,19 @@ def test_main_function():
     """Test main function argument parsing."""
     from awslabs.iam_mcp_server.server import main
 
-    # Test with readonly flag
-    with patch('sys.argv', ['server.py', '--readonly']):
-        with patch('awslabs.iam_mcp_server.server.mcp.run') as mock_run:
-            main()
-            mock_run.assert_called_once()
-            # Verify readonly mode was set
-            assert Context.is_readonly()
-
-    # Test without readonly flag
+    # Test without --allow-write (default: read-only)
     with patch('sys.argv', ['server.py']):
         with patch('awslabs.iam_mcp_server.server.mcp.run') as mock_run:
             main()
             mock_run.assert_called_once()
+            assert Context.is_readonly()
+
+    # Test with --allow-write flag
+    with patch('sys.argv', ['server.py', '--allow-write']):
+        with patch('awslabs.iam_mcp_server.server.mcp.run') as mock_run:
+            main()
+            mock_run.assert_called_once()
+            assert not Context.is_readonly()
 
 
 # Group Management Tests
@@ -1155,7 +1155,7 @@ async def test_create_group():
     from awslabs.iam_mcp_server.server import create_group
 
     # Disable readonly mode
-    Context.initialize(readonly=False)
+    Context.initialize(readonly=False, require_confirmation=False)
 
     mock_response = {
         'Group': {
@@ -1196,7 +1196,7 @@ async def test_delete_group():
     from awslabs.iam_mcp_server.server import delete_group
 
     # Disable readonly mode
-    Context.initialize(readonly=False)
+    Context.initialize(readonly=False, require_confirmation=False)
 
     with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
         mock_client = Mock()
@@ -1214,7 +1214,7 @@ async def test_delete_group_force():
     from awslabs.iam_mcp_server.server import delete_group
 
     # Disable readonly mode
-    Context.initialize(readonly=False)
+    Context.initialize(readonly=False, require_confirmation=False)
 
     mock_group_response = {
         'Users': [
@@ -1263,7 +1263,7 @@ async def test_add_user_to_group():
     from awslabs.iam_mcp_server.server import add_user_to_group
 
     # Disable readonly mode
-    Context.initialize(readonly=False)
+    Context.initialize(readonly=False, require_confirmation=False)
 
     with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
         mock_client = Mock()
@@ -1296,7 +1296,7 @@ async def test_remove_user_from_group():
     from awslabs.iam_mcp_server.server import remove_user_from_group
 
     # Disable readonly mode
-    Context.initialize(readonly=False)
+    Context.initialize(readonly=False, require_confirmation=False)
 
     with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
         mock_client = Mock()
@@ -1329,7 +1329,7 @@ async def test_attach_group_policy():
     from awslabs.iam_mcp_server.server import attach_group_policy
 
     # Disable readonly mode
-    Context.initialize(readonly=False)
+    Context.initialize(readonly=False, require_confirmation=False)
 
     policy_arn = 'arn:aws:iam::123456789012:policy/TestPolicy'
 
@@ -1369,7 +1369,7 @@ async def test_detach_group_policy():
     from awslabs.iam_mcp_server.server import detach_group_policy
 
     # Disable readonly mode
-    Context.initialize(readonly=False)
+    Context.initialize(readonly=False, require_confirmation=False)
 
     policy_arn = 'arn:aws:iam::123456789012:policy/TestPolicy'
 
@@ -1446,7 +1446,7 @@ async def test_create_group_with_exception():
     from awslabs.iam_mcp_server.server import create_group
 
     # Disable readonly mode
-    Context.initialize(readonly=False)
+    Context.initialize(readonly=False, require_confirmation=False)
 
     with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
         mock_client = Mock()
@@ -1485,7 +1485,7 @@ async def test_add_user_to_group_with_exception():
     from awslabs.iam_mcp_server.server import add_user_to_group
 
     # Disable readonly mode
-    Context.initialize(readonly=False)
+    Context.initialize(readonly=False, require_confirmation=False)
 
     with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
         mock_client = Mock()
@@ -1518,3 +1518,742 @@ async def test_attach_group_policy_with_exception():
             await attach_group_policy(
                 group_name='TestGroup', policy_arn='arn:aws:iam::123456789012:policy/TestPolicy'
             )
+
+
+# Security validation tests
+
+
+@pytest.mark.asyncio
+async def test_attach_user_policy_denied_arn():
+    """Test that attach_user_policy rejects denied policy ARNs."""
+    from awslabs.iam_mcp_server.server import attach_user_policy
+
+    Context.initialize(readonly=False, require_confirmation=False)
+
+    for arn in [
+        'arn:aws:iam::aws:policy/AdministratorAccess',
+        'arn:aws:iam::aws:policy/IAMFullAccess',
+        'arn:aws:iam::aws:policy/PowerUserAccess',
+    ]:
+        with pytest.raises(IamValidationError) as exc_info:
+            await attach_user_policy(user_name='test-user', policy_arn=arn, confirmed=True)
+        assert 'denylist' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_attach_group_policy_denied_arn():
+    """Test that attach_group_policy rejects denied policy ARNs."""
+    from awslabs.iam_mcp_server.server import attach_group_policy
+
+    Context.initialize(readonly=False, require_confirmation=False)
+
+    with pytest.raises(IamValidationError) as exc_info:
+        await attach_group_policy(
+            group_name='test-group',
+            policy_arn='arn:aws:iam::aws:policy/AdministratorAccess',
+            confirmed=True,
+        )
+    assert 'denylist' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_put_user_policy_rejects_wildcard():
+    """Test that put_user_policy rejects Action:* with Resource:*."""
+    from awslabs.iam_mcp_server.server import put_user_policy
+
+    Context.initialize(readonly=False, require_confirmation=False)
+
+    wildcard_policy = {
+        'Version': '2012-10-17',
+        'Statement': [{'Effect': 'Allow', 'Action': '*', 'Resource': '*'}],
+    }
+
+    with pytest.raises(IamValidationError) as exc_info:
+        await put_user_policy(
+            user_name='test-user',
+            policy_name='bad-policy',
+            policy_document=wildcard_policy,
+            confirmed=True,
+        )
+    assert 'full access' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_put_role_policy_rejects_wildcard():
+    """Test that put_role_policy rejects Action:* with Resource:*."""
+    from awslabs.iam_mcp_server.server import put_role_policy
+
+    Context.initialize(readonly=False, require_confirmation=False)
+
+    wildcard_policy = {
+        'Version': '2012-10-17',
+        'Statement': [{'Effect': 'Allow', 'Action': '*', 'Resource': '*'}],
+    }
+
+    with pytest.raises(IamValidationError) as exc_info:
+        await put_role_policy(
+            role_name='test-role',
+            policy_name='bad-policy',
+            policy_document=wildcard_policy,
+            confirmed=True,
+        )
+    assert 'full access' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_put_user_policy_allows_scoped_policy():
+    """Test that put_user_policy allows properly scoped policies."""
+    from awslabs.iam_mcp_server.server import put_user_policy
+
+    Context.initialize(readonly=False, require_confirmation=False)
+
+    scoped_policy = {
+        'Version': '2012-10-17',
+        'Statement': [
+            {'Effect': 'Allow', 'Action': 's3:GetObject', 'Resource': 'arn:aws:s3:::my-bucket/*'}
+        ],
+    }
+
+    with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
+        mock_client = Mock()
+        mock_get_client.return_value = mock_client
+
+        result = await put_user_policy(
+            user_name='test-user',
+            policy_name='scoped-policy',
+            policy_document=scoped_policy,
+            confirmed=True,
+        )
+        assert 'Successfully' in result.message
+
+
+@pytest.mark.asyncio
+async def test_create_role_rejects_wildcard_principal():
+    """Test that create_role rejects Principal:* in trust policy."""
+    from awslabs.iam_mcp_server.server import create_role
+
+    Context.initialize(readonly=False, require_confirmation=False)
+
+    trust_policy = {
+        'Version': '2012-10-17',
+        'Statement': [{'Effect': 'Allow', 'Principal': '*', 'Action': 'sts:AssumeRole'}],
+    }
+
+    with pytest.raises(IamValidationError) as exc_info:
+        await create_role(
+            role_name='bad-role', assume_role_policy_document=trust_policy, confirmed=True
+        )
+    assert 'Principal' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_create_role_rejects_wildcard_aws_principal():
+    """Test that create_role rejects Principal AWS:* in trust policy."""
+    from awslabs.iam_mcp_server.server import create_role
+
+    Context.initialize(readonly=False, require_confirmation=False)
+
+    trust_policy = {
+        'Version': '2012-10-17',
+        'Statement': [{'Effect': 'Allow', 'Principal': {'AWS': '*'}, 'Action': 'sts:AssumeRole'}],
+    }
+
+    with pytest.raises(IamValidationError) as exc_info:
+        await create_role(
+            role_name='bad-role', assume_role_policy_document=trust_policy, confirmed=True
+        )
+    assert 'Principal' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_create_role_allows_specific_principal():
+    """Test that create_role allows specific principal ARNs."""
+    from awslabs.iam_mcp_server.server import create_role
+
+    Context.initialize(readonly=False, require_confirmation=False)
+
+    trust_policy = {
+        'Version': '2012-10-17',
+        'Statement': [
+            {
+                'Effect': 'Allow',
+                'Principal': {'Service': 'ec2.amazonaws.com'},
+                'Action': 'sts:AssumeRole',
+            }
+        ],
+    }
+
+    mock_response = {
+        'Role': {
+            'RoleName': 'good-role',
+            'RoleId': 'AROA123456789EXAMPLE',
+            'Arn': 'arn:aws:iam::123456789012:role/good-role',
+            'Path': '/',
+            'CreateDate': datetime(2023, 1, 1),
+        }
+    }
+
+    with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
+        mock_client = Mock()
+        mock_client.create_role.return_value = mock_response
+        mock_get_client.return_value = mock_client
+
+        result = await create_role(
+            role_name='good-role', assume_role_policy_document=trust_policy, confirmed=True
+        )
+        assert result['Role']['RoleName'] == 'good-role'
+
+
+@pytest.mark.asyncio
+async def test_create_access_key_redacts_secret():
+    """Test that create_access_key redacts SecretAccessKey from response."""
+    from awslabs.iam_mcp_server.server import create_access_key
+
+    Context.initialize(readonly=False, require_confirmation=False)
+
+    mock_response = {
+        'AccessKey': {
+            'AccessKeyId': 'AKIAIOSFODNN7EXAMPLE',  # pragma: allowlist secret
+            'SecretAccessKey': 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',  # pragma: allowlist secret
+            'Status': 'Active',
+            'UserName': 'test-user',
+            'CreateDate': datetime(2023, 1, 1),
+        }
+    }
+
+    with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
+        mock_client = Mock()
+        mock_client.create_access_key.return_value = mock_response
+        mock_get_client.return_value = mock_client
+
+        result = await create_access_key(user_name='test-user', confirmed=True)
+
+        assert '**REDACTED**' in result['AccessKey']['SecretAccessKey']
+        assert 'wJalrXUtnFEMI' not in result['AccessKey']['SecretAccessKey']
+
+
+@pytest.mark.asyncio
+async def test_confirmation_gate_blocks_without_confirmed():
+    """Test that write operations are blocked when confirmed=False."""
+    from awslabs.iam_mcp_server.server import attach_user_policy
+
+    Context.initialize(readonly=False, require_confirmation=True)
+
+    with pytest.raises(IamValidationError) as exc_info:
+        await attach_user_policy(
+            user_name='test-user',
+            policy_arn='arn:aws:iam::123456789012:policy/TestPolicy',
+            confirmed=False,
+        )
+    assert 'CONFIRMATION REQUIRED' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_confirmation_gate_allows_with_confirmed():
+    """Test that write operations proceed when confirmed=True."""
+    from awslabs.iam_mcp_server.server import attach_user_policy
+
+    Context.initialize(readonly=False, require_confirmation=True)
+
+    with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
+        mock_client = Mock()
+        mock_get_client.return_value = mock_client
+
+        result = await attach_user_policy(
+            user_name='test-user',
+            policy_arn='arn:aws:iam::123456789012:policy/TestPolicy',
+            confirmed=True,
+        )
+        assert 'Successfully attached' in result['Message']
+
+
+@pytest.mark.asyncio
+async def test_default_readonly_blocks_writes():
+    """Test that default mode (readonly=True) blocks write operations."""
+    from awslabs.iam_mcp_server.server import create_access_key
+
+    # Default initialization - readonly
+    Context.initialize()
+
+    with pytest.raises(IamClientError) as exc_info:
+        await create_access_key(user_name='test-user')
+    assert 'read-only mode' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_confirmation_gate_create_user():
+    """Test confirmation gate on create_user."""
+    from awslabs.iam_mcp_server.server import create_user
+
+    Context.initialize(readonly=False, require_confirmation=True)
+    mock_ctx = Mock()
+
+    with pytest.raises(IamValidationError) as exc_info:
+        await create_user(mock_ctx, user_name='test-user', confirmed=False)
+    assert 'CONFIRMATION REQUIRED' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_confirmation_gate_delete_user():
+    """Test confirmation gate on delete_user."""
+    from awslabs.iam_mcp_server.server import delete_user
+
+    Context.initialize(readonly=False, require_confirmation=True)
+
+    with pytest.raises(IamValidationError) as exc_info:
+        await delete_user(user_name='test-user', confirmed=False)
+    assert 'CONFIRMATION REQUIRED' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_confirmation_gate_detach_user_policy():
+    """Test confirmation gate on detach_user_policy."""
+    from awslabs.iam_mcp_server.server import detach_user_policy
+
+    Context.initialize(readonly=False, require_confirmation=True)
+
+    with pytest.raises(IamValidationError) as exc_info:
+        await detach_user_policy(
+            user_name='test-user',
+            policy_arn='arn:aws:iam::123456789012:policy/TestPolicy',
+            confirmed=False,
+        )
+    assert 'CONFIRMATION REQUIRED' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_confirmation_gate_create_access_key():
+    """Test confirmation gate on create_access_key."""
+    from awslabs.iam_mcp_server.server import create_access_key
+
+    Context.initialize(readonly=False, require_confirmation=True)
+
+    with pytest.raises(IamValidationError) as exc_info:
+        await create_access_key(user_name='test-user', confirmed=False)
+    assert 'CONFIRMATION REQUIRED' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_confirmation_gate_delete_access_key():
+    """Test confirmation gate on delete_access_key."""
+    from awslabs.iam_mcp_server.server import delete_access_key
+
+    Context.initialize(readonly=False, require_confirmation=True)
+
+    with pytest.raises(IamValidationError) as exc_info:
+        await delete_access_key(
+            user_name='test-user', access_key_id='AKIAEXAMPLE', confirmed=False
+        )
+    assert 'CONFIRMATION REQUIRED' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_confirmation_gate_create_role():
+    """Test confirmation gate on create_role."""
+    from awslabs.iam_mcp_server.server import create_role
+
+    Context.initialize(readonly=False, require_confirmation=True)
+
+    trust_policy = {
+        'Version': '2012-10-17',
+        'Statement': [
+            {
+                'Effect': 'Allow',
+                'Principal': {'Service': 'ec2.amazonaws.com'},
+                'Action': 'sts:AssumeRole',
+            }
+        ],
+    }
+
+    with pytest.raises(IamValidationError) as exc_info:
+        await create_role(
+            role_name='test-role', assume_role_policy_document=trust_policy, confirmed=False
+        )
+    assert 'CONFIRMATION REQUIRED' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_confirmation_gate_create_group():
+    """Test confirmation gate on create_group."""
+    from awslabs.iam_mcp_server.server import create_group
+
+    Context.initialize(readonly=False, require_confirmation=True)
+
+    with pytest.raises(IamValidationError) as exc_info:
+        await create_group(group_name='test-group', confirmed=False)
+    assert 'CONFIRMATION REQUIRED' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_confirmation_gate_delete_group():
+    """Test confirmation gate on delete_group."""
+    from awslabs.iam_mcp_server.server import delete_group
+
+    Context.initialize(readonly=False, require_confirmation=True)
+
+    with pytest.raises(IamValidationError) as exc_info:
+        await delete_group(group_name='test-group', confirmed=False)
+    assert 'CONFIRMATION REQUIRED' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_confirmation_gate_add_user_to_group():
+    """Test confirmation gate on add_user_to_group."""
+    from awslabs.iam_mcp_server.server import add_user_to_group
+
+    Context.initialize(readonly=False, require_confirmation=True)
+
+    with pytest.raises(IamValidationError) as exc_info:
+        await add_user_to_group(group_name='test-group', user_name='test-user', confirmed=False)
+    assert 'CONFIRMATION REQUIRED' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_confirmation_gate_remove_user_from_group():
+    """Test confirmation gate on remove_user_from_group."""
+    from awslabs.iam_mcp_server.server import remove_user_from_group
+
+    Context.initialize(readonly=False, require_confirmation=True)
+
+    with pytest.raises(IamValidationError) as exc_info:
+        await remove_user_from_group(
+            group_name='test-group', user_name='test-user', confirmed=False
+        )
+    assert 'CONFIRMATION REQUIRED' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_confirmation_gate_attach_group_policy():
+    """Test confirmation gate on attach_group_policy."""
+    from awslabs.iam_mcp_server.server import attach_group_policy
+
+    Context.initialize(readonly=False, require_confirmation=True)
+
+    with pytest.raises(IamValidationError) as exc_info:
+        await attach_group_policy(
+            group_name='test-group',
+            policy_arn='arn:aws:iam::123456789012:policy/TestPolicy',
+            confirmed=False,
+        )
+    assert 'CONFIRMATION REQUIRED' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_confirmation_gate_detach_group_policy():
+    """Test confirmation gate on detach_group_policy."""
+    from awslabs.iam_mcp_server.server import detach_group_policy
+
+    Context.initialize(readonly=False, require_confirmation=True)
+
+    with pytest.raises(IamValidationError) as exc_info:
+        await detach_group_policy(
+            group_name='test-group',
+            policy_arn='arn:aws:iam::123456789012:policy/TestPolicy',
+            confirmed=False,
+        )
+    assert 'CONFIRMATION REQUIRED' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_confirmation_gate_put_user_policy():
+    """Test confirmation gate on put_user_policy."""
+    from awslabs.iam_mcp_server.server import put_user_policy
+
+    Context.initialize(readonly=False, require_confirmation=True)
+
+    policy = {
+        'Version': '2012-10-17',
+        'Statement': [{'Effect': 'Allow', 'Action': 's3:GetObject', 'Resource': '*'}],
+    }
+
+    with pytest.raises(IamValidationError) as exc_info:
+        await put_user_policy(
+            user_name='test-user',
+            policy_name='test-policy',
+            policy_document=policy,
+            confirmed=False,
+        )
+    assert 'CONFIRMATION REQUIRED' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_confirmation_gate_put_role_policy():
+    """Test confirmation gate on put_role_policy."""
+    from awslabs.iam_mcp_server.server import put_role_policy
+
+    Context.initialize(readonly=False, require_confirmation=True)
+
+    policy = {
+        'Version': '2012-10-17',
+        'Statement': [{'Effect': 'Allow', 'Action': 's3:GetObject', 'Resource': '*'}],
+    }
+
+    with pytest.raises(IamValidationError) as exc_info:
+        await put_role_policy(
+            role_name='test-role',
+            policy_name='test-policy',
+            policy_document=policy,
+            confirmed=False,
+        )
+    assert 'CONFIRMATION REQUIRED' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_confirmation_gate_delete_user_policy():
+    """Test confirmation gate on delete_user_policy."""
+    from awslabs.iam_mcp_server.server import delete_user_policy
+
+    Context.initialize(readonly=False, require_confirmation=True)
+
+    with pytest.raises(IamValidationError) as exc_info:
+        await delete_user_policy(user_name='test-user', policy_name='test-policy', confirmed=False)
+    assert 'CONFIRMATION REQUIRED' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_confirmation_gate_delete_role_policy():
+    """Test confirmation gate on delete_role_policy."""
+    from awslabs.iam_mcp_server.server import delete_role_policy
+
+    Context.initialize(readonly=False, require_confirmation=True)
+
+    with pytest.raises(IamValidationError) as exc_info:
+        await delete_role_policy(role_name='test-role', policy_name='test-policy', confirmed=False)
+    assert 'CONFIRMATION REQUIRED' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_wildcard_policy_with_deny_effect_allowed():
+    """Test that Deny statements with Action:*/Resource:* are allowed."""
+    from awslabs.iam_mcp_server.server import put_user_policy
+
+    Context.initialize(readonly=False, require_confirmation=False)
+
+    deny_policy = {
+        'Version': '2012-10-17',
+        'Statement': [{'Effect': 'Deny', 'Action': '*', 'Resource': '*'}],
+    }
+
+    with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
+        mock_client = Mock()
+        mock_get_client.return_value = mock_client
+
+        result = await put_user_policy(
+            user_name='test-user',
+            policy_name='deny-all',
+            policy_document=deny_policy,
+            confirmed=True,
+        )
+        assert 'Successfully' in result.message
+
+
+@pytest.mark.asyncio
+async def test_wildcard_policy_with_action_list():
+    """Test wildcard check with Action as a list containing *."""
+    from awslabs.iam_mcp_server.server import put_user_policy
+
+    Context.initialize(readonly=False, require_confirmation=False)
+
+    policy = {
+        'Version': '2012-10-17',
+        'Statement': [{'Effect': 'Allow', 'Action': ['*'], 'Resource': ['*']}],
+    }
+
+    with pytest.raises(IamValidationError) as exc_info:
+        await put_user_policy(
+            user_name='test-user',
+            policy_name='bad-policy',
+            policy_document=policy,
+            confirmed=True,
+        )
+    assert 'full access' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_trust_policy_single_statement_dict():
+    """Test trust policy validation when Statement is a dict instead of list."""
+    from awslabs.iam_mcp_server.server import create_role
+
+    Context.initialize(readonly=False, require_confirmation=False)
+
+    trust_policy = {
+        'Version': '2012-10-17',
+        'Statement': {'Effect': 'Allow', 'Principal': '*', 'Action': 'sts:AssumeRole'},
+    }
+
+    with pytest.raises(IamValidationError) as exc_info:
+        await create_role(
+            role_name='bad-role', assume_role_policy_document=trust_policy, confirmed=True
+        )
+    assert 'Principal' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_trust_policy_aws_principal_list():
+    """Test trust policy validation when AWS principal is a list containing *."""
+    from awslabs.iam_mcp_server.server import create_role
+
+    Context.initialize(readonly=False, require_confirmation=False)
+
+    trust_policy = {
+        'Version': '2012-10-17',
+        'Statement': [
+            {
+                'Effect': 'Allow',
+                'Principal': {'AWS': ['arn:aws:iam::123456789012:root', '*']},
+                'Action': 'sts:AssumeRole',
+            }
+        ],
+    }
+
+    with pytest.raises(IamValidationError) as exc_info:
+        await create_role(
+            role_name='bad-role', assume_role_policy_document=trust_policy, confirmed=True
+        )
+    assert 'Principal' in str(exc_info.value)
+
+
+def test_main_no_confirmation_flag():
+    """Test main function with --no-confirmation flag."""
+    from awslabs.iam_mcp_server.server import main
+
+    with patch('sys.argv', ['server.py', '--allow-write', '--no-confirmation']):
+        with patch('awslabs.iam_mcp_server.server.mcp.run') as mock_run:
+            main()
+            mock_run.assert_called_once()
+            assert not Context.is_readonly()
+            assert not Context.requires_confirmation()
+
+
+@pytest.mark.asyncio
+async def test_wildcard_policy_statement_as_dict():
+    """Test wildcard check when Statement is a dict instead of a list."""
+    from awslabs.iam_mcp_server.server import put_user_policy
+
+    Context.initialize(readonly=False, require_confirmation=False)
+
+    policy = {
+        'Version': '2012-10-17',
+        'Statement': {'Effect': 'Allow', 'Action': '*', 'Resource': '*'},
+    }
+
+    with pytest.raises(IamValidationError) as exc_info:
+        await put_user_policy(
+            user_name='test-user',
+            policy_name='bad-policy',
+            policy_document=policy,
+            confirmed=True,
+        )
+    assert 'full access' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_trust_policy_deny_effect_skipped():
+    """Test that Deny statements in trust policies are skipped."""
+    from awslabs.iam_mcp_server.server import create_role
+
+    Context.initialize(readonly=False, require_confirmation=False)
+
+    trust_policy = {
+        'Version': '2012-10-17',
+        'Statement': [
+            {'Effect': 'Deny', 'Principal': '*', 'Action': 'sts:AssumeRole'},
+            {
+                'Effect': 'Allow',
+                'Principal': {'Service': 'ec2.amazonaws.com'},
+                'Action': 'sts:AssumeRole',
+            },
+        ],
+    }
+
+    mock_response = {
+        'Role': {
+            'RoleName': 'test-role',
+            'RoleId': 'AROA123456789EXAMPLE',
+            'Arn': 'arn:aws:iam::123456789012:role/test-role',
+            'Path': '/',
+            'CreateDate': datetime(2023, 1, 1),
+        }
+    }
+
+    with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
+        mock_client = Mock()
+        mock_client.create_role.return_value = mock_response
+        mock_get_client.return_value = mock_client
+
+        result = await create_role(
+            role_name='test-role',
+            assume_role_policy_document=trust_policy,
+            confirmed=True,
+        )
+        assert result['Role']['RoleName'] == 'test-role'
+
+
+@pytest.mark.asyncio
+async def test_confirmation_disabled_allows_without_confirmed():
+    """Test that operations proceed when confirmation is disabled."""
+    from awslabs.iam_mcp_server.server import create_group
+
+    Context.initialize(readonly=False, require_confirmation=False)
+
+    with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
+        mock_client = Mock()
+        mock_client.create_group.return_value = {
+            'Group': {
+                'GroupName': 'test-group',
+                'GroupId': 'AGPA123',
+                'Arn': 'arn:aws:iam::123456789012:group/test-group',
+                'Path': '/',
+                'CreateDate': datetime(2023, 1, 1),
+            }
+        }
+        mock_get_client.return_value = mock_client
+
+        result = await create_group(group_name='test-group', confirmed=False)
+        assert 'Successfully' in result.message
+
+
+@pytest.mark.asyncio
+async def test_trust_policy_multiple_allow_statements():
+    """Test trust policy with multiple Allow statements including non-dict principal."""
+    from awslabs.iam_mcp_server.server import create_role
+
+    Context.initialize(readonly=False, require_confirmation=False)
+
+    trust_policy = {
+        'Version': '2012-10-17',
+        'Statement': [
+            {
+                'Effect': 'Allow',
+                'Principal': 'arn:aws:iam::123456789012:root',
+                'Action': 'sts:AssumeRole',
+            },
+            {
+                'Effect': 'Allow',
+                'Principal': {'Service': 'lambda.amazonaws.com'},
+                'Action': 'sts:AssumeRole',
+            },
+        ],
+    }
+
+    mock_response = {
+        'Role': {
+            'RoleName': 'multi-principal-role',
+            'RoleId': 'AROA123456789EXAMPLE',
+            'Arn': 'arn:aws:iam::123456789012:role/multi-principal-role',
+            'Path': '/',
+            'CreateDate': datetime(2023, 1, 1),
+        }
+    }
+
+    with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
+        mock_client = Mock()
+        mock_client.create_role.return_value = mock_response
+        mock_get_client.return_value = mock_client
+
+        result = await create_role(
+            role_name='multi-principal-role',
+            assume_role_policy_document=trust_policy,
+            confirmed=True,
+        )
+        assert result['Role']['RoleName'] == 'multi-principal-role'
