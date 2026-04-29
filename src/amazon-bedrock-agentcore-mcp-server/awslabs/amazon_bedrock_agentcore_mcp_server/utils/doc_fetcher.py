@@ -15,11 +15,10 @@
 import html
 import re
 import urllib.request
-from urllib.parse import urljoin
-
 from ..config import doc_config
 from .url_validator import URLValidationError, validate_urls
 from pydantic import BaseModel, Field
+from urllib.parse import urljoin
 
 
 # Example: "[Quickstart](https://strandsagents.com/.../index.md)" or "[Quickstart](/path/to/doc.md)"

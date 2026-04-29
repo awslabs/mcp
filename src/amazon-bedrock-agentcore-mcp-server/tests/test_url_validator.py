@@ -97,9 +97,7 @@ class TestURLValidator:
     def test_rejects_domain_suffix_attack(self):
         """PoC vector 2: prefix match must not approve a longer hostname."""
         with pytest.raises(URLValidationError):
-            validate_urls(
-                'https://aws.github.io/bedrock-agentcore-starter-toolkit.evil.com/steal'
-            )
+            validate_urls('https://aws.github.io/bedrock-agentcore-starter-toolkit.evil.com/steal')
 
     def test_rejects_relative_url_with_query(self):
         """PoC vector 3: /evil?test=1 must be rejected as a relative URL."""

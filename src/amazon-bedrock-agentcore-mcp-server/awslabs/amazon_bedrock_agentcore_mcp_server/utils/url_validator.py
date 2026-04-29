@@ -46,10 +46,12 @@ class URLValidator:
     """Validates URLs against a list of allowed domain prefixes."""
 
     def __init__(self, allowed_domain_prefixes: List[str]):
+        """Initialize the URL validator with allowed domain prefixes."""
         self.allowed_domain_prefixes = set(allowed_domain_prefixes)
         self._allowed_origins = [_AllowedOrigin(p) for p in allowed_domain_prefixes]
 
     def is_url_allowed(self, url: str | None) -> bool:
+        """Check if a URL is allowed based on structural matching against allowed origins."""
         if not url or not isinstance(url, str):
             return False
 
@@ -68,6 +70,7 @@ class URLValidator:
         return False
 
     def validate_urls(self, urls) -> List[str]:
+        """Validate URLs and return valid ones, raising URLValidationError for any disallowed URL."""
         if isinstance(urls, str):
             urls = [urls]
 
