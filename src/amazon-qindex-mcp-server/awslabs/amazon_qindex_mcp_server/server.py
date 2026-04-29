@@ -20,6 +20,8 @@ import sys
 from awslabs.amazon_qindex_mcp_server.clients import QBusinessClient, QBusinessClientError
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
+from mcp.shared.exceptions import UrlElicitationRequiredError
+from mcp.types import ElicitRequestURLParams
 from pydantic import BaseModel, ConfigDict, Field
 from typing import Any, Dict, List, Optional
 
@@ -150,7 +152,7 @@ async def authorize_qindex(
         idc_application_arn (str): The Amazon Q Business application ID provided by the customer
 
     Raises:
-        ValueError: Always raised; the message embeds the authorization URL.
+        UrlElicitationRequiredError: Always raised; carries the authorization URL.
     """
     auth_url = (
         f'https://oidc.{idc_region}.amazonaws.com/authorize'
@@ -161,10 +163,21 @@ async def authorize_qindex(
     )
 
     # Ask the user to visit the URL and provide the authorization code
-    raise ValueError(
+    auth_message = (
         f'Please visit this URL to sign in: {auth_url}\n'
         'After signing in, you will be redirected to your redirect URL.\n'
         'Please provide the authorization code from the redirect URL to continue.'
+    )
+    raise UrlElicitationRequiredError(
+        [
+            ElicitRequestURLParams(
+                mode='url',
+                url=auth_url,
+                elicitationId=oauth_state,
+                message=auth_message,
+            )
+        ],
+        message=auth_message,
     )
 
 

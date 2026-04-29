@@ -24,6 +24,7 @@ from awslabs.amazon_qindex_mcp_server.server import (
     create_token_with_iam,
     mcp,
 )
+from mcp.shared.exceptions import UrlElicitationRequiredError
 
 
 class TestMCPServer:
@@ -74,7 +75,7 @@ class TestAuthorizeQIndex:
             f'&client_id={self.TEST_DATA["idc_application_arn"]}'
         )
 
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(UrlElicitationRequiredError) as exc_info:
             await authorize_qindex(
                 idc_region=self.TEST_DATA['idc_region'],
                 isv_redirect_url=self.TEST_DATA['isv_redirect_url'],
@@ -82,7 +83,12 @@ class TestAuthorizeQIndex:
                 idc_application_arn=self.TEST_DATA['idc_application_arn'],
             )
 
-        assert expected_url in str(exc_info.value)
+        elicitation = exc_info.value.elicitations[0]
+        assert elicitation.url == expected_url
+        assert elicitation.elicitationId == self.TEST_DATA['oauth_state']
+        # Wire-level back-compat: top-level error.message preserves the previous
+        # ValueError text so legacy consumers reading error.message keep working.
+        assert expected_url in exc_info.value.error.message
 
 
 class TestCreateTokenWithIAM:
