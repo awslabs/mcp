@@ -12,20 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for review pipeline orchestration."""
+"""Tests for review cluster executor."""
 
 import pytest
-from awslabs.redshift_mcp_server.review.executor import review_cluster
 from awslabs.redshift_mcp_server.review.definitions import (
     RECOMMENDATIONS,
     SIGNAL_EVALUATION_SQL,
 )
+from awslabs.redshift_mcp_server.review.executor import review_cluster
 from unittest.mock import AsyncMock
 
 
 def _make_response(rows: list[tuple[int, str]]) -> dict:
     """Build a mock execute_query response with (count, rec_id) rows."""
-    return {'rows': [[count, rec_id] for count, rec_id in rows], 'columns': ['count', 'rec_id'], 'row_count': len(rows)}
+    return {
+        'rows': [[count, rec_id] for count, rec_id in rows],
+        'columns': ['count', 'rec_id'],
+        'row_count': len(rows),
+    }
 
 
 def _make_empty_response() -> dict:
@@ -50,9 +54,11 @@ class TestServerlessExclusion:
     async def test_provisioned_only_queries_excluded_for_serverless(self):
         """When cluster is serverless, NodeDetails and WLMConfig are excluded."""
         execute_query_func = AsyncMock(side_effect=lambda *a, **kw: _make_empty_response())
-        discover_clusters_func = AsyncMock(return_value=[
-            {'identifier': 'test-cluster', 'type': 'serverless'},
-        ])
+        discover_clusters_func = AsyncMock(
+            return_value=[
+                {'identifier': 'test-cluster', 'type': 'serverless'},
+            ]
+        )
 
         result = await review_cluster(
             cluster_identifier='test-cluster',
@@ -67,9 +73,11 @@ class TestServerlessExclusion:
     async def test_provisioned_queries_included_for_provisioned(self):
         """For provisioned clusters, all queries including provisioned-only are executed."""
         execute_query_func = AsyncMock(side_effect=lambda *a, **kw: _make_empty_response())
-        discover_clusters_func = AsyncMock(return_value=[
-            {'identifier': 'test-cluster', 'type': 'provisioned'},
-        ])
+        discover_clusters_func = AsyncMock(
+            return_value=[
+                {'identifier': 'test-cluster', 'type': 'provisioned'},
+            ]
+        )
 
         result = await review_cluster(
             cluster_identifier='test-cluster',
@@ -92,7 +100,9 @@ class TestSignalTriggered:
     @pytest.mark.asyncio
     async def test_finding_created_when_count_positive(self):
         """Rows with count > 0 produce findings."""
-        execute_query_func = AsyncMock(side_effect=lambda *a, **kw: _make_response([(5, 'REC_001')]))
+        execute_query_func = AsyncMock(
+            side_effect=lambda *a, **kw: _make_response([(5, 'REC_001')])
+        )
 
         result = await review_cluster(
             cluster_identifier='test-cluster',
@@ -107,7 +117,9 @@ class TestSignalTriggered:
     @pytest.mark.asyncio
     async def test_no_findings_when_all_counts_zero(self):
         """Rows with count == 0 do not produce findings."""
-        execute_query_func = AsyncMock(side_effect=lambda *a, **kw: _make_response([(0, 'REC_001')]))
+        execute_query_func = AsyncMock(
+            side_effect=lambda *a, **kw: _make_response([(0, 'REC_001')])
+        )
 
         result = await review_cluster(
             cluster_identifier='test-cluster',
@@ -125,6 +137,25 @@ class TestSignalTriggered:
 
 class TestErrorPropagation:
     """Errors during query execution propagate to the caller."""
+
+    @pytest.mark.asyncio
+    async def test_cluster_not_found_raises(self):
+        """A nonexistent cluster raises early with a clear message."""
+        execute_query_func = AsyncMock()
+        discover_clusters_func = AsyncMock(
+            return_value=[
+                {'identifier': 'other-cluster', 'type': 'provisioned'},
+            ]
+        )
+
+        with pytest.raises(Exception, match='Cluster missing-cluster not found'):
+            await review_cluster(
+                cluster_identifier='missing-cluster',
+                execute_query_func=execute_query_func,
+                discover_clusters_func=discover_clusters_func,
+            )
+
+        execute_query_func.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_failed_query_raises(self):
@@ -238,7 +269,9 @@ class TestFullPipeline:
     @pytest.mark.asyncio
     async def test_missing_recommendation_id_skipped(self):
         """Recommendation IDs not in RECOMMENDATIONS are silently skipped."""
-        execute_query_func = AsyncMock(side_effect=lambda *a, **kw: _make_response([(5, 'NONEXISTENT')]))
+        execute_query_func = AsyncMock(
+            side_effect=lambda *a, **kw: _make_response([(5, 'NONEXISTENT')])
+        )
 
         result = await review_cluster(
             cluster_identifier='test-cluster',
@@ -269,6 +302,6 @@ class TestReviewQueriesConstants:
 
     def test_provisioned_only_flags(self):
         """NodeDetails and WLMConfig are marked provisioned-only."""
-        provisioned = {name for name, cluster_type, _ in SIGNAL_EVALUATION_SQL if cluster_type == 'provisioned'}
+        provisioned = {name for name, ct, _ in SIGNAL_EVALUATION_SQL if ct == 'provisioned'}
         assert 'NodeDetails' in provisioned
         assert 'WLMConfig' in provisioned

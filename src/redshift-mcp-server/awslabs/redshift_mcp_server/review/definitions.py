@@ -443,15 +443,15 @@ WHERE type='diststyle' and auto_eligible='f'
         """\
 -- CopyPerformance
 WITH data AS (
-SELECT 
+SELECT
   end_time::DATE AS copy_date,
-  database_name db, 
-  table_name, 
+  database_name db,
+  table_name,
   split_part(data_source, '/', 3) s3_bucket,
-  file_format, 
+  file_format,
   sum(case when splits > source_file_count then 1 else 0 end) split_copies,
-  sum(loaded_rows) rows_inserted, 
-  sum(source_file_count) files_scanned, 
+  sum(loaded_rows) rows_inserted,
+  sum(source_file_count) files_scanned,
   sum((file_bytes_scanned/1000000)::int) mb_scanned,
   avg(loaded_rows/(duration/1000000::decimal(18,2))) insert_rate_rows_per_second,
   avg(source_file_count) avg_files_per_copy,
@@ -463,9 +463,9 @@ SELECT
   avg(duration/1000000)::decimal(18,2) avg_copy_time_secs,
   sum(error_count) error_count
 FROM SYS_LOAD_HISTORY join (
-  select user_id, query_id, 
+  select user_id, query_id,
     sum(splits_scanned) splits
-  from SYS_LOAD_DETAIL 
+  from SYS_LOAD_DETAIL
   group by 1,2) using (USER_ID, QUERY_ID)
 where loaded_rows > 0
 group by 1,2,3,4,5
@@ -486,7 +486,7 @@ WHERE no_of_copy > 24 AND (avg_file_size_mb < 10)
         'all',
         """\
 -- DataShareConsumerUsage
-WITH usage as (SELECT 
+WITH usage as (SELECT
     database_name,
     user_name,
     transaction_id,
@@ -500,12 +500,12 @@ WITH usage as (SELECT
     case when trim(nvl(error_message,'')) = '' then 0 else 1 end error_cnt,
     round(datediff('milliseconds',request_end_date,start_time)/1000.0, 2)  as request_interval_secs,
     round(datediff('milliseconds',request_start_date,end_time)/1000.0, 2)  as execution_secs
-FROM SYS_DATASHARE_USAGE_CONSUMER 
+FROM SYS_DATASHARE_USAGE_CONSUMER
 JOIN SYS_QUERY_HISTORY using (user_id, session_id, transaction_id)
-JOIN SVV_USER_INFO using (user_id)), 
+JOIN SVV_USER_INFO using (user_id)),
 perc as (SELECT
     request_date,
-    database_name, 
+    database_name,
     user_name,
     percentile_cont(0.8) within GROUP ( ORDER BY request_duration_secs) AS p80_request_sec,
     percentile_cont(0.9) within GROUP ( ORDER BY request_duration_secs) AS p90_request_sec,
@@ -513,20 +513,20 @@ perc as (SELECT
 FROM usage
 group by 1,2,3),
 data as (
-select 
-    request_date, 
+select
+    request_date,
     database_name db,
     user_name,
     count(distinct query_id) query_count,
     avg(query_execution_secs) as avg_query_execution_secs,
-    sum(query_execution_secs) as total_query_execution_secs, 
+    sum(query_execution_secs) as total_query_execution_secs,
     avg(execution_secs)::decimal(18,2) as avg_execution_secs,
-    sum(execution_secs)::decimal(18,2) as total_execution_secs, 
+    sum(execution_secs)::decimal(18,2) as total_execution_secs,
     avg(request_duration_secs) as avg_request_duration_secs,
     min(p80_request_sec) p80_request_sec,
-    min(p90_request_sec) p90_request_sec, 
+    min(p90_request_sec) p90_request_sec,
     min(p99_request_sec) p99_request_sec,
-    sum(request_duration_secs) as total_request_duration_secs, 
+    sum(request_duration_secs) as total_request_duration_secs,
     avg(request_interval_secs) as avg_request_interval_secs,
     sum(request_interval_secs) as total_request_interval_secs,
     count(distinct transaction_id) total_unique_transaction,
@@ -569,7 +569,7 @@ LEFT OUTER JOIN SVV_TABLE_INFO ti ON (split_part(d.object_name, '.', 1) = ti."sc
 LEFT OUTER JOIN SVV_MV_INFO mi ON (ti."database" = mi.database_name and ti."schema" = mi."schema_name" and ti."table" = mi."name")
 LEFT OUTER JOIN (SELECT record_time, table_id, table_name, status, vacuum_type,
     row_number() over (PARTITION BY table_id order by record_time desc) rownum
-    FROM SYS_VACUUM_HISTORY 
+    FROM SYS_VACUUM_HISTORY
     WHERE status != 'Skipped') vi on ti.table_id = vi.table_id and vi.rownum = 1
 WHERE share_type = 'OUTBOUND' and object_type = 'table'
 ORDER BY 2,3,5,4
@@ -586,7 +586,7 @@ WHERE is_mv_incremental_refresh = 'N'
         """\
 -- ExtQueryPerformance
 WITH data AS (
-SELECT source_type, split_part(table_name,'.',1) db, 
+SELECT source_type, split_part(table_name,'.',1) db,
     case when split_part(table_name,'.',2) like 'pg_temp%' then 'pg_temp' else split_part(table_name,'.',2) end AS namespace,
     case when namespace = 'pg_temp' then
         substring(split_part(table_name,'.',3),1,len(split_part(table_name,'.',3))-14)
@@ -605,7 +605,7 @@ SELECT source_type, split_part(table_name,'.',1) db,
     SUM(duration / 1000000.0)::decimal(18,2) Total_Elapsed_sec,
     SUM(nvl(error_cnt,0)) AS total_scan_error_count,
     AVG(nvl(error_cnt,0)) AS avg_scan_error_count
-FROM SYS_EXTERNAL_QUERY_DETAIL 
+FROM SYS_EXTERNAL_QUERY_DETAIL
 LEFT JOIN (select user_id, query_id, count(1) error_cnt FROM SYS_EXTERNAL_QUERY_ERROR GROUP BY 1,2) e USING (user_id, query_id)
 WHERE table_name != '..' and table_name != '' and duration > 0
 group by 1,2,3,4,5,6,7
@@ -622,8 +622,8 @@ WHERE avg_qualified_partitions > 100 and avg_elapsed_sec > 60 AND (pct_of_query_
         """\
 -- MaterializedView
 WITH data AS (
-SELECT 
-  database_name db, schema_name namespace, user_name, name, is_stale, state, autorewrite, autorefresh, 
+SELECT
+  database_name db, schema_name namespace, user_name, name, is_stale, state, autorewrite, autorefresh,
   CASE state
     WHEN 0 THEN 'The MV is fully recomputed when refreshed'
     WHEN 1 THEN 'The MV is incremental'
@@ -636,11 +636,11 @@ SELECT
   END AS state_desc,
   mv_state, event_desc, event_starttime,
   refresh_db_username, refresh_status, refresh_type, refresh_starttime, refresh_endtime, refresh_duration_secs
-FROM SVV_MV_INFO 
+FROM SVV_MV_INFO
 LEFT JOIN (SELECT database_name, mv_schema schema_name, mv_name name,
-  state AS mv_state, event_desc, start_time event_starttime 
+  state AS mv_state, event_desc, start_time event_starttime
   FROM SYS_MV_STATE s
-  QUALIFY ROW_NUMBER() OVER (PARTITION BY database_name, schema_name, mv_name ORDER BY start_time DESC) = 1)  
+  QUALIFY ROW_NUMBER() OVER (PARTITION BY database_name, schema_name, mv_name ORDER BY start_time DESC) = 1)
   USING (database_name, schema_name, name)
 LEFT JOIN (SELECT database_name, schema_name, mv_name name, user_name refresh_db_username,
     status refresh_status, refresh_type, start_time refresh_starttime, end_time refresh_endtime, duration/1000000 refresh_duration_secs
@@ -741,8 +741,8 @@ WHERE node_type like 'dc1%' or node_type like 'ds2%'
 -- TableInfo
 WITH data AS (
 SELECT
-  "database" db, 
-  "schema" namespace, 
+  "database" db,
+  "schema" namespace,
   "table" table_name,
   max_varchar,
   sortkey1,
@@ -837,14 +837,14 @@ WHERE tbl_rows > 5000000 AND (diststyle like '%KEY%date%' or diststyle like '%KE
         """\
 -- Top50QueriesByRunTime
 WITH a as (
-SELECT  
-  database_name db, 
+SELECT
+  database_name db,
   user_name,
   generic_query_hash,
   query_id,
   (execution_time/1000000) execution_time_sec,
   count(1) over(partition by generic_query_hash) query_cnt,
-  avg(compile_time/1000000) over(partition by generic_query_hash) compile_time_sec, 
+  avg(compile_time/1000000) over(partition by generic_query_hash) compile_time_sec,
   avg(planning_time/1000000) over(partition by generic_query_hash) planning_time_sec,
   avg(lock_wait_time/1000000) over(partition by generic_query_hash) lock_wait_time_sec,
   avg(elapsed_time/1000000) over(partition by generic_query_hash) elapsed_time_sec,
@@ -853,15 +853,15 @@ SELECT
   service_class_id,
   service_class_name,
   query_type,
-  replace(error_message, '''', '\\\\''') error_message, 
-  query_priority, 
+  replace(error_message, '''', '\\\\''') error_message,
+  query_priority,
   compute_type
-FROM SYS_QUERY_HISTORY 
-JOIN SVV_USER_INFO using (user_id) 
+FROM SYS_QUERY_HISTORY
+JOIN SVV_USER_INFO using (user_id)
 WHERE user_id > 1 and service_class_id >= 5 and query_type != 'DDL' and execution_time > 1000000
 QUALIFY ROW_NUMBER() OVER (PARTITION BY generic_query_hash ORDER BY execution_time DESC) = 1
 order by execution_time_sec desc
-limit 50), 
+limit 50),
 b as (select query_id,
   max(case when is_rrscan = 't' then 1 else 0 end) rrscan,
   max(case when spilled_block_local_disk > 0 or spilled_block_remote_disk > 0 then 1 else 0 end) disk_spill,
@@ -869,8 +869,8 @@ b as (select query_id,
   max(case when spilled_block_remote_disk > 0 then 1 else 0 end) remote_disk_spill,
   max(case when spilled_block_local_disk > 0 then spilled_block_local_disk else 0 end) local_disk_spill_mb,
   max(case when spilled_block_remote_disk > 0 then spilled_block_remote_disk else 0 end) remote_disk_spill_mb,
-  listagg(distinct case 
-    when step_name = 'nestloop' and output_rows > 5000000 then 'Large nljoin' 
+  listagg(distinct case
+    when step_name = 'nestloop' and output_rows > 5000000 then 'Large nljoin'
     when step_name = 'scan' and input_rows >5000000 and is_rrscan = 'f' and output_rows< (.25*input_rows) then 'Scanning unsorted data'
     when step_name = 'broadcast' and output_rows >5000000 then 'Large broadcast'
     when step_name = 'distribute' and output_rows >5000000 then 'Large distribution'
@@ -881,9 +881,9 @@ b as (select query_id,
 from SYS_QUERY_DETAIL join a using (query_id)
 group by 1),
 data as (
-select 
+select
   a.*,
-  b.alerts, b.rrscan, b.disk_spill, b.local_disk_spill, b.remote_disk_spill, b.local_disk_spill_mb, b.remote_disk_spill_mb, b.table_list, b.total_disk_spill_mb  
+  b.alerts, b.rrscan, b.disk_spill, b.local_disk_spill, b.remote_disk_spill, b.local_disk_spill_mb, b.remote_disk_spill_mb, b.table_list, b.total_disk_spill_mb
 FROM a LEFT JOIN b on a.query_id = b.query_id
 order by execution_time_sec desc
 )
@@ -936,7 +936,7 @@ WHERE total_disk_spill_mb > 100
 -- UsagePattern
 WITH data AS (
 SELECT
-  date_trunc('hour',start_time) as workload_exec_hour, 
+  date_trunc('hour',start_time) as workload_exec_hour,
   service_class_id,
   service_class_name,
   count(1) query_count,
@@ -967,7 +967,7 @@ SELECT
   sum(local_disk_spill_mb) total_local_disk_spill_mb,
   sum(remote_disk_spill_mb) total_remote_disk_spill_mb,
   sum(case when approx_rows_inserted between 1 and 100 then 1 else 0 end) small_insert_count
-FROM SYS_QUERY_HISTORY 
+FROM SYS_QUERY_HISTORY
 LEFT JOIN (select query_id,
   max(case when is_rrscan = 't' then 1 else 0 end) rrscan_queries,
   max(case when spilled_block_local_disk > 0 or spilled_block_remote_disk > 0 then 1 else 0 end) disk_spill,
@@ -1048,7 +1048,7 @@ WHERE burst_secs > 600
         """\
 -- WLMConfig
 WITH data AS (
-SELECT 
+SELECT
        min(case when scc.service_class >= 100 then 'auto' else 'manual' end) over (partition by null) wlm_mode,
        scc.service_class::text AS service_class_id,
        CASE
@@ -1079,7 +1079,7 @@ SELECT
        qc.qmr_rule
 FROM stv_wlm_service_class_config scc
 INNER JOIN (
-       select action_service_class, LISTAGG(TRIM(condition),', ') condition 
+       select action_service_class, LISTAGG(TRIM(condition),', ') condition
        from stv_wlm_classification_config
        group by 1) cnd ON scc.service_class = cnd.action_service_class
 LEFT OUTER JOIN (
@@ -1154,13 +1154,13 @@ WHERE service_class_id <> 5 and service_class_id <> 14 and service_class_id <> 1
         """\
 -- WorkloadEvaluation
 WITH recursive min_list(start_min, end_min) as (
-  SELECT 
-    dateadd(m,1,dateadd(d,-7,date_trunc('m',getdate()))) start_min, 
+  SELECT
+    dateadd(m,1,dateadd(d,-7,date_trunc('m',getdate()))) start_min,
     dateadd(m,2,dateadd(d,-7,date_trunc('m',getdate()))) end_min
   UNION ALL
   SELECT dateadd(m, 1, start_min), dateadd(m, 1, end_min) from min_list where start_min < date_trunc('m',getdate())),
 scan_list as (
-  SELECT query_id, max(mb_scanned) max_scan_mb, 
+  SELECT query_id, max(mb_scanned) max_scan_mb,
     CASE WHEN max_scan_mb < 100 THEN 'small'
       WHEN max_scan_mb > 500000 THEN 'large'
       ELSE 'medium' END workloadtype
@@ -1171,28 +1171,28 @@ scan_list as (
       GROUP BY 1,2) scan_sum
   GROUP BY 1),
 daily_summary as (
-  SELECT 
+  SELECT
     workloadtype,
     datediff(m,start_min, date_trunc('m',getdate()))/1440 day_num,
     count(distinct start_min) mins_of_day
-  FROM SYS_QUERY_HISTORY 
+  FROM SYS_QUERY_HISTORY
   JOIN scan_list using (query_id)
   JOIN min_list ON start_time < end_min AND end_time > start_min
   WHERE user_id > 1
   GROUP BY 1,2),
 summary as (
-  SELECT workloadtype, 
-    avg(mins_of_day) total_query_minutes_in_day, 
+  SELECT workloadtype,
+    avg(mins_of_day) total_query_minutes_in_day,
     ((total_query_minutes_in_day/1440.0)*100)::int perc_duration_in_day
   FROM daily_summary
   GROUP BY 1),
 workload_breakdown as (
-  SELECT 
-    workloadtype, 
+  SELECT
+    workloadtype,
     sum(elapsed_time/1000000.0)::decimal(18,2) total_workload,
     min(elapsed_time/1000000.0)::decimal(18,2) workload_exec_sec_min,
     max(elapsed_time/1000000.0)::decimal(18,2) workload_exec_sec_max,
-    avg(elapsed_time/1000000.0)::decimal(18,2) workload_exec_sec_avg, 
+    avg(elapsed_time/1000000.0)::decimal(18,2) workload_exec_sec_avg,
     count(distinct query_id) query_cnt,
     avg(max_scan_mb) scan_mb_avg
   FROM SYS_QUERY_HISTORY
@@ -1201,11 +1201,11 @@ workload_breakdown as (
     and user_id > 1
   GROUP BY 1),
 data as (
-SELECT workloadtype, 
+SELECT workloadtype,
   ((total_workload*1.0 / sum(total_workload) over (partition by null))*100)::int perc_of_total_workload,
   perc_duration_in_day, total_query_minutes_in_day,
   (sum(total_query_minutes_in_day) over () / 1440.0 * 100)::int total_pct_busy,
-  workload_exec_sec_avg, workload_exec_sec_min, 
+  workload_exec_sec_avg, workload_exec_sec_min,
   workload_exec_sec_max, query_cnt, scan_mb_avg
 FROM summary s
 JOIN workload_breakdown b using(workloadtype)

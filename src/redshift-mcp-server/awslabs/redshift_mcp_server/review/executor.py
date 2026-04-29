@@ -14,14 +14,14 @@
 
 """Review executor orchestrating signal evaluation."""
 
+from awslabs.redshift_mcp_server.review.definitions import (
+    RECOMMENDATIONS,
+    SIGNAL_EVALUATION_SQL,
+)
 from awslabs.redshift_mcp_server.review.models import (
     ReviewFinding,
     ReviewRecommendation,
     ReviewResult,
-)
-from awslabs.redshift_mcp_server.review.definitions import (
-    RECOMMENDATIONS,
-    SIGNAL_EVALUATION_SQL,
 )
 from loguru import logger
 from typing import Any, Callable
@@ -54,7 +54,12 @@ async def review_cluster(
             cluster_info = cluster
             break
 
-    is_serverless = cluster_info and cluster_info.get('type') == 'serverless'
+    if not cluster_info:
+        raise Exception(
+            f'Cluster {cluster_identifier} not found. Please use list_clusters to get valid cluster identifiers.'
+        )
+
+    is_serverless = cluster_info.get('type') == 'serverless'
 
     # Stage 1: Select queries, filtering provisioned-only for serverless
     queries = [

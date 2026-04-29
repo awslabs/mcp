@@ -29,7 +29,6 @@ from awslabs.redshift_mcp_server.models import (
     RedshiftSchema,
     RedshiftTable,
 )
-from awslabs.redshift_mcp_server.review.models import ReviewResult
 from awslabs.redshift_mcp_server.redshift import (
     discover_clusters,
     discover_columns,
@@ -39,6 +38,7 @@ from awslabs.redshift_mcp_server.redshift import (
     execute_query,
 )
 from awslabs.redshift_mcp_server.review.executor import review_cluster
+from awslabs.redshift_mcp_server.review.models import ReviewResult
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
@@ -691,17 +691,23 @@ async def review_cluster_tool(
     3. Use triggered_by_signals to understand which diagnostics surfaced each recommendation.
     4. A review with zero findings indicates the cluster is healthy across all evaluated signals.
     """
-    logger.info(f'Running review on cluster {cluster_identifier}, database {database_name}')
+    try:
+        logger.info(f'Running review on cluster {cluster_identifier}, database {database_name}')
 
-    result = await review_cluster(
-        cluster_identifier=cluster_identifier,
-        execute_query_func=execute_query,
-        discover_clusters_func=discover_clusters,
-        database_name=database_name,
-        progress_reporter_func=ctx.report_progress,
-    )
+        result = await review_cluster(
+            cluster_identifier=cluster_identifier,
+            execute_query_func=execute_query,
+            discover_clusters_func=discover_clusters,
+            database_name=database_name,
+            progress_reporter_func=ctx.report_progress,
+        )
 
-    return result
+        return result
+
+    except Exception as e:
+        logger.error(f'Error in review_cluster_tool: {str(e)}')
+        await ctx.error(f'Failed to review cluster {cluster_identifier}: {str(e)}')
+        raise
 
 
 def main():

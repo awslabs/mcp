@@ -640,6 +640,10 @@ class TestReviewClusterTool:
                 database_name='dev',
             )
 
+        mock_ctx.error.assert_called_once_with(
+            'Failed to review cluster test-cluster: Data API timeout'
+        )
+
     @pytest.mark.asyncio
     async def test_review_cluster_parameters(self, mocker):
         """Test review_cluster passes all parameters correctly."""
