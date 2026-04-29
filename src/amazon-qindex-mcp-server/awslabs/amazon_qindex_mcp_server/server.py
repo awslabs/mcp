@@ -137,7 +137,7 @@ async def authorize_qindex(
     idc_application_arn: str = Field(
         description='The Amazon Q Business application ID provided by the customer'
     ),
-) -> Dict:
+) -> None:
     """Generate the OIDC authorization URL for Q index authentication.
 
     This tool generates the URL that users need to visit to authenticate with their
@@ -149,11 +149,8 @@ async def authorize_qindex(
         oauth_state (str): Random string to prevent CSRF attacks
         idc_application_arn (str): The Amazon Q Business application ID provided by the customer
 
-    Returns:
-        Dict: Response containing the authorization URL
-        {
-            'authorization_url': 'string'
-        }
+    Raises:
+        ValueError: Always raised; the message embeds the authorization URL.
     """
     auth_url = (
         f'https://oidc.{idc_region}.amazonaws.com/authorize'

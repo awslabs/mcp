@@ -21,7 +21,6 @@ For Amazon Q Business application owners, direct integration support is not yet 
   - isv_redirect_url (str): Redirect URL registered during ISV registration
   - oauth_state (str): Random string for CSRF protection
   - idc_application_arn (str): Amazon Q Business application ID
-- Returns: Authorization URL for user authentication
 
 #### CreateTokenWithIAM
 - Creates authentication token using authorization code through IAM
