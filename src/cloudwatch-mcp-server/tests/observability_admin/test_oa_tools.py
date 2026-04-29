@@ -84,7 +84,7 @@ class TestRegistration:
             full_name = server_prefix + name
             assert len(full_name) <= bedrock_max_length, (
                 f"Tool name '{full_name}' exceeds Bedrock's {bedrock_max_length}-char limit "
-                f"(length: {len(full_name)})"
+                f'(length: {len(full_name)})'
             )
 
 
