@@ -3300,3 +3300,240 @@ class TestServer:
 
         # Verify diagnostics were enabled
         mock_diagnostics.enable.assert_called_once()
+
+
+class TestServerBranchCoverage:
+    """Targeted tests for uncovered server branches."""
+
+    async def test_diagnostics_resource_when_disabled(self):
+        """Test diagnostics resource returns disabled message when diagnostics are off."""
+        from awslabs.aws_support_mcp_server.server import diagnostics_resource
+
+        with patch(
+            'awslabs.aws_support_mcp_server.server.get_diagnostics_report',
+            return_value={'diagnostics_enabled': False},
+        ):
+            result = await diagnostics_resource()
+        assert 'Diagnostics not enabled' in result
+
+    async def test_diagnostics_resource_when_enabled(self):
+        """Test diagnostics resource returns report JSON when diagnostics are enabled."""
+        from awslabs.aws_support_mcp_server.server import diagnostics_resource
+
+        with patch(
+            'awslabs.aws_support_mcp_server.server.get_diagnostics_report',
+            return_value={'diagnostics_enabled': True, 'ok': 1},
+        ):
+            result = await diagnostics_resource()
+        assert '"ok": 1' in result
+
+    async def test_create_support_case_wrapper_calls_logic(self):
+        """Test create_support_case wrapper forwards args to logic function."""
+        from awslabs.aws_support_mcp_server.server import create_support_case
+
+        with patch(
+            'awslabs.aws_support_mcp_server.server._create_support_case_logic',
+            new=AsyncMock(return_value={'status': 'success'}),
+        ) as mock_logic:
+            ctx = MagicMock()
+            result = await create_support_case(
+                ctx=ctx,
+                subject='s',
+                service_code='svc',
+                category_code='cat',
+                severity_code='low',
+                communication_body='body',
+            )
+        assert result['status'] == 'success'
+        mock_logic.assert_awaited_once()
+
+    async def test_describe_support_cases_wrapper_calls_logic(self):
+        """Test describe_support_cases wrapper forwards args to logic function."""
+        from awslabs.aws_support_mcp_server.server import describe_support_cases
+
+        with patch(
+            'awslabs.aws_support_mcp_server.server._describe_support_cases_logic',
+            new=AsyncMock(return_value={'cases': []}),
+        ) as mock_logic:
+            result = await describe_support_cases(ctx=MagicMock())
+        assert result == {'cases': []}
+        mock_logic.assert_awaited_once()
+
+    async def test_add_communication_wrapper_calls_logic(self):
+        """Test add_communication_to_case wrapper forwards args to logic function."""
+        from awslabs.aws_support_mcp_server.server import add_communication_to_case
+
+        with patch(
+            'awslabs.aws_support_mcp_server.server._add_communication_to_case_logic',
+            new=AsyncMock(return_value={'status': 'success'}),
+        ) as mock_logic:
+            result = await add_communication_to_case(
+                ctx=MagicMock(),
+                case_id='case-1',
+                communication_body='hello',
+            )
+        assert result['status'] == 'success'
+        mock_logic.assert_awaited_once()
+
+    async def test_resolve_support_case_wrapper_calls_logic(self):
+        """Test resolve_support_case wrapper forwards args to logic function."""
+        from awslabs.aws_support_mcp_server.server import resolve_support_case
+
+        with patch(
+            'awslabs.aws_support_mcp_server.server._resolve_support_case_logic',
+            new=AsyncMock(return_value={'status': 'success'}),
+        ) as mock_logic:
+            result = await resolve_support_case(ctx=MagicMock(), case_id='case-1')
+        assert result['status'] == 'success'
+        mock_logic.assert_awaited_once()
+
+    async def test_describe_services_markdown_branch(self):
+        """Test describe_services returns markdown when requested."""
+        from awslabs.aws_support_mcp_server.server import describe_services
+
+        with patch(
+            'awslabs.aws_support_mcp_server.server.support_client.describe_services',
+            new=AsyncMock(return_value={'services': []}),
+        ):
+            result = await describe_services(ctx=MagicMock(), format='markdown')
+        assert 'markdown' in result
+
+    async def test_describe_services_general_error_branch(self):
+        """Test describe_services general exception branch."""
+        from awslabs.aws_support_mcp_server.server import describe_services
+
+        ctx = MagicMock()
+        ctx.error = AsyncMock()
+        with patch(
+            'awslabs.aws_support_mcp_server.server.support_client.describe_services',
+            new=AsyncMock(side_effect=Exception('boom')),
+        ):
+            result = await describe_services(ctx=ctx, format='json')
+        assert result.get('status') == 'error'
+
+    async def test_describe_severity_levels_markdown_branch(self):
+        """Test describe_severity_levels returns markdown when requested."""
+        from awslabs.aws_support_mcp_server.server import describe_severity_levels
+
+        with patch(
+            'awslabs.aws_support_mcp_server.server.support_client.describe_severity_levels',
+            new=AsyncMock(return_value={'severityLevels': []}),
+        ):
+            result = await describe_severity_levels(ctx=MagicMock(), format='markdown')
+        assert 'markdown' in result
+
+    async def test_describe_severity_levels_general_error_branch(self):
+        """Test describe_severity_levels general exception branch."""
+        from awslabs.aws_support_mcp_server.server import describe_severity_levels
+
+        ctx = MagicMock()
+        ctx.error = AsyncMock()
+        with patch(
+            'awslabs.aws_support_mcp_server.server.support_client.describe_severity_levels',
+            new=AsyncMock(side_effect=Exception('boom')),
+        ):
+            result = await describe_severity_levels(ctx=ctx, format='json')
+        assert result.get('status') == 'error'
+
+    async def test_describe_communications_wrapper_calls_logic(self):
+        """Test describe_communications wrapper forwards args to logic function."""
+        from awslabs.aws_support_mcp_server.server import describe_communications
+
+        with patch(
+            'awslabs.aws_support_mcp_server.server._describe_communications_logic',
+            new=AsyncMock(return_value={'communications': []}),
+        ) as mock_logic:
+            result = await describe_communications(ctx=MagicMock(), case_id='case-1')
+        assert result == {'communications': []}
+        mock_logic.assert_awaited_once()
+
+    async def test_describe_supported_languages_wrapper_calls_logic(self):
+        """Test describe_supported_languages wrapper forwards args to logic function."""
+        from awslabs.aws_support_mcp_server.server import describe_supported_languages
+
+        with patch(
+            'awslabs.aws_support_mcp_server.server._describe_supported_languages_logic',
+            new=AsyncMock(return_value={'supportedLanguages': []}),
+        ) as mock_logic:
+            result = await describe_supported_languages(
+                ctx=MagicMock(), service_code='svc', category_code='cat'
+            )
+        assert result == {'supportedLanguages': []}
+        mock_logic.assert_awaited_once()
+
+    async def test_describe_create_case_options_wrapper_calls_logic(self):
+        """Test describe_create_case_options wrapper forwards args to logic function."""
+        from awslabs.aws_support_mcp_server.server import describe_create_case_options
+
+        with patch(
+            'awslabs.aws_support_mcp_server.server._describe_create_case_options_logic',
+            new=AsyncMock(
+                return_value={'communicationTypes': [], 'languageAvailability': 'available'}
+            ),
+        ) as mock_logic:
+            result = await describe_create_case_options(ctx=MagicMock(), service_code='svc')
+        assert result['languageAvailability'] == 'available'
+        mock_logic.assert_awaited_once()
+
+    async def test_add_attachments_wrapper_calls_logic(self):
+        """Test add_attachments_to_set wrapper forwards args to logic function."""
+        from awslabs.aws_support_mcp_server.server import add_attachments_to_set
+
+        with patch(
+            'awslabs.aws_support_mcp_server.server._add_attachments_to_set_logic',
+            new=AsyncMock(return_value={'status': 'success'}),
+        ) as mock_logic:
+            result = await add_attachments_to_set(
+                ctx=MagicMock(),
+                attachments=[{'fileName': 'a.txt', 'data': 'dGVzdA=='}],
+            )
+        assert result['status'] == 'success'
+        mock_logic.assert_awaited_once()
+
+    async def test_describe_attachment_wrapper_calls_logic(self):
+        """Test describe_attachment wrapper forwards args to logic function."""
+        from awslabs.aws_support_mcp_server.server import describe_attachment
+
+        with patch(
+            'awslabs.aws_support_mcp_server.server._describe_attachment_logic',
+            new=AsyncMock(return_value={'attachment': {}}),
+        ) as mock_logic:
+            result = await describe_attachment(ctx=MagicMock(), attachment_id='att-1')
+        assert result == {'attachment': {}}
+        mock_logic.assert_awaited_once()
+
+    @patch('awslabs.aws_support_mcp_server.server.logger')
+    @patch('awslabs.aws_support_mcp_server.server.diagnostics')
+    def test_main_debug_settings_path_with_settings_attr(self, mock_diagnostics, mock_logger):
+        """Test main sets debug on mcp.settings when available."""
+        import sys
+        from awslabs.aws_support_mcp_server.server import main
+        from types import SimpleNamespace
+
+        sys.argv = ['server.py', '--debug']
+        with patch('awslabs.aws_support_mcp_server.server.mcp') as mock_mcp:
+            mock_mcp.settings = SimpleNamespace(debug=False)
+            main()
+            assert mock_mcp.settings.debug is True
+
+    @patch('awslabs.aws_support_mcp_server.server.logger')
+    @patch('awslabs.aws_support_mcp_server.server.diagnostics')
+    def test_main_debug_settings_path_with_debug_attr(self, mock_diagnostics, mock_logger):
+        """Test main sets debug directly on mcp when settings are unavailable."""
+        import sys
+        from awslabs.aws_support_mcp_server.server import main
+
+        class DummyMCP:
+            """Minimal MCP object with debug attribute and run method."""
+
+            def __init__(self):
+                self.debug = False
+
+            def run(self, transport='stdio'):
+                """Mock run method."""
+                return transport
+
+        sys.argv = ['server.py', '--debug']
+        with patch('awslabs.aws_support_mcp_server.server.mcp', new=DummyMCP()) as dummy:
+            main()
+            assert dummy.debug is True
