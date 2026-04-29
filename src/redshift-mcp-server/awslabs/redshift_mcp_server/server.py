@@ -39,7 +39,7 @@ from awslabs.redshift_mcp_server.redshift import (
     discover_tables,
     execute_query,
 )
-from awslabs.redshift_mcp_server.review.executor import run_review
+from awslabs.redshift_mcp_server.review.executor import review_cluster
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
@@ -638,9 +638,9 @@ async def review_cluster_tool(
         ...,
         description='The cluster identifier to run the review on. Must be a valid cluster identifier from the list_clusters tool.',
     ),
-    database: str = Field(
-        ...,
-        description='The database name to run the review against. Must be a valid database name from the list_databases tool.',
+    database_name: str = Field(
+        'dev',
+        description='The database to connect to for querying system views. Defaults to "dev".',
     ),
     workgroup: str | None = Field(
         None,
@@ -698,11 +698,11 @@ async def review_cluster_tool(
     3. Use triggered_by_signals to understand which diagnostics surfaced each recommendation.
     4. A review with zero findings indicates the cluster is healthy across all evaluated signals.
     """
-    logger.info(f'Running review on cluster {cluster_identifier}, database {database}')
+    logger.info(f'Running review on cluster {cluster_identifier}, database {database_name}')
 
-    result = await run_review(
+    result = await review_cluster(
         cluster_identifier=cluster_identifier,
-        database_name=database,
+        database_name=database_name,
         execute_fn=_execute_protected_statement,
         workgroup=workgroup,
         progress_fn=lambda current, total: ctx.report_progress(current, total),

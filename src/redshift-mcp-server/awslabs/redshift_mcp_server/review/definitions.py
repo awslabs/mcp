@@ -374,9 +374,10 @@ See also:
 }
 
 
-REVIEW_QUERIES: list[tuple[str, str, bool]] = [
+SIGNAL_EVALUATION_SQL: list[tuple[str, str, str]] = [
     (
         'ATOWorkerActions',
+        'all',
         """\
 -- ATOWorkerActions
 WITH data AS (
@@ -404,10 +405,10 @@ SELECT count(*), 'REC_007'
 FROM data
 WHERE trim(status) != 'Abort:This table is already the recommended style.' and trim(status) != 'Complete: 100%' AND (alter_table_type='sortkey')
 """,
-        False,
     ),
     (
         'AlterTableRecommendations',
+        'all',
         """\
 -- AlterTableRecommendations
 WITH data AS (
@@ -435,10 +436,10 @@ SELECT count(*), 'REC_008'
 FROM data
 WHERE type='diststyle' and auto_eligible='f'
 """,
-        False,
     ),
     (
         'CopyPerformance',
+        'all',
         """\
 -- CopyPerformance
 WITH data AS (
@@ -479,10 +480,10 @@ SELECT count(*), 'REC_023'
 FROM data
 WHERE no_of_copy > 24 AND (avg_file_size_mb < 10)
 """,
-        False,
     ),
     (
         'DataShareConsumerUsage',
+        'all',
         """\
 -- DataShareConsumerUsage
 WITH usage as (SELECT 
@@ -543,10 +544,10 @@ SELECT count(*), 'REC_034'
 FROM data
 WHERE avg_request_duration_secs > 60
 """,
-        False,
     ),
     (
         'DataShareProducerObject',
+        'all',
         """\
 -- DataShareProducerObject
 WITH data AS (
@@ -578,10 +579,10 @@ SELECT count(*), 'REC_034'
 FROM data
 WHERE is_mv_incremental_refresh = 'N'
 """,
-        False,
     ),
     (
         'ExtQueryPerformance',
+        'all',
         """\
 -- ExtQueryPerformance
 WITH data AS (
@@ -614,10 +615,10 @@ SELECT count(*), 'REC_027'
 FROM data
 WHERE avg_qualified_partitions > 100 and avg_elapsed_sec > 60 AND (pct_of_query_using_partition_pruning < 95)
 """,
-        False,
     ),
     (
         'MaterializedView',
+        'all',
         """\
 -- MaterializedView
 WITH data AS (
@@ -663,10 +664,10 @@ SELECT count(*), 'REC_039'
 FROM data
 WHERE is_stale = 't'
 """,
-        False,
     ),
     (
         'NodeDetails',
+        'provisioned',
         """\
 -- NodeDetails
 WITH data AS (
@@ -732,10 +733,10 @@ SELECT count(*), 'REC_001'
 FROM data
 WHERE node_type like 'dc1%' or node_type like 'ds2%'
 """,
-        True,
     ),
     (
         'TableInfo',
+        'all',
         """\
 -- TableInfo
 WITH data AS (
@@ -829,10 +830,10 @@ SELECT count(*), 'REC_008'
 FROM data
 WHERE tbl_rows > 5000000 AND (diststyle like '%KEY%date%' or diststyle like '%KEY%dt%' or diststyle like '%KEY%timestamp%' or diststyle like '%KEY%datetime%')
 """,
-        False,
     ),
     (
         'Top50QueriesByRunTime',
+        'all',
         """\
 -- Top50QueriesByRunTime
 WITH a as (
@@ -927,10 +928,10 @@ SELECT count(*), 'REC_024'
 FROM data
 WHERE total_disk_spill_mb > 100
 """,
-        False,
     ),
     (
         'UsagePattern',
+        'all',
         """\
 -- UsagePattern
 WITH data AS (
@@ -1040,10 +1041,10 @@ SELECT count(*), 'REC_033'
 FROM data
 WHERE burst_secs > 600
 """,
-        False,
     ),
     (
         'WLMConfig',
+        'provisioned',
         """\
 -- WLMConfig
 WITH data AS (
@@ -1146,10 +1147,10 @@ SELECT count(*), 'REC_022'
 FROM data
 WHERE service_class_id <> 5 and service_class_id <> 14 and service_class_id <> 15 AND ((select count(1) from data where coalesce(qmr_rule,'') not like '%spectrum_scan%') = (select count(1) from data))
 """,
-        True,
     ),
     (
         'WorkloadEvaluation',
+        'all',
         """\
 -- WorkloadEvaluation
 WITH recursive min_list(start_min, end_min) as (
@@ -1214,6 +1215,5 @@ SELECT count(*), 'REC_035'
 FROM data
 WHERE total_pct_busy < 75
 """,
-        False,
     ),
 ]

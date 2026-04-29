@@ -578,7 +578,7 @@ class TestReviewClusterTool:
         expected = self._make_review_result(findings=findings)
 
         mock_pipeline = mocker.patch(
-            'awslabs.redshift_mcp_server.server.run_review',
+            'awslabs.redshift_mcp_server.server.review_cluster',
             return_value=expected,
         )
         mock_ctx = self._make_mock_ctx(mocker)
@@ -586,7 +586,7 @@ class TestReviewClusterTool:
         result = await review_cluster_tool(
             ctx=mock_ctx,
             cluster_identifier='test-cluster',
-            database='dev',
+            database_name='dev',
             workgroup=None,
         )
 
@@ -610,7 +610,7 @@ class TestReviewClusterTool:
         expected = self._make_review_result(findings=[])
 
         mocker.patch(
-            'awslabs.redshift_mcp_server.server.run_review',
+            'awslabs.redshift_mcp_server.server.review_cluster',
             return_value=expected,
         )
         mock_ctx = self._make_mock_ctx(mocker)
@@ -618,7 +618,7 @@ class TestReviewClusterTool:
         result = await review_cluster_tool(
             ctx=mock_ctx,
             cluster_identifier='test-cluster',
-            database='dev',
+            database_name='dev',
             workgroup=None,
         )
 
@@ -631,7 +631,7 @@ class TestReviewClusterTool:
     async def test_review_cluster_error(self, mocker):
         """Test review_cluster propagates pipeline errors."""
         mocker.patch(
-            'awslabs.redshift_mcp_server.server.run_review',
+            'awslabs.redshift_mcp_server.server.review_cluster',
             side_effect=Exception('Data API timeout'),
         )
         mock_ctx = self._make_mock_ctx(mocker)
@@ -640,7 +640,7 @@ class TestReviewClusterTool:
             await review_cluster_tool(
                 ctx=mock_ctx,
                 cluster_identifier='test-cluster',
-                database='dev',
+                database_name='dev',
                 workgroup=None,
             )
 
@@ -650,7 +650,7 @@ class TestReviewClusterTool:
         expected = self._make_review_result()
 
         mock_pipeline = mocker.patch(
-            'awslabs.redshift_mcp_server.server.run_review',
+            'awslabs.redshift_mcp_server.server.review_cluster',
             return_value=expected,
         )
         mock_ctx = self._make_mock_ctx(mocker)
@@ -658,7 +658,7 @@ class TestReviewClusterTool:
         await review_cluster_tool(
             ctx=mock_ctx,
             cluster_identifier='my-cluster',
-            database='analytics',
+            database_name='analytics',
             workgroup='my-workgroup',
         )
 

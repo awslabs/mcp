@@ -15,10 +15,10 @@
 """Tests for review pipeline orchestration."""
 
 import pytest
-from awslabs.redshift_mcp_server.review.executor import run_review
+from awslabs.redshift_mcp_server.review.executor import review_cluster
 from awslabs.redshift_mcp_server.review.definitions import (
     RECOMMENDATIONS,
-    REVIEW_QUERIES,
+    SIGNAL_EVALUATION_SQL,
 )
 from unittest.mock import AsyncMock
 
@@ -47,7 +47,7 @@ class TestServerlessExclusion:
         """When workgroup is set, NodeDetails and WLMConfig are excluded."""
         execute_fn = AsyncMock(side_effect=lambda *a, **kw: _make_empty_response())
 
-        result = await run_review(
+        result = await review_cluster(
             cluster_identifier='test-cluster',
             database_name='dev',
             execute_fn=execute_fn,
@@ -62,7 +62,7 @@ class TestServerlessExclusion:
         """Without workgroup, all queries including provisioned-only are executed."""
         execute_fn = AsyncMock(side_effect=lambda *a, **kw: _make_empty_response())
 
-        result = await run_review(
+        result = await review_cluster(
             cluster_identifier='test-cluster',
             database_name='dev',
             execute_fn=execute_fn,
@@ -85,7 +85,7 @@ class TestSignalTriggered:
         """Rows with count > 0 produce findings."""
         execute_fn = AsyncMock(side_effect=lambda *a, **kw: _make_response([(5, 'REC_001')]))
 
-        result = await run_review(
+        result = await review_cluster(
             cluster_identifier='test-cluster',
             database_name='dev',
             execute_fn=execute_fn,
@@ -100,7 +100,7 @@ class TestSignalTriggered:
         """Rows with count == 0 do not produce findings."""
         execute_fn = AsyncMock(side_effect=lambda *a, **kw: _make_response([(0, 'REC_001')]))
 
-        result = await run_review(
+        result = await review_cluster(
             cluster_identifier='test-cluster',
             database_name='dev',
             execute_fn=execute_fn,
@@ -123,7 +123,7 @@ class TestErrorPropagation:
         execute_fn = AsyncMock(side_effect=RuntimeError('Data API timeout'))
 
         with pytest.raises(RuntimeError, match='Data API timeout'):
-            await run_review(
+            await review_cluster(
                 cluster_identifier='test-cluster',
                 database_name='dev',
                 execute_fn=execute_fn,
@@ -145,7 +145,7 @@ class TestRecommendationDeduplication:
             side_effect=lambda *a, **kw: _make_response([(3, 'REC_003'), (2, 'REC_003')])
         )
 
-        result = await run_review(
+        result = await review_cluster(
             cluster_identifier='test-cluster',
             database_name='dev',
             execute_fn=execute_fn,
@@ -172,7 +172,7 @@ class TestProgressReporting:
         async def mock_progress(current, total):
             progress_calls.append((current, total))
 
-        result = await run_review(
+        result = await review_cluster(
             cluster_identifier='test-cluster',
             database_name='dev',
             execute_fn=execute_fn,
@@ -199,7 +199,7 @@ class TestFullPipeline:
             side_effect=lambda *a, **kw: _make_response([(1, 'REC_007'), (0, 'REC_008')])
         )
 
-        result = await run_review(
+        result = await review_cluster(
             cluster_identifier='test-cluster',
             database_name='dev',
             execute_fn=execute_fn,
@@ -217,7 +217,7 @@ class TestFullPipeline:
         """Empty Records in response produces no findings."""
         execute_fn = AsyncMock(side_effect=lambda *a, **kw: _make_empty_response())
 
-        result = await run_review(
+        result = await review_cluster(
             cluster_identifier='test-cluster',
             database_name='dev',
             execute_fn=execute_fn,
@@ -231,7 +231,7 @@ class TestFullPipeline:
         """Recommendation IDs not in RECOMMENDATIONS are silently skipped."""
         execute_fn = AsyncMock(side_effect=lambda *a, **kw: _make_response([(5, 'NONEXISTENT')]))
 
-        result = await run_review(
+        result = await review_cluster(
             cluster_identifier='test-cluster',
             database_name='dev',
             execute_fn=execute_fn,
@@ -247,11 +247,11 @@ class TestFullPipeline:
 
 
 class TestReviewQueriesConstants:
-    """Validate the REVIEW_QUERIES and RECOMMENDATIONS constants."""
+    """Validate the SIGNAL_EVALUATION_SQL and RECOMMENDATIONS constants."""
 
     def test_all_queries_have_sql(self):
-        """Every entry in REVIEW_QUERIES has non-empty SQL."""
-        for name, sql, _ in REVIEW_QUERIES:
+        """Every entry in SIGNAL_EVALUATION_SQL has non-empty SQL."""
+        for name, cluster_type, sql in SIGNAL_EVALUATION_SQL:
             assert sql.strip(), f'{name} has empty SQL'
 
     def test_recommendations_not_empty(self):
@@ -260,6 +260,6 @@ class TestReviewQueriesConstants:
 
     def test_provisioned_only_flags(self):
         """NodeDetails and WLMConfig are marked provisioned-only."""
-        provisioned = {name for name, _, flag in REVIEW_QUERIES if flag}
+        provisioned = {name for name, cluster_type, _ in SIGNAL_EVALUATION_SQL if cluster_type == 'provisioned'}
         assert 'NodeDetails' in provisioned
         assert 'WLMConfig' in provisioned

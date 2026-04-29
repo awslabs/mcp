@@ -21,14 +21,13 @@ from awslabs.redshift_mcp_server.review.models import (
 )
 from awslabs.redshift_mcp_server.review.definitions import (
     RECOMMENDATIONS,
-    REVIEW_QUERIES,
+    SIGNAL_EVALUATION_SQL,
 )
-from collections.abc import Callable
 from loguru import logger
-from typing import Any
+from typing import Any, Callable
 
 
-async def run_review(
+async def review_cluster(
     cluster_identifier: str,
     execute_fn: Callable[..., Any],
     database_name: str = 'dev',
@@ -37,17 +36,21 @@ async def run_review(
 ) -> ReviewResult:
     """Execute a full cluster review.
 
-    Pipeline stages:
-    1. Select review queries (filter out provisioned-only when serverless)
-    2. Execute each query and collect (count, rec_id) rows
-    3. Build findings from rows where count > 0
-    4. Resolve and deduplicate recommendations, ordered by first occurrence
+    Args:
+        cluster_identifier: The cluster identifier to review.
+        execute_fn: Async callable to execute SQL against the cluster.
+        database_name: The database to run the review against. Defaults to 'dev'.
+        workgroup: The serverless workgroup name. When provided, provisioned-only queries are excluded.
+        progress_fn: Optional async callable receiving (current, total) after each query.
+
+    Returns:
+        ReviewResult with findings and deduplicated recommendations.
     """
     # Stage 1: Select queries, filtering provisioned-only for serverless
     queries = [
         (name, sql)
-        for name, sql, provisioned_only in REVIEW_QUERIES
-        if not (workgroup and provisioned_only)
+        for name, cluster_type, sql in SIGNAL_EVALUATION_SQL
+        if not (workgroup and cluster_type == 'provisioned')
     ]
 
     total_queries = len(queries)
