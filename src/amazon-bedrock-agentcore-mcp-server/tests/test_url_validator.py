@@ -178,4 +178,4 @@ class TestURLValidator:
         """Empty/None values must be rejected."""
         validator = URLValidator(['https://docs.aws.amazon.com'])
         assert not validator.is_url_allowed('')
-        assert not validator.is_url_allowed(None)
+        assert not validator.is_url_allowed(None)  # type: ignore[arg-type]
