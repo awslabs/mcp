@@ -29,28 +29,38 @@ from typing import Any, Callable
 
 async def review_cluster(
     cluster_identifier: str,
-    execute_fn: Callable[..., Any],
+    execute_query_func: Callable[..., Any],
+    discover_clusters_func: Callable[..., Any],
     database_name: str = 'dev',
-    workgroup: str | None = None,
-    progress_fn: Callable[[int, int], Any] | None = None,
-) -> ReviewResult:
+    progress_reporter_func: Callable[[int, int], Any] | None = None,
+):
     """Execute a full cluster review.
 
     Args:
         cluster_identifier: The cluster identifier to review.
-        execute_fn: Async callable to execute SQL against the cluster.
+        execute_query_func: Async callable matching the signature of execute_query().
+        discover_clusters_func: Async callable matching the signature of discover_clusters().
         database_name: The database to run the review against. Defaults to 'dev'.
-        workgroup: The serverless workgroup name. When provided, provisioned-only queries are excluded.
-        progress_fn: Optional async callable receiving (current, total) after each query.
+        progress_reporter_func: Optional async callable receiving (current, total) after each query.
 
     Returns:
         ReviewResult with findings and deduplicated recommendations.
     """
+    # Determine cluster type from cluster_info
+    clusters = await discover_clusters_func()
+    cluster_info = None
+    for cluster in clusters:
+        if cluster['identifier'] == cluster_identifier:
+            cluster_info = cluster
+            break
+
+    is_serverless = cluster_info and cluster_info.get('type') == 'serverless'
+
     # Stage 1: Select queries, filtering provisioned-only for serverless
     queries = [
         (name, sql)
         for name, cluster_type, sql in SIGNAL_EVALUATION_SQL
-        if not (workgroup and cluster_type == 'provisioned')
+        if not (is_serverless and cluster_type == 'provisioned')
     ]
 
     total_queries = len(queries)
@@ -61,20 +71,20 @@ async def review_cluster(
     for idx, (query_name, sql) in enumerate(queries):
         logger.debug('Executing review query: {} ({}/{})', query_name, idx + 1, total_queries)
 
-        results_response, _ = await execute_fn(
-            cluster_identifier,
-            database_name,
-            sql,
+        result = await execute_query_func(
+            cluster_identifier=cluster_identifier,
+            database_name=database_name,
+            sql=sql,
             allow_read_write=True,
         )
 
         queries_executed.append(query_name)
 
-        records = results_response.get('Records', [])
+        rows = result.get('rows', [])
         query_findings = 0
-        for row in records:
-            count = row[0].get('longValue', 0)
-            rec_id = row[1].get('stringValue', '')
+        for row in rows:
+            count = row[0]
+            rec_id = row[1]
             if count > 0 and rec_id:
                 query_findings += 1
                 findings.append(
@@ -89,12 +99,12 @@ async def review_cluster(
         logger.debug(
             'Query {} returned {} rows, {} findings',
             query_name,
-            len(records),
+            len(rows),
             query_findings,
         )
 
-        if progress_fn:
-            await progress_fn(idx + 1, total_queries)
+        if progress_reporter_func:
+            await progress_reporter_func(idx + 1, total_queries)
 
     # Stage 4: Resolve recommendations (deduplicate, preserve first-occurrence order)
     seen: dict[str, list[str]] = {}

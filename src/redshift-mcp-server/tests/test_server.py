@@ -587,7 +587,6 @@ class TestReviewClusterTool:
             ctx=mock_ctx,
             cluster_identifier='test-cluster',
             database_name='dev',
-            workgroup=None,
         )
 
         assert isinstance(result, ReviewResult)
@@ -602,7 +601,6 @@ class TestReviewClusterTool:
         call_kwargs = mock_pipeline.call_args.kwargs
         assert call_kwargs['cluster_identifier'] == 'test-cluster'
         assert call_kwargs['database_name'] == 'dev'
-        assert call_kwargs['workgroup'] is None
 
     @pytest.mark.asyncio
     async def test_review_cluster_empty_results(self, mocker):
@@ -619,7 +617,6 @@ class TestReviewClusterTool:
             ctx=mock_ctx,
             cluster_identifier='test-cluster',
             database_name='dev',
-            workgroup=None,
         )
 
         assert isinstance(result, ReviewResult)
@@ -641,12 +638,11 @@ class TestReviewClusterTool:
                 ctx=mock_ctx,
                 cluster_identifier='test-cluster',
                 database_name='dev',
-                workgroup=None,
             )
 
     @pytest.mark.asyncio
     async def test_review_cluster_parameters(self, mocker):
-        """Test review_cluster passes all parameters correctly including workgroup."""
+        """Test review_cluster passes all parameters correctly."""
         expected = self._make_review_result()
 
         mock_pipeline = mocker.patch(
@@ -659,13 +655,11 @@ class TestReviewClusterTool:
             ctx=mock_ctx,
             cluster_identifier='my-cluster',
             database_name='analytics',
-            workgroup='my-workgroup',
         )
 
         call_kwargs = mock_pipeline.call_args.kwargs
         assert call_kwargs['cluster_identifier'] == 'my-cluster'
         assert call_kwargs['database_name'] == 'analytics'
-        assert call_kwargs['workgroup'] == 'my-workgroup'
 
     def test_no_removed_tools_registered(self):
         """Verify export_csv and import_and_analyze are not registered as tools."""

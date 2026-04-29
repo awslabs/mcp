@@ -31,7 +31,6 @@ from awslabs.redshift_mcp_server.models import (
 )
 from awslabs.redshift_mcp_server.review.models import ReviewResult
 from awslabs.redshift_mcp_server.redshift import (
-    _execute_protected_statement,
     discover_clusters,
     discover_columns,
     discover_databases,
@@ -642,10 +641,6 @@ async def review_cluster_tool(
         'dev',
         description='The database to connect to for querying system views. Defaults to "dev".',
     ),
-    workgroup: str | None = Field(
-        None,
-        description='The serverless workgroup name. When provided, provisioned-only queries (WLMConfig, NodeDetails) are excluded.',
-    ),
 ) -> ReviewResult:
     """Run a diagnostic review of a Redshift cluster or serverless workgroup.
 
@@ -663,9 +658,7 @@ async def review_cluster_tool(
 
     - cluster_identifier: The unique identifier of the Redshift cluster to review.
                          IMPORTANT: Use a valid cluster identifier from the list_clusters tool.
-    - database: The database name to run the review against.
-               IMPORTANT: Use a valid database name from the list_databases tool.
-    - workgroup: The serverless workgroup name. When provided, provisioned-only queries are excluded.
+    - database_name: The database to connect to for querying system views. Defaults to "dev".
 
     ## Response Structure
 
@@ -688,7 +681,7 @@ async def review_cluster_tool(
     1. First use list_clusters to get valid cluster identifiers.
     2. Then use list_databases to get valid database names for the cluster.
     3. Ensure the cluster status is 'available' before running the review.
-    4. For serverless workgroups, provide the workgroup parameter to skip provisioned-only diagnostics.
+    4. Provisioned-only diagnostics are automatically skipped for serverless workgroups.
     5. Review runs read-only diagnostic queries against system views and tables.
 
     ## Interpretation Best Practices
@@ -702,10 +695,10 @@ async def review_cluster_tool(
 
     result = await review_cluster(
         cluster_identifier=cluster_identifier,
+        execute_query_func=execute_query,
+        discover_clusters_func=discover_clusters,
         database_name=database_name,
-        execute_fn=_execute_protected_statement,
-        workgroup=workgroup,
-        progress_fn=lambda current, total: ctx.report_progress(current, total),
+        progress_reporter_func=ctx.report_progress,
     )
 
     return result
