@@ -28,6 +28,7 @@ from awslabs.amazon_bedrock_agentcore_mcp_server.tools.browser.snapshot_manager 
     RefNotFoundError,
     SnapshotManager,
 )
+from playwright.async_api import Error as PlaywrightError
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -228,6 +229,91 @@ class TestNavigationTools:
         result = _validate_url_scheme(dangerous_url)
         assert result is not None, f'{dangerous_url} should be blocked'
         assert 'not allowed' in result.lower()
+
+    async def test_navigate_http_error_returns_page_snapshot(
+        self, nav_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager, mock_page
+    ):
+        """Navigate to URL returning non-2xx status still returns page snapshot.
+
+        Playwright raises ERR_HTTP_RESPONSE_CODE_FAILURE for non-2xx responses,
+        but the page content IS loaded. The tool should recover and return
+        the page title, URL, and accessibility tree snapshot.
+        """
+        mock_connection_manager.get_page.return_value = mock_page
+        mock_page.goto.side_effect = PlaywrightError('net::ERR_HTTP_RESPONSE_CODE_FAILURE')
+        mock_page.title.return_value = '404 Not Found'
+        mock_page.url = 'https://example.com/missing'
+        mock_snapshot_manager.capture.return_value = '- heading "Not Found" [level=1]'
+
+        result = await nav_tools.browser_navigate(
+            ctx=mock_ctx, session_id='sess-1', url='https://example.com/missing'
+        )
+
+        # Should NOT be an error — should return the page snapshot
+        assert 'Navigated to' in result
+        assert '404 Not Found' in result
+        assert 'non-2xx' in result
+        assert 'Not Found' in result
+        mock_snapshot_manager.capture.assert_awaited_once()
+
+    async def test_navigate_http_500_returns_page_snapshot(
+        self, nav_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager, mock_page
+    ):
+        """Navigate to URL returning 500 still returns page snapshot."""
+        mock_connection_manager.get_page.return_value = mock_page
+        mock_page.goto.side_effect = PlaywrightError('net::ERR_HTTP_RESPONSE_CODE_FAILURE')
+        mock_page.title.return_value = 'Internal Server Error'
+        mock_page.url = 'https://example.com/api/broken'
+        mock_snapshot_manager.capture.return_value = '- heading "500" [level=1]'
+
+        result = await nav_tools.browser_navigate(
+            ctx=mock_ctx, session_id='sess-1', url='https://example.com/api/broken'
+        )
+
+        assert 'Navigated to' in result
+        assert 'Internal Server Error' in result
+        assert 'non-2xx' in result
+
+    async def test_navigate_non_http_playwright_error_still_errors(
+        self, nav_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager, mock_page
+    ):
+        """Navigate with non-HTTP Playwright error (e.g., DNS failure) still returns error."""
+        mock_connection_manager.get_page.return_value = mock_page
+        mock_page.goto.side_effect = PlaywrightError('net::ERR_NAME_NOT_RESOLVED')
+        mock_snapshot_manager.capture.return_value = '- button "OK" [ref=e1]'
+
+        result = await nav_tools.browser_navigate(
+            ctx=mock_ctx, session_id='sess-1', url='https://nonexistent.invalid'
+        )
+
+        # Non-HTTP errors should still be reported as errors
+        assert 'Error' in result
+        assert 'ERR_NAME_NOT_RESOLVED' in result
+
+    async def test_navigate_http_error_title_unavailable(
+        self, nav_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager, mock_page
+    ):
+        """Navigate to non-2xx where page.title() also fails uses fallback title.
+
+        After ERR_HTTP_RESPONSE_CODE_FAILURE, the browser may show its own
+        error page which destroys the execution context. page.title() fails,
+        but we recover with a fallback and still return the snapshot.
+        """
+        mock_connection_manager.get_page.return_value = mock_page
+        mock_page.goto.side_effect = PlaywrightError('net::ERR_HTTP_RESPONSE_CODE_FAILURE')
+        mock_page.title.side_effect = Exception('Execution context was destroyed')
+        mock_page.url = 'https://example.com/bad'
+        mock_snapshot_manager.capture.return_value = '- heading "Error" [level=1]'
+
+        result = await nav_tools.browser_navigate(
+            ctx=mock_ctx, session_id='sess-1', url='https://example.com/bad'
+        )
+
+        # Should still return successfully with fallback title
+        assert 'Navigated to' in result
+        assert '(title unavailable)' in result
+        assert 'non-2xx' in result
+        mock_snapshot_manager.capture.assert_awaited_once()
 
 
 class TestInteractionTools:
