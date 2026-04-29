@@ -37,10 +37,17 @@ from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_tools im
     billing_conductor_server,
 )
 from awslabs.billing_cost_management_mcp_server.tools.budget_tools import budget_server
+from awslabs.billing_cost_management_mcp_server.tools.bvs_tools import bvs_server
 from awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools import (
     compute_optimizer_server,
 )
+from awslabs.billing_cost_management_mcp_server.tools.cost_allocation_tags_tools import (
+    cost_allocation_tags_server,
+)
 from awslabs.billing_cost_management_mcp_server.tools.cost_anomaly_tools import cost_anomaly_server
+from awslabs.billing_cost_management_mcp_server.tools.cost_category_tools import (
+    cost_category_server,
+)
 from awslabs.billing_cost_management_mcp_server.tools.cost_comparison_tools import (
     cost_comparison_server,
 )
@@ -102,6 +109,9 @@ TOOLS:
 - sp-performance: Analyze Savings Plans coverage and utilization
 - session-sql: Execute SQL queries on the session database
 - billing-conductor: AWS Billing Conductor tools for AWS Proforma billing (billing groups and associated accounts and cost reports, pricing rules/plans, custom line items)
+- billing-view: AWS Billing View tools for managing and querying billing views (get-billing-view, list-billing-views, list-source-views-for-billing-view, get-resource-policy)
+- cost-allocation-tags: List cost allocation tags and backfill history (list-cost-allocation-tags, list-cost-allocation-tag-backfill-history)
+- cost-category: Describe and list cost category definitions (describe-cost-category-definition, list-cost-category-definitions)
 
 PROMPTS:
 - savings_plans: Analyzes AWS usage and identifies opportunities for Savings Plans purchases
@@ -155,6 +165,9 @@ async def setup():
     await mcp.import_server(sp_performance_server)
     await mcp.import_server(unified_sql_server)
     await mcp.import_server(billing_conductor_server)
+    await mcp.import_server(bvs_server)
+    await mcp.import_server(cost_allocation_tags_server)
+    await mcp.import_server(cost_category_server)
 
     await register_prompts()
 
@@ -187,6 +200,14 @@ async def setup():
         'list-custom-line-items',
         'list-custom-line-item-versions',
         'list-resources-associated-to-custom-line-item',
+        'get-billing-view',
+        'list-billing-views',
+        'list-source-views-for-billing-view',
+        'get-resource-policy',
+        'list-cost-allocation-tags',
+        'list-cost-allocation-tag-backfill-history',
+        'describe-cost-category-definition',
+        'list-cost-category-definitions',
     ]
     for tool in tools:
         logger.info(f'- {tool}')

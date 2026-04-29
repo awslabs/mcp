@@ -43,6 +43,81 @@ from pydantic import Field
 from typing import Any, Dict, List, Optional, Union
 
 
+# Policy ARNs that are too dangerous to attach via MCP
+DENIED_POLICY_ARNS = {
+    'arn:aws:iam::aws:policy/AdministratorAccess',
+    'arn:aws:iam::aws:policy/IAMFullAccess',
+    'arn:aws:iam::aws:policy/PowerUserAccess',
+}
+
+
+def _check_denied_policy_arn(policy_arn: str) -> None:
+    """Reject policy ARNs on the denylist."""
+    normalized = policy_arn.strip()
+    if normalized in DENIED_POLICY_ARNS:
+        raise IamValidationError(
+            f'Policy {normalized} is on the denylist and cannot be attached via MCP. '
+            'Use the AWS Console for high-privilege policy changes.'
+        )
+
+
+def _check_wildcard_policy(policy_document: str) -> None:
+    """Reject policy documents that grant Action:* with Resource:*."""
+    doc = json.loads(policy_document)
+    statements = doc.get('Statement', [])
+    if isinstance(statements, dict):
+        statements = [statements]
+    for stmt in statements:
+        if stmt.get('Effect') != 'Allow':
+            continue
+        actions = stmt.get('Action', [])
+        resources = stmt.get('Resource', [])
+        if isinstance(actions, str):
+            actions = [actions]
+        if isinstance(resources, str):
+            resources = [resources]
+        if '*' in actions and '*' in resources:
+            raise IamValidationError(
+                'Policy contains Action:* with Resource:* which grants full access. '
+                'Please scope the policy to specific actions and resources.'
+            )
+
+
+def _check_trust_policy_principal(policy_document: str) -> None:
+    """Reject trust policies that allow any AWS principal."""
+    doc = json.loads(policy_document)
+    statements = doc.get('Statement', [])
+    if isinstance(statements, dict):
+        statements = [statements]
+    for stmt in statements:
+        if stmt.get('Effect') != 'Allow':
+            continue
+        principal = stmt.get('Principal', {})
+        if principal == '*':
+            raise IamValidationError(
+                'Trust policy with Principal:* allows any entity to assume this role. '
+                'Please specify explicit principal ARNs.'
+            )
+        if isinstance(principal, dict):
+            aws_val = principal.get('AWS', [])
+            if isinstance(aws_val, str):
+                aws_val = [aws_val]
+            if '*' in aws_val:
+                raise IamValidationError(
+                    'Trust policy with Principal AWS:* allows any AWS account to assume this role. '
+                    'Please specify explicit account or role ARNs.'
+                )
+
+
+def _require_confirmation(operation: str, details: str) -> None:
+    """Raise an error requesting user confirmation for write operations."""
+    if Context.requires_confirmation():
+        raise IamValidationError(
+            f'CONFIRMATION REQUIRED: {operation}. {details} '
+            'To proceed, call this tool again with confirmed=True after the user explicitly approves.'
+        )
+
+
 mcp = FastMCP(
     'awslabs.iam-mcp-server',
     instructions="""
@@ -248,6 +323,9 @@ async def create_user(
     permissions_boundary: Optional[str] = Field(
         description='ARN of the permissions boundary policy', default=None
     ),
+    confirmed: bool = Field(
+        description='Must be true to confirm this write operation', default=False
+    ),
 ) -> CreateUserResponse:
     """Create a new IAM user.
 
@@ -265,6 +343,7 @@ async def create_user(
         user_name: The name of the new IAM user
         path: The path for the user (default: '/')
         permissions_boundary: Optional ARN of the permissions boundary policy
+        confirmed: Must be true to confirm this write operation
 
     Returns:
         CreateUserResponse containing the created user details
@@ -275,6 +354,9 @@ async def create_user(
         # Check if server is in read-only mode
         if Context.is_readonly():
             raise IamClientError('Cannot create user: server is running in read-only mode')
+
+        if not confirmed:
+            _require_confirmation('create_user', f'Will create IAM user {user_name}.')
 
         if not user_name:
             raise IamValidationError('User name is required')
@@ -320,20 +402,28 @@ async def delete_user(
         description='Force delete user by removing all attached policies, groups, and access keys first',
         default=False,
     ),
+    confirmed: bool = Field(
+        description='Must be true to confirm this write operation', default=False
+    ),
 ) -> Dict[str, Any]:
     """Delete an IAM user.
 
     Args:
         user_name: The name of the IAM user to delete
         force: If True, removes all attached policies, groups, and access keys first
+        confirmed: Must be true to confirm this write operation
 
     Returns:
         Dictionary containing deletion status
     """
     try:
-        # Check if server is in read-only mode
         if Context.is_readonly():
             raise IamClientError('Cannot delete user: server is running in read-only mode')
+
+        if not confirmed:
+            _require_confirmation(
+                'delete_user', f'Will delete IAM user {user_name} (force={force}).'
+            )
 
         iam = get_iam_client()
 
@@ -432,6 +522,9 @@ async def create_role(
     permissions_boundary: Optional[str] = Field(
         description='ARN of the permissions boundary policy', default=None
     ),
+    confirmed: bool = Field(
+        description='Must be true to confirm this write operation', default=False
+    ),
 ) -> Dict[str, Any]:
     """Create a new IAM role.
 
@@ -442,27 +535,34 @@ async def create_role(
         description: Optional description of the role
         max_session_duration: Maximum session duration in seconds
         permissions_boundary: Optional ARN of the permissions boundary policy
+        confirmed: Must be true to confirm this write operation
 
     Returns:
         Dictionary containing the created role details
     """
     try:
-        # Check if server is in read-only mode
         if Context.is_readonly():
             raise IamClientError('Cannot create role: server is running in read-only mode')
-
-        iam = get_iam_client()
 
         # Handle both string and dict types
         if isinstance(assume_role_policy_document, dict):
             policy_document = json.dumps(assume_role_policy_document)
         else:
             policy_document = assume_role_policy_document
-            # Validate JSON
             try:
                 json.loads(policy_document)
             except json.JSONDecodeError:
-                raise Exception('Invalid JSON in assume_role_policy_document')
+                raise IamValidationError('Invalid JSON in assume_role_policy_document')
+
+        _check_trust_policy_principal(policy_document)
+
+        if not confirmed:
+            _require_confirmation(
+                'create_role',
+                f'Will create role {role_name}.',
+            )
+
+        iam = get_iam_client()
 
         kwargs = {
             'RoleName': role_name,
@@ -621,23 +721,33 @@ async def get_managed_policy_document(
 async def attach_user_policy(
     user_name: str = Field(description='The name of the IAM user'),
     policy_arn: str = Field(description='The ARN of the policy to attach'),
+    confirmed: bool = Field(
+        description='Must be true to confirm this write operation', default=False
+    ),
 ) -> Dict[str, Any]:
     """Attach a managed policy to an IAM user.
 
     Args:
         user_name: The name of the IAM user
         policy_arn: The ARN of the policy to attach
+        confirmed: Must be true to confirm this write operation
 
     Returns:
         Dictionary containing attachment status
     """
     try:
-        # Check if server is in read-only mode
         if Context.is_readonly():
             raise IamClientError('Cannot attach policy: server is running in read-only mode')
 
-        iam = get_iam_client()
+        _check_denied_policy_arn(policy_arn)
 
+        if not confirmed:
+            _require_confirmation(
+                'attach_user_policy',
+                f'Will attach policy {policy_arn} to user {user_name}.',
+            )
+
+        iam = get_iam_client()
         iam.attach_user_policy(UserName=user_name, PolicyArn=policy_arn)
 
         return {
@@ -654,20 +764,29 @@ async def attach_user_policy(
 async def detach_user_policy(
     user_name: str = Field(description='The name of the IAM user'),
     policy_arn: str = Field(description='The ARN of the policy to detach'),
+    confirmed: bool = Field(
+        description='Must be true to confirm this write operation', default=False
+    ),
 ) -> Dict[str, Any]:
     """Detach a managed policy from an IAM user.
 
     Args:
         user_name: The name of the IAM user
         policy_arn: The ARN of the policy to detach
+        confirmed: Must be true to confirm this write operation
 
     Returns:
         Dictionary containing detachment status
     """
     try:
-        # Check if server is in read-only mode
         if Context.is_readonly():
             raise IamClientError('Cannot detach policy: server is running in read-only mode')
+
+        if not confirmed:
+            _require_confirmation(
+                'detach_user_policy',
+                f'Will detach policy {policy_arn} from user {user_name}.',
+            )
 
         iam = get_iam_client()
 
@@ -686,35 +805,45 @@ async def detach_user_policy(
 @mcp.tool()
 async def create_access_key(
     user_name: str = Field(description='The name of the IAM user'),
+    confirmed: bool = Field(
+        description='Must be true to confirm this write operation', default=False
+    ),
 ) -> Dict[str, Any]:
     """Create a new access key for an IAM user.
 
     Args:
         user_name: The name of the IAM user
+        confirmed: Must be true to confirm this write operation
 
     Returns:
-        Dictionary containing the new access key details
+        Dictionary containing the new access key details (SecretAccessKey is redacted)
     """
     try:
-        # Check if server is in read-only mode
         if Context.is_readonly():
             raise IamClientError('Cannot create access key: server is running in read-only mode')
 
-        iam = get_iam_client()
+        if not confirmed:
+            _require_confirmation(
+                'create_access_key',
+                f'Will create a new access key for user {user_name}. '
+                'The SecretAccessKey will be redacted from the response for security.',
+            )
 
+        iam = get_iam_client()
         response = iam.create_access_key(UserName=user_name)
         access_key = response['AccessKey']
 
         return {
             'AccessKey': {
                 'AccessKeyId': access_key['AccessKeyId'],
-                'SecretAccessKey': access_key['SecretAccessKey'],
+                'SecretAccessKey': '**REDACTED** - retrieve via AWS Console or CLI directly',
                 'Status': access_key['Status'],
                 'UserName': access_key['UserName'],
                 'CreateDate': access_key['CreateDate'].isoformat(),
             },
             'Message': f'Successfully created access key for user: {user_name}',
-            'Warning': 'Store the SecretAccessKey securely - it cannot be retrieved again!',
+            'Warning': 'SecretAccessKey has been redacted from this response. '
+            'Use the AWS Console or CLI directly to retrieve credentials securely.',
         }
 
     except Exception as e:
@@ -725,20 +854,29 @@ async def create_access_key(
 async def delete_access_key(
     user_name: str = Field(description='The name of the IAM user'),
     access_key_id: str = Field(description='The access key ID to delete'),
+    confirmed: bool = Field(
+        description='Must be true to confirm this write operation', default=False
+    ),
 ) -> Dict[str, Any]:
     """Delete an access key for an IAM user.
 
     Args:
         user_name: The name of the IAM user
         access_key_id: The access key ID to delete
+        confirmed: Must be true to confirm this write operation
 
     Returns:
         Dictionary containing deletion status
     """
     try:
-        # Check if server is in read-only mode
         if Context.is_readonly():
             raise IamClientError('Cannot delete access key: server is running in read-only mode')
+
+        if not confirmed:
+            _require_confirmation(
+                'delete_access_key',
+                f'Will delete access key {access_key_id} for user {user_name}.',
+            )
 
         iam = get_iam_client()
 
@@ -944,6 +1082,9 @@ async def get_group(
 async def create_group(
     group_name: str = Field(description='The name of the new IAM group'),
     path: str = Field('/', description='The path for the group'),
+    confirmed: bool = Field(
+        description='Must be true to confirm this write operation', default=False
+    ),
 ) -> CreateGroupResponse:
     """Create a new IAM group.
 
@@ -958,12 +1099,16 @@ async def create_group(
     Args:
         group_name: The name of the new IAM group
         path: The path for the group (default: '/')
+        confirmed: Must be true to confirm this write operation
 
     Returns:
         CreateGroupResponse containing the created group details
     """
     if Context.is_readonly():
         raise IamValidationError('Cannot create group in read-only mode')
+
+    if not confirmed:
+        _require_confirmation('create_group', f'Will create IAM group {group_name}.')
 
     try:
         iam = get_iam_client()
@@ -993,18 +1138,27 @@ async def delete_group(
     force: bool = Field(
         False, description='Force delete by removing all members and policies first'
     ),
+    confirmed: bool = Field(
+        description='Must be true to confirm this write operation', default=False
+    ),
 ) -> Dict[str, str]:
     """Delete an IAM group.
 
     Args:
         group_name: The name of the IAM group to delete
         force: If True, removes all members and attached policies first
+        confirmed: Must be true to confirm this write operation
 
     Returns:
         Dictionary containing deletion status
     """
     if Context.is_readonly():
         raise IamValidationError('Cannot delete group in read-only mode')
+
+    if not confirmed:
+        _require_confirmation(
+            'delete_group', f'Will delete IAM group {group_name} (force={force}).'
+        )
 
     try:
         iam = get_iam_client()
@@ -1038,18 +1192,27 @@ async def delete_group(
 async def add_user_to_group(
     group_name: str = Field(description='The name of the IAM group'),
     user_name: str = Field(description='The name of the IAM user'),
+    confirmed: bool = Field(
+        description='Must be true to confirm this write operation', default=False
+    ),
 ) -> GroupMembershipResponse:
     """Add a user to an IAM group.
 
     Args:
         group_name: The name of the IAM group
         user_name: The name of the IAM user
+        confirmed: Must be true to confirm this write operation
 
     Returns:
         GroupMembershipResponse containing operation status
     """
     if Context.is_readonly():
         raise IamValidationError('Cannot add user to group in read-only mode')
+
+    if not confirmed:
+        _require_confirmation(
+            'add_user_to_group', f'Will add user {user_name} to group {group_name}.'
+        )
 
     try:
         iam = get_iam_client()
@@ -1069,18 +1232,27 @@ async def add_user_to_group(
 async def remove_user_from_group(
     group_name: str = Field(description='The name of the IAM group'),
     user_name: str = Field(description='The name of the IAM user'),
+    confirmed: bool = Field(
+        description='Must be true to confirm this write operation', default=False
+    ),
 ) -> GroupMembershipResponse:
     """Remove a user from an IAM group.
 
     Args:
         group_name: The name of the IAM group
         user_name: The name of the IAM user
+        confirmed: Must be true to confirm this write operation
 
     Returns:
         GroupMembershipResponse containing operation status
     """
     if Context.is_readonly():
         raise IamValidationError('Cannot remove user from group in read-only mode')
+
+    if not confirmed:
+        _require_confirmation(
+            'remove_user_from_group', f'Will remove user {user_name} from group {group_name}.'
+        )
 
     try:
         iam = get_iam_client()
@@ -1100,18 +1272,30 @@ async def remove_user_from_group(
 async def attach_group_policy(
     group_name: str = Field(description='The name of the IAM group'),
     policy_arn: str = Field(description='The ARN of the policy to attach'),
+    confirmed: bool = Field(
+        description='Must be true to confirm this write operation', default=False
+    ),
 ) -> GroupPolicyAttachmentResponse:
     """Attach a managed policy to an IAM group.
 
     Args:
         group_name: The name of the IAM group
         policy_arn: The ARN of the policy to attach
+        confirmed: Must be true to confirm this write operation
 
     Returns:
         GroupPolicyAttachmentResponse containing operation status
     """
     if Context.is_readonly():
         raise IamValidationError('Cannot attach policy to group in read-only mode')
+
+    _check_denied_policy_arn(policy_arn)
+
+    if not confirmed:
+        _require_confirmation(
+            'attach_group_policy',
+            f'Will attach policy {policy_arn} to group {group_name}.',
+        )
 
     try:
         iam = get_iam_client()
@@ -1131,18 +1315,28 @@ async def attach_group_policy(
 async def detach_group_policy(
     group_name: str = Field(description='The name of the IAM group'),
     policy_arn: str = Field(description='The ARN of the policy to detach'),
+    confirmed: bool = Field(
+        description='Must be true to confirm this write operation', default=False
+    ),
 ) -> GroupPolicyAttachmentResponse:
     """Detach a managed policy from an IAM group.
 
     Args:
         group_name: The name of the IAM group
         policy_arn: The ARN of the policy to detach
+        confirmed: Must be true to confirm this write operation
 
     Returns:
         GroupPolicyAttachmentResponse containing operation status
     """
     if Context.is_readonly():
         raise IamValidationError('Cannot detach policy from group in read-only mode')
+
+    if not confirmed:
+        _require_confirmation(
+            'detach_group_policy',
+            f'Will detach policy {policy_arn} from group {group_name}.',
+        )
 
     try:
         iam = get_iam_client()
@@ -1168,6 +1362,9 @@ async def put_user_policy(
     policy_document: Union[str, dict] = Field(
         description='The policy document in JSON format (string or dict)'
     ),
+    confirmed: bool = Field(
+        description='Must be true to confirm this write operation', default=False
+    ),
 ) -> InlinePolicyResponse:
     """Create or update an inline policy for an IAM user.
 
@@ -1185,6 +1382,7 @@ async def put_user_policy(
         user_name: The name of the IAM user
         policy_name: The name of the inline policy
         policy_document: The policy document in JSON format
+        confirmed: Must be true to confirm this write operation
 
     Returns:
         InlinePolicyResponse containing the policy details and operation status
@@ -1192,7 +1390,6 @@ async def put_user_policy(
     try:
         logger.info(f'Creating/updating inline policy {policy_name} for user: {user_name}')
 
-        # Check if server is in read-only mode
         if Context.is_readonly():
             raise IamClientError(
                 'Cannot create/update inline policy: server is running in read-only mode'
@@ -1201,19 +1398,25 @@ async def put_user_policy(
         if not user_name or not policy_name:
             raise IamValidationError('User name and policy name are required')
 
-        iam = get_iam_client()
-
         # Handle both string and dict types
         if isinstance(policy_document, dict):
             policy_doc = json.dumps(policy_document)
         else:
             policy_doc = policy_document
-            # Validate JSON
             try:
                 json.loads(policy_doc)
             except json.JSONDecodeError:
                 raise IamValidationError('Invalid JSON in policy_document')
 
+        _check_wildcard_policy(policy_doc)
+
+        if not confirmed:
+            _require_confirmation(
+                'put_user_policy',
+                f'Will create/update inline policy {policy_name} for user {user_name}.',
+            )
+
+        iam = get_iam_client()
         iam.put_user_policy(UserName=user_name, PolicyName=policy_name, PolicyDocument=policy_doc)
 
         result = InlinePolicyResponse(
@@ -1282,6 +1485,9 @@ async def get_user_policy(
 async def delete_user_policy(
     user_name: str = Field(description='The name of the IAM user'),
     policy_name: str = Field(description='The name of the inline policy to delete'),
+    confirmed: bool = Field(
+        description='Must be true to confirm this write operation', default=False
+    ),
 ) -> Dict[str, Any]:
     """Delete an inline policy from an IAM user.
 
@@ -1291,6 +1497,7 @@ async def delete_user_policy(
     Args:
         user_name: The name of the IAM user
         policy_name: The name of the inline policy to delete
+        confirmed: Must be true to confirm this write operation
 
     Returns:
         Dictionary containing deletion status
@@ -1306,6 +1513,12 @@ async def delete_user_policy(
 
         if not user_name or not policy_name:
             raise IamValidationError('User name and policy name are required')
+
+        if not confirmed:
+            _require_confirmation(
+                'delete_user_policy',
+                f'Will delete inline policy {policy_name} from user {user_name}.',
+            )
 
         iam = get_iam_client()
 
@@ -1336,6 +1549,9 @@ async def put_role_policy(
     policy_document: Union[str, dict] = Field(
         description='The policy document in JSON format (string or dict)'
     ),
+    confirmed: bool = Field(
+        description='Must be true to confirm this write operation', default=False
+    ),
 ) -> InlinePolicyResponse:
     """Create or update an inline policy for an IAM role.
 
@@ -1347,6 +1563,7 @@ async def put_role_policy(
         role_name: The name of the IAM role
         policy_name: The name of the inline policy
         policy_document: The policy document in JSON format
+        confirmed: Must be true to confirm this write operation
 
     Returns:
         InlinePolicyResponse containing the policy details and operation status
@@ -1354,7 +1571,6 @@ async def put_role_policy(
     try:
         logger.info(f'Creating/updating inline policy {policy_name} for role: {role_name}')
 
-        # Check if server is in read-only mode
         if Context.is_readonly():
             raise IamClientError(
                 'Cannot create/update inline policy: server is running in read-only mode'
@@ -1363,19 +1579,25 @@ async def put_role_policy(
         if not role_name or not policy_name:
             raise IamValidationError('Role name and policy name are required')
 
-        iam = get_iam_client()
-
         # Handle both string and dict types
         if isinstance(policy_document, dict):
             policy_doc = json.dumps(policy_document)
         else:
             policy_doc = policy_document
-            # Validate JSON
             try:
                 json.loads(policy_doc)
             except json.JSONDecodeError:
                 raise IamValidationError('Invalid JSON in policy_document')
 
+        _check_wildcard_policy(policy_doc)
+
+        if not confirmed:
+            _require_confirmation(
+                'put_role_policy',
+                f'Will create/update inline policy {policy_name} for role {role_name}.',
+            )
+
+        iam = get_iam_client()
         iam.put_role_policy(RoleName=role_name, PolicyName=policy_name, PolicyDocument=policy_doc)
 
         result = InlinePolicyResponse(
@@ -1444,6 +1666,9 @@ async def get_role_policy(
 async def delete_role_policy(
     role_name: str = Field(description='The name of the IAM role'),
     policy_name: str = Field(description='The name of the inline policy to delete'),
+    confirmed: bool = Field(
+        description='Must be true to confirm this write operation', default=False
+    ),
 ) -> Dict[str, Any]:
     """Delete an inline policy from an IAM role.
 
@@ -1453,6 +1678,7 @@ async def delete_role_policy(
     Args:
         role_name: The name of the IAM role
         policy_name: The name of the inline policy to delete
+        confirmed: Must be true to confirm this write operation
 
     Returns:
         Dictionary containing deletion status
@@ -1468,6 +1694,12 @@ async def delete_role_policy(
 
         if not role_name or not policy_name:
             raise IamValidationError('Role name and policy name are required')
+
+        if not confirmed:
+            _require_confirmation(
+                'delete_role_policy',
+                f'Will delete inline policy {policy_name} from role {role_name}.',
+            )
 
         iam = get_iam_client()
 
@@ -1574,19 +1806,26 @@ def main():
         description='An AWS Labs Model Context Protocol (MCP) server for comprehensive AWS IAM management'
     )
     parser.add_argument(
-        '--readonly',
+        '--allow-write',
         action='store_true',
-        help='Run server in read-only mode (prevents all mutating operations)',
+        help='Enable write operations (server defaults to read-only mode)',
+    )
+    parser.add_argument(
+        '--no-confirmation',
+        action='store_true',
+        help='Disable confirmation prompts for write operations (not recommended)',
     )
 
     args = parser.parse_args()
 
-    # Set read-only mode if specified
-    if args.readonly:
-        Context.set_readonly(True)
-        logger.info('Server started in READ-ONLY mode - all mutating operations are disabled')
+    if args.allow_write:
+        Context.set_readonly(False)
+        logger.info('Server started in WRITE mode - mutating operations are enabled')
     else:
-        logger.info('Server started in FULL ACCESS mode')
+        logger.info('Server started in READ-ONLY mode - all mutating operations are disabled')
+
+    if args.no_confirmation:
+        Context.set_require_confirmation(False)
 
     # Run the MCP server
     mcp.run()

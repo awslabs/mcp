@@ -22,10 +22,10 @@ from unittest.mock import MagicMock, patch
 
 def test_operation_prompt_registration():
     """Test that operation prompts are registered correctly."""
-    # Create a mock server with _prompt_manager.add_prompt_from_fn
+    # Create a mock server with add_prompt
     server = MagicMock()
-    server._prompt_manager = MagicMock()
-    server._prompt_manager.add_prompt = MagicMock()
+    server.add_prompt = MagicMock()
+    # add_prompt already mocked on server
 
     # Call create_operation_prompt
     result = create_operation_prompt(
@@ -44,10 +44,10 @@ def test_operation_prompt_registration():
 
     # Check that the prompt was registered
     assert result is True
-    server._prompt_manager.add_prompt.assert_called_once()
+    server.add_prompt.assert_called_once()
 
     # Check the prompt data
-    prompt = server._prompt_manager.add_prompt.call_args[0][0]
+    prompt = server.add_prompt.call_args[0][0]
     name = prompt.name
     description = prompt.description
 
@@ -65,10 +65,10 @@ def test_operation_prompt_registration():
 
 def test_workflow_prompt_registration():
     """Test that workflow prompts are registered correctly."""
-    # Create a mock server with _prompt_manager.add_prompt
+    # Create a mock server with add_prompt
     server = MagicMock()
-    server._prompt_manager = MagicMock()
-    server._prompt_manager.add_prompt = MagicMock()
+    server.add_prompt = MagicMock()
+    # add_prompt already mocked on server
 
     # Create a test workflow
     workflow = {
@@ -87,10 +87,10 @@ def test_workflow_prompt_registration():
 
     # Check that the prompt was registered
     assert result is True
-    server._prompt_manager.add_prompt.assert_called_once()
+    server.add_prompt.assert_called_once()
 
     # Check the prompt data
-    prompt = server._prompt_manager.add_prompt.call_args[0][0]
+    prompt = server.add_prompt.call_args[0][0]
     name = prompt.name
     description = prompt.description
 
@@ -107,14 +107,14 @@ def test_workflow_prompt_registration():
 
 
 def test_missing_add_prompt_method():
-    """Test behavior when server doesn't have _prompt_manager."""
+    """Test behavior when server doesn't have add_prompt."""
 
-    # Create a server object without _prompt_manager
+    # Create a server object without add_prompt
     class EmptyServer:
         pass
 
     server = EmptyServer()
-    # No _prompt_manager attribute
+    # No add_prompt attribute
 
     # Call create_operation_prompt
     result = create_operation_prompt(
@@ -140,8 +140,8 @@ async def test_prompt_manager_generate_prompts():
     """Test the generate_prompts method."""
     # Create a mock server
     server = MagicMock()
-    server._prompt_manager = MagicMock()
-    server._prompt_manager.add_prompt = MagicMock()
+    server.add_prompt = MagicMock()
+    # add_prompt already mocked on server
 
     # Create a simple OpenAPI spec
     openapi_spec = {'paths': {'/test': {'get': {'operationId': 'getTest', 'summary': 'Get test'}}}}
