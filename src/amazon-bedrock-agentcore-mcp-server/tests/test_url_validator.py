@@ -172,6 +172,17 @@ class TestURLValidator:
         result = validate_urls('https://docs.aws.amazon.com/test')
         assert result == ['https://docs.aws.amazon.com/test']
 
+    def test_rejects_control_characters(self):
+        """URLs with control characters (CRLF injection) must be rejected."""
+        validator = URLValidator(['https://docs.aws.amazon.com'])
+        assert not validator.is_url_allowed('https://docs.aws.amazon.com/\r\ninjection')
+        assert not validator.is_url_allowed('https://docs.aws.amazon.com/\x00null')
+
+    def test_rejects_userinfo_in_url(self):
+        """URLs with userinfo (user@host) must be rejected."""
+        validator = URLValidator(['https://docs.aws.amazon.com'])
+        assert not validator.is_url_allowed('https://attacker.com@docs.aws.amazon.com/page')
+
     def test_empty_and_none_urls(self):
         """Empty/None values must be rejected."""
         validator = URLValidator(['https://docs.aws.amazon.com'])

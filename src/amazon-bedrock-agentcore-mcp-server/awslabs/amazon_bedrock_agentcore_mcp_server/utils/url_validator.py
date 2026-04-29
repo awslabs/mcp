@@ -55,9 +55,15 @@ class URLValidator:
         if not url or not isinstance(url, str):
             return False
 
+        if any(c in url for c in '\r\n\x00'):
+            return False
+
         parsed = urlparse(url)
 
         if parsed.scheme != 'https':
+            return False
+
+        if '@' in parsed.netloc:
             return False
 
         hostname = parsed.hostname or ''
