@@ -43,12 +43,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 BROWSER_PKG = 'awslabs.amazon_bedrock_agentcore_mcp_server.tools.browser'
 
-# The non-browser tools registered by default (docs always-on + guides + runtime)
-BASE_TOOLS = {
-    # Docs (always on)
+# Docs tools (always on)
+DOCS_TOOLS = {
     'search_agentcore_docs',
     'fetch_agentcore_doc',
-    # Runtime (14 operational tools)
+}
+
+# Runtime tools (14 operational)
+RUNTIME_TOOLS = {
     'create_agent_runtime',
     'get_agent_runtime',
     'update_agent_runtime',
@@ -63,10 +65,40 @@ BASE_TOOLS = {
     'invoke_agent_runtime',
     'stop_runtime_session',
     'get_runtime_guide',
-    # Memory + Gateway guides
-    'manage_agentcore_memory',
+}
+
+# Memory tools (21 operational)
+MEMORY_TOOLS = {
+    'memory_create',
+    'memory_get',
+    'memory_update',
+    'memory_delete',
+    'memory_list',
+    'memory_create_event',
+    'memory_get_event',
+    'memory_delete_event',
+    'memory_list_events',
+    'memory_list_actors',
+    'memory_list_sessions',
+    'memory_get_record',
+    'memory_delete_record',
+    'memory_list_records',
+    'memory_retrieve_records',
+    'memory_batch_create_records',
+    'memory_batch_update_records',
+    'memory_batch_delete_records',
+    'memory_list_extraction_jobs',
+    'memory_start_extraction_job',
+    'get_memory_guide',
+}
+
+# Gateway guide (still flat)
+GUIDE_TOOLS = {
     'manage_agentcore_gateway',
 }
+
+# Base tools = everything except browser
+BASE_TOOLS = DOCS_TOOLS | RUNTIME_TOOLS | MEMORY_TOOLS | GUIDE_TOOLS
 
 # All 25 browser tools
 BROWSER_TOOLS = {
@@ -99,18 +131,20 @@ BROWSER_TOOLS = {
 
 
 def _build_server(*, disable: str | None = None, enable: str | None = None) -> FastMCP:
-    """Build a fresh FastMCP server mirroring server.py registration logic.
+    """Build a fresh FastMCP server mirroring server.py registration.
 
     Creates an isolated server instance with env-var-driven opt-in/opt-out,
     without touching the module-level singleton in server.py.
     """
-    # Temporarily override env vars for _is_service_enabled
     import os
     from awslabs.amazon_bedrock_agentcore_mcp_server.server import (
         AGENTCORE_MCP_INSTRUCTIONS,
         _is_service_enabled,
     )
-    from awslabs.amazon_bedrock_agentcore_mcp_server.tools import docs, gateway, memory
+    from awslabs.amazon_bedrock_agentcore_mcp_server.tools import (
+        docs,
+        gateway,
+    )
 
     old_disable = os.environ.pop('AGENTCORE_DISABLE_TOOLS', None)
     old_enable = os.environ.pop('AGENTCORE_ENABLE_TOOLS', None)
@@ -120,7 +154,10 @@ def _build_server(*, disable: str | None = None, enable: str | None = None) -> F
         if enable is not None:
             os.environ['AGENTCORE_ENABLE_TOOLS'] = enable
 
-        server = FastMCP('test-agentcore-mcp', instructions=AGENTCORE_MCP_INSTRUCTIONS)
+        server = FastMCP(
+            'test-agentcore-mcp',
+            instructions=AGENTCORE_MCP_INSTRUCTIONS,
+        )
 
         # Docs always registered
         server.tool()(docs.search_agentcore_docs)
@@ -134,7 +171,12 @@ def _build_server(*, disable: str | None = None, enable: str | None = None) -> F
             register_runtime_tools(server)
 
         if _is_service_enabled('memory'):
-            server.tool()(memory.manage_agentcore_memory)
+            from awslabs.amazon_bedrock_agentcore_mcp_server.tools.memory import (
+                register_memory_tools,
+            )
+
+            register_memory_tools(server)
+
         if _is_service_enabled('gateway'):
             server.tool()(gateway.manage_agentcore_gateway)
 
@@ -147,7 +189,6 @@ def _build_server(*, disable: str | None = None, enable: str | None = None) -> F
 
         return server
     finally:
-        # Restore env vars
         if old_disable is not None:
             os.environ['AGENTCORE_DISABLE_TOOLS'] = old_disable
         else:
@@ -164,7 +205,7 @@ def _build_server(*, disable: str | None = None, enable: str | None = None) -> F
 
 
 class TestToolDiscovery:
-    """Verify tool listing through the MCP protocol under different configs."""
+    """Verify tool listing through the MCP protocol."""
 
     async def test_list_tools_default_config(self):
         """Default config registers all tools (base + browser)."""
@@ -176,7 +217,7 @@ class TestToolDiscovery:
             assert names == BASE_TOOLS | BROWSER_TOOLS
 
     async def test_list_tools_browser_disabled(self):
-        """AGENTCORE_DISABLE_TOOLS=browser removes all browser tools."""
+        """AGENTCORE_DISABLE_TOOLS=browser removes browser tools."""
         server = _build_server(disable='browser')
         async with create_connected_server_and_client_session(server) as client:
             result = await client.list_tools()
@@ -186,19 +227,18 @@ class TestToolDiscovery:
             assert names.isdisjoint(BROWSER_TOOLS)
 
     async def test_list_tools_browser_and_docs_only(self):
-        """AGENTCORE_ENABLE_TOOLS=browser,docs registers browser + docs, no guides or runtime."""
+        """AGENTCORE_ENABLE_TOOLS=browser,docs registers only those."""
         server = _build_server(enable='browser,docs')
         async with create_connected_server_and_client_session(server) as client:
             result = await client.list_tools()
             names = {t.name for t in result.tools}
 
-            # Docs always on + browser enabled
             assert 'search_agentcore_docs' in names
             assert 'start_browser_session' in names
             # Runtime, memory, gateway disabled
             assert 'get_runtime_guide' not in names
             assert 'create_agent_runtime' not in names
-            assert 'manage_agentcore_memory' not in names
+            assert names.isdisjoint(MEMORY_TOOLS)
             assert 'manage_agentcore_gateway' not in names
 
     async def test_list_tools_only_docs(self):
@@ -232,7 +272,7 @@ class TestToolSchemas:
                 )
 
     async def test_browser_tools_require_session_id(self):
-        """All browser interaction tools (except session lifecycle) require session_id."""
+        """Browser interaction tools require session_id."""
         session_lifecycle_tools = {
             'start_browser_session',
             'list_browser_sessions',
@@ -251,15 +291,13 @@ class TestToolSchemas:
                 schema = tool.inputSchema
                 required = schema.get('required', [])
                 properties = schema.get('properties', {})
-                assert 'session_id' in properties, (
-                    f'Browser tool {tool.name} missing session_id parameter'
-                )
+                assert 'session_id' in properties, f'Browser tool {tool.name} missing session_id'
                 assert 'session_id' in required, (
                     f'Browser tool {tool.name} should require session_id'
                 )
 
     async def test_start_browser_session_has_optional_params(self):
-        """start_browser_session exposes viewport, timeout, and region params."""
+        """start_browser_session exposes viewport, timeout, region."""
         server = _build_server()
         async with create_connected_server_and_client_session(server) as client:
             result = await client.list_tools()
@@ -271,6 +309,30 @@ class TestToolSchemas:
             assert 'timeout_seconds' in props
             assert 'region' in props
 
+    async def test_memory_tools_require_memory_id(self):
+        """Memory data plane tools require memory_id parameter."""
+        exempt = {
+            'get_memory_guide',
+            'memory_create',
+            'memory_list',
+        }
+
+        server = _build_server()
+        async with create_connected_server_and_client_session(server) as client:
+            result = await client.list_tools()
+
+            for tool in result.tools:
+                if tool.name not in MEMORY_TOOLS:
+                    continue
+                if tool.name in exempt:
+                    continue
+
+                schema = tool.inputSchema
+                required = schema.get('required', [])
+                properties = schema.get('properties', {})
+                assert 'memory_id' in properties, f'Memory tool {tool.name} missing memory_id'
+                assert 'memory_id' in required, f'Memory tool {tool.name} should require memory_id'
+
 
 # ===========================================================================
 # Tool Invocation Through Protocol
@@ -281,11 +343,12 @@ class TestToolInvocation:
     """Call tools through the MCP protocol and verify responses."""
 
     async def test_browser_snapshot_invalid_session(self):
-        """browser_snapshot with a bogus session_id returns error text, no crash."""
+        """browser_snapshot with bogus session_id returns error text."""
         server = _build_server()
         async with create_connected_server_and_client_session(server) as client:
             result = await client.call_tool(
-                'browser_snapshot', {'session_id': 'nonexistent-session-id'}
+                'browser_snapshot',
+                {'session_id': 'nonexistent-session-id'},
             )
 
             assert len(result.content) > 0
@@ -294,12 +357,15 @@ class TestToolInvocation:
             assert 'error' in first.text.lower() or 'Error' in first.text
 
     async def test_browser_navigate_invalid_session(self):
-        """browser_navigate with a bogus session_id returns error text."""
+        """browser_navigate with bogus session_id returns error."""
         server = _build_server()
         async with create_connected_server_and_client_session(server) as client:
             result = await client.call_tool(
                 'browser_navigate',
-                {'session_id': 'nonexistent-session-id', 'url': 'https://example.com'},
+                {
+                    'session_id': 'nonexistent-session-id',
+                    'url': 'https://example.com',
+                },
             )
 
             first = result.content[0]
@@ -307,12 +373,15 @@ class TestToolInvocation:
             assert 'error' in first.text.lower() or 'Error' in first.text
 
     async def test_browser_click_invalid_session(self):
-        """browser_click with a bogus session_id returns error text."""
+        """browser_click with bogus session_id returns error."""
         server = _build_server()
         async with create_connected_server_and_client_session(server) as client:
             result = await client.call_tool(
                 'browser_click',
-                {'session_id': 'nonexistent-session-id', 'ref': 'e1'},
+                {
+                    'session_id': 'nonexistent-session-id',
+                    'ref': 'e1',
+                },
             )
 
             first = result.content[0]
@@ -325,7 +394,11 @@ class TestToolInvocation:
         async with create_connected_server_and_client_session(server) as client:
             result = await client.call_tool(
                 'browser_resize',
-                {'session_id': 'nonexistent', 'width': 50, 'height': 50},
+                {
+                    'session_id': 'nonexistent',
+                    'width': 50,
+                    'height': 50,
+                },
             )
 
             first = result.content[0]
@@ -333,7 +406,7 @@ class TestToolInvocation:
             assert 'out of bounds' in first.text.lower() or 'Error' in first.text
 
     async def test_start_session_mocked_api(self):
-        """start_browser_session through protocol with mocked AWS API."""
+        """start_browser_session with mocked AWS API."""
         server = _build_server()
 
         mock_client = MagicMock()
@@ -341,14 +414,21 @@ class TestToolInvocation:
             'sessionId': 'sess-mock-123',
             'browserIdentifier': 'aws.browser.v1',
             'streams': {
-                'automationStream': {'streamEndpoint': 'wss://mock.endpoint/ws'},
-                'liveViewStream': {'streamEndpoint': 'https://mock.endpoint/live'},
+                'automationStream': {
+                    'streamEndpoint': 'wss://mock.endpoint/ws',
+                },
+                'liveViewStream': {
+                    'streamEndpoint': 'https://mock.endpoint/live',
+                },
             },
             'viewPort': {'width': 1456, 'height': 819},
             'createdAt': '2026-01-01T00:00:00Z',
         }
 
-        with patch(f'{BROWSER_PKG}.session.get_browser_client', return_value=mock_client):
+        with patch(
+            f'{BROWSER_PKG}.session.get_browser_client',
+            return_value=mock_client,
+        ):
             with patch(
                 f'{BROWSER_PKG}.connection_manager.BrowserConnectionManager.connect',
                 new_callable=AsyncMock,
@@ -359,25 +439,35 @@ class TestToolInvocation:
                         {'timeout_seconds': 300},
                     )
 
-                    # The tool returns a structured BrowserSessionResponse
                     assert len(result.content) > 0
                     first = result.content[0]
                     assert isinstance(first, TextContent)
                     assert 'sess-mock-123' in first.text
 
     async def test_list_sessions_mocked_api(self):
-        """list_browser_sessions through protocol with mocked AWS API."""
+        """list_browser_sessions with mocked AWS API."""
         server = _build_server()
 
         mock_client = MagicMock()
         mock_client.list_sessions.return_value = {
             'items': [
-                {'sessionId': 'sess-1', 'status': 'ACTIVE', 'createdAt': '2026-01-01T00:00:00Z'},
-                {'sessionId': 'sess-2', 'status': 'ACTIVE', 'createdAt': '2026-01-01T00:01:00Z'},
+                {
+                    'sessionId': 'sess-1',
+                    'status': 'ACTIVE',
+                    'createdAt': '2026-01-01T00:00:00Z',
+                },
+                {
+                    'sessionId': 'sess-2',
+                    'status': 'ACTIVE',
+                    'createdAt': '2026-01-01T00:01:00Z',
+                },
             ],
         }
 
-        with patch(f'{BROWSER_PKG}.session.get_browser_client', return_value=mock_client):
+        with patch(
+            f'{BROWSER_PKG}.session.get_browser_client',
+            return_value=mock_client,
+        ):
             async with create_connected_server_and_client_session(server) as client:
                 result = await client.call_tool('list_browser_sessions', {})
 
@@ -395,7 +485,7 @@ class TestToolInvocation:
             assert len(result.content) > 0
 
     async def test_calling_nonexistent_tool_raises(self):
-        """Calling a tool that doesn't exist raises an error."""
+        """Calling a nonexistent tool raises an error."""
         server = _build_server()
         async with create_connected_server_and_client_session(server) as client:
             try:
@@ -414,11 +504,9 @@ class TestServerCapabilities:
     """Verify server metadata exposed through the MCP protocol."""
 
     async def test_server_has_tools_capability(self):
-        """Server advertises tools capability after initialization."""
+        """Server advertises tools capability after init."""
         server = _build_server()
         async with create_connected_server_and_client_session(server) as client:
-            # After initialize(), the client knows what the server supports.
-            # list_tools working is itself proof of tools capability.
             result = await client.list_tools()
             assert len(result.tools) > 0
 
@@ -435,18 +523,15 @@ class TestServerCapabilities:
 
 
 class TestGracefulDegradation:
-    """Verify server handles missing browser dependencies gracefully."""
+    """Verify server handles missing dependencies gracefully."""
 
     async def test_server_works_without_browser_import(self):
-        """If browser module import fails, server still serves base tools."""
+        """If browser import fails, server still serves base tools."""
         server = FastMCP('test-degraded')
         from awslabs.amazon_bedrock_agentcore_mcp_server.tools import docs
 
         server.tool()(docs.search_agentcore_docs)
         server.tool()(docs.fetch_agentcore_doc)
-
-        # Simulate what server.py does when ImportError is caught
-        # (browser tools not registered)
 
         async with create_connected_server_and_client_session(server) as client:
             result = await client.list_tools()
@@ -457,7 +542,7 @@ class TestGracefulDegradation:
             assert names.isdisjoint(BROWSER_TOOLS)
 
     async def test_browser_evaluate_disabled_env(self):
-        """BROWSER_DISABLE_EVALUATE=true omits browser_evaluate from tool list."""
+        """BROWSER_DISABLE_EVALUATE=true omits browser_evaluate."""
         import awslabs.amazon_bedrock_agentcore_mcp_server.tools.browser.observation as obs_mod
         import importlib
         import os
@@ -465,7 +550,6 @@ class TestGracefulDegradation:
         old = os.environ.get('BROWSER_DISABLE_EVALUATE')
         os.environ['BROWSER_DISABLE_EVALUATE'] = 'true'
         try:
-            # Reimport observation module to pick up env var
             importlib.reload(obs_mod)
 
             server = _build_server()
@@ -474,7 +558,6 @@ class TestGracefulDegradation:
                 names = {t.name for t in result.tools}
 
                 assert 'browser_evaluate' not in names
-                # Other browser tools still present
                 assert 'browser_snapshot' in names
                 assert 'browser_click' in names
         finally:
@@ -482,5 +565,4 @@ class TestGracefulDegradation:
                 os.environ['BROWSER_DISABLE_EVALUATE'] = old
             else:
                 os.environ.pop('BROWSER_DISABLE_EVALUATE', None)
-            # Reload again to restore default state
             importlib.reload(obs_mod)

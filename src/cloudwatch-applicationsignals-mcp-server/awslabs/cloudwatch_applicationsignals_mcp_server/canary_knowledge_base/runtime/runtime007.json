@@ -1,0 +1,71 @@
+{
+  "category": "browser_cleanup",
+  "documentation_links": [
+    {
+      "title": "CloudWatch Synthetics Runtime Versions",
+      "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Synthetics_Library_nodejs_puppeteer.html"
+    }
+  ],
+  "error_patterns": [
+    {
+      "text_contains": "Removing profile directory"
+    },
+    {
+      "text_contains": "Har generation stopped"
+    },
+    {
+      "text_contains": "browser.close"
+    },
+    {
+      "text_contains": "puppeteer_dev_chrome_profile"
+    }
+  ],
+  "id": "RUNTIME-007",
+  "recommendations": [
+    {
+      "confidence": 95,
+      "estimated_time": "10 minutes",
+      "priority": "high",
+      "problem": "browser.close() hangs during post-script cleanup, causing Lambda timeout despite successful script execution",
+      "solution": [
+        {
+          "command": "# Via AWS Console:\n# 1. Navigate to CloudWatch Synthetics console\n# 2. Select your canary\n# 3. Click \"Actions\" > \"Edit\"\n# 4. Under \"Runtime version\", select syn-nodejs-puppeteer-10.0 or later\n# 5. Save changes\n\n# Via AWS CLI:\naws synthetics update-canary \\\n  --name <canary-name> \\\n  --region <canary-region> \\\n  --runtime-version syn-nodejs-puppeteer-10.0\n",
+          "description": "This bug is fixed in syn-nodejs-puppeteer-10.0. Upgrade the canary runtime version.",
+          "expected_outcome": "browser.close() completes promptly after script execution. Canary no longer times out during cleanup.",
+          "step": "Upgrade canary runtime to syn-nodejs-puppeteer-10.0+"
+        },
+        {
+          "command": "// Add at the end of your canary handler, before returning:\nconst page = await synthetics.getPage();\nawait page.goto('about:blank');\n",
+          "description": "As a script-level workaround before upgrading, navigate the page to about:blank at the end of your canary handler. This helps Chromium close cleanly and avoids the hang.",
+          "expected_outcome": "browser.close() completes promptly. Canary no longer times out during cleanup.",
+          "step": "Navigate to about:blank at the end of the canary script"
+        }
+      ],
+      "title": "Upgrade to syn-nodejs-puppeteer-10.0 or later"
+    }
+  ],
+  "root_cause": "In syn-nodejs-puppeteer-8.0 through 9.1, browser.close() can hang for ~57 seconds when Chromium holds open network connections or pending requests at cleanup time. The hang occurs between HAR generation completing and the profile directory being removed. If the remaining Lambda execution time is less than the hang duration, Lambda times out and the run is marked failed \u2014 even though all canary steps passed. Sites that make continuous background network calls (e.g., WebSocket keep-alives, long-polling) are most likely to trigger this. Fixed in syn-nodejs-puppeteer-10.0.",
+  "runtime_versions": [
+    "syn-nodejs-puppeteer-8.0",
+    "syn-nodejs-puppeteer-9.0",
+    "syn-nodejs-puppeteer-9.1"
+  ],
+  "severity": "medium",
+  "symptoms": [
+    "Canary fails with a timeout despite all steps passing and the page loading successfully",
+    "Logs show a long pause (~57 seconds) between 'Har generation stopped' and 'Removing profile directory'",
+    "Issue is intermittent \u2014 most runs succeed, occasional runs hang during cleanup",
+    "No errors appear in the canary script execution; the freeze occurs in post-script cleanup",
+    "Target website makes a large number of continuous network calls even after page load"
+  ],
+  "tags": [
+    "browser-cleanup",
+    "browser-close",
+    "lambda-timeout",
+    "puppeteer",
+    "intermittent",
+    "runtime-bug",
+    "syn-nodejs-puppeteer-10.0"
+  ],
+  "title": "Canary times out during browser cleanup despite successful page load"
+}
