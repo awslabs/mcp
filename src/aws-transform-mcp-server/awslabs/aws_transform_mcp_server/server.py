@@ -67,12 +67,6 @@ NEVER auto-submit. Never guess response content — use `_outputSchema` and
 may still be generating.
 
 # Tool Selection
-- **Job status / progress (polling)** → use `get_job_status` for a complete snapshot
-  (job metadata, worklogs, HITL tasks, messages, plan) in a single call.
-  IMPORTANT: After calling get_job_status, if `_pollingGuidance.isTerminal` is false,
-  you MUST automatically call it again in 1 minute. DO NOT ask the user — just poll.
-  Keep polling until isTerminal is true or the user says stop.
-  If `hasPendingTasks` is true, handle HITL tasks immediately.
 - **Job status / progress (interactive)** → use `send_message` scoped to the job
   to ask the Transform assistant about status. The assistant has full job context.
   Also call `list_resources(resource="worklogs")` for recent activity.
@@ -85,6 +79,13 @@ may still be generating.
 - Create a new connector → `create_connector`
 - Associate an IAM role with an existing connector → `accept_connector`
 - Check connection health → `get_status`
+- **Job status use only if send message response is not good and you need to make all these
+calls independently / progress (polling)** → use `get_job_status` for a complete snapshot
+  (job metadata, worklogs, HITL tasks, messages, plan) in a single call.
+  IMPORTANT: After calling get_job_status, if `_pollingGuidance.isTerminal` is false,
+  you MUST automatically call it again in 1 minute. DO NOT ask the user — just poll.
+  Keep polling until isTerminal is true or the user says stop.
+  If `hasPendingTasks` is true, handle HITL tasks immediately.
 
 # Error Recovery
 

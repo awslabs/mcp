@@ -100,7 +100,7 @@ class TestUploadArtifactFromFile:
             # Verify fileMetadata was sent
             create_call = mock_fes.call_args_list[0]
             body = create_call[0][1]
-            assert body['fileMetadata']['fileName'] == os.path.basename(temp_path)
+            assert body.fileMetadata.path == os.path.basename(temp_path)
         finally:
             os.unlink(temp_path)
 
@@ -269,7 +269,11 @@ class TestUploadArtifactEdgeCases:
             workspaceId='ws-1',
             jobId='j-1',
             content='{"key": "val"}',
+            encoding='utf-8',
             categoryType='GENERAL',
+            fileType='JSON',
+            fileName=None,
+            planStepId=None,
         )
         parsed = _parse(result)
         assert parsed['error']['code'] == 'UPLOAD_FAILED'
@@ -299,13 +303,16 @@ class TestUploadArtifactEdgeCases:
             workspaceId='ws-1',
             jobId='j-1',
             content='{"key": "val"}',
+            encoding='utf-8',
             categoryType='GENERAL',
+            fileType='JSON',
+            fileName=None,
             planStepId='step-1',
         )
         parsed = _parse(result)
         assert parsed['success'] is True
         create_body = mock_fes.call_args_list[0][0][1]
-        assert create_body['planStepId'] == 'step-1'
+        assert create_body.planStepId == 'step-1'
 
     @pytest.mark.asyncio
     @patch(
@@ -320,7 +327,11 @@ class TestUploadArtifactEdgeCases:
             workspaceId='ws-1',
             jobId='j-1',
             content='{"key": "val"}',
+            encoding='utf-8',
             categoryType='GENERAL',
+            fileType='JSON',
+            fileName=None,
+            planStepId=None,
         )
         parsed = _parse(result)
         assert parsed['success'] is False

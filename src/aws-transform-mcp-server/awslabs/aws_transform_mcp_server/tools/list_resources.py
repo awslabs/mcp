@@ -20,6 +20,19 @@ from awslabs.aws_transform_mcp_server.config_store import (
     is_fes_available,
 )
 from awslabs.aws_transform_mcp_server.fes_client import FESOperation, call_fes, paginate_all
+from awslabs.aws_transform_mcp_server.fes_models import (
+    BatchGetMessageRequest,
+    BatchGetUserDetailsRequest,
+    ChatJobMetadata,
+    GetJobRequest,
+    ListJobPlanStepsRequest,
+    ListMessagesRequest,
+    ListPlanUpdatesRequest,
+    Metadata,
+    ResourcesOnScreen,
+    SearchUsersTypeaheadRequest,
+    WorkspaceMetadata,
+)
 from awslabs.aws_transform_mcp_server.guidance_nudge import job_needs_check
 from awslabs.aws_transform_mcp_server.tool_utils import (
     READ_ONLY,
@@ -440,7 +453,10 @@ class ListResourcesHandler:
 
                 resolved_path_prefix = pathPrefix
                 if jobId and not pathPrefix:
-                    job = await call_fes('GetJob', {'workspaceId': workspaceId, 'jobId': jobId})
+                    job = await call_fes(
+                        'GetJob',
+                        GetJobRequest(workspaceId=workspaceId, jobId=jobId),
+                    )
                     job_type = job.get('jobType', '') if isinstance(job, dict) else ''
                     is_mainframe = 'MAINFRAME' in job_type.upper()
 
@@ -474,16 +490,17 @@ class ListResourcesHandler:
                     return error_result(
                         'VALIDATION_ERROR', 'workspaceId is required for listing messages.'
                     )
-                workspace: Dict[str, Any] = {'workspaceId': workspaceId}
-                if jobId:
-                    workspace['jobs'] = [{'jobId': jobId, 'focusState': 'ACTIVE'}]
-                body: Dict[str, Any] = {
-                    'metadata': {'resourcesOnScreen': {'workspace': workspace}}
-                }
-                if startTimestamp is not None:
-                    body['startTimestamp'] = startTimestamp
-                with_pagination(body, maxResults, nextToken)
-                list_result = await call_fes('ListMessages', body)
+                ws_meta = WorkspaceMetadata(
+                    workspaceId=workspaceId,
+                    jobs=([ChatJobMetadata(jobId=jobId, focusState='ACTIVE')] if jobId else None),
+                )
+                list_req = ListMessagesRequest(
+                    metadata=Metadata(resourcesOnScreen=ResourcesOnScreen(workspace=ws_meta)),
+                    startTimestamp=startTimestamp,
+                    maxResults=maxResults,
+                    nextToken=nextToken,
+                )
+                list_result = await call_fes('ListMessages', list_req)
                 message_ids = (
                     list_result.get('messageIds', []) if isinstance(list_result, dict) else []
                 )
@@ -502,7 +519,7 @@ class ListResourcesHandler:
                     batch = message_ids[i : i + 100]
                     batch_result = await call_fes(
                         'BatchGetMessage',
-                        {'messageIds': batch, 'workspaceId': workspaceId},
+                        BatchGetMessageRequest(messageIds=batch, workspaceId=workspaceId),
                     )
                     if isinstance(batch_result, dict):
                         all_messages.extend(batch_result.get('messages', []))
@@ -554,20 +571,23 @@ class ListResourcesHandler:
                         'VALIDATION_ERROR', 'jobId is required for getting the plan.'
                     )
 
-                steps_body = with_pagination(
-                    {'workspaceId': workspaceId, 'jobId': jobId},
-                    maxResults,
-                    stepsNextToken or nextToken,
+                steps_req = ListJobPlanStepsRequest(
+                    workspaceId=workspaceId,
+                    jobId=jobId,
+                    maxResults=maxResults,
+                    nextToken=(stepsNextToken or nextToken),
                 )
-                updates_body = with_pagination(
-                    {'workspaceId': workspaceId, 'jobId': jobId},
-                    maxResults,
-                    updatesNextToken or nextToken,
+                updates_req = ListPlanUpdatesRequest(
+                    workspaceId=workspaceId,
+                    jobId=jobId,
+                    timestamp=0,
+                    planVersion='1',
+                    nextToken=(updatesNextToken or nextToken),
                 )
 
                 results = await asyncio.gather(
-                    call_fes('ListJobPlanSteps', steps_body),
-                    call_fes('ListPlanUpdates', updates_body),
+                    call_fes('ListJobPlanSteps', steps_req),
+                    call_fes('ListPlanUpdates', updates_req),
                     return_exceptions=True,
                 )
 
@@ -646,7 +666,9 @@ class ListResourcesHandler:
                 if items:
                     details = await call_fes(
                         'BatchGetUserDetails',
-                        {'userIdList': [i['userId'] for i in items if 'userId' in i]},
+                        BatchGetUserDetailsRequest(
+                            userIdList=[i['userId'] for i in items if 'userId' in i],
+                        ),
                     )
                     for d in (
                         details.get('successfulUserDetails', [])
@@ -667,7 +689,10 @@ class ListResourcesHandler:
                 return success_result(
                     await call_fes(
                         'SearchUsersTypeahead',
-                        {'searchTerm': searchTerm, 'searchKey': 'USERNAME_OR_EMAIL_ADDRESS'},
+                        SearchUsersTypeaheadRequest(
+                            searchTerm=searchTerm,
+                            searchKey='USERNAME_OR_EMAIL_ADDRESS',
+                        ),
                     )
                 )
 

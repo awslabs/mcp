@@ -16,17 +16,18 @@
 
 from awslabs.aws_transform_mcp_server.config_store import is_fes_available
 from awslabs.aws_transform_mcp_server.fes_client import call_fes
+from awslabs.aws_transform_mcp_server.fes_models import HitlTaskFilter, ListHitlTasksRequest
 from awslabs.aws_transform_mcp_server.tool_utils import failure_result, success_result
 from awslabs.aws_transform_mcp_server.tools.approve_hitl._common import not_configured_error
 from mcp.server.fastmcp import Context
 from pydantic import Field
-from typing import Any, Dict
+from typing import Annotated, Any, Dict
 
 
 async def list_tool_approvals(
     ctx: Context,
-    workspaceId: str = Field(..., description='The workspace identifier'),
-    jobId: str = Field(..., description='The job identifier'),
+    workspaceId: Annotated[str, Field(description='The workspace identifier')],
+    jobId: Annotated[str, Field(description='The job identifier')],
 ) -> Dict[str, Any]:
     """List TOOL_APPROVAL tasks that are waiting for human approval.
 
@@ -70,19 +71,18 @@ async def list_tool_approvals(
         next_token: str | None = None
 
         while True:
-            body: Dict[str, Any] = {
-                'workspaceId': workspaceId,
-                'jobId': jobId,
-                'taskType': 'NORMAL',
-                'taskFilter': {
-                    'categories': ['TOOL_APPROVAL'],
-                    'taskStatuses': ['AWAITING_APPROVAL'],
-                },
-            }
-            if next_token:
-                body['nextToken'] = next_token
+            list_req = ListHitlTasksRequest(
+                workspaceId=workspaceId,
+                jobId=jobId,
+                taskType='NORMAL',
+                taskFilter=HitlTaskFilter(
+                    categories=['TOOL_APPROVAL'],
+                    taskStatuses=['AWAITING_APPROVAL'],
+                ),
+                nextToken=next_token,
+            )
 
-            result = await call_fes('ListHitlTasks', body)
+            result = await call_fes('ListHitlTasks', list_req)
             all_tasks.extend(result.get('hitlTasks', []))
 
             next_token = result.get('nextToken')

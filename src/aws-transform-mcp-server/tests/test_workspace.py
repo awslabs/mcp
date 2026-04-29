@@ -61,9 +61,10 @@ class TestCreateWorkspace:
 
         call_args = mock_fes.call_args
         assert call_args[0][0] == 'CreateWorkspace'
-        assert call_args[0][1]['name'] == 'My Workspace'
-        assert call_args[0][1]['description'] == 'A test'
-        assert 'idempotencyToken' in call_args[0][1]
+        body = call_args[0][1].model_dump(by_alias=True, exclude_none=True)
+        assert body['name'] == 'My Workspace'
+        assert body['description'] == 'A test'
+        assert 'idempotencyToken' in body
 
     @patch(f'{_MOD}.is_fes_available', return_value=False)
     async def test_not_configured(self, _mock_configured, handler, ctx):
@@ -92,7 +93,7 @@ class TestDeleteWorkspace:
         mock_fes.assert_called_once()
         call_args = mock_fes.call_args
         assert call_args[0][0] == 'DeleteWorkspace'
-        assert call_args[0][1] == {'id': 'ws-123'}
+        assert call_args[0][1].model_dump(by_alias=True, exclude_none=True) == {'id': 'ws-123'}
 
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_requires_confirm(self, _mock_configured, handler, ctx):

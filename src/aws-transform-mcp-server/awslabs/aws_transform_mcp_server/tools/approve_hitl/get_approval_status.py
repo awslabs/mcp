@@ -16,6 +16,7 @@
 
 from awslabs.aws_transform_mcp_server.config_store import is_fes_available
 from awslabs.aws_transform_mcp_server.fes_client import call_fes
+from awslabs.aws_transform_mcp_server.fes_models import GetHitlTaskRequest
 from awslabs.aws_transform_mcp_server.tool_utils import (
     error_result,
     failure_result,
@@ -24,14 +25,14 @@ from awslabs.aws_transform_mcp_server.tool_utils import (
 from awslabs.aws_transform_mcp_server.tools.approve_hitl._common import not_configured_error
 from mcp.server.fastmcp import Context
 from pydantic import Field
-from typing import Any, Dict
+from typing import Annotated, Any, Dict
 
 
 async def get_approval_status(
     ctx: Context,
-    workspaceId: str = Field(..., description='The workspace identifier'),
-    jobId: str = Field(..., description='The job identifier'),
-    taskId: str = Field(..., description='The task identifier to check'),
+    workspaceId: Annotated[str, Field(description='The workspace identifier')],
+    jobId: Annotated[str, Field(description='The job identifier')],
+    taskId: Annotated[str, Field(description='The task identifier to check')],
 ) -> Dict[str, Any]:
     """Check the current status of a TOOL_APPROVAL task.
 
@@ -64,7 +65,7 @@ async def get_approval_status(
     try:
         result = await call_fes(
             'GetHitlTask',
-            {'workspaceId': workspaceId, 'jobId': jobId, 'taskId': taskId},
+            GetHitlTaskRequest(workspaceId=workspaceId, jobId=jobId, taskId=taskId),
         )
         task = result.get('task', {})
         category = task.get('category')

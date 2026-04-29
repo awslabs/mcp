@@ -17,6 +17,11 @@
 from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.config_store import is_fes_available
 from awslabs.aws_transform_mcp_server.fes_client import call_fes
+from awslabs.aws_transform_mcp_server.fes_models import (
+    CreateArtifactDownloadUrlRequest,
+    JobFilter,
+    ListArtifactsRequest,
+)
 from awslabs.aws_transform_mcp_server.guidance_nudge import mark_job_checked
 from awslabs.aws_transform_mcp_server.tool_utils import (
     download_s3_content,
@@ -26,7 +31,7 @@ from awslabs.aws_transform_mcp_server.tool_utils import (
 )
 from mcp.server.fastmcp import Context
 from pydantic import Field
-from typing import Any, Dict
+from typing import Annotated, Any, Dict
 
 
 _NOT_CONFIGURED_CODE = 'NOT_CONFIGURED'
@@ -46,8 +51,8 @@ class LoadInstructionsHandler:
     async def load_instructions(
         self,
         ctx: Context,
-        workspaceId: str = Field(..., description='The AWS Transform workspace ID'),
-        jobId: str = Field(..., description='The AWS Transform job ID'),
+        workspaceId: Annotated[str, Field(description='The AWS Transform workspace ID')],
+        jobId: Annotated[str, Field(description='The AWS Transform job ID')],
     ) -> Dict[str, Any]:
         """MUST be called before working on any job.
 
@@ -65,13 +70,12 @@ class LoadInstructionsHandler:
             instruction_artifact = None
             next_token = None
             while True:
-                body: Dict[str, Any] = {
-                    'workspaceId': workspaceId,
-                    'jobFilter': {'jobId': jobId},
-                }
-                if next_token:
-                    body['nextToken'] = next_token
-                artifacts_result = await call_fes('ListArtifacts', body)
+                list_req = ListArtifactsRequest(
+                    workspaceId=workspaceId,
+                    jobFilter=JobFilter(jobId=jobId),
+                    nextToken=next_token,
+                )
+                artifacts_result = await call_fes('ListArtifacts', list_req)
                 artifacts = artifacts_result.get('artifacts', [])
                 instruction_artifact = next(
                     (
@@ -98,11 +102,11 @@ class LoadInstructionsHandler:
 
             url_result = await call_fes(
                 'CreateArtifactDownloadUrl',
-                {
-                    'workspaceId': workspaceId,
-                    'jobId': jobId,
-                    'artifactId': instruction_artifact['artifactId'],
-                },
+                CreateArtifactDownloadUrlRequest(
+                    workspaceId=workspaceId,
+                    jobId=jobId,
+                    artifactId=instruction_artifact['artifactId'],
+                ),
             )
 
             download_url = (

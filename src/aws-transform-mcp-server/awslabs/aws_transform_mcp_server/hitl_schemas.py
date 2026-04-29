@@ -307,6 +307,12 @@ CUSTOMIZATIONS: Dict[str, ComponentCustomization] = {
         merge_with_artifact=False,
         preprocess=_preprocess_general_connector,
     ),
+    'CreateOrSelectConnectors': ComponentCustomization(
+        template={'connectorId': '<connector-id>'},
+        hint='Provide the connector ID. You can send just a string or {"connectorId": "..."}.',
+        merge_with_artifact=False,
+        preprocess=_preprocess_general_connector,
+    ),
     'MarkdownRendererComponent': ComponentCustomization(
         template={},
         hint='No response data needed. Server submits an empty response automatically.',

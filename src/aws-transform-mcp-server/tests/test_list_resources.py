@@ -441,7 +441,7 @@ class TestListResourcesHandler:
         )
         parsed = _parse_result(result)
         assert parsed['success'] is True
-        call_body = mock_fes.call_args[0][1]
+        call_body = mock_fes.call_args[0][1].model_dump(by_alias=True, exclude_none=True)
         workspace = call_body['metadata']['resourcesOnScreen']['workspace']
         assert workspace['jobs'] == [{'jobId': 'j1', 'focusState': 'ACTIVE'}]
 
@@ -462,7 +462,7 @@ class TestListResourcesHandler:
         )
         parsed = _parse_result(result)
         assert parsed['success'] is True
-        call_body = mock_fes.call_args[0][1]
+        call_body = mock_fes.call_args[0][1].model_dump(by_alias=True, exclude_none=True)
         assert call_body['startTimestamp'] == 1704067200.0
 
     @pytest.mark.asyncio
@@ -547,7 +547,7 @@ class TestListResourcesHandler:
         await handler.list_resources(
             ctx, resource=ResourceType.messages, workspaceId='ws1', maxResults=25
         )
-        call_body = mock_fes.call_args[0][1]
+        call_body = mock_fes.call_args[0][1].model_dump(by_alias=True, exclude_none=True)
         assert call_body['maxResults'] == 25
 
     # ── worklogs ───────────────────────────────────────────────────────

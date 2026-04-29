@@ -17,14 +17,14 @@
 from awslabs.aws_transform_mcp_server.tools.approve_hitl._common import validate_and_submit
 from mcp.server.fastmcp import Context
 from pydantic import Field
-from typing import Any, Dict
+from typing import Annotated, Any, Dict
 
 
 async def approve_tool_approval(
     ctx: Context,
-    workspaceId: str = Field(..., description='The workspace identifier'),
-    jobId: str = Field(..., description='The job identifier'),
-    taskId: str = Field(..., description='The TOOL_APPROVAL task identifier to approve'),
+    workspaceId: Annotated[str, Field(description='The workspace identifier')],
+    jobId: Annotated[str, Field(description='The job identifier')],
+    taskId: Annotated[str, Field(description='The TOOL_APPROVAL task identifier to approve')],
 ) -> Dict[str, Any]:
     """Approve a TOOL_APPROVAL task, allowing the agent to execute the requested tool.
 

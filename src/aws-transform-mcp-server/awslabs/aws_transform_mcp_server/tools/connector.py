@@ -23,6 +23,12 @@ from awslabs.aws_transform_mcp_server.config_store import (
     is_fes_available,
 )
 from awslabs.aws_transform_mcp_server.fes_client import call_fes
+from awslabs.aws_transform_mcp_server.fes_models import (
+    AccountConnectionRequest,
+    AwsAccountConnectionRequest,
+    CreateConnectorRequest,
+    GetConnectorRequest,
+)
 from awslabs.aws_transform_mcp_server.tcp_client import call_tcp
 from awslabs.aws_transform_mcp_server.tool_utils import (
     error_result,
@@ -31,7 +37,7 @@ from awslabs.aws_transform_mcp_server.tool_utils import (
 )
 from mcp.server.fastmcp import Context
 from pydantic import Field
-from typing import Any, Dict, Optional
+from typing import Annotated, Any, Dict, Optional
 from urllib.parse import urlencode
 
 
@@ -76,23 +82,32 @@ class ConnectorHandler:
     async def create_connector(
         self,
         ctx: Context,
-        workspaceId: str = Field(..., description='The workspace to create the connector in'),
-        connectorName: str = Field(..., description='Display name for the connector'),
-        connectorType: str = Field(..., description='Type of connector (e.g. "S3", "CODE")'),
-        configuration: dict = Field(
-            ...,
-            description=(
-                'Connector configuration key-value pairs (e.g. { "s3Uri": "s3://bucket/path" })'
+        workspaceId: Annotated[str, Field(description='The workspace to create the connector in')],
+        connectorName: Annotated[str, Field(description='Display name for the connector')],
+        connectorType: Annotated[str, Field(description='Type of connector (e.g. "S3", "CODE")')],
+        configuration: Annotated[
+            dict,
+            Field(
+                description=(
+                    'Connector configuration key-value pairs (e.g. { "s3Uri": "s3://bucket/path" })'
+                ),
             ),
-        ),
-        awsAccountId: str = Field(..., description='AWS account ID for the account connection'),
-        description: Optional[str] = Field(
-            None, description='Optional description for the connector'
-        ),
-        targetRegions: Optional[list] = Field(
-            None,
-            description='Optional list of target AWS regions (e.g. ["us-east-1", "us-west-2"])',
-        ),
+        ],
+        awsAccountId: Annotated[
+            str, Field(description='AWS account ID for the account connection')
+        ],
+        description: Annotated[
+            Optional[str],
+            Field(
+                description='Optional description for the connector',
+            ),
+        ] = None,
+        targetRegions: Annotated[
+            Optional[list],
+            Field(
+                description='Optional list of target AWS regions (e.g. ["us-east-1", "us-west-2"])',
+            ),
+        ] = None,
     ) -> dict:
         """Create a connector in a workspace.
 
@@ -108,31 +123,31 @@ class ConnectorHandler:
             return error_result(_NOT_CONFIGURED_CODE, _NOT_CONFIGURED_MSG, _NOT_CONFIGURED_ACTION)
 
         try:
-            payload: Dict[str, Any] = {
-                'workspaceId': workspaceId,
-                'connectorName': connectorName,
-                'connectorType': connectorType,
-                'configuration': configuration,
-                'accountConnectionRequest': {
-                    'awsAccountConnectionRequest': {'awsAccountId': awsAccountId},
-                },
-                'idempotencyToken': str(uuid.uuid4()),
-            }
-            if description is not None:
-                payload['description'] = description
-            if targetRegions is not None:
-                payload['targetRegions'] = targetRegions
+            create_req = CreateConnectorRequest(
+                workspaceId=workspaceId,
+                connectorName=connectorName,
+                connectorType=connectorType,
+                configuration=configuration,
+                accountConnectionRequest=AccountConnectionRequest(
+                    awsAccountConnectionRequest=AwsAccountConnectionRequest(
+                        awsAccountId=awsAccountId,
+                    ),
+                ),
+                idempotencyToken=str(uuid.uuid4()),
+                description=description,
+                targetRegions=targetRegions,
+            )
 
-            create_result = await call_fes('CreateConnector', payload)
+            create_result = await call_fes('CreateConnector', create_req)
 
             connector_id = create_result['connectorId']
 
             status = await call_fes(
                 'GetConnector',
-                {
-                    'workspaceId': workspaceId,
-                    'connectorId': connector_id,
-                },
+                GetConnectorRequest(
+                    workspaceId=workspaceId,
+                    connectorId=connector_id,
+                ),
             )
 
             config = get_config()
@@ -168,11 +183,14 @@ class ConnectorHandler:
     async def accept_connector(
         self,
         ctx: Context,
-        workspaceId: str = Field(..., description='The workspace containing the connector'),
-        connectorId: str = Field(..., description='The connector to associate the role with'),
-        roleArn: str = Field(
-            ..., description='ARN of the IAM role to associate with the connector'
-        ),
+        workspaceId: Annotated[str, Field(description='The workspace containing the connector')],
+        connectorId: Annotated[str, Field(description='The connector to associate the role with')],
+        roleArn: Annotated[
+            str,
+            Field(
+                description='ARN of the IAM role to associate with the connector',
+            ),
+        ],
     ) -> dict:
         """Activate a connector by associating an IAM role with it.
 
@@ -217,10 +235,10 @@ class ConnectorHandler:
 
             status = await call_fes(
                 'GetConnector',
-                {
-                    'workspaceId': workspaceId,
-                    'connectorId': connectorId,
-                },
+                GetConnectorRequest(
+                    workspaceId=workspaceId,
+                    connectorId=connectorId,
+                ),
             )
 
             return success_result(status)

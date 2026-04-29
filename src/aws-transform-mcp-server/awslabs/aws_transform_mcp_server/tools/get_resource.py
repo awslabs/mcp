@@ -19,6 +19,17 @@ import json
 from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.config_store import is_fes_available
 from awslabs.aws_transform_mcp_server.fes_client import call_fes
+from awslabs.aws_transform_mcp_server.fes_models import (
+    BatchGetMessageRequest,
+    CreateArtifactDownloadUrlRequest,
+    CreateAssetDownloadUrlRequest,
+    GetConnectorRequest,
+    GetHitlTaskRequest,
+    GetJobRequest,
+    GetWorkspaceRequest,
+    ListJobPlanStepsRequest,
+    ListPlanUpdatesRequest,
+)
 from awslabs.aws_transform_mcp_server.guidance_nudge import job_needs_check
 from awslabs.aws_transform_mcp_server.tool_utils import (
     READ_ONLY,
@@ -74,7 +85,7 @@ async def get_session() -> Dict[str, Any]:
         with an error object.
     """
     try:
-        session = await call_fes('VerifySession', {})
+        session = await call_fes('VerifySession')
         return {'success': True, 'data': {'session': session}}
     except Exception as error:
         msg = str(error)
@@ -207,7 +218,9 @@ class GetResourceHandler:
                     return error_result(
                         'VALIDATION_ERROR', 'workspaceId is required for getting a workspace.'
                     )
-                return success_result(await call_fes('GetWorkspace', {'id': workspaceId}))
+                return success_result(
+                    await call_fes('GetWorkspace', GetWorkspaceRequest(id=workspaceId))
+                )
 
             # ── job ────────────────────────────────────────────────────────
             elif resource == GetResourceType.job:
@@ -219,7 +232,10 @@ class GetResourceHandler:
                     return error_result('VALIDATION_ERROR', 'jobId is required for getting a job.')
 
                 return success_result(
-                    await call_fes('GetJob', {'workspaceId': workspaceId, 'jobId': jobId})
+                    await call_fes(
+                        'GetJob',
+                        GetJobRequest(workspaceId=workspaceId, jobId=jobId),
+                    )
                 )
 
             # ── connector ──────────────────────────────────────────────────
@@ -235,7 +251,7 @@ class GetResourceHandler:
                 return success_result(
                     await call_fes(
                         'GetConnector',
-                        {'workspaceId': workspaceId, 'connectorId': connectorId},
+                        GetConnectorRequest(workspaceId=workspaceId, connectorId=connectorId),
                     )
                 )
 
@@ -256,7 +272,7 @@ class GetResourceHandler:
 
                 task_result = await call_fes(
                     'GetHitlTask',
-                    {'workspaceId': workspaceId, 'jobId': jobId, 'taskId': taskId},
+                    GetHitlTaskRequest(workspaceId=workspaceId, jobId=jobId, taskId=taskId),
                 )
                 task_data = task_result.get('task', {}) if isinstance(task_result, dict) else {}
 
@@ -364,7 +380,11 @@ class GetResourceHandler:
 
                 url_result = await call_fes(
                     'CreateArtifactDownloadUrl',
-                    {'workspaceId': workspaceId, 'jobId': jobId, 'artifactId': artifactId},
+                    CreateArtifactDownloadUrlRequest(
+                        workspaceId=workspaceId,
+                        jobId=jobId,
+                        artifactId=artifactId,
+                    ),
                 )
                 s3_url = (
                     url_result.get('s3PreSignedUrl', '') if isinstance(url_result, dict) else ''
@@ -400,12 +420,12 @@ class GetResourceHandler:
 
                 url_result = await call_fes(
                     'CreateAssetDownloadUrl',
-                    {
-                        'workspaceId': workspaceId,
-                        'jobId': jobId,
-                        'connectorId': connectorId,
-                        'assetKey': assetKey,
-                    },
+                    CreateAssetDownloadUrlRequest(
+                        workspaceId=workspaceId,
+                        jobId=jobId,
+                        connectorId=connectorId,
+                        assetKey=assetKey,
+                    ),
                 )
                 s3_url = (
                     url_result.get('s3PreSignedUrl', '') if isinstance(url_result, dict) else ''
@@ -442,7 +462,10 @@ class GetResourceHandler:
                 return success_result(
                     await call_fes(
                         'BatchGetMessage',
-                        {'messageIds': resolved_ids, 'workspaceId': workspaceId},
+                        BatchGetMessageRequest(
+                            messageIds=resolved_ids,
+                            workspaceId=workspaceId,
+                        ),
                     )
                 )
 
@@ -458,8 +481,19 @@ class GetResourceHandler:
                     )
 
                 results = await asyncio.gather(
-                    call_fes('ListJobPlanSteps', {'workspaceId': workspaceId, 'jobId': jobId}),
-                    call_fes('ListPlanUpdates', {'workspaceId': workspaceId, 'jobId': jobId}),
+                    call_fes(
+                        'ListJobPlanSteps',
+                        ListJobPlanStepsRequest(workspaceId=workspaceId, jobId=jobId),
+                    ),
+                    call_fes(
+                        'ListPlanUpdates',
+                        ListPlanUpdatesRequest(
+                            workspaceId=workspaceId,
+                            jobId=jobId,
+                            planVersion='1',
+                            timestamp=0,
+                        ),
+                    ),
                     return_exceptions=True,
                 )
 

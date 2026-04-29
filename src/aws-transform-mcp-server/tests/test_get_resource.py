@@ -110,7 +110,10 @@ class TestGetResourceHandler:
         parsed = _parse_result(result)
         assert parsed['success'] is True
         assert parsed['data']['workspaceId'] == 'ws1'
-        mock_fes.assert_called_once_with('GetWorkspace', {'id': 'ws1'})
+        mock_fes.assert_called_once()
+        args = mock_fes.call_args[0]
+        assert args[0] == 'GetWorkspace'
+        assert args[1].model_dump(by_alias=True, exclude_none=True) == {'id': 'ws1'}
 
     # ── job ────────────────────────────────────────────────────────────
 
@@ -183,9 +186,13 @@ class TestGetResourceHandler:
         )
         parsed = _parse_result(result)
         assert parsed['success'] is True
-        mock_fes.assert_called_once_with(
-            'GetConnector', {'workspaceId': 'ws1', 'connectorId': 'c1'}
-        )
+        mock_fes.assert_called_once()
+        args = mock_fes.call_args[0]
+        assert args[0] == 'GetConnector'
+        assert args[1].model_dump(by_alias=True, exclude_none=True) == {
+            'workspaceId': 'ws1',
+            'connectorId': 'c1',
+        }
 
     # ── task ───────────────────────────────────────────────────────────
 
@@ -401,9 +408,13 @@ class TestGetResourceHandler:
         )
         parsed = _parse_result(result)
         assert parsed['success'] is True
-        mock_fes.assert_called_once_with(
-            'BatchGetMessage', {'messageIds': ['m1', 'm2'], 'workspaceId': 'ws1'}
-        )
+        mock_fes.assert_called_once()
+        args = mock_fes.call_args[0]
+        assert args[0] == 'BatchGetMessage'
+        assert args[1].model_dump(by_alias=True, exclude_none=True) == {
+            'messageIds': ['m1', 'm2'],
+            'workspaceId': 'ws1',
+        }
 
     # ── plan ───────────────────────────────────────────────────────────
 
@@ -793,9 +804,13 @@ class TestGetResourceMessagesParsing:
         )
         parsed = _parse_result(result)
         assert parsed['success'] is True
-        mock_fes.assert_called_once_with(
-            'BatchGetMessage', {'messageIds': ['m1', 'm2'], 'workspaceId': 'ws1'}
-        )
+        mock_fes.assert_called_once()
+        args = mock_fes.call_args[0]
+        assert args[0] == 'BatchGetMessage'
+        assert args[1].model_dump(by_alias=True, exclude_none=True) == {
+            'messageIds': ['m1', 'm2'],
+            'workspaceId': 'ws1',
+        }
 
     @pytest.mark.asyncio
     @patch(

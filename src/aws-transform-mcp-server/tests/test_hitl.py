@@ -91,7 +91,7 @@ class TestCompleteTaskApprove:
         # Verify SubmitStandardHitlTask was called
         submit_call = mock_fes.call_args_list[1]
         assert submit_call[0][0] == 'SubmitStandardHitlTask'
-        assert submit_call[0][1]['action'] == 'APPROVE'
+        assert submit_call[0][1].action == 'APPROVE'
 
     @patch(
         'awslabs.aws_transform_mcp_server.tools.hitl.upload_json_artifact',
@@ -224,7 +224,7 @@ class TestCompleteTaskSaveDraft:
 
         assert parsed['success'] is True
         update_call = mock_fes.call_args_list[1]
-        assert update_call[0][1]['humanArtifact'] == {'artifactId': 'art-draft-1'}
+        assert update_call[0][1].humanArtifact.artifactId == 'art-draft-1'
 
 
 class TestCompleteTaskWithFile:
@@ -628,7 +628,7 @@ class TestSendForApprovalCritical:
         # Verify UpdateHitlTask was called with postUpdateAction
         update_call = mock_fes.call_args_list[1]
         assert update_call[0][0] == 'UpdateHitlTask'
-        assert update_call[0][1]['postUpdateAction'] == 'SEND_FOR_APPROVAL'
+        assert update_call[0][1].postUpdateAction == 'SEND_FOR_APPROVAL'
 
 
 class TestAgentArtifactDownloadInCompleteTask:

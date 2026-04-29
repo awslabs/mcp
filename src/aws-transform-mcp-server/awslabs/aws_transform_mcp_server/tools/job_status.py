@@ -18,6 +18,17 @@ import asyncio
 from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.config_store import is_fes_available
 from awslabs.aws_transform_mcp_server.fes_client import call_fes, paginate_all
+from awslabs.aws_transform_mcp_server.fes_models import (
+    BatchGetMessageRequest,
+    ChatJobMetadata,
+    GetJobRequest,
+    ListJobPlanStepsRequest,
+    ListMessagesRequest,
+    ListWorklogsRequest,
+    Metadata,
+    ResourcesOnScreen,
+    WorkspaceMetadata,
+)
 from awslabs.aws_transform_mcp_server.guidance_nudge import job_needs_check
 from awslabs.aws_transform_mcp_server.tool_utils import (
     READ_ONLY,
@@ -28,7 +39,7 @@ from awslabs.aws_transform_mcp_server.tool_utils import (
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import Field
-from typing import Any, Dict, List, Optional
+from typing import Annotated, Any, Dict, List, Optional
 
 
 _TERMINAL_JOB_STATUSES = frozenset({'COMPLETED', 'FAILED', 'STOPPED'})
@@ -75,8 +86,8 @@ class JobStatusHandler:
     async def get_job_status(
         self,
         ctx: Context,
-        workspaceId: str = Field(..., description='Workspace ID (UUID format)'),
-        jobId: str = Field(..., description='Job ID (UUID format)'),
+        workspaceId: Annotated[str, Field(description='Workspace ID (UUID format)')],
+        jobId: Annotated[str, Field(description='Job ID (UUID format)')],
     ) -> Dict[str, Any]:
         """Fetch a unified job status snapshot for IDE agent polling."""
         if not is_fes_available():
@@ -96,10 +107,13 @@ class JobStatusHandler:
 
         try:
             results = await asyncio.gather(
-                call_fes('GetJob', {'workspaceId': workspaceId, 'jobId': jobId}),
+                call_fes(
+                    'GetJob',
+                    GetJobRequest(workspaceId=workspaceId, jobId=jobId),
+                ),
                 call_fes(
                     'ListWorklogs',
-                    {'workspaceId': workspaceId, 'jobId': jobId},
+                    ListWorklogsRequest(workspaceId=workspaceId, jobId=jobId),
                 ),
                 paginate_all(
                     'ListHitlTasks',
@@ -165,17 +179,17 @@ async def _fetch_recent_messages(
     job_id: str,
 ) -> Dict[str, Any]:
     """Fetch the most recent messages for a job (up to 50)."""
-    metadata = {
-        'resourcesOnScreen': {
-            'workspace': {
-                'workspaceId': workspace_id,
-                'jobs': [{'jobId': job_id, 'focusState': 'ACTIVE'}],
-            },
-        },
-    }
+    metadata = Metadata(
+        resourcesOnScreen=ResourcesOnScreen(
+            workspace=WorkspaceMetadata(
+                workspaceId=workspace_id,
+                jobs=[ChatJobMetadata(jobId=job_id, focusState='ACTIVE')],
+            ),
+        ),
+    )
     list_result = await call_fes(
         'ListMessages',
-        {'metadata': metadata, 'maxResults': 50},
+        ListMessagesRequest(metadata=metadata, maxResults=50),
     )
     message_ids: List[str] = (
         list_result.get('messageIds', []) if isinstance(list_result, dict) else []
@@ -185,7 +199,7 @@ async def _fetch_recent_messages(
 
     batch_result = await call_fes(
         'BatchGetMessage',
-        {'messageIds': message_ids[:100], 'workspaceId': workspace_id},
+        BatchGetMessageRequest(messageIds=message_ids[:100], workspaceId=workspace_id),
     )
     messages = batch_result.get('messages', []) if isinstance(batch_result, dict) else []
     return {'messages': messages}
@@ -198,7 +212,7 @@ async def _fetch_plan(
     """Fetch plan steps for the job."""
     result = await call_fes(
         'ListJobPlanSteps',
-        {'workspaceId': workspace_id, 'jobId': job_id},
+        ListJobPlanStepsRequest(workspaceId=workspace_id, jobId=job_id),
     )
     if not result:
         return None

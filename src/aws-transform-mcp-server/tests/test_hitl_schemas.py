@@ -41,6 +41,19 @@ class TestEnrichTask:
         assert '_responseHint' in result
         assert '_outputSchema' in result
 
+    def test_create_or_select_connectors(self):
+        from awslabs.aws_transform_mcp_server.hitl_schemas import enrich_task
+
+        task = {'uxComponentId': 'CreateOrSelectConnectors', 'taskId': 't-conn'}
+        result = enrich_task(task)
+
+        assert result['_responseTemplate'] == {'connectorId': '<connector-id>'}
+        assert (
+            'connectorId' in result['_responseHint'].lower()
+            or 'connector' in result['_responseHint'].lower()
+        )
+        assert '_outputSchema' in result
+
     def test_display_only_via_customizations(self):
         from awslabs.aws_transform_mcp_server.hitl_schemas import enrich_task
 
@@ -155,6 +168,22 @@ class TestFormatAndValidate:
         parsed = json.loads(result.content)
         assert parsed['data'] == {'name': 'Alice'}
         assert parsed['metadata']['schemaVersion'] == '1.0'
+
+    def test_create_or_select_connectors_string(self):
+        from awslabs.aws_transform_mcp_server.hitl_schemas import format_and_validate
+
+        result = format_and_validate('CreateOrSelectConnectors', '"conn-abc123"')
+        assert result.ok is True
+        parsed = json.loads(result.content)
+        assert parsed == {'connectorId': 'conn-abc123'}
+
+    def test_create_or_select_connectors_object(self):
+        from awslabs.aws_transform_mcp_server.hitl_schemas import format_and_validate
+
+        result = format_and_validate('CreateOrSelectConnectors', '{"connectorId": "conn-abc123"}')
+        assert result.ok is True
+        parsed = json.loads(result.content)
+        assert parsed == {'connectorId': 'conn-abc123'}
 
     def test_display_only_auto_submit(self):
         from awslabs.aws_transform_mcp_server.hitl_schemas import format_and_validate

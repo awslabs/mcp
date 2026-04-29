@@ -70,13 +70,19 @@ class TestCreateJob:
 
         calls = mock_fes.call_args_list
         assert calls[0][0][0] == 'CreateJob'
-        assert calls[0][0][1]['workspaceId'] == 'ws-1'
-        assert calls[0][0][1]['jobName'] == 'Migration'
-        assert 'idempotencyToken' in calls[0][0][1]
+        assert calls[0][0][1].workspaceId == 'ws-1'
+        assert calls[0][0][1].jobName == 'Migration'
+        assert calls[0][0][1].idempotencyToken is not None
         assert calls[1][0][0] == 'StartJob'
-        assert calls[1][0][1] == {'workspaceId': 'ws-1', 'jobId': 'job-001'}
+        assert calls[1][0][1].model_dump(by_alias=True, exclude_none=True) == {
+            'workspaceId': 'ws-1',
+            'jobId': 'job-001',
+        }
         assert calls[2][0][0] == 'GetJob'
-        assert calls[2][0][1] == {'workspaceId': 'ws-1', 'jobId': 'job-001'}
+        assert calls[2][0][1].model_dump(by_alias=True, exclude_none=True) == {
+            'workspaceId': 'ws-1',
+            'jobId': 'job-001',
+        }
 
     @patch(f'{_MOD}.is_fes_available', return_value=False)
     async def test_not_configured(self, _mock_configured, handler, ctx):
@@ -191,18 +197,21 @@ class TestCreateJobWithOrchestrator:
             workspaceId='ws-1',
             jobName='test',
             objective='test obj',
+            intent='test',
             orchestratorAgent='agent-1',
         )
         parsed = _parse(result)
         assert parsed['success'] is True
         create_body = mock_fes.call_args_list[0][0][1]
-        assert create_body['orchestratorAgent'] == 'agent-1'
+        assert create_body.orchestratorAgent == 'agent-1'
 
     @pytest.mark.asyncio
     @patch(f'{_MOD}.call_fes', new_callable=AsyncMock, side_effect=Exception('fail'))
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_create_job_fes_error(self, _, mock_fes, handler, ctx):
-        result = await handler.create_job(ctx, workspaceId='ws-1', jobName='test', objective='obj')
+        result = await handler.create_job(
+            ctx, workspaceId='ws-1', jobName='test', objective='obj', intent='test'
+        )
         parsed = _parse(result)
         assert parsed['success'] is False
 

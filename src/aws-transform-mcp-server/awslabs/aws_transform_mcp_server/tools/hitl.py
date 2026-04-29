@@ -32,6 +32,14 @@ import uuid
 from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.config_store import is_fes_available
 from awslabs.aws_transform_mcp_server.fes_client import call_fes
+from awslabs.aws_transform_mcp_server.fes_models import (
+    CreateArtifactDownloadUrlRequest,
+    GetHitlTaskRequest,
+    HitlTaskArtifact,
+    SubmitCriticalHitlTaskRequest,
+    SubmitStandardHitlTaskRequest,
+    UpdateHitlTaskRequest,
+)
 from awslabs.aws_transform_mcp_server.file_validation import validate_read_path
 from awslabs.aws_transform_mcp_server.guidance_nudge import job_needs_check
 from awslabs.aws_transform_mcp_server.hitl_schemas import enrich_task, format_and_validate
@@ -83,11 +91,11 @@ async def download_agent_artifact(
     try:
         url_result = await call_fes(
             'CreateArtifactDownloadUrl',
-            {
-                'workspaceId': workspace_id,
-                'jobId': job_id,
-                'artifactId': artifact_id,
-            },
+            CreateArtifactDownloadUrlRequest(
+                workspaceId=workspace_id,
+                jobId=job_id,
+                artifactId=artifact_id,
+            ),
         )
         async with httpx.AsyncClient() as client:
             s3_response = await client.get(url_result['s3PreSignedUrl'], follow_redirects=True)
@@ -123,37 +131,45 @@ class HitlHandler:
     async def complete_task(
         self,
         ctx: Context,
-        workspaceId: str = Field(..., description='The workspace identifier'),
-        jobId: str = Field(..., description='The job identifier'),
-        taskId: str = Field(..., description='The task identifier'),
-        content: JsonContent = Field(
-            None,
-            description=(
-                "JSON response data matching the component's _responseTemplate. "
-                'Omit for display-only components (server auto-submits {}). '
-                'For file upload tasks: omit this and use filePath instead.'
+        workspaceId: Annotated[str, Field(description='The workspace identifier')],
+        jobId: Annotated[str, Field(description='The job identifier')],
+        taskId: Annotated[str, Field(description='The task identifier')],
+        content: Annotated[
+            JsonContent,
+            Field(
+                description=(
+                    "JSON response data matching the component's _responseTemplate. "
+                    'Omit for display-only components (server auto-submits {}). '
+                    'For file upload tasks: omit this and use filePath instead.'
+                ),
             ),
-        ),
-        filePath: Optional[str] = Field(
-            None,
-            description=(
-                'Local file path to upload as an artifact before submitting. '
-                'The server uploads the file and returns the artifactId in the result.'
+        ] = None,
+        filePath: Annotated[
+            Optional[str],
+            Field(
+                description=(
+                    'Local file path to upload as an artifact before submitting. '
+                    'The server uploads the file and returns the artifactId in the result.'
+                ),
             ),
-        ),
-        fileType: Optional[str] = Field(
-            None,
-            description='File type (default: auto-detected from extension)',
-        ),
-        action: str = Field(
-            'APPROVE',
-            description=(
-                'APPROVE (default): submit and approve. '
-                'REJECT: submit and reject. '
-                'SEND_FOR_APPROVAL: CRITICAL tasks -- send to admin for review. '
-                'SAVE_DRAFT: save progress without submitting.'
+        ] = None,
+        fileType: Annotated[
+            Optional[str],
+            Field(
+                description='File type (default: auto-detected from extension)',
             ),
-        ),
+        ] = None,
+        action: Annotated[
+            str,
+            Field(
+                description=(
+                    'APPROVE (default): submit and approve. '
+                    'REJECT: submit and reject. '
+                    'SEND_FOR_APPROVAL: CRITICAL tasks -- send to admin for review. '
+                    'SAVE_DRAFT: save progress without submitting.'
+                ),
+            ),
+        ] = 'APPROVE',
     ) -> Dict[str, Any]:
         """Complete a Human-in-the-Loop (HITL) task.
 
@@ -175,11 +191,11 @@ class HitlHandler:
             # ── Step 1: Fetch the task ──────────────────────────────────
             task_result = await call_fes(
                 'GetHitlTask',
-                {
-                    'workspaceId': workspaceId,
-                    'jobId': jobId,
-                    'taskId': taskId,
-                },
+                GetHitlTaskRequest(
+                    workspaceId=workspaceId,
+                    jobId=jobId,
+                    taskId=taskId,
+                ),
             )
             task = task_result['task']
             ux_component_id = task.get('uxComponentId')
@@ -254,54 +270,65 @@ class HitlHandler:
 
             # ── Step 7: Route to correct API based on action ────────────
             if action == 'SAVE_DRAFT':
-                update_body: Dict[str, Any] = {
-                    'workspaceId': workspaceId,
-                    'jobId': jobId,
-                    'taskId': taskId,
-                }
-                if response_artifact_id:
-                    update_body['humanArtifact'] = {'artifactId': response_artifact_id}
-                await call_fes('UpdateHitlTask', update_body)
+                update_req = UpdateHitlTaskRequest(
+                    workspaceId=workspaceId,
+                    jobId=jobId,
+                    taskId=taskId,
+                    humanArtifact=(
+                        HitlTaskArtifact(artifactId=response_artifact_id)
+                        if response_artifact_id
+                        else None
+                    ),
+                )
+                await call_fes('UpdateHitlTask', update_req)
 
             elif action == 'SEND_FOR_APPROVAL':
                 await call_fes(
                     'UpdateHitlTask',
-                    {
-                        'workspaceId': workspaceId,
-                        'jobId': jobId,
-                        'taskId': taskId,
-                        'humanArtifact': {'artifactId': response_artifact_id},
-                        'postUpdateAction': 'SEND_FOR_APPROVAL',
-                    },
+                    UpdateHitlTaskRequest(
+                        workspaceId=workspaceId,
+                        jobId=jobId,
+                        taskId=taskId,
+                        humanArtifact=HitlTaskArtifact(artifactId=response_artifact_id),
+                        postUpdateAction='SEND_FOR_APPROVAL',
+                    ),
                 )
 
             else:
                 # APPROVE or REJECT
-                operation = (
-                    'SubmitCriticalHitlTask'
-                    if severity == 'CRITICAL'
-                    else 'SubmitStandardHitlTask'
-                )
-                await call_fes(
-                    operation,
-                    {
-                        'workspaceId': workspaceId,
-                        'jobId': jobId,
-                        'taskId': taskId,
-                        'action': action,
-                        'humanArtifact': {'artifactId': response_artifact_id},
-                        'idempotencyToken': str(uuid.uuid4()),
-                    },
-                )
+                if severity == 'CRITICAL':
+                    await call_fes(
+                        'SubmitCriticalHitlTask',
+                        SubmitCriticalHitlTaskRequest(
+                            workspaceId=workspaceId,
+                            jobId=jobId,
+                            taskId=taskId,
+                            action=action,
+                            humanArtifact=HitlTaskArtifact(artifactId=response_artifact_id),
+                            idempotencyToken=str(uuid.uuid4()),
+                        ),
+                    )
+                else:
+                    await call_fes(
+                        'SubmitStandardHitlTask',
+                        SubmitStandardHitlTaskRequest(
+                            workspaceId=workspaceId,
+                            jobId=jobId,
+                            taskId=taskId,
+                            action=action,
+                            humanArtifact=HitlTaskArtifact(artifactId=response_artifact_id),
+                            idempotencyToken=str(uuid.uuid4()),
+                        ),
+                    )
 
             # ── Step 8: Return enriched result ──────────────────────────
             updated_result = await call_fes(
                 'GetHitlTask',
-                {
-                    'workspaceId': workspaceId,
-                    'jobId': jobId,
-                    'taskId': taskId,
-                },
+                GetHitlTaskRequest(
+                    workspaceId=workspaceId,
+                    jobId=jobId,
+                    taskId=taskId,
+                ),
             )
             result_data = enrich_task(updated_result['task'])
             if uploaded_artifact_id:

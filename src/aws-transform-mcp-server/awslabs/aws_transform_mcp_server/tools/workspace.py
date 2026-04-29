@@ -18,6 +18,10 @@ import uuid
 from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.config_store import is_fes_available
 from awslabs.aws_transform_mcp_server.fes_client import call_fes
+from awslabs.aws_transform_mcp_server.fes_models import (
+    CreateWorkspaceRequest,
+    DeleteWorkspaceRequest,
+)
 from awslabs.aws_transform_mcp_server.tool_utils import (
     error_result,
     failure_result,
@@ -25,7 +29,7 @@ from awslabs.aws_transform_mcp_server.tool_utils import (
 )
 from mcp.server.fastmcp import Context
 from pydantic import Field
-from typing import Any, Optional
+from typing import Annotated, Any, Optional
 
 
 _NOT_CONFIGURED_CODE = 'NOT_CONFIGURED'
@@ -44,8 +48,8 @@ class WorkspaceHandler:
     async def create_workspace(
         self,
         ctx: Context,
-        name: str = Field(..., description='Name for the workspace'),
-        description: Optional[str] = Field(None, description='Optional description'),
+        name: Annotated[str, Field(description='Name for the workspace')],
+        description: Annotated[Optional[str], Field(description='Optional description')] = None,
     ) -> dict:
         """Create a new transformation workspace.
 
@@ -54,16 +58,14 @@ class WorkspaceHandler:
         if not is_fes_available():
             return error_result(_NOT_CONFIGURED_CODE, _NOT_CONFIGURED_MSG, _NOT_CONFIGURED_ACTION)
 
-        _description: Optional[str] = description if isinstance(description, str) else None
-
         try:
             result = await call_fes(
                 'CreateWorkspace',
-                {
-                    'name': name,
-                    'description': _description,
-                    'idempotencyToken': str(uuid.uuid4()),
-                },
+                CreateWorkspaceRequest(
+                    name=name,
+                    description=description,
+                    idempotencyToken=str(uuid.uuid4()),
+                ),
             )
             workspace = result.get('workspace', result) if isinstance(result, dict) else result
             return success_result(workspace)
@@ -73,8 +75,8 @@ class WorkspaceHandler:
     async def delete_workspace(
         self,
         ctx: Context,
-        workspaceId: str = Field(..., description='The workspace ID to delete'),
-        confirm: bool = Field(..., description='Must be true to confirm deletion'),
+        workspaceId: Annotated[str, Field(description='The workspace ID to delete')],
+        confirm: Annotated[bool, Field(description='Must be true to confirm deletion')],
     ) -> dict:
         """Permanently delete a workspace.
 
@@ -92,7 +94,7 @@ class WorkspaceHandler:
             )
 
         try:
-            result = await call_fes('DeleteWorkspace', {'id': workspaceId})
+            result = await call_fes('DeleteWorkspace', DeleteWorkspaceRequest(id=workspaceId))
             data = {'deleted': True, 'workspaceId': workspaceId}
             if result and isinstance(result, dict):
                 data.update(result)

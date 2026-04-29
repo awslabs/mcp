@@ -43,7 +43,7 @@ from awslabs.aws_transform_mcp_server.tool_utils import (
 )
 from mcp.server.fastmcp import Context
 from pydantic import Field
-from typing import Any
+from typing import Annotated, Any, Optional
 
 
 class ConfigureHandler:
@@ -57,49 +57,63 @@ class ConfigureHandler:
     async def configure(
         self,
         ctx: Context,
-        authMode: str = Field(
-            ...,
-            description=(
-                'Authentication method: "cookie" for browser session, "sso" for IdC bearer token'
+        authMode: Annotated[
+            str,
+            Field(
+                description=(
+                    'Authentication method: "cookie" for browser session, "sso" for IdC bearer token'
+                ),
             ),
-        ),
-        stage: str = Field(
-            'prod',
-            description=(
-                'Environment stage (default: prod). Gamma only supports us-east-1 and us-west-2.'
+        ],
+        stage: Annotated[
+            str,
+            Field(
+                description=(
+                    'Environment stage (default: prod). Gamma only supports us-east-1 and us-west-2.'
+                ),
             ),
-        ),
-        region: str = Field(
-            'us-east-1',
-            description=(
-                'AWS region (default: us-east-1). For SSO auth, this must be the region '
-                'where your IAM Identity Center instance is configured.'
+        ] = 'prod',
+        region: Annotated[
+            str,
+            Field(
+                description=(
+                    'AWS region (default: us-east-1). For SSO auth, this must be the region '
+                    'where your IAM Identity Center instance is configured.'
+                ),
             ),
-        ),
-        sessionCookie: str | None = Field(
-            None,
-            description=(
-                '(cookie mode) The aws-transform-session cookie value from browser DevTools'
+        ] = 'us-east-1',
+        sessionCookie: Annotated[
+            Optional[str],
+            Field(
+                description=(
+                    '(cookie mode) The aws-transform-session cookie value from browser DevTools'
+                ),
             ),
-        ),
-        origin: str | None = Field(
-            None,
-            description=(
-                '(cookie mode) Your Transform application URL '
-                '(e.g., https://xxx.transform-gamma.us-east-1.on.aws)'
+        ] = None,
+        origin: Annotated[
+            Optional[str],
+            Field(
+                description=(
+                    '(cookie mode) Your Transform application URL '
+                    '(e.g., https://xxx.transform-gamma.us-east-1.on.aws)'
+                ),
             ),
-        ),
-        startUrl: str | None = Field(
-            None,
-            description='(sso mode) Your IdC start URL (e.g., https://d-xxx.awsapps.com/start)',
-        ),
-        profileName: str | None = Field(
-            None,
-            description=(
-                '(sso mode) Profile to connect to when multiple profiles exist. '
-                'Call without this first to see available profiles.'
+        ] = None,
+        startUrl: Annotated[
+            Optional[str],
+            Field(
+                description='(sso mode) Your IdC start URL (e.g., https://d-xxx.awsapps.com/start)',
             ),
-        ),
+        ] = None,
+        profileName: Annotated[
+            Optional[str],
+            Field(
+                description=(
+                    '(sso mode) Profile to connect to when multiple profiles exist. '
+                    'Call without this first to see available profiles.'
+                ),
+            ),
+        ] = None,
     ) -> dict:
         """Connect to AWS Transform using a browser session cookie or SSO/IdC bearer token."""
         # ── Cookie auth ─────────────────────────────────────────────────

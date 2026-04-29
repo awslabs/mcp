@@ -16,6 +16,14 @@
 
 import asyncio
 from awslabs.aws_transform_mcp_server.fes_client import call_fes
+from awslabs.aws_transform_mcp_server.fes_models import (
+    BatchGetMessageRequest,
+    ChatJobMetadata,
+    ListMessagesRequest,
+    Metadata,
+    ResourcesOnScreen,
+    WorkspaceMetadata,
+)
 from awslabs.aws_transform_mcp_server.tool_utils import error_result
 from typing import Any, Dict, Optional, TypedDict
 
@@ -40,20 +48,20 @@ def not_configured_error() -> Dict[str, Any]:
     return error_result(NOT_CONFIGURED_CODE, NOT_CONFIGURED_MSG, NOT_CONFIGURED_ACTION)
 
 
-def build_metadata(workspaceId: str, jobId: Optional[str] = None) -> dict:
-    """Build the resourcesOnScreen metadata dict for chat API calls."""
-    return {
-        'resourcesOnScreen': {
-            'workspace': {
-                'workspaceId': workspaceId,
-                **({'jobs': [{'jobId': jobId, 'focusState': 'ACTIVE'}]} if jobId else {}),
-            },
-        },
-    }
+def build_metadata(workspaceId: str, jobId: Optional[str] = None) -> Metadata:
+    """Build the resourcesOnScreen metadata for chat API calls."""
+    return Metadata(
+        resourcesOnScreen=ResourcesOnScreen(
+            workspace=WorkspaceMetadata(
+                workspaceId=workspaceId,
+                jobs=([ChatJobMetadata(jobId=jobId, focusState='ACTIVE')] if jobId else None),
+            ),
+        ),
+    )
 
 
 async def poll_for_response(
-    metadata: dict,
+    metadata: Metadata,
     workspaceId: str,
     sent_message_id: str,
     max_attempts: int,
@@ -81,14 +89,13 @@ async def poll_for_response(
         if attempt > 0:
             await asyncio.sleep(POLL_INTERVAL_SECS)
 
-        list_body: Dict[str, Any] = {
-            'metadata': metadata,
-            'maxResults': 10,
-        }
-        if start_timestamp is not None:
-            list_body['startTimestamp'] = start_timestamp
+        list_req = ListMessagesRequest(
+            metadata=metadata,
+            maxResults=10,
+            startTimestamp=start_timestamp,
+        )
 
-        list_result = await call_fes('ListMessages', list_body)
+        list_result = await call_fes('ListMessages', list_req)
         message_ids = list_result.get('messageIds', []) if isinstance(list_result, dict) else []
         new_ids = [mid for mid in message_ids if mid not in seen_ids]
         if not new_ids:
@@ -96,10 +103,7 @@ async def poll_for_response(
 
         batch_result = await call_fes(
             'BatchGetMessage',
-            {
-                'messageIds': new_ids,
-                'workspaceId': workspaceId,
-            },
+            BatchGetMessageRequest(messageIds=new_ids, workspaceId=workspaceId),
         )
         messages = batch_result.get('messages', []) if isinstance(batch_result, dict) else []
 

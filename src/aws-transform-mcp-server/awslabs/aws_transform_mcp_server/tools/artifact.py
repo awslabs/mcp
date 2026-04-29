@@ -25,6 +25,14 @@ import os
 from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.config_store import is_fes_available
 from awslabs.aws_transform_mcp_server.fes_client import call_fes
+from awslabs.aws_transform_mcp_server.fes_models import (
+    ArtifactReference,
+    ArtifactType,
+    CompleteArtifactUploadRequest,
+    ContentDigest,
+    CreateArtifactUploadUrlRequest,
+    FileMetadata,
+)
 from awslabs.aws_transform_mcp_server.file_validation import validate_read_path
 from awslabs.aws_transform_mcp_server.tool_utils import (
     error_result,
@@ -33,7 +41,7 @@ from awslabs.aws_transform_mcp_server.tool_utils import (
 )
 from mcp.server.fastmcp import Context
 from pydantic import Field
-from typing import Any, Dict, Optional
+from typing import Annotated, Any, Dict, Optional
 
 
 _NOT_CONFIGURED_CODE = 'NOT_CONFIGURED'
@@ -51,32 +59,44 @@ class ArtifactHandler:
     async def upload_artifact(
         self,
         ctx: Context,
-        workspaceId: str = Field(..., description='The workspace identifier'),
-        jobId: str = Field(..., description='The job identifier'),
-        content: str = Field(..., description='Local file path (preferred) or raw content string'),
-        encoding: str = Field(
-            'utf-8',
-            description=(
-                'Content encoding when passing raw content (default: utf-8). '
-                'Ignored when content is a file path.'
+        workspaceId: Annotated[str, Field(description='The workspace identifier')],
+        jobId: Annotated[str, Field(description='The job identifier')],
+        content: Annotated[
+            str, Field(description='Local file path (preferred) or raw content string')
+        ],
+        encoding: Annotated[
+            str,
+            Field(
+                description=(
+                    'Content encoding when passing raw content (default: utf-8). '
+                    'Ignored when content is a file path.'
+                ),
             ),
-        ),
-        categoryType: str = Field(
-            'CUSTOMER_INPUT',
-            description='Artifact category (default: CUSTOMER_INPUT)',
-        ),
-        fileType: str = Field(
-            'JSON',
-            description='File type (default: JSON)',
-        ),
-        fileName: Optional[str] = Field(
-            None,
-            description='Optional file name',
-        ),
-        planStepId: Optional[str] = Field(
-            None,
-            description='Optional plan step ID',
-        ),
+        ] = 'utf-8',
+        categoryType: Annotated[
+            str,
+            Field(
+                description='Artifact category (default: CUSTOMER_INPUT)',
+            ),
+        ] = 'CUSTOMER_INPUT',
+        fileType: Annotated[
+            str,
+            Field(
+                description='File type (default: JSON)',
+            ),
+        ] = 'JSON',
+        fileName: Annotated[
+            Optional[str],
+            Field(
+                description='Optional file name',
+            ),
+        ] = None,
+        planStepId: Annotated[
+            Optional[str],
+            Field(
+                description='Optional plan step ID',
+            ),
+        ] = None,
     ) -> Dict[str, Any]:
         """Upload a file or raw content as an artifact.
 
@@ -108,26 +128,23 @@ class ArtifactHandler:
                 'ascii'
             )
 
-            upload_body: Dict[str, Any] = {
-                'workspaceId': workspaceId,
-                'jobId': jobId,
-                'contentDigest': {'Sha256': sha256_digest},
-                'artifactReference': {
-                    'artifactType': {
-                        'categoryType': categoryType,
-                        'fileType': fileType,
-                    },
-                },
-            }
-            if planStepId:
-                upload_body['planStepId'] = planStepId
-            if resolved_file_name:
-                upload_body['fileMetadata'] = {
-                    'fileName': resolved_file_name,
-                    'path': resolved_file_name,
-                }
+            upload_req = CreateArtifactUploadUrlRequest(
+                workspaceId=workspaceId,
+                jobId=jobId,
+                contentDigest=ContentDigest(Sha256=sha256_digest),
+                artifactReference=ArtifactReference(
+                    artifactType=ArtifactType(
+                        categoryType=categoryType,
+                        fileType=fileType,
+                    ),
+                ),
+                planStepId=planStepId if planStepId else None,
+                fileMetadata=(
+                    FileMetadata(path=resolved_file_name) if resolved_file_name else None
+                ),
+            )
 
-            init_result = await call_fes('CreateArtifactUploadUrl', upload_body)
+            init_result = await call_fes('CreateArtifactUploadUrl', upload_req)
 
             # Flatten multi-value headers
             put_headers: Dict[str, str] = {}
@@ -152,11 +169,11 @@ class ArtifactHandler:
 
             await call_fes(
                 'CompleteArtifactUpload',
-                {
-                    'workspaceId': workspaceId,
-                    'jobId': jobId,
-                    'artifactId': init_result['artifactId'],
-                },
+                CompleteArtifactUploadRequest(
+                    workspaceId=workspaceId,
+                    jobId=jobId,
+                    artifactId=init_result['artifactId'],
+                ),
             )
 
             return success_result({'artifactId': init_result['artifactId']})

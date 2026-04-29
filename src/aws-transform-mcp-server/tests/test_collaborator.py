@@ -66,9 +66,9 @@ class TestPutAction:
         assert result['isError'] is False
         call_args = mock_fes.call_args[0]
         assert call_args[0] == 'PutUserRoleMappings'
-        assert call_args[1]['workspaceId'] == 'ws-1'
-        assert call_args[1]['userId'] == 'u-1'
-        assert call_args[1]['roles'] == ['CONTRIBUTOR']
+        assert call_args[1].workspaceId == 'ws-1'
+        assert call_args[1].userId == 'u-1'
+        assert call_args[1].roles == ['CONTRIBUTOR']
 
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_missing_user_id(self, _mock_cfg, handler, ctx):

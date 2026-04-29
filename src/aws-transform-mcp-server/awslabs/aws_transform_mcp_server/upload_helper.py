@@ -25,6 +25,14 @@ import hashlib
 import httpx
 import os
 from awslabs.aws_transform_mcp_server.fes_client import call_fes
+from awslabs.aws_transform_mcp_server.fes_models import (
+    ArtifactReference,
+    ArtifactType,
+    CompleteArtifactUploadRequest,
+    ContentDigest,
+    CreateArtifactUploadUrlRequest,
+    FileMetadata,
+)
 from awslabs.aws_transform_mcp_server.file_validation import validate_read_path
 from typing import Dict, List, Optional
 
@@ -74,14 +82,17 @@ async def upload_json_artifact(
 
     init_result = await call_fes(
         'CreateArtifactUploadUrl',
-        {
-            'workspaceId': workspace_id,
-            'jobId': job_id,
-            'contentDigest': {'Sha256': sha256_digest},
-            'artifactReference': {
-                'artifactType': {'categoryType': 'HITL_FROM_USER', 'fileType': 'JSON'},
-            },
-        },
+        CreateArtifactUploadUrlRequest(
+            workspaceId=workspace_id,
+            jobId=job_id,
+            contentDigest=ContentDigest(Sha256=sha256_digest),
+            artifactReference=ArtifactReference(
+                artifactType=ArtifactType(
+                    categoryType='HITL_FROM_USER',
+                    fileType='JSON',
+                ),
+            ),
+        ),
     )
 
     put_headers = _flatten_request_headers(init_result.get('requestHeaders'))
@@ -103,11 +114,11 @@ async def upload_json_artifact(
 
     await call_fes(
         'CompleteArtifactUpload',
-        {
-            'workspaceId': workspace_id,
-            'jobId': job_id,
-            'artifactId': init_result['artifactId'],
-        },
+        CompleteArtifactUploadRequest(
+            workspaceId=workspace_id,
+            jobId=job_id,
+            artifactId=init_result['artifactId'],
+        ),
     )
 
     return init_result['artifactId']
@@ -151,18 +162,18 @@ async def upload_file_artifact(
 
     init_result = await call_fes(
         'CreateArtifactUploadUrl',
-        {
-            'workspaceId': workspace_id,
-            'jobId': job_id,
-            'contentDigest': {'Sha256': sha256_digest},
-            'artifactReference': {
-                'artifactType': {
-                    'categoryType': category_type,
-                    'fileType': file_type or 'JSON',
-                },
-            },
-            'fileMetadata': {'fileName': file_name, 'path': file_name},
-        },
+        CreateArtifactUploadUrlRequest(
+            workspaceId=workspace_id,
+            jobId=job_id,
+            contentDigest=ContentDigest(Sha256=sha256_digest),
+            artifactReference=ArtifactReference(
+                artifactType=ArtifactType(
+                    categoryType=category_type,
+                    fileType=file_type or 'JSON',
+                ),
+            ),
+            fileMetadata=FileMetadata(path=file_name),
+        ),
     )
 
     put_headers = _flatten_request_headers(init_result.get('requestHeaders'))
@@ -178,11 +189,11 @@ async def upload_file_artifact(
 
     await call_fes(
         'CompleteArtifactUpload',
-        {
-            'workspaceId': workspace_id,
-            'jobId': job_id,
-            'artifactId': init_result['artifactId'],
-        },
+        CompleteArtifactUploadRequest(
+            workspaceId=workspace_id,
+            jobId=job_id,
+            artifactId=init_result['artifactId'],
+        ),
     )
 
     return init_result['artifactId']

@@ -66,15 +66,15 @@ class TestUploadJsonArtifact:
         create_call = mock_fes.call_args_list[0]
         assert create_call[0][0] == 'CreateArtifactUploadUrl'
         body = create_call[0][1]
-        assert body['workspaceId'] == 'ws-1'
-        assert body['jobId'] == 'job-1'
-        assert body['artifactReference']['artifactType']['categoryType'] == 'HITL_FROM_USER'
-        assert body['artifactReference']['artifactType']['fileType'] == 'JSON'
+        assert body.workspaceId == 'ws-1'
+        assert body.jobId == 'job-1'
+        assert body.artifactReference.artifactType.categoryType == 'HITL_FROM_USER'
+        assert body.artifactReference.artifactType.fileType == 'JSON'
 
         # Verify CompleteArtifactUpload was called
         complete_call = mock_fes.call_args_list[1]
         assert complete_call[0][0] == 'CompleteArtifactUpload'
-        assert complete_call[0][1]['artifactId'] == 'art-123'
+        assert complete_call[0][1].artifactId == 'art-123'
 
     @patch('awslabs.aws_transform_mcp_server.upload_helper.httpx.AsyncClient')
     @patch(
@@ -216,15 +216,15 @@ class TestUploadFileArtifact:
         # Verify CreateArtifactUploadUrl was called with fileMetadata
         create_call = mock_fes.call_args_list[0]
         body = create_call[0][1]
-        assert body['workspaceId'] == 'ws-1'
-        assert body['jobId'] == 'job-1'
-        assert body['fileMetadata']['fileName'] == 'test_data.json'
-        assert body['artifactReference']['artifactType']['categoryType'] == 'HITL_FROM_USER'
+        assert body.workspaceId == 'ws-1'
+        assert body.jobId == 'job-1'
+        assert body.fileMetadata.path == 'test_data.json'
+        assert body.artifactReference.artifactType.categoryType == 'HITL_FROM_USER'
 
         # Verify CompleteArtifactUpload was called
         complete_call = mock_fes.call_args_list[1]
         assert complete_call[0][0] == 'CompleteArtifactUpload'
-        assert complete_call[0][1]['artifactId'] == 'art-file-1'
+        assert complete_call[0][1].artifactId == 'art-file-1'
 
     async def test_file_too_large_raises(self, tmp_path):
         from awslabs.aws_transform_mcp_server.upload_helper import upload_file_artifact
@@ -305,5 +305,5 @@ class TestUploadFileArtifact:
         assert result == 'art-pdf-1'
         create_call = mock_fes.call_args_list[0]
         body = create_call[0][1]
-        assert body['artifactReference']['artifactType']['fileType'] == 'PDF'
-        assert body['artifactReference']['artifactType']['categoryType'] == 'CUSTOMER_INPUT'
+        assert body.artifactReference.artifactType.fileType == 'PDF'
+        assert body.artifactReference.artifactType.categoryType == 'CUSTOMER_INPUT'

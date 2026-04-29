@@ -49,17 +49,15 @@ class TestSendValidation:
         result = await send_message(ctx, workspaceId='ws-1', text='hello', skipPolling=True)
         parsed = _parse(result)
         assert parsed['success'] is True
-        call_body = mock_fes.call_args[0][1]
+        call_body = mock_fes.call_args[0][1].model_dump(by_alias=True, exclude_none=True)
         assert call_body['text'] == 'hello'
 
     async def test_missing_text_fails(self, ctx):
-        """Missing text should fail with VALIDATION_ERROR."""
+        """Missing text should fail with TypeError since text is a required parameter."""
         from awslabs.aws_transform_mcp_server.tools.chat.send_message import send_message
 
-        result = await send_message(ctx, workspaceId='ws-1')
-        parsed = _parse(result)
-        assert parsed['success'] is False
-        assert parsed['error']['code'] == 'VALIDATION_ERROR'
+        with pytest.raises(TypeError, match='text'):
+            await send_message(ctx, workspaceId='ws-1')  # pyright: ignore[reportCallIssue]
 
 
 # ── send_message: Skip polling ─────────────────────────────────────────
@@ -287,7 +285,7 @@ class TestSendJobId:
 
         mock_fes.return_value = {'message': {'messageId': 'msg-1'}}
         await send_message(ctx, workspaceId='ws-1', text='hi', jobId='job-1', skipPolling=True)
-        call_body = mock_fes.call_args[0][1]
+        call_body = mock_fes.call_args[0][1].model_dump(by_alias=True, exclude_none=True)
         jobs = call_body['metadata']['resourcesOnScreen']['workspace']['jobs']
         assert jobs == [{'jobId': 'job-1', 'focusState': 'ACTIVE'}]
 
@@ -299,7 +297,7 @@ class TestSendJobId:
 
         mock_fes.return_value = {'message': {'messageId': 'msg-1'}}
         await send_message(ctx, workspaceId='ws-1', text='hi', skipPolling=True)
-        call_body = mock_fes.call_args[0][1]
+        call_body = mock_fes.call_args[0][1].model_dump(by_alias=True, exclude_none=True)
         workspace = call_body['metadata']['resourcesOnScreen']['workspace']
         assert 'jobs' not in workspace
 

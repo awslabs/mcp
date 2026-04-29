@@ -17,6 +17,11 @@
 from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.config_store import is_fes_available
 from awslabs.aws_transform_mcp_server.fes_client import call_fes
+from awslabs.aws_transform_mcp_server.fes_models import (
+    DeleteSelfRoleMappingsRequest,
+    DeleteUserRoleMappingsRequest,
+    PutUserRoleMappingsRequest,
+)
 from awslabs.aws_transform_mcp_server.tool_utils import (
     error_result,
     failure_result,
@@ -42,7 +47,7 @@ class CollaboratorHandler:
     async def manage_collaborator(
         self,
         ctx: Context,
-        workspaceId: str = Field(..., description='The workspace ID'),
+        workspaceId: Annotated[str, Field(description='The workspace ID')],
         action: Annotated[
             Literal['put', 'remove', 'leave'],
             Field(
@@ -52,17 +57,23 @@ class CollaboratorHandler:
                     'leave = caller removes themselves'
                 )
             ),
-        ] = Field(...),
-        userId: Optional[str] = Field(
-            None, description='Target user ID. Required for "put" and "remove". Omit for "leave".'
-        ),
+        ],
+        userId: Annotated[
+            Optional[str],
+            Field(
+                description='Target user ID. Required for "put" and "remove". Omit for "leave".',
+            ),
+        ] = None,
         role: Annotated[
             Optional[Literal['ADMIN', 'APPROVER', 'CONTRIBUTOR', 'READ_ONLY']],
             Field(description='Role to assign. Required for "put".'),
         ] = None,
-        confirm: Optional[bool] = Field(
-            None, description='Must be true for destructive actions ("remove", "leave").'
-        ),
+        confirm: Annotated[
+            Optional[bool],
+            Field(
+                description='Must be true for destructive actions ("remove", "leave").',
+            ),
+        ] = None,
     ) -> Dict[str, Any]:
         """Add, update, or remove a workspace collaborator.
 
@@ -87,7 +98,11 @@ class CollaboratorHandler:
                     return error_result('VALIDATION_ERROR', 'role is required for action="put".')
                 result = await call_fes(
                     'PutUserRoleMappings',
-                    {'workspaceId': workspaceId, 'userId': userId, 'roles': [role]},
+                    PutUserRoleMappingsRequest(
+                        workspaceId=workspaceId,
+                        userId=userId,
+                        roles=[role],
+                    ),
                 )
                 return success_result(result)
 
@@ -103,7 +118,8 @@ class CollaboratorHandler:
                         'Set confirm:true to proceed.',
                     )
                 result = await call_fes(
-                    'DeleteUserRoleMappings', {'workspaceId': workspaceId, 'userId': userId}
+                    'DeleteUserRoleMappings',
+                    DeleteUserRoleMappingsRequest(workspaceId=workspaceId, userId=userId),
                 )
                 data = {'removed': True, 'workspaceId': workspaceId, 'userId': userId}
                 if isinstance(result, dict):
@@ -123,7 +139,10 @@ class CollaboratorHandler:
                     'Leaving a workspace requires confirm:true.',
                     'Set confirm:true to proceed.',
                 )
-            result = await call_fes('DeleteSelfRoleMappings', {'workspaceId': workspaceId})
+            result = await call_fes(
+                'DeleteSelfRoleMappings',
+                DeleteSelfRoleMappingsRequest(workspaceId=workspaceId),
+            )
             data = {'left': True, 'workspaceId': workspaceId}
             if isinstance(result, dict):
                 data.update(result)

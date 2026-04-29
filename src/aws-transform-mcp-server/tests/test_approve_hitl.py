@@ -100,18 +100,18 @@ class TestListToolApprovals:
         task_ids = [t['taskId'] for t in parsed['data']['tasks']]
         assert task_ids == ['t-1', 't-4']
 
-        mock_fes.assert_called_once_with(
-            'ListHitlTasks',
-            {
-                'workspaceId': 'ws-1',
-                'jobId': 'job-1',
-                'taskType': 'NORMAL',
-                'taskFilter': {
-                    'categories': ['TOOL_APPROVAL'],
-                    'taskStatuses': ['AWAITING_APPROVAL'],
-                },
+        mock_fes.assert_called_once()
+        args = mock_fes.call_args[0]
+        assert args[0] == 'ListHitlTasks'
+        assert args[1].model_dump(by_alias=True, exclude_none=True) == {
+            'workspaceId': 'ws-1',
+            'jobId': 'job-1',
+            'taskType': 'NORMAL',
+            'taskFilter': {
+                'categories': ['TOOL_APPROVAL'],
+                'taskStatuses': ['AWAITING_APPROVAL'],
             },
-        )
+        }
 
     @patch(
         'awslabs.aws_transform_mcp_server.tools.approve_hitl.list_tool_approvals.call_fes',
@@ -164,7 +164,7 @@ class TestListToolApprovals:
         assert mock_fes.call_count == 2
 
         second_call_body = mock_fes.call_args_list[1][0][1]
-        assert second_call_body['nextToken'] == 'page2'
+        assert second_call_body.nextToken == 'page2'
 
     @patch(
         'awslabs.aws_transform_mcp_server.tools.approve_hitl.list_tool_approvals.is_fes_available',
@@ -228,7 +228,7 @@ class TestApproveToolApproval:
 
         submit_call = mock_fes.call_args_list[1]
         assert submit_call[0][0] == 'SubmitCriticalHitlTask'
-        assert submit_call[0][1]['action'] == 'APPROVE'
+        assert submit_call[0][1].action == 'APPROVE'
         assert 'humanArtifact' not in submit_call[0][1]
 
     @patch(
@@ -348,7 +348,7 @@ class TestDenyToolApproval:
 
         submit_call = mock_fes.call_args_list[1]
         assert submit_call[0][0] == 'SubmitCriticalHitlTask'
-        assert submit_call[0][1]['action'] == 'REJECT'
+        assert submit_call[0][1].action == 'REJECT'
         assert 'humanArtifact' not in submit_call[0][1]
 
     @patch(

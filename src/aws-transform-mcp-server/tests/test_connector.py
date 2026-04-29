@@ -70,7 +70,7 @@ class TestAcceptConnector:
         assert parsed['error']['code'] == 'NO_AWS_CREDENTIALS'
 
     @pytest.mark.asyncio
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch('awslabs.aws_transform_mcp_server.tools.connector.call_fes', new_callable=AsyncMock)
     @patch(f'{_MOD}.call_tcp', new_callable=AsyncMock)
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_happy_path(self, _, mock_tcp, mock_fes, handler, ctx):
@@ -155,7 +155,7 @@ class TestCreateConnector:
 
     @pytest.mark.asyncio
     @patch(f'{_MOD}.get_config')
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch('awslabs.aws_transform_mcp_server.tools.connector.call_fes', new_callable=AsyncMock)
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_happy_path(self, _, mock_fes, mock_config, handler, ctx):
         mock_cfg = MagicMock()
@@ -187,7 +187,7 @@ class TestCreateConnector:
     @pytest.mark.asyncio
     @patch(f'{_MOD}.get_config', return_value=None)
     @patch(f'{_MOD}.AwsHelper')
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch('awslabs.aws_transform_mcp_server.tools.connector.call_fes', new_callable=AsyncMock)
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_happy_path_no_config_fallback(
         self, _, mock_fes, mock_helper, mock_config, handler, ctx
@@ -212,7 +212,11 @@ class TestCreateConnector:
         assert parsed['success'] is True
 
     @pytest.mark.asyncio
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock, side_effect=Exception('API error'))
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.connector.call_fes',
+        new_callable=AsyncMock,
+        side_effect=Exception('API error'),
+    )
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_fes_error_returns_failure(self, _, mock_fes, handler, ctx):
         result = await handler.create_connector(
@@ -229,7 +233,7 @@ class TestCreateConnector:
 
     @pytest.mark.asyncio
     @patch(f'{_MOD}.get_config')
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch('awslabs.aws_transform_mcp_server.tools.connector.call_fes', new_callable=AsyncMock)
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_optional_description_and_target_regions(
         self, _, mock_fes, mock_config, handler, ctx
@@ -260,5 +264,5 @@ class TestCreateConnector:
         # Verify description and targetRegions were in the payload
         create_call = mock_fes.call_args_list[0]
         body = create_call[0][1]
-        assert body['description'] == 'My connector'
-        assert body['targetRegions'] == ['us-east-1', 'us-west-2']
+        assert body.description == 'My connector'
+        assert body.targetRegions == ['us-east-1', 'us-west-2']

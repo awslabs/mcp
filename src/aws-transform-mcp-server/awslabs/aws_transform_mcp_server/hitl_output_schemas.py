@@ -3547,6 +3547,27 @@ OUTPUT_SCHEMA_META: Dict[str, OutputSchemaMeta] = {
             'additionalProperties': True,
         },
     ),
+    'CreateOrSelectConnectors': OutputSchemaMeta(
+        display_only=False,
+        merge_with_artifact=False,
+        examples=[{'connectorId': 'connector-abc123'}],
+        json_schema={
+            'title': 'CreateOrSelectConnectors Output',
+            'description': 'Output schema for CreateOrSelectConnectors. Identifies which connector is used for the job.',
+            'displayOnly': False,
+            'mergeWithArtifact': False,
+            'type': 'object',
+            'examples': [{'connectorId': 'connector-abc123'}],
+            'properties': {
+                'connectorId': {
+                    'type': 'string',
+                    'description': 'Identifies which connector is used for the job.',
+                }
+            },
+            'required': ['connectorId'],
+            'additionalProperties': True,
+        },
+    ),
     'GenericErrorHandlingComponent': OutputSchemaMeta(
         display_only=True,
         merge_with_artifact=False,

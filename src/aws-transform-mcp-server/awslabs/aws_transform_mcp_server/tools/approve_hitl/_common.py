@@ -16,6 +16,10 @@
 
 from awslabs.aws_transform_mcp_server.config_store import is_fes_available
 from awslabs.aws_transform_mcp_server.fes_client import call_fes
+from awslabs.aws_transform_mcp_server.fes_models import (
+    GetHitlTaskRequest,
+    SubmitCriticalHitlTaskRequest,
+)
 from awslabs.aws_transform_mcp_server.tool_utils import (
     error_result,
     failure_result,
@@ -59,7 +63,7 @@ async def validate_and_submit(
     try:
         task_result = await call_fes(
             'GetHitlTask',
-            {'workspaceId': workspaceId, 'jobId': jobId, 'taskId': taskId},
+            GetHitlTaskRequest(workspaceId=workspaceId, jobId=jobId, taskId=taskId),
         )
         task = task_result.get('task', {})
 
@@ -81,12 +85,12 @@ async def validate_and_submit(
 
         fes_result = await call_fes(
             'SubmitCriticalHitlTask',
-            {
-                'workspaceId': workspaceId,
-                'jobId': jobId,
-                'taskId': taskId,
-                'action': action,
-            },
+            SubmitCriticalHitlTaskRequest(
+                workspaceId=workspaceId,
+                jobId=jobId,
+                taskId=taskId,
+                action=action,
+            ),
         )
         return success_result(
             {

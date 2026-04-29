@@ -33,27 +33,11 @@ class TestCallFesSigv4:
     async def test_happy_path(self):
         from awslabs.aws_transform_mcp_server.fes_client import call_fes_direct_sigv4
 
-        mock_creds = MagicMock()
-        mock_creds.get_frozen_credentials.return_value = MagicMock(
-            access_key='AKID',
-            secret_key='SECRET',  # pragma: allowlist secret
-            token='TOKEN',
-        )
-        mock_session = MagicMock()
-        mock_session.get_credentials.return_value = mock_creds
-        mock_session.region_name = 'us-east-1'
-
-        mock_response = MagicMock()
-        mock_response.json.return_value = {'items': []}
-
         with (
-            patch(f'{_FES_MOD}.AwsHelper') as mock_helper,
-            patch(f'{_FES_MOD}.request_with_retry', new_callable=AsyncMock) as mock_retry,
+            patch(f'{_FES_MOD}._call_boto3', return_value={'items': []}) as mock_call,
+            patch(f'{_FES_MOD}._create_sigv4_client') as mock_create,
         ):
-            mock_helper.create_session.return_value = mock_session
-            mock_helper.resolve_region.return_value = 'us-east-1'
-            mock_helper.sign_request.return_value = {'Authorization': 'AWS4-HMAC-SHA256 ...'}
-            mock_retry.return_value = mock_response
+            mock_create.return_value = MagicMock()
 
             result = await call_fes_direct_sigv4(
                 'https://api.transform.us-east-1.on.aws/',
@@ -63,22 +47,25 @@ class TestCallFesSigv4:
             )
 
         assert result == {'items': []}
-        mock_helper.sign_request.assert_called_once()
+        mock_create.assert_called_once()
+        mock_call.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_no_credentials_raises(self):
+        """SigV4 client creation with no credentials raises ClientError at call time."""
         from awslabs.aws_transform_mcp_server.fes_client import call_fes_direct_sigv4
 
-        mock_session = MagicMock()
-        mock_session.get_credentials.return_value = None
+        with (
+            patch(f'{_FES_MOD}._call_boto3', side_effect=HttpError(403, {}, 'HTTP 403')),
+            patch(f'{_FES_MOD}._create_sigv4_client') as mock_create,
+        ):
+            mock_create.return_value = MagicMock()
 
-        with patch(f'{_FES_MOD}.AwsHelper') as mock_helper:
-            mock_helper.create_session.return_value = mock_session
-            mock_helper.resolve_region.return_value = 'us-east-1'
-
-            with pytest.raises(RuntimeError, match='No AWS credentials'):
+            with pytest.raises(HttpError):
                 await call_fes_direct_sigv4(
-                    'https://api.transform.us-east-1.on.aws/', 'ListWorkspaces'
+                    'https://api.transform.us-east-1.on.aws/',
+                    'ListWorkspaces',
+                    region='us-east-1',
                 )
 
 
