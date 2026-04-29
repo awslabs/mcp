@@ -49,7 +49,7 @@ class URLValidator:
         self.allowed_domain_prefixes = set(allowed_domain_prefixes)
         self._allowed_origins = [_AllowedOrigin(p) for p in allowed_domain_prefixes]
 
-    def is_url_allowed(self, url: str) -> bool:
+    def is_url_allowed(self, url: str | None) -> bool:
         if not url or not isinstance(url, str):
             return False
 
