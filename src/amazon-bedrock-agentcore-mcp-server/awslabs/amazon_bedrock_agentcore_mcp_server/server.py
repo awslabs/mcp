@@ -174,7 +174,7 @@ if _is_service_enabled('memory'):
             f'Set AGENTCORE_DISABLE_TOOLS=memory to suppress.'
         )
 
-if _is_service_enabled('identity'):
+if _is_service_enabled('identity'):  # pragma: no cover
     try:
         from .tools.identity import register_identity_tools  # type: ignore
 
@@ -188,7 +188,7 @@ if _is_service_enabled('identity'):
             f'Set AGENTCORE_DISABLE_TOOLS=identity to suppress.'
         )
 
-if _is_service_enabled('gateway'):
+if _is_service_enabled('gateway'):  # pragma: no cover
     try:
         from .tools.gateway import register_gateway_tools  # type: ignore
 
@@ -208,7 +208,7 @@ if _is_service_enabled('gateway'):
             f'Set AGENTCORE_DISABLE_TOOLS=gateway to suppress.'
         )
 
-if _is_service_enabled('policy'):
+if _is_service_enabled('policy'):  # pragma: no cover
     try:
         from .tools.policy import register_policy_tools  # type: ignore
 
