@@ -38,6 +38,11 @@ from awslabs.aws_transform_mcp_server.tool_utils import (
     READ_ONLY,
     error_result,
     failure_result,
+    format_connector_summary,
+    format_job_response,
+    format_message_summary,
+    format_task_summary,
+    format_worklog,
     success_result,
 )
 from enum import Enum
@@ -405,20 +410,20 @@ class ListResourcesHandler:
                     return error_result(
                         'VALIDATION_ERROR', 'workspaceId is required for listing jobs.'
                     )
-                return success_result(
-                    await paginate_all('ListJobs', {'workspaceId': workspaceId}, 'jobList')
-                )
+                raw = await paginate_all('ListJobs', {'workspaceId': workspaceId}, 'jobList')
+                items = raw.get('jobList', []) if isinstance(raw, dict) else []
+                return success_result({'items': [format_job_response(e) for e in items]})
 
             elif resource == ResourceType.connectors:
                 if not workspaceId:
                     return error_result(
                         'VALIDATION_ERROR', 'workspaceId is required for listing connectors.'
                     )
-                return success_result(
-                    await paginate_all(
-                        'ListConnectors', {'workspaceId': workspaceId}, 'connectors'
-                    )
+                raw = await paginate_all(
+                    'ListConnectors', {'workspaceId': workspaceId}, 'connectors'
                 )
+                items = raw.get('connectors', []) if isinstance(raw, dict) else []
+                return success_result({'items': [format_connector_summary(c) for c in items]})
 
             elif resource == ResourceType.tasks:
                 if not workspaceId:
@@ -443,7 +448,8 @@ class ListResourcesHandler:
                     data = enrich_tasks(data)
                 except ImportError:
                     pass
-                return success_result(data)
+                items = data.get('hitlTasks', []) if isinstance(data, dict) else []
+                return success_result({'items': [format_task_summary(t) for t in items]})
 
             elif resource == ResourceType.artifacts:
                 if not workspaceId:
@@ -524,7 +530,9 @@ class ListResourcesHandler:
                     if isinstance(batch_result, dict):
                         all_messages.extend(batch_result.get('messages', []))
 
-                result_data: Dict[str, Any] = {'messages': all_messages}
+                result_data: Dict[str, Any] = {
+                    'messages': [format_message_summary(m) for m in all_messages]
+                }
                 list_next = list_result.get('nextToken') if isinstance(list_result, dict) else None
                 if list_next:
                     result_data['nextToken'] = list_next
@@ -557,9 +565,9 @@ class ListResourcesHandler:
                         time_filter['endTime'] = endTime
                     body['worklogFilter'] = {'timeFilter': time_filter}
 
-                return success_result(
-                    await paginate_all('ListWorklogs', body, 'worklogs', token_key='outputToken')
-                )
+                raw = await paginate_all('ListWorklogs', body, 'worklogs', token_key='outputToken')
+                items = raw.get('worklogs', []) if isinstance(raw, dict) else []
+                return success_result({'items': [format_worklog(w) for w in items]})
 
             elif resource == ResourceType.plan:
                 if not workspaceId:

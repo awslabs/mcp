@@ -36,6 +36,7 @@ from awslabs.aws_transform_mcp_server.tool_utils import (
     download_s3_content,
     error_result,
     failure_result,
+    format_job_response,
     success_result,
 )
 from enum import Enum
@@ -232,9 +233,11 @@ class GetResourceHandler:
                     return error_result('VALIDATION_ERROR', 'jobId is required for getting a job.')
 
                 return success_result(
-                    await call_fes(
-                        'GetJob',
-                        GetJobRequest(workspaceId=workspaceId, jobId=jobId),
+                    format_job_response(
+                        await call_fes(
+                            'GetJob',
+                            GetJobRequest(workspaceId=workspaceId, jobId=jobId),
+                        )
                     )
                 )
 

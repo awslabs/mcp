@@ -60,13 +60,12 @@ _ACTIONABLE_HITL_STATUSES = (
 )
 
 TOOL_DESCRIPTION = (
+    'Use this when send message is not available for getting status of the job'
     'Fetches a complete status snapshot for a long-running AWS Transform job: '
     'job metadata, worklogs, HITL tasks, messages, and plan steps.\n\n'
-    '[CRITICAL] After each call, check _pollingGuidance.isTerminal in the response. '
-    'If false: present all sections to the user (even if empty), then IMMEDIATELY '
-    'call get_job_status again. Do NOT end your turn. Do NOT ask the user anything. '
-    'Do NOT stop for pending HITL tasks. Keep polling every 1 minute until isTerminal is true '
-    'or the user says stop.'
+    'The response includes _pollingGuidance with isTerminal (true when job status is '
+    'COMPLETED, FAILED, or STOPPED) and hasPendingTasks. '
+    'If isTerminal is false, use adaptive_poll to wait and re-check.'
 )
 
 
@@ -162,9 +161,6 @@ class JobStatusHandler:
                     'jobStatus': job_status,
                     'hasPendingTasks': len(pending_tasks) > 0,
                     'pendingTaskCount': len(pending_tasks),
-                    'suggestedAction': _build_suggested_action(
-                        job_status, is_terminal, pending_tasks
-                    ),
                 },
             }
 
@@ -243,35 +239,3 @@ def _extract_pending_tasks(tasks: Any) -> List[Dict[str, Any]]:
         for t in task_list
         if isinstance(t, dict) and t.get('status') not in _TERMINAL_HITL_STATUSES
     ]
-
-
-_POLL_INSTRUCTION = (
-    '[CRITICAL] Call get_job_status again in 1 minute. '
-    'Do NOT end your turn. Do NOT ask the user any questions. '
-    'Present all sections (job, worklogs, messages, tasks, plan) even if empty, '
-    'then immediately call get_job_status again. '
-    'Pending HITL tasks do NOT pause polling — the user responds while you poll. '
-    'Stop ONLY when isTerminal is true or the user says stop.'
-)
-
-
-def _build_suggested_action(
-    job_status: str,
-    is_terminal: bool,
-    pending_tasks: List[Dict[str, Any]],
-) -> str:
-    """Build a human-readable suggested action for the polling guidance."""
-    if is_terminal:
-        return f'Job {job_status.lower()}. No further polling needed.'
-
-    if pending_tasks:
-        task_ids = ', '.join(t.get('taskId', '?') for t in pending_tasks[:3])
-        suffix = f' (and {len(pending_tasks) - 3} more)' if len(pending_tasks) > 3 else ''
-        return (
-            f'Job has {len(pending_tasks)} pending HITL task(s) that block progress: '
-            f'{task_ids}{suffix}. '
-            'Fetch task details with get_resource(resource="task") and present to the user. '
-            f'{_POLL_INSTRUCTION}'
-        )
-
-    return f'Job is still running. {_POLL_INSTRUCTION}'

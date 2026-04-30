@@ -26,8 +26,12 @@ from awslabs.aws_transform_mcp_server.fes_models import (
     StopJobRequest,
 )
 from awslabs.aws_transform_mcp_server.tool_utils import (
+    CREATE,
+    DELETE_IDEMPOTENT,
+    MUTATE,
     error_result,
     failure_result,
+    format_job_response,
     success_result,
 )
 from mcp.server.fastmcp import Context
@@ -45,9 +49,11 @@ class JobHandler:
 
     def __init__(self, mcp: Any) -> None:
         """Register job tools on the MCP server."""
-        audited_tool(mcp, 'create_job')(self.create_job)
-        audited_tool(mcp, 'control_job')(self.control_job)
-        audited_tool(mcp, 'delete_job')(self.delete_job)
+        audited_tool(mcp, 'create_job', title='Create Job', annotations=MUTATE)(self.create_job)
+        audited_tool(mcp, 'control_job', title='Control Job', annotations=CREATE)(self.control_job)
+        audited_tool(mcp, 'delete_job', title='Delete Job', annotations=DELETE_IDEMPOTENT)(
+            self.delete_job
+        )
 
     async def create_job(
         self,
@@ -98,7 +104,7 @@ class JobHandler:
                 'GetJob',
                 GetJobRequest(workspaceId=workspaceId, jobId=job_id),
             )
-            return success_result(status)
+            return success_result(format_job_response(status))
         except Exception as error:
             return failure_result(error)
 
@@ -133,7 +139,7 @@ class JobHandler:
                 'GetJob',
                 GetJobRequest(workspaceId=workspaceId, jobId=jobId),
             )
-            return success_result(status)
+            return success_result(format_job_response(status))
         except Exception as error:
             return failure_result(error)
 

@@ -23,6 +23,7 @@ from awslabs.aws_transform_mcp_server.fes_models import (
     PutUserRoleMappingsRequest,
 )
 from awslabs.aws_transform_mcp_server.tool_utils import (
+    DELETE_IDEMPOTENT,
     error_result,
     failure_result,
     success_result,
@@ -42,7 +43,9 @@ class CollaboratorHandler:
 
     def __init__(self, mcp: Any) -> None:
         """Register manage_collaborator on the MCP server."""
-        audited_tool(mcp, 'manage_collaborator')(self.manage_collaborator)
+        audited_tool(
+            mcp, 'manage_collaborator', title='Manage Collaborator', annotations=DELETE_IDEMPOTENT
+        )(self.manage_collaborator)
 
     async def manage_collaborator(
         self,

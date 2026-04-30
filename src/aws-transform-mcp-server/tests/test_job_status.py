@@ -115,7 +115,6 @@ class TestInProgressJob:
         assert guidance['jobStatus'] == 'IN_PROGRESS'
         assert guidance['hasPendingTasks'] is False
         assert guidance['pendingTaskCount'] == 0
-        assert '[CRITICAL] Call get_job_status again in 1 minute' in guidance['suggestedAction']
 
 
 class TestCompletedJob:
@@ -146,7 +145,6 @@ class TestCompletedJob:
         guidance = parsed['data']['_pollingGuidance']
         assert guidance['isTerminal'] is True
         assert guidance['jobStatus'] == 'COMPLETED'
-        assert 'No further polling needed' in guidance['suggestedAction']
 
 
 class TestFailedJob:
@@ -206,10 +204,6 @@ class TestPendingHitlTasks:
         assert guidance['isTerminal'] is False
         assert guidance['hasPendingTasks'] is True
         assert guidance['pendingTaskCount'] == 2
-        assert 'task-1' in guidance['suggestedAction']
-        assert 'task-2' in guidance['suggestedAction']
-        assert 'get_resource(resource="task")' in guidance['suggestedAction']
-        assert '[CRITICAL] Call get_job_status again in 1 minute' in guidance['suggestedAction']
 
 
 class TestGetJobFails:
@@ -294,4 +288,3 @@ class TestCancellationInProgress:
         guidance = parsed['data']['_pollingGuidance']
         assert guidance['isTerminal'] is False
         assert guidance['jobStatus'] == 'CANCELLATION_IN_PROGRESS'
-        assert '[CRITICAL] Call get_job_status again in 1 minute' in guidance['suggestedAction']

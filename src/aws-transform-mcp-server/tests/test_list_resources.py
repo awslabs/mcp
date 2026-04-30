@@ -648,13 +648,18 @@ class TestListResourcesHandler:
         'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_worklogs_auto_paginates(self, _, mock_paginate, handler, ctx):
-        mock_paginate.return_value = {'worklogs': [{'id': 'w1'}, {'id': 'w2'}]}
+        mock_paginate.return_value = {
+            'worklogs': [
+                {'description': 'w1', 'timestamp': '1', 'worklogType': 'INFO'},
+                {'description': 'w2', 'timestamp': '2', 'worklogType': 'INFO'},
+            ]
+        }
         result = await handler.list_resources(
             ctx, resource=ResourceType.worklogs, workspaceId='ws1', jobId='j1'
         )
         parsed = _parse_result(result)
         assert parsed['success'] is True
-        assert len(parsed['data']['worklogs']) == 2
+        assert len(parsed['data']['items']) == 2
         mock_paginate.assert_called_once_with(
             'ListWorklogs',
             {'workspaceId': 'ws1', 'jobId': 'j1'},

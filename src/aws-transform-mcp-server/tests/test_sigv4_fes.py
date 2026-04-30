@@ -178,11 +178,6 @@ class TestCallFesSigv4Fallback:
 # ── _probe_sigv4_fes ──────────────────────────────────────────────────────
 
 
-_HELPER_MOD = 'awslabs.aws_transform_mcp_server.aws_helper'
-_CONSTS_MOD = 'awslabs.aws_transform_mcp_server.consts'
-_CONFIG_MOD = 'awslabs.aws_transform_mcp_server.config_store'
-
-
 class TestProbeSigv4Fes:
     """Tests for the startup SigV4 FES probe."""
 
@@ -191,8 +186,8 @@ class TestProbeSigv4Fes:
         from awslabs.aws_transform_mcp_server.server import _probe_sigv4_fes
 
         with (
-            patch(f'{_CONSTS_MOD}.SIGV4_FES_ENABLED', False),
-            patch(f'{_CONFIG_MOD}.set_sigv4_fes_available') as mock_set,
+            patch(f'{_SERVER_MOD}.SIGV4_FES_ENABLED', False),
+            patch(f'{_SERVER_MOD}.set_sigv4_fes_available') as mock_set,
         ):
             await _probe_sigv4_fes()
 
@@ -206,10 +201,11 @@ class TestProbeSigv4Fes:
         mock_session.get_credentials.return_value = None
 
         with (
-            patch(f'{_CONSTS_MOD}.SIGV4_FES_ENABLED', True),
-            patch(f'{_HELPER_MOD}.AwsHelper.create_session', return_value=mock_session),
-            patch(f'{_CONFIG_MOD}.set_sigv4_fes_available') as mock_set,
+            patch(f'{_SERVER_MOD}.SIGV4_FES_ENABLED', True),
+            patch(f'{_SERVER_MOD}.AwsHelper') as mock_helper,
+            patch(f'{_SERVER_MOD}.set_sigv4_fes_available') as mock_set,
         ):
+            mock_helper.create_session.return_value = mock_session
             await _probe_sigv4_fes()
 
         mock_set.assert_called_once_with(False)
@@ -223,14 +219,15 @@ class TestProbeSigv4Fes:
         mock_session.region_name = 'us-east-1'
 
         with (
-            patch(f'{_CONSTS_MOD}.SIGV4_FES_ENABLED', True),
-            patch(f'{_HELPER_MOD}.AwsHelper.create_session', return_value=mock_session),
-            patch(f'{_HELPER_MOD}.AwsHelper.resolve_region', return_value='us-east-1'),
-            patch(f'{_CONFIG_MOD}.set_sigv4_fes_available') as mock_set,
-            patch(f'{_CONFIG_MOD}.derive_fes_endpoint', return_value='https://ep/'),
-            patch(f'{_FES_MOD}.call_fes_direct_sigv4', new_callable=AsyncMock) as mock_call,
+            patch(f'{_SERVER_MOD}.SIGV4_FES_ENABLED', True),
+            patch(f'{_SERVER_MOD}.AwsHelper') as mock_helper,
+            patch(f'{_SERVER_MOD}.set_sigv4_fes_available') as mock_set,
+            patch(f'{_SERVER_MOD}.derive_fes_endpoint', return_value='https://ep/'),
+            patch(f'{_SERVER_MOD}.call_fes_direct_sigv4', new_callable=AsyncMock) as mock_call,
             patch.dict('os.environ', {'ATX_STAGE': 'prod'}),
         ):
+            mock_helper.create_session.return_value = mock_session
+            mock_helper.resolve_region.return_value = 'us-east-1'
             mock_call.return_value = {'items': []}
             await _probe_sigv4_fes()
 
@@ -245,18 +242,19 @@ class TestProbeSigv4Fes:
         mock_session.region_name = 'us-east-1'
 
         with (
-            patch(f'{_CONSTS_MOD}.SIGV4_FES_ENABLED', True),
-            patch(f'{_HELPER_MOD}.AwsHelper.create_session', return_value=mock_session),
-            patch(f'{_HELPER_MOD}.AwsHelper.resolve_region', return_value='us-east-1'),
-            patch(f'{_CONFIG_MOD}.set_sigv4_fes_available') as mock_set,
-            patch(f'{_CONFIG_MOD}.derive_fes_endpoint', return_value='https://ep/'),
+            patch(f'{_SERVER_MOD}.SIGV4_FES_ENABLED', True),
+            patch(f'{_SERVER_MOD}.AwsHelper') as mock_helper,
+            patch(f'{_SERVER_MOD}.set_sigv4_fes_available') as mock_set,
+            patch(f'{_SERVER_MOD}.derive_fes_endpoint', return_value='https://ep/'),
             patch(
-                f'{_FES_MOD}.call_fes_direct_sigv4',
+                f'{_SERVER_MOD}.call_fes_direct_sigv4',
                 new_callable=AsyncMock,
                 side_effect=Exception('connection refused'),
             ),
             patch.dict('os.environ', {'ATX_STAGE': 'prod'}),
         ):
+            mock_helper.create_session.return_value = mock_session
+            mock_helper.resolve_region.return_value = 'us-east-1'
             await _probe_sigv4_fes()
 
         mock_set.assert_called_once_with(False)

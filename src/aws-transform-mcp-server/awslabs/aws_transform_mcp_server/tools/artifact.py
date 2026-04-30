@@ -35,6 +35,7 @@ from awslabs.aws_transform_mcp_server.fes_models import (
 )
 from awslabs.aws_transform_mcp_server.file_validation import validate_read_path
 from awslabs.aws_transform_mcp_server.tool_utils import (
+    MUTATE,
     error_result,
     failure_result,
     success_result,
@@ -54,7 +55,9 @@ class ArtifactHandler:
 
     def __init__(self, mcp: Any) -> None:
         """Register artifact tools on the MCP server."""
-        audited_tool(mcp, 'upload_artifact')(self.upload_artifact)
+        audited_tool(mcp, 'upload_artifact', title='Upload Artifact', annotations=MUTATE)(
+            self.upload_artifact
+        )
 
     async def upload_artifact(
         self,

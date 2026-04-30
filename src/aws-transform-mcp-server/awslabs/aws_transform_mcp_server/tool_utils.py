@@ -46,6 +46,12 @@ DELETE: Dict[str, bool] = {
     'idempotentHint': False,
 }
 
+DELETE_IDEMPOTENT: Dict[str, bool] = {
+    'readOnlyHint': False,
+    'destructiveHint': True,
+    'idempotentHint': True,
+}
+
 SUBMIT: Dict[str, bool] = {
     'readOnlyHint': False,
     'destructiveHint': True,
@@ -57,6 +63,79 @@ SUBMIT_IDEMPOTENT: Dict[str, bool] = {
     'destructiveHint': True,
     'idempotentHint': True,
 }
+
+
+# ── Job response trimming ─────────────────────────────────────────────
+
+_JOB_FIELDS = ('jobId', 'jobName', 'statusDetails', 'workspaceId', 'restartable')
+
+
+def format_job_response(response: object) -> object:
+    """Extract essential fields from a GetJob response or a ListJobEntry."""
+    if not isinstance(response, dict):
+        return response
+    job = response.get('job', response.get('jobInfo', response))
+    if not isinstance(job, dict):
+        return job
+    return {k: job[k] for k in _JOB_FIELDS if k in job}
+
+
+_TASK_LIST_FIELDS = (
+    'taskId',
+    'title',
+    'description',
+    'status',
+    'severity',
+    'category',
+    'uxComponentId',
+    'createdAt',
+    '_responseHint',
+)
+
+
+def format_task_summary(task: object) -> object:
+    """Extract essential fields from a HitlTask for list browsing."""
+    if not isinstance(task, dict):
+        return task
+    return {k: task[k] for k in _TASK_LIST_FIELDS if k in task}
+
+
+_WORKLOG_FIELDS = ('description', 'timestamp', 'worklogType')
+
+
+def format_worklog(worklog: object) -> object:
+    """Extract essential fields from a Worklog."""
+    if not isinstance(worklog, dict):
+        return worklog
+    return {k: worklog[k] for k in _WORKLOG_FIELDS if k in worklog}
+
+
+_CONNECTOR_LIST_FIELDS = ('connectorId', 'connectorName', 'connectorType', 'accountConnection')
+
+
+def format_connector_summary(connector: object) -> object:
+    """Extract essential fields from a Connector for list browsing."""
+    if not isinstance(connector, dict):
+        return connector
+    return {k: connector[k] for k in _CONNECTOR_LIST_FIELDS if k in connector}
+
+
+_MESSAGE_LIST_FIELDS = (
+    'messageId',
+    'text',
+    'messageOrigin',
+    'createdAt',
+    'parentMessageId',
+    'processingInfo',
+    'interactions',
+)
+
+
+def format_message_summary(message: object) -> object:
+    """Extract essential fields from a Message for list browsing."""
+    if not isinstance(message, dict):
+        return message
+    return {k: message[k] for k in _MESSAGE_LIST_FIELDS if k in message}
 
 
 # ── Result builders ──────────────────────────────────────────────────────

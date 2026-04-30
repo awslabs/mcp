@@ -24,6 +24,7 @@ from awslabs.aws_transform_mcp_server.fes_models import (
 )
 from awslabs.aws_transform_mcp_server.guidance_nudge import mark_job_checked
 from awslabs.aws_transform_mcp_server.tool_utils import (
+    READ_ONLY,
     download_s3_content,
     error_result,
     failure_result,
@@ -46,7 +47,9 @@ class LoadInstructionsHandler:
 
     def __init__(self, mcp: Any) -> None:
         """Register load_instructions on the MCP server."""
-        audited_tool(mcp, 'load_instructions')(self.load_instructions)
+        audited_tool(
+            mcp, 'load_instructions', title='Load Job Instructions', annotations=READ_ONLY
+        )(self.load_instructions)
 
     async def load_instructions(
         self,

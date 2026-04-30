@@ -12,18 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""HITL (Human-in-the-Loop) tool handler for AWS Transform MCP server.
-
-Ported from tools/hitl.ts. Provides the complete_task tool with 8-step flow:
-  1. Fetch task -> extract uxComponentId, severity
-  2. Validate action against severity
-  3. Upload file if provided
-  4. Download agent artifact for validation
-  5. Build response content
-  6. Validate and format
-  7. Upload response artifact
-  8. Route to correct API based on action
-"""
 
 import httpx
 import json
@@ -42,8 +30,9 @@ from awslabs.aws_transform_mcp_server.fes_models import (
 )
 from awslabs.aws_transform_mcp_server.file_validation import validate_read_path
 from awslabs.aws_transform_mcp_server.guidance_nudge import job_needs_check
-from awslabs.aws_transform_mcp_server.hitl_schemas import enrich_task, format_and_validate
+from awslabs.aws_transform_mcp_server.hitl_schemas import format_and_validate
 from awslabs.aws_transform_mcp_server.tool_utils import (
+    SUBMIT,
     error_result,
     failure_result,
     success_result,
@@ -126,7 +115,9 @@ class HitlHandler:
 
     def __init__(self, mcp: Any) -> None:
         """Register HITL tools on the MCP server."""
-        audited_tool(mcp, 'complete_task')(self.complete_task)
+        audited_tool(mcp, 'complete_task', title='Complete HITL Task', annotations=SUBMIT)(
+            self.complete_task
+        )
 
     async def complete_task(
         self,
@@ -172,6 +163,13 @@ class HitlHandler:
         ] = 'APPROVE',
     ) -> Dict[str, Any]:
         """Complete a Human-in-the-Loop (HITL) task.
+
+        ⚠️ REQUIRES EXPLICIT USER CONFIRMATION. Before calling this tool you
+        MUST present the full task details, agent artifact, and all available
+        options to the user and wait for their explicit decision. If the task
+        contains selectable options, list every option and ask the user which
+        one to choose — do NOT reuse a previously selected value or guess.
+        Never call this tool without the user's approval.
 
         8-step flow: fetch task, validate, upload file, download artifact,
         build content, validate+format, upload response, route to API.
@@ -321,7 +319,6 @@ class HitlHandler:
                         ),
                     )
 
-            # ── Step 8: Return enriched result ──────────────────────────
             updated_result = await call_fes(
                 'GetHitlTask',
                 GetHitlTaskRequest(
@@ -330,7 +327,13 @@ class HitlHandler:
                     taskId=taskId,
                 ),
             )
-            result_data = enrich_task(updated_result['task'])
+            task_data = updated_result.get('task', {}) if isinstance(updated_result, dict) else {}
+            result_data: Dict[str, Any] = {
+                'taskId': task_data.get('taskId', taskId),
+                'status': task_data.get('status'),
+                'action': task_data.get('action', action),
+                'title': task_data.get('title'),
+            }
             if uploaded_artifact_id:
                 result_data['uploadedArtifactId'] = uploaded_artifact_id
             if artifact_warning:

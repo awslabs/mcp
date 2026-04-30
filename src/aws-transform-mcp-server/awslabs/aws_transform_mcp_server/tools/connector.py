@@ -31,6 +31,8 @@ from awslabs.aws_transform_mcp_server.fes_models import (
 )
 from awslabs.aws_transform_mcp_server.tcp_client import call_tcp
 from awslabs.aws_transform_mcp_server.tool_utils import (
+    CREATE,
+    MUTATE,
     error_result,
     failure_result,
     success_result,
@@ -76,8 +78,12 @@ class ConnectorHandler:
 
     def __init__(self, mcp: Any) -> None:
         """Register connector tools on the MCP server."""
-        audited_tool(mcp, 'create_connector')(self.create_connector)
-        audited_tool(mcp, 'accept_connector')(self.accept_connector)
+        audited_tool(mcp, 'create_connector', title='Create Connector', annotations=MUTATE)(
+            self.create_connector
+        )
+        audited_tool(mcp, 'accept_connector', title='Accept Connector', annotations=CREATE)(
+            self.accept_connector
+        )
 
     async def create_connector(
         self,
@@ -165,7 +171,15 @@ class ConnectorHandler:
                 workspaceId,
             )
 
-            data = dict(status) if isinstance(status, dict) else {'status': status}
+            data = {
+                'connectorId': status.get('connectorId', connector_id)
+                if isinstance(status, dict)
+                else connector_id,
+                'connectorName': status.get('connectorName') if isinstance(status, dict) else None,
+                'accountConnection': status.get('accountConnection')
+                if isinstance(status, dict)
+                else None,
+            }
             data['verificationLink'] = verification_link
             data['nextStep'] = (
                 'IMPORTANT: The connector is in PENDING status and CANNOT be used yet. '
@@ -241,6 +255,16 @@ class ConnectorHandler:
                 ),
             )
 
-            return success_result(status)
+            data = (
+                {
+                    'connectorId': status.get('connectorId', connectorId),
+                    'connectorName': status.get('connectorName'),
+                    'accountConnection': status.get('accountConnection'),
+                }
+                if isinstance(status, dict)
+                else status
+            )
+
+            return success_result(data)
         except Exception as error:
             return failure_result(error)

@@ -52,7 +52,14 @@ class TestCreateJob:
         mock_fes.side_effect = [
             {'jobId': 'job-001'},  # CreateJob
             {},  # StartJob
-            {'jobId': 'job-001', 'status': 'RUNNING'},  # GetJob
+            {
+                'job': {
+                    'jobId': 'job-001',
+                    'jobName': 'Migration',
+                    'statusDetails': {'status': 'RUNNING'},
+                    'workspaceId': 'ws-1',
+                }
+            },  # GetJob
         ]
 
         result = await handler.create_job(
@@ -65,7 +72,8 @@ class TestCreateJob:
         parsed = _parse(result)
 
         assert parsed['success'] is True
-        assert parsed['data']['status'] == 'RUNNING'
+        assert parsed['data']['statusDetails']['status'] == 'RUNNING'
+        assert parsed['data']['jobId'] == 'job-001'
         assert mock_fes.call_count == 3
 
         calls = mock_fes.call_args_list
@@ -104,14 +112,14 @@ class TestControlJob:
     async def test_start(self, _mock_configured, mock_fes, handler, ctx):
         mock_fes.side_effect = [
             {},  # StartJob
-            {'jobId': 'job-1', 'status': 'RUNNING'},  # GetJob
+            {'job': {'jobId': 'job-1', 'statusDetails': {'status': 'RUNNING'}}},  # GetJob
         ]
 
         result = await handler.control_job(ctx, workspaceId='ws-1', jobId='job-1', action='start')
         parsed = _parse(result)
 
         assert parsed['success'] is True
-        assert parsed['data']['status'] == 'RUNNING'
+        assert parsed['data']['statusDetails']['status'] == 'RUNNING'
         calls = mock_fes.call_args_list
         assert calls[0][0][0] == 'StartJob'
 
@@ -120,14 +128,14 @@ class TestControlJob:
     async def test_stop(self, _mock_configured, mock_fes, handler, ctx):
         mock_fes.side_effect = [
             {},  # StopJob
-            {'jobId': 'job-1', 'status': 'STOPPED'},  # GetJob
+            {'job': {'jobId': 'job-1', 'statusDetails': {'status': 'STOPPED'}}},  # GetJob
         ]
 
         result = await handler.control_job(ctx, workspaceId='ws-1', jobId='job-1', action='stop')
         parsed = _parse(result)
 
         assert parsed['success'] is True
-        assert parsed['data']['status'] == 'STOPPED'
+        assert parsed['data']['statusDetails']['status'] == 'STOPPED'
         calls = mock_fes.call_args_list
         assert calls[0][0][0] == 'StopJob'
 

@@ -20,8 +20,36 @@ all tool handlers.
 
 import argparse
 import asyncio
-from awslabs.aws_transform_mcp_server.config_store import load_persisted_config
+import os
+import sys
+from awslabs.aws_transform_mcp_server.aws_helper import AwsHelper
+from awslabs.aws_transform_mcp_server.config_store import (
+    derive_fes_endpoint,
+    load_persisted_config,
+    set_sigv4_fes_available,
+)
+from awslabs.aws_transform_mcp_server.consts import (
+    FES_SIGV4_PROBE_TIMEOUT_SECONDS,
+    SIGV4_FES_ENABLED,
+)
+from awslabs.aws_transform_mcp_server.fes_client import call_fes_direct_sigv4
+from awslabs.aws_transform_mcp_server.tools.adaptive_poll import AdaptivePollHandler
+from awslabs.aws_transform_mcp_server.tools.approve_hitl import ApproveHitlHandler
+from awslabs.aws_transform_mcp_server.tools.artifact import ArtifactHandler
+from awslabs.aws_transform_mcp_server.tools.chat import ChatHandler
+from awslabs.aws_transform_mcp_server.tools.collaborator import CollaboratorHandler
+from awslabs.aws_transform_mcp_server.tools.configure import ConfigureHandler
+from awslabs.aws_transform_mcp_server.tools.connector import ConnectorHandler
+from awslabs.aws_transform_mcp_server.tools.get_resource import GetResourceHandler
+from awslabs.aws_transform_mcp_server.tools.hitl import HitlHandler
+from awslabs.aws_transform_mcp_server.tools.job import JobHandler
+from awslabs.aws_transform_mcp_server.tools.job_status import JobStatusHandler
+from awslabs.aws_transform_mcp_server.tools.list_resources import ListResourcesHandler
+from awslabs.aws_transform_mcp_server.tools.load_instructions import LoadInstructionsHandler
+from awslabs.aws_transform_mcp_server.tools.workspace import WorkspaceHandler
+from loguru import logger
 from mcp.server.fastmcp import FastMCP
+from pathlib import Path
 
 
 # ---------------------------------------------------------------------------
@@ -47,6 +75,14 @@ Three auth methods, checked in priority order:
   reports whether SigV4 FES access is available.
 - `accept_connector` requires AWS credentials (for STS + TCP calls).
 
+# Tool Selection
+- **Job status / progress (Important)** → use `send_message` scoped to the job
+  to ask the Transform assistant about status along with it call `list_resources(resource="worklogs")` for recent activity.
+  Only fall back to `list_resources` / `get_resource` if you need more information or send message has conflicting information.
+- Browse collections → `list_resources`
+- Fetch a single resource with full details → `get_resource`
+- Check connection health → `get_status`
+
 # Workflows
 
 ## Before working on any job
@@ -65,27 +101,6 @@ NEVER auto-submit. Never guess response content — use `_outputSchema` and
 `_responseTemplate`. For file uploads: `upload_artifact` first, then include
 `artifactId`. If `agentArtifactContent` is `{}`, check worklogs — the agent
 may still be generating.
-
-# Tool Selection
-- **Job status / progress (interactive)** → use `send_message` scoped to the job
-  to ask the Transform assistant about status. The assistant has full job context.
-  Also call `list_resources(resource="worklogs")` for recent activity.
-  Only fall back to `list_resources` / `get_resource` if you need more information
-  the assistant didn't cover or send message has no useful information.
-- Browse collections → `list_resources`
-- Fetch a single resource with full details → `get_resource`
-- Basic job metadata only → `get_resource(resource="job")`
-- Workspace-level connectors → `list_resources(resource="connectors")` (FES)
-- Create a new connector → `create_connector`
-- Associate an IAM role with an existing connector → `accept_connector`
-- Check connection health → `get_status`
-- **Job status use only if send message response is not good and you need to make all these
-calls independently / progress (polling)** → use `get_job_status` for a complete snapshot
-  (job metadata, worklogs, HITL tasks, messages, plan) in a single call.
-  IMPORTANT: After calling get_job_status, if `_pollingGuidance.isTerminal` is false,
-  you MUST automatically call it again in 1 minute. DO NOT ask the user — just poll.
-  Keep polling until isTerminal is true or the user says stop.
-  If `hasPendingTasks` is true, handle HITL tasks immediately.
 
 # Error Recovery
 
@@ -121,20 +136,6 @@ def _register_handlers(mcp: FastMCP) -> None:
     Auth is checked at call time — tools return NOT_CONFIGURED with a
     suggestedAction if auth is missing.
     """
-    from awslabs.aws_transform_mcp_server.tools.approve_hitl import ApproveHitlHandler
-    from awslabs.aws_transform_mcp_server.tools.artifact import ArtifactHandler
-    from awslabs.aws_transform_mcp_server.tools.chat import ChatHandler
-    from awslabs.aws_transform_mcp_server.tools.collaborator import CollaboratorHandler
-    from awslabs.aws_transform_mcp_server.tools.configure import ConfigureHandler
-    from awslabs.aws_transform_mcp_server.tools.connector import ConnectorHandler
-    from awslabs.aws_transform_mcp_server.tools.get_resource import GetResourceHandler
-    from awslabs.aws_transform_mcp_server.tools.hitl import HitlHandler
-    from awslabs.aws_transform_mcp_server.tools.job import JobHandler
-    from awslabs.aws_transform_mcp_server.tools.job_status import JobStatusHandler
-    from awslabs.aws_transform_mcp_server.tools.list_resources import ListResourcesHandler
-    from awslabs.aws_transform_mcp_server.tools.load_instructions import LoadInstructionsHandler
-    from awslabs.aws_transform_mcp_server.tools.workspace import WorkspaceHandler
-
     ConfigureHandler(mcp)
     WorkspaceHandler(mcp)
     JobHandler(mcp)
@@ -148,6 +149,7 @@ def _register_handlers(mcp: FastMCP) -> None:
     ApproveHitlHandler(mcp)
     LoadInstructionsHandler(mcp)
     JobStatusHandler(mcp)
+    AdaptivePollHandler(mcp)
 
 
 async def _startup() -> None:
@@ -163,19 +165,6 @@ async def _probe_sigv4_fes() -> None:
     Attempts a ListWorkspaces call with SigV4 signing. If it succeeds,
     FES tools can work without explicit cookie/SSO configure.
     """
-    import os
-    from awslabs.aws_transform_mcp_server.aws_helper import AwsHelper
-    from awslabs.aws_transform_mcp_server.config_store import (
-        derive_fes_endpoint,
-        set_sigv4_fes_available,
-    )
-    from awslabs.aws_transform_mcp_server.consts import (
-        FES_SIGV4_PROBE_TIMEOUT_SECONDS,
-        SIGV4_FES_ENABLED,
-    )
-    from awslabs.aws_transform_mcp_server.fes_client import call_fes_direct_sigv4
-    from loguru import logger
-
     if not SIGV4_FES_ENABLED:
         set_sigv4_fes_available(False)
         return
@@ -208,14 +197,8 @@ async def _probe_sigv4_fes() -> None:
 
 def main() -> None:
     """Entry point for the AWS Transform MCP server."""
-    import os
-    import sys
-    from loguru import logger
-
     logger.remove()
     logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'INFO'))
-
-    from pathlib import Path
 
     log_dir = Path.home() / '.aws-transform-mcp'
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -225,9 +208,7 @@ def main() -> None:
         description='AWS Transform MCP server — manage workspaces, jobs, connectors, and tasks.',
     )
     parser.parse_args()
-
     asyncio.run(_startup())
-
     mcp = create_server()
     _register_handlers(mcp)
     mcp.run()

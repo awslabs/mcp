@@ -22,6 +22,7 @@ import pytest
 from awslabs.aws_transform_mcp_server.tool_utils import (
     CREATE,
     DELETE,
+    DELETE_IDEMPOTENT,
     MUTATE,
     READ_ONLY,
     SUBMIT,
@@ -69,6 +70,13 @@ class TestAnnotations:
             'readOnlyHint': False,
             'destructiveHint': True,
             'idempotentHint': False,
+        }
+
+    def test_delete_idempotent(self):
+        assert DELETE_IDEMPOTENT == {
+            'readOnlyHint': False,
+            'destructiveHint': True,
+            'idempotentHint': True,
         }
 
 

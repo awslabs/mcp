@@ -23,6 +23,8 @@ from awslabs.aws_transform_mcp_server.fes_models import (
     DeleteWorkspaceRequest,
 )
 from awslabs.aws_transform_mcp_server.tool_utils import (
+    DELETE_IDEMPOTENT,
+    MUTATE,
     error_result,
     failure_result,
     success_result,
@@ -42,8 +44,12 @@ class WorkspaceHandler:
 
     def __init__(self, mcp: Any) -> None:
         """Register workspace tools on the MCP server."""
-        audited_tool(mcp, 'create_workspace')(self.create_workspace)
-        audited_tool(mcp, 'delete_workspace')(self.delete_workspace)
+        audited_tool(mcp, 'create_workspace', title='Create Workspace', annotations=MUTATE)(
+            self.create_workspace
+        )
+        audited_tool(
+            mcp, 'delete_workspace', title='Delete Workspace', annotations=DELETE_IDEMPOTENT
+        )(self.delete_workspace)
 
     async def create_workspace(
         self,
