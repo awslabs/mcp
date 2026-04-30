@@ -54,6 +54,12 @@ dev = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.uv]
+# Transitive constraints for security fixes. Keep minimal and justified.
+override-dependencies = [
+  "cryptography>=46.0.7",  # GHSA-p423-j2cm-9vmq (CVE-2026-39892): buffer overflow with non-contiguous buffers
+]
+
 [tool.hatch.metadata]
 allow-direct-references = true
 
