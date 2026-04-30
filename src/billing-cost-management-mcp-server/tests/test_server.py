@@ -55,6 +55,8 @@ def test_server_tool_imports():
     assert hasattr(server, 'compute_optimizer_server')
     assert hasattr(server, 'cost_anomaly_server')
     assert hasattr(server, 'cost_comparison_server')
+    assert hasattr(server, 'cost_allocation_tags_server')
+    assert hasattr(server, 'cost_category_server')
 
 
 @patch.dict(os.environ, {'AWS_REGION': 'us-west-2'})

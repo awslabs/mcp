@@ -120,6 +120,10 @@ while [[ $# -gt 0 ]]; do
       INSTALL_ONLY=true
       shift
       ;;
+    --version)
+      LOADER_VERSION="$2"
+      shift 2
+      ;;
     -h|--help)
       show_help
       exit 0
@@ -226,7 +230,7 @@ validate_binary() {
 install_loader() {
   if [[ -x "$LOADER_BIN" ]]; then
     echo "Aurora DSQL Loader already installed at $LOADER_BIN" >&2
-    "$LOADER_BIN" --help 2>/dev/null || true
+    "$LOADER_BIN" --help 2>&1 || true
     return 0
   fi
 
@@ -274,9 +278,14 @@ install_loader() {
   echo "Downloading from: $download_url" >&2
 
   # Download with HTTPS enforcement and HTTP error detection
-  local temp_file
+  local temp_file temp_extract_dir=""
   temp_file=$(mktemp)
-  trap "rm -f '$temp_file'" EXIT
+
+  cleanup() {
+    rm -f "$temp_file"
+    [[ -n "$temp_extract_dir" ]] && rm -rf "$temp_extract_dir"
+  }
+  trap cleanup EXIT
 
   if ! curl --proto "=https" --fail --show-error -L "$download_url" -o "$temp_file"; then
     echo "Error: Failed to download loader" >&2
@@ -286,18 +295,13 @@ install_loader() {
   # Check if it's a tar.gz or direct binary
   if file "$temp_file" | grep -q "gzip"; then
     # Extract to a temporary directory first to avoid contaminating INSTALL_DIR on failure
-    local temp_extract_dir
     temp_extract_dir=$(mktemp -d)
-    trap "rm -f '$temp_file'; rm -rf '$temp_extract_dir'" EXIT
 
     tar -xzf "$temp_file" -C "$temp_extract_dir"
 
     # Find the extracted binary
     local extracted_bin
-    extracted_bin=$(find "$temp_extract_dir" -name "aurora-dsql-loader*" -type f 2>/dev/null | head -1)
-    if [[ -z "$extracted_bin" ]]; then
-      extracted_bin=$(find "$temp_extract_dir" -name "aurora-dsql-loader" -type f 2>/dev/null | head -1)
-    fi
+    extracted_bin=$(find "$temp_extract_dir" -name "aurora-dsql-loader*" -type f | head -1)
 
     if [[ -z "$extracted_bin" ]]; then
       echo "Error: Could not find aurora-dsql-loader binary in the downloaded archive." >&2
@@ -324,11 +328,12 @@ install_loader() {
     fi
 
     mv "$temp_file" "$LOADER_BIN"
-    trap - EXIT
   fi
 
+  trap - EXIT
+
   echo "Aurora DSQL Loader installed successfully at $LOADER_BIN" >&2
-  "$LOADER_BIN" --version 2>/dev/null || true
+  "$LOADER_BIN" --version 2>&1 || true
 
   # Check if install dir is in PATH
   if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then

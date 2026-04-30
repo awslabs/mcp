@@ -111,23 +111,39 @@ TRANSACTION_CONTROL_REGEX = re.compile(
 )
 
 # -- Suspicious pattern detection (SQL injection, stacked queries, etc.) --
-SUSPICIOUS_PATTERNS = [
-    r"(?i)'.*?--",  # comment injection
-    r'(?i)\bor\b\s+\d+\s*=\s*\d+',  # numeric tautology
-    r"(?i)\bor\b\s*'[^']+'\s*=\s*'[^']+'",  # string tautology
-    r'(?i)\bunion\b.*\bselect\b',  # UNION SELECT
-    r'(?i)\bdrop\b',  # DROP
-    r'(?i)\btruncate\b',  # TRUNCATE
-    r'(?i)\bgrant\b|\brevoke\b',  # GRANT or REVOKE
-    r';\s*(?!($|\s*--|\s*/\*))(?=\S)',  # stacked queries, excluding semicolons followed by comments or whitespace
-    r'(?i)\bsleep\s*\(',  # time-based injection
-    r'(?i)\bpg_sleep\s*\(',  # PostgreSQL time-based injection
-    r'(?i)\bload_file\s*\(',  # file read
-    r'(?i)\binto\s+outfile\b',  # file write
-    r'(?i)\bcopy\s+.*\s+from\b',  # PostgreSQL COPY FROM
-    r'(?i)\bcopy\s+.*\s+to\b',  # PostgreSQL COPY TO
-    r'(?i)\b(begin|commit|rollback)\b.*;\s*\w+',  # Transaction control followed by other statements
+# Each entry is (pattern, label). The label is surfaced back to callers via
+# check_sql_injection_risk so operators can diagnose false positives without
+# having to read server logs.
+#
+# Patterns are split into two tiers:
+#   INJECTION_PATTERNS — shapes that indicate injection attempts and never
+#       appear in legitimate single-statement SQL. Safe to check in both
+#       read-only and write modes.
+#   KEYWORD_PATTERNS — keyword-level checks that overlap with legitimate
+#       DDL/DML (DROP, TRUNCATE, GRANT, COPY, UNION SELECT). Only checked
+#       in read-only mode, where these operations are prohibited.
+INJECTION_PATTERNS = [
+    (r"(?i)'.*?--", 'comment_injection'),
+    (r'(?i)\bor\b\s+\d+\s*=\s*\d+', 'numeric_tautology'),
+    (r"(?i)\bor\b\s*'[^']+'\s*=\s*'[^']+'", 'string_tautology'),
+    (r';\s*(?!($|\s*--|\s*/\*))(?=\S)', 'stacked_query'),
+    (r'(?i)\bsleep\s*\(', 'sleep_time_based'),
+    (r'(?i)\bpg_sleep\s*\(', 'pg_sleep_time_based'),
+    (r'(?i)\bload_file\s*\(', 'load_file'),
+    (r'(?i)\binto\s+outfile\b', 'into_outfile'),
+    (r'(?i)\b(begin|commit|rollback)\b.*;\s*\w+', 'transaction_control_with_extra_statement'),
 ]
+
+KEYWORD_PATTERNS = [
+    (r'(?i)\bunion\b.*\bselect\b', 'union_select'),
+    (r'(?i)\bdrop\b', 'drop'),
+    (r'(?i)\btruncate\b', 'truncate'),
+    (r'(?i)\bgrant\b|\brevoke\b', 'grant_revoke'),
+    (r'(?i)\bcopy\s+.*\s+from\b', 'copy_from'),
+    (r'(?i)\bcopy\s+.*\s+to\b', 'copy_to'),
+]
+
+SUSPICIOUS_PATTERNS = INJECTION_PATTERNS + KEYWORD_PATTERNS
 
 
 def detect_mutating_keywords(sql: str) -> list[str]:
@@ -155,27 +171,39 @@ def detect_mutating_keywords(sql: str) -> list[str]:
     return matched
 
 
-def check_sql_injection_risk(sql: str) -> list[dict]:
+def check_sql_injection_risk(sql: str, read_only: bool = True) -> list[dict]:
     """Check for potential SQL injection risks in sql query.
 
     Args:
         sql: query string
+        read_only: when True (default), checks both injection-shape patterns
+            and keyword-level patterns (DROP, TRUNCATE, etc.). When False,
+            only checks injection-shape patterns — keyword-level patterns
+            overlap with legitimate DDL/DML in write mode.
 
     Returns:
-        dictionaries containing detected security issue
+        A list containing at most one dictionary describing the first suspicious
+        pattern that matched. Each dictionary has keys:
+          - type: always 'sql'
+          - label: a stable identifier for the matched pattern (e.g.
+            'comment_injection', 'stacked_query'). Callers can compare
+            this against a known set without regex-parsing the message.
+          - message: a human-readable summary (does not include the raw regex
+            to avoid leaking filter internals to callers).
+          - severity: always 'high'.
     """
-    issues = []
-    for pattern in SUSPICIOUS_PATTERNS:
+    patterns = SUSPICIOUS_PATTERNS if read_only else INJECTION_PATTERNS
+    for pattern, label in patterns:
         if re.search(pattern, sql):
-            issues.append(
+            return [
                 {
                     'type': 'sql',
-                    'message': f'Suspicious pattern detected: {pattern}',
+                    'label': label,
+                    'message': f'Suspicious pattern detected: {label}',
                     'severity': 'high',
                 }
-            )
-            break
-    return issues
+            ]
+    return []
 
 
 def detect_transaction_bypass_attempt(sql: str) -> bool:

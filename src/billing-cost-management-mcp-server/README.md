@@ -52,6 +52,16 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 - **Pricing rules and plans**: List pricing rules (MARKUP, DISCOUNT, TIERING) and pricing plans with their associations
 - **Custom line items**: List custom cost allocations including support fees, shared service costs, taxes, credits, and RI/SP distribution
 
+### Cost Allocation Tags
+
+- **Tag activation status**: List cost allocation tags with filters by status (Active/Inactive), type (AWSGenerated/UserDefined), and specific tag keys
+- **Backfill history**: Retrieve the history of tag backfill requests that retroactively apply activation status to historical billing data
+
+### Cost Category Definitions
+
+- **Describe cost categories**: Get the full definition of a cost category including rules, split charge rules, and processing status
+- **List cost categories**: List all cost category definitions in the account with summary metadata and filtering by effective date or supported resource types
+
 ### Specialized Cost Optimization Prompts
 
 - **Graviton migration analysis**: Guided analysis to identify EC2 instances suitable for AWS Graviton migration
@@ -206,6 +216,14 @@ Cost Explorer:
 - ce:GetTags
 - ce:GetCostCategories
 
+Cost Allocation Tags:
+- ce:ListCostAllocationTags
+- ce:ListCostAllocationTagBackfillHistory
+
+Cost Category Definitions:
+- ce:DescribeCostCategoryDefinition
+- ce:ListCostCategoryDefinitions
+
 Cost Optimization Hub:
 - cost-optimization-hub:GetRecommendation
 - cost-optimization-hub:ListRecommendations
@@ -359,3 +377,11 @@ The server currently supports the following AWS services
    - list_custom_line_items
    - list_custom_line_item_versions
    - list_resources_associated_to_custom_line_item
+
+10. **Cost Allocation Tags**
+    - list_cost_allocation_tags
+    - list_cost_allocation_tag_backfill_history
+
+11. **Cost Category Definitions**
+    - describe_cost_category_definition
+    - list_cost_category_definitions

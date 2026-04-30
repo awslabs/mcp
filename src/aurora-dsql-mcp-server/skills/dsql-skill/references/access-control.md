@@ -133,13 +133,13 @@ SET search_path TO users_schema, public;
 
 ## Role Design Patterns
 
-| Component | Database Role | Permissions | Schema Access |
-|-----------|---------------|-------------|---------------|
-| Web API (read) | `api_readonly` | SELECT | `public` |
-| Web API (write) | `api_readwrite` | SELECT, INSERT, UPDATE, DELETE | `public` |
-| User service | `user_service` | SELECT, INSERT, UPDATE | `users_schema`, `public` |
-| Reporting | `reporting_readonly` | SELECT | `public`, `users_schema` |
-| Admin setup | `admin` | ALL (setup only) | ALL |
+| Component       | Database Role        | Permissions                    | Schema Access            |
+| --------------- | -------------------- | ------------------------------ | ------------------------ |
+| Web API (read)  | `api_readonly`       | SELECT                         | `public`                 |
+| Web API (write) | `api_readwrite`      | SELECT, INSERT, UPDATE, DELETE | `public`                 |
+| User service    | `user_service`       | SELECT, INSERT, UPDATE         | `users_schema`, `public` |
+| Reporting       | `reporting_readonly` | SELECT                         | `public`, `users_schema` |
+| Admin setup     | `admin`              | ALL (setup only)               | ALL                      |
 
 ---
 

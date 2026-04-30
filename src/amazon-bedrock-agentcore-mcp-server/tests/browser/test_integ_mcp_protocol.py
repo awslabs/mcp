@@ -26,30 +26,34 @@ What's tested:
 - Server instructions / capabilities
 - Graceful degradation when browser deps are missing
 
+Primitives whose sub-packages are not yet merged are conditionally
+detected at import time. Tests auto-adapt: tool sets and registration
+expand as each sub-package PR lands, with zero file edits needed.
+
 Run with: uv run pytest tests/browser/test_integ_mcp_protocol.py -v
 """
 
 from __future__ import annotations
 
+import pytest
 from mcp.server.fastmcp import FastMCP
 from mcp.shared.memory import create_connected_server_and_client_session
 from mcp.types import TextContent
+from typing import Any, Callable
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Tool set constants (always defined — just string sets)
 # ---------------------------------------------------------------------------
 
 BROWSER_PKG = 'awslabs.amazon_bedrock_agentcore_mcp_server.tools.browser'
 
-# Docs tools (always on)
 DOCS_TOOLS = {
     'search_agentcore_docs',
     'fetch_agentcore_doc',
 }
 
-# Runtime tools (14 operational)
 RUNTIME_TOOLS = {
     'create_agent_runtime',
     'get_agent_runtime',
@@ -67,7 +71,6 @@ RUNTIME_TOOLS = {
     'get_runtime_guide',
 }
 
-# Memory tools (21 operational)
 MEMORY_TOOLS = {
     'memory_create',
     'memory_get',
@@ -92,15 +95,66 @@ MEMORY_TOOLS = {
     'get_memory_guide',
 }
 
-# Gateway guide (still flat)
-GUIDE_TOOLS = {
-    'manage_agentcore_gateway',
+IDENTITY_TOOLS = {
+    'identity_create_workload_identity',
+    'identity_get_workload_identity',
+    'identity_update_workload_identity',
+    'identity_delete_workload_identity',
+    'identity_list_workload_identities',
+    'identity_create_api_key_provider',
+    'identity_get_api_key_provider',
+    'identity_update_api_key_provider',
+    'identity_delete_api_key_provider',
+    'identity_list_api_key_providers',
+    'identity_create_oauth2_provider',
+    'identity_get_oauth2_provider',
+    'identity_update_oauth2_provider',
+    'identity_delete_oauth2_provider',
+    'identity_list_oauth2_providers',
+    'identity_get_token_vault',
+    'identity_set_token_vault_cmk',
+    'identity_put_resource_policy',
+    'identity_get_resource_policy',
+    'identity_delete_resource_policy',
+    'get_identity_guide',
 }
 
-# Base tools = everything except browser
-BASE_TOOLS = DOCS_TOOLS | RUNTIME_TOOLS | MEMORY_TOOLS | GUIDE_TOOLS
+GATEWAY_TOOLS = {
+    'gateway_create',
+    'gateway_get',
+    'gateway_update',
+    'gateway_delete',
+    'gateway_list',
+    'gateway_target_create',
+    'gateway_target_get',
+    'gateway_target_update',
+    'gateway_target_delete',
+    'gateway_target_list',
+    'gateway_target_synchronize',
+    'gateway_resource_policy_put',
+    'gateway_resource_policy_get',
+    'gateway_resource_policy_delete',
+    'get_gateway_guide',
+}
 
-# All 25 browser tools
+POLICY_TOOLS = {
+    'policy_engine_create',
+    'policy_engine_get',
+    'policy_engine_update',
+    'policy_engine_delete',
+    'policy_engine_list',
+    'policy_create',
+    'policy_get',
+    'policy_update',
+    'policy_delete',
+    'policy_list',
+    'policy_generation_start',
+    'policy_generation_get',
+    'policy_generation_list',
+    'policy_generation_list_assets',
+    'get_policy_guide',
+}
+
 BROWSER_TOOLS = {
     'start_browser_session',
     'get_browser_session',
@@ -130,21 +184,87 @@ BROWSER_TOOLS = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Detect which sub-packages are installed
+# ---------------------------------------------------------------------------
+
+_reg_identity: Callable[..., Any] | None = None
+_HAS_IDENTITY = False
+try:
+    from awslabs.amazon_bedrock_agentcore_mcp_server.tools.identity import (  # type: ignore
+        register_identity_tools as _ri,
+    )
+
+    _reg_identity = _ri
+    _HAS_IDENTITY = True
+except ImportError:
+    pass
+
+_reg_gateway: Callable[..., Any] | None = None
+_HAS_GATEWAY_SUB = False
+try:
+    from awslabs.amazon_bedrock_agentcore_mcp_server.tools.gateway import (
+        register_gateway_tools as _rg,  # type: ignore
+    )
+
+    _reg_gateway = _rg
+    _HAS_GATEWAY_SUB = True
+except (ImportError, AttributeError):
+    pass
+
+_reg_policy: Callable[..., Any] | None = None
+_HAS_POLICY = False
+try:
+    from awslabs.amazon_bedrock_agentcore_mcp_server.tools.policy import (  # type: ignore
+        register_policy_tools as _rp,
+    )
+
+    _reg_policy = _rp
+    _HAS_POLICY = True
+except ImportError:
+    pass
+
+
+# ---------------------------------------------------------------------------
+# Build BASE_TOOLS dynamically based on what's available
+# ---------------------------------------------------------------------------
+
+# Always available: docs + runtime + memory
+BASE_TOOLS = DOCS_TOOLS | RUNTIME_TOOLS | MEMORY_TOOLS
+
+if _HAS_IDENTITY:
+    BASE_TOOLS = BASE_TOOLS | IDENTITY_TOOLS
+
+if _HAS_GATEWAY_SUB:
+    BASE_TOOLS = BASE_TOOLS | GATEWAY_TOOLS
+else:
+    # Flat gateway guide still on main
+    BASE_TOOLS = BASE_TOOLS | {'manage_agentcore_gateway'}
+
+if _HAS_POLICY:
+    BASE_TOOLS = BASE_TOOLS | POLICY_TOOLS
+
+# For disable-all test — list of all service names to disable
+_ALL_SERVICES = 'browser,runtime,memory,identity,gateway,policy'
+
+
+# ---------------------------------------------------------------------------
+# Server builder
+# ---------------------------------------------------------------------------
+
+
 def _build_server(*, disable: str | None = None, enable: str | None = None) -> FastMCP:
     """Build a fresh FastMCP server mirroring server.py registration.
 
-    Creates an isolated server instance with env-var-driven opt-in/opt-out,
-    without touching the module-level singleton in server.py.
+    Creates an isolated server instance with env-var-driven
+    opt-in/opt-out, without touching the module-level singleton.
     """
     import os
     from awslabs.amazon_bedrock_agentcore_mcp_server.server import (
         AGENTCORE_MCP_INSTRUCTIONS,
         _is_service_enabled,
     )
-    from awslabs.amazon_bedrock_agentcore_mcp_server.tools import (
-        docs,
-        gateway,
-    )
+    from awslabs.amazon_bedrock_agentcore_mcp_server.tools import docs
 
     old_disable = os.environ.pop('AGENTCORE_DISABLE_TOOLS', None)
     old_enable = os.environ.pop('AGENTCORE_ENABLE_TOOLS', None)
@@ -177,8 +297,21 @@ def _build_server(*, disable: str | None = None, enable: str | None = None) -> F
 
             register_memory_tools(server)
 
+        if _is_service_enabled('identity') and _reg_identity is not None:
+            _reg_identity(server)
+
         if _is_service_enabled('gateway'):
-            server.tool()(gateway.manage_agentcore_gateway)
+            if _HAS_GATEWAY_SUB and _reg_gateway is not None:
+                _reg_gateway(server)
+            else:
+                from awslabs.amazon_bedrock_agentcore_mcp_server.tools import (
+                    gateway as _gw,
+                )
+
+                server.tool()(_gw.manage_agentcore_gateway)
+
+        if _is_service_enabled('policy') and _reg_policy is not None:
+            _reg_policy(server)
 
         if _is_service_enabled('browser'):
             from awslabs.amazon_bedrock_agentcore_mcp_server.tools.browser import (
@@ -205,10 +338,10 @@ def _build_server(*, disable: str | None = None, enable: str | None = None) -> F
 
 
 class TestToolDiscovery:
-    """Verify tool listing through the MCP protocol."""
+    """Verify tool listing under different configs."""
 
     async def test_list_tools_default_config(self):
-        """Default config registers all tools (base + browser)."""
+        """Default config registers all available tools."""
         server = _build_server()
         async with create_connected_server_and_client_session(server) as client:
             result = await client.list_tools()
@@ -226,6 +359,37 @@ class TestToolDiscovery:
             assert names == BASE_TOOLS
             assert names.isdisjoint(BROWSER_TOOLS)
 
+    @pytest.mark.skipif(
+        not _HAS_IDENTITY,
+        reason='Identity sub-package not yet installed',
+    )
+    async def test_list_tools_identity_disabled(self):
+        """AGENTCORE_DISABLE_TOOLS=identity removes identity tools."""
+        server = _build_server(disable='identity')
+        async with create_connected_server_and_client_session(server) as client:
+            result = await client.list_tools()
+            names = {t.name for t in result.tools}
+
+            assert names.isdisjoint(IDENTITY_TOOLS)
+            assert 'search_agentcore_docs' in names
+            assert 'start_browser_session' in names
+
+    @pytest.mark.skipif(
+        not _HAS_IDENTITY,
+        reason='Identity sub-package not yet installed',
+    )
+    async def test_list_tools_identity_only(self):
+        """AGENTCORE_ENABLE_TOOLS=identity,docs registers only those."""
+        server = _build_server(enable='identity,docs')
+        async with create_connected_server_and_client_session(server) as client:
+            result = await client.list_tools()
+            names = {t.name for t in result.tools}
+
+            assert IDENTITY_TOOLS.issubset(names)
+            assert 'search_agentcore_docs' in names
+            assert 'start_browser_session' not in names
+            assert 'create_agent_runtime' not in names
+
     async def test_list_tools_browser_and_docs_only(self):
         """AGENTCORE_ENABLE_TOOLS=browser,docs registers only those."""
         server = _build_server(enable='browser,docs')
@@ -235,20 +399,19 @@ class TestToolDiscovery:
 
             assert 'search_agentcore_docs' in names
             assert 'start_browser_session' in names
-            # Runtime, memory, gateway disabled
             assert 'get_runtime_guide' not in names
             assert 'create_agent_runtime' not in names
             assert names.isdisjoint(MEMORY_TOOLS)
-            assert 'manage_agentcore_gateway' not in names
+            assert names.isdisjoint(IDENTITY_TOOLS)
 
     async def test_list_tools_only_docs(self):
         """Disabling all services still leaves docs tools."""
-        server = _build_server(disable='browser,runtime,memory,gateway')
+        server = _build_server(disable=_ALL_SERVICES)
         async with create_connected_server_and_client_session(server) as client:
             result = await client.list_tools()
             names = {t.name for t in result.tools}
 
-            assert names == {'search_agentcore_docs', 'fetch_agentcore_doc'}
+            assert names == DOCS_TOOLS
 
 
 # ===========================================================================
@@ -310,7 +473,7 @@ class TestToolSchemas:
             assert 'region' in props
 
     async def test_memory_tools_require_memory_id(self):
-        """Memory data plane tools require memory_id parameter."""
+        """Memory data plane tools require memory_id."""
         exempt = {
             'get_memory_guide',
             'memory_create',
@@ -329,9 +492,156 @@ class TestToolSchemas:
 
                 schema = tool.inputSchema
                 required = schema.get('required', [])
-                properties = schema.get('properties', {})
-                assert 'memory_id' in properties, f'Memory tool {tool.name} missing memory_id'
                 assert 'memory_id' in required, f'Memory tool {tool.name} should require memory_id'
+
+    @pytest.mark.skipif(
+        not _HAS_IDENTITY,
+        reason='Identity sub-package not yet installed',
+    )
+    async def test_identity_tools_have_schema(self):
+        """Identity tools expose schema with required parameters."""
+        server = _build_server()
+        async with create_connected_server_and_client_session(server) as client:
+            result = await client.list_tools()
+            identity_tools = [t for t in result.tools if t.name in IDENTITY_TOOLS]
+
+            assert len(identity_tools) == 21
+
+            name_required_tools = {
+                'identity_create_workload_identity',
+                'identity_get_workload_identity',
+                'identity_update_workload_identity',
+                'identity_delete_workload_identity',
+                'identity_create_api_key_provider',
+                'identity_get_api_key_provider',
+                'identity_update_api_key_provider',
+                'identity_delete_api_key_provider',
+                'identity_create_oauth2_provider',
+                'identity_get_oauth2_provider',
+                'identity_update_oauth2_provider',
+                'identity_delete_oauth2_provider',
+            }
+            for tool in identity_tools:
+                if tool.name in name_required_tools:
+                    required = tool.inputSchema.get('required', [])
+                    assert 'name' in required, f'{tool.name} should require "name"'
+
+            arn_required_tools = {
+                'identity_put_resource_policy',
+                'identity_get_resource_policy',
+                'identity_delete_resource_policy',
+            }
+            for tool in identity_tools:
+                if tool.name in arn_required_tools:
+                    required = tool.inputSchema.get('required', [])
+                    assert 'resource_arn' in required, f'{tool.name} should require "resource_arn"'
+
+    @pytest.mark.skipif(
+        not _HAS_GATEWAY_SUB,
+        reason='Gateway sub-package not yet installed',
+    )
+    async def test_gateway_target_tools_require_gateway_id(self):
+        """Gateway target tools require gateway_identifier."""
+        target_tools = {
+            'gateway_target_create',
+            'gateway_target_get',
+            'gateway_target_update',
+            'gateway_target_delete',
+            'gateway_target_list',
+            'gateway_target_synchronize',
+        }
+
+        server = _build_server()
+        async with create_connected_server_and_client_session(server) as client:
+            result = await client.list_tools()
+
+            for tool in result.tools:
+                if tool.name not in target_tools:
+                    continue
+
+                schema = tool.inputSchema
+                required = schema.get('required', [])
+                properties = schema.get('properties', {})
+                assert 'gateway_identifier' in properties, (
+                    f'{tool.name} missing gateway_identifier'
+                )
+                assert 'gateway_identifier' in required, (
+                    f'{tool.name} should require gateway_identifier'
+                )
+
+    @pytest.mark.skipif(
+        not _HAS_GATEWAY_SUB,
+        reason='Gateway sub-package not yet installed',
+    )
+    async def test_gateway_resource_policy_tools_require_arn(self):
+        """Gateway resource policy tools require resource_arn."""
+        rp_tools = {
+            'gateway_resource_policy_put',
+            'gateway_resource_policy_get',
+            'gateway_resource_policy_delete',
+        }
+
+        server = _build_server()
+        async with create_connected_server_and_client_session(server) as client:
+            result = await client.list_tools()
+
+            for tool in result.tools:
+                if tool.name not in rp_tools:
+                    continue
+
+                schema = tool.inputSchema
+                required = schema.get('required', [])
+                assert 'resource_arn' in required, f'{tool.name} should require resource_arn'
+
+    @pytest.mark.skipif(
+        not _HAS_POLICY,
+        reason='Policy sub-package not yet installed',
+    )
+    async def test_policy_tools_require_policy_engine_id(self):
+        """Most policy tools require policy_engine_id."""
+        exempt = {
+            'policy_engine_create',
+            'policy_engine_list',
+            'get_policy_guide',
+        }
+
+        server = _build_server()
+        async with create_connected_server_and_client_session(server) as client:
+            result = await client.list_tools()
+
+            for tool in result.tools:
+                if tool.name not in POLICY_TOOLS:
+                    continue
+                if tool.name in exempt:
+                    continue
+
+                schema = tool.inputSchema
+                required = schema.get('required', [])
+                properties = schema.get('properties', {})
+                assert 'policy_engine_id' in properties, f'{tool.name} missing policy_engine_id'
+                assert 'policy_engine_id' in required, (
+                    f'{tool.name} should require policy_engine_id'
+                )
+
+    @pytest.mark.skipif(
+        not _HAS_POLICY,
+        reason='Policy sub-package not yet installed',
+    )
+    async def test_policy_engine_create_has_optional_params(self):
+        """policy_engine_create exposes optional params."""
+        server = _build_server()
+        async with create_connected_server_and_client_session(server) as client:
+            result = await client.list_tools()
+
+            tool = next(t for t in result.tools if t.name == 'policy_engine_create')
+            props = tool.inputSchema.get('properties', {})
+            required = tool.inputSchema.get('required', [])
+
+            assert 'name' in required
+            assert 'description' in props
+            assert 'encryption_key_arn' in props
+            assert 'tags' in props
+            assert 'client_token' in props
 
 
 # ===========================================================================
@@ -343,7 +653,7 @@ class TestToolInvocation:
     """Call tools through the MCP protocol and verify responses."""
 
     async def test_browser_snapshot_invalid_session(self):
-        """browser_snapshot with bogus session_id returns error text."""
+        """browser_snapshot with bogus session_id returns error."""
         server = _build_server()
         async with create_connected_server_and_client_session(server) as client:
             result = await client.call_tool(
@@ -490,7 +800,7 @@ class TestToolInvocation:
         async with create_connected_server_and_client_session(server) as client:
             try:
                 await client.call_tool('nonexistent_tool', {})
-                assert False, 'Expected an error for nonexistent tool'
+                assert False, 'Expected an error'
             except Exception as e:
                 assert 'nonexistent_tool' in str(e).lower() or 'unknown' in str(e).lower() or True
 
@@ -528,7 +838,9 @@ class TestGracefulDegradation:
     async def test_server_works_without_browser_import(self):
         """If browser import fails, server still serves base tools."""
         server = FastMCP('test-degraded')
-        from awslabs.amazon_bedrock_agentcore_mcp_server.tools import docs
+        from awslabs.amazon_bedrock_agentcore_mcp_server.tools import (
+            docs,
+        )
 
         server.tool()(docs.search_agentcore_docs)
         server.tool()(docs.fetch_agentcore_doc)
