@@ -22,6 +22,7 @@ from fastmcp.prompts.base import EmbeddedResource, Message
 from fastmcp.prompts.prompt import Prompt
 from fastmcp.prompts.prompt import PromptArgument as FastMCPPromptArgument
 from fastmcp.server.providers.openapi import MCPType
+from mcp.types import TextResourceContents
 from typing import Any, Dict, List, Optional
 
 
@@ -517,8 +518,6 @@ def create_operation_prompt(
                 resource_uri = f'api://{api_name_val}{path_val}'
 
                 # Add resource reference message
-                from mcp.types import TextResourceContents
-
                 messages.append(
                     Message(
                         EmbeddedResource(
@@ -596,7 +595,7 @@ def create_operation_prompt(
                 parameters.append(param)
 
             # Create a new signature
-            sig = inspect.Signature(parameters, return_annotation=List[Dict[str, Any]])
+            sig = inspect.Signature(parameters, return_annotation=List[Message])
 
             # Apply the signature to the function
             base_fn.__signature__ = sig

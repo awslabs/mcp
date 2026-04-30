@@ -226,7 +226,7 @@ def create_workflow_prompt(server: Any, workflow: Dict[str, Any]) -> bool:
                             )
 
         # Create a function that returns messages for this workflow
-        def workflow_fn() -> List[Dict[str, Any]]:
+        def workflow_fn() -> List[Message]:
             # Create messages
             messages = [Message(documentation, role='user')]
 
