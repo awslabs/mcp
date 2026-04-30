@@ -435,13 +435,15 @@ class MCPLambdaHandler:
                 logger.debug(f'Parsed request body: {body}')
                 request_id = body.get('id') if isinstance(body, dict) else None
 
-                # Check if this is a notification (no id field)
+                # Check if this is a notification (no id field).
+                # Per MCP Streamable HTTP spec, notification-only POSTs must
+                # receive HTTP 202 Accepted with no body.
                 if isinstance(body, dict) and 'id' not in body:
                     logger.debug('Request is a notification')
                     return {
                         'statusCode': 202,
                         'body': '',
-                        'headers': {'Content-Type': 'application/json', 'MCP-Version': '0.6'},
+                        'headers': {'MCP-Version': '0.6'},
                     }
 
                 # Validate basic JSON-RPC structure
