@@ -710,9 +710,18 @@ def test_db_connection_map_close_all_awaits_async_close():
 
     call_log: list[str] = []
 
-    class AsyncCloser:
+    class AsyncCloser(AbstractDBConnection):
+        def __init__(self):
+            super().__init__(readonly=True)
+
+        async def execute_query(self, sql, parameters=None, max_rows=0):
+            return []  # pragma: no cover
+
         async def close(self):
             call_log.append('closed')
+
+        async def check_connection_health(self):
+            return True  # pragma: no cover
 
     m.set(ConnectionMethod.ORACLE_PASSWORD, 'i', 'e', 'd', AsyncCloser(), 1521)
     m.close_all()
@@ -726,9 +735,18 @@ def test_db_connection_map_close_all_logs_when_loop_active():
 
     m = DBConnectionMap()
 
-    class AsyncCloser:
+    class AsyncCloser(AbstractDBConnection):
+        def __init__(self):
+            super().__init__(readonly=True)
+
+        async def execute_query(self, sql, parameters=None, max_rows=0):
+            return []  # pragma: no cover
+
         async def close(self):
             pass
+
+        async def check_connection_health(self):
+            return True  # pragma: no cover
 
     m.set(ConnectionMethod.ORACLE_PASSWORD, 'i', 'e', 'd', AsyncCloser(), 1521)
 
@@ -750,9 +768,18 @@ def test_db_connection_map_close_all_gathers_exception():
     """An exception raised by an async close() during gather is logged, not raised."""
     m = DBConnectionMap()
 
-    class BadAsyncCloser:
+    class BadAsyncCloser(AbstractDBConnection):
+        def __init__(self):
+            super().__init__(readonly=True)
+
+        async def execute_query(self, sql, parameters=None, max_rows=0):
+            return []  # pragma: no cover
+
         async def close(self):
             raise RuntimeError('async boom')
+
+        async def check_connection_health(self):
+            return True  # pragma: no cover
 
     m.set(ConnectionMethod.ORACLE_PASSWORD, 'i', 'e', 'd', BadAsyncCloser(), 1521)
     # Should not raise.
