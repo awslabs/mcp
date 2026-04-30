@@ -38,6 +38,12 @@ class Config:
     auth_api_key_name: str = 'api_key'
     auth_api_key_in: str = 'header'  # header, query, cookie
 
+    # Generic OAuth 2.0 client credentials
+    auth_oauth_token_endpoint: str = ''
+    auth_oauth_client_id: str = ''
+    auth_oauth_client_secret: str = ''
+    auth_oauth_scopes: str = ''  # Optional, comma-separated list of scopes
+
     # Cognito authentication
     auth_cognito_client_id: str = ''
     auth_cognito_username: str = ''
@@ -110,6 +116,11 @@ def load_config(args: Any = None) -> Config:
         'AUTH_API_KEY': (lambda v: setattr(config, 'auth_api_key', v)),
         'AUTH_API_KEY_NAME': (lambda v: setattr(config, 'auth_api_key_name', v)),
         'AUTH_API_KEY_IN': (lambda v: setattr(config, 'auth_api_key_in', v)),
+        # Generic OAuth 2.0 client credentials environment variables
+        'AUTH_OAUTH_TOKEN_ENDPOINT': (lambda v: setattr(config, 'auth_oauth_token_endpoint', v)),
+        'AUTH_OAUTH_CLIENT_ID': (lambda v: setattr(config, 'auth_oauth_client_id', v)),
+        'AUTH_OAUTH_CLIENT_SECRET': (lambda v: setattr(config, 'auth_oauth_client_secret', v)),
+        'AUTH_OAUTH_SCOPES': (lambda v: setattr(config, 'auth_oauth_scopes', v)),
         # Cognito authentication environment variables
         'AUTH_COGNITO_CLIENT_ID': (lambda v: setattr(config, 'auth_cognito_client_id', v)),
         'AUTH_COGNITO_USERNAME': (lambda v: setattr(config, 'auth_cognito_username', v)),

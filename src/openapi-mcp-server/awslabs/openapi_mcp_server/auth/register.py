@@ -64,6 +64,13 @@ def register_provider_by_type(auth_type: str) -> None:
 
         register_auth_provider('cognito', CognitoAuthProvider)
         logger.info('Registered Cognito authentication provider')
+    elif auth_type == 'oauth_client_credentials':
+        from awslabs.openapi_mcp_server.auth.oauth_client_credentials_auth import (
+            OAuthClientCredentialsAuthProvider,
+        )
+
+        register_auth_provider('oauth_client_credentials', OAuthClientCredentialsAuthProvider)
+        logger.info('Registered OAuth client credentials authentication provider')
     else:
         logger.warning(f'Unknown auth type: {auth_type}, registering all providers')
         register_all_providers()
@@ -94,6 +101,13 @@ def register_all_providers() -> None:
         logger.info('Registered Cognito authentication provider')
     except ImportError:
         logger.debug('Cognito authentication provider not available')
+
+    from awslabs.openapi_mcp_server.auth.oauth_client_credentials_auth import (
+        OAuthClientCredentialsAuthProvider,
+    )
+
+    register_auth_provider('oauth_client_credentials', OAuthClientCredentialsAuthProvider)
+    logger.info('Registered OAuth client credentials authentication provider')
 
 
 # Don't register providers automatically when this module is imported
