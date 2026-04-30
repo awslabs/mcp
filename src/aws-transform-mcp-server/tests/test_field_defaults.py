@@ -110,7 +110,7 @@ class TestConfigureFieldDefaults:
 
         mock_config = MagicMock()
         mock_config.fes_endpoint = 'https://fes.example.com'
-        mock_config.origin = 'https://app.example.com'
+        mock_config.origin = 'https://abc123.transform.us-east-1.on.aws'
         mock_config.session_cookie = 'cookie-val'
         mock_config.stage = 'prod'
         mock_config.region = 'us-east-1'
@@ -121,14 +121,14 @@ class TestConfigureFieldDefaults:
             ctx,
             authMode='cookie',
             sessionCookie='cookie-val',
-            origin='https://app.example.com',
+            origin='https://abc123.transform.us-east-1.on.aws',
         )
         parsed = _parse(result)
         assert parsed['success'] is True, f'Expected success, got: {parsed}'
 
         # Verify stage='prod' and region='us-east-1' were passed (not FieldInfo)
         mock_build.assert_called_once_with(
-            'https://app.example.com', 'cookie-val', 'prod', 'us-east-1'
+            'https://abc123.transform.us-east-1.on.aws', 'cookie-val', 'prod', 'us-east-1'
         )
 
     @pytest.mark.asyncio

@@ -25,6 +25,7 @@ from awslabs.aws_transform_mcp_server.config_store import (
     clear_config,
     derive_fes_endpoint,
     derive_tcp_endpoint,
+    extract_region_from_origin,
     get_config,
     is_configured,
     load_persisted_config,
@@ -90,6 +91,48 @@ class TestDeriveTcpEndpoint:
             derive_tcp_endpoint('gamma', 'mars-north-1')
 
 
+# ── extract_region_from_origin ──────────────────────────────────────────
+
+
+class TestExtractRegionFromOrigin:
+    """Tests for extract_region_from_origin."""
+
+    def test_prod_url(self):
+        assert (
+            extract_region_from_origin('https://abc123.transform.us-east-1.on.aws') == 'us-east-1'
+        )
+
+    def test_prod_url_trailing_slash(self):
+        assert (
+            extract_region_from_origin('https://72236b7f3fa56e503.transform.us-east-1.on.aws/')
+            == 'us-east-1'
+        )
+
+    def test_gamma_url(self):
+        assert (
+            extract_region_from_origin('https://abc123.transform-gamma.us-west-2.on.aws')
+            == 'us-west-2'
+        )
+
+    def test_alpha_intg_url(self):
+        assert (
+            extract_region_from_origin('https://abc123.transform-alpha-intg.us-west-2.on.aws')
+            == 'us-west-2'
+        )
+
+    def test_different_region(self):
+        assert (
+            extract_region_from_origin('https://abc123.transform.eu-central-1.on.aws')
+            == 'eu-central-1'
+        )
+
+    def test_non_matching_url(self):
+        assert extract_region_from_origin('https://app.example.com') is None
+
+    def test_empty_string(self):
+        assert extract_region_from_origin('') is None
+
+
 # ── build_cookie_config ─────────────────────────────────────────────────
 
 
@@ -150,6 +193,7 @@ class TestBuildBearerConfig:
             start_url='https://my-sso.awsapps.com/start',
             stage='prod',
             region='us-east-1',
+            idc_region='us-east-1',
             oidc_client_id='cid',
             oidc_client_secret='csec',  # pragma: allowlist secret
             oidc_client_secret_expires_at=9999999999,
@@ -310,6 +354,7 @@ class TestPersistence:
             start_url='https://sso.example.com/start',
             stage='prod',
             region='us-east-1',
+            idc_region='us-east-1',
             oidc_client_id='cid',
             oidc_client_secret='csec',  # pragma: allowlist secret
             oidc_client_secret_expires_at=9999999999,
@@ -361,6 +406,7 @@ class TestPersistence:
             start_url='https://sso.example.com/start',
             stage='prod',
             region='us-east-1',
+            idc_region='us-east-1',
         )
         config_file.write_text(json.dumps(expired_cfg.model_dump(), indent=2))
         os.chmod(str(config_file), 0o600)
@@ -384,6 +430,7 @@ class TestPersistence:
             start_url='https://sso.example.com/start',
             stage='prod',
             region='us-east-1',
+            idc_region='us-east-1',
             oidc_client_id='cid',
             oidc_client_secret='csec',  # pragma: allowlist secret
             oidc_client_secret_expires_at=1000,  # also expired
@@ -411,6 +458,7 @@ class TestPersistence:
             start_url='https://sso.example.com/start',
             stage='prod',
             region='us-east-1',
+            idc_region='us-east-1',
             oidc_client_id='cid',
             oidc_client_secret='csec',  # pragma: allowlist secret
             oidc_client_secret_expires_at=9999999999,
@@ -523,6 +571,7 @@ class TestPersistence:
             start_url='https://sso.example.com/start',
             stage='prod',
             region='us-east-1',
+            idc_region='us-east-1',
             oidc_client_id='cid',
             oidc_client_secret='csec',  # pragma: allowlist secret
             oidc_client_secret_expires_at=9999999999,

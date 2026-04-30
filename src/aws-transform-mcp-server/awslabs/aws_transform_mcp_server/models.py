@@ -37,6 +37,7 @@ class ConnectionConfig(BaseModel):
     oidc_client_id: Optional[str] = None
     oidc_client_secret: Optional[str] = None
     oidc_client_secret_expires_at: Optional[int] = None  # unix timestamp (seconds)
+    profile_name: Optional[str] = None
 
 
 class OAuthTokens(BaseModel):

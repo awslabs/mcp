@@ -14,6 +14,7 @@
 
 """Configure tool handlers for AWS Transform MCP server."""
 
+import asyncio
 import os
 import time
 from awslabs.aws_transform_mcp_server import __version__ as SERVER_VERSION
@@ -23,11 +24,16 @@ from awslabs.aws_transform_mcp_server.config_store import (
     build_cookie_config,
     clear_config,
     derive_fes_endpoint,
+    extract_region_from_origin,
     get_config,
     is_configured,
     is_sigv4_fes_available,
     persist_config,
     set_config,
+)
+from awslabs.aws_transform_mcp_server.consts import (
+    FES_REGIONS_BY_STAGE,
+    PROFILE_DISCOVERY_TIMEOUT_SECONDS,
 )
 from awslabs.aws_transform_mcp_server.fes_client import (
     call_fes_direct_bearer,
@@ -41,9 +47,153 @@ from awslabs.aws_transform_mcp_server.tool_utils import (
     success_result,
     text_result,
 )
+from loguru import logger
 from mcp.server.fastmcp import Context
-from pydantic import Field
-from typing import Annotated, Any, Optional
+from pydantic import BaseModel, Field
+from typing import Annotated, Any, Dict, List, Optional
+
+
+async def _discover_profiles(
+    stage: str,
+    access_token: str,
+) -> List[Dict[str, Any]]:
+    """Fan out ListAvailableProfiles across all FES regions for the stage.
+
+    Each region gets a 5-second timeout. Profiles are tagged with ``_region``
+    (extracted from applicationUrl) so the caller knows which FES to use.
+
+    Returns all discovered profiles, or an empty list if none found.
+    """
+    regions = FES_REGIONS_BY_STAGE.get(stage, FES_REGIONS_BY_STAGE['prod'])
+
+    async def _call_region(region: str) -> List[Dict[str, Any]]:
+        try:
+            endpoint = derive_fes_endpoint(stage, region)
+            result = await asyncio.wait_for(
+                call_fes_direct_bearer(endpoint, access_token, 'ListAvailableProfiles'),
+                timeout=PROFILE_DISCOVERY_TIMEOUT_SECONDS,
+            )
+            profiles = result.get('profiles', []) if isinstance(result, dict) else []
+            return [{**p, '_region': region} for p in profiles]
+        except Exception as exc:
+            logger.debug('Profile discovery failed for {}: {}', region, exc)
+            return []
+
+    results = await asyncio.gather(*[_call_region(r) for r in regions])
+    all_profiles: List[Dict[str, Any]] = []
+    for region_profiles in results:
+        all_profiles.extend(region_profiles)
+    return all_profiles
+
+
+async def _select_profile(
+    ctx: Context,
+    profiles: List[Dict[str, Any]],
+    profile_name: Optional[str],
+) -> Dict[str, Any] | dict:
+    """Select a profile from the discovered list.
+
+    If only one profile exists, auto-selects it. If ``profile_name`` is given,
+    matches it. Otherwise, tries MCP elicitation; falls back to returning
+    PROFILE_SELECTION_REQUIRED for re-call.
+
+    Returns the selected profile dict, or an error response dict (with 'content' key).
+    """
+    if len(profiles) == 1:
+        return profiles[0]
+
+    if profile_name:
+        match = next((p for p in profiles if p.get('profileName') == profile_name), None)
+        if match:
+            return match
+        return text_result(
+            {
+                'success': False,
+                'error': {
+                    'code': 'PROFILE_NOT_FOUND',
+                    'message': f'Profile "{profile_name}" not found.',
+                    'suggestedAction': (
+                        'Re-call configure with profileName set to one of the names below.'
+                    ),
+                },
+                'availableProfiles': [
+                    {
+                        'profileName': p.get('profileName'),
+                        'applicationUrl': p.get('applicationUrl'),
+                    }
+                    for p in profiles
+                ],
+            },
+            is_error=True,
+        )
+
+    # Try elicitation
+    try:
+        from mcp.server.elicitation import elicit_with_validation
+        from mcp.types import ClientCapabilities, ElicitationCapability
+    except ImportError:
+        pass
+    else:
+        try:
+            session = ctx.session
+            has_elicitation = session.check_client_capability(
+                ClientCapabilities(elicitation=ElicitationCapability())
+            )
+
+            if has_elicitation:
+                display_names = [
+                    f'{p.get("profileName", "")} ({p.get("_region", "unknown")})' for p in profiles
+                ]
+
+                schema_extra: Dict[str, Any] = {'enum': display_names}
+
+                class ProfileSelection(BaseModel):
+                    profile: str = Field(
+                        ...,
+                        json_schema_extra=schema_extra,
+                    )
+
+                result = await elicit_with_validation(
+                    session,
+                    'Which Transform profile do you want to connect to?',
+                    ProfileSelection,
+                )
+
+                if result.action == 'accept':
+                    selected_display = result.data.profile
+                    match = next(
+                        (
+                            p
+                            for p, dn in zip(profiles, display_names, strict=True)
+                            if dn == selected_display
+                        ),
+                        None,
+                    )
+                    if match:
+                        return match
+
+                return error_result('CANCELLED', 'Profile selection was cancelled or declined.')
+        except Exception as exc:
+            logger.debug('Elicitation failed, falling back to profile list: {}', exc)
+
+    # Fallback: return list for re-call with profileName
+    return text_result(
+        {
+            'success': False,
+            'error': {
+                'code': 'PROFILE_SELECTION_REQUIRED',
+                'message': 'Multiple profiles found. Please choose one.',
+                'suggestedAction': (
+                    'Re-call configure with profileName set to one of the names below.'
+                ),
+            },
+            'availableProfiles': [
+                {'profileName': p.get('profileName'), 'applicationUrl': p.get('applicationUrl')}
+                for p in profiles
+            ],
+        },
+        is_error=True,
+    )
 
 
 class ConfigureHandler:
@@ -53,6 +203,7 @@ class ConfigureHandler:
         """Register configure tools on the MCP server."""
         audited_tool(mcp, 'configure')(self.configure)
         audited_tool(mcp, 'get_status')(self.get_status)
+        audited_tool(mcp, 'switch_profile')(self.switch_profile)
 
     async def configure(
         self,
@@ -61,61 +212,80 @@ class ConfigureHandler:
             str,
             Field(
                 description=(
-                    'Authentication method: "cookie" for browser session, "sso" for IdC bearer token'
+                    'Authentication method. '
+                    '"cookie" — requires: origin, sessionCookie. '
+                    '"sso" — requires: startUrl, idcRegion. Opens a browser for login.'
                 ),
             ),
         ],
         stage: Annotated[
             str,
             Field(
-                description=(
-                    'Environment stage (default: prod). Gamma only supports us-east-1 and us-west-2.'
-                ),
+                description='Environment stage (default: prod).',
             ),
         ] = 'prod',
-        region: Annotated[
-            str,
-            Field(
-                description=(
-                    'AWS region (default: us-east-1). For SSO auth, this must be the region '
-                    'where your IAM Identity Center instance is configured.'
-                ),
-            ),
-        ] = 'us-east-1',
-        sessionCookie: Annotated[
-            Optional[str],
-            Field(
-                description=(
-                    '(cookie mode) The aws-transform-session cookie value from browser DevTools'
-                ),
-            ),
-        ] = None,
+        # ── Cookie mode parameters ─────────────────────────────────────
         origin: Annotated[
             Optional[str],
             Field(
                 description=(
-                    '(cookie mode) Your Transform application URL '
-                    '(e.g., https://xxx.transform-gamma.us-east-1.on.aws)'
+                    '(cookie mode, required) Your Transform application URL from the '
+                    'browser address bar (e.g., https://abc123.transform.us-east-1.on.aws).'
                 ),
             ),
         ] = None,
+        sessionCookie: Annotated[
+            Optional[str],
+            Field(
+                description=(
+                    '(cookie mode, required) The aws-transform-session cookie value. '
+                    'Get it from browser DevTools > Application > Cookies.'
+                ),
+            ),
+        ] = None,
+        # ── SSO mode parameters ────────────────────────────────────────
         startUrl: Annotated[
             Optional[str],
             Field(
-                description='(sso mode) Your IdC start URL (e.g., https://d-xxx.awsapps.com/start)',
+                description=(
+                    '(sso mode, required) Your IAM Identity Center start URL '
+                    '(e.g., https://d-xxxxxxxxxx.awsapps.com/start).'
+                ),
+            ),
+        ] = None,
+        idcRegion: Annotated[
+            Optional[str],
+            Field(
+                description=(
+                    '(sso mode, required) The AWS region where your IAM Identity Center '
+                    'instance is configured (e.g., us-east-1, us-west-2).'
+                ),
             ),
         ] = None,
         profileName: Annotated[
             Optional[str],
             Field(
                 description=(
-                    '(sso mode) Profile to connect to when multiple profiles exist. '
-                    'Call without this first to see available profiles.'
+                    '(sso mode, optional) Profile name when multiple profiles exist. '
+                    'Omit to be prompted or to see available profiles.'
                 ),
             ),
         ] = None,
     ) -> dict:
-        """Connect to AWS Transform using a browser session cookie or SSO/IdC bearer token."""
+        """Authenticate and connect to AWS Transform.
+
+        Use when the user needs to set up or re-establish a connection. Two modes:
+        - "cookie": immediate — validates the session cookie against FES.
+        Required params: origin, sessionCookie.
+        - "sso": interactive — opens a browser for IAM Identity Center login (OAuth PKCE),
+        discovers available profiles across all regions, and establishes a bearer token session.
+        Required params: startUrl, idcRegion.
+
+        Do NOT use this tool to check connection status — use get_status instead.
+        Do NOT call this if get_status already shows a valid connection.
+
+        [CRITICAL] SSO mode opens the user's default browser. Ensure the user expects this.
+        """
         # ── Cookie auth ─────────────────────────────────────────────────
         if authMode == 'cookie':
             if not sessionCookie:
@@ -132,7 +302,15 @@ class ConfigureHandler:
                     '(e.g., https://xxx.transform-gamma.us-east-1.on.aws).',
                 )
 
-            config = build_cookie_config(origin, sessionCookie, stage, region)
+            cookie_region = extract_region_from_origin(origin)
+            if not cookie_region:
+                return error_result(
+                    'INVALID_APPLICATION_URL',
+                    f'Could not extract region from origin: {origin}',
+                    'Expected format: https://{{id}}.transform.{{region}}.on.aws',
+                )
+
+            config = build_cookie_config(origin, sessionCookie, stage, cookie_region)
 
             try:
                 result = await call_fes_direct_cookie(
@@ -166,86 +344,43 @@ class ConfigureHandler:
                 'startUrl is required for sso auth mode.',
                 'Provide your IdC start URL (e.g., https://d-xxx.awsapps.com/start).',
             )
+        if not idcRegion:
+            return error_result(
+                'VALIDATION_ERROR',
+                'idcRegion is required for sso auth mode.',
+                'Provide the AWS region where your IAM Identity Center is configured.',
+            )
 
         scope = get_scope(stage)
 
         try:
             # Step 1: Run full OAuth flow
-            tokens = await run_oauth_flow(start_url=startUrl, idc_region=region, scope=scope)
+            tokens = await run_oauth_flow(start_url=startUrl, idc_region=idcRegion, scope=scope)
 
-            # Step 2: Discover profiles via ListAvailableProfiles
-            fes_endpoint = derive_fes_endpoint(stage, region)
-            profiles_result = await call_fes_direct_bearer(
-                fes_endpoint, tokens.access_token, 'ListAvailableProfiles'
-            )
-
-            profiles = (
-                profiles_result.get('profiles', []) if isinstance(profiles_result, dict) else []
-            )
+            # Step 2: Fan out ListAvailableProfiles across all regions
+            profiles = await _discover_profiles(stage, tokens.access_token)
 
             if len(profiles) == 0:
                 return error_result(
                     'NO_PROFILES',
-                    'No AWS Transform profiles found for this account.',
+                    'No AWS Transform profiles found for this account in any region.',
                     'You may need to create a profile first.',
                 )
 
-            # Step 3: Select profile
-            if len(profiles) == 1:
-                profile = profiles[0]
-            elif profileName:
-                match = next((p for p in profiles if p.get('profileName') == profileName), None)
-                if not match:
-                    return text_result(
-                        {
-                            'success': False,
-                            'error': {
-                                'code': 'PROFILE_NOT_FOUND',
-                                'message': f'Profile "{profileName}" not found.',
-                                'suggestedAction': (
-                                    'Re-call configure with authMode "sso" and one of '
-                                    'the profile names listed below.'
-                                ),
-                            },
-                            'availableProfiles': [
-                                {
-                                    'profileName': p.get('profileName'),
-                                    'applicationUrl': p.get('applicationUrl'),
-                                }
-                                for p in profiles
-                            ],
-                        },
-                        is_error=True,
-                    )
-                profile = match
-            else:
-                return text_result(
-                    {
-                        'success': False,
-                        'error': {
-                            'code': 'PROFILE_SELECTION_REQUIRED',
-                            'message': 'Multiple profiles found. Please choose one.',
-                            'suggestedAction': (
-                                'Re-call configure with authMode "sso" and profileName '
-                                'set to one of the names below.'
-                            ),
-                        },
-                        'availableProfiles': [
-                            {
-                                'profileName': p.get('profileName'),
-                                'applicationUrl': p.get('applicationUrl'),
-                            }
-                            for p in profiles
-                        ],
-                    },
-                    is_error=True,
-                )
+            # Step 3: Select profile (elicitation or fallback)
+            selected = await _select_profile(ctx, profiles, profileName)
+            if 'content' in selected:
+                return selected
 
-            resolved_origin = profile.get('applicationUrl', '').rstrip('/')
+            resolved_origin = selected.get('applicationUrl', '').rstrip('/')
+            service_region = extract_region_from_origin(resolved_origin) or selected.get(
+                '_region', 'us-east-1'
+            )
 
             # Step 4: Verify session with selected profile
+            service_fes_endpoint = derive_fes_endpoint(stage, service_region)
             session = await call_fes_direct_bearer(
-                fes_endpoint, tokens.access_token, 'VerifySession', {}, resolved_origin
+                service_fes_endpoint, tokens.access_token, 'VerifySession', {}, resolved_origin
             )
 
             # Step 5: Build and save config
@@ -256,11 +391,13 @@ class ConfigureHandler:
                 origin=resolved_origin,
                 start_url=startUrl,
                 stage=stage,
-                region=region,
+                region=service_region,
                 oidc_client_id=tokens.client_id,
                 oidc_client_secret=tokens.client_secret,
                 oidc_client_secret_expires_at=tokens.client_secret_expires_at,
+                idc_region=idcRegion,
             )
+            config.profile_name = selected.get('profileName')
             set_config(config)
             persist_config()
         except Exception as error:
@@ -276,8 +413,83 @@ class ConfigureHandler:
                 'stage': config.stage,
                 'region': config.region,
                 'origin': config.origin,
-                'profile': profile.get('profileName'),
-                'tokenExpiresIn': f'{tokens.expires_in}s',
+                'profile': selected.get('profileName'),
+                'session': session,
+            }
+        )
+
+    async def switch_profile(self, ctx: Context) -> dict:
+        """Switch to a different Transform profile without re-authenticating.
+
+        Use when already connected via SSO and the user wants to switch to a different
+        profile (e.g., different region or team workspace). Re-uses the existing bearer
+        token to discover and select a new profile.
+
+        Requires an active bearer (SSO) connection. Does not work with cookie auth.
+        """
+        config = get_config()
+        if config is None or config.auth_mode != 'bearer' or not config.bearer_token:
+            return error_result(
+                'NOT_CONFIGURED',
+                'No active SSO session. Run configure with authMode "sso" first.',
+            )
+
+        if config.token_expiry and int(time.time()) >= config.token_expiry:
+            return error_result(
+                'TOKEN_EXPIRED',
+                'Your SSO session has expired.',
+                'Run configure with authMode "sso" to re-authenticate.',
+            )
+
+        stage = config.stage
+
+        # Fan out to discover all profiles
+        profiles = await _discover_profiles(stage, config.bearer_token)
+
+        if len(profiles) == 0:
+            return error_result(
+                'NO_PROFILES',
+                'No AWS Transform profiles found for this account in any region. '
+                'If your session recently expired, re-authenticate with configure.',
+            )
+
+        # Select profile (elicitation or fallback)
+        selected = await _select_profile(ctx, profiles, None)
+        if 'content' in selected:
+            return selected
+
+        resolved_origin = selected.get('applicationUrl', '').rstrip('/')
+        service_region = extract_region_from_origin(resolved_origin) or selected.get(
+            '_region', 'us-east-1'
+        )
+
+        # Verify session with selected profile
+        service_fes_endpoint = derive_fes_endpoint(stage, service_region)
+        try:
+            session = await call_fes_direct_bearer(
+                service_fes_endpoint, config.bearer_token, 'VerifySession', {}, resolved_origin
+            )
+        except Exception as error:
+            return failure_result(
+                error,
+                'Failed to verify session with the selected profile. '
+                'You may need to re-authenticate with configure.',
+            )
+
+        # Update config with new profile
+        config.origin = resolved_origin
+        config.region = service_region
+        config.fes_endpoint = service_fes_endpoint
+        config.profile_name = selected.get('profileName')
+        set_config(config)
+        persist_config()
+
+        return success_result(
+            {
+                'message': 'Switched to new profile',
+                'profile': selected.get('profileName'),
+                'region': service_region,
+                'origin': resolved_origin,
                 'session': session,
             }
         )
@@ -325,6 +537,8 @@ class ConfigureHandler:
                     'origin': config.origin,
                     'session': result,
                 }
+                if config.profile_name:
+                    info['profile'] = config.profile_name
                 if config.auth_mode == 'bearer' and config.token_expiry:
                     remaining = config.token_expiry - int(time.time())
                     info['tokenExpiresIn'] = f'{remaining}s' if remaining > 0 else 'EXPIRED'

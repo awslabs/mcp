@@ -261,7 +261,6 @@ async def run_oauth_flow(
             codeVerifier=code_verifier,
             redirectUri=redirect_uri,
         )
-
         return OAuthTokens(
             access_token=token_resp['accessToken'],
             refresh_token=token_resp.get('refreshToken'),

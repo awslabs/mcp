@@ -35,8 +35,8 @@ class AwsHelper:
     @staticmethod
     def create_session() -> boto3.Session:
         """Create a boto3 Session using AWS_PROFILE if set."""
-        profile = os.environ.get('AWS_PROFILE')
-        return boto3.Session(profile_name=profile) if profile else boto3.Session()
+        profile = (os.environ.get('AWS_PROFILE') or '').strip() or None
+        return boto3.Session(profile_name=profile)
 
     @staticmethod
     def resolve_region(session: Optional[boto3.Session] = None) -> str:

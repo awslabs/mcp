@@ -55,9 +55,8 @@ class TestConfigureCookie:
             mock_context,
             authMode='cookie',
             stage='prod',
-            region='us-east-1',
             sessionCookie='my-session-value',
-            origin='https://app.transform.us-east-1.on.aws',
+            origin='https://abc123.transform.us-east-1.on.aws',
         )
 
         parsed = json.loads(result['content'][0]['text'])
@@ -108,6 +107,10 @@ class TestConfigureSSO:
         new_callable=AsyncMock,
     )
     @patch(
+        'awslabs.aws_transform_mcp_server.tools.configure._discover_profiles',
+        new_callable=AsyncMock,
+    )
+    @patch(
         'awslabs.aws_transform_mcp_server.tools.configure.run_oauth_flow',
         new_callable=AsyncMock,
     )
@@ -119,6 +122,7 @@ class TestConfigureSSO:
         self,
         mock_scope,
         mock_oauth,
+        mock_discover,
         mock_fes_bearer,
         mock_set_config,
         mock_persist,
@@ -133,23 +137,21 @@ class TestConfigureSSO:
             client_secret='csec',  # pragma: allowlist secret
             client_secret_expires_at=9999999999,
         )
-        mock_fes_bearer.side_effect = [
-            # ListAvailableProfiles
+        mock_discover.return_value = [
             {
-                'profiles': [
-                    {'profileName': 'default', 'applicationUrl': 'https://app.example.com/'}
-                ]
-            },
-            # VerifySession
-            {'userId': 'user-sso'},
+                'profileName': 'default',
+                'applicationUrl': 'https://abc123.transform.us-east-1.on.aws/',
+                '_region': 'us-east-1',
+            }
         ]
+        mock_fes_bearer.return_value = {'userId': 'user-sso'}
 
         result = await handler.configure(
             mock_context,
             authMode='sso',
             startUrl='https://d-xxx.awsapps.com/start',
             stage='prod',
-            region='us-east-1',
+            idcRegion='us-east-1',
         )
 
         parsed = json.loads(result['content'][0]['text'])
@@ -161,7 +163,7 @@ class TestConfigureSSO:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.configure.call_fes_direct_bearer',
+        'awslabs.aws_transform_mcp_server.tools.configure._discover_profiles',
         new_callable=AsyncMock,
     )
     @patch(
@@ -173,7 +175,7 @@ class TestConfigureSSO:
         return_value='transform:read_write',
     )
     async def test_sso_no_profiles(
-        self, mock_scope, mock_oauth, mock_fes_bearer, handler, mock_context
+        self, mock_scope, mock_oauth, mock_discover, handler, mock_context
     ):
         mock_oauth.return_value = OAuthTokens(
             access_token='tok-1',
@@ -183,13 +185,13 @@ class TestConfigureSSO:
             client_secret='csec',  # pragma: allowlist secret
             client_secret_expires_at=9999999999,
         )
-        mock_fes_bearer.return_value = {'profiles': []}
+        mock_discover.return_value = []
 
         result = await handler.configure(
             mock_context,
             authMode='sso',
             stage='prod',
-            region='us-east-1',
+            idcRegion='us-east-1',
             startUrl='https://d-xxx.awsapps.com/start',
         )
 
@@ -199,7 +201,7 @@ class TestConfigureSSO:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.configure.call_fes_direct_bearer',
+        'awslabs.aws_transform_mcp_server.tools.configure._discover_profiles',
         new_callable=AsyncMock,
     )
     @patch(
@@ -211,7 +213,7 @@ class TestConfigureSSO:
         return_value='transform:read_write',
     )
     async def test_sso_multiple_profiles_no_selection(
-        self, mock_scope, mock_oauth, mock_fes_bearer, handler, mock_context
+        self, mock_scope, mock_oauth, mock_discover, handler, mock_context
     ):
         mock_oauth.return_value = OAuthTokens(
             access_token='tok-1',
@@ -221,18 +223,24 @@ class TestConfigureSSO:
             client_secret='csec',  # pragma: allowlist secret
             client_secret_expires_at=9999999999,
         )
-        mock_fes_bearer.return_value = {
-            'profiles': [
-                {'profileName': 'alpha', 'applicationUrl': 'https://alpha.example.com'},
-                {'profileName': 'beta', 'applicationUrl': 'https://beta.example.com'},
-            ]
-        }
+        mock_discover.return_value = [
+            {
+                'profileName': 'alpha',
+                'applicationUrl': 'https://aaa111.transform.us-east-1.on.aws',
+                '_region': 'us-east-1',
+            },
+            {
+                'profileName': 'beta',
+                'applicationUrl': 'https://bbb222.transform.us-west-2.on.aws',
+                '_region': 'us-west-2',
+            },
+        ]
 
         result = await handler.configure(
             mock_context,
             authMode='sso',
             stage='prod',
-            region='us-east-1',
+            idcRegion='us-east-1',
             startUrl='https://d-xxx.awsapps.com/start',
             profileName=None,
         )
@@ -250,6 +258,10 @@ class TestConfigureSSO:
         new_callable=AsyncMock,
     )
     @patch(
+        'awslabs.aws_transform_mcp_server.tools.configure._discover_profiles',
+        new_callable=AsyncMock,
+    )
+    @patch(
         'awslabs.aws_transform_mcp_server.tools.configure.run_oauth_flow',
         new_callable=AsyncMock,
     )
@@ -261,6 +273,7 @@ class TestConfigureSSO:
         self,
         mock_scope,
         mock_oauth,
+        mock_discover,
         mock_fes_bearer,
         mock_set_config,
         mock_persist,
@@ -275,21 +288,25 @@ class TestConfigureSSO:
             client_secret='csec',  # pragma: allowlist secret
             client_secret_expires_at=9999999999,
         )
-        mock_fes_bearer.side_effect = [
+        mock_discover.return_value = [
             {
-                'profiles': [
-                    {'profileName': 'alpha', 'applicationUrl': 'https://alpha.example.com/'},
-                    {'profileName': 'beta', 'applicationUrl': 'https://beta.example.com/'},
-                ]
+                'profileName': 'alpha',
+                'applicationUrl': 'https://aaa111.transform.us-east-1.on.aws/',
+                '_region': 'us-east-1',
             },
-            {'userId': 'user-beta'},
+            {
+                'profileName': 'beta',
+                'applicationUrl': 'https://bbb222.transform.us-west-2.on.aws/',
+                '_region': 'us-west-2',
+            },
         ]
+        mock_fes_bearer.return_value = {'userId': 'user-beta'}
 
         result = await handler.configure(
             mock_context,
             authMode='sso',
             stage='prod',
-            region='us-east-1',
+            idcRegion='us-east-1',
             startUrl='https://d-xxx.awsapps.com/start',
             profileName='beta',
         )
@@ -297,10 +314,13 @@ class TestConfigureSSO:
         parsed = json.loads(result['content'][0]['text'])
         assert parsed['success'] is True
         assert parsed['data']['profile'] == 'beta'
+        config_arg = mock_set_config.call_args[0][0]
+        assert config_arg.region == 'us-west-2'
+        assert config_arg.idc_region == 'us-east-1'
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.configure.call_fes_direct_bearer',
+        'awslabs.aws_transform_mcp_server.tools.configure._discover_profiles',
         new_callable=AsyncMock,
     )
     @patch(
@@ -312,7 +332,7 @@ class TestConfigureSSO:
         return_value='transform:read_write',
     )
     async def test_sso_profile_not_found(
-        self, mock_scope, mock_oauth, mock_fes_bearer, handler, mock_context
+        self, mock_scope, mock_oauth, mock_discover, handler, mock_context
     ):
         mock_oauth.return_value = OAuthTokens(
             access_token='tok-1',
@@ -322,18 +342,24 @@ class TestConfigureSSO:
             client_secret='csec',  # pragma: allowlist secret
             client_secret_expires_at=9999999999,
         )
-        mock_fes_bearer.return_value = {
-            'profiles': [
-                {'profileName': 'alpha', 'applicationUrl': 'https://alpha.example.com'},
-                {'profileName': 'beta', 'applicationUrl': 'https://beta.example.com'},
-            ]
-        }
+        mock_discover.return_value = [
+            {
+                'profileName': 'alpha',
+                'applicationUrl': 'https://aaa111.transform.us-east-1.on.aws',
+                '_region': 'us-east-1',
+            },
+            {
+                'profileName': 'beta',
+                'applicationUrl': 'https://bbb222.transform.us-west-2.on.aws',
+                '_region': 'us-west-2',
+            },
+        ]
 
         result = await handler.configure(
             mock_context,
             authMode='sso',
             stage='prod',
-            region='us-east-1',
+            idcRegion='us-east-1',
             startUrl='https://d-xxx.awsapps.com/start',
             profileName='nonexistent',
         )
@@ -350,6 +376,111 @@ class TestConfigureSSO:
         assert parsed['success'] is False
         assert parsed['error']['code'] == 'VALIDATION_ERROR'
         assert 'startUrl' in parsed['error']['message']
+
+
+# ── _select_profile fallback ────────────────────────────────────────────
+
+
+class TestSelectProfileFallback:
+    """Tests for _select_profile when client does not support elicitation."""
+
+    @pytest.mark.asyncio
+    async def test_fallback_returns_profile_list(self, mock_context):
+        """When elicitation is not supported, returns PROFILE_SELECTION_REQUIRED."""
+        from awslabs.aws_transform_mcp_server.tools.configure import _select_profile
+
+        # Simulate a client that does NOT support elicitation
+        mock_context.session = MagicMock()
+        mock_context.session.check_client_capability = MagicMock(return_value=False)
+
+        profiles = [
+            {
+                'profileName': 'alpha',
+                'applicationUrl': 'https://aaa.transform.us-east-1.on.aws',
+                '_region': 'us-east-1',
+            },
+            {
+                'profileName': 'beta',
+                'applicationUrl': 'https://bbb.transform.eu-central-1.on.aws',
+                '_region': 'eu-central-1',
+            },
+        ]
+
+        result = await _select_profile(mock_context, profiles, None)
+
+        assert 'content' in result
+        parsed = json.loads(result['content'][0]['text'])
+        assert parsed['success'] is False
+        assert parsed['error']['code'] == 'PROFILE_SELECTION_REQUIRED'
+        assert len(parsed['availableProfiles']) == 2
+        assert parsed['availableProfiles'][0]['profileName'] == 'alpha'
+        assert parsed['availableProfiles'][1]['profileName'] == 'beta'
+        # Verify check_client_capability was actually called
+        mock_context.session.check_client_capability.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_single_profile_auto_selects(self, mock_context):
+        """Single profile is auto-selected without elicitation."""
+        from awslabs.aws_transform_mcp_server.tools.configure import _select_profile
+
+        profiles = [
+            {
+                'profileName': 'only',
+                'applicationUrl': 'https://aaa.transform.us-east-1.on.aws',
+                '_region': 'us-east-1',
+            },
+        ]
+
+        result = await _select_profile(mock_context, profiles, None)
+
+        assert result == profiles[0]
+
+    @pytest.mark.asyncio
+    async def test_profile_name_selects_directly(self, mock_context):
+        """When profileName is provided, selects without elicitation."""
+        from awslabs.aws_transform_mcp_server.tools.configure import _select_profile
+
+        profiles = [
+            {
+                'profileName': 'alpha',
+                'applicationUrl': 'https://aaa.transform.us-east-1.on.aws',
+                '_region': 'us-east-1',
+            },
+            {
+                'profileName': 'beta',
+                'applicationUrl': 'https://bbb.transform.eu-central-1.on.aws',
+                '_region': 'eu-central-1',
+            },
+        ]
+
+        result = await _select_profile(mock_context, profiles, 'beta')
+
+        assert result == profiles[1]
+
+    @pytest.mark.asyncio
+    async def test_profile_name_not_found(self, mock_context):
+        """When profileName doesn't match any of multiple profiles, returns PROFILE_NOT_FOUND."""
+        from awslabs.aws_transform_mcp_server.tools.configure import _select_profile
+
+        profiles = [
+            {
+                'profileName': 'alpha',
+                'applicationUrl': 'https://aaa.transform.us-east-1.on.aws',
+                '_region': 'us-east-1',
+            },
+            {
+                'profileName': 'beta',
+                'applicationUrl': 'https://bbb.transform.eu-central-1.on.aws',
+                '_region': 'eu-central-1',
+            },
+        ]
+
+        result = await _select_profile(mock_context, profiles, 'nonexistent')
+
+        assert 'content' in result
+        parsed = json.loads(result['content'][0]['text'])
+        assert parsed['success'] is False
+        assert parsed['error']['code'] == 'PROFILE_NOT_FOUND'
 
 
 # ── get_status ──────────────────────────────────────────────────────────
@@ -560,9 +691,8 @@ class TestConfigureCookieException:
             mock_context,
             authMode='cookie',
             stage='prod',
-            region='us-east-1',
             sessionCookie='my-session-value',
-            origin='https://app.transform.us-east-1.on.aws',
+            origin='https://abc123.transform.us-east-1.on.aws',
         )
 
         parsed = json.loads(result['content'][0]['text'])
@@ -592,7 +722,7 @@ class TestConfigureSSOException:
             mock_context,
             authMode='sso',
             stage='prod',
-            region='us-east-1',
+            idcRegion='us-east-1',
             startUrl='https://d-xxx.awsapps.com/start',
         )
 

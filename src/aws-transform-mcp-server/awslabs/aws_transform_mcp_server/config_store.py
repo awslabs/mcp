@@ -16,6 +16,7 @@
 
 import json
 import os
+import re
 import stat
 import tempfile
 import time
@@ -26,6 +27,28 @@ from loguru import logger
 
 
 _VALID_STAGES = frozenset({'prod', 'gamma', 'alpha-intg'})
+
+# Matches: https://{tenantId}.transform.{region}.on.aws (prod)
+#       or: https://{tenantId}.transform-{stage}.{region}.on.aws (non-prod)
+_ORIGIN_REGION_PATTERN = re.compile(
+    r'https://[a-z0-9-]+\.transform(?:-[a-z-]+)?\.([a-z]+-[a-z]+-\d+)\.on\.aws$'
+)
+
+
+def extract_region_from_origin(origin: str) -> str | None:
+    """Extract the AWS region from a Transform application URL.
+
+    Handles both prod (``https://{id}.transform.{region}.on.aws``) and
+    non-prod (``https://{id}.transform-{stage}.{region}.on.aws``) patterns.
+
+    Args:
+        origin: The application URL / origin string.
+
+    Returns:
+        The AWS region string, or None if the URL doesn't match the expected pattern.
+    """
+    match = _ORIGIN_REGION_PATTERN.match(origin.rstrip('/'))
+    return match.group(1) if match else None
 
 
 def derive_fes_endpoint(stage: str, region: str) -> str:
@@ -109,6 +132,7 @@ def build_bearer_config(
     start_url: str,
     stage: str,
     region: str,
+    idc_region: str,
     oidc_client_id: str | None = None,
     oidc_client_secret: str | None = None,
     oidc_client_secret_expires_at: int | None = None,
@@ -122,7 +146,8 @@ def build_bearer_config(
         origin: The origin URL (trailing slash is stripped).
         start_url: The IAM Identity Center start URL.
         stage: Deployment stage.
-        region: AWS region.
+        region: AWS region for the Transform service (FES endpoint).
+        idc_region: AWS region for the IAM Identity Center instance (for token refresh).
         oidc_client_id: The OIDC client ID from RegisterClient.
         oidc_client_secret: The OIDC client secret from RegisterClient.
         oidc_client_secret_expires_at: Unix timestamp when the client secret expires.
@@ -140,7 +165,7 @@ def build_bearer_config(
         refresh_token=refresh_token,
         token_expiry=token_expiry,
         start_url=start_url,
-        idc_region=region,
+        idc_region=idc_region,
         oidc_client_id=oidc_client_id,
         oidc_client_secret=oidc_client_secret,
         oidc_client_secret_expires_at=oidc_client_secret_expires_at,
