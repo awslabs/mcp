@@ -214,24 +214,33 @@ def create_cache_provider(ttl_seconds: Optional[int] = None) -> CacheProvider:
     return InMemoryCacheProvider(ttl_seconds=ttl_seconds)
 
 
-def cached(ttl_seconds: Optional[int] = None) -> Callable:
+def cached(
+    ttl_seconds: Optional[int] = None,
+    exclude_from_key: Optional[set] = None,
+) -> Callable:
     """Cache function results.
 
     Args:
         ttl_seconds: Time-to-live in seconds for cache entries (defaults to config value)
+        exclude_from_key: Set of kwarg names to omit from the cache key. Useful for
+            arguments like auth headers whose values should not affect cache identity
+            (e.g. the same spec URL should map to the same cache entry regardless of
+            which token was used to fetch it).
 
     Returns:
         Callable: Decorated function with caching
 
     """
     cache = create_cache_provider(ttl_seconds=ttl_seconds)
+    _exclude = exclude_from_key or set()
 
     def decorator(func: Callable) -> Callable:
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            # Create a cache key from the function name and arguments
+            # Create a cache key from the function name and arguments,
+            # omitting any kwargs listed in exclude_from_key.
             key_parts = [func.__name__]
             key_parts.extend(str(arg) for arg in args)
-            key_parts.extend(f'{k}={v}' for k, v in sorted(kwargs.items()))
+            key_parts.extend(f'{k}={v}' for k, v in sorted(kwargs.items()) if k not in _exclude)
             cache_key = ':'.join(key_parts)
 
             # Try to get from cache first

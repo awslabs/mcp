@@ -63,7 +63,9 @@ except ImportError:
     logger.warning('Prance library not found. Reference resolution will be limited.')
 
 
-@cached(ttl_seconds=3600)  # Cache OpenAPI specs for 1 hour
+@cached(
+    ttl_seconds=3600, exclude_from_key={'headers'}
+)  # Cache by URL/path only; headers excluded so token rotation doesn't fragment the cache
 def load_openapi_spec(
     url: str = '',
     path: str = '',

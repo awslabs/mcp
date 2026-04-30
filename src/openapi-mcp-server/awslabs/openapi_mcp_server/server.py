@@ -126,7 +126,7 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
         openapi_spec = load_openapi_spec(
             url=config.api_spec_url,
             path=config.api_spec_path,
-            headers=auth_headers,
+            headers=auth_provider.get_auth_headers(),
         )
 
         # Validate the OpenAPI spec
@@ -278,7 +278,9 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
                     logger.info(f'Loading additional spec: {extra_name}')
                     try:
                         extra_spec = load_openapi_spec(
-                            url=entry.get('spec_url', ''), path=entry.get('spec_path', '')
+                            url=entry.get('spec_url', ''),
+                            path=entry.get('spec_path', ''),
+                            headers=auth_provider.get_auth_headers(),
                         )
                     except Exception as e:
                         logger.warning(f'Failed to load additional spec {extra_name}: {e}')
