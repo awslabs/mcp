@@ -387,7 +387,7 @@ class TestEdgeCases:
             tools.register(mock_mcp)
 
             # Verify all tools are registered
-            assert mock_mcp.tool.call_count == 7
+            assert mock_mcp.tool.call_count == 8
             tool_calls = [call[1]['name'] for call in mock_mcp.tool.call_args_list]
             expected_tools = [
                 'describe_log_groups',
@@ -395,6 +395,7 @@ class TestEdgeCases:
                 'execute_log_insights_query',
                 'get_logs_insight_query_results',
                 'cancel_logs_insight_query',
+                'execute_cwl_insights_batch',
                 'recommend_indexes_loggroup',
                 'recommend_indexes_account',
             ]

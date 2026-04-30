@@ -43,7 +43,7 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     -h|--help)
-      echo "Usage: $0 [--region REGION] [--tags KEY=VALUE,...]"
+      echo "Usage: $0 --created-by MODEL_ID [--region REGION] [--tags KEY=VALUE,...]"
       echo ""
       echo "Creates an Aurora DSQL cluster in the specified region."
       echo ""
@@ -85,17 +85,34 @@ if [[ -n "$TAGS" ]]; then
   # Convert comma-separated tags to JSON format using jq for safe escaping
   TAG_JSON=$(printf '%s\n' "$TAGS" | tr ',' '\n' | jq -Rn '
     [inputs | split("=") | {(.[0]): .[1:] | join("=")}] | add // {}
-  ')
+  ') || {
+    echo "Error: Failed to convert tags to JSON." >&2
+    exit 1
+  }
+  if [[ -z "$TAG_JSON" || "$TAG_JSON" == "{}" ]]; then
+    echo "Error: Tags produced empty JSON. Check format: KEY=VALUE,..." >&2
+    exit 1
+  fi
   CMD+=(--tags "$TAG_JSON")
 fi
 
 # Execute the command directly (no eval)
-"${CMD[@]}" > /tmp/dsql-cluster-create.json
+TEMP_FILE=$(mktemp)
+trap 'rm -f "$TEMP_FILE"' EXIT
+"${CMD[@]}" > "$TEMP_FILE"
 
 # Extract cluster identifier and endpoint
-CLUSTER_ID=$(jq -r '.identifier' /tmp/dsql-cluster-create.json)
+CLUSTER_ID=$(jq -r '.identifier' "$TEMP_FILE")
+CLUSTER_ARN=$(jq -r '.arn' "$TEMP_FILE")
+
+if [[ -z "$CLUSTER_ID" || "$CLUSTER_ID" == "null" ]]; then
+  echo "Error: Failed to extract cluster identifier from response." >&2
+  echo "Response:" >&2
+  cat "$TEMP_FILE" >&2
+  exit 1
+fi
+
 CLUSTER_ENDPOINT="${CLUSTER_ID}.dsql.${REGION}.on.aws"
-CLUSTER_ARN=$(jq -r '.arn' /tmp/dsql-cluster-create.json)
 
 echo ""
 echo "✓ Cluster created successfully!"
@@ -113,5 +130,4 @@ echo ""
 echo "To connect with psql:"
 echo "./scripts/psql-connect.sh"
 
-# Clean up temp file
-rm /tmp/dsql-cluster-create.json
+# Clean up handled by trap
