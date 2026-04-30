@@ -52,12 +52,12 @@ class AbstractDBConnection(ABC):
         Returns:
             List of row dicts mapping column names to values
         """
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
     async def close(self) -> None:
         """Close the database connection."""
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
     async def check_connection_health(self) -> bool:
@@ -66,4 +66,4 @@ class AbstractDBConnection(ABC):
         Returns:
             bool: True if the connection is healthy, False otherwise
         """
-        pass
+        pass  # pragma: no cover
