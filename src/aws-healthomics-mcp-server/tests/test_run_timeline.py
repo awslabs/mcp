@@ -132,6 +132,7 @@ class TestGenerateRunTimeline:
             output_format='svg',
             region=None,
             output_path=None,
+            theme='light',
             expected_bucket_owner=None,
         )
 
@@ -148,7 +149,7 @@ class TestGenerateRunTimeline:
         ctx.error = AsyncMock()
 
         result = await generate_run_timeline(
-            ctx, run_id='test-run', time_unit='invalid', output_format='svg'
+            ctx, run_id='test-run', time_unit='invalid', output_format='svg', theme='light'
         )
 
         assert 'Invalid time_unit' in result
@@ -173,7 +174,7 @@ class TestGenerateRunTimeline:
         ctx.error = AsyncMock()
 
         result = await generate_run_timeline(
-            ctx, run_id='test-run', time_unit='hr', output_format='svg'
+            ctx, run_id='test-run', time_unit='hr', output_format='svg', theme='light'
         )
 
         assert 'Unable to retrieve task data' in result
@@ -194,7 +195,7 @@ class TestGenerateRunTimeline:
         ctx.error = AsyncMock()
 
         result = await generate_run_timeline(
-            ctx, run_id='test-run', time_unit='hr', output_format='svg'
+            ctx, run_id='test-run', time_unit='hr', output_format='svg', theme='light'
         )
 
         assert 'No UUID found' in result
@@ -209,7 +210,7 @@ class TestGenerateRunTimeline:
         ctx.error = AsyncMock()
 
         result = await generate_run_timeline(
-            ctx, run_id='test-run', time_unit='hr', output_format='svg'
+            ctx, run_id='test-run', time_unit='hr', output_format='svg', theme='light'
         )
 
         assert 'Error generating timeline' in result
@@ -246,6 +247,7 @@ class TestGenerateRunTimeline:
             output_format='base64',
             region=None,
             output_path=None,
+            theme='light',
             expected_bucket_owner=None,
         )
 
@@ -265,8 +267,64 @@ class TestGenerateRunTimeline:
         ctx.error = AsyncMock()
 
         result = await generate_run_timeline(
-            ctx, run_id='test-run', time_unit='hr', output_format='invalid'
+            ctx, run_id='test-run', time_unit='hr', output_format='invalid', theme='light'
         )
 
         assert 'Invalid output_format' in result
         ctx.error.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_timeline.get_omics_client')
+    async def test_generate_timeline_invalid_theme(self, mock_get_omics_client):
+        """Test timeline generation with invalid theme value."""
+        ctx = MagicMock()
+        ctx.error = AsyncMock()
+
+        result = await generate_run_timeline(
+            ctx, run_id='test-run', time_unit='hr', output_format='svg', theme='neon'
+        )
+
+        assert 'Invalid theme' in result
+        assert 'light, dark' in result
+        ctx.error.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_timeline.get_omics_client')
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_timeline.get_run_manifest_logs_internal')
+    async def test_generate_timeline_dark_theme(self, mock_get_logs, mock_get_omics_client):
+        """Test timeline generation with dark theme produces dark background and light text."""
+        mock_client = MagicMock()
+        mock_client.get_run.return_value = {
+            'uuid': 'test-uuid',
+            'name': 'TestRun',
+            'arn': 'arn:aws:omics:us-east-1:123456789012:run/test-run',
+        }
+        mock_get_omics_client.return_value = mock_client
+
+        mock_get_logs.return_value = {
+            'events': [
+                {
+                    'message': '{"name": "Task1", "cpus": 4, "memory": 8, "instanceType": "omics.m.xlarge", "creationTime": "2024-01-01T10:00:00Z", "startTime": "2024-01-01T10:01:00Z", "stopTime": "2024-01-01T10:05:00Z", "status": "COMPLETED", "metrics": {}}'
+                },
+            ]
+        }
+
+        ctx = MagicMock()
+        ctx.error = AsyncMock()
+
+        result = await generate_run_timeline(
+            ctx,
+            run_id='test-run',
+            time_unit='hr',
+            output_format='svg',
+            region=None,
+            output_path=None,
+            theme='dark',
+            expected_bucket_owner=None,
+        )
+
+        # Verify result is SVG with dark theme colors
+        assert '<svg' in result
+        assert '</svg>' in result
+        assert '#1E1E1E' in result  # Dark background
+        assert '#E0E0E0' in result  # Light text color

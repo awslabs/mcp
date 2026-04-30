@@ -38,6 +38,9 @@ VALID_TIME_UNITS = ['sec', 'min', 'hr', 'day']
 # Valid output formats
 VALID_OUTPUT_FORMATS = ['svg', 'base64']
 
+# Valid themes
+VALID_THEMES = ['light', 'dark']
+
 # Default region for cost analysis
 DEFAULT_REGION = 'us-east-1'
 
@@ -76,6 +79,13 @@ async def generate_run_timeline(
             'will be written. When provided, the response contains only summary '
             'metadata instead of the full SVG content. Recommended for complex '
             'workflows to avoid context window overflow.'
+        ),
+    ),
+    theme: str = Field(
+        default='light',
+        description=(
+            'Color theme for the timeline visualization. Valid values: light, dark. '
+            'Use dark for better legibility on dark backgrounds. Defaults to light.'
         ),
     ),
     expected_bucket_owner: Optional[str] = Field(
@@ -121,6 +131,7 @@ async def generate_run_timeline(
         region: AWS region for pricing lookups
         output_format: Output format (svg or base64)
         output_path: Optional file path or S3 URI to write SVG to
+        theme: Color theme for the visualization ('light' or 'dark')
         expected_bucket_owner: AWS account ID for S3 bucket owner verification
         aws_profile: Optional AWS profile name override
         aws_region: Optional AWS region override
@@ -145,6 +156,12 @@ async def generate_run_timeline(
                 f"Invalid output_format '{output_format}'. "
                 f'Valid values are: {", ".join(VALID_OUTPUT_FORMATS)}'
             )
+            await ctx.error(error_msg)
+            return error_msg
+
+        # Validate theme
+        if theme not in VALID_THEMES:
+            error_msg = f"Invalid theme '{theme}'. Valid values are: {', '.join(VALID_THEMES)}"
             await ctx.error(error_msg)
             return error_msg
 
@@ -235,6 +252,7 @@ Please verify the run ID and ensure the run has completed successfully.
             tasks=all_tasks,
             run_info=run_info,
             time_unit=time_unit,
+            theme=theme,
         )
 
         logger.info(f'Generated timeline with {len(all_tasks)} tasks')
