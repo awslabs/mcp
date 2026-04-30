@@ -348,10 +348,9 @@ async def test_connect_to_database_success(mocker):
     """Successful connect invokes initialize_pool and returns the llm_response."""
     import awslabs.mssql_mcp_server.server as srv
 
-    fake_conn = MagicMock()
+    # spec=PymssqlPoolConnection makes isinstance(fake_conn, PymssqlPoolConnection) True
+    fake_conn = MagicMock(spec=srv.PymssqlPoolConnection)
     fake_conn.initialize_pool = AsyncMock()
-    # Must look like a PymssqlPoolConnection for the isinstance check
-    fake_conn.__class__ = srv.PymssqlPoolConnection
     mocker.patch(
         'awslabs.mssql_mcp_server.server.internal_create_connection',
         return_value=(fake_conn, '{"status": "ok"}'),
@@ -374,10 +373,10 @@ async def test_connect_to_database_pool_init_fails(mocker):
     """initialize_pool failure triggers close() and remove()."""
     import awslabs.mssql_mcp_server.server as srv
 
-    fake_conn = MagicMock()
+    # spec=PymssqlPoolConnection makes isinstance(fake_conn, PymssqlPoolConnection) True
+    fake_conn = MagicMock(spec=srv.PymssqlPoolConnection)
     fake_conn.initialize_pool = AsyncMock(side_effect=Exception('pool err'))
     fake_conn.close = AsyncMock()
-    fake_conn.__class__ = srv.PymssqlPoolConnection
     mocker.patch(
         'awslabs.mssql_mcp_server.server.internal_create_connection',
         return_value=(fake_conn, '{}'),
@@ -553,12 +552,12 @@ def test_main_with_startup_connection_validates(mocker):
     fake_raw_conn = MagicMock()
     fake_raw_conn.cursor.return_value = fake_cursor
 
-    fake_conn = MagicMock()
+    # spec=PymssqlPoolConnection makes isinstance(fake_conn, PymssqlPoolConnection) True
+    fake_conn = MagicMock(spec=srv.PymssqlPoolConnection)
     fake_conn._get_credentials_from_secret.return_value = ('u', 'p')
     fake_conn._create_raw_connection.return_value = fake_raw_conn
     fake_conn.secret_arn = 'arn'  # pragma: allowlist secret
     fake_conn.region = 'us-east-1'
-    fake_conn.__class__ = srv.PymssqlPoolConnection
 
     mocker.patch(
         'awslabs.mssql_mcp_server.server.internal_create_connection',
@@ -601,12 +600,12 @@ def test_main_startup_connection_validation_returns_empty(mocker):
     fake_raw_conn = MagicMock()
     fake_raw_conn.cursor.return_value = fake_cursor
 
-    fake_conn = MagicMock()
+    # spec=PymssqlPoolConnection makes isinstance(fake_conn, PymssqlPoolConnection) True
+    fake_conn = MagicMock(spec=srv.PymssqlPoolConnection)
     fake_conn._get_credentials_from_secret.return_value = ('u', 'p')
     fake_conn._create_raw_connection.return_value = fake_raw_conn
     fake_conn.secret_arn = 'arn'  # pragma: allowlist secret
     fake_conn.region = 'us-east-1'
-    fake_conn.__class__ = srv.PymssqlPoolConnection
 
     mocker.patch(
         'awslabs.mssql_mcp_server.server.internal_create_connection',
