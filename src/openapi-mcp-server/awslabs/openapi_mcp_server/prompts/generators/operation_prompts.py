@@ -18,6 +18,7 @@ from awslabs.openapi_mcp_server import logger
 from awslabs.openapi_mcp_server.prompts.models import (
     PromptArgument,
 )
+from fastmcp.prompts.base import EmbeddedResource, Message
 from fastmcp.prompts.prompt import Prompt
 from fastmcp.prompts.prompt import PromptArgument as FastMCPPromptArgument
 from fastmcp.server.providers.openapi import MCPType
@@ -505,7 +506,7 @@ def create_operation_prompt(
                     param_values[arg.name] = args_values[i]
 
             # Create messages
-            messages = [{'role': 'user', 'content': {'type': 'text', 'text': doc}}]
+            messages = [Message(doc, role='user')]
 
             # For resources, add resource reference
             if op_type in ['resource', 'resource_template']:
@@ -516,14 +517,18 @@ def create_operation_prompt(
                 resource_uri = f'api://{api_name_val}{path_val}'
 
                 # Add resource reference message
+                from mcp.types import TextResourceContents
+
                 messages.append(
-                    {
-                        'role': 'user',
-                        'content': {
-                            'type': 'resource',
-                            'resource': {'uri': resource_uri, 'mimeType': mime_type},
-                        },
-                    }
+                    Message(
+                        EmbeddedResource(
+                            type='resource',
+                            resource=TextResourceContents(
+                                uri=resource_uri, mimeType=mime_type, text=''
+                            ),
+                        ),
+                        role='user',
+                    )
                 )
 
             logger.debug(f'Operation {operation_id} returning {len(messages)} messages')
