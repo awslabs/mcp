@@ -22,7 +22,7 @@ import time
 from abc import ABC, abstractmethod
 from awslabs.openapi_mcp_server import logger
 from awslabs.openapi_mcp_server.utils.config import CACHE_MAXSIZE, CACHE_TTL, USE_CACHETOOLS
-from typing import Any, Callable, Dict, Generic, Optional, TypeVar
+from typing import Any, Callable, Dict, Generic, Optional, Set, TypeVar
 
 
 # Type variable for generic cache implementation
@@ -216,7 +216,7 @@ def create_cache_provider(ttl_seconds: Optional[int] = None) -> CacheProvider:
 
 def cached(
     ttl_seconds: Optional[int] = None,
-    exclude_from_key: Optional[set] = None,
+    exclude_from_key: Optional[Set[str]] = None,
 ) -> Callable:
     """Cache function results.
 
@@ -232,7 +232,7 @@ def cached(
 
     """
     cache = create_cache_provider(ttl_seconds=ttl_seconds)
-    _exclude = exclude_from_key or set()
+    _exclude = set(exclude_from_key) if exclude_from_key else set()
 
     def decorator(func: Callable) -> Callable:
         def wrapper(*args: Any, **kwargs: Any) -> Any:

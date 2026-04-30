@@ -114,7 +114,6 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
         auth_provider = get_auth_provider(config)
 
         # Get authentication components
-        auth_headers = auth_provider.get_auth_headers()
         # Get auth params (not used directly but may be needed in the future)
         _ = auth_provider.get_auth_params()
         auth_cookies = auth_provider.get_auth_cookies()
@@ -123,10 +122,12 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
         logger.debug(
             f'Loading OpenAPI spec from URL: {config.api_spec_url} or path: {config.api_spec_path}'
         )
+        # Fetch headers right before first use so the token is as fresh as possible
+        auth_headers = auth_provider.get_auth_headers()
         openapi_spec = load_openapi_spec(
             url=config.api_spec_url,
             path=config.api_spec_path,
-            headers=auth_provider.get_auth_headers(),
+            headers=auth_headers,
         )
 
         # Validate the OpenAPI spec
