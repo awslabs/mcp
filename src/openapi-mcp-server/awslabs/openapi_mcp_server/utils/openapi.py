@@ -65,7 +65,7 @@ except ImportError:
 
 @cached(
     ttl_seconds=3600, exclude_from_key={'headers'}
-)  # Cache by URL/path only; headers excluded so token rotation doesn't fragment the cache
+)  # Cache OpenAPI specs for 1 hour; headers excluded from key so token rotation doesn't fragment the cache
 def load_openapi_spec(
     url: str = '',
     path: str = '',
