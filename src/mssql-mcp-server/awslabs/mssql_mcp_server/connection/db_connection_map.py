@@ -26,7 +26,7 @@ from typing import List
 class ConnectionMethod(str, Enum):
     """Connection method enumeration."""
 
-    MSSQL_PASSWORD = 'mssql_password'  # pragma: allowlist secret
+    MSSQL_PASSWORD = ''
 
 
 class DBConnectionMap:
