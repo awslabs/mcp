@@ -147,15 +147,22 @@ class DBConnectionMap:
                 except Exception as e:
                     logger.warning(f'Failed to close connection {key}: {e}')
             if coros:
-
-                async def _close_all():
-                    results = await asyncio.gather(*coros, return_exceptions=True)
-                    for k, r in zip(keys, results):
-                        if isinstance(r, Exception):
-                            logger.warning(f'Failed to close connection {k}: {r}')
-
                 try:
-                    asyncio.run(_close_all())
+                    loop = asyncio.get_running_loop()
                 except RuntimeError:
+                    loop = None
+
+                if loop and loop.is_running():
+                    for coro in coros:
+                        coro.close()
                     logger.warning('Event loop active; connections may not be fully closed')
+                else:
+
+                    async def _close_all():
+                        results = await asyncio.gather(*coros, return_exceptions=True)
+                        for k, r in zip(keys, results):
+                            if isinstance(r, Exception):
+                                logger.warning(f'Failed to close connection {k}: {r}')
+
+                    asyncio.run(_close_all())
             self.map.clear()

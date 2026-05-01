@@ -434,6 +434,8 @@ def internal_create_connection(
                 'db_endpoint': db_endpoint,
                 'database': database,
                 'port': port,
+                'service_name': getattr(existing_conn, 'service_name', service_name),
+                'sid': getattr(existing_conn, 'sid', sid),
             }
             return (existing_conn, llm_response, None)
 
@@ -460,12 +462,18 @@ def internal_create_connection(
         f'endpoint:{db_endpoint}, port:{port}'
     )
 
+    if not secret_arn:
+        raise ValueError(
+            'No secret_arn resolved. Enable RDS-managed master credentials, '
+            'pass --secret_arn, or set a default_secret_arn.'
+        )
+
     db_connection = OracledbPoolConnection(
         host=db_endpoint,
         port=port,
         database=database,
         readonly=server_config.readonly_query,
-        secret_arn=secret_arn or '',
+        secret_arn=secret_arn,
         region=region,
         service_name=service_name,
         sid=sid,

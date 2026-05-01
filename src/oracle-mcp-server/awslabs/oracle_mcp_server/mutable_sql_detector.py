@@ -129,6 +129,10 @@ def _strip_sql_comments(sql_text: str) -> str:
                 if sql_text[i] == '"':
                     result.append('"')
                     i += 1
+                    if i < n and sql_text[i] == '"':
+                        result.append('"')
+                        i += 1
+                        continue
                     break
                 result.append(sql_text[i])
                 i += 1
@@ -147,6 +151,8 @@ def _strip_sql_comments(sql_text: str) -> str:
                 )
                 # Replace the 'q' we already appended with the full literal
                 result.append("'")
+                if open_delim:
+                    result.append(open_delim)
                 i += 2  # skip past quote + open delimiter
                 # Scan for close_delim followed by '
                 while i < n:

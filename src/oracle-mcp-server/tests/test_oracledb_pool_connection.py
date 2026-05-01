@@ -109,17 +109,19 @@ def test_neither_service_name_nor_sid_raises():
 async def test_initialize_pool_calls_create_pool_async():
     """Verify initialize_pool calls oracledb.create_pool_async."""
     conn = make_pool_conn()
-    mock_pool = AsyncMock()
-    with patch('oracledb.create_pool_async', new=MagicMock(return_value=mock_pool)):
+    mock_pool = MagicMock()
+    create_pool_mock = MagicMock(return_value=mock_pool)
+    with patch('oracledb.create_pool_async', new=create_pool_mock):
         await conn.initialize_pool()
     assert conn.pool is mock_pool
+    create_pool_mock.assert_called_once()
 
 
 @pytest.mark.asyncio
 async def test_initialize_pool_idempotent():
     """Verify calling initialize_pool twice reuses the existing pool."""
     conn = make_pool_conn()
-    mock_pool = AsyncMock()
+    mock_pool = MagicMock()
     with patch('oracledb.create_pool_async', new=MagicMock(return_value=mock_pool)):
         await conn.initialize_pool()
         pool_ref = conn.pool
@@ -131,7 +133,7 @@ async def test_initialize_pool_idempotent():
 async def test_initialize_pool_passes_ssl_context_when_require():
     """Verify ssl_context and ssl_server_dn_match=True are passed when ssl_encryption=require."""
     conn = make_pool_conn(ssl_encryption='require')
-    mock_pool = AsyncMock()
+    mock_pool = MagicMock()
     create_pool_mock = MagicMock(return_value=mock_pool)
     with patch('oracledb.create_pool_async', new=create_pool_mock):
         await conn.initialize_pool()
@@ -150,7 +152,7 @@ def test_ssl_noverify_uses_tcps_protocol():
 async def test_initialize_pool_ssl_noverify():
     """Verify ssl_context is passed with ssl_server_dn_match=False when ssl_encryption=noverify."""
     conn = make_pool_conn(ssl_encryption='noverify')
-    mock_pool = AsyncMock()
+    mock_pool = MagicMock()
     create_pool_mock = MagicMock(return_value=mock_pool)
     with patch('oracledb.create_pool_async', new=create_pool_mock):
         await conn.initialize_pool()
@@ -163,7 +165,7 @@ async def test_initialize_pool_ssl_noverify():
 async def test_initialize_pool_no_ssl_when_off():
     """Verify no SSL kwargs are passed when ssl_encryption=off."""
     conn = make_pool_conn(ssl_encryption='off')
-    mock_pool = AsyncMock()
+    mock_pool = MagicMock()
     create_pool_mock = MagicMock(return_value=mock_pool)
     with patch('oracledb.create_pool_async', new=create_pool_mock):
         await conn.initialize_pool()
@@ -176,7 +178,7 @@ async def test_initialize_pool_no_ssl_when_off():
 async def test_initialize_pool_no_seclevel_override():
     """Verify SSL context does not use @SECLEVEL=0 cipher override."""
     conn = make_pool_conn(ssl_encryption='require')
-    mock_pool = AsyncMock()
+    mock_pool = MagicMock()
     create_pool_mock = MagicMock(return_value=mock_pool)
     with patch('oracledb.create_pool_async', new=create_pool_mock):
         await conn.initialize_pool()
@@ -301,7 +303,7 @@ async def test_check_expiry_reinitializes_expired_pool():
     conn.pool = old_pool
     conn.created_time = datetime.now() - timedelta(hours=1)
 
-    new_pool = AsyncMock()
+    new_pool = MagicMock()
     with patch('oracledb.create_pool_async', new=MagicMock(return_value=new_pool)):
         await conn.check_expiry()
 
@@ -333,7 +335,7 @@ async def test_check_expiry_succeeds_on_second_retry():
     conn.pool = AsyncMock()
     conn.created_time = datetime.now() - timedelta(hours=1)
 
-    new_pool = AsyncMock()
+    new_pool = MagicMock()
     create_mock = MagicMock(side_effect=[Exception('fail1'), new_pool])
     with patch('oracledb.create_pool_async', new=create_mock):
         await conn.check_expiry()

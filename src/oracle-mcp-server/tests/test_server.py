@@ -449,6 +449,28 @@ def test_real_comment_after_double_quoted_identifier():
     assert 'DROP' not in stripped
 
 
+def test_double_quoted_identifier_with_escaped_quotes():
+    """Double-quoted identifier containing escaped "" does not end prematurely."""
+    sql = 'SELECT "col""name" -- DROP TABLE evil\nFROM t'
+    stripped = _strip_sql_comments(sql)
+    assert 'DROP' not in stripped
+    assert '"col""name"' in stripped
+
+
+def test_double_quoted_identifier_escaped_quotes_preserves_following_code():
+    """Content after a double-quoted identifier with "" is preserved, not swallowed."""
+    sql = 'SELECT "a""b", utl_http.request(\'http://x\') FROM DUAL'
+    stripped = _strip_sql_comments(sql)
+    assert 'utl_http' in stripped
+
+
+def test_alt_quoting_preserves_opening_delimiter():
+    """Oracle q'[...]' preserves the opening delimiter character in stripped output."""
+    sql = "SELECT q'[hello]' FROM DUAL"
+    stripped = _strip_sql_comments(sql)
+    assert '[' in stripped
+
+
 def test_comment_precedence_line_then_block():
     """Line comment on same line as /* prevents block comment from opening."""
     sql = '--/*\nDROP TABLE FOOBAR;\n--*/'
@@ -1217,6 +1239,51 @@ def test_internal_create_connection_missing_region():
     with pytest.raises(ValueError, match='region'):
         internal_create_connection(
             region='',
+            connection_method=ConnectionMethod.ORACLE_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='ep1',
+            port=1521,
+            database='ORCL',
+            service_name='ORCL',
+        )
+
+
+def test_internal_create_connection_cache_hit_includes_service_name_and_sid(mocker):
+    """Cache-hit response includes service_name and sid from the existing connection."""
+    mock_conn = MagicMock()
+    mock_conn.secret_arn = 'arn:test'  # pragma: allowlist secret
+    mock_conn.service_name = 'ORCL'
+    mock_conn.sid = None
+    mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
+
+    conn, response, replaced = internal_create_connection(
+        region='us-east-1',
+        connection_method=ConnectionMethod.ORACLE_PASSWORD,
+        instance_identifier='inst1',
+        db_endpoint='ep1',
+        port=1521,
+        database='ORCL',
+        service_name='ORCL',
+        secret_arn='arn:test',  # pragma: allowlist secret
+    )
+
+    assert response['service_name'] == 'ORCL'
+    assert response['sid'] is None
+
+
+def test_internal_create_connection_empty_secret_arn_raises(mocker):
+    """Raises ValueError when no secret_arn can be resolved."""
+    mocker.patch.object(db_connection_map, 'get', return_value=None)
+
+    mock_rds = MagicMock()
+    mock_rds.describe_db_instances.return_value = {
+        'DBInstances': [{'MasterUsername': 'admin', 'MasterUserSecret': {}}]
+    }
+    mocker.patch('boto3.client', return_value=mock_rds)
+
+    with pytest.raises(ValueError, match='No secret_arn resolved'):
+        internal_create_connection(
+            region='us-east-1',
             connection_method=ConnectionMethod.ORACLE_PASSWORD,
             instance_identifier='inst1',
             db_endpoint='ep1',
