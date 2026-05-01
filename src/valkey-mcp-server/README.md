@@ -311,6 +311,15 @@ Credentials via `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`, `AWS_PROFILE`, or I
 | `Request URL is missing 'http://'` | `OLLAMA_HOST` set without protocol | Include the protocol: `http://localhost:11434`, not just `localhost:11434`. |
 | No output from server | `FASTMCP_LOG_LEVEL=ERROR` suppresses info | Set `FASTMCP_LOG_LEVEL=INFO` or `DEBUG` for troubleshooting. |
 
+### Tool Name Collisions
+
+This server exposes a tool named `search`. Other MCP servers (e.g., Atlassian Rovo) may also expose a tool with the same name. When multiple MCP servers are active simultaneously, the AI agent may not be able to distinguish between them, leading to the wrong tool being called.
+
+If you experience this, either:
+- Disable the conflicting MCP server when using Valkey search
+- Use explicit tool routing if your MCP client supports it (e.g., server-scoped tool names)
+- Instruct the agent to use the Valkey `search` tool specifically by referencing the index name or Valkey-specific parameters
+
 ## Development
 
 ### Running Tests
