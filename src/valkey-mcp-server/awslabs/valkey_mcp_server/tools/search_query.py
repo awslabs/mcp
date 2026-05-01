@@ -78,12 +78,17 @@ async def search(
 ) -> dict[str, Any]:
     """Search a Valkey Search index with auto-detected mode.
 
-    Modes (auto-detected from parameters, or set explicitly via mode):
+    Defaults to hybrid when embeddings are configured, which combines text
+    matching with semantic similarity for best results. Use mode="text" only
+    when you specifically want keyword-only matching.
 
-    - Text: query_text + no embedding provider (or mode="text")
-    - Hybrid: mode="hybrid" or hybrid_weight explicitly set
-    - Semantic: query_text + embedding provider configured (default)
-    - Find-similar: document_id provided
+    Modes (auto-detected unless mode is set explicitly):
+
+    - Hybrid (default when embeddings configured): combines text matching
+      with semantic similarity for best results
+    - Semantic: vector similarity only, best for conceptual/meaning-based queries
+    - Text: keyword matching only, use when you specifically want exact term matches
+    - Find-similar: provide document_id to find documents with similar content
 
     Args:
         index_name: Valkey Search index name
@@ -94,9 +99,9 @@ async def search(
         return_fields: Fields to return. None = all.
         offset: Pagination offset (default: 0)
         limit: Max results (default: 10)
-        mode: Explicit mode override — "semantic", "text", "hybrid", "find_similar"
-        hybrid_weight: Advisory — reserved for future weighted scoring. Currently
-            controls mode auto-detection only (non-0.5 triggers hybrid mode).
+        mode: Explicit mode override — "hybrid", "semantic", "text", "find_similar".
+            When omitted, defaults to hybrid if embeddings are configured, otherwise text.
+        hybrid_weight: Advisory — reserved for future weighted scoring.
 
     Returns:
         Dict with "status", "mode", and "results" list.
@@ -140,8 +145,8 @@ async def search(
             offset,
             limit,
         )
-    if mode == 'hybrid' or (embeddings_available and hybrid_weight != 0.5):
-        return await _hybrid(
+    if mode == 'semantic':
+        return await _semantic(
             client,
             index_name,
             query_text,
@@ -150,9 +155,8 @@ async def search(
             return_fields,
             offset,
             limit,
-            hybrid_weight,
         )
-    return await _semantic(
+    return await _hybrid(
         client,
         index_name,
         query_text,
@@ -161,6 +165,7 @@ async def search(
         return_fields,
         offset,
         limit,
+        hybrid_weight,
     )
 
 

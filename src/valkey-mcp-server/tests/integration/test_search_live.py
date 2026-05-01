@@ -232,6 +232,7 @@ class TestSearchLive:
             index_name=_idx('search'),
             query_text='artificial intelligence',
             vector_field='embedding',
+            mode='semantic',
         )
         assert result['status'] == 'success'
         assert result['mode'] == 'semantic'

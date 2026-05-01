@@ -121,6 +121,7 @@ class TestTextSearch:
 
 class TestSemanticSearch:
     async def test_semantic_mode(self, mock_ft, mock_provider):
+        """Explicit mode='semantic' uses vector-only search."""
         mock_ft.search = AsyncMock(
             return_value=_make_search_result(
                 {
@@ -132,10 +133,23 @@ class TestSemanticSearch:
             patch(f'{MODULE}.has_provider', return_value=True),
             patch(f'{MODULE}.get_provider', return_value=mock_provider),
         ):
-            result = await search(index_name='idx', query_text='animals')
+            result = await search(index_name='idx', query_text='animals', mode='semantic')
         assert result['status'] == 'success'
         assert result['mode'] == 'semantic'
         mock_provider.generate_embedding.assert_called_once_with('animals')
+
+    async def test_auto_detect_defaults_to_hybrid(self, mock_ft, mock_provider):
+        """When embeddings available and no explicit mode, default is hybrid."""
+        mock_ft.search = AsyncMock(
+            return_value=_make_search_result({'doc:1': {'title': 'cats', 'score': '0.95'}})
+        )
+        with (
+            patch(f'{MODULE}.has_provider', return_value=True),
+            patch(f'{MODULE}.get_provider', return_value=mock_provider),
+        ):
+            result = await search(index_name='idx', query_text='animals')
+        assert result['status'] == 'success'
+        assert result['mode'] == 'hybrid'
 
 
 class TestHybridSearch:
