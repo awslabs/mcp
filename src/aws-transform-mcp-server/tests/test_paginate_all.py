@@ -111,3 +111,95 @@ class TestPaginateAll:
 
         assert len(result['agents']) == _MAX_PAGES
         assert mock_fes.call_count == _MAX_PAGES
+
+    # ── extra_list_keys / scalar_keys (ListArtifacts-shaped responses) ────
+
+    @pytest.mark.asyncio
+    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    async def test_extra_list_keys_aggregated_across_pages(self, mock_fes):
+        mock_fes.side_effect = [
+            {
+                'artifacts': [{'id': 'a1'}],
+                'folders': ['f1/'],
+                'assets': [{'assetKey': 'k1'}],
+                'nextToken': 'tok1',
+            },
+            {
+                'artifacts': [{'id': 'a2'}],
+                'folders': ['f2/'],
+                'assets': [{'assetKey': 'k2'}],
+            },
+        ]
+        result = await paginate_all(
+            'ListArtifacts',
+            {},
+            'artifacts',
+            extra_list_keys=('folders', 'assets'),
+        )
+        assert result['artifacts'] == [{'id': 'a1'}, {'id': 'a2'}]
+        assert result['folders'] == ['f1/', 'f2/']
+        assert result['assets'] == [{'assetKey': 'k1'}, {'assetKey': 'k2'}]
+
+    @pytest.mark.asyncio
+    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    async def test_extra_list_keys_missing_on_some_pages_are_treated_as_empty(self, mock_fes):
+        mock_fes.side_effect = [
+            {'artifacts': [{'id': 'a1'}], 'folders': ['f1/'], 'nextToken': 'tok'},
+            {'artifacts': [{'id': 'a2'}]},  # no folders/assets on page 2
+        ]
+        result = await paginate_all(
+            'ListArtifacts',
+            {},
+            'artifacts',
+            extra_list_keys=('folders', 'assets'),
+        )
+        assert result['folders'] == ['f1/']
+        assert result['assets'] == []
+
+    @pytest.mark.asyncio
+    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    async def test_scalar_keys_taken_from_first_page_only(self, mock_fes):
+        mock_fes.side_effect = [
+            {'artifacts': [{'id': 'a1'}], 'connectorId': 'conn-A', 'nextToken': 'tok'},
+            {'artifacts': [{'id': 'a2'}], 'connectorId': 'conn-B'},  # ignored
+        ]
+        result = await paginate_all(
+            'ListArtifacts',
+            {},
+            'artifacts',
+            scalar_keys=('connectorId',),
+        )
+        assert result['connectorId'] == 'conn-A'
+
+    @pytest.mark.asyncio
+    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    async def test_scalar_keys_absent_when_not_in_response(self, mock_fes):
+        mock_fes.return_value = {'artifacts': []}  # no connectorId at all
+        result = await paginate_all(
+            'ListArtifacts',
+            {},
+            'artifacts',
+            scalar_keys=('connectorId',),
+        )
+        assert 'connectorId' not in result
+
+    @pytest.mark.asyncio
+    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    async def test_scalar_keys_null_value_skipped(self, mock_fes):
+        mock_fes.return_value = {'artifacts': [], 'connectorId': None}
+        result = await paginate_all(
+            'ListArtifacts',
+            {},
+            'artifacts',
+            scalar_keys=('connectorId',),
+        )
+        assert 'connectorId' not in result
+
+    @pytest.mark.asyncio
+    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    async def test_backward_compatible_shape_without_extras(self, mock_fes):
+        """No extras / scalars → output shape matches the pre-change contract."""
+        mock_fes.return_value = {'agents': [{'name': 'a1'}]}
+        result = await paginate_all('ListAgents', {}, 'agents')
+        assert result == {'agents': [{'name': 'a1'}]}
+        assert '_truncated' not in result

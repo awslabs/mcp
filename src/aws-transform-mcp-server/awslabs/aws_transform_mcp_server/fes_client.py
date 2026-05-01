@@ -38,7 +38,7 @@ from botocore import UNSIGNED, xform_name
 from botocore.config import Config as BotoConfig
 from botocore.exceptions import ClientError
 from loguru import logger
-from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional, Tuple, Union
 
 
 if TYPE_CHECKING:
@@ -197,10 +197,30 @@ async def paginate_all(
     body: Dict[str, Any],
     items_key: str,
     token_key: str = 'nextToken',
+    extra_list_keys: Tuple[str, ...] = (),
+    scalar_keys: Tuple[str, ...] = (),
 ) -> Dict[str, Any]:
-    """Auto-paginate a FES list call, collecting all items."""
+    """Auto-paginate a FES list call, collecting all items.
+
+    Args:
+        operation: FES operation name.
+        body: Request body (not mutated).
+        items_key: Response field holding the primary list to accumulate.
+        token_key: Response field holding the pagination token.
+        extra_list_keys: Additional response lists to accumulate alongside
+            ``items_key`` (e.g. ``('folders', 'assets')`` for ``ListArtifacts``).
+        scalar_keys: Response scalars to preserve from the first page only
+            (e.g. ``('connectorId',)``).
+
+    Returns:
+        A dict containing the aggregated primary list, any extra lists, and
+        any preserved scalars.
+    """
     all_items: list = []
+    extras: Dict[str, list] = {k: [] for k in extra_list_keys}
+    scalars: Dict[str, Any] = {}
     next_token: Optional[str] = None
+    saw_first_page = False
     for _page in range(_MAX_PAGES):
         req = {**body}
         if next_token:
@@ -214,7 +234,14 @@ async def paginate_all(
                 type(result),
             )
             break
-        all_items.extend(result.get(items_key, []))
+        all_items.extend(result.get(items_key, []) or [])
+        for k in extra_list_keys:
+            extras[k].extend(result.get(k, []) or [])
+        if not saw_first_page:
+            for k in scalar_keys:
+                if k in result and result[k] is not None:
+                    scalars[k] = result[k]
+            saw_first_page = True
         next_token = result.get(token_key)
         if not next_token:
             break
@@ -224,7 +251,7 @@ async def paginate_all(
             operation,
             _MAX_PAGES,
         )
-    return {items_key: all_items}
+    return {items_key: all_items, **extras, **scalars}
 
 
 # ── Main entry point ───────────────────────────────────────────────────

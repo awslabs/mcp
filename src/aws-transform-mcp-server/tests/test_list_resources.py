@@ -292,19 +292,60 @@ class TestListResourcesHandler:
 
     @pytest.mark.asyncio
     @patch(
+        'awslabs.aws_transform_mcp_server.tools.list_resources.paginate_all',
+        new_callable=AsyncMock,
+    )
+    @patch(
         'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
     )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
-    async def test_artifacts_mainframe_requires_source(self, _, mock_fes, handler, ctx):
-        # First call returns the job info (mainframe), second would be ListArtifacts
-        mock_fes.return_value = {'jobType': 'MAINFRAME_MODERNIZATION'}
+    async def test_artifacts_default_merges_connector_and_artifact_store(
+        self, _, mock_fes, mock_paginate, handler, ctx
+    ):
+        """With jobId and no source/pathPrefix, fire both ListArtifacts calls and merge."""
+        mock_paginate.side_effect = [
+            {
+                'artifacts': [],
+                'assets': [{'assetKey': 'transform-output/j1/out.zip'}],
+                'folders': ['transform-output/j1/1/'],
+                'connectorId': 'conn-abc',
+            },
+            {
+                'artifacts': [{'artifactId': 'art-1'}],
+                'assets': [],
+                'folders': ['AWSTransform/Workspaces/ws1/Jobs/j1/User Uploads/'],
+            },
+        ]
         result = await handler.list_resources(
-            ctx, resource=ResourceType.artifacts, workspaceId='ws1', jobId='j1'
+            ctx,
+            resource=ResourceType.artifacts,
+            workspaceId='ws1',
+            jobId='j1',
         )
         parsed = _parse_result(result)
-        assert parsed['error']['code'] == 'SOURCE_REQUIRED'
+        assert parsed['success'] is True
+
+        # Two parallel ListArtifacts calls were made — connector first, then artifact store.
+        assert mock_paginate.call_count == 2
+        mock_fes.assert_not_called()
+        first_body = mock_paginate.call_args_list[0][0][1]
+        second_body = mock_paginate.call_args_list[1][0][1]
+        assert first_body['pathPrefix'] == 'transform-output/j1/'
+        assert second_body['pathPrefix'] == 'AWSTransform/Workspaces/ws1/Jobs/j1/'
+        for body in (first_body, second_body):
+            assert body['workspaceId'] == 'ws1'
+            assert body['jobFilter'] == {'jobId': 'j1'}
+
+        data = parsed['data']
+        assert data['artifacts'] == [{'artifactId': 'art-1'}]
+        assert data['assets'] == [{'assetKey': 'transform-output/j1/out.zip'}]
+        assert data['folders'] == [
+            'transform-output/j1/1/',
+            'AWSTransform/Workspaces/ws1/Jobs/j1/User Uploads/',
+        ]
+        assert data['connectorId'] == 'conn-abc'
 
     @pytest.mark.asyncio
     @patch(
@@ -317,11 +358,11 @@ class TestListResourcesHandler:
     @patch(
         'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
-    async def test_artifacts_mainframe_connector_auto_prefix(
+    async def test_artifacts_source_connector_uses_transform_output_prefix(
         self, _, mock_fes, mock_paginate, handler, ctx
     ):
-        mock_fes.return_value = {'jobType': 'MAINFRAME_MODERNIZATION'}
-        mock_paginate.return_value = {'artifacts': []}
+        """source="connector" narrows to the transform-output prefix and skips GetJob."""
+        mock_paginate.return_value = {'artifacts': [], 'assets': [], 'folders': []}
         result = await handler.list_resources(
             ctx,
             resource=ResourceType.artifacts,
@@ -331,8 +372,11 @@ class TestListResourcesHandler:
         )
         parsed = _parse_result(result)
         assert parsed['success'] is True
+        mock_fes.assert_not_called()  # No GetJob lookup, no mainframe gate.
+        assert mock_paginate.call_count == 1
         paginate_body = mock_paginate.call_args[0][1]
         assert paginate_body['pathPrefix'] == 'transform-output/j1/'
+        assert paginate_body['jobFilter'] == {'jobId': 'j1'}
 
     @pytest.mark.asyncio
     @patch(
@@ -345,22 +389,24 @@ class TestListResourcesHandler:
     @patch(
         'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
-    async def test_artifacts_non_mainframe_ignores_source(
+    async def test_artifacts_source_artifact_store_uses_awstransform_prefix(
         self, _, mock_fes, mock_paginate, handler, ctx
     ):
-        mock_fes.return_value = {'jobType': 'STANDARD'}
-        mock_paginate.return_value = {'artifacts': [{'id': 'a1'}]}
+        """source="artifact_store" narrows to the AWSTransform/Workspaces prefix."""
+        mock_paginate.return_value = {'artifacts': [], 'assets': [], 'folders': []}
         result = await handler.list_resources(
             ctx,
             resource=ResourceType.artifacts,
             workspaceId='ws1',
             jobId='j1',
-            source=SourceEnum.connector,
+            source=SourceEnum.artifact_store,
         )
         parsed = _parse_result(result)
         assert parsed['success'] is True
+        mock_fes.assert_not_called()
+        assert mock_paginate.call_count == 1
         paginate_body = mock_paginate.call_args[0][1]
-        assert 'pathPrefix' not in paginate_body
+        assert paginate_body['pathPrefix'] == 'AWSTransform/Workspaces/ws1/Jobs/j1/'
 
     @pytest.mark.asyncio
     @patch(
@@ -373,10 +419,11 @@ class TestListResourcesHandler:
     @patch(
         'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
-    async def test_artifacts_with_path_prefix_skips_get_job(
+    async def test_artifacts_with_path_prefix_makes_single_call(
         self, _, mock_fes, mock_paginate, handler, ctx
     ):
-        mock_paginate.return_value = {'artifacts': []}
+        """Explicit pathPrefix is honoured verbatim — single call, no GetJob, no merge."""
+        mock_paginate.return_value = {'artifacts': [], 'assets': [], 'folders': []}
         result = await handler.list_resources(
             ctx,
             resource=ResourceType.artifacts,
@@ -387,6 +434,7 @@ class TestListResourcesHandler:
         parsed = _parse_result(result)
         assert parsed['success'] is True
         mock_fes.assert_not_called()
+        assert mock_paginate.call_count == 1
         paginate_body = mock_paginate.call_args[0][1]
         assert paginate_body['pathPrefix'] == 'custom/prefix/'
 
@@ -402,8 +450,8 @@ class TestListResourcesHandler:
         'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
     )
     async def test_artifacts_with_plan_step_filter(self, _, mock_fes, mock_paginate, handler, ctx):
-        mock_fes.return_value = {'jobType': 'STANDARD'}
-        mock_paginate.return_value = {'artifacts': []}
+        """Forward planStepId in both legs of the merged call."""
+        mock_paginate.return_value = {'artifacts': [], 'assets': [], 'folders': []}
         result = await handler.list_resources(
             ctx,
             resource=ResourceType.artifacts,
@@ -413,8 +461,76 @@ class TestListResourcesHandler:
         )
         parsed = _parse_result(result)
         assert parsed['success'] is True
-        paginate_body = mock_paginate.call_args[0][1]
-        assert paginate_body['jobFilter'] == {'jobId': 'j1', 'planStepId': 'step-1'}
+        mock_fes.assert_not_called()
+        assert mock_paginate.call_count == 2
+        for call in mock_paginate.call_args_list:
+            body = call[0][1]
+            assert body['jobFilter'] == {'jobId': 'j1', 'planStepId': 'step-1'}
+
+    @pytest.mark.asyncio
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.list_resources.paginate_all',
+        new_callable=AsyncMock,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
+    )
+    async def test_artifacts_passes_folders_assets_connector_id_to_paginate_all(
+        self, _, mock_fes, mock_paginate, handler, ctx
+    ):
+        """paginate_all is invoked with extra_list_keys and scalar_keys for ListArtifacts."""
+        mock_paginate.return_value = {'artifacts': [], 'folders': [], 'assets': []}
+        await handler.list_resources(
+            ctx,
+            resource=ResourceType.artifacts,
+            workspaceId='ws1',
+            pathPrefix='some/prefix/',
+        )
+        kwargs = mock_paginate.call_args.kwargs
+        assert kwargs['extra_list_keys'] == ('folders', 'assets')
+        assert kwargs['scalar_keys'] == ('connectorId',)
+        # positional args remain: operation, body, items_key
+        args = mock_paginate.call_args.args
+        assert args[0] == 'ListArtifacts'
+        assert args[2] == 'artifacts'
+
+    @pytest.mark.asyncio
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.list_resources.paginate_all',
+        new_callable=AsyncMock,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
+    )
+    async def test_artifacts_response_surfaces_folders_assets_connector_id(
+        self, _, mock_fes, mock_paginate, handler, ctx
+    ):
+        """The full ListArtifacts response envelope is returned to the caller."""
+        mock_paginate.return_value = {
+            'artifacts': [{'artifactId': 'a1'}],
+            'folders': ['sub/'],
+            'assets': [{'assetKey': 'transform-output/j1/foo.zip'}],
+            'connectorId': 'conn-123',
+        }
+        result = await handler.list_resources(
+            ctx,
+            resource=ResourceType.artifacts,
+            workspaceId='ws1',
+            pathPrefix='transform-output/j1/',
+        )
+        parsed = _parse_result(result)
+        assert parsed['success'] is True
+        data = parsed['data']
+        assert data['artifacts'] == [{'artifactId': 'a1'}]
+        assert data['folders'] == ['sub/']
+        assert data['assets'] == [{'assetKey': 'transform-output/j1/foo.zip'}]
+        assert data['connectorId'] == 'conn-123'
 
     # ── messages ───────────────────────────────────────────────────────
 

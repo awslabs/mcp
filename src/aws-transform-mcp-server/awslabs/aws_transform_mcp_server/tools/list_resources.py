@@ -24,7 +24,6 @@ from awslabs.aws_transform_mcp_server.fes_models import (
     BatchGetMessageRequest,
     BatchGetUserDetailsRequest,
     ChatJobMetadata,
-    GetJobRequest,
     ListJobPlanStepsRequest,
     ListMessagesRequest,
     ListPlanUpdatesRequest,
@@ -202,10 +201,17 @@ TOOL_DESCRIPTION = (
     '- jobs → workspaceId\n'
     '- connectors → workspaceId\n'
     '- tasks → workspaceId, jobId\n'
-    '- artifacts → workspaceId, jobId. For mainframe jobs, you MUST specify source '
-    '("connector" for job output files, "artifact_store" for managed/HITL artifacts). '
-    'Connector assets include connectorId and assetKey — use '
-    'get_resource resource="asset" to download them.\n'
+    '- artifacts → workspaceId, jobId. Merges the two ListArtifacts stores by '
+    'default (matches the webapp): the connector bucket under '
+    '`transform-output/{jobId}/` and the ATX-managed artifact store under '
+    '`AWSTransform/Workspaces/{workspaceId}/Jobs/{jobId}/`. '
+    'Optional source narrows to one store: "connector" = only the S3 '
+    'connector output (mainframe/.NET jobs that write to a customer bucket); '
+    '"artifact_store" = only the managed/HITL artifacts. '
+    'Response includes: artifacts[] (managed files with artifactId — use '
+    'get_resource resource="artifact" to download), assets[] (connector files with '
+    'assetKey — use get_resource resource="asset" with the returned connectorId), '
+    'and folders[] (S3 sub-prefixes — pass one back as pathPrefix to drill in).\n'
     '- messages → workspaceId (jobId optional). Returns full message content. '
     'Uses nextToken for pagination (not auto-paginated). '
     'Use startTimestamp (epoch seconds) to filter messages after a point in time — '
@@ -218,8 +224,7 @@ TOOL_DESCRIPTION = (
     '- users → searchTerm. Search by username or email. Use this to find a userId '
     'before calling manage_collaborator.\n\n'
     'Errors: NOT_CONFIGURED (call configure first), INSTRUCTIONS_REQUIRED '
-    '(call load_instructions for the job first), VALIDATION_ERROR (missing required params), '
-    'SOURCE_REQUIRED (mainframe artifacts need source param).'
+    '(call load_instructions for the job first), VALIDATION_ERROR (missing required params).'
 )
 
 
@@ -457,39 +462,60 @@ class ListResourcesHandler:
                         'VALIDATION_ERROR', 'workspaceId is required for listing artifacts.'
                     )
 
-                resolved_path_prefix = pathPrefix
-                if jobId and not pathPrefix:
-                    job = await call_fes(
-                        'GetJob',
-                        GetJobRequest(workspaceId=workspaceId, jobId=jobId),
-                    )
-                    job_type = job.get('jobType', '') if isinstance(job, dict) else ''
-                    is_mainframe = 'MAINFRAME' in job_type.upper()
-
-                    if is_mainframe and not source:
-                        return error_result(
-                            'SOURCE_REQUIRED',
-                            'This is a mainframe job which has two artifact sources. '
-                            'Please specify source:\n'
-                            '- "connector" → job output files from the S3 connector\n'
-                            '- "artifact_store" → managed/HITL task artifacts',
-                            'Re-call with source="connector" to browse output files, '
-                            'or source="artifact_store" for managed artifacts.',
-                        )
-
-                    if is_mainframe and source == SourceEnum.connector:
-                        resolved_path_prefix = f'transform-output/{jobId}/'
-
                 body: Dict[str, Any] = {'workspaceId': workspaceId}
                 if jobId:
                     job_filter: Dict[str, Any] = {'jobId': jobId}
                     if planStepId:
                         job_filter['planStepId'] = planStepId
                     body['jobFilter'] = job_filter
-                if resolved_path_prefix:
-                    body['pathPrefix'] = resolved_path_prefix
 
-                return success_result(await paginate_all('ListArtifacts', body, 'artifacts'))
+                if pathPrefix:
+                    body['pathPrefix'] = pathPrefix
+                elif not jobId:
+                    pass
+                elif source == SourceEnum.connector:
+                    body['pathPrefix'] = f'transform-output/{jobId}/'
+                elif source == SourceEnum.artifact_store:
+                    body['pathPrefix'] = f'AWSTransform/Workspaces/{workspaceId}/Jobs/{jobId}/'
+                else:
+                    connector_res, store_res = await asyncio.gather(
+                        paginate_all(
+                            'ListArtifacts',
+                            {**body, 'pathPrefix': f'transform-output/{jobId}/'},
+                            'artifacts',
+                            extra_list_keys=('folders', 'assets'),
+                            scalar_keys=('connectorId',),
+                        ),
+                        paginate_all(
+                            'ListArtifacts',
+                            {
+                                **body,
+                                'pathPrefix': f'AWSTransform/Workspaces/{workspaceId}/Jobs/{jobId}/',
+                            },
+                            'artifacts',
+                            extra_list_keys=('folders', 'assets'),
+                            scalar_keys=('connectorId',),
+                        ),
+                    )
+                    merged: Dict[str, Any] = {
+                        'artifacts': connector_res.get('artifacts', [])
+                        + store_res.get('artifacts', []),
+                        'assets': connector_res.get('assets', []) + store_res.get('assets', []),
+                        'folders': connector_res.get('folders', []) + store_res.get('folders', []),
+                    }
+                    if connector_res.get('connectorId'):
+                        merged['connectorId'] = connector_res['connectorId']
+                    return success_result(merged)
+
+                return success_result(
+                    await paginate_all(
+                        'ListArtifacts',
+                        body,
+                        'artifacts',
+                        extra_list_keys=('folders', 'assets'),
+                        scalar_keys=('connectorId',),
+                    )
+                )
 
             elif resource == ResourceType.messages:
                 if not workspaceId:
