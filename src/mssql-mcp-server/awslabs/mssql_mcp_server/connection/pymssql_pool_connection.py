@@ -143,7 +143,7 @@ class PymssqlPoolConnection(AbstractDBConnection):
             try:
                 await asyncio.to_thread(conn.close)
             except Exception:
-                pass
+                logger.info('Connection may be broken; try to replace it')
             try:
                 fresh_user, fresh_password = await asyncio.to_thread(
                     self._get_credentials_from_secret, self.secret_arn, self.region, self.is_test

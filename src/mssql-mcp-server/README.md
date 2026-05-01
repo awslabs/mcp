@@ -61,7 +61,7 @@ Example secret value:
 ```json
 {
   "username": "mcp_readonly",
-  "password": "UseAStrongPassword"  # pragma: allowlist secret
+  "password": "UseAStrongPassword"
 }
 ```
 
@@ -186,7 +186,7 @@ Connect to your RDS instance as the master user and run:
 
 ```sql
 -- Create a server-level login
-CREATE LOGIN mcp_readonly WITH PASSWORD = 'UseAStrongPassword';  # pragma: allowlist secret
+CREATE LOGIN mcp_readonly WITH PASSWORD = 'UseAStrongPassword';  -- pragma: allowlist secret
 
 -- Switch to the target database
 USE my_database;

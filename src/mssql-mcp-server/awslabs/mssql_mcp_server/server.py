@@ -166,9 +166,10 @@ async def run_query(
 
     try:
         response = await db_connection.execute_query(sql, query_parameters)
-        assert 'columnMetadata' in response and 'records' in response, (
-            f'execute_query must return dict with columnMetadata and records, got keys: {list(response.keys())}'
-        )
+        if 'columnMetadata' not in response or 'records' not in response:
+            raise ValueError(
+                f'execute_query must return dict with columnMetadata and records, got keys: {list(response.keys())}'
+            )
         logger.success(f'run_query successfully executed: {sql}')
         results = parse_execute_response(response)
         wrapped = _wrap_untrusted_data(results)
@@ -257,9 +258,10 @@ async def get_table_schema(
 
     try:
         response = await db_connection.execute_query(sql, params)
-        assert 'columnMetadata' in response and 'records' in response, (
-            f'execute_query must return dict with columnMetadata and records, got keys: {list(response.keys())}'
-        )
+        if 'columnMetadata' not in response or 'records' not in response:
+            raise ValueError(
+                f'execute_query must return dict with columnMetadata and records, got keys: {list(response.keys())}'
+            )
         return _wrap_untrusted_data(parse_execute_response(response))
     except Exception as e:
         logger.exception(f'get_table_schema failed: {type(e).__name__}')
@@ -357,7 +359,7 @@ def internal_create_connection(
 
     if not region:
         raise ValueError("region can't be none or empty")
-    if not connection_method:
+    if connection_method is None:
         raise ValueError("connection_method can't be none or empty")
     if not db_endpoint:
         raise ValueError("db_endpoint can't be none or empty")

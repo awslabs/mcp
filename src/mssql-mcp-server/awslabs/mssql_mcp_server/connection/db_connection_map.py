@@ -46,7 +46,7 @@ class DBConnectionMap:
         port: int = 1433,
     ) -> AbstractDBConnection | None:
         """Get a database connection from the map."""
-        if not method:
+        if method is None:
             raise ValueError('method cannot be None')
 
         if not database:
