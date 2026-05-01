@@ -1,91 +1,68 @@
-# Kiro MCP Setup Configuration
+## Default Configuration
+
+This skill is distributed as a **standalone skill** — a self-contained directory that lives
+wherever the user installs it (e.g., `~/.claude/skills/dsql/`, `.claude/skills/dsql/`, or an
+equivalent directory for other assistants). Because the skill files don't sit at the user's
+project root, the skill cannot register the DSQL MCP server automatically — the user must add the
+MCP configuration themselves.
+
+A ready-to-copy sample lives alongside this doc: [`.mcp.json`](.mcp.json). Copy its contents into
+the user's project-root `.mcp.json` (or the equivalent per-assistant config — see [platform
+guides](#coding-assistant---custom-instructions)) to register the DSQL MCP server. The server
+provides DSQL documentation search, reading, and recommendations out of the box without requiring
+any cluster connection.
+
+To enable database operations (queries, schema exploration, DDL, DML), users must update the config
+with their cluster details (see [Database Operation Support Configuration](#database-operation-support-configuration)
+below).
+
+### Documentation-Only Config
+
+The skill's MCP configuration is pre-written as follows:
+
+```json
+{
+  "mcpServers": {
+    "awsknowledge": {
+      "type": "http",
+      "url": "https://knowledge-mcp.global.api.aws"
+    },
+    "aurora-dsql": {
+      "command": "uvx",
+      "args": ["awslabs.aurora-dsql-mcp-server@latest"],
+      "env": { "FASTMCP_LOG_LEVEL": "ERROR" },
+    }
+  }
+}
+```
+
+To upgrade to full database operations, add `--cluster_endpoint`, `--region`, `--database_user`, and optionally `--allow-writes` to the args array.
+
+---
+
+# MCP Server Setup Instructions
 
 ## Prerequisites:
+
 ```bash
 uv --version
 ```
 
 **If missing:**
+
 - Install from: [Astral](https://docs.astral.sh/uv/getting-started/installation/)
 
-**Check if MCP server is configured:**
-Look for `aurora-dsql` or `power-amazon-aurora-dsql-aurora-dsql` in MCP settings.
+## General MCP Configuration:
 
-**If configured:**
-The MCP server can be configured in one of 2 ways. The [default documentation-only configuration](#default-documentation-tools-only-configuration) doesn't support database operations.
+Add the following configuration after checking if the user wants documentation-only functionality
+or database operation support too.
 
-The MCP server can be updated to support the `readonly_query`, `transact`, and `get_schema` database
-operation tools by connecting the server to the user's DSQL cluster, with the
-[cluster configuration](#cluster-configuration-to-add).
-
-***Ask the user which configuration they prefer and re-configure if needed, editing the appropriate***
-***MCP settings file.***
-
-**If not configured, offer to set up:**
-
-Ask the user if they prefer the [documentation-only](#default-documentation-tools-only-configuration)
-functionality or the [database operation](#cluster-configuration-for-database-operations)
-functionality and edit the appropriate MCP settings file.
-
-## Where to keep the MCP Configuration?
-Would the user like a global MCP configuration or a project-scoped MCP configuration?
-
-**Default:**
-By default, the power has a placeholder MCP configuration globally. *This MCP configuration does
-not contain any DSQL cluster details. Therefore, it can only be used for documentation tools,
-but can be updated to match the [database operation configuration](#cluster-configuration-for-database-operations) with a DSQL cluster.*
-
-```bash
-cat ~/.kiro/settings/mcp.json
-```
-
-The user can update the MCP settings any time by navigating to the Kiro panel from
-the left sidebar (Kiro's ghost icon) and navigating to the bottom "MCP Servers" pane.
-
-**Global Scope:**
-1. Locate `~/.kiro/settings/mcp.json`
-2. Identify the `"powers"` field and find the `power-aurora-dsql-aurora-dsql` in the
-   list of MCP servers.
-3. Update the configuration args for the cluster endpoint, region, and database
-   user (default to admin).
-4. Update the environment variables if necessary (`"env"` field):
-   1. Is the cluster region different than the default region?
-      Set the environment variable `"REGION"`
-   2. Is the user using an AWS Profile other than `default`?
-      List AWS profiles with:
-      ```bash
-      aws configure list-profiles
-      ```
-      For a non-default profile, configure the environment variable:
-      `"AWS_PROFILE"`.
-5. How permissive is the user? Is the MCP server permitted to write
-   to the database? If not, remove the `--allow-writes` flag from the
-   arguments in the MCP configuration.
-
-**Project-Scope**:
-1. Recommend disabling the power's global MCP server: `"disabled": true`
-2. Locate or create a `.kiro/settings` directory in the project workspace:
-   ```bash
-   mkdir -p .kiro/settings
-   ```
-3. Create a local `.kiro/settings/mcp.json` and add the Aurora DSQL MCP
-   server as specified in [MCP Configuration](#mcp-configuration).
-   1. Optional Arguments/Environment Variables:
-      * Arg: `--profile` or Env: `"AWS_PROFILE"` only need
-        to be configured for non-default values.
-      * Env: `"REGION"` when the cluster region management is
-        distinct from user's primary region in project/application.
-      * Arg: `--allow-writes` based on how permissive the user wants
-        to be for the MCP server. Always ask the user if writes
-        should be allowed.
-
-## MCP Configuration:
-### Default Documentation-Tools-Only Configuration:
+### Documentation-Only Configuration
 
 ```json
 {
   "mcpServers": {
-    "awslabs.aurora-dsql-mcp-server": {
+    "aurora-dsql": {
       "command": "uvx",
       "args": [
         "awslabs.aurora-dsql-mcp-server@latest"
@@ -100,11 +77,12 @@ the left sidebar (Kiro's ghost icon) and navigating to the bottom "MCP Servers" 
 }
 ```
 
-### Cluster Configuration for Database Operations:
+### Database Operation Support Configuration
+
 ```json
 {
   "mcpServers": {
-    "awslabs.aurora-dsql-mcp-server": {
+    "aurora-dsql": {
       "command": "uvx",
       "args": [
         "awslabs.aurora-dsql-mcp-server@latest",
@@ -115,7 +93,7 @@ the left sidebar (Kiro's ghost icon) and navigating to the bottom "MCP Servers" 
         "--database_user",
         "[your dsql username, e.g. admin]",
         "--profile",
-        "[your aws profile name, eg. default]"
+        "[your aws profile name, eg. default]",
         "--allow-writes"
       ],
       "env": {
@@ -130,6 +108,30 @@ the left sidebar (Kiro's ghost icon) and navigating to the bottom "MCP Servers" 
 }
 ```
 
-**Documentation:**
+### Optional Arguments and Environment Variables:
+
+The following args and environment variables are not required, but may be required if the user
+has custom AWS configurations or would like to allow/disallow the MCP server mutating their database.
+
+- Arg: `--profile` or Env: `"AWS_PROFILE"` only need
+  to be configured for non-default values.
+- Env: `"REGION"` when the cluster region management is
+  distinct from user's primary region in project/application.
+- Arg: `--allow-writes` based on how permissive the user wants
+  to be for the MCP server. Always ask the user if writes
+  should be allowed.
+
+## Coding Assistant - Custom Instructions
+
+Before proceeding, identify which coding assistant you are adding the MCP server to and
+navigate to those custom instructions.
+
+1. [Claude Code](platforms/claude-code.md)
+2. [Gemini](platforms/gemini.md)
+3. [Codex](platforms/codex.md)
+4. [Kiro](platforms/kiro.md)
+
+## Additional Documentation
+
 - [MCP Server Setup Guide](https://awslabs.github.io/mcp/servers/aurora-dsql-mcp-server)
-- [AWS User Guide](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/SECTION_aurora-dsql-mcp-server.html)
+- [DSQL MCP User Guide](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/SECTION_aurora-dsql-mcp-server.html)
