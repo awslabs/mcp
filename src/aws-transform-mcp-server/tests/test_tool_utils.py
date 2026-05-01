@@ -29,6 +29,11 @@ from awslabs.aws_transform_mcp_server.tool_utils import (
     download_s3_content,
     error_result,
     failure_result,
+    format_connector_summary,
+    format_job_response,
+    format_message_summary,
+    format_task_summary,
+    format_worklog,
     success_result,
     text_result,
 )
@@ -270,3 +275,183 @@ class TestDownloadS3Content:
 
             with pytest.raises(httpx.HTTPStatusError):
                 await download_s3_content('https://s3.example.com/missing')
+
+
+# ── New test classes covering uncovered lines ────────────────────────────
+
+
+class TestFormatJobResponse:
+    def test_non_dict_returns_as_is(self):
+        assert format_job_response('string') == 'string'
+        assert format_job_response(42) == 42
+        assert format_job_response(None) is None
+
+    def test_job_value_not_dict(self):
+        result = format_job_response({'job': 'not-a-dict'})
+        assert result == 'not-a-dict'
+
+    def test_nested_job_dict(self):
+        response = {
+            'job': {
+                'jobId': 'j-1',
+                'jobName': 'test-job',
+                'statusDetails': 'RUNNING',
+                'workspaceId': 'ws-1',
+                'restartable': True,
+                'extraField': 'ignored',
+            }
+        }
+        result = format_job_response(response)
+        assert result == {
+            'jobId': 'j-1',
+            'jobName': 'test-job',
+            'statusDetails': 'RUNNING',
+            'workspaceId': 'ws-1',
+            'restartable': True,
+        }
+        assert isinstance(result, dict) and 'extraField' not in result
+
+    def test_jobInfo_key(self):
+        response = {
+            'jobInfo': {
+                'jobId': 'j-2',
+                'jobName': 'info-job',
+            }
+        }
+        result = format_job_response(response)
+        assert result == {'jobId': 'j-2', 'jobName': 'info-job'}
+
+    def test_fallback_to_response_itself(self):
+        response = {
+            'jobId': 'j-3',
+            'jobName': 'direct-job',
+            'extraField': 'ignored',
+        }
+        result = format_job_response(response)
+        assert result == {'jobId': 'j-3', 'jobName': 'direct-job'}
+
+
+class TestFormatTaskSummary:
+    def test_non_dict_returns_as_is(self):
+        assert format_task_summary('string') == 'string'
+        assert format_task_summary(42) == 42
+        assert format_task_summary(None) is None
+
+    def test_dict_extracts_fields(self):
+        task = {
+            'taskId': 't-1',
+            'title': 'Test task',
+            'status': 'OPEN',
+            'uxComponentId': 'TextInput',
+            'extraField': 'ignored',
+        }
+        result = format_task_summary(task)
+        assert result == {
+            'taskId': 't-1',
+            'title': 'Test task',
+            'status': 'OPEN',
+            'uxComponentId': 'TextInput',
+        }
+        assert isinstance(result, dict) and 'extraField' not in result
+
+
+class TestFormatWorklog:
+    def test_non_dict_returns_as_is(self):
+        assert format_worklog('string') == 'string'
+        assert format_worklog(42) == 42
+        assert format_worklog(None) is None
+
+    def test_dict_extracts_fields(self):
+        worklog = {
+            'description': 'Did something',
+            'timestamp': '2025-01-01T00:00:00Z',
+            'worklogType': 'INFO',
+            'extraField': 'ignored',
+        }
+        result = format_worklog(worklog)
+        assert result == {
+            'description': 'Did something',
+            'timestamp': '2025-01-01T00:00:00Z',
+            'worklogType': 'INFO',
+        }
+        assert isinstance(result, dict) and 'extraField' not in result
+
+
+class TestFormatConnectorSummary:
+    def test_non_dict_returns_as_is(self):
+        assert format_connector_summary('string') == 'string'
+        assert format_connector_summary(42) == 42
+        assert format_connector_summary(None) is None
+
+    def test_dict_extracts_fields(self):
+        connector = {
+            'connectorId': 'c-1',
+            'connectorName': 'My Connector',
+            'connectorType': 'GITHUB',
+            'accountConnection': 'linked',
+            'extraField': 'ignored',
+        }
+        result = format_connector_summary(connector)
+        assert result == {
+            'connectorId': 'c-1',
+            'connectorName': 'My Connector',
+            'connectorType': 'GITHUB',
+            'accountConnection': 'linked',
+        }
+        assert isinstance(result, dict) and 'extraField' not in result
+
+
+class TestFormatMessageSummary:
+    def test_non_dict_returns_as_is(self):
+        assert format_message_summary('string') == 'string'
+        assert format_message_summary(42) == 42
+        assert format_message_summary(None) is None
+
+    def test_dict_extracts_fields(self):
+        message = {
+            'messageId': 'm-1',
+            'text': 'Hello',
+            'messageOrigin': 'USER',
+            'createdAt': '2025-01-01T00:00:00Z',
+            'parentMessageId': None,
+            'processingInfo': {},
+            'interactions': [],
+            'extraField': 'ignored',
+        }
+        result = format_message_summary(message)
+        assert result == {
+            'messageId': 'm-1',
+            'text': 'Hello',
+            'messageOrigin': 'USER',
+            'createdAt': '2025-01-01T00:00:00Z',
+            'parentMessageId': None,
+            'processingInfo': {},
+            'interactions': [],
+        }
+        assert isinstance(result, dict) and 'extraField' not in result
+
+
+class TestDownloadS3ContentWithFilePath:
+    @pytest.mark.asyncio
+    async def test_save_path_with_extension_uses_directly(self, tmp_path):
+        mock_response = AsyncMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.content = b'file data'
+        mock_response.raise_for_status = lambda: None
+
+        with patch('awslabs.aws_transform_mcp_server.tool_utils.httpx.AsyncClient') as MockClient:
+            instance = AsyncMock()
+            instance.get.return_value = mock_response
+            instance.__aenter__ = AsyncMock(return_value=instance)
+            instance.__aexit__ = AsyncMock(return_value=False)
+            MockClient.return_value = instance
+
+            full_path = os.path.join(str(tmp_path), 'specific-file.txt')
+            result = await download_s3_content(
+                'https://s3.example.com/data.bin',
+                save_path=full_path,
+            )
+            assert result['savedTo'] == full_path
+            assert result['sizeBytes'] == len(b'file data')
+            with open(full_path, 'rb') as fh:
+                assert fh.read() == b'file data'
