@@ -175,6 +175,14 @@ async def aggregate(
 
     Returns:
         Dict with "status" and "results" (list of row dicts).
+
+    Known limitations (Valkey Search):
+        - Wildcard '*' as query may fail with "Invalid: query string syntax" on
+          some versions. Use a match-all filter instead: "@field:[-inf inf]".
+        - GROUPBY requires at least one field. For global aggregation (no grouping),
+          use an APPLY to create a constant field, then GROUPBY on it:
+          [{"type": "APPLY", "expression": "1", "alias": "all"},
+           {"type": "GROUPBY", "fields": ["@all"], "reducers": [...]}]
     """
     client = await get_client()
 
