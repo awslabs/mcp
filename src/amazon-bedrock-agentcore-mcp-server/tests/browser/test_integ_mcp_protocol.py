@@ -308,7 +308,7 @@ def _build_server(*, disable: str | None = None, enable: str | None = None) -> F
                     gateway as _gw,
                 )
 
-                server.tool()(_gw.manage_agentcore_gateway)
+                server.tool()(_gw.manage_agentcore_gateway)  # type: ignore[attr-defined]
 
         if _is_service_enabled('policy') and _reg_policy is not None:
             _reg_policy(server)
