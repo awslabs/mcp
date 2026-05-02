@@ -12,6 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""AWS HealthLake MCP Server."""
-
-__version__ = '0.0.13'
+"""Unit tests for the AgentCore Identity tools sub-package."""
