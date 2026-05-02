@@ -15,9 +15,14 @@
 """AWS HealthLake client for FHIR operations."""
 
 # Standard library imports
+import base64
+import binascii
+
 # Third-party imports
 import boto3
 import httpx
+import json
+import re
 
 # Local imports
 from . import __version__
@@ -27,19 +32,128 @@ from botocore.config import Config
 from botocore.exceptions import ClientError, NoCredentialsError
 from loguru import logger
 from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import urljoin
+from urllib.parse import parse_qs, quote, urljoin, urlsplit
 
 
 # HealthLake API limits
 MAX_SEARCH_COUNT = 100  # Maximum number of resources per search request
 DATASTORE_ID_LENGTH = 32  # AWS HealthLake datastore ID length
 
+# Security validators
+# Opaque pagination token: conservative charset. Deliberately narrow to
+# what HealthLake's `page` cursor format uses.
+_PAGINATION_TOKEN_MAX_LEN = 2048
+_PAGINATION_TOKEN_RE = re.compile(r'^[A-Za-z0-9+=_\-.]+$')
+
+# FHIR R4 resource type and id formats.
+# Resource type: PascalCase, letters/digits only, <=64 chars.
+# Resource id: [A-Za-z0-9.-]{1,64}  (per FHIR R4 spec).
+_FHIR_RESOURCE_TYPE_RE = re.compile(r'^[A-Z][A-Za-z0-9]{0,63}$')
+_FHIR_RESOURCE_ID_RE = re.compile(r'^[A-Za-z0-9\-.]{1,64}$')
+
 
 def validate_datastore_id(datastore_id: str) -> str:
-    """Validate AWS HealthLake datastore ID format."""
-    if not datastore_id or len(datastore_id) != DATASTORE_ID_LENGTH:
-        raise ValueError(f'Datastore ID must be {DATASTORE_ID_LENGTH} characters')
+    """Validate AWS HealthLake datastore ID format.
+
+    Requires exactly DATASTORE_ID_LENGTH alphanumeric characters. Used to
+    constrain the value before it is interpolated into FHIR endpoint URLs.
+    """
+    if (
+        not datastore_id
+        or not isinstance(datastore_id, str)
+        or len(datastore_id) != DATASTORE_ID_LENGTH
+        or not datastore_id.isalnum()
+    ):
+        raise ValueError(f'Datastore ID must be {DATASTORE_ID_LENGTH} alphanumeric characters')
     return datastore_id
+
+
+def validate_pagination_token(next_token: Any) -> str:
+    """Validate an opaque pagination token.
+
+    The token is an opaque string emitted by a prior call to this client.
+    It must be a short, well-formed opaque string matching the conservative
+    token charset. Error messages do not include the input value.
+
+    Internally the token encodes both the HealthLake server's ``page``
+    cursor value and the ``_count`` that the server used when emitting it
+    (see :func:`_encode_pagination_token`). Callers treat it as opaque.
+    """
+    if not isinstance(next_token, str) or not next_token:
+        raise ValueError('Invalid pagination token')
+    if len(next_token) > _PAGINATION_TOKEN_MAX_LEN:
+        raise ValueError('Invalid pagination token')
+    if not _PAGINATION_TOKEN_RE.match(next_token):
+        raise ValueError('Invalid pagination token')
+    return next_token
+
+
+def _encode_pagination_token(page_value: str, count: int) -> str:
+    """Pack ``(page_value, count)`` into a single opaque pagination token.
+
+    The token is urlsafe-base64-encoded JSON. Urlsafe base64 only uses
+    characters from ``[A-Za-z0-9_-]`` (plus ``=`` padding, stripped here),
+    which is a strict subset of :data:`_PAGINATION_TOKEN_RE`'s charset.
+
+    Capturing ``count`` alongside the cursor is what makes follow-up
+    pagination calls robust: HealthLake requires the same ``_count`` on
+    page N+1 as it used when emitting the cursor for page N. Without this,
+    an MCP client that doesn't echo the caller's original ``count`` on the
+    follow-up call (e.g. defaults to the schema's ``count=100`` after a
+    ``count=5`` first page) produces a ``_count`` mismatch that HealthLake
+    rejects as ``"Invalid pagination token."``
+    """
+    payload = {'v': 2, 'p': page_value, 'c': int(count)}
+    raw = json.dumps(payload, separators=(',', ':')).encode('utf-8')
+    return base64.urlsafe_b64encode(raw).rstrip(b'=').decode('ascii')
+
+
+def _decode_pagination_token(token: str) -> Optional[Dict[str, Any]]:
+    """Decode a v2 opaque pagination token.
+
+    Returns a dict ``{'page': str, 'count': int}`` on success, or ``None``
+    if the token isn't in v2 format (e.g. was emitted by an older version
+    of this server). Never raises on shape errors; callers fall back to
+    treating the token as a bare ``page`` value when this returns ``None``.
+    """
+    if not isinstance(token, str) or not token:
+        return None
+    # urlsafe-base64 with stripped padding: restore padding before decoding.
+    padded = token + '=' * (-len(token) % 4)
+    try:
+        raw = base64.urlsafe_b64decode(padded.encode('ascii'))
+    except (ValueError, binascii.Error):
+        return None
+    try:
+        payload = json.loads(raw.decode('utf-8'))
+    except (ValueError, UnicodeDecodeError):
+        return None
+    if not isinstance(payload, dict) or payload.get('v') != 2:
+        return None
+    page_value = payload.get('p')
+    count = payload.get('c')
+    if not isinstance(page_value, str) or not page_value:
+        return None
+    if not isinstance(count, int) or count < 1 or count > MAX_SEARCH_COUNT:
+        return None
+    # The inner ``page`` value must also match the conservative charset.
+    if not _PAGINATION_TOKEN_RE.match(page_value):
+        return None
+    return {'page': page_value, 'count': count}
+
+
+def validate_fhir_resource_type(resource_type: Any) -> str:
+    """Validate a FHIR resource type (PascalCase, letters/digits only)."""
+    if not isinstance(resource_type, str) or not _FHIR_RESOURCE_TYPE_RE.match(resource_type):
+        raise ValueError('Invalid FHIR resource type')
+    return resource_type
+
+
+def validate_fhir_resource_id(resource_id: Any) -> str:
+    """Validate a FHIR resource id per FHIR R4 ([A-Za-z0-9.-]{1,64})."""
+    if not isinstance(resource_id, str) or not _FHIR_RESOURCE_ID_RE.match(resource_id):
+        raise ValueError('Invalid FHIR resource id')
+    return resource_id
 
 
 class FHIRSearchError(Exception):
@@ -54,14 +168,36 @@ class FHIRSearchError(Exception):
 class AWSAuth(httpx.Auth):
     """Custom AWS SigV4 authentication for httpx."""
 
-    def __init__(self, credentials, region: str, service: str = 'healthlake'):
-        """Initialize AWS SigV4 authentication with credentials and region."""
+    def __init__(
+        self,
+        credentials,
+        region: str,
+        service: str = 'healthlake',
+        expected_host: Optional[str] = None,
+    ):
+        """Initialize AWS SigV4 authentication.
+
+        If ``expected_host`` is provided, requests whose URL host does not
+        match (case-insensitive) will be refused before any signing occurs.
+
+        When ``expected_host`` is ``None``, behavior is unchanged (backward
+        compatible for non-pagination call sites).
+        """
         self.credentials = credentials
         self.region = region
         self.service = service
+        self.expected_host = expected_host.lower() if expected_host else None
 
     def auth_flow(self, request):
         """Apply AWS SigV4 authentication to the request."""
+        # Host allowlist check: refuse to sign for unexpected hosts.
+        if self.expected_host is not None:
+            request_host = (request.url.host or '').lower()
+            if request_host != self.expected_host:
+                # Log/exception messages do not include the URL or host.
+                logger.warning('Refusing to sign request: unexpected host')
+                raise ValueError('Refusing to sign request to unexpected host')
+
         # Preserve the original Content-Length if it exists
         original_content_length = request.headers.get('content-length')
 
@@ -225,10 +361,89 @@ class HealthLakeClient:
 
         return errors
 
-    def _process_bundle(self, bundle: Dict[str, Any]) -> Dict[str, Any]:
-        """Process FHIR Bundle response and extract pagination information."""
-        from urllib.parse import parse_qs, quote, urlparse
+    def _extract_next_page_token(self, bundle: Dict[str, Any]) -> Optional[str]:
+        """Extract an opaque continuation token from a Bundle's ``next`` link.
 
+        Returns a single opaque token string that packs *both* HealthLake's
+        ``page`` cursor and the ``_count`` from the emitted ``next`` link, or
+        ``None`` if no usable next link exists. The URL itself is not
+        surfaced to callers; the paginated URL is reconstructed server-side
+        from trusted components on the next call.
+
+        Why ``_count`` is captured: HealthLake binds its ``page`` cursor to
+        the ``_count`` that was in effect when the cursor was emitted. A
+        follow-up GET with a different ``_count`` (e.g. the caller passed
+        ``count=5`` on page 1 but omits it on page 2, so the schema default
+        of 100 kicks in) is rejected as ``"Invalid pagination token."``.
+        By packing ``_count`` into the opaque token we emit, the follow-up
+        call uses the captured value regardless of what the caller passes,
+        so pagination works even when the caller doesn't echo ``count``.
+
+        Assumptions (HealthLake-specific; may not hold for other FHIR R4
+        servers):
+          * The ``next`` link is a URL on the same HealthLake datastore.
+          * The continuation-relevant state is ``page`` and ``_count``; any
+            other query params (e.g. ``_search`` path suffix) are re-supplied
+            by the client's trusted URL builder on the next call.
+          * HealthLake emits ``next`` URLs against ``/<ResourceType>`` for
+            search and ``/Patient/<id>/$everything`` for $patient-everything.
+        If HealthLake ever changes the continuation URL shape or introduces
+        additional required query parameters, this extractor and the
+        ``_build_*_pagination_url`` helpers must be updated together.
+        """
+        next_url = None
+        for link in bundle.get('link', []) or []:
+            if link.get('relation') == 'next':
+                next_url = link.get('url', '')
+                break
+
+        if not next_url:
+            return None
+
+        try:
+            link_qs = parse_qs(urlsplit(next_url).query)
+        except Exception:
+            logger.warning('Failed to parse pagination next link')
+            return None
+
+        page_values = link_qs.get('page')
+        if not page_values:
+            return None
+
+        page_candidate = page_values[0]
+        # Re-validate shape so we never pack anything that couldn't round-trip
+        # back through this same client. Also keeps the payload format stable.
+        try:
+            validate_pagination_token(page_candidate)
+        except ValueError:
+            logger.warning('Discarding malformed pagination page value from HealthLake')
+            return None
+
+        # Extract and clamp the server-side ``_count`` from the same link.
+        # If HealthLake omits it (unexpected) we fall back to the default
+        # MAX_SEARCH_COUNT so at least something is captured.
+        count_values = link_qs.get('_count')
+        captured_count = MAX_SEARCH_COUNT
+        if count_values:
+            try:
+                parsed = int(count_values[0])
+                if 1 <= parsed <= MAX_SEARCH_COUNT:
+                    captured_count = parsed
+            except (TypeError, ValueError):
+                # Malformed ``_count`` — keep default; the page cursor is
+                # still usable with the default and is better than bailing.
+                logger.debug('Ignoring malformed _count in next link')
+
+        return _encode_pagination_token(page_candidate, captured_count)
+
+    def _process_bundle(self, bundle: Dict[str, Any]) -> Dict[str, Any]:
+        """Process FHIR Bundle response and extract pagination information.
+
+        ``pagination.next_token`` is the opaque ``page`` value extracted
+        from the Bundle's ``next`` link, or ``None``. It is NOT a URL.
+        Callers pass it back as-is and the server reconstructs the full
+        URL from trusted components.
+        """
         result = {
             'resourceType': bundle.get('resourceType', 'Bundle'),
             'id': bundle.get('id'),
@@ -242,49 +457,16 @@ class HealthLakeClient:
         if 'total' not in result or result['total'] is None:
             result['total'] = len(result.get('entry', []))
 
-        # Extract next URL from Bundle links and handle encoding issues
-        next_url = None
-        for link in bundle.get('link', []):
-            if link.get('relation') == 'next':
-                next_url = link.get('url', '')
-                break
-
-        # Process the next URL to handle HealthLake pagination encoding issues
-        next_token = None
-        if next_url:
-            try:
-                # Parse the URL to handle encoding issues
-                link_parse = urlparse(next_url)
-                link_qs = parse_qs(link_parse.query)
-
-                if 'page' in link_qs:
-                    # Encode the page parameter to prevent auth errors
-                    encoded_page = quote(link_qs['page'][0])
-
-                    # Reconstruct the URL with properly encoded page parameter
-                    next_link_values = {
-                        'scheme': link_parse.scheme,
-                        'hostname': link_parse.hostname,
-                        'path': link_parse.path,
-                        'count': '?_count=' + link_qs['_count'][0] if '_count' in link_qs else '',
-                        'page': '&page=' + encoded_page,
-                    }
-                    next_token = '{scheme}://{hostname}{path}{count}{page}'.format(
-                        **next_link_values
-                    )
-                else:
-                    # Fallback to original URL if no page parameter found
-                    next_token = next_url
-
-            except Exception as e:
-                logger.warning(f'Error processing next URL: {e}, using original URL')
-                next_token = next_url
-
-        result['pagination'] = {'has_next': bool(next_token), 'next_token': next_token}
+        next_token = self._extract_next_page_token(bundle)
+        result['pagination'] = {'has_next': next_token is not None, 'next_token': next_token}
         return result
 
     def _process_bundle_with_includes(self, bundle: Dict[str, Any]) -> Dict[str, Any]:
-        """Process bundle and organize included resources."""
+        """Process bundle and organize included resources.
+
+        ``pagination.next_token`` semantics match ``_process_bundle``: opaque
+        page value only, never a URL.
+        """
         # Separate main results from included resources
         main_entries = []
         included_entries = []
@@ -322,14 +504,8 @@ class HealthLakeClient:
         if included_by_type:
             result['included'] = included_by_type
 
-        # Add pagination metadata
-        next_url = None
-        for link in bundle.get('link', []):
-            if link.get('relation') == 'next':
-                next_url = link.get('url', '')
-                break
-
-        result['pagination'] = {'has_next': bool(next_url), 'next_token': next_url}
+        next_token = self._extract_next_page_token(bundle)
+        result['pagination'] = {'has_next': next_token is not None, 'next_token': next_token}
 
         return result
 
@@ -355,6 +531,61 @@ class HealthLakeClient:
         else:
             return f'Search error: {error_str}'
 
+    def _build_pagination_url(
+        self, datastore_id: str, resource_type: str, count: int, next_token: str
+    ) -> str:
+        """Reconstruct a paginated search URL from trusted components.
+
+        Scheme, host, port, and path are fixed by this client. The
+        ``next_token`` argument here is the raw HealthLake ``page`` cursor
+        value (already unpacked from our opaque token by
+        :meth:`_resolve_pagination_state`), and must match the token
+        charset enforced by :func:`validate_pagination_token`. The
+        ``count`` argument is the one captured alongside the cursor when
+        HealthLake emitted it — not the caller-supplied ``count`` — so the
+        follow-up request's ``_count`` matches what HealthLake expects.
+
+        HealthLake emits the ``next`` link on the ``/{resource_type}``
+        (GET) path, not on ``/{resource_type}/_search`` (POST). We
+        reconstruct the GET path here to match.
+        """
+        endpoint = self._get_fhir_endpoint(datastore_id).rstrip('/')
+        return f'{endpoint}/{resource_type}?_count={count}&page={quote(next_token, safe="")}'
+
+    def _build_patient_everything_pagination_url(
+        self, datastore_id: str, patient_id: str, count: int, next_token: str
+    ) -> str:
+        """Reconstruct a paginated $everything URL from trusted components.
+
+        See :meth:`_build_pagination_url` for the contract on ``count`` and
+        ``next_token`` — both come from the opaque token emitted on the
+        previous page, not from the caller.
+        """
+        endpoint = self._get_fhir_endpoint(datastore_id).rstrip('/')
+        return (
+            f'{endpoint}/Patient/{patient_id}/$everything'
+            f'?_count={count}&page={quote(next_token, safe="")}'
+        )
+
+    def _resolve_pagination_state(self, next_token: str, caller_count: int) -> Tuple[str, int]:
+        """Unpack an opaque pagination token to ``(page_value, count)``.
+
+        For v2 tokens (the current format) the returned ``count`` is the
+        one captured from HealthLake's ``next`` link, not ``caller_count``.
+        For legacy or unrecognized tokens we fall back to treating the
+        whole token as a bare ``page`` value paired with ``caller_count``.
+        The returned ``page_value`` always satisfies
+        :func:`validate_pagination_token`.
+
+        Caller must have already passed ``next_token`` through
+        :func:`validate_pagination_token` to enforce the outer charset.
+        """
+        decoded = _decode_pagination_token(next_token)
+        if decoded is not None:
+            return decoded['page'], decoded['count']
+        # Legacy / unknown format — treat as a bare page value.
+        return next_token, caller_count
+
     async def patient_everything(
         self,
         datastore_id: str,
@@ -364,18 +595,38 @@ class HealthLakeClient:
         count: int = 100,
         next_token: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Retrieve all resources related to a specific patient using $patient-everything operation."""
+        """Retrieve all resources related to a specific patient via $patient-everything."""
+        # Input validation runs before any I/O.
+        validate_datastore_id(datastore_id)
+        validate_fhir_resource_id(patient_id)
+        if next_token is not None:
+            validate_pagination_token(next_token)
+
         try:
             endpoint = self._get_fhir_endpoint(datastore_id)
-            auth = self._get_aws_auth()
+            auth = self._get_aws_auth(expected_host=self._healthlake_host())
 
             # Ensure count is within valid range
             count = max(1, min(count, MAX_SEARCH_COUNT))
 
-            async with httpx.AsyncClient() as client:
+            # follow_redirects=False (explicit) -- httpx's default is False
+            # today, but being explicit keeps behavior stable if that default
+            # ever changes.
+            async with httpx.AsyncClient(follow_redirects=False) as client:
                 if next_token:
-                    # For pagination, use the next_token URL directly
-                    response = await client.get(next_token, auth=auth)
+                    # Unpack the opaque token so we use the ``_count`` that
+                    # HealthLake captured at cursor-emission time, not the
+                    # caller-supplied ``count``.
+                    page_value, captured_count = self._resolve_pagination_state(
+                        next_token, caller_count=count
+                    )
+                    url = self._build_patient_everything_pagination_url(
+                        datastore_id=datastore_id,
+                        patient_id=patient_id,
+                        count=captured_count,
+                        next_token=page_value,
+                    )
+                    response = await client.get(url, auth=auth)
                 else:
                     # Build $patient-everything URL
                     url = urljoin(endpoint, f'Patient/{patient_id}/$everything')
@@ -414,9 +665,16 @@ class HealthLakeClient:
         next_token: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Search for FHIR resources."""
+        # Input validation runs before the try block so ValueError is not
+        # rewrapped by _create_helpful_error_message.
+        validate_datastore_id(datastore_id)
+        validate_fhir_resource_type(resource_type)
+        if next_token is not None:
+            validate_pagination_token(next_token)
+
         try:
             endpoint = self._get_fhir_endpoint(datastore_id)
-            auth = self._get_aws_auth()
+            auth = self._get_aws_auth(expected_host=self._healthlake_host())
 
             # Ensure count is within valid range
             count = max(1, min(count, MAX_SEARCH_COUNT))
@@ -434,7 +692,7 @@ class HealthLakeClient:
             if validation_errors:
                 raise FHIRSearchError(f'Search validation failed: {"; ".join(validation_errors)}')
 
-            # Build request
+            # Build request (for non-paginated case)
             url, form_data = self._build_search_request(
                 base_url=endpoint,
                 resource_type=resource_type,
@@ -443,13 +701,24 @@ class HealthLakeClient:
                 revinclude_params=revinclude_params,
                 chained_params=chained_params,
                 count=count,
-                next_token=next_token,
+                next_token=None,  # Pagination URL is built separately below.
             )
 
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(follow_redirects=False) as client:
                 if next_token:
-                    # For pagination, use GET with the next_token URL
-                    response = await client.get(next_token, auth=auth)
+                    # Unpack the opaque token so we use the ``_count`` that
+                    # HealthLake captured at cursor-emission time, not the
+                    # caller-supplied ``count``.
+                    page_value, captured_count = self._resolve_pagination_state(
+                        next_token, caller_count=count
+                    )
+                    pagination_url = self._build_pagination_url(
+                        datastore_id=datastore_id,
+                        resource_type=resource_type,
+                        count=captured_count,
+                        next_token=page_value,
+                    )
+                    response = await client.get(pagination_url, auth=auth)
                 else:
                     # Use POST for search
                     headers = {'Content-Type': 'application/x-www-form-urlencoded'}
@@ -474,6 +743,12 @@ class HealthLakeClient:
         except FHIRSearchError:
             # Re-raise FHIR search errors as-is
             raise
+        except httpx.HTTPStatusError:
+            # Preserve data-plane HTTP errors so the MCP layer can map
+            # them (e.g. 404 -> not_found, 400 -> validation_error). The
+            # helpful-message wrapper below would otherwise hide the
+            # original status code.
+            raise
         except Exception as e:
             logger.error(f'Error searching resources: {e}')
             # Provide helpful error message
@@ -483,13 +758,16 @@ class HealthLakeClient:
         self, datastore_id: str, resource_type: str, resource_id: str
     ) -> Dict[str, Any]:
         """Get a specific FHIR resource by ID."""
+        validate_datastore_id(datastore_id)
+        validate_fhir_resource_type(resource_type)
+        validate_fhir_resource_id(resource_id)
         try:
             endpoint = self._get_fhir_endpoint(datastore_id)
             url = urljoin(endpoint, f'{resource_type}/{resource_id}')
 
-            auth = self._get_aws_auth()
+            auth = self._get_aws_auth(expected_host=self._healthlake_host())
 
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(follow_redirects=False) as client:
                 response = await client.get(url, auth=auth)
                 response.raise_for_status()
                 return response.json()
@@ -502,6 +780,8 @@ class HealthLakeClient:
         self, datastore_id: str, resource_type: str, resource_data: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Create a new FHIR resource."""
+        validate_datastore_id(datastore_id)
+        validate_fhir_resource_type(resource_type)
         try:
             endpoint = self._get_fhir_endpoint(datastore_id)
             url = urljoin(endpoint, resource_type)
@@ -509,9 +789,9 @@ class HealthLakeClient:
             # Ensure resource has correct resourceType
             resource_data['resourceType'] = resource_type
 
-            auth = self._get_aws_auth()
+            auth = self._get_aws_auth(expected_host=self._healthlake_host())
 
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(follow_redirects=False) as client:
                 response = await client.post(url, json=resource_data, auth=auth)
                 response.raise_for_status()
                 return response.json()
@@ -528,6 +808,9 @@ class HealthLakeClient:
         resource_data: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Update an existing FHIR resource."""
+        validate_datastore_id(datastore_id)
+        validate_fhir_resource_type(resource_type)
+        validate_fhir_resource_id(resource_id)
         try:
             endpoint = self._get_fhir_endpoint(datastore_id)
             url = urljoin(endpoint, f'{resource_type}/{resource_id}')
@@ -536,9 +819,9 @@ class HealthLakeClient:
             resource_data['resourceType'] = resource_type
             resource_data['id'] = resource_id
 
-            auth = self._get_aws_auth()
+            auth = self._get_aws_auth(expected_host=self._healthlake_host())
 
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(follow_redirects=False) as client:
                 response = await client.put(url, json=resource_data, auth=auth)
                 response.raise_for_status()
                 return response.json()
@@ -551,13 +834,16 @@ class HealthLakeClient:
         self, datastore_id: str, resource_type: str, resource_id: str
     ) -> Dict[str, Any]:
         """Delete a FHIR resource."""
+        validate_datastore_id(datastore_id)
+        validate_fhir_resource_type(resource_type)
+        validate_fhir_resource_id(resource_id)
         try:
             endpoint = self._get_fhir_endpoint(datastore_id)
             url = urljoin(endpoint, f'{resource_type}/{resource_id}')
 
-            auth = self._get_aws_auth()
+            auth = self._get_aws_auth(expected_host=self._healthlake_host())
 
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(follow_redirects=False) as client:
                 response = await client.delete(url, auth=auth)
                 response.raise_for_status()
                 return {'status': 'deleted', 'resourceType': resource_type, 'id': resource_id}
@@ -634,11 +920,30 @@ class HealthLakeClient:
         data_access_role_arn: str,
         job_name: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Start a FHIR export job."""
+        """Start a FHIR export job.
+
+        Transforms the snake_case ``output_data_config`` into the PascalCase
+        shape expected by boto3 (``OutputDataConfig.S3Configuration.S3Uri``
+        / ``.KmsKeyId``), mirroring :meth:`start_import_job`. Without this
+        transform, boto3 rejects the request as
+        ``Unknown parameter in OutputDataConfig: "s3_configuration"``.
+        """
         try:
-            kwargs = {
+            # Validate required parameters
+            if not output_data_config.get('s3_configuration', {}).get('s3_uri'):
+                raise ValueError('output_data_config must contain s3_configuration with s3_uri')
+
+            # Transform output_data_config to match AWS API format.
+            s3_config = output_data_config['s3_configuration']
+            boto_output_config: Dict[str, Any] = {
+                'S3Configuration': {'S3Uri': s3_config['s3_uri']}
+            }
+            if s3_config.get('kms_key_id'):
+                boto_output_config['S3Configuration']['KmsKeyId'] = s3_config['kms_key_id']
+
+            kwargs: Dict[str, Any] = {
                 'DatastoreId': datastore_id,
-                'OutputDataConfig': output_data_config,
+                'OutputDataConfig': boto_output_config,
                 'DataAccessRoleArn': data_access_role_arn,
             }
             if job_name:
@@ -646,9 +951,24 @@ class HealthLakeClient:
 
             response = self.healthlake_client.start_fhir_export_job(**kwargs)
             return response
+
         except ClientError as e:
-            logger.error(f'Error starting export job: {e}')
-            raise
+            error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+            error_message = e.response.get('Error', {}).get('Message', str(e))
+
+            # Provide specific error messages mirroring start_import_job.
+            if error_code == 'ValidationException':
+                logger.error(f'Validation error starting export job: {error_message}')
+                raise ValueError(f'Invalid parameters: {error_message}')
+            elif error_code == 'AccessDeniedException':
+                logger.error(f'Access denied starting export job: {error_message}')
+                raise PermissionError(f'Access denied: {error_message}')
+            elif error_code == 'ResourceNotFoundException':
+                logger.error(f'Resource not found starting export job: {error_message}')
+                raise ValueError(f'Datastore not found: {error_message}')
+            else:
+                logger.error(f'Error starting export job: {error_message}')
+                raise
 
     async def list_jobs(
         self, datastore_id: str, job_status: Optional[str] = None, job_type: Optional[str] = None
@@ -683,8 +1003,12 @@ class HealthLakeClient:
             # Return error information instead of crashing
             return {'error': True, 'message': str(e), 'ImportJobs': [], 'ExportJobs': []}
 
-    def _get_aws_auth(self):
-        """Get AWS authentication for HTTP requests."""
+    def _get_aws_auth(self, expected_host: Optional[str] = None):
+        """Get AWS authentication for HTTP requests.
+
+        If ``expected_host`` is provided, the returned auth will refuse to
+        sign requests whose host does not match.
+        """
         try:
             # Get AWS credentials from the session
             credentials = self.session.get_credentials()
@@ -692,10 +1016,19 @@ class HealthLakeClient:
                 raise NoCredentialsError()
 
             # Create custom AWS authentication instance
-            auth = AWSAuth(credentials=credentials, region=self.region, service='healthlake')
+            auth = AWSAuth(
+                credentials=credentials,
+                region=self.region,
+                service='healthlake',
+                expected_host=expected_host,
+            )
 
             return auth
 
         except Exception as e:
             logger.error(f'Failed to get AWS authentication: {e}')
             raise
+
+    def _healthlake_host(self) -> str:
+        """Return the expected HealthLake hostname for this client's region."""
+        return f'healthlake.{self.region}.amazonaws.com'
