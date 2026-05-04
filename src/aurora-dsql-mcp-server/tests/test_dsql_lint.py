@@ -252,3 +252,27 @@ class TestDsqlLint:
 
         assert result['diagnostics'] == []
         assert result['fixed_sql'] is None
+
+    @pytest.mark.asyncio
+    async def test_file_not_found_error_raises_exception(self, mocker):
+        """FileNotFoundError from subprocess raises exception."""
+        mock_run = mocker.patch('subprocess.run')
+        mock_run.side_effect = FileNotFoundError('No such file or directory')
+        mocker.patch('shutil.which', return_value='/usr/bin/dsql-lint')
+
+        with pytest.raises(Exception, match='dsql-lint binary not found'):
+            await dsql_lint('SELECT 1;', fix=False)
+
+    @pytest.mark.asyncio
+    async def test_empty_stdout_raises_exception(self, mocker):
+        """Empty stdout from dsql-lint raises exception."""
+        mock_run = mocker.patch('subprocess.run')
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout='',
+            stderr='some error',
+        )
+        mocker.patch('shutil.which', return_value='/usr/bin/dsql-lint')
+
+        with pytest.raises(Exception, match='dsql-lint produced no output'):
+            await dsql_lint('SELECT 1;', fix=False)
