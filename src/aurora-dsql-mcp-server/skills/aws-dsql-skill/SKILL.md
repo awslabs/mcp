@@ -116,7 +116,7 @@ sampled in [mcp/.mcp.json](mcp/.mcp.json)
 #### [dsql-lint.md](references/dsql-lint.md)
 
 **When:** SHOULD load when validating SQL for DSQL compatibility, migrating schemas from other databases, or working with ORM-generated migrations
-**Contains:** `dsql_lint` MCP tool reference, rule vocabulary, fix result statuses, ORM integration patterns, unfixable error resolution strategies
+**Contains:** `dsql_lint` MCP tool reference, fix result statuses, ORM integration patterns, unfixable error resolution strategies
 
 ---
 
@@ -326,7 +326,7 @@ Validates arbitrary SQL (PostgreSQL, MySQL, ORM-generated) for DSQL compatibilit
 - **MUST** present `fixed_with_warning` items to user before proceeding
 - **MUST** resolve all `unfixable` errors before execution (use skill knowledge or ask user)
 - **MUST** issue each DDL in its own `transact` call
-- **SHOULD** load [dsql-lint.md](references/dsql-lint.md) for rule vocabulary and resolution strategies
+- **SHOULD** load [dsql-lint.md](references/dsql-lint.md) for usage patterns and resolution strategies
 
 **ORM-specific guidance:**
 - **Django:** Run `python manage.py sqlmigrate <app> <migration>` to get raw SQL, then lint

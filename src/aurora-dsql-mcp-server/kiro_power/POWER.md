@@ -84,7 +84,7 @@ This power includes the following steering files in [steering](./steering)
   - Load when planning connection scaling patterns
 - **dsql-lint**
   - SHOULD load when validating SQL for DSQL compatibility, migrating schemas, or working with ORM-generated migrations
-  - `dsql_lint` MCP tool reference, rule vocabulary, fix result statuses, ORM integration patterns, unfixable error resolution
+  - `dsql_lint` MCP tool reference, fix result statuses, ORM integration patterns, unfixable error resolution
 
 ---
 
@@ -252,7 +252,7 @@ Validates arbitrary SQL (PostgreSQL, MySQL, ORM-generated) for DSQL compatibilit
 - **MUST** run `dsql_lint` before executing any externally-sourced SQL
 - **MUST** present `fixed_with_warning` items to user before proceeding
 - **MUST** resolve all `unfixable` errors before execution
-- **SHOULD** load [dsql-lint.md](steering/dsql-lint.md) for rule vocabulary and resolution strategies
+- **SHOULD** load [dsql-lint.md](steering/dsql-lint.md) for usage patterns and resolution strategies
 
 **ORM-specific:** Django (`sqlmigrate`), Rails (`db:schema:dump`), Prisma (`migrate diff`), TypeORM/Sequelize (generate SQL), SQLAlchemy (`echo=True`) — obtain raw SQL, then lint.
 
