@@ -536,18 +536,6 @@ Use fix=True to generate DSQL-compatible SQL automatically.
 - To validate CREATE TABLE, ALTER TABLE, CREATE INDEX, and other DDL statements
 - To check transaction structure (DSQL requires one DDL per transaction)
 
-## What It Detects
-- SERIAL/BIGSERIAL types (use IDENTITY or UUID instead)
-- JSON/JSONB types (use TEXT instead)
-- Array types (use TEXT instead)
-- FOREIGN KEY constraints (enforce in application layer)
-- Synchronous CREATE INDEX (must use ASYNC)
-- Multi-DDL transactions (must split into separate transactions)
-- TEMP TABLE, PARTITION BY, INHERITS, CREATE TABLE AS
-- Unsupported ALTER TABLE operations
-- TRUNCATE (use DELETE instead)
-- And more — see diagnostics for full rule vocabulary
-
 ## Fix Behavior
 When fix=True:
 - FIXED: Safe mechanical transformation applied (e.g., SERIAL → IDENTITY)
