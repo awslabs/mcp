@@ -84,7 +84,6 @@ _HANDLER_MODULES = {
     'ListResourcesHandler': 'awslabs.aws_transform_mcp_server.server',
     'GetResourceHandler': 'awslabs.aws_transform_mcp_server.server',
     'CollaboratorHandler': 'awslabs.aws_transform_mcp_server.server',
-    'ApproveHitlHandler': 'awslabs.aws_transform_mcp_server.server',
     'LoadInstructionsHandler': 'awslabs.aws_transform_mcp_server.server',
     'JobStatusHandler': 'awslabs.aws_transform_mcp_server.server',
 }
@@ -115,8 +114,8 @@ class TestRegisterHandlers:
                 p.stop()
 
     def test_handler_count(self):
-        """There should be exactly 14 handler classes registered."""
-        assert len(_HANDLER_MODULES) == 14
+        """There should be exactly 13 handler classes registered."""
+        assert len(_HANDLER_MODULES) == 13
 
 
 # ── main ───────────────────────────────────────────────────────────────────

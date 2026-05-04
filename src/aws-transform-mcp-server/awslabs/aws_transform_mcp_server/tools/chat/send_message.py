@@ -15,7 +15,7 @@
 """send_message tool — sends a chat message and polls for the response."""
 
 import time
-import uuid
+import uuid as _uuid
 from awslabs.aws_transform_mcp_server.config_store import is_fes_available
 from awslabs.aws_transform_mcp_server.fes_client import call_fes
 from awslabs.aws_transform_mcp_server.fes_models import SendMessageRequest
@@ -35,13 +35,6 @@ from awslabs.aws_transform_mcp_server.tools.chat._common import (
 from mcp.server.fastmcp import Context
 from pydantic import Field
 from typing import Annotated, Optional
-
-
-def _extract_sent_msg(send_result: object) -> object:
-    """Extract the message dict from a SendMessage FES response."""
-    if isinstance(send_result, dict):
-        return send_result.get('message', send_result)
-    return send_result
 
 
 async def send_message(
@@ -71,12 +64,6 @@ async def send_message(
 ) -> dict:
     """Send a chat message to the AWS Transform assistant and poll for a response.
 
-    This is the PRIMARY tool for interacting with jobs. Always use send_message
-    first when checking job status, asking about progress, or determining next
-    steps. The assistant has full context about the job and provides actionable
-    guidance. Only fall back to list_resources if send_message times out or
-    you need raw data the assistant didn't cover.
-
     Polls up to 60s for the assistant's reply. On timeout the result includes
     sentMessageId and guidance on how to check for the reply.
     """
@@ -99,14 +86,19 @@ async def send_message(
         metadata = build_metadata(workspaceId, jobId)
         start_timestamp = time.time()
 
-        body = SendMessageRequest(
-            text=resolved_text,
-            idempotencyToken=str(uuid.uuid4()),
-            metadata=metadata,
+        send_result = await call_fes(
+            'SendMessage',
+            SendMessageRequest(
+                text=resolved_text,
+                idempotencyToken=str(_uuid.uuid4()),
+                metadata=metadata,
+            ),
         )
-
-        send_result = await call_fes('SendMessage', body)
-        sent_msg = _extract_sent_msg(send_result)
+        sent_msg = (
+            send_result.get('message', send_result)
+            if isinstance(send_result, dict)
+            else send_result
+        )
         sent_message_id = sent_msg.get('messageId') if isinstance(sent_msg, dict) else None
 
         if not sent_message_id:
@@ -140,16 +132,7 @@ async def send_message(
                     resp.get('text') or 'The assistant returned an error.',
                     f'sentMessageId={sent_message_id}, workspaceId={workspaceId}',
                 )
-            data = {
-                'sentMessage': sent_msg,
-                'response': resp,
-            }
-            if jobId:
-                data['hint'] = (
-                    f'For recent activity details if user is asking for status/progress, also call '
-                    f'list_resources(resource="worklogs", workspaceId="{workspaceId}", jobId="{jobId}").'
-                )
-            return success_result(data)
+            return success_result({'sentMessage': sent_msg, 'response': resp})
 
         timeout_data = build_timeout_data(
             60, result['last_thinking'], workspaceId, sent_message_id, jobId

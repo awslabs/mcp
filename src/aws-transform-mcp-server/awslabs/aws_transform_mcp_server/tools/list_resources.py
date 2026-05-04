@@ -96,6 +96,18 @@ class CategoryEnum(str, Enum):
     TOOL_APPROVAL = 'TOOL_APPROVAL'
 
 
+class TaskStatusEnum(str, Enum):
+    """Task status filter for tasks."""
+
+    CREATED = 'CREATED'
+    IN_PROGRESS = 'IN_PROGRESS'
+    AWAITING_HUMAN_INPUT = 'AWAITING_HUMAN_INPUT'
+    AWAITING_APPROVAL = 'AWAITING_APPROVAL'
+    SUBMITTED = 'SUBMITTED'
+    CLOSED = 'CLOSED'
+    CANCELLED = 'CANCELLED'
+
+
 class SourceEnum(str, Enum):
     """Artifact source for mainframe jobs."""
 
@@ -188,30 +200,15 @@ TOOL_DESCRIPTION = (
     'These return ALL results in one call — do NOT pass nextToken. '
     'Manual pagination (nextToken) is used by: messages, plan '
     '(stepsNextToken/updatesNextToken).\n\n'
-    'IMPORTANT: To check job status or progress, use send_message scoped to the job FIRST — '
-    'the assistant has full context and provides actionable guidance. '
-    'Use list_resources only to supplement with raw data or when send_message times out. '
-    'When checking status, also call list_resources(resource="worklogs") for recent activity.\n\n'
-    'Use this to browse collections. Use get_resource to fetch a single item with '
-    'full details. To check for a reply after send_message times out, call '
-    'list_resources(resource="messages", startTimestamp=...) then '
-    'get_resource(resource="messages", messageIds=[...]).\n\n'
     'Resource types and required parameters:\n'
     '- workspaces → (none)\n'
     '- jobs → workspaceId\n'
     '- connectors → workspaceId\n'
-    '- tasks → workspaceId, jobId\n'
-    '- artifacts → workspaceId, jobId. Merges the two ListArtifacts stores by '
-    'default (matches the webapp): the connector bucket under '
-    '`transform-output/{jobId}/` and the ATX-managed artifact store under '
-    '`AWSTransform/Workspaces/{workspaceId}/Jobs/{jobId}/`. '
-    'Optional source narrows to one store: "connector" = only the S3 '
-    'connector output (mainframe/.NET jobs that write to a customer bucket); '
-    '"artifact_store" = only the managed/HITL artifacts. '
-    'Response includes: artifacts[] (managed files with artifactId — use '
-    'get_resource resource="artifact" to download), assets[] (connector files with '
-    'assetKey — use get_resource resource="asset" with the returned connectorId), '
-    'and folders[] (S3 sub-prefixes — pass one back as pathPrefix to drill in).\n'
+    '- tasks → workspaceId, jobId. Optional: category (TOOL_APPROVAL for agent tool '
+    'approvals), taskStatus (AWAITING_APPROVAL for pending approvals).\n'
+    '- artifacts → workspaceId, jobId. When jobId is provided, both stores are queried '
+    'the S3 connector output (transform-output/{jobId}/) and the managed artifact store '
+    '(AWSTransform/Workspaces/{workspaceId}/Jobs/{jobId}/). \n'
     '- messages → workspaceId (jobId optional). Returns full message content. '
     'Uses nextToken for pagination (not auto-paginated). '
     'Use startTimestamp (epoch seconds) to filter messages after a point in time — '
@@ -273,6 +270,17 @@ class ListResourcesHandler:
                 )
             ),
         ] = None,
+        taskStatus: Annotated[
+            Optional[TaskStatusEnum],
+            Field(
+                description=(
+                    'Status filter (tasks only). '
+                    'AWAITING_APPROVAL = pending tool approval tasks. '
+                    'AWAITING_HUMAN_INPUT = tasks waiting for human response. '
+                    'Omit to return all statuses.'
+                )
+            ),
+        ] = None,
         planStepId: Annotated[
             Optional[str],
             Field(description='Plan step filter (artifacts only)'),
@@ -281,20 +289,10 @@ class ListResourcesHandler:
             Optional[str],
             Field(
                 description=(
-                    'S3 path prefix for browsing files (artifacts only). Usually auto-constructed '
-                    '— only provide to drill into a subfolder returned by a previous listing.'
-                )
-            ),
-        ] = None,
-        source: Annotated[
-            Optional[SourceEnum],
-            Field(
-                description=(
-                    'Where to list artifacts from (artifacts only). '
-                    '"connector" = job output files from the S3 connector '
-                    '(mainframe jobs). "artifact_store" = managed/HITL '
-                    'artifacts. Required for mainframe jobs; ignored for '
-                    'non-mainframe.'
+                    'S3 path prefix for browsing files (artifacts only). '
+                    'Only provide to drill into a subfolder returned in folders[] by a previous listing. '
+                    'When set, a single call is made with that exact prefix. '
+                    'When omitted with a jobId, both stores are queried in parallel and merged.'
                 )
             ),
         ] = None,
@@ -443,8 +441,13 @@ class ListResourcesHandler:
                     'jobId': jobId,
                     'taskType': taskType.value if taskType else 'NORMAL',
                 }
+                task_filter: Dict[str, Any] = {}
                 if category:
-                    task_body['taskFilter'] = {'categories': [category.value]}
+                    task_filter['categories'] = [category.value]
+                if taskStatus:
+                    task_filter['taskStatuses'] = [taskStatus.value]
+                if task_filter:
+                    task_body['taskFilter'] = task_filter
 
                 data = await paginate_all('ListHitlTasks', task_body, 'hitlTasks')
                 try:
@@ -470,52 +473,30 @@ class ListResourcesHandler:
                     body['jobFilter'] = job_filter
 
                 if pathPrefix:
-                    body['pathPrefix'] = pathPrefix
-                elif not jobId:
-                    pass
-                elif source == SourceEnum.connector:
-                    body['pathPrefix'] = f'transform-output/{jobId}/'
-                elif source == SourceEnum.artifact_store:
-                    body['pathPrefix'] = f'AWSTransform/Workspaces/{workspaceId}/Jobs/{jobId}/'
+                    prefixes = [pathPrefix]
+                elif jobId:
+                    prefixes = [
+                        f'transform-output/{jobId}/',
+                        f'AWSTransform/Workspaces/{workspaceId}/Jobs/{jobId}/',
+                    ]
                 else:
-                    connector_res, store_res = await asyncio.gather(
-                        paginate_all(
-                            'ListArtifacts',
-                            {**body, 'pathPrefix': f'transform-output/{jobId}/'},
-                            'artifacts',
-                            extra_list_keys=('folders', 'assets'),
-                            scalar_keys=('connectorId',),
-                        ),
-                        paginate_all(
-                            'ListArtifacts',
-                            {
-                                **body,
-                                'pathPrefix': f'AWSTransform/Workspaces/{workspaceId}/Jobs/{jobId}/',
-                            },
-                            'artifacts',
-                            extra_list_keys=('folders', 'assets'),
-                            scalar_keys=('connectorId',),
-                        ),
-                    )
-                    merged: Dict[str, Any] = {
-                        'artifacts': connector_res.get('artifacts', [])
-                        + store_res.get('artifacts', []),
-                        'assets': connector_res.get('assets', []) + store_res.get('assets', []),
-                        'folders': connector_res.get('folders', []) + store_res.get('folders', []),
-                    }
-                    if connector_res.get('connectorId'):
-                        merged['connectorId'] = connector_res['connectorId']
-                    return success_result(merged)
+                    prefixes = [None]
 
-                return success_result(
-                    await paginate_all(
+                merged: Dict[str, Any] = {'artifacts': [], 'assets': [], 'folders': []}
+                for p in prefixes:
+                    r = await paginate_all(
                         'ListArtifacts',
-                        body,
+                        {**body, 'pathPrefix': p} if p else body,
                         'artifacts',
                         extra_list_keys=('folders', 'assets'),
                         scalar_keys=('connectorId',),
                     )
-                )
+                    merged['artifacts'] += r.get('artifacts', [])
+                    merged['assets'] += r.get('assets', [])
+                    merged['folders'] += r.get('folders', [])
+                    if r.get('connectorId') and 'connectorId' not in merged:
+                        merged['connectorId'] = r['connectorId']
+                return success_result(merged)
 
             elif resource == ResourceType.messages:
                 if not workspaceId:

@@ -15,6 +15,8 @@
 """get_job_status tool — aggregated job status snapshot for IDE agent polling."""
 
 import asyncio
+import time
+import uuid
 from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.config_store import is_fes_available
 from awslabs.aws_transform_mcp_server.fes_client import call_fes, paginate_all
@@ -27,6 +29,7 @@ from awslabs.aws_transform_mcp_server.fes_models import (
     ListWorklogsRequest,
     Metadata,
     ResourcesOnScreen,
+    SendMessageRequest,
     WorkspaceMetadata,
 )
 from awslabs.aws_transform_mcp_server.guidance_nudge import job_needs_check
@@ -35,6 +38,12 @@ from awslabs.aws_transform_mcp_server.tool_utils import (
     error_result,
     failure_result,
     success_result,
+)
+from awslabs.aws_transform_mcp_server.tools.chat._common import (
+    build_metadata,
+    build_timeout_data,
+    format_response,
+    poll_for_response,
 )
 from loguru import logger
 from mcp.server.fastmcp import Context
@@ -59,13 +68,17 @@ _ACTIONABLE_HITL_STATUSES = (
     'AWAITING_APPROVAL',
 )
 
+_DEFAULT_STATUS_MESSAGE = (
+    'What is the current status and what are the next steps needed from the user?'
+)
+
 TOOL_DESCRIPTION = (
-    'Use this when send message is not available for getting status of the job'
-    'Fetches a complete status snapshot for a long-running AWS Transform job: '
-    'job metadata, worklogs, HITL tasks, messages, and plan steps.\n\n'
-    'The response includes _pollingGuidance with isTerminal (true when job status is '
-    'COMPLETED, FAILED, or STOPPED) and hasPendingTasks. '
-    'If isTerminal is false, use adaptive_poll to wait and re-check.'
+    'Check the status of a running AWS Transform job.\n\n'
+    'By default, asks the Transform assistant for a concise status summary '
+    '(uses send_message internally). Pass an optional message to ask a '
+    'specific question.\n\n'
+    'Set detailed=true to get the full raw snapshot: job metadata, worklogs, '
+    'HITL tasks, messages, and plan steps with _pollingGuidance.'
 )
 
 
@@ -87,8 +100,27 @@ class JobStatusHandler:
         ctx: Context,
         workspaceId: Annotated[str, Field(description='Workspace ID (UUID format)')],
         jobId: Annotated[str, Field(description='Job ID (UUID format)')],
+        detailed: Annotated[
+            Optional[bool],
+            Field(
+                description=(
+                    'Set to true for full raw snapshot (job, worklogs, tasks, messages, plan). '
+                    'Default false returns a concise assistant summary.'
+                ),
+            ),
+        ] = False,
+        message: Annotated[
+            Optional[str],
+            Field(
+                description=(
+                    'Custom question to ask the assistant. '
+                    'Only used when detailed is false. '
+                    'Defaults to a standard status inquiry.'
+                ),
+            ),
+        ] = None,
     ) -> Dict[str, Any]:
-        """Fetch a unified job status snapshot for IDE agent polling."""
+        """Fetch job status — concise assistant summary by default, full snapshot when detailed."""
         if not is_fes_available():
             return error_result(
                 'NOT_CONFIGURED',
@@ -104,6 +136,95 @@ class JobStatusHandler:
                 f'Call load_instructions with workspaceId and jobId="{jobId}".',
             )
 
+        if detailed:
+            return await self._detailed_status(workspaceId, jobId)
+        return await self._summary_status(workspaceId, jobId, message)
+
+    async def _summary_status(
+        self, workspaceId: str, jobId: str, message: Optional[str]
+    ) -> Dict[str, Any]:
+        """Send a message to the assistant and return its status summary with recent worklogs."""
+        try:
+            metadata = build_metadata(workspaceId, jobId)
+            start_timestamp = time.time()
+            text = message or _DEFAULT_STATUS_MESSAGE
+
+            body = SendMessageRequest(
+                text=text,
+                idempotencyToken=str(uuid.uuid4()),
+                metadata=metadata,
+            )
+
+            send_result, worklogs_result = await asyncio.gather(
+                call_fes('SendMessage', body),
+                call_fes(
+                    'ListWorklogs',
+                    ListWorklogsRequest(
+                        workspaceId=workspaceId,
+                        jobId=jobId,
+                    ),
+                ),
+                return_exceptions=True,
+            )
+
+            worklogs = _unwrap_or_none(worklogs_result, 'ListWorklogs')
+
+            if isinstance(send_result, Exception):
+                raise send_result
+
+            sent_msg = (
+                send_result.get('message', send_result)
+                if isinstance(send_result, dict)
+                else send_result
+            )
+            sent_message_id = sent_msg.get('messageId') if isinstance(sent_msg, dict) else None
+
+            if not sent_message_id:
+                return error_result(
+                    'MESSAGE_ID_EXTRACTION_FAILED',
+                    'SendMessage succeeded but messageId could not be extracted.',
+                    'Retry with detailed=true for the full data snapshot.',
+                )
+
+            result = await poll_for_response(
+                metadata,
+                workspaceId,
+                sent_message_id,
+                max_attempts=30,
+                start_timestamp=start_timestamp,
+            )
+
+            if result['terminal']:
+                resp = format_response(result['terminal'])
+                if result['is_error']:
+                    return error_result(
+                        'ASSISTANT_ERROR',
+                        resp.get('text') or 'The assistant returned an error.',
+                        'Retry with detailed=true for the full data snapshot.',
+                    )
+                return success_result(
+                    {
+                        'sentMessage': sent_msg,
+                        'response': resp,
+                        'recentWorklogs': worklogs,
+                    }
+                )
+
+            timeout_data = build_timeout_data(
+                60,
+                result['last_thinking'],
+                workspaceId,
+                sent_message_id,
+                jobId,
+            )
+            timeout_data['sentMessage'] = sent_msg
+            timeout_data['recentWorklogs'] = worklogs
+            return success_result(timeout_data)
+        except Exception as exc:
+            return failure_result(exc)
+
+    async def _detailed_status(self, workspaceId: str, jobId: str) -> Dict[str, Any]:
+        """Fetch the full data snapshot (original get_job_status behavior)."""
         try:
             results = await asyncio.gather(
                 call_fes(

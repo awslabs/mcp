@@ -97,7 +97,15 @@ def format_task_summary(task: object) -> object:
     """Extract essential fields from a HitlTask for list browsing."""
     if not isinstance(task, dict):
         return task
-    return {k: task[k] for k in _TASK_LIST_FIELDS if k in task}
+    summary = {k: task[k] for k in _TASK_LIST_FIELDS if k in task}
+    if task.get('category') == 'TOOL_APPROVAL':
+        summary['_responseHint'] = (
+            'TOOL_APPROVAL task — agent is requesting permission to execute a tool. '
+            'Use get_resource to see the agent artifact, then call '
+            'complete_task with action=APPROVE or REJECT. '
+            'Do NOT provide content or filePath.'
+        )
+    return summary
 
 
 _WORKLOG_FIELDS = ('description', 'timestamp', 'worklogType')

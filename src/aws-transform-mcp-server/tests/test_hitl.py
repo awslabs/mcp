@@ -723,3 +723,248 @@ class TestCompleteTaskException:
         assert parsed['success'] is False
         assert parsed['error']['code'] == 'REQUEST_FAILED'
         assert 'unexpected server error' in parsed['error']['message']
+
+
+# ── TOOL_APPROVAL via complete_task (ported from test_approve_hitl.py) ────
+
+
+class TestCompleteTaskToolApproval:
+    """Tests for TOOL_APPROVAL tasks handled through complete_task."""
+
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        new_callable=AsyncMock,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.hitl.is_fes_available',
+        return_value=True,
+    )
+    async def test_approve_skips_artifact_upload(self, _mock_cfg, mock_fes, handler, ctx):
+        """TOOL_APPROVAL + APPROVE calls SubmitCriticalHitlTask without humanArtifact."""
+        task_data = {
+            'taskId': 't-ta-1',
+            'uxComponentId': 'ToolApproval',
+            'severity': 'CRITICAL',
+            'category': 'TOOL_APPROVAL',
+            'status': 'AWAITING_APPROVAL',
+        }
+        mock_fes.side_effect = [
+            {'task': task_data},
+            {},  # SubmitCriticalHitlTask
+            {'task': {**task_data, 'status': 'SUBMITTED', 'action': 'APPROVE'}},
+        ]
+
+        result = await handler.complete_task(
+            ctx,
+            workspaceId='ws-1',
+            jobId='job-1',
+            taskId='t-ta-1',
+            content=None,
+            filePath=None,
+            fileType=None,
+            action='APPROVE',
+        )
+        parsed = _parse(result)
+
+        assert parsed['success'] is True
+        assert parsed['data']['status'] == 'SUBMITTED'
+        assert parsed['data']['action'] == 'APPROVE'
+
+        # Verify SubmitCriticalHitlTask called without humanArtifact
+        submit_call = mock_fes.call_args_list[1]
+        assert submit_call[0][0] == 'SubmitCriticalHitlTask'
+        assert submit_call[0][1].action == 'APPROVE'
+        assert submit_call[0][1].humanArtifact is None
+
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        new_callable=AsyncMock,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.hitl.is_fes_available',
+        return_value=True,
+    )
+    async def test_reject_skips_artifact_upload(self, _mock_cfg, mock_fes, handler, ctx):
+        """TOOL_APPROVAL + REJECT calls SubmitCriticalHitlTask with action=REJECT."""
+        task_data = {
+            'taskId': 't-ta-2',
+            'uxComponentId': 'ToolApproval',
+            'severity': 'CRITICAL',
+            'category': 'TOOL_APPROVAL',
+            'status': 'AWAITING_APPROVAL',
+        }
+        mock_fes.side_effect = [
+            {'task': task_data},
+            {},  # SubmitCriticalHitlTask
+            {'task': {**task_data, 'status': 'SUBMITTED', 'action': 'REJECT'}},
+        ]
+
+        result = await handler.complete_task(
+            ctx,
+            workspaceId='ws-1',
+            jobId='job-1',
+            taskId='t-ta-2',
+            content=None,
+            filePath=None,
+            fileType=None,
+            action='REJECT',
+        )
+        parsed = _parse(result)
+
+        assert parsed['success'] is True
+        assert parsed['data']['action'] == 'REJECT'
+
+        submit_call = mock_fes.call_args_list[1]
+        assert submit_call[0][0] == 'SubmitCriticalHitlTask'
+        assert submit_call[0][1].action == 'REJECT'
+        assert submit_call[0][1].humanArtifact is None
+
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        new_callable=AsyncMock,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.hitl.is_fes_available',
+        return_value=True,
+    )
+    async def test_save_draft_rejected(self, _mock_cfg, mock_fes, handler, ctx):
+        """SAVE_DRAFT is not valid for TOOL_APPROVAL tasks."""
+        mock_fes.return_value = {
+            'task': {
+                'taskId': 't-ta-3',
+                'uxComponentId': 'ToolApproval',
+                'severity': 'CRITICAL',
+                'category': 'TOOL_APPROVAL',
+            }
+        }
+
+        result = await handler.complete_task(
+            ctx,
+            workspaceId='ws-1',
+            jobId='job-1',
+            taskId='t-ta-3',
+            content=None,
+            filePath=None,
+            fileType=None,
+            action='SAVE_DRAFT',
+        )
+        parsed = _parse(result)
+
+        assert parsed['success'] is False
+        assert parsed['error']['code'] == 'VALIDATION_ERROR'
+        assert 'SAVE_DRAFT' in parsed['error']['message']
+
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        new_callable=AsyncMock,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.hitl.is_fes_available',
+        return_value=True,
+    )
+    async def test_content_ignored_for_tool_approval(self, _mock_cfg, mock_fes, handler, ctx):
+        """Even if content is provided, TOOL_APPROVAL skips artifact upload."""
+        task_data = {
+            'taskId': 't-ta-4',
+            'uxComponentId': 'ToolApproval',
+            'severity': 'CRITICAL',
+            'category': 'TOOL_APPROVAL',
+            'status': 'AWAITING_APPROVAL',
+        }
+        mock_fes.side_effect = [
+            {'task': task_data},
+            {},
+            {'task': {**task_data, 'status': 'SUBMITTED'}},
+        ]
+
+        result = await handler.complete_task(
+            ctx,
+            workspaceId='ws-1',
+            jobId='job-1',
+            taskId='t-ta-4',
+            content='{"some": "data"}',
+            filePath=None,
+            fileType=None,
+            action='APPROVE',
+        )
+        parsed = _parse(result)
+
+        assert parsed['success'] is True
+        # Only 3 FES calls: GetHitlTask, SubmitCriticalHitlTask, GetHitlTask
+        assert mock_fes.call_count == 3
+        submit_call = mock_fes.call_args_list[1]
+        assert submit_call[0][1].humanArtifact is None
+
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        new_callable=AsyncMock,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.hitl.is_fes_available',
+        return_value=True,
+    )
+    async def test_wrong_status_rejected(self, _mock_cfg, mock_fes, handler, ctx):
+        """TOOL_APPROVAL task not in AWAITING_APPROVAL returns WRONG_STATUS."""
+        mock_fes.return_value = {
+            'task': {
+                'taskId': 't-ta-6',
+                'uxComponentId': 'ToolApproval',
+                'severity': 'CRITICAL',
+                'category': 'TOOL_APPROVAL',
+                'status': 'SUBMITTED',
+            }
+        }
+
+        result = await handler.complete_task(
+            ctx,
+            workspaceId='ws-1',
+            jobId='job-1',
+            taskId='t-ta-6',
+            content=None,
+            filePath=None,
+            fileType=None,
+            action='APPROVE',
+        )
+        parsed = _parse(result)
+
+        assert parsed['success'] is False
+        assert parsed['error']['code'] == 'WRONG_STATUS'
+        assert 'SUBMITTED' in parsed['error']['message']
+
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        new_callable=AsyncMock,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.hitl.is_fes_available',
+        return_value=True,
+    )
+    async def test_fes_error_returns_failure(self, _mock_cfg, mock_fes, handler, ctx):
+        """FES exception during TOOL_APPROVAL submit returns failure."""
+        mock_fes.side_effect = [
+            {
+                'task': {
+                    'taskId': 't-ta-5',
+                    'uxComponentId': 'ToolApproval',
+                    'severity': 'CRITICAL',
+                    'category': 'TOOL_APPROVAL',
+                    'status': 'AWAITING_APPROVAL',
+                }
+            },
+            RuntimeError('connection failed'),
+        ]
+
+        result = await handler.complete_task(
+            ctx,
+            workspaceId='ws-1',
+            jobId='job-1',
+            taskId='t-ta-5',
+            content=None,
+            filePath=None,
+            fileType=None,
+            action='APPROVE',
+        )
+        parsed = _parse(result)
+
+        assert parsed['success'] is False
+        assert parsed['error']['code'] == 'REQUEST_FAILED'

@@ -2,7 +2,7 @@
 
 An MCP server for [AWS Transform](https://aws.amazon.com/transform/) that enables AI assistants to manage transformation workspaces, jobs, connectors, human-in-the-loop (HITL) tasks, artifacts, and chat directly from the IDE.
 
-AWS Transform accelerates migration and modernization of enterprise workloads using specialized AI agents across discovery, planning, and execution. This MCP server exposes the Transform lifecycle through 25 tools, supporting mainframe modernization, VMware migration, .NET modernization, and custom code transformations.
+AWS Transform accelerates migration and modernization of enterprise workloads using specialized AI agents across discovery, planning, and execution. This MCP server exposes the Transform lifecycle through 21 tools, supporting mainframe modernization, VMware migration, .NET modernization, and custom code transformations.
 
 > [!IMPORTANT]
 > This server uses stdio transport and runs as a long-lived process spawned by your MCP client.
@@ -174,7 +174,7 @@ To verify your credentials are working, ask your AI assistant: **"Check my AWS T
 
 | Tool | Description | Auth |
 |------|-------------|------|
-| `complete_task` | Handle HITL tasks with validation, file upload, and submission. Supports actions: APPROVE, REJECT, SEND_FOR_APPROVAL, SAVE_DRAFT. | Web API |
+| `complete_task` | Handle HITL tasks with validation, file upload, and submission. Supports actions: APPROVE, REJECT, SEND_FOR_APPROVAL, SAVE_DRAFT. For TOOL_APPROVAL tasks (agent tool execution requests), only APPROVE and REJECT are valid — artifact upload is skipped automatically. | Web API |
 | `upload_artifact` | Upload files (JSON, ZIP, PDF, HTML, TXT) as artifacts. Max 500 MB. | Web API |
 
 ### Chat
@@ -201,7 +201,7 @@ To verify your credentials are working, ask your AI assistant: **"Check my AWS T
 
 | Tool | Description | Auth |
 |------|-------------|------|
-| `list_resources` | List any resource type: workspaces, jobs, connectors, tasks, artifacts, messages, worklogs, plan, agents, collaborators. | Web API |
+| `list_resources` | List any resource type: workspaces, jobs, connectors, tasks, artifacts, messages, worklogs, plan, agents, collaborators. Use `category="TOOL_APPROVAL"` and `taskStatus="AWAITING_APPROVAL"` to list pending tool approvals. | Web API |
 | `get_resource` | Get details for any resource by ID. Auto-downloads artifacts and enriches HITL tasks with output schemas. | Web API |
 
 ### Collaborators
@@ -209,15 +209,6 @@ To verify your credentials are working, ask your AI assistant: **"Check my AWS T
 | Tool | Description | Auth |
 |------|-------------|------|
 | `manage_collaborator` | Add or remove workspace collaborators. | Web API |
-
-### Tool Approvals
-
-| Tool | Description | Auth |
-|------|-------------|------|
-| `list_tool_approvals` | List pending tool approval tasks for a job. | Web API |
-| `approve_tool_approval` | Approve an agent tool execution request. | Web API |
-| `deny_tool_approval` | Deny an agent tool execution request. | Web API |
-| `get_approval_status` | Check the status of a tool approval task. | Web API |
 
 ## Supported Transformation Types
 

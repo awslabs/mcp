@@ -34,7 +34,6 @@ from awslabs.aws_transform_mcp_server.consts import (
 )
 from awslabs.aws_transform_mcp_server.fes_client import call_fes_direct_sigv4
 from awslabs.aws_transform_mcp_server.tools.adaptive_poll import AdaptivePollHandler
-from awslabs.aws_transform_mcp_server.tools.approve_hitl import ApproveHitlHandler
 from awslabs.aws_transform_mcp_server.tools.artifact import ArtifactHandler
 from awslabs.aws_transform_mcp_server.tools.chat import ChatHandler
 from awslabs.aws_transform_mcp_server.tools.collaborator import CollaboratorHandler
@@ -76,9 +75,9 @@ Three auth methods, checked in priority order:
 - `accept_connector` requires AWS credentials (for STS + TCP calls).
 
 # Tool Selection
-- **Job status / progress (Important)** → use `send_message` scoped to the job
-  to ask the Transform assistant about status along with it call `list_resources(resource="worklogs")` for recent activity.
-  Only fall back to `list_resources` / `get_resource` if you need more information or send message has conflicting information.
+- **Job status / progress** → `get_job_status` (concise assistant summary by default,
+  pass `detailed=true` for full raw data).
+- Chat with the Transform assistant → `send_message`
 - Browse collections → `list_resources`
 - Fetch a single resource with full details → `get_resource`
 - Check connection health → `get_status`
@@ -146,7 +145,6 @@ def _register_handlers(mcp: FastMCP) -> None:
     ListResourcesHandler(mcp)
     GetResourceHandler(mcp)
     CollaboratorHandler(mcp)
-    ApproveHitlHandler(mcp)
     LoadInstructionsHandler(mcp)
     JobStatusHandler(mcp)
     AdaptivePollHandler(mcp)

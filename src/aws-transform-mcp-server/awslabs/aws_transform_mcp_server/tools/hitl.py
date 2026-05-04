@@ -157,7 +157,8 @@ class HitlHandler:
                     'APPROVE (default): submit and approve. '
                     'REJECT: submit and reject. '
                     'SEND_FOR_APPROVAL: CRITICAL tasks -- send to admin for review. '
-                    'SAVE_DRAFT: save progress without submitting.'
+                    'SAVE_DRAFT: save progress without submitting. '
+                    'For TOOL_APPROVAL tasks, only APPROVE and REJECT are valid.'
                 ),
             ),
         ] = 'APPROVE',
@@ -201,10 +202,18 @@ class HitlHandler:
 
             # ── Step 1b: Validate action against severity/category ──────
             category = task.get('category')
-            if action == 'SEND_FOR_APPROVAL' and category == 'TOOL_APPROVAL':
+            is_tool_approval = category == 'TOOL_APPROVAL'
+
+            if action == 'SEND_FOR_APPROVAL' and is_tool_approval:
                 return error_result(
                     'VALIDATION_ERROR',
                     'SEND_FOR_APPROVAL is not supported for TOOL_APPROVAL tasks.',
+                    'Use APPROVE or REJECT instead.',
+                )
+            if action == 'SAVE_DRAFT' and is_tool_approval:
+                return error_result(
+                    'VALIDATION_ERROR',
+                    'SAVE_DRAFT is not supported for TOOL_APPROVAL tasks.',
                     'Use APPROVE or REJECT instead.',
                 )
             if action == 'SEND_FOR_APPROVAL' and severity != 'CRITICAL':
@@ -214,110 +223,132 @@ class HitlHandler:
                     'Use APPROVE or REJECT for STANDARD tasks.',
                 )
 
-            # ── Step 2: Upload file if provided ─────────────────────────
             uploaded_artifact_id: Optional[str] = None
-            if filePath:
-                if not os.path.exists(filePath):
-                    return error_result(
-                        'FILE_NOT_FOUND',
-                        f'File not found: {filePath}',
-                        'Check the file path and try again.',
-                    )
-                validated_path = validate_read_path(filePath)
-                uploaded_artifact_id = await upload_file_artifact(
-                    workspace_id=workspaceId,
-                    job_id=jobId,
-                    file_path=validated_path,
-                    file_type=fileType or infer_file_type(validated_path),
-                )
-
-            # ── Step 3: Download agent artifact for validation ──────────
             agent_artifact_content: Optional[Dict[str, Any]] = None
             artifact_warning: Optional[str] = None
-            agent_artifact = task.get('agentArtifact')
-            if isinstance(agent_artifact, dict) and agent_artifact.get('artifactId'):
-                dl = await download_agent_artifact(
-                    workspace_id=workspaceId,
-                    job_id=jobId,
-                    artifact_id=agent_artifact['artifactId'],
-                )
-                agent_artifact_content = dl.get('content')
-                artifact_warning = dl.get('warning')
-
-            # ── Step 4: Build response content ──────────────────────────
-            response_content = content or '{}'
-
-            # ── Step 5: Validate and format ─────────────────────────────
-            fmt_result = format_and_validate(
-                ux_component_id,
-                response_content,
-                agent_artifact_content,
-            )
-            if not fmt_result.ok:
-                return error_result('VALIDATION_ERROR', fmt_result.error)
-
-            # ── Step 6: Upload response artifact ────────────────────────
-            has_content = bool(content or filePath)
             response_artifact_id: Optional[str] = None
-            if action != 'SAVE_DRAFT' or has_content:
-                response_artifact_id = await upload_json_artifact(
-                    workspace_id=workspaceId,
-                    job_id=jobId,
-                    content=fmt_result.content,
-                )
 
-            # ── Step 7: Route to correct API based on action ────────────
-            if action == 'SAVE_DRAFT':
-                update_req = UpdateHitlTaskRequest(
-                    workspaceId=workspaceId,
-                    jobId=jobId,
-                    taskId=taskId,
-                    humanArtifact=(
-                        HitlTaskArtifact(artifactId=response_artifact_id)
-                        if response_artifact_id
-                        else None
-                    ),
-                )
-                await call_fes('UpdateHitlTask', update_req)
-
-            elif action == 'SEND_FOR_APPROVAL':
+            # ── TOOL_APPROVAL fast path ─────────────────────────────────
+            # Backend rejects humanArtifact for TOOL_APPROVAL tasks, so
+            # skip artifact upload/download/validation and submit directly.
+            if is_tool_approval:
+                task_status = task.get('status')
+                if task_status != 'AWAITING_APPROVAL':
+                    return error_result(
+                        'WRONG_STATUS',
+                        f'Task {taskId} is in status "{task_status}", not AWAITING_APPROVAL.',
+                        'Only TOOL_APPROVAL tasks in AWAITING_APPROVAL status can be approved or denied.',
+                    )
                 await call_fes(
-                    'UpdateHitlTask',
-                    UpdateHitlTaskRequest(
+                    'SubmitCriticalHitlTask',
+                    SubmitCriticalHitlTaskRequest(
                         workspaceId=workspaceId,
                         jobId=jobId,
                         taskId=taskId,
-                        humanArtifact=HitlTaskArtifact(artifactId=response_artifact_id),
-                        postUpdateAction='SEND_FOR_APPROVAL',
+                        action=action,
                     ),
                 )
-
             else:
-                # APPROVE or REJECT
-                if severity == 'CRITICAL':
+                # ── Step 2: Upload file if provided ─────────────────────
+                if filePath:
+                    if not os.path.exists(filePath):
+                        return error_result(
+                            'FILE_NOT_FOUND',
+                            f'File not found: {filePath}',
+                            'Check the file path and try again.',
+                        )
+                    validated_path = validate_read_path(filePath)
+                    uploaded_artifact_id = await upload_file_artifact(
+                        workspace_id=workspaceId,
+                        job_id=jobId,
+                        file_path=validated_path,
+                        file_type=fileType or infer_file_type(validated_path),
+                    )
+
+                # ── Step 3: Download agent artifact for validation ──────
+                agent_artifact = task.get('agentArtifact')
+                if isinstance(agent_artifact, dict) and agent_artifact.get('artifactId'):
+                    dl = await download_agent_artifact(
+                        workspace_id=workspaceId,
+                        job_id=jobId,
+                        artifact_id=agent_artifact['artifactId'],
+                    )
+                    agent_artifact_content = dl.get('content')
+                    artifact_warning = dl.get('warning')
+
+                # ── Step 4: Build response content ──────────────────────
+                response_content = content or '{}'
+
+                # ── Step 5: Validate and format ─────────────────────────
+                fmt_result = format_and_validate(
+                    ux_component_id,
+                    response_content,
+                    agent_artifact_content,
+                )
+                if not fmt_result.ok:
+                    return error_result('VALIDATION_ERROR', fmt_result.error)
+
+                # ── Step 6: Upload response artifact ────────────────────
+                has_content = bool(content or filePath)
+                if action != 'SAVE_DRAFT' or has_content:
+                    response_artifact_id = await upload_json_artifact(
+                        workspace_id=workspaceId,
+                        job_id=jobId,
+                        content=fmt_result.content,
+                    )
+
+                # ── Step 7: Route to correct API based on action ────────
+                if action == 'SAVE_DRAFT':
+                    update_req = UpdateHitlTaskRequest(
+                        workspaceId=workspaceId,
+                        jobId=jobId,
+                        taskId=taskId,
+                        humanArtifact=(
+                            HitlTaskArtifact(artifactId=response_artifact_id)
+                            if response_artifact_id
+                            else None
+                        ),
+                    )
+                    await call_fes('UpdateHitlTask', update_req)
+
+                elif action == 'SEND_FOR_APPROVAL':
                     await call_fes(
-                        'SubmitCriticalHitlTask',
-                        SubmitCriticalHitlTaskRequest(
+                        'UpdateHitlTask',
+                        UpdateHitlTaskRequest(
                             workspaceId=workspaceId,
                             jobId=jobId,
                             taskId=taskId,
-                            action=action,
                             humanArtifact=HitlTaskArtifact(artifactId=response_artifact_id),
-                            idempotencyToken=str(uuid.uuid4()),
+                            postUpdateAction='SEND_FOR_APPROVAL',
                         ),
                     )
+
                 else:
-                    await call_fes(
-                        'SubmitStandardHitlTask',
-                        SubmitStandardHitlTaskRequest(
-                            workspaceId=workspaceId,
-                            jobId=jobId,
-                            taskId=taskId,
-                            action=action,
-                            humanArtifact=HitlTaskArtifact(artifactId=response_artifact_id),
-                            idempotencyToken=str(uuid.uuid4()),
-                        ),
-                    )
+                    # APPROVE or REJECT
+                    if severity == 'CRITICAL':
+                        await call_fes(
+                            'SubmitCriticalHitlTask',
+                            SubmitCriticalHitlTaskRequest(
+                                workspaceId=workspaceId,
+                                jobId=jobId,
+                                taskId=taskId,
+                                action=action,
+                                humanArtifact=HitlTaskArtifact(artifactId=response_artifact_id),
+                                idempotencyToken=str(uuid.uuid4()),
+                            ),
+                        )
+                    else:
+                        await call_fes(
+                            'SubmitStandardHitlTask',
+                            SubmitStandardHitlTaskRequest(
+                                workspaceId=workspaceId,
+                                jobId=jobId,
+                                taskId=taskId,
+                                action=action,
+                                humanArtifact=HitlTaskArtifact(artifactId=response_artifact_id),
+                                idempotencyToken=str(uuid.uuid4()),
+                            ),
+                        )
 
             updated_result = await call_fes(
                 'GetHitlTask',

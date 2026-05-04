@@ -98,7 +98,9 @@ class TestInProgressJob:
             {'hitlTasks': []},
         ]
 
-        result = await handler.get_job_status(ctx, workspaceId='ws-1', jobId='job-1')
+        result = await handler.get_job_status(
+            ctx, workspaceId='ws-1', jobId='job-1', detailed=True
+        )
         parsed = _parse(result)
 
         assert parsed['success'] is True
@@ -138,7 +140,9 @@ class TestCompletedJob:
             {'hitlTasks': []},
         ]
 
-        result = await handler.get_job_status(ctx, workspaceId='ws-1', jobId='job-1')
+        result = await handler.get_job_status(
+            ctx, workspaceId='ws-1', jobId='job-1', detailed=True
+        )
         parsed = _parse(result)
 
         assert parsed['success'] is True
@@ -165,7 +169,9 @@ class TestFailedJob:
             {'hitlTasks': []},
         ]
 
-        result = await handler.get_job_status(ctx, workspaceId='ws-1', jobId='job-1')
+        result = await handler.get_job_status(
+            ctx, workspaceId='ws-1', jobId='job-1', detailed=True
+        )
         parsed = _parse(result)
 
         guidance = parsed['data']['_pollingGuidance']
@@ -197,7 +203,9 @@ class TestPendingHitlTasks:
             },
         ]
 
-        result = await handler.get_job_status(ctx, workspaceId='ws-1', jobId='job-1')
+        result = await handler.get_job_status(
+            ctx, workspaceId='ws-1', jobId='job-1', detailed=True
+        )
         parsed = _parse(result)
 
         guidance = parsed['data']['_pollingGuidance']
@@ -224,7 +232,9 @@ class TestGetJobFails:
             {'hitlTasks': []},
         ]
 
-        result = await handler.get_job_status(ctx, workspaceId='ws-1', jobId='job-1')
+        result = await handler.get_job_status(
+            ctx, workspaceId='ws-1', jobId='job-1', detailed=True
+        )
         parsed = _parse(result)
 
         assert parsed['success'] is False
@@ -252,7 +262,9 @@ class TestPartialFailures:
             {'hitlTasks': []},
         ]
 
-        result = await handler.get_job_status(ctx, workspaceId='ws-1', jobId='job-1')
+        result = await handler.get_job_status(
+            ctx, workspaceId='ws-1', jobId='job-1', detailed=True
+        )
         parsed = _parse(result)
 
         assert parsed['success'] is True
@@ -282,9 +294,226 @@ class TestCancellationInProgress:
             {'hitlTasks': []},
         ]
 
-        result = await handler.get_job_status(ctx, workspaceId='ws-1', jobId='job-1')
+        result = await handler.get_job_status(
+            ctx, workspaceId='ws-1', jobId='job-1', detailed=True
+        )
         parsed = _parse(result)
 
         guidance = parsed['data']['_pollingGuidance']
         assert guidance['isTerminal'] is False
         assert guidance['jobStatus'] == 'CANCELLATION_IN_PROGRESS'
+
+
+# ── Default path (send_message summary) ────────────────────────────────
+
+_COMMON_MOD = 'awslabs.aws_transform_mcp_server.tools.chat._common'
+
+
+class TestDefaultSendsMessage:
+    @patch(f'{_COMMON_MOD}.asyncio.sleep', new_callable=AsyncMock)
+    @patch(f'{_COMMON_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.job_needs_check', return_value=None)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
+    async def test_returns_assistant_response(
+        self, _cfg, _nudge, mock_fes, mock_poll_fes, mock_sleep, handler, ctx
+    ):
+        mock_fes.side_effect = [
+            # SendMessage
+            {'message': {'messageId': 'msg-sent'}},
+            # ListWorklogs
+            {'worklogs': [{'description': 'Step 3 started'}]},
+        ]
+        mock_poll_fes.side_effect = [
+            {'messageIds': ['msg-resp']},
+            {
+                'messages': [
+                    {
+                        'messageId': 'msg-resp',
+                        'parentMessageId': 'msg-sent',
+                        'messageOrigin': 'SYSTEM',
+                        'processingInfo': {'messageType': 'FINAL_RESPONSE'},
+                        'text': 'Job is 50% complete.',
+                        'createdAt': '2025-01-01T00:00:00Z',
+                    }
+                ]
+            },
+        ]
+
+        result = await handler.get_job_status(ctx, workspaceId='ws-1', jobId='job-1')
+        parsed = _parse(result)
+
+        assert parsed['success'] is True
+        assert parsed['data']['response']['text'] == 'Job is 50% complete.'
+        assert parsed['data']['sentMessage']['messageId'] == 'msg-sent'
+        assert parsed['data']['recentWorklogs']['worklogs'] == [{'description': 'Step 3 started'}]
+        # Verify SendMessage was called with the default status question
+        body = mock_fes.call_args_list[0][0][1]
+        assert 'status' in body.text.lower()
+
+    @patch(f'{_COMMON_MOD}.asyncio.sleep', new_callable=AsyncMock)
+    @patch(f'{_COMMON_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.job_needs_check', return_value=None)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
+    async def test_worklogs_failure_is_non_fatal(
+        self, _cfg, _nudge, mock_fes, mock_poll_fes, mock_sleep, handler, ctx
+    ):
+        mock_fes.side_effect = [
+            {'message': {'messageId': 'msg-sent'}},
+            RuntimeError('worklogs unavailable'),
+        ]
+        mock_poll_fes.side_effect = [
+            {'messageIds': ['msg-resp']},
+            {
+                'messages': [
+                    {
+                        'messageId': 'msg-resp',
+                        'parentMessageId': 'msg-sent',
+                        'messageOrigin': 'SYSTEM',
+                        'processingInfo': {'messageType': 'FINAL_RESPONSE'},
+                        'text': 'Job is running.',
+                    }
+                ]
+            },
+        ]
+
+        result = await handler.get_job_status(ctx, workspaceId='ws-1', jobId='job-1')
+        parsed = _parse(result)
+
+        assert parsed['success'] is True
+        assert parsed['data']['response']['text'] == 'Job is running.'
+        assert parsed['data']['recentWorklogs'] is None
+
+
+class TestDefaultCustomMessage:
+    @patch(f'{_COMMON_MOD}.asyncio.sleep', new_callable=AsyncMock)
+    @patch(f'{_COMMON_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.job_needs_check', return_value=None)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
+    async def test_forwards_custom_message(
+        self, _cfg, _nudge, mock_fes, mock_poll_fes, mock_sleep, handler, ctx
+    ):
+        mock_fes.side_effect = [
+            {'message': {'messageId': 'msg-sent'}},
+            {'worklogs': []},
+        ]
+        mock_poll_fes.side_effect = [
+            {'messageIds': ['msg-resp']},
+            {
+                'messages': [
+                    {
+                        'messageId': 'msg-resp',
+                        'parentMessageId': 'msg-sent',
+                        'messageOrigin': 'SYSTEM',
+                        'processingInfo': {'messageType': 'FINAL_RESPONSE'},
+                        'text': 'No blockers found.',
+                    }
+                ]
+            },
+        ]
+
+        result = await handler.get_job_status(
+            ctx, workspaceId='ws-1', jobId='job-1', message='Any blockers?'
+        )
+        parsed = _parse(result)
+
+        assert parsed['success'] is True
+        body = mock_fes.call_args_list[0][0][1]
+        assert body.text == 'Any blockers?'
+
+
+class TestDefaultTimeout:
+    @patch(f'{_COMMON_MOD}.asyncio.sleep', new_callable=AsyncMock)
+    @patch(f'{_COMMON_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.job_needs_check', return_value=None)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
+    async def test_timeout_returns_guidance(
+        self, _cfg, _nudge, mock_fes, mock_poll_fes, mock_sleep, handler, ctx
+    ):
+        mock_fes.side_effect = [
+            {'message': {'messageId': 'msg-sent'}},
+            {'worklogs': [{'description': 'recent'}]},
+        ]
+        mock_poll_fes.return_value = {'messageIds': []}
+
+        result = await handler.get_job_status(ctx, workspaceId='ws-1', jobId='job-1')
+        parsed = _parse(result)
+
+        assert parsed['success'] is True
+        assert parsed['data']['response'] is None
+        assert 'note' in parsed['data']
+        assert parsed['data']['recentWorklogs']['worklogs'] == [{'description': 'recent'}]
+
+
+class TestDefaultAssistantError:
+    @patch(f'{_COMMON_MOD}.asyncio.sleep', new_callable=AsyncMock)
+    @patch(f'{_COMMON_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.job_needs_check', return_value=None)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
+    async def test_assistant_error_returns_error(
+        self, _cfg, _nudge, mock_fes, mock_poll_fes, mock_sleep, handler, ctx
+    ):
+        mock_fes.side_effect = [
+            {'message': {'messageId': 'msg-sent'}},
+            {'worklogs': []},
+        ]
+        mock_poll_fes.side_effect = [
+            {'messageIds': ['msg-err']},
+            {
+                'messages': [
+                    {
+                        'messageId': 'msg-err',
+                        'parentMessageId': 'msg-sent',
+                        'messageOrigin': 'SYSTEM',
+                        'processingInfo': {'messageType': 'ERROR'},
+                        'text': 'Something went wrong.',
+                    }
+                ]
+            },
+        ]
+
+        result = await handler.get_job_status(ctx, workspaceId='ws-1', jobId='job-1')
+        parsed = _parse(result)
+
+        assert parsed['success'] is False
+        assert parsed['error']['code'] == 'ASSISTANT_ERROR'
+        assert 'detailed=true' in parsed['error']['suggestedAction']
+
+
+class TestDefaultFesException:
+    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.job_needs_check', return_value=None)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
+    async def test_fes_error_returns_failure(self, _cfg, _nudge, mock_fes, handler, ctx):
+        mock_fes.side_effect = [
+            Exception('FES is down'),
+            {'worklogs': []},
+        ]
+
+        result = await handler.get_job_status(ctx, workspaceId='ws-1', jobId='job-1')
+        parsed = _parse(result)
+
+        assert parsed['success'] is False
+        assert parsed['error']['code'] == 'REQUEST_FAILED'
+
+
+class TestDefaultMessageIdExtractionFailed:
+    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.job_needs_check', return_value=None)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
+    async def test_missing_message_id(self, _cfg, _nudge, mock_fes, handler, ctx):
+        mock_fes.side_effect = [
+            {'unexpected': 'shape'},
+            {'worklogs': []},
+        ]
+
+        result = await handler.get_job_status(ctx, workspaceId='ws-1', jobId='job-1')
+        parsed = _parse(result)
+
+        assert parsed['success'] is False
+        assert parsed['error']['code'] == 'MESSAGE_ID_EXTRACTION_FAILED'
+        assert 'detailed=true' in parsed['error']['suggestedAction']

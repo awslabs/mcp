@@ -23,13 +23,13 @@ Do not edit manually -- regenerate from the schema registry.
 """
 # ruff: noqa: E501
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 
 class OutputSchemaMeta:
     """Metadata for a single UX component output schema."""
 
-    __slots__ = ('display_only', 'merge_with_artifact', 'examples', 'json_schema')
+    __slots__ = ('display_only', 'merge_with_artifact', 'examples', 'json_schema', 'chat_hint')
 
     def __init__(
         self,
@@ -38,12 +38,14 @@ class OutputSchemaMeta:
         merge_with_artifact: bool,
         examples: List[Any],
         json_schema: Dict[str, Any],
+        chat_hint: Optional[str] = None,
     ) -> None:
         """Initialize OutputSchemaMeta."""
         self.display_only = display_only
         self.merge_with_artifact = merge_with_artifact
         self.examples = examples
         self.json_schema = json_schema
+        self.chat_hint = chat_hint
 
 
 OUTPUT_SCHEMA_META: Dict[str, OutputSchemaMeta] = {
@@ -4065,6 +4067,12 @@ OUTPUT_SCHEMA_META: Dict[str, OutputSchemaMeta] = {
     'MainframeAssessmentSummaryComponent': OutputSchemaMeta(
         display_only=False,
         merge_with_artifact=False,
+        chat_hint=(
+            'To accept or reject retirement candidates, use send_message scoped to the job '
+            '(e.g. "reject all retirement candidates"). The agent processes the request, '
+            're-runs the assessment, and keeps the task open for further iteration. '
+            'Only use complete_task when the user explicitly wants to finalize the assessment and move on.'
+        ),
         examples=[
             {
                 'acceptRetirementCandidates': {

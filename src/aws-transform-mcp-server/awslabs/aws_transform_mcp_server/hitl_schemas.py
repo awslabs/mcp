@@ -439,12 +439,6 @@ CUSTOMIZATIONS: Dict[str, ComponentCustomization] = {
         skip_validation_after_preprocess=True,
         preprocess=_preprocess_display_only,
     ),
-    'MainframeAssessmentSummaryComponent': ComponentCustomization(
-        template={},
-        hint='Display-only. Server submits empty response automatically.',
-        skip_validation_after_preprocess=True,
-        preprocess=_preprocess_display_only,
-    ),
     'MainframeTransformationResults': ComponentCustomization(
         template={},
         hint='Display-only. Server submits empty response automatically.',
@@ -923,6 +917,8 @@ def enrich_task(task: Dict[str, Any]) -> Dict[str, Any]:
         result['_responseHint'] = hint
     if meta and meta.json_schema:
         result['_outputSchema'] = meta.json_schema
+    if meta and meta.chat_hint:
+        result['_chatHint'] = meta.chat_hint
     return result
 
 

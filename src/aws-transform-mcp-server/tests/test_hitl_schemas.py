@@ -101,6 +101,25 @@ class TestEnrichTask:
             or 'Display-only' in result['_responseHint']
         )
 
+    def test_chat_hint_attached(self):
+        from awslabs.aws_transform_mcp_server.hitl_schemas import enrich_task
+
+        task = {'uxComponentId': 'MainframeAssessmentSummaryComponent', 'taskId': 't-assess'}
+        result = enrich_task(task)
+
+        assert '_chatHint' in result
+        assert 'send_message' in result['_chatHint']
+        assert '_outputSchema' in result
+        assert result['_outputSchema']['displayOnly'] is False
+
+    def test_chat_hint_absent_when_not_set(self):
+        from awslabs.aws_transform_mcp_server.hitl_schemas import enrich_task
+
+        task = {'uxComponentId': 'TextInput', 'taskId': 't-no-hint'}
+        result = enrich_task(task)
+
+        assert '_chatHint' not in result
+
     def test_unknown_component(self):
         from awslabs.aws_transform_mcp_server.hitl_schemas import enrich_task
 
@@ -223,6 +242,22 @@ class TestFormatAndValidate:
         result = format_and_validate('CompleteMigration', '{"ignored": true}')
         assert result.ok is True
         assert json.loads(result.content) == {}
+
+    def test_mainframe_assessment_summary_passthrough(self):
+        from awslabs.aws_transform_mcp_server.hitl_schemas import format_and_validate
+
+        content = json.dumps(
+            {
+                'rejectRetirementCandidates': {
+                    'nodes': [{'node_name': 'PKG-A', 'node_type': 'COBOL'}]
+                },
+            }
+        )
+        result = format_and_validate('MainframeAssessmentSummaryComponent', content)
+        assert result.ok is True
+        parsed = json.loads(result.content)
+        assert 'rejectRetirementCandidates' in parsed
+        assert parsed['rejectRetirementCandidates']['nodes'][0]['node_name'] == 'PKG-A'
 
     def test_unknown_component_passthrough(self):
         from awslabs.aws_transform_mcp_server.hitl_schemas import format_and_validate

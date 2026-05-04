@@ -355,6 +355,18 @@ class GetResourceHandler:
                         except ImportError:
                             pass
 
+                # Override hints for TOOL_APPROVAL tasks
+                if task_data.get('category') == 'TOOL_APPROVAL':
+                    enriched_task['_responseHint'] = (
+                        'TOOL_APPROVAL task — agent is requesting permission to execute a tool. '
+                        'Present the agentArtifactContent to the user, then call '
+                        'complete_task with action=APPROVE or REJECT. '
+                        'Do NOT provide content or filePath — the server skips artifact '
+                        'upload for TOOL_APPROVAL tasks.'
+                    )
+                    enriched_task.pop('_responseTemplate', None)
+                    enriched_task.pop('_outputSchema', None)
+
                 result_data: Dict[str, Any] = {
                     'task': enriched_task,
                     'agentArtifactContent': agent_artifact_content,

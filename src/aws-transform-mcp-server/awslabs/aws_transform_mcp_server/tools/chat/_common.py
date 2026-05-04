@@ -15,6 +15,7 @@
 """Shared constants and helpers for chat tools."""
 
 import asyncio
+import uuid
 from awslabs.aws_transform_mcp_server.fes_client import call_fes
 from awslabs.aws_transform_mcp_server.fes_models import (
     BatchGetMessageRequest,
@@ -22,6 +23,7 @@ from awslabs.aws_transform_mcp_server.fes_models import (
     ListMessagesRequest,
     Metadata,
     ResourcesOnScreen,
+    SendMessageRequest,
     WorkspaceMetadata,
 )
 from awslabs.aws_transform_mcp_server.tool_utils import error_result
@@ -169,3 +171,50 @@ def build_timeout_data(
             'messageType': last_thinking.get('processingInfo', {}).get('messageType'),
         }
     return data
+
+
+class SendAndPollResult(TypedDict):
+    """Result from send_and_poll."""
+
+    sent_msg: Optional[Dict]
+    sent_message_id: Optional[str]
+    poll: PollResult
+
+
+async def send_and_poll(
+    workspaceId: str,
+    jobId: Optional[str],
+    text: str,
+    max_attempts: int = 30,
+) -> SendAndPollResult:
+    """Send a message and poll for the response.
+
+    Returns a SendAndPollResult with sent_msg, sent_message_id, and poll result.
+    Raises on SendMessage failure — callers should wrap in try/except.
+    """
+    import time
+
+    metadata = build_metadata(workspaceId, jobId)
+    start_timestamp = time.time()
+
+    send_result = await call_fes(
+        'SendMessage',
+        SendMessageRequest(
+            text=text,
+            idempotencyToken=str(uuid.uuid4()),
+            metadata=metadata,
+        ),
+    )
+    sent_msg = (
+        send_result.get('message', send_result) if isinstance(send_result, dict) else send_result
+    )
+    sent_message_id = sent_msg.get('messageId') if isinstance(sent_msg, dict) else None
+
+    poll = await poll_for_response(
+        metadata,
+        workspaceId,
+        sent_message_id or '',
+        max_attempts=max_attempts,
+        start_timestamp=start_timestamp,
+    )
+    return SendAndPollResult(sent_msg=sent_msg, sent_message_id=sent_message_id, poll=poll)
