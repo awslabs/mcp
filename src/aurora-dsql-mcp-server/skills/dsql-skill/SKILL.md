@@ -272,7 +272,7 @@ MUST load [ddl-migrations/overview.md](references/ddl-migrations/overview.md) be
 1. Obtain the MySQL DDL (CREATE TABLE, ALTER TABLE statements)
 2. Run `dsql_lint(sql=mysql_ddl, fix=true)` to auto-convert MySQL patterns to DSQL equivalents
 3. Review diagnostics:
-   - `fixed` / `fixed_with_warning`: Accept the mechanical transformations (SERIAL→IDENTITY, JSON→TEXT, remove FOREIGN KEY)
+   - `fixed` / `fixed_with_warning`: Accept the mechanical transformations
    - `unfixable`: Apply manual rewrites using type mappings below
 4. Execute validated SQL with transact (one DDL per transaction)
 
@@ -314,7 +314,7 @@ Validates arbitrary SQL (PostgreSQL, MySQL, ORM-generated) for DSQL compatibilit
 2. Run `dsql_lint(sql=source_sql, fix=true)`
 3. For each diagnostic in the response:
    - `fixed`: Accept — safe mechanical transformation
-   - `fixed_with_warning`: Present to user — explain application-layer implications (e.g., removed foreign key requires app-layer referential integrity)
+   - `fixed_with_warning`: Present to user — explain application-layer implications
    - `unfixable`: Rewrite manually using skill knowledge (Table Recreation for `unsupported_alter_table_op`, DELETE for `truncate`, omit for `partition_by`)
 4. Take `fixed_sql` from the response
 5. If `fixed_sql` contains multiple DDL statements, split into one-per-transaction (dsql_lint already wraps each in BEGIN/COMMIT when it fixes `multi_ddl_transaction`)
