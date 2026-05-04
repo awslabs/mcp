@@ -22,6 +22,7 @@ import threading
 from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection
 from awslabs.postgres_mcp_server.connection.cp_api_connection import (
     DEFAULT_POSTGRES_PORT,
+    find_proxy_for_instance,
     internal_create_express_cluster,
     internal_create_serverless_cluster,
     internal_get_cluster_properties,
@@ -729,6 +730,22 @@ def internal_create_connection(
             db_endpoint = resolved_host
         if resolved_port:
             port = resolved_port
+
+        # Check if an RDS Proxy fronts this instance and route through it if so
+        db_instance_id = instance_properties.get('DBInstanceIdentifier', '')
+        if db_instance_id:
+            proxy_endpoint = find_proxy_for_instance(db_instance_id, region)
+            if proxy_endpoint:
+                logger.info(
+                    f"Routing connection through RDS Proxy endpoint '{proxy_endpoint}' "
+                    f"instead of direct instance endpoint '{db_endpoint}'"
+                )
+                db_endpoint = proxy_endpoint
+            else:
+                logger.info(
+                    f"No RDS Proxy detected for instance '{db_instance_id}', "
+                    f"using direct instance endpoint '{db_endpoint}'"
+                )
 
     logger.info(
         f'About to create internal DB connections with:'

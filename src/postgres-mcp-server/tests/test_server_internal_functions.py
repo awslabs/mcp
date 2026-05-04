@@ -222,13 +222,16 @@ class TestInternalCreateConnection:
                 'awslabs.postgres_mcp_server.server.internal_get_instance_properties'
             ) as mock_props,
             patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
+            patch('awslabs.postgres_mcp_server.server.find_proxy_for_instance') as mock_proxy,
         ):
             mock_map.get.return_value = None
             mock_props.return_value = {
                 'MasterUsername': 'postgres',
                 'MasterUserSecret': {'SecretArn': 'arn:secret'},
                 'Endpoint': {'Port': 5432},
+                'DBInstanceIdentifier': 'my-instance',
             }
+            mock_proxy.return_value = None
             mock_connection = MagicMock()
             mock_pg_conn.return_value = mock_connection
 
@@ -244,6 +247,114 @@ class TestInternalCreateConnection:
 
             assert conn == mock_connection
             mock_props.assert_called_once()
+            mock_proxy.assert_called_once_with('my-instance', 'us-east-1')
+
+    def test_rpg_instance_routes_through_proxy_when_found(self):
+        """Test that connection routes through RDS Proxy when one is found."""
+        with (
+            patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map,
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_instance_properties'
+            ) as mock_props,
+            patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
+            patch('awslabs.postgres_mcp_server.server.find_proxy_for_instance') as mock_proxy,
+        ):
+            mock_map.get.return_value = None
+            mock_props.return_value = {
+                'MasterUsername': 'postgres',
+                'MasterUserSecret': {'SecretArn': 'arn:secret'},
+                'Endpoint': {'Port': 5432},
+                'DBInstanceIdentifier': 'my-instance',
+            }
+            mock_proxy.return_value = 'my-proxy.proxy-abc123.us-east-1.rds.amazonaws.com'
+            mock_connection = MagicMock()
+            mock_pg_conn.return_value = mock_connection
+
+            conn, response = internal_create_connection(
+                region='us-east-1',
+                database_type=DatabaseType.RPG,
+                connection_method=ConnectionMethod.PG_WIRE_PROTOCOL,
+                cluster_identifier='',
+                db_endpoint='instance.endpoint.com',
+                port=5432,
+                database='testdb',
+            )
+
+            assert conn == mock_connection
+            mock_proxy.assert_called_once_with('my-instance', 'us-east-1')
+            # Verify the proxy endpoint was used instead of the direct endpoint
+            call_kwargs = mock_pg_conn.call_args[1]
+            assert call_kwargs['host'] == 'my-proxy.proxy-abc123.us-east-1.rds.amazonaws.com'
+
+    def test_rpg_instance_uses_direct_endpoint_when_no_proxy(self):
+        """Test that direct endpoint is used when no RDS Proxy is found."""
+        with (
+            patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map,
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_instance_properties'
+            ) as mock_props,
+            patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
+            patch('awslabs.postgres_mcp_server.server.find_proxy_for_instance') as mock_proxy,
+        ):
+            mock_map.get.return_value = None
+            mock_props.return_value = {
+                'MasterUsername': 'postgres',
+                'MasterUserSecret': {'SecretArn': 'arn:secret'},
+                'Endpoint': {'Port': 5432},
+                'DBInstanceIdentifier': 'my-instance',
+            }
+            mock_proxy.return_value = None
+            mock_connection = MagicMock()
+            mock_pg_conn.return_value = mock_connection
+
+            conn, response = internal_create_connection(
+                region='us-east-1',
+                database_type=DatabaseType.RPG,
+                connection_method=ConnectionMethod.PG_WIRE_PROTOCOL,
+                cluster_identifier='',
+                db_endpoint='instance.endpoint.com',
+                port=5432,
+                database='testdb',
+            )
+
+            assert conn == mock_connection
+            # Verify the original direct endpoint was used
+            call_kwargs = mock_pg_conn.call_args[1]
+            assert call_kwargs['host'] == 'instance.endpoint.com'
+
+    def test_rpg_instance_skips_proxy_lookup_when_no_instance_id(self):
+        """Test that proxy lookup is skipped when DBInstanceIdentifier is empty."""
+        with (
+            patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map,
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_instance_properties'
+            ) as mock_props,
+            patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
+            patch('awslabs.postgres_mcp_server.server.find_proxy_for_instance') as mock_proxy,
+        ):
+            mock_map.get.return_value = None
+            mock_props.return_value = {
+                'MasterUsername': 'postgres',
+                'MasterUserSecret': {'SecretArn': 'arn:secret'},
+                'Endpoint': {'Port': 5432},
+                'DBInstanceIdentifier': '',
+            }
+            mock_connection = MagicMock()
+            mock_pg_conn.return_value = mock_connection
+
+            conn, response = internal_create_connection(
+                region='us-east-1',
+                database_type=DatabaseType.RPG,
+                connection_method=ConnectionMethod.PG_WIRE_PROTOCOL,
+                cluster_identifier='',
+                db_endpoint='instance.endpoint.com',
+                port=5432,
+                database='testdb',
+            )
+
+            assert conn == mock_connection
+            # Proxy lookup should not have been called
+            mock_proxy.assert_not_called()
 
     def test_uses_cluster_endpoint_when_not_provided(self):
         """Test that cluster endpoint is used when db_endpoint is not provided."""
