@@ -317,7 +317,7 @@ Validates arbitrary SQL (PostgreSQL, MySQL, ORM-generated) for DSQL compatibilit
    - `fixed_with_warning`: Present to user — explain application-layer implications
    - `unfixable`: Rewrite manually using skill knowledge (Table Recreation for `unsupported_alter_table_op`, DELETE for `truncate`, omit for `partition_by`)
 4. Take `fixed_sql` from the response
-5. If `fixed_sql` contains multiple DDL statements, split into one-per-transaction (dsql_lint already wraps each in BEGIN/COMMIT when it fixes `multi_ddl_transaction`)
+5. If `fixed_sql` contains multiple DDL statements, issue each as a separate `transact` call
 6. Execute each DDL with `transact(["<single DDL statement>"])`
 7. Verify schema with `get_schema`
 
