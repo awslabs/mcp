@@ -189,14 +189,8 @@ if _is_service_enabled('gateway'):  # pragma: no cover
 
         register_gateway_tools(mcp)
         logger.info('Gateway tools registered (15 tools)')
-    except (ImportError, AttributeError):
-        # Sub-package not yet installed — fall back to flat guide
-        try:
-            from .tools import gateway as _gw_flat
-
-            mcp.tool()(_gw_flat.manage_agentcore_gateway)
-        except ImportError:
-            logger.error('Gateway tools disabled — no module found.')
+    except ImportError as e:
+        logger.error(f'Gateway tools disabled — failed to import: {e}.')
     except Exception as e:
         logger.error(
             f'Gateway tools disabled — initialization failed: {e}. '

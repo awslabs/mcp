@@ -15,6 +15,8 @@
 """AWS HealthLake MCP Server implementation."""
 
 # Standard library imports
+# Third-party imports
+import httpx
 import json
 
 # Local imports
@@ -27,8 +29,6 @@ from .models import (
     JobFilter,
     UpdateResourceRequest,
 )
-
-# Third-party imports
 from botocore.exceptions import ClientError, NoCredentialsError
 from datetime import datetime
 from loguru import logger
@@ -420,7 +420,7 @@ def create_healthlake_server(read_only: bool = False) -> Server:
                         },
                         'next_token': {
                             'type': 'string',
-                            'description': "Pagination token for retrieving the next page of results. Use the complete URL from a previous response's pagination.next_token field. When provided, other search parameters are ignored.",
+                            'description': 'Opaque pagination token returned by a prior call to this tool. Treat as an unmodifiable string - do not construct, parse, or modify. Never pass a URL here, even one taken from a FHIR Bundle link; only values this tool emitted in an earlier pagination.next_token field are valid. When provided, other search parameters are ignored.',
                         },
                     },
                     'required': ['datastore_id', 'resource_type'],
@@ -454,7 +454,7 @@ def create_healthlake_server(read_only: bool = False) -> Server:
                         },
                         'next_token': {
                             'type': 'string',
-                            'description': "Pagination token for retrieving the next page of results. Use the complete URL from a previous response's pagination.next_token field.",
+                            'description': 'Opaque pagination token returned by a prior call to this tool. Treat as an unmodifiable string - do not construct, parse, or modify. Never pass a URL here, even one taken from a FHIR Bundle link; only values this tool emitted in an earlier pagination.next_token field are valid.',
                         },
                     },
                     'required': ['datastore_id', 'patient_id'],
@@ -658,6 +658,59 @@ def create_healthlake_server(read_only: bool = False) -> Server:
         except NoCredentialsError:
             logger.error(f'Credentials error in {name}')
             return create_error_response('AWS credentials not configured', 'auth_error')
+        except PermissionError as e:
+            # Client methods (notably start_import_job / start_export_job)
+            # rewrap boto3 ``AccessDeniedException`` as ``PermissionError``
+            # to preserve the server's distinction between
+            # ``validation_error`` and ``auth_error`` without leaking
+            # boto3's ClientError shape to the MCP layer. Without this
+            # branch the call would fall into the catch-all below and be
+            # reported as a generic ``server_error``, masking the fact
+            # that the data-access role is the problem.
+            logger.warning(f'Permission error in {name}: {e}')
+            return create_error_response(str(e), 'auth_error')
+        except httpx.HTTPStatusError as e:
+            # Data-plane (FHIR REST) errors travel through httpx, not
+            # boto3's ClientError, so they need their own mapping.
+            status = e.response.status_code if e.response is not None else None
+            logger.warning(f'HealthLake FHIR REST error in {name}: status={status}')
+            if status in (404, 410):
+                # 410 Gone is HealthLake's signal for "resource existed,
+                # has been deleted"; semantically equivalent to 404 for
+                # callers, so we collapse both to ``not_found`` rather
+                # than surface a confusing ``HTTP 410`` service_error.
+                return create_error_response('Resource not found', 'not_found')
+            elif status == 400:
+                # HealthLake typically returns a FHIR OperationOutcome on 400.
+                # Surface its diagnostics when available so callers get an
+                # actionable message instead of a generic one.
+                message = 'Invalid FHIR request'
+                try:
+                    body = e.response.json()
+                    if isinstance(body, dict) and body.get('resourceType') == 'OperationOutcome':
+                        issues = body.get('issue') or []
+                        if issues and isinstance(issues, list):
+                            first = issues[0] or {}
+                            diag = first.get('diagnostics') or (
+                                first.get('details', {}) or {}
+                            ).get('text')
+                            if diag:
+                                message = f'Invalid FHIR request: {diag}'
+                except Exception:  # nosec B110 - body parse is best-effort
+                    # Body was not JSON / not an OperationOutcome; fall
+                    # back to the generic ``Invalid FHIR request`` message.
+                    # Swallowing parse errors here is intentional: the
+                    # upstream 400 status is the actionable signal, and we
+                    # don't want a malformed body to downgrade that to a
+                    # generic ``server_error``.
+                    pass
+                return create_error_response(message, 'validation_error')
+            elif status in (401, 403):
+                return create_error_response('Access denied by HealthLake', 'auth_error')
+            else:
+                return create_error_response(
+                    f'HealthLake service error (HTTP {status})', 'service_error'
+                )
         except Exception:
             logger.exception('Unexpected error in tool call', tool=name)
             return create_error_response('Internal server error', 'server_error')

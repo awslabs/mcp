@@ -91,23 +91,49 @@ class TestDatastoreFilter:
 
     def test_valid_active_filter(self):
         """Test valid ACTIVE filter."""
-        filter_obj = DatastoreFilter(status='ACTIVE')
+        # ``status=`` still works at runtime thanks to ``populate_by_name``,
+        # but pyright's Pydantic plugin only sees the aliased parameter.
+        filter_obj = DatastoreFilter(status='ACTIVE')  # pyright: ignore[reportCallIssue]
         assert filter_obj.status == 'ACTIVE'
 
     def test_valid_creating_filter(self):
         """Test valid CREATING filter."""
-        filter_obj = DatastoreFilter(status='CREATING')
+        filter_obj = DatastoreFilter(status='CREATING')  # pyright: ignore[reportCallIssue]
         assert filter_obj.status == 'CREATING'
 
     def test_none_status(self):
         """Test None status (optional field)."""
-        filter_obj = DatastoreFilter(status=None)
+        filter_obj = DatastoreFilter(status=None)  # pyright: ignore[reportCallIssue]
         assert filter_obj.status is None
 
     def test_invalid_status_value(self):
         """Test invalid status value."""
         with pytest.raises(ValidationError):
-            DatastoreFilter(status='INVALID_STATUS')
+            DatastoreFilter(status='INVALID_STATUS')  # pyright: ignore[reportCallIssue]
+
+    def test_filter_alias_populates_status(self):
+        """The MCP input name ``filter`` populates the underlying ``status``.
+
+        Regression test: the tool schema names this input ``filter``;
+        ensure it populates the same underlying field as ``status`` so
+        the handler actually forwards it to HealthLake.
+        """
+        filter_obj = DatastoreFilter(filter='DELETED')
+        assert filter_obj.status == 'DELETED'
+
+    def test_filter_alias_rejects_invalid_value(self):
+        """The pattern still applies when using the ``filter`` alias."""
+        with pytest.raises(ValidationError):
+            DatastoreFilter(filter='INVALID_STATUS')
+
+    def test_filter_alias_allows_unknown_kwargs_to_be_ignored(self):
+        """Unknown kwargs stay ignored (pydantic default) after the fix.
+
+        The real regression we're guarding against is that ``filter``
+        *used to* be treated as unknown and silently dropped.
+        """
+        filter_obj = DatastoreFilter(filter='ACTIVE')
+        assert filter_obj.status == 'ACTIVE'
 
 
 class TestImportJobConfig:
@@ -195,10 +221,10 @@ class TestValidationFunctions:
 
     def test_validate_datastore_id_invalid_length(self):
         """Test invalid datastore ID length."""
-        with pytest.raises(ValueError, match='Datastore ID must be 32 characters'):
+        with pytest.raises(ValueError, match='Datastore ID must be 32 alphanumeric characters'):
             validate_datastore_id('short-id')
 
     def test_validate_datastore_id_empty(self):
         """Test empty datastore ID."""
-        with pytest.raises(ValueError, match='Datastore ID must be 32 characters'):
+        with pytest.raises(ValueError, match='Datastore ID must be 32 alphanumeric characters'):
             validate_datastore_id('')
