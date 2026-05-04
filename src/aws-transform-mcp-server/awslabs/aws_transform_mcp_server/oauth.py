@@ -68,7 +68,7 @@ def _open_browser(url: str) -> None:
             # ['cmd', '/c', 'start', '', url] gets reassembled into a single
             # command line by CreateProcess, and cmd.exe then interprets '&' in
             # the URL as a command separator — truncating query parameters.
-            subprocess.Popen(
+            subprocess.Popen(  # nosec B602 - url is built from OIDC endpoint, not user input
                 f'cmd /c start "" "{url}"',
                 shell=True,
                 **popen_kwargs,
