@@ -16,6 +16,7 @@
 
 import asyncio
 import json
+import re
 from .aws_clients import applicationsignals_client, logs_client, xray_client
 from .sli_report_client import AWSConfig, SLIReportClient
 from .utils import remove_null_values
@@ -24,6 +25,43 @@ from loguru import logger
 from pydantic import Field
 from time import perf_counter as timer
 from typing import Dict, Optional
+
+
+OTEL_TRACE_DATA_FORMAT = 'AWS-OTEL-TRACE-V1'
+
+# Match @data_format only as a whole token, not as a prefix of e.g. @data_format_version.
+_DATA_FORMAT_PATTERN = re.compile(r'@data_format\b', re.IGNORECASE)
+
+
+def _user_query_has_source_clause(user_query: str) -> bool:
+    """Return True if the user's query begins with a SOURCE command token."""
+    first_token = user_query.lstrip().split(None, 1)[:1]
+    return bool(first_token) and first_token[0].lower() == 'source'
+
+
+def _compose_spans_query(user_query: str, log_group_name: str) -> str:
+    """Prepend SOURCE logGroups() and filterIndex @data_format clauses to a user query.
+
+    - If the user already started the query with a SOURCE command, the query is
+      returned untouched (the user has taken control of log-group scoping).
+    - If the user already references @data_format anywhere, the filterIndex clause
+      is not prepended (the user has taken control of the format filter).
+    - Otherwise, the SOURCE clause is prepended only when no explicit log group
+      was supplied — when one is supplied, StartQuery's logGroupNames parameter
+      scopes the query, so SOURCE is omitted.
+    """
+    if _user_query_has_source_clause(user_query):
+        return user_query
+
+    prefix_parts = []
+    if not log_group_name:
+        prefix_parts.append('SOURCE logGroups()')
+    if not _DATA_FORMAT_PATTERN.search(user_query):
+        prefix_parts.append(f'filterIndex @data_format = "{OTEL_TRACE_DATA_FORMAT}"')
+
+    if not prefix_parts:
+        return user_query
+    return ' | '.join(prefix_parts) + ' | ' + user_query
 
 
 def get_trace_summaries_paginated(
@@ -118,7 +156,13 @@ def check_transaction_search_enabled(region: str = 'us-east-1') -> tuple[bool, s
 async def search_transaction_spans(
     log_group_name: str = Field(
         default='',
-        description='CloudWatch log group name (defaults to "aws/spans" if not provided)',
+        description=(
+            'Optional CloudWatch Logs log group name. If omitted, the query runs across '
+            'all log groups in the account (up to the CloudWatch Logs Insights cap, '
+            'currently 10,000) and is pruned via the default @data_format field index '
+            'to log groups carrying AWS-OTEL-TRACE-V1 spans. Supply a log group name '
+            'to avoid the account-wide scan when you already know where the spans live.'
+        ),
     ),
     start_time: str = Field(
         default='', description='Start time in ISO 8601 format (e.g., "2025-04-19T20:00:00+00:00")'
@@ -134,13 +178,35 @@ async def search_transaction_spans(
 ) -> Dict:
     """Executes a CloudWatch Logs Insights query for transaction search (100% sampled trace data).
 
-    IMPORTANT: If log_group_name is not provided use 'aws/spans' as default cloudwatch log group name.
-    The volume of returned logs can easily overwhelm the agent context window. Always include a limit in the query
-    (| limit 50) or using the limit parameter.
+    The tool targets OpenTelemetry trace spans that AWS has ingested as
+    `@data_format = "AWS-OTEL-TRACE-V1"` (e.g., Transaction Search destinations,
+    spans fanned out via subscription filters). Spans written without that tag
+    (e.g., raw OTLP to a custom log group) will not match — pass an explicit
+    `log_group_name` and your own query in that case.
+
+    Unless overridden, the tool prepends `filterIndex @data_format = "AWS-OTEL-TRACE-V1"`
+    to the user's query. `@data_format` is a CloudWatch Logs default field index, so in
+    cross-log-group mode this prunes non-matching log groups before scanning; in single
+    log group mode it just drops non-matching records within that log group.
+
+    Log group selection:
+    - If `log_group_name` is omitted, the tool prepends `SOURCE logGroups()` so the
+      query runs across all log groups in the account (up to the CloudWatch Logs
+      Insights cap, currently 10,000).
+    - If `log_group_name` is provided, the query is scoped to that single log group
+      via the `logGroupNames` API parameter.
+    - If the user's query already begins with a `SOURCE` clause, the tool leaves the
+      query untouched and does not set `logGroupNames` (the user's `SOURCE` wins —
+      CloudWatch rejects sending both).
+    - If the user's query already references `@data_format`, the tool does not add a
+      second filter.
+
+    The volume of returned logs can easily overwhelm the agent context window. Always
+    include a limit in the query (| limit 50) or via the limit parameter.
 
     Usage:
-    "aws/spans" log group stores OpenTelemetry Spans data with many attributes for all monitored services.
-    This provides 100% sampled data vs X-Ray's 5% sampling, giving more accurate results.
+    OpenTelemetry Spans contain many attributes for all monitored services and provide
+    100% sampled data vs X-Ray's 5% sampling, giving more accurate results.
     User can write CloudWatch Logs Insights queries to group, list attribute with sum, avg.
     If source code is not accessible, consider querying with code-level attributes.
     ⚠️ Use CORRECT attribute names: attributes.code.file.path, attributes.code.function.name, attributes.code.line.number
@@ -192,19 +258,23 @@ async def search_transaction_spans(
         }
 
     try:
-        # Use default log group if none provided
-        if not log_group_name:
-            log_group_name = 'aws/spans'
-            logger.debug('Using default log group: aws/spans')
+        final_query = _compose_spans_query(query_string, log_group_name)
+        logger.debug(f'Composed Logs Insights query: {final_query}')
 
-        # Start query
-        kwargs = {
+        kwargs: Dict = {
             'startTime': int(datetime.fromisoformat(start_time).timestamp()),
             'endTime': int(datetime.fromisoformat(end_time).timestamp()),
-            'queryString': query_string,
-            'logGroupNames': [log_group_name],
+            'queryString': final_query,
             'limit': limit,
         }
+        # StartQuery rejects logGroupNames when queryString already contains a
+        # SOURCE clause, so let the user's SOURCE win in that case.
+        if log_group_name and not _user_query_has_source_clause(query_string):
+            kwargs['logGroupNames'] = [log_group_name]
+        elif log_group_name:
+            logger.warning(
+                'log_group_name is ignored because query_string already specifies a SOURCE clause'
+            )
 
         logger.debug(f'Starting CloudWatch Logs query with limit: {limit}')
         start_response = logs_client.start_query(**remove_null_values(kwargs))
