@@ -15,7 +15,7 @@
 
 import json
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 from awslabs.aurora_dsql_mcp_server.server import dsql_lint
 
 
