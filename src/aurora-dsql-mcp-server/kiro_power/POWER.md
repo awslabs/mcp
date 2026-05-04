@@ -2,7 +2,7 @@
 name: "amazon-aurora-dsql"
 displayName: "Build applications with Aurora DSQL"
 description: "Build applications using a serverless, PostgreSQL-compatible database with scale-to-zero and pay-per-use pricing - built for applications at any scale."
-keywords: ["aurora", "dsql", "postgresql", "serverless", "database", "sql", "aws", "distributed"]
+keywords: ["aurora", "dsql", "postgresql", "serverless", "database", "sql", "aws", "distributed", "migrate", "lint", "orm"]
 author: "AWS"
 ---
 
@@ -82,6 +82,9 @@ This power includes the following steering files in [steering](./steering)
   - Load when setting up connection pooling or connectivity tools
 - **auth-scaling**
   - Load when planning connection scaling patterns
+- **dsql-lint**
+  - SHOULD load when validating SQL for DSQL compatibility, migrating schemas, or working with ORM-generated migrations
+  - `dsql_lint` MCP tool reference, rule vocabulary, fix result statuses, ORM integration patterns, unfixable error resolution
 
 ---
 
@@ -94,10 +97,13 @@ The `aurora-dsql` MCP server provides these tools:
 2. **transact** - Execute DDL/DML statements in transaction (takes list of SQL statements)
 3. **get_schema** - Get table structure for a specific table
 
+**SQL Validation:**
+4. **dsql_lint** - Validate SQL for DSQL compatibility and optionally auto-fix issues. Returns diagnostics with rule violations, suggestions, and DSQL-compatible fixed SQL. Use before executing externally-sourced SQL.
+
 **Documentation & Knowledge:**
-4. **dsql_search_documentation** - Search Aurora DSQL documentation
-5. **dsql_read_documentation** - Read specific documentation pages
-6. **dsql_recommend** - Get DSQL best practice recommendations
+5. **dsql_search_documentation** - Search Aurora DSQL documentation
+6. **dsql_read_documentation** - Read specific documentation pages
+7. **dsql_recommend** - Get DSQL best practice recommendations
 
 ---
 
@@ -170,11 +176,15 @@ Authorize the caller against the tenant **before** validating format or calling 
 
 ### Workflow 2: Safe Data Migration
 
-1. Add column using `transact`: `transact(["ALTER TABLE ... ADD COLUMN ..."])`
-2. Populate existing rows with UPDATE in separate `transact` calls (batched under 3,000 rows)
-3. Verify migration with `readonly_query` using COUNT
-4. Create async index for new column using `transact` if needed
+1. Draft the ALTER TABLE / DDL statement
+2. Validate with `dsql_lint(sql=..., fix=false)` — confirm no compatibility issues
+3. If diagnostics found, use `dsql_lint(sql=..., fix=true)` and review fixed SQL
+4. Add column using `transact`: `transact(["ALTER TABLE ... ADD COLUMN ..."])`
+5. Populate existing rows with UPDATE in separate `transact` calls (batched under 3,000 rows)
+6. Verify migration with `readonly_query` using COUNT
+7. Create async index for new column using `transact` if needed
 
+- **MUST** validate DDL with `dsql_lint` before executing
 - **MUST** add column first, populate later
 - **MUST** issue ADD COLUMN with only name and type; apply DEFAULT via separate UPDATE
 - **MUST** batch updates under 3,000 rows in separate `transact` calls
@@ -201,17 +211,50 @@ Authorize the caller against the tenant **before** validating format or calling 
 
 DSQL does NOT support direct `ALTER COLUMN TYPE`, `DROP COLUMN`, `DROP CONSTRAINT`, or `MODIFY PRIMARY KEY`. These operations require the **Table Recreation Pattern**.
 
+1. Validate the new CREATE TABLE definition with `dsql_lint(sql=..., fix=true)` before execution
+2. Review diagnostics — confirm the new table structure is DSQL-compatible
+3. Follow the Table Recreation Pattern steps
+
 **MUST** load [ddl-migrations-overview.md](steering/ddl-migrations-overview.md) before attempting any of these operations.
 
 ### Workflow 7: MySQL to DSQL Schema Migration
 
-**MUST** load [mysql-type-mapping.md](steering/mysql-type-mapping.md) for type mappings, feature alternatives, and migration steps.
+1. Obtain the MySQL DDL (CREATE TABLE, ALTER TABLE statements)
+2. Run `dsql_lint(sql=mysql_ddl, fix=true)` to auto-convert MySQL patterns to DSQL equivalents
+3. Review diagnostics:
+   - `fixed` / `fixed_with_warning`: Accept the mechanical transformations
+   - `unfixable`: Apply manual rewrites using type mappings
+4. Execute validated SQL with `transact` (one DDL per transaction)
+
+**MUST** load [mysql-type-mapping.md](steering/mysql-type-mapping.md) for type mappings, feature alternatives, and migration steps when `dsql_lint` reports unfixable issues.
 
 ### Workflow 8: Query Plan Explainability
 
 Explains why the DSQL optimizer chose a particular plan. Triggered by slow queries, high DPU, unexpected Full Scans, or plans the user doesn't understand.
 
 **MUST** load [query-plan-interpretation.md](steering/query-plan-interpretation.md) plus the three companion files (catalog-queries, guc-experiments, report-format) before starting.
+
+### Workflow 9: Validate & Migrate SQL to DSQL
+
+Validates arbitrary SQL (PostgreSQL, MySQL, ORM-generated) for DSQL compatibility and produces executable DSQL-compatible output.
+
+1. Obtain source SQL from user (migration file, ORM output, schema dump, or inline SQL)
+2. Run `dsql_lint(sql=source_sql, fix=true)`
+3. For each diagnostic:
+   - `fixed`: Accept — safe mechanical transformation
+   - `fixed_with_warning`: Present to user — explain application-layer implications
+   - `unfixable`: Rewrite manually using skill knowledge
+4. Take `fixed_sql` from the response
+5. Split into one-DDL-per-transaction (dsql_lint wraps each in BEGIN/COMMIT for `multi_ddl_transaction`)
+6. Execute each DDL with `transact(["<single DDL statement>"])`
+7. Verify schema with `get_schema`
+
+- **MUST** run `dsql_lint` before executing any externally-sourced SQL
+- **MUST** present `fixed_with_warning` items to user before proceeding
+- **MUST** resolve all `unfixable` errors before execution
+- **SHOULD** load [dsql-lint.md](steering/dsql-lint.md) for rule vocabulary and resolution strategies
+
+**ORM-specific:** Django (`sqlmigrate`), Rails (`db:schema:dump`), Prisma (`migrate diff`), TypeORM/Sequelize (generate SQL), SQLAlchemy (`echo=True`) — obtain raw SQL, then lint.
 
 ---
 
