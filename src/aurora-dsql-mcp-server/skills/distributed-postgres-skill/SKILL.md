@@ -1,6 +1,6 @@
 ---
 name: distributed postgres
-description: "Build with Aurora DSQL — manage schemas, execute queries, handle migrations, diagnose query plans, and develop applications with a serverless, distributed SQL database. Covers IAM auth, multi-tenant patterns, MySQL-to-DSQL migration, DDL operations, and query plan explainability. Triggers on phrases like: DSQL, Aurora DSQL, create DSQL table, DSQL schema, migrate to DSQL, distributed SQL database, serverless PostgreSQL-compatible database, DSQL query plan, DSQL EXPLAIN ANALYZE, why is my DSQL query slow."
+description: "Build with Aurora DSQL — manage schemas, execute queries, handle migrations, diagnose query plans, and develop applications with a serverless, distributed SQL database. Covers IAM auth, multi-tenant patterns, MySQL-to-DSQL migration, DDL operations, query plan explainability, and SQL compatibility validation via dsql-lint. Triggers on phrases like: DSQL, Aurora DSQL, create DSQL table, DSQL schema, migrate to DSQL, distributed SQL database, serverless PostgreSQL-compatible database, DSQL query plan, DSQL EXPLAIN ANALYZE, why is my DSQL query slow, lint SQL for DSQL, validate SQL DSQL compatibility, ORM migration DSQL, dsql-lint."
 ---
 
 # Amazon Aurora DSQL Skill
@@ -111,6 +111,13 @@ sampled in [mcp/.mcp.json](mcp/.mcp.json)
 **When:** MUST load all four at Workflow 8 Phase 0 — [query-plan/plan-interpretation.md](references/query-plan/plan-interpretation.md), [query-plan/catalog-queries.md](references/query-plan/catalog-queries.md), [query-plan/guc-experiments.md](references/query-plan/guc-experiments.md), [query-plan/report-format.md](references/query-plan/report-format.md)
 **Contains:** DSQL node types + Node Duration math + estimation-error bands, pg_class/pg_stats/pg_indexes SQL + correlated-predicate verification, GUC experiment procedures + 30-second skip protocol, required report structure + element checklist + support request template
 
+### SQL Compatibility Validation:
+
+#### [dsql-lint.md](references/dsql-lint.md)
+
+**When:** SHOULD load when validating SQL for DSQL compatibility, migrating schemas from other databases, or working with ORM-generated migrations
+**Contains:** `dsql_lint` MCP tool reference, rule vocabulary, fix result statuses, ORM integration patterns, unfixable error resolution strategies
+
 ---
 
 ## MCP Tools Available
@@ -123,11 +130,15 @@ The `aurora-dsql` MCP server provides these tools:
 2. **transact** - Execute DDL/DML statements in transaction (takes list of SQL statements)
 3. **get_schema** - Get table structure for a specific table
 
+**SQL Validation:**
+
+4. **dsql_lint** - Validate SQL for DSQL compatibility and optionally auto-fix issues. Returns diagnostics with rule violations, suggestions, and DSQL-compatible fixed SQL. Use before executing externally-sourced SQL (ORM migrations, pg_dump output, schema files).
+
 **Documentation & Knowledge:**
 
-1. **dsql_search_documentation** - Search Aurora DSQL documentation
-2. **dsql_read_documentation** - Read specific documentation pages
-3. **dsql_recommend** - Get DSQL best practice recommendations
+5. **dsql_search_documentation** - Search Aurora DSQL documentation
+6. **dsql_read_documentation** - Read specific documentation pages
+7. **dsql_recommend** - Get DSQL best practice recommendations
 
 **Note:** There is no `list_tables` tool. Use `readonly_query` with information_schema.
 
@@ -209,11 +220,15 @@ ALTER COLUMN TYPE, DROP COLUMN, DROP CONSTRAINT → Table Recreation Pattern (Wo
 
 ### Workflow 2: Safe Data Migration
 
-1. Add column using transact: `transact(["ALTER TABLE ... ADD COLUMN ..."])`
-2. Populate existing rows with UPDATE in separate transact calls (batched under 3,000 rows)
-3. Verify migration with readonly_query using COUNT
-4. Create async index for new column using transact if needed
+1. Draft the ALTER TABLE / DDL statement
+2. Validate with `dsql_lint(sql=..., fix=false)` — confirm no compatibility issues
+3. If diagnostics found, use `dsql_lint(sql=..., fix=true)` and review fixed SQL
+4. Add column using transact: `transact(["ALTER TABLE ... ADD COLUMN ..."])`
+5. Populate existing rows with UPDATE in separate transact calls (batched under 3,000 rows)
+6. Verify migration with readonly_query using COUNT
+7. Create async index for new column using transact if needed
 
+- MUST validate DDL with `dsql_lint` before executing
 - MUST add column first, populate later
 - MUST issue ADD COLUMN with only name and type; apply DEFAULT via separate UPDATE
 - MUST batch updates under 3,000 rows in separate transact calls
@@ -246,11 +261,22 @@ MUST load [access-control.md](references/access-control.md) for role setup, IAM 
 
 DSQL does NOT support direct `ALTER COLUMN TYPE`, `DROP COLUMN`, `DROP CONSTRAINT`, or `MODIFY PRIMARY KEY`. These operations require the **Table Recreation Pattern** — creating a new table, copying data, dropping the original, and renaming. This is a destructive workflow that requires user confirmation at each step.
 
+1. Validate the new CREATE TABLE definition with `dsql_lint(sql=..., fix=true)` before execution
+2. Review diagnostics — confirm the new table structure is DSQL-compatible
+3. Follow the Table Recreation Pattern steps
+
 MUST load [ddl-migrations/overview.md](references/ddl-migrations/overview.md) before attempting any of these operations.
 
 ### Workflow 7: MySQL to DSQL Schema Migration
 
-MUST load [mysql-migrations/type-mapping.md](references/mysql-migrations/type-mapping.md) for type mappings, feature alternatives, and migration steps.
+1. Obtain the MySQL DDL (CREATE TABLE, ALTER TABLE statements)
+2. Run `dsql_lint(sql=mysql_ddl, fix=true)` to auto-convert MySQL patterns to DSQL equivalents
+3. Review diagnostics:
+   - `fixed` / `fixed_with_warning`: Accept the mechanical transformations (SERIAL→IDENTITY, JSON→TEXT, remove FOREIGN KEY)
+   - `unfixable`: Apply manual rewrites using type mappings below
+4. Execute validated SQL with transact (one DDL per transaction)
+
+MUST load [mysql-migrations/type-mapping.md](references/mysql-migrations/type-mapping.md) for type mappings, feature alternatives, and migration steps when `dsql_lint` reports unfixable issues or for types not covered by auto-fix.
 
 ### Workflow 8: Query Plan Explainability
 
@@ -279,6 +305,35 @@ PGPASSWORD="$TOKEN" psql "host=$HOST port=5432 user=admin dbname=postgres sslmod
 ```
 
 **Safety.** Plan capture uses `readonly_query` exclusively — it rejects INSERT/UPDATE/DELETE/DDL at the MCP layer. Rewrite DML to SELECT (Phase 1) rather than asking `transact --allow-writes` to run it; write-mode `transact` bypasses all MCP safety checks. **MUST NOT** run arbitrary DDL/DML or pl/pgsql.
+
+### Workflow 9: Validate & Migrate SQL to DSQL
+
+Validates arbitrary SQL (PostgreSQL, MySQL, ORM-generated) for DSQL compatibility and produces executable DSQL-compatible output. Use for any migration scenario: pg_dump imports, ORM migration files (Django, Rails, Prisma, TypeORM, Sequelize), or hand-written schemas.
+
+1. Obtain source SQL from user (migration file, ORM output, schema dump, or inline SQL)
+2. Run `dsql_lint(sql=source_sql, fix=true)`
+3. For each diagnostic in the response:
+   - `fixed`: Accept — safe mechanical transformation
+   - `fixed_with_warning`: Present to user — explain application-layer implications (e.g., removed foreign key requires app-layer referential integrity)
+   - `unfixable`: Rewrite manually using skill knowledge (Table Recreation for `unsupported_alter_table_op`, DELETE for `truncate`, omit for `partition_by`)
+4. Take `fixed_sql` from the response
+5. If `fixed_sql` contains multiple DDL statements, split into one-per-transaction (dsql_lint already wraps each in BEGIN/COMMIT when it fixes `multi_ddl_transaction`)
+6. Execute each DDL with `transact(["<single DDL statement>"])`
+7. Verify schema with `get_schema`
+
+**Critical rules:**
+- **MUST** run `dsql_lint` before executing any externally-sourced SQL
+- **MUST** present `fixed_with_warning` items to user before proceeding
+- **MUST** resolve all `unfixable` errors before execution (use skill knowledge or ask user)
+- **MUST** issue each DDL in its own `transact` call
+- **SHOULD** load [dsql-lint.md](references/dsql-lint.md) for rule vocabulary and resolution strategies
+
+**ORM-specific guidance:**
+- **Django:** Run `python manage.py sqlmigrate <app> <migration>` to get raw SQL, then lint
+- **Rails:** Export with `rails db:schema:dump` (SQL format), then lint
+- **Prisma:** Use `prisma migrate diff` to get SQL, then lint
+- **TypeORM/Sequelize:** Generate migration SQL, then lint
+- **SQLAlchemy:** Use `metadata.create_all()` with `echo=True` to capture SQL, then lint
 
 ---
 

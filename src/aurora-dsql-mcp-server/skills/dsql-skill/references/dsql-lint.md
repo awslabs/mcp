@@ -4,6 +4,15 @@
 common issues. It provides deterministic, rule-based analysis — more reliable than heuristic
 reasoning for catching DSQL-specific constraints.
 
+## Table of Contents
+
+1. [MCP Tool Reference](#mcp-tool-reference)
+2. [Fix Result Statuses](#fix-result-statuses)
+3. [Rule Vocabulary](#rule-vocabulary)
+4. [Usage Patterns](#usage-patterns)
+5. [Handling Unfixable Errors](#handling-unfixable-errors)
+6. [Exit Codes](#exit-codes-for-reference)
+
 ---
 
 ## MCP Tool Reference
