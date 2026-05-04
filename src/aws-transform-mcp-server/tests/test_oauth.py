@@ -289,10 +289,11 @@ class TestOpenBrowser:
     def test_windows(self, mock_popen, _mock_system):
         from awslabs.aws_transform_mcp_server.oauth import _open_browser
 
-        _open_browser('https://example.com')
+        _open_browser('https://example.com?foo=1&bar=2')
         mock_popen.assert_called_once()
-        args = mock_popen.call_args[0][0]
-        assert args == ['cmd', '/c', 'start', '', 'https://example.com']
+        cmd = mock_popen.call_args[0][0]
+        assert cmd == 'cmd /c start "" "https://example.com?foo=1&bar=2"'
+        assert mock_popen.call_args[1]['shell'] is True
 
     @patch('awslabs.aws_transform_mcp_server.oauth.platform.system', return_value='Linux')
     @patch('awslabs.aws_transform_mcp_server.oauth.subprocess.Popen')
@@ -313,7 +314,6 @@ class TestOpenBrowser:
         from awslabs.aws_transform_mcp_server.oauth import _open_browser
 
         _open_browser('https://example.com')
-        # Should not raise; prints to stderr
         captured = capsys.readouterr()
         assert captured.err.startswith('Could not open browser')
 

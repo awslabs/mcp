@@ -64,7 +64,15 @@ def _open_browser(url: str) -> None:
         if system == 'Darwin':
             subprocess.Popen(['open', url], **popen_kwargs)
         elif system == 'Windows':
-            subprocess.Popen(['cmd', '/c', 'start', '', url], **popen_kwargs)
+            # Must use a shell command string with the URL quoted. The list form
+            # ['cmd', '/c', 'start', '', url] gets reassembled into a single
+            # command line by CreateProcess, and cmd.exe then interprets '&' in
+            # the URL as a command separator — truncating query parameters.
+            subprocess.Popen(
+                f'cmd /c start "" "{url}"',
+                shell=True,
+                **popen_kwargs,
+            )
         else:
             subprocess.Popen(['xdg-open', url], **popen_kwargs)
     except Exception:

@@ -69,7 +69,9 @@ Add to `~/.kiro/settings/mcp.json`:
 Edit the config file for your OS:
 
 - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows (WSL):** `%APPDATA%\Claude\claude_desktop_config.json`
+- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+
+For macOS/Linux:
 
 ```json
 {
@@ -81,6 +83,28 @@ Edit the config file for your OS:
         "AWS_REGION": "us-east-1",
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
+    }
+  }
+}
+```
+
+For Windows:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.aws-transform-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "awslabs.aws-transform-mcp-server@latest",
+        "awslabs.aws-transform-mcp-server.exe"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false
     }
   }
 }
@@ -93,6 +117,8 @@ Edit the config file for your OS:
 
 Add to your MCP settings file (`.cursor/mcp.json`, `.vscode/mcp.json`, or Cline MCP config):
 
+For macOS/Linux:
+
 ```json
 {
   "mcpServers": {
@@ -108,7 +134,53 @@ Add to your MCP settings file (`.cursor/mcp.json`, `.vscode/mcp.json`, or Cline 
 }
 ```
 
+For Windows:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.aws-transform-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "awslabs.aws-transform-mcp-server@latest",
+        "awslabs.aws-transform-mcp-server.exe"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false
+    }
+  }
+}
+```
+
 </details>
+
+### Windows Installation
+
+For Windows users, the MCP server configuration format is slightly different:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.aws-transform-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "awslabs.aws-transform-mcp-server@latest",
+        "awslabs.aws-transform-mcp-server.exe"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "AWS_REGION": "us-east-1"
+      },
+      "disabled": false
+    }
+  }
+}
+```
 
 ### Verify
 
@@ -268,7 +340,6 @@ For components with runtime-defined fields (AutoForm, DynamicHITLRenderEngine), 
 
 - **Cookie auth sessions expire** - No auto-refresh. Re-copy from browser periodically.
 - **SSO tokens expire** - Re-run SSO configuration when tools return auth errors.
-- **Windows is not directly supported** - Use [WSL](https://learn.microsoft.com/en-us/windows/wsl/install).
 
 ## Security
 
