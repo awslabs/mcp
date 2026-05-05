@@ -1,0 +1,231 @@
+{
+  "access_pattern_mapping": {
+    "1": {
+      "consistent_read": true,
+      "description": "Get game details by ID",
+      "entity": "Game",
+      "index_name": null,
+      "method_name": "get_game",
+      "operation": "GetItem",
+      "parameters": [
+        {
+          "name": "game_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 1,
+      "range_condition": null,
+      "repository": "GameRepository",
+      "return_type": "Game | None"
+    },
+    "10": {
+      "description": "Update player ranking in tournament",
+      "entity": "TournamentEntry",
+      "index_name": null,
+      "method_name": "update_ranking",
+      "operation": "UpdateItem",
+      "parameters": [
+        {
+          "name": "tournament_id",
+          "type": "string"
+        },
+        {
+          "name": "ranking",
+          "type": "integer"
+        }
+      ],
+      "pattern_id": 10,
+      "range_condition": null,
+      "repository": "TournamentEntryRepository",
+      "return_type": "TournamentEntry | None"
+    },
+    "11": {
+      "consistent_read": false,
+      "description": "Get game by ID (duplicate of CRUD - should be filtered)",
+      "entity": "Game",
+      "index_name": null,
+      "method_name": "get_game",
+      "operation": "GetItem",
+      "parameters": [
+        {
+          "name": "game_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 11,
+      "range_condition": null,
+      "repository": "GameRepository",
+      "return_type": "Game | None"
+    },
+    "12": {
+      "consistent_read": true,
+      "description": "Get game with metadata verification",
+      "entity": "Game",
+      "index_name": null,
+      "method_name": "get_game_with_verification",
+      "operation": "GetItem",
+      "parameters": [
+        {
+          "name": "game_id",
+          "type": "string"
+        },
+        {
+          "name": "verification_code",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 12,
+      "range_condition": null,
+      "repository": "GameRepository",
+      "return_type": "Game | None"
+    },
+    "2": {
+      "consistent_read": false,
+      "description": "List all games",
+      "entity": "Game",
+      "index_name": null,
+      "method_name": "list_games",
+      "operation": "Scan",
+      "parameters": [],
+      "pattern_id": 2,
+      "range_condition": null,
+      "repository": "GameRepository",
+      "return_type": "tuple[list[Game], dict | None]"
+    },
+    "3": {
+      "consistent_read": false,
+      "description": "Get top scores for a game",
+      "entity": "LeaderboardEntry",
+      "index_name": null,
+      "method_name": "get_top_scores",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "game_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 3,
+      "range_condition": null,
+      "repository": "LeaderboardEntryRepository",
+      "return_type": "tuple[list[LeaderboardEntry], dict | None]"
+    },
+    "4": {
+      "consistent_read": false,
+      "description": "Get all scores for a player",
+      "entity": "LeaderboardEntry",
+      "index_name": "PlayerScoresIndex",
+      "method_name": "get_player_scores",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "player_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 4,
+      "projection": "ALL",
+      "range_condition": null,
+      "repository": "LeaderboardEntryRepository",
+      "return_type": "tuple[list[LeaderboardEntry], dict | None]"
+    },
+    "5": {
+      "description": "Submit a new score",
+      "entity": "LeaderboardEntry",
+      "index_name": null,
+      "method_name": "submit_score",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "LeaderboardEntry",
+          "name": "entry",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 5,
+      "range_condition": null,
+      "repository": "LeaderboardEntryRepository",
+      "return_type": "LeaderboardEntry | None"
+    },
+    "6": {
+      "consistent_read": false,
+      "description": "Get all achievements for a player",
+      "entity": "PlayerAchievement",
+      "index_name": null,
+      "method_name": "get_player_achievements",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "player_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 6,
+      "range_condition": null,
+      "repository": "PlayerAchievementRepository",
+      "return_type": "tuple[list[PlayerAchievement], dict | None]"
+    },
+    "7": {
+      "consistent_read": false,
+      "description": "Get achievements for a game sorted by points",
+      "entity": "PlayerAchievement",
+      "index_name": "GameAchievementsIndex",
+      "method_name": "get_game_achievements",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "game_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 7,
+      "projection": "ALL",
+      "range_condition": null,
+      "repository": "PlayerAchievementRepository",
+      "return_type": "tuple[list[PlayerAchievement], dict | None]"
+    },
+    "8": {
+      "description": "Unlock an achievement for a player",
+      "entity": "PlayerAchievement",
+      "index_name": null,
+      "method_name": "unlock_achievement",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "PlayerAchievement",
+          "name": "achievement",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 8,
+      "range_condition": null,
+      "repository": "PlayerAchievementRepository",
+      "return_type": "PlayerAchievement | None"
+    },
+    "9": {
+      "consistent_read": false,
+      "description": "Get tournament rankings",
+      "entity": "TournamentEntry",
+      "index_name": null,
+      "method_name": "get_tournament_rankings",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "tournament_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 9,
+      "range_condition": null,
+      "repository": "TournamentEntryRepository",
+      "return_type": "tuple[list[TournamentEntry], dict | None]"
+    }
+  },
+  "metadata": {
+    "generated_at": {
+      "timestamp": "auto-generated"
+    },
+    "generator_type": "Jinja2Generator",
+    "total_patterns": 12
+  }
+}

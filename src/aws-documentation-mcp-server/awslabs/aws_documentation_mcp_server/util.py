@@ -16,6 +16,7 @@
 import markdownify
 from awslabs.aws_documentation_mcp_server.models import RecommendationResult
 from typing import Any, Dict, List
+from urllib.parse import quote_plus
 
 
 def extract_content_from_html(html: str) -> str:
@@ -191,6 +192,74 @@ def format_documentation_result(url: str, content: str, start_index: int, max_le
     return result
 
 
+def extract_sections_from_html(html: str, section_titles: List[str]) -> str:
+    """Extract requested sections from HTML.
+
+    Args:
+        html: Raw HTML content
+        section_titles: List of section titles to extract
+
+    Returns:
+        Filtered HTML content containing only the requested sections
+    """
+    if not html or not section_titles:
+        return 'No content or section titles provided'
+
+    from bs4 import BeautifulSoup, Tag
+
+    soup = BeautifulSoup(html, 'html.parser')
+
+    normalized_titles = {}
+    for title in section_titles:
+        normalized_key = ' '.join(title.strip().lower().split())
+        normalized_titles[normalized_key] = title.strip()
+
+    h2_tags = soup.find_all('h2')
+    available_level2_sections = []
+    matched_sections_html = []
+    found_sections = set()
+
+    for h2 in h2_tags:
+        h2_text = h2.get_text(strip=True)
+        available_level2_sections.append(h2_text)
+
+        normalized_h2 = ' '.join(h2_text.lower().split())
+
+        if normalized_h2 in normalized_titles:
+            section_content = [h2]
+
+            for sibling in h2.find_next_siblings():
+                # Only Tag elements have name attribute; skip NavigableStrings
+                if isinstance(sibling, Tag) and sibling.name in ['h1', 'h2']:
+                    break
+                section_content.append(sibling)
+
+            section_html_str = ''.join(str(elem) for elem in section_content)
+            matched_sections_html.append(section_html_str)
+            found_sections.add(normalized_titles[normalized_h2])
+
+    if not found_sections:
+        section_list = ', '.join(f'"{title}"' for title in section_titles)
+        if available_level2_sections:
+            available_list = ', '.join(f'"{section}"' for section in available_level2_sections)
+            error_msg = f'No matching sections were found: {section_list}. Available sections: {available_list}. Please retry with one or more of these sections or use the read_documentation tool instead to get the full document content.'
+            raise ValueError(error_msg)
+        else:
+            error_msg = 'This document does not contain subsections. Please use the read_documentation tool instead to get the full document content.'
+            raise ValueError(error_msg)
+
+    result_html = ''.join(matched_sections_html)
+
+    if len(found_sections) < len(section_titles):
+        missing_sections = [
+            title.strip() for title in section_titles if title.strip() not in found_sections
+        ]
+        missing_list = ', '.join(f'"{title}"' for title in missing_sections)
+        result_html += f'\n\n<blockquote><strong>Note</strong>: The following requested sections were not found: {missing_list}</blockquote>'
+
+    return result_html
+
+
 def parse_recommendation_results(data: Dict[str, Any]) -> List[RecommendationResult]:
     """Parse recommendation API response into RecommendationResult objects.
 
@@ -255,3 +324,23 @@ def parse_recommendation_results(data: Dict[str, Any]) -> List[RecommendationRes
             )
 
     return results
+
+
+def add_search_intent_to_search_request(search_url: str, search_intent: str) -> str:
+    """Adds the search_intent query parameter to the search_url if search_intent is a string.
+
+    :param search_url: URL to be used for search_documentation tool call
+    :type search_url: str
+    :param search_intent: Intent derived and provided by LLM to MCP Server for user's search intent
+    :type search_intent: str
+    :return: search_url with search_intent query parameter added
+    :rtype: str
+    """
+    if search_intent and search_intent != '':
+        # Remove all whitespaces, including tabs and returns
+        search_intent = ' '.join(f'{search_intent}'.split())
+        if search_intent:
+            encoded_search_intent = quote_plus(search_intent)
+            search_url = f'{search_url}&search_intent={encoded_search_intent}'
+
+    return search_url

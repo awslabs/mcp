@@ -17,52 +17,143 @@ from awslabs.ecs_mcp_server.utils.security import (
 
 
 class TestValidateAppName:
-    """Tests for validate_app_name function."""
+    """Tests for validate_app_name function with AWS ECS/ECR requirements."""
 
-    def test_valid_app_name(self):
+    def test_valid_app_names(self):
         """Test that valid application names pass validation."""
-        # Test various valid app names
-        valid_names = ["myapp", "my-app", "my_app", "app123", "123app", "MY-APP-123"]
+        # Valid names that comply with AWS ECS/ECR requirements
+        valid_names = [
+            "myapp",  # Simple lowercase
+            "my-app",  # Lowercase with hyphen
+            "app123",  # Alphanumeric lowercase
+            "123app",  # Starting with digit
+            "a",  # Single character
+            "web-service-api",  # Multiple hyphens (non-consecutive)
+            "my-app-v2",  # Complex valid name
+            "x" * 20,  # Maximum length (20 characters)
+        ]
 
         for name in valid_names:
             assert validate_app_name(name) is True
 
-    def test_invalid_app_name(self):
-        """Test that invalid application names fail validation."""
-        # Test various invalid app names
+    def test_empty_name(self):
+        """Test that empty name fails validation."""
+        with pytest.raises(ValidationError) as excinfo:
+            validate_app_name("")
+        assert "cannot be empty" in str(excinfo.value)
+
+    def test_non_string_input(self):
+        """Test that non-string input fails validation."""
+        invalid_inputs = [None, 123, [], {}]
+
+        for invalid_input in invalid_inputs:
+            with pytest.raises(ValidationError) as excinfo:
+                validate_app_name(invalid_input)
+            assert "must be a string" in str(excinfo.value)
+
+    def test_length_constraints(self):
+        """Test length validation (1-20 characters)."""
+        # Test too long
+        long_name = "a" * 21  # 21 characters
+        with pytest.raises(ValidationError) as excinfo:
+            validate_app_name(long_name)
+        assert "must be 1-20 characters long" in str(excinfo.value)
+        assert "current length: 21" in str(excinfo.value)
+
+    def test_uppercase_letters_rejected(self):
+        """Test that uppercase letters are rejected."""
+        uppercase_names = [
+            "MY-APP-123",  # All uppercase
+            "My-App",  # Mixed case
+            "myApp",  # CamelCase
+            "web-Service",  # Single uppercase
+        ]
+
+        for name in uppercase_names:
+            with pytest.raises(ValidationError) as excinfo:
+                validate_app_name(name)
+            assert "contains invalid characters" in str(excinfo.value)
+
+    def test_invalid_characters(self):
+        """Test that invalid characters are rejected."""
         invalid_names = [
-            "my app",  # Contains space
-            "my.app",  # Contains period
-            "my/app",  # Contains slash
-            "my\\app",  # Contains backslash
-            "my$app",  # Contains dollar sign
-            "my@app",  # Contains at sign
-            "my:app",  # Contains colon
-            "my;app",  # Contains semicolon
-            'my"app',  # Contains quote
-            "my'app",  # Contains apostrophe
-            "my`app",  # Contains backtick
-            "my!app",  # Contains exclamation mark
-            "my#app",  # Contains hash
-            "my%app",  # Contains percent
-            "my^app",  # Contains caret
-            "my&app",  # Contains ampersand
-            "my*app",  # Contains asterisk
-            "my(app)",  # Contains parentheses
-            "my+app",  # Contains plus
-            "my=app",  # Contains equals
-            "my{app}",  # Contains braces
-            "my[app]",  # Contains brackets
-            "my|app",  # Contains pipe
-            "my<app>",  # Contains angle brackets
-            "my?app",  # Contains question mark
-            "my,app",  # Contains comma
+            "my_app",  # Underscore (was previously allowed)
+            "my app",  # Space
+            "my.app",  # Period
+            "my/app",  # Slash
+            "my\\app",  # Backslash
+            "my$app",  # Dollar sign
+            "my@app",  # At sign
+            "my:app",  # Colon
+            "my;app",  # Semicolon
+            'my"app',  # Quote
+            "my'app",  # Apostrophe
+            "my`app",  # Backtick
+            "my!app",  # Exclamation mark
+            "my#app",  # Hash
+            "my%app",  # Percent
+            "my^app",  # Caret
+            "my&app",  # Ampersand
+            "my*app",  # Asterisk
+            "my(app)",  # Parentheses
+            "my+app",  # Plus
+            "my=app",  # Equals
+            "my{app}",  # Braces
+            "my[app]",  # Brackets
+            "my|app",  # Pipe
+            "my<app>",  # Angle brackets
+            "my?app",  # Question mark
+            "my,app",  # Comma
         ]
 
         for name in invalid_names:
             with pytest.raises(ValidationError) as excinfo:
                 validate_app_name(name)
             assert "contains invalid characters" in str(excinfo.value)
+
+    def test_hyphen_placement_rules(self):
+        """Test hyphen placement validation."""
+        # Starting with hyphen
+        with pytest.raises(ValidationError) as excinfo:
+            validate_app_name("-myapp")
+        assert "contains invalid characters" in str(excinfo.value)
+
+        # Ending with hyphen
+        with pytest.raises(ValidationError) as excinfo:
+            validate_app_name("myapp-")
+        assert "contains invalid characters" in str(excinfo.value)
+
+        # Consecutive hyphens
+        with pytest.raises(ValidationError) as excinfo:
+            validate_app_name("my--app")
+        assert "contains invalid characters" in str(excinfo.value)
+
+    def test_valid_hyphen_usage(self):
+        """Test that valid hyphen usage passes."""
+        valid_hyphen_names = [
+            "my-app",
+            "web-service-api",
+            "app-v2-prod",
+            "a-b-c-d-e",
+        ]
+
+        for name in valid_hyphen_names:
+            assert validate_app_name(name) is True
+
+    def test_edge_cases(self):
+        """Test edge cases and boundary conditions."""
+        # Minimum length
+        assert validate_app_name("a") is True
+        assert validate_app_name("1") is True
+
+        # Maximum length
+        assert validate_app_name("a" * 20) is True
+
+        # All digits
+        assert validate_app_name("123456") is True
+
+        # Mixed alphanumeric with hyphens
+        assert validate_app_name("web123-api456") is True
 
 
 class TestValidateFilePath:

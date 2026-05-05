@@ -12,4 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-MCP_SERVER_VERSION = '2.0.1'
+from awslabs.amazon_sns_sqs_mcp_server import __version__
+
+
+MCP_SERVER_VERSION = __version__

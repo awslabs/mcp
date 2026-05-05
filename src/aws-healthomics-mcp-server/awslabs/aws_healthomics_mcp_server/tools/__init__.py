@@ -13,3 +13,15 @@
 # limitations under the License.
 
 """Tool implementations for the AWS HealthOmics MCP server."""
+
+from awslabs.aws_healthomics_mcp_server.tools.codeconnections import (
+    create_codeconnection,
+    get_codeconnection,
+    list_codeconnections,
+)
+
+__all__ = [
+    'create_codeconnection',
+    'get_codeconnection',
+    'list_codeconnections',
+]

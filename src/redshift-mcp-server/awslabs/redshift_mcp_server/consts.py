@@ -14,26 +14,35 @@
 
 """Redshift MCP Server constants."""
 
-# Defaults
-DEFAULT_AWS_REGION = 'us-east-1'
+# System
+CLIENT_CONNECT_TIMEOUT = 60
+CLIENT_READ_TIMEOUT = 600
+CLIENT_RETRIES = {'max_attempts': 5, 'mode': 'adaptive'}
+CLIENT_USER_AGENT_NAME = 'awslabs/mcp/redshift-mcp-server'
 DEFAULT_LOG_LEVEL = 'WARNING'
-
-# Timeouts (seconds), etc
-CLIENT_TIMEOUT = 60
-DATA_CLIENT_TIMEOUT = 60
 QUERY_TIMEOUT = 3600
-QUERY_POLL_INTERVAL = 2
+QUERY_POLL_INTERVAL = 1
+SESSION_KEEPALIVE = 600
 
 # Best practices
 
 CLIENT_BEST_PRACTICES = """
 ## AWS Client Best Practices
 
-### Authentication
+### Authentication and Configuration
 
 - Default AWS credentials chain (IAM roles, ~/.aws/credentials, etc.).
 - AWS_PROFILE environment variable (if set).
-- AWS_REGION environment variable (if set).
+- Region configuration (in order of precedence):
+  - AWS_REGION environment variable (highest priority)
+  - AWS_DEFAULT_REGION environment variable
+  - Region specified in AWS profile configuration
+
+### Error Handling
+
+- Always print out AWS client errors in full to help diagnose configuration issues.
+- For region-related errors, suggest checking AWS_REGION, AWS_DEFAULT_REGION, or AWS profile configuration.
+- For credential errors, suggest verifying AWS credentials setup and permissions.
 """
 
 REDSHIFT_BEST_PRACTICES = """
@@ -77,7 +86,7 @@ SELECT
     source_database,
     schema_option
 FROM pg_catalog.svv_all_schemas
-WHERE database_name = {}
+WHERE database_name = :database_name
 ORDER BY schema_name;
 """
 
@@ -90,7 +99,7 @@ SELECT
     table_type,
     remarks
 FROM pg_catalog.svv_all_tables
-WHERE database_name = {} AND schema_name = {}
+WHERE database_name = :database_name AND schema_name = :schema_name
 ORDER BY table_name;
 """
 
@@ -109,7 +118,7 @@ SELECT
     numeric_scale,
     remarks
 FROM pg_catalog.svv_all_columns
-WHERE database_name = {} AND schema_name = {} AND table_name = {}
+WHERE database_name = :database_name AND schema_name = :schema_name AND table_name = :table_name
 ORDER BY ordinal_position;
 """
 

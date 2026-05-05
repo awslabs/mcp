@@ -34,7 +34,7 @@ async def import_csv_to_table(
     rest_sigv4_enabled: str = 'true',
     preserve_case: bool = False,
 ):
-    """Import a CSV file into an S3 table using PyArrow."""
+    """Import a CSV file into an existing S3 table using PyArrow."""
     return await import_file_to_table(
         warehouse=warehouse,
         region=region,

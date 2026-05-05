@@ -5,9 +5,10 @@ import type * as Preset from '@docusaurus/preset-classic';
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
 const config: Config = {
-  title: 'AWS MCP Servers',
-  tagline: 'Get started with AWS MCP Servers and learn core features',
+  title: 'Welcome to Open Source MCP Servers for AWS',
+  tagline: 'Get started with open source MCP Servers for AWS and learn core features',
   favicon: 'img/aws-logo.svg',
+  trailingSlash: false,
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
@@ -26,7 +27,11 @@ const config: Config = {
   projectName: 'mcp', // Usually your repo name.
 
   onBrokenLinks: 'throw',
-  onBrokenMarkdownLinks: 'throw',
+  markdown: {
+    hooks:  {
+      onBrokenMarkdownLinks: 'throw'
+    }
+  },
 
   // Add plugins
   plugins: [],
@@ -69,9 +74,9 @@ const config: Config = {
     },
     image: 'img/aws-logo.svg',
     navbar: {
-      title: 'AWS MCP Servers',
+      title: 'Open Source MCP Servers for AWS',
       logo: {
-        alt: 'AWS MCP Servers Logo',
+        alt: 'Open Source MCP Servers for AWS Logo',
         src: 'img/aws-logo.svg',
       },
       items: [
@@ -126,6 +131,7 @@ const config: Config = {
     prism: {
       theme: prismThemes.github,
       darkTheme: prismThemes.dracula,
+      additionalLanguages: ['bash'],
     },
   } satisfies Preset.ThemeConfig,
 };

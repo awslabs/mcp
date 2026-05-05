@@ -18,6 +18,7 @@ import pytest
 from awslabs.aws_dataprocessing_mcp_server.handlers.glue.data_catalog_handler import (
     GlueDataCatalogHandler,
 )
+from tests.test_utils import CallToolResultWrapper
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 
@@ -117,7 +118,7 @@ class TestGlueDataCatalogHandler:
             assert handler.allow_sensitive_data_access is False
 
             # Verify that the tools were registered
-            assert mock_mcp.tool.call_count == 5
+            assert mock_mcp.tool.call_count == 7
 
             # Get all call args
             call_args_list = mock_mcp.tool.call_args_list
@@ -129,6 +130,8 @@ class TestGlueDataCatalogHandler:
             assert 'manage_aws_glue_databases' in tool_names
             assert 'manage_aws_glue_tables' in tool_names
             assert 'manage_aws_glue_connections' in tool_names
+            assert 'manage_aws_glue_connection_types' in tool_names
+            assert 'manage_aws_glue_connection_metadata' in tool_names
             assert 'manage_aws_glue_partitions' in tool_names
             assert 'manage_aws_glue_catalog' in tool_names
 
@@ -165,93 +168,49 @@ class TestGlueDataCatalogHandler:
         self, handler, mock_ctx
     ):
         """Test that create database operation is not allowed without write access."""
-        # Mock the response class
-        mock_response = MagicMock()
-        mock_response.isError = True
-        mock_response.content = [MagicMock()]
-        mock_response.content[
-            0
-        ].text = 'Operation create-database is not allowed without write access'
-        mock_response.database_name = ''
-        mock_response.operation = 'create'
+        # Call the method with a write operation
+        result = await handler.manage_aws_glue_data_catalog_databases(
+            mock_ctx, operation='create-database', database_name='test-db'
+        )
 
-        # Patch the CreateDatabaseResponse class
-        with patch(
-            'awslabs.aws_dataprocessing_mcp_server.models.data_catalog_models.CreateDatabaseResponse',
-            return_value=mock_response,
-        ):
-            # Call the method with a write operation
-            result = await handler.manage_aws_glue_data_catalog_databases(
-                mock_ctx, operation='create-database', database_name='test-db'
-            )
-
-            # Verify the result
-            assert result.isError is True
-            assert 'not allowed without write access' in result.content[0].text
-            assert result.database_name == ''
-            assert result.operation == 'create-database'
+        # Verify the result
+        assert result.isError is True
+        assert 'not allowed without write access' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_databases_delete_no_write_access(
         self, handler, mock_ctx
     ):
         """Test that delete database operation is not allowed without write access."""
-        # Mock the response class
-        mock_response = MagicMock()
-        mock_response.isError = True
-        mock_response.content = [MagicMock()]
-        mock_response.content[
-            0
-        ].text = 'Operation delete-database is not allowed without write access'
-        mock_response.database_name = ''
-        mock_response.operation = 'delete'
+        # Call the method with a write operation
+        raw_result = await handler.manage_aws_glue_data_catalog_databases(
+            mock_ctx, operation='delete-database', database_name='test-db'
+        )
 
-        # Patch the DeleteDatabaseResponse class
-        with patch(
-            'awslabs.aws_dataprocessing_mcp_server.models.data_catalog_models.DeleteDatabaseResponse',
-            return_value=mock_response,
-        ):
-            # Call the method with a write operation
-            result = await handler.manage_aws_glue_data_catalog_databases(
-                mock_ctx, operation='delete-database', database_name='test-db'
-            )
+        # Wrap the result to access structured data
+        result = CallToolResultWrapper(raw_result)
 
-            # Verify the result
-            assert result.isError is True
-            assert 'not allowed without write access' in result.content[0].text
-            assert result.database_name == ''
-            assert result.operation == 'delete-database'
+        # Verify the result
+        assert result.isError is True
+        assert 'not allowed without write access' in result.text
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_databases_update_no_write_access(
         self, handler, mock_ctx
     ):
         """Test that update database operation is not allowed without write access."""
-        # Mock the response class
-        mock_response = MagicMock()
-        mock_response.isError = True
-        mock_response.content = [MagicMock()]
-        mock_response.content[
-            0
-        ].text = 'Operation update-database is not allowed without write access'
-        mock_response.database_name = ''
-        mock_response.operation = 'update'
+        # Call the method with a write operation
 
-        # Patch the UpdateDatabaseResponse class
-        with patch(
-            'awslabs.aws_dataprocessing_mcp_server.models.data_catalog_models.UpdateDatabaseResponse',
-            return_value=mock_response,
-        ):
-            # Call the method with a write operation
-            result = await handler.manage_aws_glue_data_catalog_databases(
-                mock_ctx, operation='update-database', database_name='test-db'
-            )
+        raw_result = await handler.manage_aws_glue_data_catalog_databases(
+            mock_ctx, operation='update-database', database_name='test-db'
+        )
 
-            # Verify the result
-            assert result.isError is True
-            assert 'not allowed without write access' in result.content[0].text
-            assert result.database_name == ''
-            assert result.operation == 'update-database'
+        # Wrap the result to access structured data
+        result = CallToolResultWrapper(raw_result)
+
+        # Verify the result
+        assert result.isError is True
+        assert 'not allowed without write access' in result.text
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_databases_get_read_access(
@@ -310,7 +269,12 @@ class TestGlueDataCatalogHandler:
         # Mock the response class
         mock_response = MagicMock()
         mock_response.isError = False
-        mock_response.content = []
+        # Create mock content items to match expected structure
+        mock_content_item1 = MagicMock()
+        mock_content_item2 = MagicMock()
+        mock_content_item2.type = 'text'
+        mock_content_item2.text = '{"databases": [], "count": 0}'
+        mock_response.content = [mock_content_item1, mock_content_item2]
         mock_response.databases = []
         mock_response.count = 0
         mock_response.catalog_id = '123456789012'
@@ -332,6 +296,11 @@ class TestGlueDataCatalogHandler:
 
         # Verify that the result is the expected response
         assert result == mock_response
+        assert result.content[1].type == 'text'
+        # Parse JSON from second content item
+        import json
+
+        json.loads(result.content[1].text)
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_databases_create_with_write_access(
@@ -425,13 +394,13 @@ class TestGlueDataCatalogHandler:
     async def test_manage_aws_glue_data_catalog_databases_update_with_read_access(
         self, handler, mock_ctx
     ):
-        """Test that updadte database operation with read access."""
-        result = await handler.manage_aws_glue_data_catalog_databases(
+        """Test that update database operation with read access."""
+        raw_result = await handler.manage_aws_glue_data_catalog_databases(
             mock_ctx, operation='update-database', database_name=None
         )
+        result = CallToolResultWrapper(raw_result)
         assert result.isError is True
-        assert len(result.content) == 1
-        assert 'is not allowed without write access' in result.content[0].text
+        assert 'is not allowed without write access' in result.text
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_databases_update_with_write_access(
@@ -486,8 +455,6 @@ class TestGlueDataCatalogHandler:
         # Verify that the result is an error response
         assert result.isError is True
         assert 'Invalid operation' in result.content[0].text
-        assert result.database_name == ''
-        assert result.operation == 'get-database'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_databases_missing_database_name(
@@ -511,40 +478,17 @@ class TestGlueDataCatalogHandler:
         # Setup the mock to raise an exception
         mock_database_manager.get_database.side_effect = Exception('Test exception')
 
-        # Patch the handler's method to handle the exception properly
-        with patch.object(
-            handler,
-            'manage_aws_glue_data_catalog_databases',
-            side_effect=handler.manage_aws_glue_data_catalog_databases,
-        ):
-            # Create a mock response for the GetDatabaseResponse
-            mock_response = MagicMock()
-            mock_response.isError = True
-            mock_response.content = [MagicMock()]
-            mock_response.content[
-                0
-            ].text = 'Error in manage_aws_glue_data_catalog_databases: Test exception'
-            mock_response.database_name = 'test-db'
-            mock_response.operation = 'get'
+        # Call the method
+        result = await handler.manage_aws_glue_data_catalog_databases(
+            mock_ctx, operation='get-database', database_name='test-db'
+        )
 
-            # Patch the GetDatabaseResponse class
-            with patch(
-                'awslabs.aws_dataprocessing_mcp_server.models.data_catalog_models.GetDatabaseResponse',
-                return_value=mock_response,
-            ):
-                # Call the method
-                result = await handler.manage_aws_glue_data_catalog_databases(
-                    mock_ctx, operation='get-database', database_name='test-db'
-                )
-
-                # Verify that the result is an error response
-                assert result.isError is True
-                assert (
-                    'Error in manage_aws_glue_data_catalog_databases: Test exception'
-                    in result.content[0].text
-                )
-                assert result.database_name == 'test-db'
-                assert result.operation == 'get-database'
+        # Verify that the result is an error response
+        assert result.isError is True
+        assert (
+            'Error in manage_aws_glue_data_catalog_databases: Test exception'
+            in result.content[0].text
+        )
 
     # Tests for manage_aws_glue_data_catalog_tables method
 
@@ -565,9 +509,6 @@ class TestGlueDataCatalogHandler:
         # Verify that the result is an error response
         assert result.isError is True
         assert 'not allowed without write access' in result.content[0].text
-        assert result.database_name == 'test-db'
-        assert result.table_name == ''
-        assert result.operation == 'create-table'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_tables_get_read_access(
@@ -620,8 +561,6 @@ class TestGlueDataCatalogHandler:
         # Verify that the result is an error response
         assert result.isError is True
         assert 'not allowed without write access' in result.content[0].text
-        assert result.connection_name == ''
-        assert result.operation == 'create-connection'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_connections_get_read_access(
@@ -682,10 +621,6 @@ class TestGlueDataCatalogHandler:
         # Verify that the result is an error response
         assert result.isError is True
         assert 'not allowed without write access' in result.content[0].text
-        assert result.database_name == 'test-db'
-        assert result.table_name == 'test-table'
-        assert result.partition_values == []
-        assert result.operation == 'create-partition'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_partitions_get_read_access(
@@ -742,8 +677,6 @@ class TestGlueDataCatalogHandler:
         # Verify that the result is an error response
         assert result.isError is True
         assert 'not allowed without write access' in result.content[0].text
-        assert result.catalog_id == ''
-        assert result.operation == 'create-catalog'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_get_read_access(
@@ -847,8 +780,6 @@ class TestGlueDataCatalogHandler:
         # Verify that the result is an error response
         assert result.isError is True
         assert 'Invalid operation' in result.content[0].text
-        assert result.catalog_id == ''
-        assert result.operation == 'get-catalog'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_list_catalogs(self, handler, mock_ctx):
@@ -897,7 +828,7 @@ class TestGlueDataCatalogHandler:
         )
 
         assert result.isError is True
-        assert result.operation == 'import-catalog-to-glue'
+        assert 'not allowed without write access' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_import_catalog(
@@ -961,8 +892,6 @@ class TestGlueDataCatalogHandler:
         assert result.isError is True
         assert 'Error in manage_aws_glue_data_catalog' in result.content[0].text
         assert 'Test exception' in result.content[0].text
-        assert result.catalog_id == 'test-catalog'
-        assert result.operation == 'get-catalog'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_tables_list_tables_error(
@@ -979,13 +908,10 @@ class TestGlueDataCatalogHandler:
 
         # Verify that the result is an error response
         assert result.isError is True
-        assert any(
-            'Error in manage_aws_glue_data_catalog_tables: Test exception' in content.text
-            for content in result.content
+        assert (
+            'Error in manage_aws_glue_data_catalog_tables: Test exception'
+            in result.content[0].text
         )
-        assert result.database_name == 'test-db'
-        assert result.table_name == ''  # Empty string for table_name in error responses
-        assert result.operation == 'get-table'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_tables_search_tables_error(
@@ -1002,13 +928,10 @@ class TestGlueDataCatalogHandler:
 
         # Verify that the result is an error response
         assert result.isError is True
-        assert any(
-            'Error in manage_aws_glue_data_catalog_tables: Test exception' in content.text
-            for content in result.content
+        assert (
+            'Error in manage_aws_glue_data_catalog_tables: Test exception'
+            in result.content[0].text
         )
-        assert result.database_name == 'test-db'
-        assert result.table_name == ''  # Empty string for table_name in error responses
-        assert result.operation == 'get-table'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_tables_missing_table_name(
@@ -1039,13 +962,10 @@ class TestGlueDataCatalogHandler:
 
         # Verify that the result is an error response
         assert result.isError is True
-        assert any(
-            'Error in manage_aws_glue_data_catalog_connections: Test exception' in content.text
-            for content in result.content
+        assert (
+            'Error in manage_aws_glue_data_catalog_connections: Test exception'
+            in result.content[0].text
         )
-        assert result.connection_name == ''  # Empty string for connection_name in error responses
-        assert result.catalog_id == ''  # Empty string for catalog_id in error responses
-        assert result.operation == 'get-connection'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_connections_missing_connection_name(
@@ -1082,14 +1002,10 @@ class TestGlueDataCatalogHandler:
 
         # Verify that the result is an error response
         assert result.isError is True
-        assert any(
-            'Error in manage_aws_glue_data_catalog_partitions: Test exception' in content.text
-            for content in result.content
+        assert (
+            'Error in manage_aws_glue_data_catalog_partitions: Test exception'
+            in result.content[0].text
         )
-        assert result.database_name == 'test-db'
-        assert result.table_name == 'test-table'
-        assert result.partition_values == []  # Empty list for partition_values in error responses
-        assert result.operation == 'get-partition'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_partitions_missing_partition_values(
@@ -1130,9 +1046,6 @@ class TestGlueDataCatalogHandler:
         # Verify that the result is an error response
         assert result.isError is True
         assert 'not allowed without write access' in result.content[0].text
-        assert result.database_name == 'test-db'
-        assert result.table_name == ''
-        assert result.operation == 'delete-table'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_connections_delete_no_write_access(
@@ -1147,8 +1060,6 @@ class TestGlueDataCatalogHandler:
         # Verify that the result is an error response
         assert result.isError is True
         assert 'not allowed without write access' in result.content[0].text
-        assert result.connection_name == ''
-        assert result.operation == 'delete-connection'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_connections_update_no_write_access(
@@ -1166,8 +1077,6 @@ class TestGlueDataCatalogHandler:
         # Verify that the result is an error response
         assert result.isError is True
         assert 'not allowed without write access' in result.content[0].text
-        assert result.connection_name == ''
-        assert result.operation == 'update-connection'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_partitions_delete_no_write_access(
@@ -1186,10 +1095,6 @@ class TestGlueDataCatalogHandler:
         # Verify that the result is an error response
         assert result.isError is True
         assert 'not allowed without write access' in result.content[0].text
-        assert result.database_name == 'test-db'
-        assert result.table_name == 'test-table'
-        assert result.partition_values == []
-        assert result.operation == 'delete-partition'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_partitions_update_no_write_access(
@@ -1209,24 +1114,21 @@ class TestGlueDataCatalogHandler:
         # Verify that the result is an error response
         assert result.isError is True
         assert 'not allowed without write access' in result.content[0].text
-        assert result.database_name == 'test-db'
-        assert result.table_name == 'test-table'
-        assert result.partition_values == []
-        assert result.operation == 'update-partition'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_delete_no_write_access(self, handler, mock_ctx):
         """Test that delete catalog operation is not allowed without write access."""
         # Call the method with a write operation
-        result = await handler.manage_aws_glue_data_catalog(
+        raw_result = await handler.manage_aws_glue_data_catalog(
             mock_ctx, operation='delete-catalog', catalog_id='test-catalog'
         )
 
+        # Wrap the result to access structured data
+        result = CallToolResultWrapper(raw_result)
+
         # Verify that the result is an error response
         assert result.isError is True
-        assert 'not allowed without write access' in result.content[0].text
-        assert result.catalog_id == ''
-        assert result.operation == 'delete-catalog'
+        assert 'not allowed without write access' in result.text
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_databases_with_all_parameters(
@@ -2152,16 +2054,16 @@ class TestGlueDataCatalogHandler:
     ):
         """Test that an invalid operation returns an error response with write access."""
         # Call the method with an invalid operation
-        result = await handler_with_write_access.manage_aws_glue_data_catalog_tables(
+        raw_result = await handler_with_write_access.manage_aws_glue_data_catalog_tables(
             mock_ctx, operation='invalid-operation', database_name='test-db'
         )
 
+        # Wrap the result to access structured data
+        result = CallToolResultWrapper(raw_result)
+
         # Verify that the result is an error response
         assert result.isError is True
-        assert 'Invalid operation' in result.content[0].text
-        assert result.database_name == 'test-db'
-        assert result.table_name == ''
-        assert result.operation == 'get-table'
+        assert 'Invalid operation' in result.text
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_connections_invalid_operation_with_write_access(
@@ -2169,15 +2071,16 @@ class TestGlueDataCatalogHandler:
     ):
         """Test that an invalid operation returns an error response with write access."""
         # Call the method with an invalid operation
-        result = await handler_with_write_access.manage_aws_glue_data_catalog_connections(
+        raw_result = await handler_with_write_access.manage_aws_glue_data_catalog_connections(
             mock_ctx, operation='invalid-operation', connection_name='test-connection'
         )
 
+        # Wrap the result to access structured data
+        result = CallToolResultWrapper(raw_result)
+
         # Verify that the result is an error response
         assert result.isError is True
-        assert 'Invalid operation' in result.content[0].text
-        assert result.connection_name == ''
-        assert result.operation == 'get-connection'
+        assert 'Invalid operation' in result.text
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_partitions_invalid_operation_with_write_access(
@@ -2185,20 +2088,19 @@ class TestGlueDataCatalogHandler:
     ):
         """Test that an invalid operation returns an error response with write access."""
         # Call the method with an invalid operation
-        result = await handler_with_write_access.manage_aws_glue_data_catalog_partitions(
+        raw_result = await handler_with_write_access.manage_aws_glue_data_catalog_partitions(
             mock_ctx,
             operation='invalid-operation',
             database_name='test-db',
             table_name='test-table',
         )
 
+        # Wrap the result to access structured data
+        result = CallToolResultWrapper(raw_result)
+
         # Verify that the result is an error response
         assert result.isError is True
-        assert 'Invalid operation' in result.content[0].text
-        assert result.database_name == 'test-db'
-        assert result.table_name == 'test-table'
-        assert result.partition_values == []
-        assert result.operation == 'get-partition'
+        assert 'Invalid operation' in result.text
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_tables_search_tables_no_parameters(
@@ -2290,18 +2192,19 @@ class TestGlueDataCatalogHandler:
     ):
         """Test that other write operations are not allowed without write access."""
         # Call the method with a non-standard write operation
-        result = await handler.manage_aws_glue_data_catalog_tables(
+        raw_result = await handler.manage_aws_glue_data_catalog_tables(
             mock_ctx,
             operation='other-write-operation',
             database_name='test-db',
             table_name='test-table',
         )
 
+        # Wrap the result to access structured data
+        result = CallToolResultWrapper(raw_result)
+
         # Verify that the result is an error response
         assert result.isError is True
-        assert 'Invalid operation' in result.content[0].text
-        assert result.database_name == 'test-db'
-        assert result.table_name == ''
+        assert 'Invalid operation' in result.text
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_connections_other_write_access_error(
@@ -2309,16 +2212,18 @@ class TestGlueDataCatalogHandler:
     ):
         """Test that other write operations are not allowed without write access."""
         # Call the method with a non-standard write operation
-        result = await handler.manage_aws_glue_data_catalog_connections(
+        raw_result = await handler.manage_aws_glue_data_catalog_connections(
             mock_ctx,
             operation='other-write-operation',
             connection_name='test-connection',
         )
 
+        # Wrap the result to access structured data
+        result = CallToolResultWrapper(raw_result)
+
         # Verify that the result is an error response
         assert result.isError is True
-        assert 'Invalid operation' in result.content[0].text
-        assert result.connection_name == ''
+        assert 'Invalid operation' in result.text
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_partitions_other_write_access_error(
@@ -2326,34 +2231,36 @@ class TestGlueDataCatalogHandler:
     ):
         """Test that other write operations are not allowed without write access."""
         # Call the method with a non-standard write operation
-        result = await handler.manage_aws_glue_data_catalog_partitions(
+        raw_result = await handler.manage_aws_glue_data_catalog_partitions(
             mock_ctx,
             operation='other-write-operation',
             database_name='test-db',
             table_name='test-table',
         )
 
+        # Wrap the result to access structured data
+        result = CallToolResultWrapper(raw_result)
+
         # Verify that the result is an error response
         assert result.isError is True
-        assert 'Invalid operation: other-write-operation' in result.content[0].text
-        assert result.database_name == 'test-db'
-        assert result.table_name == 'test-table'
-        assert result.partition_values == []
+        assert 'Invalid operation: other-write-operation' in result.text
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_other_write_access_error(self, handler, mock_ctx):
         """Test that other write operations are not allowed without write access."""
         # Call the method with a non-standard write operation
-        result = await handler.manage_aws_glue_data_catalog(
+        raw_result = await handler.manage_aws_glue_data_catalog(
             mock_ctx,
             operation='other-write-operation',
             catalog_id='test-catalog',
         )
 
+        # Wrap the result to access structured data
+        result = CallToolResultWrapper(raw_result)
+
         # Verify that the result is an error response
         assert result.isError is True
-        assert 'Invalid operation: other-write-operation' in result.content[0].text
-        assert result.catalog_id == ''
+        assert 'Invalid operation: other-write-operation' in result.text
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_tables_create_with_catalog_id(
@@ -2660,7 +2567,7 @@ class TestGlueDataCatalogHandler:
     ):
         """Test that update table operation is not allowed without write access."""
         # Call the method with a write operation
-        result = await handler.manage_aws_glue_data_catalog_tables(
+        raw_result = await handler.manage_aws_glue_data_catalog_tables(
             mock_ctx,
             operation='update-table',
             database_name='test-db',
@@ -2668,12 +2575,12 @@ class TestGlueDataCatalogHandler:
             table_input={'Name': 'test-table'},
         )
 
+        # Wrap the result to access structured data
+        result = CallToolResultWrapper(raw_result)
+
         # Verify that the result is an error response
         assert result.isError is True
-        assert 'not allowed without write access' in result.content[0].text
-        assert result.database_name == 'test-db'
-        assert result.table_name == ''
-        assert result.operation == 'update-table'
+        assert 'not allowed without write access' in result.text
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_tables_search_tables_no_write_access(
@@ -2832,9 +2739,6 @@ class TestGlueDataCatalogHandler:
             'Error in manage_aws_glue_data_catalog_tables: General test exception'
             in result.content[0].text
         )
-        assert result.database_name == 'test-db'
-        assert result.table_name == ''
-        assert result.operation == 'get-table'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_connections_exception_handling_general(
@@ -2859,8 +2763,6 @@ class TestGlueDataCatalogHandler:
             'Error in manage_aws_glue_data_catalog_connections: General test exception'
             in result.content[0].text
         )
-        assert result.connection_name == ''
-        assert result.operation == 'get-connection'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_partitions_exception_handling_general(
@@ -2887,10 +2789,6 @@ class TestGlueDataCatalogHandler:
             'Error in manage_aws_glue_data_catalog_partitions: General test exception'
             in result.content[0].text
         )
-        assert result.database_name == 'test-db'
-        assert result.table_name == 'test-table'
-        assert result.partition_values == []
-        assert result.operation == 'get-partition'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_exception_handling_general(
@@ -2913,8 +2811,6 @@ class TestGlueDataCatalogHandler:
             'Error in manage_aws_glue_data_catalog: General test exception'
             in result.content[0].text
         )
-        assert result.catalog_id == 'test-catalog'
-        assert result.operation == 'get-catalog'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_databases_error_response_for_other_operations(
@@ -2934,13 +2830,6 @@ class TestGlueDataCatalogHandler:
         # Verify that the result is an error response
         assert result.isError is True
         assert 'Invalid operation' in result.content[0].text
-        assert result.database_name == ''
-        assert result.description == ''
-        assert result.location_uri == ''
-        assert result.parameters == {}
-        assert result.creation_time == ''
-        assert result.operation == 'get-database'
-        assert result.catalog_id == ''
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_databases_with_none_parameters(
@@ -3849,3 +3738,420 @@ class TestGlueDataCatalogHandler:
 
         # Verify that the result is the expected response
         assert result == expected_response
+
+    # ==================== New Fixtures ====================
+
+    @pytest.fixture
+    def handler_with_sensitive_data_access(
+        self, mock_mcp, mock_database_manager, mock_table_manager, mock_catalog_manager
+    ):
+        """Create a GlueDataCatalogHandler instance with sensitive data access enabled."""
+        with (
+            patch(
+                'awslabs.aws_dataprocessing_mcp_server.handlers.glue.data_catalog_handler.DataCatalogDatabaseManager',
+                return_value=mock_database_manager,
+            ),
+            patch(
+                'awslabs.aws_dataprocessing_mcp_server.handlers.glue.data_catalog_handler.DataCatalogTableManager',
+                return_value=mock_table_manager,
+            ),
+            patch(
+                'awslabs.aws_dataprocessing_mcp_server.handlers.glue.data_catalog_handler.DataCatalogManager',
+                return_value=mock_catalog_manager,
+            ),
+        ):
+            handler = GlueDataCatalogHandler(
+                mock_mcp, allow_write=True, allow_sensitive_data_access=True
+            )
+            handler.data_catalog_database_manager = mock_database_manager
+            handler.data_catalog_table_manager = mock_table_manager
+            handler.data_catalog_manager = mock_catalog_manager
+            return handler
+
+    # ==================== TestConnection Handler Tests ====================
+
+    @pytest.mark.asyncio
+    async def test_manage_connections_test_connection_no_write_access(self, handler, mock_ctx):
+        """Test that test-connection is not allowed without write access."""
+        result = await handler.manage_aws_glue_data_catalog_connections(
+            mock_ctx,
+            operation='test-connection',
+            connection_name='test-conn',
+        )
+        assert result.isError is True
+        assert 'not allowed without write access' in result.content[0].text
+
+    @pytest.mark.asyncio
+    async def test_manage_connections_test_connection_with_write_access(
+        self, handler_with_write_access, mock_ctx, mock_catalog_manager
+    ):
+        """Test that test-connection works with write access."""
+        expected_response = MagicMock()
+        expected_response.isError = False
+        expected_response.content = []
+        mock_catalog_manager.test_connection.return_value = expected_response
+
+        result = await handler_with_write_access.manage_aws_glue_data_catalog_connections(
+            mock_ctx,
+            operation='test-connection',
+            connection_name='test-conn',
+        )
+
+        mock_catalog_manager.test_connection.assert_called_once()
+        assert result == expected_response
+
+    @pytest.mark.asyncio
+    async def test_manage_connections_test_connection_missing_params(
+        self, handler_with_write_access, mock_ctx
+    ):
+        """Test that test-connection requires connection_name or test_connection_input."""
+        with pytest.raises(ValueError, match='Either connection_name or test_connection_input'):
+            await handler_with_write_access.manage_aws_glue_data_catalog_connections(
+                mock_ctx,
+                operation='test-connection',
+            )
+
+    # ==================== BatchDeleteConnection Handler Tests ====================
+
+    @pytest.mark.asyncio
+    async def test_manage_connections_batch_delete_no_write_access(self, handler, mock_ctx):
+        """Test that batch-delete-connection is not allowed without write access."""
+        result = await handler.manage_aws_glue_data_catalog_connections(
+            mock_ctx,
+            operation='batch-delete-connection',
+            connection_name_list=['conn-1', 'conn-2'],
+        )
+        assert result.isError is True
+        assert 'not allowed without write access' in result.content[0].text
+
+    @pytest.mark.asyncio
+    async def test_manage_connections_batch_delete_with_write_access(
+        self, handler_with_write_access, mock_ctx, mock_catalog_manager
+    ):
+        """Test that batch-delete-connection works with write access."""
+        expected_response = MagicMock()
+        expected_response.isError = False
+        expected_response.content = []
+        mock_catalog_manager.batch_delete_connection.return_value = expected_response
+
+        result = await handler_with_write_access.manage_aws_glue_data_catalog_connections(
+            mock_ctx,
+            operation='batch-delete-connection',
+            connection_name_list=['conn-1', 'conn-2'],
+        )
+
+        mock_catalog_manager.batch_delete_connection.assert_called_once()
+        assert result == expected_response
+
+    @pytest.mark.asyncio
+    async def test_manage_connections_batch_delete_missing_list(
+        self, handler_with_write_access, mock_ctx
+    ):
+        """Test that batch-delete-connection requires connection_name_list."""
+        with pytest.raises(ValueError, match='connection_name_list is required'):
+            await handler_with_write_access.manage_aws_glue_data_catalog_connections(
+                mock_ctx,
+                operation='batch-delete-connection',
+            )
+
+    @pytest.mark.asyncio
+    async def test_manage_connections_batch_delete_empty_list(
+        self, handler_with_write_access, mock_ctx
+    ):
+        """Test that batch-delete-connection rejects empty list."""
+        with pytest.raises(ValueError, match='connection_name_list is required'):
+            await handler_with_write_access.manage_aws_glue_data_catalog_connections(
+                mock_ctx,
+                operation='batch-delete-connection',
+                connection_name_list=[],
+            )
+
+    @pytest.mark.asyncio
+    async def test_manage_connections_invalid_operation(self, handler, mock_ctx):
+        """Test that invalid connection operations are rejected."""
+        result = await handler.manage_aws_glue_data_catalog_connections(
+            mock_ctx,
+            operation='invalid-op',
+        )
+        assert result.isError is True
+        assert 'Invalid operation' in result.content[0].text
+
+    # ==================== Connection Types Handler Tests ====================
+
+    @pytest.mark.asyncio
+    async def test_manage_connection_types_describe_success(
+        self, handler, mock_ctx, mock_catalog_manager
+    ):
+        """Test describe-connection-type operation."""
+        expected_response = MagicMock()
+        expected_response.isError = False
+        expected_response.content = []
+        mock_catalog_manager.describe_connection_type.return_value = expected_response
+
+        result = await handler.manage_aws_glue_connection_types(
+            mock_ctx,
+            operation='describe-connection-type',
+            connection_type='JDBC',
+        )
+
+        mock_catalog_manager.describe_connection_type.assert_called_once_with(
+            ctx=mock_ctx,
+            connection_type='JDBC',
+        )
+        assert result == expected_response
+
+    @pytest.mark.asyncio
+    async def test_manage_connection_types_describe_missing_type(self, handler, mock_ctx):
+        """Test describe-connection-type requires connection_type."""
+        with pytest.raises(ValueError, match='connection_type is required'):
+            await handler.manage_aws_glue_connection_types(
+                mock_ctx,
+                operation='describe-connection-type',
+            )
+
+    @pytest.mark.asyncio
+    async def test_manage_connection_types_list_success(
+        self, handler, mock_ctx, mock_catalog_manager
+    ):
+        """Test list-connection-types operation."""
+        expected_response = MagicMock()
+        expected_response.isError = False
+        expected_response.content = []
+        mock_catalog_manager.list_connection_types.return_value = expected_response
+
+        result = await handler.manage_aws_glue_connection_types(
+            mock_ctx,
+            operation='list-connection-types',
+            max_results=10,
+        )
+
+        mock_catalog_manager.list_connection_types.assert_called_once_with(
+            ctx=mock_ctx,
+            max_results=10,
+            next_token=ANY,
+        )
+        assert result == expected_response
+
+    @pytest.mark.asyncio
+    async def test_manage_connection_types_invalid_operation(self, handler, mock_ctx):
+        """Test that invalid connection type operations are rejected."""
+        result = await handler.manage_aws_glue_connection_types(
+            mock_ctx,
+            operation='invalid-op',
+        )
+        assert result.isError is True
+        assert 'Invalid operation' in result.content[0].text
+
+    @pytest.mark.asyncio
+    async def test_manage_connection_types_exception_handling(
+        self, handler, mock_ctx, mock_catalog_manager
+    ):
+        """Test that connection types handler catches general exceptions."""
+        mock_catalog_manager.list_connection_types.side_effect = Exception('Unexpected error')
+
+        result = await handler.manage_aws_glue_connection_types(
+            mock_ctx,
+            operation='list-connection-types',
+        )
+
+        assert result.isError is True
+        assert 'Error in manage_aws_glue_connection_types' in result.content[0].text
+
+    # ==================== Connection Metadata Handler Tests ====================
+
+    @pytest.mark.asyncio
+    async def test_manage_connection_metadata_list_entities_success(
+        self, handler, mock_ctx, mock_catalog_manager
+    ):
+        """Test list-entities operation."""
+        expected_response = MagicMock()
+        expected_response.isError = False
+        expected_response.content = []
+        mock_catalog_manager.list_entities.return_value = expected_response
+
+        result = await handler.manage_aws_glue_connection_metadata(
+            mock_ctx,
+            operation='list-entities',
+            connection_name='my-conn',
+        )
+
+        mock_catalog_manager.list_entities.assert_called_once()
+        assert result == expected_response
+
+    @pytest.mark.asyncio
+    async def test_manage_connection_metadata_list_entities_with_parent(
+        self, handler, mock_ctx, mock_catalog_manager
+    ):
+        """Test list-entities with parent_entity_name."""
+        expected_response = MagicMock()
+        expected_response.isError = False
+        expected_response.content = []
+        mock_catalog_manager.list_entities.return_value = expected_response
+
+        await handler.manage_aws_glue_connection_metadata(
+            mock_ctx,
+            operation='list-entities',
+            connection_name='my-conn',
+            parent_entity_name='my-database',
+            catalog_id='123456789012',
+        )
+
+        mock_catalog_manager.list_entities.assert_called_once()
+        call_kwargs = mock_catalog_manager.list_entities.call_args[1]
+        assert call_kwargs['connection_name'] == 'my-conn'
+        assert call_kwargs['parent_entity_name'] == 'my-database'
+        assert call_kwargs['catalog_id'] == '123456789012'
+
+    @pytest.mark.asyncio
+    async def test_manage_connection_metadata_describe_entity_success(
+        self, handler, mock_ctx, mock_catalog_manager
+    ):
+        """Test describe-entity operation."""
+        expected_response = MagicMock()
+        expected_response.isError = False
+        expected_response.content = []
+        mock_catalog_manager.describe_entity.return_value = expected_response
+
+        result = await handler.manage_aws_glue_connection_metadata(
+            mock_ctx,
+            operation='describe-entity',
+            connection_name='my-conn',
+            entity_name='Account',
+        )
+
+        mock_catalog_manager.describe_entity.assert_called_once()
+        assert result == expected_response
+
+    @pytest.mark.asyncio
+    async def test_manage_connection_metadata_describe_entity_missing_name(
+        self, handler, mock_ctx
+    ):
+        """Test describe-entity requires entity_name."""
+        with pytest.raises(ValueError, match='entity_name is required'):
+            await handler.manage_aws_glue_connection_metadata(
+                mock_ctx,
+                operation='describe-entity',
+                connection_name='my-conn',
+            )
+
+    @pytest.mark.asyncio
+    async def test_manage_connection_metadata_get_records_no_sensitive_access(
+        self, handler, mock_ctx
+    ):
+        """Test get-entity-records requires sensitive data access flag."""
+        result = await handler.manage_aws_glue_connection_metadata(
+            mock_ctx,
+            operation='get-entity-records',
+            connection_name='my-conn',
+            entity_name='Account',
+            limit=10,
+        )
+        assert result.isError is True
+        assert 'allow-sensitive-data-access' in result.content[0].text
+
+    @pytest.mark.asyncio
+    async def test_manage_connection_metadata_get_records_with_sensitive_access(
+        self, handler_with_sensitive_data_access, mock_ctx, mock_catalog_manager
+    ):
+        """Test get-entity-records works with sensitive data access."""
+        expected_response = MagicMock()
+        expected_response.isError = False
+        expected_response.content = []
+        mock_catalog_manager.get_entity_records.return_value = expected_response
+
+        result = await handler_with_sensitive_data_access.manage_aws_glue_connection_metadata(
+            mock_ctx,
+            operation='get-entity-records',
+            connection_name='my-conn',
+            entity_name='Account',
+            limit=10,
+        )
+
+        mock_catalog_manager.get_entity_records.assert_called_once()
+        assert result == expected_response
+
+    @pytest.mark.asyncio
+    async def test_manage_connection_metadata_get_records_missing_entity_name(
+        self, handler_with_sensitive_data_access, mock_ctx
+    ):
+        """Test get-entity-records requires entity_name."""
+        with pytest.raises(ValueError, match='entity_name is required'):
+            await handler_with_sensitive_data_access.manage_aws_glue_connection_metadata(
+                mock_ctx,
+                operation='get-entity-records',
+                connection_name='my-conn',
+                limit=10,
+            )
+
+    @pytest.mark.asyncio
+    async def test_manage_connection_metadata_get_records_missing_limit(
+        self, handler_with_sensitive_data_access, mock_ctx
+    ):
+        """Test get-entity-records requires limit."""
+        with pytest.raises(ValueError, match='limit is required'):
+            await handler_with_sensitive_data_access.manage_aws_glue_connection_metadata(
+                mock_ctx,
+                operation='get-entity-records',
+                connection_name='my-conn',
+                entity_name='Account',
+            )
+
+    @pytest.mark.asyncio
+    async def test_manage_connection_metadata_get_records_with_all_params(
+        self, handler_with_sensitive_data_access, mock_ctx, mock_catalog_manager
+    ):
+        """Test get-entity-records with all optional parameters."""
+        expected_response = MagicMock()
+        expected_response.isError = False
+        expected_response.content = []
+        mock_catalog_manager.get_entity_records.return_value = expected_response
+
+        result = await handler_with_sensitive_data_access.manage_aws_glue_connection_metadata(
+            mock_ctx,
+            operation='get-entity-records',
+            connection_name='my-conn',
+            entity_name='Account',
+            limit=5,
+            catalog_id='123456789012',
+            connection_options={'key': 'value'},
+            filter_predicate="Name = 'Acme'",
+            selected_fields=['Id', 'Name'],
+            data_store_api_version='v1',
+        )
+
+        call_kwargs = mock_catalog_manager.get_entity_records.call_args[1]
+        assert call_kwargs['connection_name'] == 'my-conn'
+        assert call_kwargs['entity_name'] == 'Account'
+        assert call_kwargs['limit'] == 5
+        assert call_kwargs['catalog_id'] == '123456789012'
+        assert call_kwargs['connection_options'] == {'key': 'value'}
+        assert call_kwargs['filter_predicate'] == "Name = 'Acme'"
+        assert call_kwargs['selected_fields'] == ['Id', 'Name']
+        assert result == expected_response
+
+    @pytest.mark.asyncio
+    async def test_manage_connection_metadata_invalid_operation(self, handler, mock_ctx):
+        """Test that invalid metadata operations are rejected."""
+        result = await handler.manage_aws_glue_connection_metadata(
+            mock_ctx,
+            operation='invalid-op',
+            connection_name='my-conn',
+        )
+        assert result.isError is True
+        assert 'Invalid operation' in result.content[0].text
+
+    @pytest.mark.asyncio
+    async def test_manage_connection_metadata_exception_handling(
+        self, handler, mock_ctx, mock_catalog_manager
+    ):
+        """Test that metadata handler catches general exceptions."""
+        mock_catalog_manager.list_entities.side_effect = Exception('Unexpected error')
+
+        result = await handler.manage_aws_glue_connection_metadata(
+            mock_ctx,
+            operation='list-entities',
+            connection_name='my-conn',
+        )
+
+        assert result.isError is True
+        assert 'Error in manage_aws_glue_connection_metadata' in result.content[0].text

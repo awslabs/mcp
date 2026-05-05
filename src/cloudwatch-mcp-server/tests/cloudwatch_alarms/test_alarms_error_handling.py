@@ -42,9 +42,7 @@ class TestParameterValidation:
     @pytest.mark.asyncio
     async def test_max_items_none_handling(self, mock_context):
         """Test max_items parameter when None is passed - covers line 109."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_paginator = Mock()
             mock_paginator.paginate.return_value = [{'MetricAlarms': [], 'CompositeAlarms': []}]
@@ -67,9 +65,7 @@ class TestParameterValidation:
     @pytest.mark.asyncio
     async def test_max_items_invalid_type_handling(self, mock_context):
         """Test max_items parameter when invalid type is passed."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_paginator = Mock()
             mock_paginator.paginate.return_value = [{'MetricAlarms': [], 'CompositeAlarms': []}]
@@ -85,9 +81,7 @@ class TestParameterValidation:
     @pytest.mark.asyncio
     async def test_alarm_history_parameter_defaults(self, mock_context):
         """Test alarm history parameter defaults - covers lines 155, 257, 259."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_paginator = Mock()
             mock_paginator.paginate.return_value = [{'AlarmHistoryItems': []}]
@@ -114,9 +108,7 @@ class TestParameterValidation:
     @pytest.mark.asyncio
     async def test_alarm_history_invalid_parameter_types(self, mock_context):
         """Test alarm history with invalid parameter types."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_paginator = Mock()
             mock_paginator.paginate.return_value = [{'AlarmHistoryItems': []}]
@@ -146,7 +138,7 @@ class TestErrorHandling:
 
     def test_transform_history_item_error_handling(self):
         """Test _transform_history_item error handling - covers lines 436, 443-444, 446."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             alarms_tools = CloudWatchAlarmsTools()
 
             # Mock the AlarmHistoryItem constructor to raise an exception during normal creation
@@ -177,7 +169,7 @@ class TestErrorHandling:
 
     def test_transform_history_item_json_parse_error(self):
         """Test _transform_history_item with JSON parse error."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             alarms_tools = CloudWatchAlarmsTools()
 
             # History item with malformed JSON in HistoryData
@@ -204,7 +196,7 @@ class TestErrorHandling:
 
     def test_transform_history_item_general_exception(self):
         """Test _transform_history_item with general exception in JSON processing."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             alarms_tools = CloudWatchAlarmsTools()
 
             # Valid JSON but will cause KeyError or other exception
@@ -230,7 +222,7 @@ class TestErrorHandling:
 
     def test_generate_time_range_suggestions_error_handling(self):
         """Test _generate_time_range_suggestions error handling - covers lines 488-489, 502-503, 505."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             alarms_tools = CloudWatchAlarmsTools()
 
             # Create valid history items but mock internal processing to fail
@@ -272,7 +264,7 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_get_alarm_details_api_error(self):
         """Test _get_alarm_details with API error - covers lines 575-576."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             alarms_tools = CloudWatchAlarmsTools()
 
             # Mock client that raises exception
@@ -294,7 +286,7 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_handle_composite_alarm_error(self):
         """Test _handle_composite_alarm error handling - covers lines 598-600, 623-624, 628, 644-645, 647."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             alarms_tools = CloudWatchAlarmsTools()
 
             alarm_details = AlarmDetails(
@@ -334,7 +326,7 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_handle_composite_alarm_general_error(self):
         """Test _handle_composite_alarm with general error."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             alarms_tools = CloudWatchAlarmsTools()
 
             alarm_details = AlarmDetails(
@@ -364,7 +356,7 @@ class TestErrorHandling:
 
     def test_parse_alarm_rule_error_handling(self):
         """Test _parse_alarm_rule error handling - covers lines 688-690."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             alarms_tools = CloudWatchAlarmsTools()
 
             # Mock re.findall to raise exception
@@ -384,7 +376,7 @@ class TestEdgeCases:
 
     def test_empty_alarm_rule_parsing(self):
         """Test parsing empty alarm rule."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             alarms_tools = CloudWatchAlarmsTools()
 
             result = alarms_tools._parse_alarm_rule('')
@@ -395,7 +387,7 @@ class TestEdgeCases:
 
     def test_alarm_rule_with_no_matches(self):
         """Test alarm rule that doesn't match any patterns."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             alarms_tools = CloudWatchAlarmsTools()
 
             result = alarms_tools._parse_alarm_rule('some random text')
@@ -403,7 +395,7 @@ class TestEdgeCases:
 
     def test_alarm_rule_with_empty_alarm_names(self):
         """Test alarm rule with empty alarm names."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             alarms_tools = CloudWatchAlarmsTools()
 
             # Test with properly quoted empty strings
@@ -416,7 +408,7 @@ class TestEdgeCases:
 
     def test_transform_metric_alarm_with_missing_threshold(self):
         """Test metric alarm transformation with missing threshold."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             alarms_tools = CloudWatchAlarmsTools()
 
             alarm_data = {
@@ -435,7 +427,7 @@ class TestEdgeCases:
 
     def test_transform_composite_alarm_with_minimal_data(self):
         """Test composite alarm transformation with minimal data."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             alarms_tools = CloudWatchAlarmsTools()
 
             alarm_data = {
@@ -450,7 +442,7 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_get_alarm_details_with_both_metric_and_composite_empty(self):
         """Test _get_alarm_details when both metric and composite alarms are empty."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             alarms_tools = CloudWatchAlarmsTools()
 
             mock_client = Mock()
@@ -466,7 +458,7 @@ class TestEdgeCases:
 
     def test_generate_time_range_suggestions_no_alarm_transitions(self):
         """Test time range suggestions with no ALARM transitions."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             alarms_tools = CloudWatchAlarmsTools()
 
             # History items with no ALARM transitions
@@ -495,7 +487,7 @@ class TestEdgeCases:
 
     def test_generate_time_range_suggestions_with_default_periods(self):
         """Test time range suggestions with default period values."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             alarms_tools = CloudWatchAlarmsTools()
 
             history_items = [

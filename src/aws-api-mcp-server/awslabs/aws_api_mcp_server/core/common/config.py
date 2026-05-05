@@ -15,18 +15,40 @@
 import boto3
 import os
 import tempfile
+from awslabs.aws_api_mcp_server import __version__
+from enum import Enum
+from fastmcp.server.auth import JWTVerifier
+from fastmcp.server.dependencies import get_context
+from loguru import logger
 from pathlib import Path
+from typing import Literal, cast
 
 
-def get_region() -> str:
-    """Get the default region for executing cli commands."""
-    if aws_region := os.getenv('AWS_REGION'):
-        return aws_region
+TRUTHY_VALUES = frozenset(['true', 'yes', '1'])
+READ_ONLY_KEY = 'READ_OPERATIONS_ONLY'
+TELEMETRY_KEY = 'AWS_API_MCP_TELEMETRY'
+REQUIRE_MUTATION_CONSENT_KEY = 'REQUIRE_MUTATION_CONSENT'
+FILE_ACCESS_MODE_KEY = 'AWS_API_MCP_ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS'
+AWS_API_MCP_WORKING_DIR_KEY = 'AWS_API_MCP_WORKING_DIR'
+
+
+class FileAccessMode(str, Enum):
+    """File access control modes for the MCP server."""
+
+    UNRESTRICTED = 'true'
+    WORKDIR = 'workdir'
+    NO_ACCESS = 'no-access'
+
+
+def get_region(profile_name: str | None = None) -> str:
+    """Get the region depending on configuration."""
+    if AWS_REGION:
+        return AWS_REGION
 
     fallback_region = 'us-east-1'
 
-    if AWS_API_MCP_PROFILE_NAME:
-        return boto3.Session(profile_name=AWS_API_MCP_PROFILE_NAME).region_name or fallback_region
+    if profile_name:
+        return boto3.Session(profile_name=profile_name).region_name or fallback_region
 
     return boto3.Session().region_name or fallback_region
 
@@ -43,21 +65,130 @@ def get_server_directory():
     return Path(base_dir) / base_location
 
 
-TRUTHY_VALUES = frozenset(['true', 'yes', '1'])
-READ_ONLY_KEY = 'READ_OPERATIONS_ONLY'
-TELEMETRY_KEY = 'AWS_API_MCP_TELEMETRY'
-REQUIRE_MUTATION_CONSENT_KEY = 'REQUIRE_MUTATION_CONSENT'
-
-
 def get_env_bool(env_key: str, default: bool) -> bool:
     """Get a boolean value from an environment variable, with a default."""
     return os.getenv(env_key, str(default)).casefold() in TRUTHY_VALUES
 
 
-FASTMCP_LOG_LEVEL = os.getenv('FASTMCP_LOG_LEVEL', 'WARNING')
+def get_file_access_mode() -> FileAccessMode:
+    """Parse the file access mode from environment variable."""
+    value = os.getenv(FILE_ACCESS_MODE_KEY, 'workdir').casefold()
+
+    # Map boolean-like values for backward compatibility
+    if value in ['unrestricted', 'true', 'yes', '1']:
+        return FileAccessMode.UNRESTRICTED
+    elif value in ['false', 'no', '0', 'workdir']:
+        return FileAccessMode.WORKDIR
+    elif value == 'no-access':
+        return FileAccessMode.NO_ACCESS
+    else:
+        # Default to workdir for unknown values
+        return FileAccessMode.WORKDIR
+
+
+def get_transport_from_env() -> Literal['stdio', 'streamable-http']:
+    """Get a transport value from an environment variable, with a default."""
+    transport = os.getenv('AWS_API_MCP_TRANSPORT', 'stdio')
+    if transport not in ['stdio', 'streamable-http']:
+        raise ValueError(f'Invalid transport: {transport}')
+
+    return cast(Literal['stdio', 'streamable-http'], transport)
+
+
+def get_user_agent_extra() -> str:
+    """Get the user agent extra string."""
+    user_agent_extra = f'md/awslabs#mcp#aws-api-mcp-server#{__version__}'
+
+    try:
+        ctx = get_context()
+        user_agent_extra += f' md/via/{ctx.fastmcp.name}'
+
+        if OPT_IN_TELEMETRY and (client_params := ctx.session.client_params):
+            user_agent_extra += f' MCPClient/{client_params.clientInfo.name.replace(" ", "-")}#{client_params.clientInfo.version}'
+    except RuntimeError:
+        pass  # get_context throws a RuntimeError when called outside of a server request, we can safely ingore that
+
+    if not OPT_IN_TELEMETRY:
+        return user_agent_extra
+    user_agent_extra += f' cfg/ro#{"1" if READ_OPERATIONS_ONLY_MODE else "0"}'
+    user_agent_extra += f' cfg/consent#{"1" if REQUIRE_MUTATION_CONSENT else "0"}'
+    user_agent_extra += f' cfg/scripts#{"1" if ENABLE_AGENT_SCRIPTS else "0"}'
+    return user_agent_extra
+
+
+def get_working_directory() -> Path:
+    """Returns the custom working directory if AWS_API_MCP_WORKING_DIR is set, otherwise returns a default directory under the server directory."""
+    if custom_workdir := os.getenv(AWS_API_MCP_WORKING_DIR_KEY):
+        if (
+            not os.path.exists(custom_workdir)
+            or not os.path.isdir(custom_workdir)
+            or not os.path.isabs(custom_workdir)
+        ):
+            error_message = (
+                f'{AWS_API_MCP_WORKING_DIR_KEY} must be an absolute path to an existing directory'
+            )
+            logger.error(error_message)
+            raise ValueError(error_message)
+
+        return Path(custom_workdir)
+
+    workdir = get_server_directory() / 'workdir'
+    os.makedirs(workdir, exist_ok=True)
+
+    return workdir
+
+
+def get_server_auth():
+    """Configure authentication and for FastMCP server."""
+    auth_provider = None
+
+    if TRANSPORT != 'streamable-http':
+        return auth_provider
+
+    if not AUTH_TYPE or AUTH_TYPE not in ['no-auth', 'oauth']:
+        raise ValueError(
+            'TRANSPORT="streamable-http" requires the following environment variable to be set: AUTH_TYPE to `no-auth` or `oauth`'
+        )
+
+    if AUTH_TYPE == 'no-auth':
+        return auth_provider
+
+    if not AUTH_ISSUER or not AUTH_JWKS_URI:
+        raise ValueError(
+            'AUTH_TYPE="oauth" requires the following environment variables to be set: AUTH_ISSUER and AUTH_JWKS_URI'
+        )
+
+    auth_provider = JWTVerifier(issuer=AUTH_ISSUER, jwks_uri=AUTH_JWKS_URI)
+
+    return auth_provider
+
+
+FASTMCP_LOG_LEVEL = os.getenv('FASTMCP_LOG_LEVEL', 'INFO')
 AWS_API_MCP_PROFILE_NAME = os.getenv('AWS_API_MCP_PROFILE_NAME')
-DEFAULT_REGION = get_region()
+AWS_REGION = os.getenv('AWS_REGION')
+DEFAULT_REGION = get_region(AWS_API_MCP_PROFILE_NAME)
 READ_OPERATIONS_ONLY_MODE = get_env_bool(READ_ONLY_KEY, False)
 OPT_IN_TELEMETRY = get_env_bool(TELEMETRY_KEY, True)
-WORKING_DIRECTORY = os.getenv('AWS_API_MCP_WORKING_DIR', get_server_directory() / 'workdir')
+WORKING_DIRECTORY = get_working_directory()
 REQUIRE_MUTATION_CONSENT = get_env_bool(REQUIRE_MUTATION_CONSENT_KEY, False)
+ENABLE_AGENT_SCRIPTS = get_env_bool('EXPERIMENTAL_AGENT_SCRIPTS', False)
+TRANSPORT = get_transport_from_env()
+HOST = os.getenv('AWS_API_MCP_HOST', '127.0.0.1')
+PORT = int(os.getenv('AWS_API_MCP_PORT', 8000))
+ALLOWED_HOSTS = os.getenv('AWS_API_MCP_ALLOWED_HOSTS', HOST)
+ALLOWED_ORIGINS = os.getenv('AWS_API_MCP_ALLOWED_ORIGINS', HOST)
+STATELESS_HTTP = get_env_bool('AWS_API_MCP_STATELESS_HTTP', False)
+CUSTOM_SCRIPTS_DIR = os.getenv('AWS_API_MCP_AGENT_SCRIPTS_DIR')
+FILE_ACCESS_MODE = get_file_access_mode()
+ENDPOINT_SUGGEST_AWS_COMMANDS = os.getenv(
+    'ENDPOINT_SUGGEST_AWS_COMMANDS', 'https://api-mcp.global.api.aws/suggest-aws-commands'
+)
+CONNECT_TIMEOUT_SECONDS = 10
+READ_TIMEOUT_SECONDS = 60
+AWS_MAX_ATTEMPTS = int(os.getenv('AWS_MAX_ATTEMPTS', 3))
+MAX_BATCH_COMMANDS = 20
+
+# Authentication Configuration
+AUTH_TYPE = os.getenv('AUTH_TYPE')
+AUTH_ISSUER = os.getenv('AUTH_ISSUER')
+AUTH_JWKS_URI = os.getenv('AUTH_JWKS_URI')

@@ -28,9 +28,7 @@ async def ctx():
 @pytest_asyncio.fixture
 async def cloudwatch_metrics_tools():
     """Create CloudWatchMetricsTools instance with mocked client."""
-    with patch(
-        'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session'
-    ) as mock_session:
+    with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
         mock_session.return_value.client.return_value = MagicMock()
         tools = CloudWatchMetricsTools()
         return tools

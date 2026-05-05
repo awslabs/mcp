@@ -33,7 +33,7 @@ def set_user_agent_mode(allow_write: bool):
 
 
 def _user_agent_extra():
-    return f'awslabs/mcp/s3-tables-mcp-server/{__version__}/{_user_agent_mode}'
+    return f'md/awslabs#mcp#s3-tables-mcp-server#{__version__} cfg/mode#{_user_agent_mode}'
 
 
 def handle_exceptions(func):

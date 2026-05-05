@@ -54,9 +54,21 @@ def mock_bedrock_agent_client():
     kb_paginator.paginate.return_value = [
         {
             'knowledgeBaseSummaries': [
-                {'knowledgeBaseId': 'kb-12345', 'name': 'Test Knowledge Base'},
-                {'knowledgeBaseId': 'kb-67890', 'name': 'Another Knowledge Base'},
-                {'knowledgeBaseId': 'kb-95008', 'name': 'Yet another Knowledge Base'},
+                {
+                    'knowledgeBaseId': 'kb-12345',
+                    'name': 'Test Knowledge Base',
+                    'description': 'A test knowledge base for testing purposes',
+                },
+                {
+                    'knowledgeBaseId': 'kb-67890',
+                    'name': 'Another Knowledge Base',
+                    'description': 'Another knowledge base for testing',
+                },
+                {
+                    'knowledgeBaseId': 'kb-95008',
+                    'name': 'Yet another Knowledge Base',
+                    'description': 'Yet another test knowledge base',
+                },
             ]
         }
     ]
@@ -106,13 +118,13 @@ def mock_boto3():
         mock_bedrock_agent_runtime = MagicMock()
         mock_bedrock_agent = MagicMock()
 
-        mock_client.side_effect = lambda service, region_name=None: {
+        mock_client.side_effect = lambda service, region_name=None, **kwargs: {
             'bedrock-agent-runtime': mock_bedrock_agent_runtime,
             'bedrock-agent': mock_bedrock_agent,
         }[service]
 
         mock_session_instance = MagicMock()
-        mock_session_instance.client.side_effect = lambda service, region_name=None: {
+        mock_session_instance.client.side_effect = lambda service, region_name=None, **kwargs: {
             'bedrock-agent-runtime': mock_bedrock_agent_runtime,
             'bedrock-agent': mock_bedrock_agent,
         }[service]

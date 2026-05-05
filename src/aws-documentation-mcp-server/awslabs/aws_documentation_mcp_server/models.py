@@ -14,7 +14,7 @@
 """Data models for AWS Documentation MCP Server."""
 
 from pydantic import BaseModel
-from typing import Optional
+from typing import Dict, List, Optional
 
 
 class SearchResult(BaseModel):
@@ -24,6 +24,15 @@ class SearchResult(BaseModel):
     url: str
     title: str
     context: Optional[str] = None
+    sections: Optional[List[str]] = None
+
+
+class SearchResponse(BaseModel):
+    """Complete search response including results and facets."""
+
+    search_results: List[SearchResult]
+    facets: Optional[Dict[str, List[str]]] = None
+    query_id: str
 
 
 class RecommendationResult(BaseModel):

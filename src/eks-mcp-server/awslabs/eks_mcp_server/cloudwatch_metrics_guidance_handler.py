@@ -17,11 +17,11 @@
 import json
 import os
 from awslabs.eks_mcp_server.logging_helper import LogLevel, log_with_request_id
-from awslabs.eks_mcp_server.models import MetricsGuidanceResponse
+from awslabs.eks_mcp_server.models import MetricsGuidanceData
 from enum import Enum
 from loguru import logger
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
 from typing import Any, Dict
 
@@ -78,7 +78,7 @@ class CloudWatchMetricsHandler:
             ...,
             description='Type of resource to get metrics for (cluster, node, pod, namespace, service)',
         ),
-    ) -> MetricsGuidanceResponse:
+    ) -> CallToolResult:
         """Get CloudWatch metrics guidance for specific resource types in EKS clusters.
 
         This tool provides information about available CloudWatch metrics that are in the `ContainerInsights` naemspace for different resource types
@@ -112,11 +112,9 @@ class CloudWatchMetricsHandler:
             )
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return MetricsGuidanceResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                resource_type=resource_type,
-                metrics=[],
             )
 
         metrics = self.metrics_guidance.get(resource_type.lower(), {}).get('metrics', [])
@@ -128,14 +126,21 @@ class CloudWatchMetricsHandler:
             f'Retrieved {len(metrics)} metrics for resource type {resource_type_lower}',
         )
 
-        return MetricsGuidanceResponse(
+        data = MetricsGuidanceData(
+            resource_type=resource_type_lower,
+            metrics=metrics,
+        )
+
+        return CallToolResult(
             isError=False,
             content=[
                 TextContent(
                     type='text',
                     text=f'Successfully retrieved {len(metrics)} metrics for resource type {resource_type_lower}',
-                )
+                ),
+                TextContent(
+                    type='text',
+                    text=json.dumps(data.model_dump()),
+                ),
             ],
-            resource_type=resource_type_lower,
-            metrics=metrics,
         )

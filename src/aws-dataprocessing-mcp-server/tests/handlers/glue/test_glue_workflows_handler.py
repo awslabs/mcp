@@ -17,6 +17,7 @@ from awslabs.aws_dataprocessing_mcp_server.handlers.glue.worklows_handler import
 )
 from botocore.exceptions import ClientError
 from mcp.server.fastmcp import Context
+from tests.test_utils import CallToolResultWrapper
 from unittest.mock import MagicMock, patch
 
 
@@ -56,7 +57,9 @@ async def test_glue_workflow_handler_initialization(mock_create_client):
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.prepare_resource_tags')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 async def test_create_workflow_success(
     mock_get_account_id, mock_get_region, mock_prepare_tags, mock_create_client
@@ -82,7 +85,7 @@ async def test_create_workflow_success(
     mock_glue_client.create_workflow.return_value = {'Name': 'test-workflow'}
 
     # Call the manage_aws_glue_workflows method with create-workflow operation
-    result = await handler.manage_aws_glue_workflows(
+    raw_result = await handler.manage_aws_glue_workflows(
         mock_ctx,
         operation='create-workflow',
         workflow_name='test-workflow',
@@ -93,11 +96,19 @@ async def test_create_workflow_success(
         },
     )
 
+    # Wrap the result for compatibility
+    result = CallToolResultWrapper(raw_result)
+
     # Verify the result
     assert not result.isError
-    assert len(result.content) == 1
+    assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully created workflow test-workflow' in result.content[0].text
+    # Parse JSON from second content item
+    import json
+
+    json_data = json.loads(result.content[1].text)
+    assert json_data['workflow_name'] == 'test-workflow'
     assert result.workflow_name == 'test-workflow'
 
     # Verify that create_workflow was called with the correct parameters
@@ -136,7 +147,7 @@ async def test_create_workflow_with_user_tags(mock_prepare_tags, mock_create_cli
     mock_glue_client.create_workflow.return_value = {'Name': 'test-workflow'}
 
     # Call the manage_aws_glue_workflows method with create-workflow operation and user tags
-    result = await handler.manage_aws_glue_workflows(
+    raw_result = await handler.manage_aws_glue_workflows(
         mock_ctx,
         operation='create-workflow',
         workflow_name='test-workflow',
@@ -145,6 +156,9 @@ async def test_create_workflow_with_user_tags(mock_prepare_tags, mock_create_cli
             'Tags': {'Environment': 'Test', 'Project': 'UnitTest'},
         },
     )
+
+    # Wrap the result for compatibility
+    result = CallToolResultWrapper(raw_result)
 
     # Verify the result
     assert not result.isError
@@ -182,7 +196,7 @@ async def test_create_workflow_with_only_description(mock_prepare_tags, mock_cre
     mock_glue_client.create_workflow.return_value = {'Name': 'test-workflow'}
 
     # Call the manage_aws_glue_workflows method with create-workflow operation and only description
-    result = await handler.manage_aws_glue_workflows(
+    raw_result = await handler.manage_aws_glue_workflows(
         mock_ctx,
         operation='create-workflow',
         workflow_name='test-workflow',
@@ -190,6 +204,9 @@ async def test_create_workflow_with_only_description(mock_prepare_tags, mock_cre
             'Description': 'Test workflow',
         },
     )
+
+    # Wrap the result for compatibility
+    result = CallToolResultWrapper(raw_result)
 
     # Verify the result
     assert not result.isError
@@ -269,12 +286,15 @@ async def test_get_workflow_with_include_graph_false(mock_create_client):
     mock_glue_client.get_workflow.return_value = {'Workflow': mock_workflow_details}
 
     # Call the manage_aws_glue_workflows method with get-workflow operation and include_graph=False
-    result = await handler.manage_aws_glue_workflows(
+    raw_result = await handler.manage_aws_glue_workflows(
         mock_ctx,
         operation='get-workflow',
         workflow_name='test-workflow',
         workflow_definition={'include_graph': False},
     )
+
+    # Wrap the result for easier assertion
+    result = CallToolResultWrapper(raw_result)
 
     # Verify the result
     assert not result.isError
@@ -303,12 +323,15 @@ async def test_create_workflow_no_write_access(mock_create_client):
     mock_ctx = MagicMock(spec=Context)
 
     # Call the manage_aws_glue_workflows method with create-workflow operation
-    result = await handler.manage_aws_glue_workflows(
+    raw_result = await handler.manage_aws_glue_workflows(
         mock_ctx,
         operation='create-workflow',
         workflow_name='test-workflow',
         workflow_definition={'Description': 'Test workflow'},
     )
+
+    # Wrap the result for easier assertion
+    result = CallToolResultWrapper(raw_result)
 
     # Verify the result indicates an error due to no write access
     assert result.isError
@@ -317,7 +340,6 @@ async def test_create_workflow_no_write_access(mock_create_client):
     assert (
         'Operation create-workflow is not allowed without write access' in result.content[0].text
     )
-    assert result.workflow_name == ''
 
     # Verify that create_workflow was NOT called
     mock_glue_client.create_workflow.assert_not_called()
@@ -325,7 +347,9 @@ async def test_create_workflow_no_write_access(mock_create_client):
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.is_resource_mcp_managed')
 async def test_delete_workflow_success(
@@ -358,13 +382,16 @@ async def test_delete_workflow_success(
     }
 
     # Call the manage_aws_glue_workflows method with delete-workflow operation
-    result = await handler.manage_aws_glue_workflows(
+    raw_result = await handler.manage_aws_glue_workflows(
         mock_ctx, operation='delete-workflow', workflow_name='test-workflow'
     )
 
+    # Wrap the result for easier assertion
+    result = CallToolResultWrapper(raw_result)
+
     # Verify the result
     assert not result.isError
-    assert len(result.content) == 1
+    assert len(result.content) == 2  # Message + JSON data
     assert result.content[0].type == 'text'
     assert 'Successfully deleted workflow test-workflow' in result.content[0].text
     assert result.workflow_name == 'test-workflow'
@@ -375,7 +402,9 @@ async def test_delete_workflow_success(
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.is_resource_mcp_managed')
 async def test_delete_workflow_not_mcp_managed(
@@ -423,7 +452,6 @@ async def test_delete_workflow_not_mcp_managed(
         'Cannot delete workflow test-workflow - it is not managed by the MCP server'
         in result.content[0].text
     )
-    assert result.workflow_name == 'test-workflow'
 
     # Verify that delete_workflow was NOT called
     mock_glue_client.delete_workflow.assert_not_called()
@@ -461,11 +489,15 @@ async def test_get_workflow_success(mock_create_client):
 
     # Verify the result
     assert not result.isError
-    assert len(result.content) == 1
+    assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully retrieved workflow test-workflow' in result.content[0].text
-    assert result.workflow_name == 'test-workflow'
-    assert result.workflow_details == mock_workflow_details
+    # Parse JSON from second content item
+    import json
+
+    json_data = json.loads(result.content[1].text)
+    assert json_data['workflow_name'] == 'test-workflow'
+    assert json_data['workflow_details'] == mock_workflow_details
 
     # Verify that get_workflow was called with the correct parameters
     mock_glue_client.get_workflow.assert_called_once_with(Name='test-workflow')
@@ -507,11 +539,15 @@ async def test_get_workflow_with_include_graph(mock_create_client):
 
     # Verify the result
     assert not result.isError
-    assert len(result.content) == 1
+    assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully retrieved workflow test-workflow' in result.content[0].text
-    assert result.workflow_name == 'test-workflow'
-    assert result.workflow_details == mock_workflow_details
+    # Parse JSON from second content item
+    import json
+
+    json_data = json.loads(result.content[1].text)
+    assert json_data['workflow_name'] == 'test-workflow'
+    assert json_data['workflow_details'] == mock_workflow_details
 
     # Verify that get_workflow was called with the correct parameters
     mock_glue_client.get_workflow.assert_called_once_with(Name='test-workflow', IncludeGraph=True)
@@ -547,13 +583,17 @@ async def test_list_workflows_success(mock_create_client):
 
     # Verify the result
     assert not result.isError
-    assert len(result.content) == 1
+    assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully retrieved workflows' in result.content[0].text
-    assert len(result.workflows) == 2
-    assert result.workflows[0]['Name'] == 'workflow1'
-    assert result.workflows[1]['Name'] == 'workflow2'
-    assert result.next_token == 'next-token'
+    # Parse JSON from second content item
+    import json
+
+    json_data = json.loads(result.content[1].text)
+    assert len(json_data['workflows']) == 2
+    assert json_data['workflows'][0]['Name'] == 'workflow1'
+    assert json_data['workflows'][1]['Name'] == 'workflow2'
+    assert json_data['next_token'] == 'next-token'
 
     # Verify that list_workflows was called with the correct parameters
     mock_glue_client.list_workflows.assert_called_once_with(MaxResults=10, NextToken='token')
@@ -561,7 +601,9 @@ async def test_list_workflows_success(mock_create_client):
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.is_resource_mcp_managed')
 async def test_start_workflow_run_success(
@@ -606,11 +648,15 @@ async def test_start_workflow_run_success(
 
     # Verify the result
     assert not result.isError
-    assert len(result.content) == 1
+    assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully started workflow run for test-workflow' in result.content[0].text
-    assert result.workflow_name == 'test-workflow'
-    assert result.run_id == 'run-123'
+    # Parse JSON from second content item
+    import json
+
+    json_data = json.loads(result.content[1].text)
+    assert json_data['workflow_name'] == 'test-workflow'
+    assert json_data['run_id'] == 'run-123'
 
     # Verify that start_workflow_run was called with the correct parameters
     mock_glue_client.start_workflow_run.assert_called_once_with(
@@ -620,7 +666,9 @@ async def test_start_workflow_run_success(
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.is_resource_mcp_managed')
 async def test_start_workflow_run_not_mcp_managed(
@@ -713,7 +761,9 @@ async def test_start_workflow_run_no_write_access(mock_create_client):
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.is_resource_mcp_managed')
 async def test_start_workflow_run_not_found(
@@ -764,7 +814,9 @@ async def test_start_workflow_run_not_found(
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.is_resource_mcp_managed')
 async def test_start_workflow_run_without_run_properties(
@@ -810,8 +862,13 @@ async def test_start_workflow_run_without_run_properties(
 
     # Verify the result
     assert not result.isError
-    assert result.workflow_name == 'test-workflow'
-    assert result.run_id == 'run-123'
+    assert len(result.content) == 2
+    # Parse JSON from second content item
+    import json
+
+    json_data = json.loads(result.content[1].text)
+    assert json_data['workflow_name'] == 'test-workflow'
+    assert json_data['run_id'] == 'run-123'
 
     # Verify that start_workflow_run was called with just the Name parameter
     mock_glue_client.start_workflow_run.assert_called_once_with(Name='test-workflow')
@@ -874,8 +931,9 @@ async def test_invalid_operation(mock_create_client):
     assert result.isError
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
-    assert 'Invalid operation: invalid-operation' in result.content[0].text
-    assert result.workflow_name == 'test-workflow'
+    assert (
+        'Operation invalid-operation is not allowed without write access' in result.content[0].text
+    )
 
 
 @pytest.mark.asyncio
@@ -912,7 +970,6 @@ async def test_workflow_not_found(mock_create_client):
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert 'Workflow test-workflow not found' in result.content[0].text
-    assert result.workflow_name == 'test-workflow'
 
     # Verify that delete_workflow was NOT called
     mock_glue_client.delete_workflow.assert_not_called()
@@ -946,7 +1003,7 @@ async def test_create_trigger_success(mock_prepare_tags, mock_create_client):
     mock_glue_client.create_trigger.return_value = {'Name': 'test-trigger'}
 
     # Call the manage_aws_glue_triggers method with create-trigger operation
-    result = await handler.manage_aws_glue_triggers(
+    raw_result = await handler.manage_aws_glue_triggers(
         mock_ctx,
         operation='create-trigger',
         trigger_name='test-trigger',
@@ -959,9 +1016,12 @@ async def test_create_trigger_success(mock_prepare_tags, mock_create_client):
         },
     )
 
+    # Wrap the result for easier assertion
+    result = CallToolResultWrapper(raw_result)
+
     # Verify the result
     assert not result.isError
-    assert len(result.content) == 1
+    assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully created trigger test-trigger' in result.content[0].text
     assert result.trigger_name == 'test-trigger'
@@ -1004,7 +1064,7 @@ async def test_create_trigger_with_user_tags(mock_prepare_tags, mock_create_clie
     mock_glue_client.create_trigger.return_value = {'Name': 'test-trigger'}
 
     # Call the manage_aws_glue_triggers method with create-trigger operation and user tags
-    result = await handler.manage_aws_glue_triggers(
+    raw_result = await handler.manage_aws_glue_triggers(
         mock_ctx,
         operation='create-trigger',
         trigger_name='test-trigger',
@@ -1015,8 +1075,12 @@ async def test_create_trigger_with_user_tags(mock_prepare_tags, mock_create_clie
         },
     )
 
+    # Wrap the result for easier assertion
+    result = CallToolResultWrapper(raw_result)
+
     # Verify the result
     assert not result.isError
+    assert len(result.content) == 2
     assert result.trigger_name == 'test-trigger'
 
     # Verify that create_trigger was called with merged tags
@@ -1064,7 +1128,17 @@ async def test_create_trigger_with_workflow_name(mock_prepare_tags, mock_create_
 
     # Verify the result
     assert not result.isError
-    assert result.trigger_name == 'test-trigger'
+    assert len(result.content) == 2
+    assert result.content[0].type == 'text'
+    assert 'Successfully created trigger test-trigger' in result.content[0].text
+    assert result.content[1].type == 'text'
+
+    # Parse the JSON response
+    import json
+
+    response_data = json.loads(result.content[1].text)
+    assert response_data['trigger_name'] == 'test-trigger'
+    assert response_data['operation'] == 'create-trigger'
 
     # Verify that create_trigger was called with workflow_name
     mock_glue_client.create_trigger.assert_called_once()
@@ -1098,7 +1172,7 @@ async def test_create_trigger_with_predicate(mock_prepare_tags, mock_create_clie
     mock_glue_client.create_trigger.return_value = {'Name': 'test-trigger'}
 
     # Call the manage_aws_glue_triggers method with create-trigger operation and predicate
-    result = await handler.manage_aws_glue_triggers(
+    raw_result = await handler.manage_aws_glue_triggers(
         mock_ctx,
         operation='create-trigger',
         trigger_name='test-trigger',
@@ -1116,6 +1190,9 @@ async def test_create_trigger_with_predicate(mock_prepare_tags, mock_create_clie
             },
         },
     )
+
+    # Wrap the result for easier assertion
+    result = CallToolResultWrapper(raw_result)
 
     # Verify the result
     assert not result.isError
@@ -1155,7 +1232,7 @@ async def test_create_trigger_with_event_batching_condition(mock_prepare_tags, m
     mock_glue_client.create_trigger.return_value = {'Name': 'test-trigger'}
 
     # Call the manage_aws_glue_triggers method with create-trigger operation and event_batching_condition
-    result = await handler.manage_aws_glue_triggers(
+    raw_result = await handler.manage_aws_glue_triggers(
         mock_ctx,
         operation='create-trigger',
         trigger_name='test-trigger',
@@ -1165,6 +1242,9 @@ async def test_create_trigger_with_event_batching_condition(mock_prepare_tags, m
             'EventBatchingCondition': {'BatchSize': 5, 'BatchWindow': 900},
         },
     )
+
+    # Wrap the result for easier assertion
+    result = CallToolResultWrapper(raw_result)
 
     # Verify the result
     assert not result.isError
@@ -1234,19 +1314,21 @@ async def test_create_trigger_no_write_access(mock_create_client):
     mock_ctx = MagicMock(spec=Context)
 
     # Call the manage_aws_glue_triggers method with create-trigger operation
-    result = await handler.manage_aws_glue_triggers(
+    raw_result = await handler.manage_aws_glue_triggers(
         mock_ctx,
         operation='create-trigger',
         trigger_name='test-trigger',
         trigger_definition={'Type': 'SCHEDULED', 'Actions': [{'JobName': 'test-job'}]},
     )
 
+    # Wrap the result for easier assertion
+    result = CallToolResultWrapper(raw_result)
+
     # Verify the result indicates an error due to no write access
     assert result.isError
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert 'Operation create-trigger is not allowed without write access' in result.content[0].text
-    assert result.trigger_name == ''
 
     # Verify that create_trigger was NOT called
     mock_glue_client.create_trigger.assert_not_called()
@@ -1254,7 +1336,9 @@ async def test_create_trigger_no_write_access(mock_create_client):
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.is_resource_mcp_managed')
 async def test_delete_trigger_success(
@@ -1287,13 +1371,16 @@ async def test_delete_trigger_success(
     }
 
     # Call the manage_aws_glue_triggers method with delete-trigger operation
-    result = await handler.manage_aws_glue_triggers(
+    raw_result = await handler.manage_aws_glue_triggers(
         mock_ctx, operation='delete-trigger', trigger_name='test-trigger'
     )
 
+    # Wrap the result for compatibility
+    result = CallToolResultWrapper(raw_result)
+
     # Verify the result
     assert not result.isError
-    assert len(result.content) == 1
+    assert len(result.content) == 2  # Message + JSON data
     assert result.content[0].type == 'text'
     assert 'Successfully deleted trigger test-trigger' in result.content[0].text
     assert result.trigger_name == 'test-trigger'
@@ -1304,7 +1391,9 @@ async def test_delete_trigger_success(
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.is_resource_mcp_managed')
 async def test_delete_trigger_not_mcp_managed(
@@ -1340,9 +1429,12 @@ async def test_delete_trigger_not_mcp_managed(
     }
 
     # Call the manage_aws_glue_triggers method with delete-trigger operation
-    result = await handler.manage_aws_glue_triggers(
+    raw_result = await handler.manage_aws_glue_triggers(
         mock_ctx, operation='delete-trigger', trigger_name='test-trigger'
     )
+
+    # Wrap the result for easier assertion
+    result = CallToolResultWrapper(raw_result)
 
     # Verify the result indicates an error because the trigger is not MCP managed
     assert result.isError
@@ -1386,13 +1478,16 @@ async def test_get_trigger_success(mock_create_client):
     mock_glue_client.get_trigger.return_value = {'Trigger': mock_trigger_details}
 
     # Call the manage_aws_glue_triggers method with get-trigger operation
-    result = await handler.manage_aws_glue_triggers(
+    raw_result = await handler.manage_aws_glue_triggers(
         mock_ctx, operation='get-trigger', trigger_name='test-trigger'
     )
 
+    # Wrap the result for easier assertion
+    result = CallToolResultWrapper(raw_result)
+
     # Verify the result
     assert not result.isError
-    assert len(result.content) == 1
+    assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully retrieved trigger test-trigger' in result.content[0].text
     assert result.trigger_name == 'test-trigger'
@@ -1429,13 +1524,16 @@ async def test_get_triggers_success(mock_create_client):
     }
 
     # Call the manage_aws_glue_triggers method with get-triggers operation
-    result = await handler.manage_aws_glue_triggers(
+    raw_result = await handler.manage_aws_glue_triggers(
         mock_ctx, operation='get-triggers', max_results=10, next_token='token'
     )
 
+    # Wrap the result for easier assertion
+    result = CallToolResultWrapper(raw_result)
+
     # Verify the result
     assert not result.isError
-    assert len(result.content) == 1
+    assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully retrieved triggers' in result.content[0].text
     assert len(result.triggers) == 2
@@ -1449,7 +1547,9 @@ async def test_get_triggers_success(mock_create_client):
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.is_resource_mcp_managed')
 async def test_start_trigger_success(
@@ -1482,13 +1582,16 @@ async def test_start_trigger_success(
     }
 
     # Call the manage_aws_glue_triggers method with start-trigger operation
-    result = await handler.manage_aws_glue_triggers(
+    raw_result = await handler.manage_aws_glue_triggers(
         mock_ctx, operation='start-trigger', trigger_name='test-trigger'
     )
 
+    # Wrap the result for easier assertion
+    result = CallToolResultWrapper(raw_result)
+
     # Verify the result
     assert not result.isError
-    assert len(result.content) == 1
+    assert len(result.content) == 2  # Message + JSON data
     assert result.content[0].type == 'text'
     assert 'Successfully started trigger test-trigger' in result.content[0].text
     assert result.trigger_name == 'test-trigger'
@@ -1499,7 +1602,9 @@ async def test_start_trigger_success(
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.is_resource_mcp_managed')
 async def test_stop_trigger_success(
@@ -1532,13 +1637,16 @@ async def test_stop_trigger_success(
     }
 
     # Call the manage_aws_glue_triggers method with stop-trigger operation
-    result = await handler.manage_aws_glue_triggers(
+    raw_result = await handler.manage_aws_glue_triggers(
         mock_ctx, operation='stop-trigger', trigger_name='test-trigger'
     )
 
+    # Wrap the result for easier assertion
+    result = CallToolResultWrapper(raw_result)
+
     # Verify the result
     assert not result.isError
-    assert len(result.content) == 1
+    assert len(result.content) == 2  # Message + JSON data
     assert result.content[0].type == 'text'
     assert 'Successfully stopped trigger test-trigger' in result.content[0].text
     assert result.trigger_name == 'test-trigger'
@@ -1565,16 +1673,20 @@ async def test_trigger_invalid_operation(mock_create_client):
     mock_ctx = MagicMock(spec=Context)
 
     # Call the manage_aws_glue_triggers method with an invalid operation
-    result = await handler.manage_aws_glue_triggers(
+    raw_result = await handler.manage_aws_glue_triggers(
         mock_ctx, operation='invalid-operation', trigger_name='test-trigger'
     )
+
+    # Wrap the result for easier assertion
+    result = CallToolResultWrapper(raw_result)
 
     # Verify the result indicates an error due to invalid operation
     assert result.isError
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert 'Invalid operation: invalid-operation' in result.content[0].text
-    assert result.trigger_name == 'test-trigger'
+    # For invalid operations, trigger_name won't be extracted since it's an invalid workflow
+    assert result.trigger_name == ''
 
 
 @pytest.mark.asyncio
@@ -1602,9 +1714,12 @@ async def test_trigger_not_found(mock_create_client):
     mock_glue_client.get_trigger.side_effect = mock_glue_client.exceptions.EntityNotFoundException
 
     # Call the manage_aws_glue_triggers method with delete-trigger operation
-    result = await handler.manage_aws_glue_triggers(
+    raw_result = await handler.manage_aws_glue_triggers(
         mock_ctx, operation='delete-trigger', trigger_name='test-trigger'
     )
+
+    # Wrap the result for easier assertion
+    result = CallToolResultWrapper(raw_result)
 
     # Verify the result indicates an error because the trigger was not found
     assert result.isError
@@ -1702,7 +1817,9 @@ async def test_create_workflow_without_max_concurrent_runs(mock_prepare_tags, mo
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 async def test_delete_workflow_client_error(
     mock_get_account_id, mock_get_region, mock_create_client
@@ -1774,7 +1891,9 @@ async def test_list_workflows_without_pagination(mock_create_client):
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 async def test_start_workflow_run_client_error(
     mock_get_account_id, mock_get_region, mock_create_client
@@ -1803,7 +1922,9 @@ async def test_start_workflow_run_client_error(
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.is_resource_mcp_managed')
 async def test_start_workflow_run_without_run_properties_mcp_managed(
@@ -1959,7 +2080,9 @@ async def test_create_trigger_without_user_tags(mock_prepare_tags, mock_create_c
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 async def test_delete_trigger_client_error(
     mock_get_account_id, mock_get_region, mock_create_client
@@ -2006,7 +2129,9 @@ async def test_get_triggers_without_pagination(mock_create_client):
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 async def test_start_trigger_client_error(
     mock_get_account_id, mock_get_region, mock_create_client
@@ -2035,7 +2160,9 @@ async def test_start_trigger_client_error(
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 async def test_stop_trigger_client_error(mock_get_account_id, mock_get_region, mock_create_client):
     """Test stop trigger with non-EntityNotFoundException ClientError."""
@@ -2190,7 +2317,9 @@ async def test_create_workflow_with_max_concurrent_runs_only(
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 async def test_delete_workflow_entity_not_found(
     mock_get_account_id, mock_get_region, mock_create_client
@@ -2289,7 +2418,9 @@ async def test_list_workflows_with_next_token(mock_create_client):
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 async def test_start_workflow_run_entity_not_found(
     mock_get_account_id, mock_get_region, mock_create_client
@@ -2319,7 +2450,9 @@ async def test_start_workflow_run_entity_not_found(
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.is_resource_mcp_managed')
 async def test_start_workflow_run_with_run_properties(
@@ -2355,7 +2488,9 @@ async def test_start_workflow_run_with_run_properties(
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 async def test_delete_trigger_entity_not_found(
     mock_get_account_id, mock_get_region, mock_create_client
@@ -2429,7 +2564,9 @@ async def test_get_triggers_with_next_token(mock_create_client):
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 async def test_start_trigger_entity_not_found(
     mock_get_account_id, mock_get_region, mock_create_client
@@ -2459,7 +2596,9 @@ async def test_start_trigger_entity_not_found(
 
 @pytest.mark.asyncio
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client')
-@patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region')
+@patch(
+    'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region'
+)
 @patch('awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id')
 async def test_stop_trigger_entity_not_found(
     mock_get_account_id, mock_get_region, mock_create_client
@@ -2683,7 +2822,9 @@ async def test_workflow_no_write_access_fallback(mock_create_client):
     )
 
     assert result.isError is True
-    assert 'Invalid operation: unknown-operation' in result.content[0].text
+    assert (
+        'Operation unknown-operation is not allowed without write access' in result.content[0].text
+    )
 
 
 @pytest.mark.asyncio

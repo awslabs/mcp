@@ -142,3 +142,51 @@ class TestExplanation:
         request = ExplainRequest(generated_code_token='invalid', content=None)
         with pytest.raises(Exception):
             await explain_impl(request, {})
+
+    def test_generate_explanation_with_env_vars_disabled(self):
+        """Test _generate_explanation with DEFAULT_TAGS disabled."""
+        env_vars = {'DEFAULT_TAGS': 'disabled'}
+        result = _generate_explanation(
+            {'test': 'data'}, 'Test', 'create', 'detailed', 'Intent', env_vars
+        )
+        assert 'Default management tags are disabled' in result
+
+    def test_explain_dict_with_policy_statements(self):
+        """Test _explain_dict with policy statements."""
+        data = {
+            'PolicyDocument': {
+                'Statement': [
+                    {
+                        'Sid': 'AllowAccess',
+                        'Effect': 'Allow',
+                        'Action': ['s3:GetObject', 's3:PutObject'],
+                        'Principal': {'AWS': 'arn:aws:iam::123456789012:root'},
+                    }
+                ]
+            }
+        }
+        result = _explain_dict(data, 'detailed')
+        assert 'AllowAccess' in result
+        assert '✅' in result
+
+    def test_explain_list_long_list(self):
+        """Test _explain_list with long list."""
+        data = list(range(15))
+        result = _explain_list(data, 'detailed')
+        assert 'Item 1' in result
+        assert '5 more items' in result
+
+    @pytest.mark.asyncio
+    async def test_explain_impl_delete_operation(self):
+        """Test explain_impl with delete operation."""
+        request = ExplainRequest(content={'resource': 'to_delete'}, operation='delete')
+        result = await explain_impl(request, {})
+        assert 'explanation' in result
+        assert 'explained_token' in result
+
+    def test_generate_explanation_string_content(self):
+        """Test _generate_explanation with string content."""
+        long_string = 'x' * 600
+        result = _generate_explanation(long_string, 'Test', 'analyze', 'detailed', 'Intent')
+        assert 'Content:' in result
+        assert '...' in result

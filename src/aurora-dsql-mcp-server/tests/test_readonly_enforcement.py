@@ -17,7 +17,7 @@
 import sys
 import os
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 # Add the parent directory to the path so we can import the modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -27,11 +27,12 @@ from awslabs.aurora_dsql_mcp_server.mutable_sql_detector import (
     detect_mutating_keywords,
     detect_transaction_bypass_attempt,
 )
-from awslabs.aurora_dsql_mcp_server.server import readonly_query
+from awslabs.aurora_dsql_mcp_server.server import readonly_query, transact
 from awslabs.aurora_dsql_mcp_server.consts import (
     ERROR_WRITE_QUERY_PROHIBITED,
     ERROR_QUERY_INJECTION_RISK,
     ERROR_TRANSACTION_BYPASS_ATTEMPT,
+    READ_ONLY_QUERY_WRITE_ERROR,
 )
 
 
@@ -495,3 +496,449 @@ class TestReadonlyEnforcement:
                 ERROR_WRITE_QUERY_PROHIBITED,
                 ERROR_QUERY_INJECTION_RISK
             ])
+
+    # Transact tool security tests
+    @patch('awslabs.aurora_dsql_mcp_server.server.read_only', True)
+    async def test_transact_allows_read_queries_in_read_only_mode(self):
+        """Test that transact allows SELECT queries in read-only mode."""
+        with patch('awslabs.aurora_dsql_mcp_server.server.get_connection') as mock_get_connection, \
+             patch('awslabs.aurora_dsql_mcp_server.server.execute_query') as mock_execute_query:
+
+            mock_conn = AsyncMock()
+            mock_get_connection.return_value = mock_conn
+            mock_execute_query.return_value = [{'count': 10}]
+
+            safe_queries = [
+                ['SELECT * FROM orders'],
+                ['SELECT COUNT(*) FROM orders'],
+                ['SELECT * FROM orders', 'SELECT COUNT(*) FROM orders'],
+                ['SELECT u.name, o.total FROM users u JOIN orders o ON u.id = o.user_id'],
+            ]
+
+            for sql_list in safe_queries:
+                result = await transact(sql_list, ctx)
+                assert result == [{'count': 10}]
+
+    @patch('awslabs.aurora_dsql_mcp_server.server.read_only', True)
+    async def test_transact_rejects_write_queries_in_read_only_mode(self):
+        """Test that transact rejects write operations in read-only mode."""
+        write_queries = [
+            ['INSERT INTO orders VALUES (1)'],
+            ['UPDATE orders SET status = "shipped"'],
+            ['DELETE FROM orders WHERE id = 1'],
+            ['CREATE TABLE test (id int)'],
+            ['DROP TABLE orders'],
+            ['ALTER TABLE orders ADD COLUMN notes TEXT'],
+            ['TRUNCATE TABLE orders'],
+        ]
+
+        for sql_list in write_queries:
+            with pytest.raises(Exception) as excinfo:
+                await transact(sql_list, ctx)
+            assert ERROR_WRITE_QUERY_PROHIBITED in str(excinfo.value)
+
+    @patch('awslabs.aurora_dsql_mcp_server.server.read_only', True)
+    async def test_transact_rejects_mixed_queries_in_read_only_mode(self):
+        """Test that transact rejects transactions with mixed read/write in read-only mode."""
+        mixed_queries = [
+            ['SELECT * FROM orders', 'DELETE FROM orders WHERE id = 1'],
+            ['SELECT COUNT(*) FROM orders', 'INSERT INTO orders VALUES (1)'],
+            ['SELECT * FROM orders', 'UPDATE orders SET status = "shipped"'],
+        ]
+
+        for sql_list in mixed_queries:
+            with pytest.raises(Exception) as excinfo:
+                await transact(sql_list, ctx)
+            assert ERROR_WRITE_QUERY_PROHIBITED in str(excinfo.value)
+
+    @patch('awslabs.aurora_dsql_mcp_server.server.read_only', True)
+    async def test_transact_rejects_injection_in_read_only_mode(self):
+        """Test that transact rejects SQL injection patterns in read-only mode."""
+        injection_queries = [
+            ['SELECT * FROM users WHERE id = 1 OR 1=1'],
+            ["SELECT * FROM users WHERE name = 'test' OR 'a'='a'"],
+            ['SELECT pg_sleep(5)'],
+        ]
+
+        for sql_list in injection_queries:
+            with pytest.raises(Exception) as excinfo:
+                await transact(sql_list, ctx)
+            assert ERROR_QUERY_INJECTION_RISK in str(excinfo.value)
+
+    @patch('awslabs.aurora_dsql_mcp_server.server.read_only', True)
+    async def test_transact_rejects_transaction_bypass_in_read_only_mode(self):
+        """Test that transact rejects transaction bypass attempts in read-only mode."""
+        bypass_queries = [
+            ['SELECT 1; COMMIT; CREATE TABLE hack (id int)'],
+            ['SELECT * FROM users; COMMIT; DROP TABLE users'],
+        ]
+
+        for sql_list in bypass_queries:
+            with pytest.raises(Exception) as excinfo:
+                await transact(sql_list, ctx)
+            # Should be caught by either mutating keywords or transaction bypass detection
+            assert any(error in str(excinfo.value) for error in [
+                ERROR_WRITE_QUERY_PROHIBITED,
+                ERROR_TRANSACTION_BYPASS_ATTEMPT
+            ])
+
+    @patch('awslabs.aurora_dsql_mcp_server.server.read_only', True)
+    async def test_transact_rejects_stacked_queries_in_read_only_mode(self):
+        """Test that transact specifically rejects stacked queries (transaction bypass)."""
+        # Test the transaction bypass detection path by mocking injection check to pass
+        with patch('awslabs.aurora_dsql_mcp_server.server.check_sql_injection_risk', return_value=[]):
+            with patch('awslabs.aurora_dsql_mcp_server.server.detect_mutating_keywords', return_value=[]):
+                stacked_query = ['SELECT 1; SELECT 2']
+
+                with pytest.raises(Exception) as excinfo:
+                    await transact(stacked_query, ctx)
+
+                assert ERROR_TRANSACTION_BYPASS_ATTEMPT in str(excinfo.value)
+
+    @patch('awslabs.aurora_dsql_mcp_server.server.read_only', True)
+    async def test_transact_validates_all_statements_before_execution(self):
+        """Test that transact validates all statements before executing any."""
+        # If the second statement is invalid, the first should never execute
+        with patch('awslabs.aurora_dsql_mcp_server.server.execute_query') as mock_execute_query:
+            sql_list = ['SELECT * FROM orders', 'DELETE FROM orders WHERE id = 1']
+
+            with pytest.raises(Exception) as excinfo:
+                await transact(sql_list, ctx)
+
+            assert ERROR_WRITE_QUERY_PROHIBITED in str(excinfo.value)
+            # execute_query should never be called because validation fails
+            mock_execute_query.assert_not_called()
+
+    @patch('awslabs.aurora_dsql_mcp_server.server.read_only', True)
+    async def test_transact_handles_readonly_sql_transaction_error(self):
+        """Test that transact properly handles ReadOnlySqlTransaction errors."""
+        import psycopg.errors
+
+        with patch('awslabs.aurora_dsql_mcp_server.server.get_connection') as mock_get_conn:
+            with patch('awslabs.aurora_dsql_mcp_server.server.execute_query') as mock_execute:
+                mock_conn = MagicMock()
+                mock_get_conn.return_value = mock_conn
+
+                # First call succeeds (BEGIN), second call raises ReadOnlySqlTransaction
+                mock_execute.side_effect = [
+                    None,  # BEGIN READ ONLY TRANSACTION succeeds
+                    psycopg.errors.ReadOnlySqlTransaction('cannot execute INSERT in a read-only transaction')
+                ]
+
+                with pytest.raises(Exception) as excinfo:
+                    await transact(['SELECT * FROM users'], ctx)
+
+                assert READ_ONLY_QUERY_WRITE_ERROR in str(excinfo.value)
+
+    @patch('awslabs.aurora_dsql_mcp_server.server.read_only', True)
+    async def test_transact_case_insensitive_validation(self):
+        """Test that transact validation works regardless of case."""
+        case_variations = [
+            ['insert into orders values (1)'],
+            ['INSERT INTO orders VALUES (1)'],
+            ['Insert Into orders Values (1)'],
+        ]
+
+        for sql_list in case_variations:
+            with pytest.raises(Exception) as excinfo:
+                await transact(sql_list, ctx)
+            assert ERROR_WRITE_QUERY_PROHIBITED in str(excinfo.value)
+
+    @patch('awslabs.aurora_dsql_mcp_server.server.read_only', True)
+    async def test_transact_permission_statements_in_read_only_mode(self):
+        """Test that transact rejects permission statements in read-only mode."""
+        permission_queries = [
+            ['GRANT SELECT ON orders TO user'],
+            ['REVOKE SELECT ON orders FROM user'],
+            ['CREATE USER newuser'],
+        ]
+
+        for sql_list in permission_queries:
+            with pytest.raises(Exception) as excinfo:
+                await transact(sql_list, ctx)
+            assert ERROR_WRITE_QUERY_PROHIBITED in str(excinfo.value)
+
+    @patch('awslabs.aurora_dsql_mcp_server.server.read_only', True)
+    async def test_transact_system_statements_in_read_only_mode(self):
+        """Test that transact rejects system statements in read-only mode."""
+        system_queries = [
+            ['FLUSH PRIVILEGES'],
+            ['LOAD DATA INFILE "/tmp/data.csv" INTO TABLE orders'],
+        ]
+
+        for sql_list in system_queries:
+            with pytest.raises(Exception) as excinfo:
+                await transact(sql_list, ctx)
+            assert ERROR_WRITE_QUERY_PROHIBITED in str(excinfo.value)
+
+
+@patch('awslabs.aurora_dsql_mcp_server.server.cluster_endpoint', 'test_endpoint')
+class TestInjectionDetectionHardening:
+    """Tests for the write-mode gate and structured labels.
+
+    These cover two behavioural changes:
+      1. Structured labels are returned for programmatic pattern identification.
+      2. In write mode, injection and transaction-bypass checks still run
+         (only the mutating-keyword check is correctly skipped).
+    """
+
+    # ---- 1. Structured labels ----
+
+    def test_injection_result_includes_label(self):
+        """Callers should be able to distinguish patterns without parsing messages."""
+        issues = check_sql_injection_risk("SELECT * FROM u WHERE id = 1 OR 1=1")
+        assert issues
+        assert issues[0]['label'] == 'numeric_tautology'
+        assert 'pattern' not in issues[0]
+        assert issues[0]['type'] == 'sql'
+        assert issues[0]['severity'] == 'high'
+
+    # ---- 2. Write-mode filter enforcement ----
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aurora_dsql_mcp_server.server.read_only', False)
+    async def test_transact_in_write_mode_still_rejects_injection(self):
+        """Even with --allow-writes, obviously-injected SQL must be rejected."""
+        with pytest.raises(Exception) as excinfo:
+            await transact(
+                ["UPDATE entities SET status = 'x' WHERE tenant_id = 'y' OR 1=1"],
+                ctx,
+            )
+        assert ERROR_QUERY_INJECTION_RISK in str(excinfo.value)
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aurora_dsql_mcp_server.server.read_only', False)
+    async def test_transact_in_write_mode_still_rejects_stacked_queries(self):
+        """Write mode must not permit `...; DROP TABLE ...` style chaining."""
+        with pytest.raises(Exception) as excinfo:
+            await transact(
+                ["INSERT INTO t VALUES (1); DROP TABLE t"],
+                ctx,
+            )
+        assert ERROR_QUERY_INJECTION_RISK in str(excinfo.value)
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aurora_dsql_mcp_server.server.read_only', False)
+    async def test_transact_in_write_mode_catches_injection_in_later_statement(self):
+        """Second statement in list is injected; first is clean."""
+        with pytest.raises(Exception) as excinfo:
+            await transact(
+                [
+                    "INSERT INTO entities (id) VALUES ('a')",
+                    "UPDATE entities SET status = 'x' WHERE id = 'b' OR 1=1",
+                ],
+                ctx,
+            )
+        assert ERROR_QUERY_INJECTION_RISK in str(excinfo.value)
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aurora_dsql_mcp_server.server.read_only', False)
+    async def test_transact_in_write_mode_allows_legitimate_inserts(self):
+        """Harden-in-write-mode must not break normal INSERT/UPDATE/DELETE."""
+        with patch('awslabs.aurora_dsql_mcp_server.server.get_connection') as mock_conn:
+            with patch(
+                'awslabs.aurora_dsql_mcp_server.server.execute_query',
+                return_value=[],
+            ):
+                mock_conn.return_value = MagicMock()
+                await transact(
+                    [
+                        "INSERT INTO entities (id, tenant_id, name) "
+                        "VALUES ('a', 'acme', 'Widget')",
+                        "UPDATE entities SET name = 'Gadget' WHERE id = 'a'",
+                    ],
+                    ctx,
+                )
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aurora_dsql_mcp_server.server.read_only', False)
+    async def test_transact_in_write_mode_allows_legitimate_ddl(self):
+        """Write mode must not block DDL that keyword-level patterns match."""
+        with patch('awslabs.aurora_dsql_mcp_server.server.get_connection') as mock_conn:
+            with patch(
+                'awslabs.aurora_dsql_mcp_server.server.execute_query',
+                return_value=[],
+            ):
+                mock_conn.return_value = MagicMock()
+                await transact(["DROP TABLE old_data"], ctx)
+                await transact(["TRUNCATE TABLE staging"], ctx)
+                await transact(
+                    ["GRANT SELECT ON entities TO app_role"], ctx
+                )
+                await transact(
+                    [
+                        "INSERT INTO t SELECT a FROM x "
+                        "UNION SELECT b FROM y"
+                    ],
+                    ctx,
+                )
+
+
+class TestInjectionCorpus:
+    """Corpus of pre-existing injection patterns and legitimate queries.
+
+    Organized by attack category. These test the patterns that are never
+    legitimate in single-statement CRUD (tautologies, UNION SELECT, DROP,
+    stacked queries, etc.). Non-equality boolean and subquery patterns were
+    intentionally omitted — regex heuristics for those are trivially
+    bypassable and params support is the correct fix.
+    """
+
+    # ------------------------------------------------------------------
+    # REAL POSITIVES — must be caught
+    # ------------------------------------------------------------------
+
+    @pytest.mark.parametrize('sql', [
+        "SELECT * FROM users WHERE id = '1' --'",
+        "SELECT * FROM users WHERE name = 'x'--' AND active = true",
+        "SELECT * FROM t WHERE col = 'val'-- rest is ignored",
+    ])
+    def test_catches_comment_injection(self, sql):
+        issues = check_sql_injection_risk(sql)
+        assert issues, f'should catch comment injection: {sql}'
+        assert issues[0]['label'] == 'comment_injection'
+
+    @pytest.mark.parametrize('sql', [
+        "SELECT * FROM users WHERE id = 1 OR 1=1",
+        "SELECT * FROM users WHERE active = true OR 2=2",
+        "SELECT * FROM t WHERE x = 'a' OR 99=99",
+    ])
+    def test_catches_numeric_tautology(self, sql):
+        issues = check_sql_injection_risk(sql)
+        assert issues, f'should catch numeric tautology: {sql}'
+        assert issues[0]['label'] == 'numeric_tautology'
+
+    @pytest.mark.parametrize('sql', [
+        "SELECT * FROM users WHERE name = 'x' OR 'a'='a'",
+        "SELECT * FROM t WHERE col = 'y' OR 'test'='test'",
+    ])
+    def test_catches_string_tautology(self, sql):
+        issues = check_sql_injection_risk(sql)
+        assert issues, f'should catch string tautology: {sql}'
+        assert issues[0]['label'] == 'string_tautology'
+
+    @pytest.mark.parametrize('sql', [
+        "SELECT name FROM users UNION SELECT password FROM admin",
+        "SELECT * FROM t WHERE id = 1 UNION SELECT * FROM secrets",
+        "SELECT a FROM t UNION ALL SELECT b FROM u",
+    ])
+    def test_catches_union_select(self, sql):
+        issues = check_sql_injection_risk(sql)
+        assert issues, f'should catch UNION SELECT: {sql}'
+        assert issues[0]['label'] == 'union_select'
+
+    @pytest.mark.parametrize('sql', [
+        "DROP TABLE users",
+        "SELECT 1; DROP TABLE users",
+        "SELECT * FROM t WHERE name = 'x'; DROP TABLE t; --",
+    ])
+    def test_catches_drop(self, sql):
+        issues = check_sql_injection_risk(sql)
+        assert issues, f'should catch DROP: {sql}'
+
+    @pytest.mark.parametrize('sql', [
+        "SELECT 1;SELECT 2",
+        "SELECT * FROM t WHERE id = 1;INSERT INTO log VALUES('x')",
+    ])
+    def test_catches_stacked_queries(self, sql):
+        issues = check_sql_injection_risk(sql)
+        assert issues, f'should catch stacked query: {sql}'
+
+    @pytest.mark.parametrize('sql', [
+        "SELECT * FROM t WHERE id = 1 AND sleep(5)",
+        "SELECT * FROM t WHERE id = 1 AND pg_sleep(10)",
+    ])
+    def test_catches_time_based_injection(self, sql):
+        issues = check_sql_injection_risk(sql)
+        assert issues, f'should catch time-based injection: {sql}'
+
+    @pytest.mark.parametrize('sql', [
+        "SELECT load_file('/etc/passwd')",
+        "SELECT * INTO OUTFILE '/tmp/dump.csv' FROM users",
+        "COPY users FROM '/tmp/data.csv'",
+        "COPY (SELECT * FROM users) TO '/tmp/export.csv'",
+    ])
+    def test_catches_file_operations(self, sql):
+        issues = check_sql_injection_risk(sql)
+        assert issues, f'should catch file operation: {sql}'
+
+    @pytest.mark.parametrize('sql', [
+        "BEGIN; CREATE TABLE hack (id int)",
+        "COMMIT; DROP TABLE users",
+        "ROLLBACK; INSERT INTO log VALUES('bypass')",
+    ])
+    def test_catches_transaction_bypass(self, sql):
+        issues = check_sql_injection_risk(sql)
+        assert issues, f'should catch transaction bypass: {sql}'
+
+    # ------------------------------------------------------------------
+    # REAL NEGATIVES — must NOT be flagged
+    # ------------------------------------------------------------------
+
+    @pytest.mark.parametrize('sql,reason', [
+        ("SELECT * FROM users", "bare select"),
+        ("SELECT id, name FROM users WHERE active = true", "simple predicate"),
+        ("SELECT COUNT(*) FROM orders", "aggregate"),
+        ("SELECT * FROM t WHERE id = 1", "numeric equality"),
+        ("SELECT * FROM t WHERE name = 'Alice'", "string equality"),
+        (
+            "SELECT u.name, o.total FROM users u "
+            "JOIN orders o ON u.id = o.user_id",
+            "inner join",
+        ),
+        (
+            "SELECT * FROM entities "
+            "WHERE tenant_id = 'acme' AND status IS NOT NULL",
+            "AND IS NOT NULL",
+        ),
+        (
+            "SELECT * FROM entities "
+            "WHERE name IS NOT NULL OR email IS NOT NULL",
+            "OR IS NOT NULL",
+        ),
+        (
+            "SELECT * FROM orders WHERE price > 10 OR discount > 0",
+            "OR comparison",
+        ),
+        ("SELECT * FROM orders WHERE created_at > '2023-01-01'", "date comparison"),
+        ("SELECT * FROM logs WHERE message LIKE 'error%'", "LIKE prefix"),
+        (
+            "SELECT * FROM orders o "
+            "WHERE EXISTS (SELECT 1 FROM users u WHERE u.id = o.user_id)",
+            "correlated EXISTS",
+        ),
+        (
+            "WITH recent AS (SELECT * FROM orders WHERE created_at > '2023-01-01') "
+            "SELECT * FROM recent",
+            "CTE",
+        ),
+        (
+            "INSERT INTO entities (id, tenant_id, name) "
+            "VALUES ('uuid-1234', 'acme', 'Widget')",
+            "simple INSERT",
+        ),
+        (
+            "UPDATE entities SET name = 'Gadget' WHERE id = 'uuid-1234'",
+            "simple UPDATE",
+        ),
+        ("DELETE FROM entities WHERE id = 'uuid-1234'", "simple DELETE"),
+        (
+            "SELECT * FROM entities "
+            "WHERE tenant_id = 'tenant-123' AND entity_id = 'ent-456'",
+            "tenant-scoped lookup",
+        ),
+        (
+            "SELECT * FROM entities "
+            "WHERE tenant_id = 'acme' "
+            "ORDER BY created_at DESC LIMIT 50",
+            "tenant-scoped with ORDER BY LIMIT",
+        ),
+        (
+            "SELECT * FROM products "
+            "WHERE brand = 'Samsung' OR brand = 'Apple'",
+            "OR on same column with long values",
+        ),
+    ])
+    def test_legitimate_query_not_flagged(self, sql, reason):
+        issues = check_sql_injection_risk(sql)
+        assert issues == [], f'false positive on "{reason}": {sql} -> {issues}'

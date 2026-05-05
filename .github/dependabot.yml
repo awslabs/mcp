@@ -1,7 +1,10 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
 # Please see the documentation for all configuration options:
 # https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
+# Ensure the file passes validation:
+# ```shell
+# % npx @bugron/validate-dependabot-yaml .github/dependabot.yml
+# ```
 
 version: 2
 updates:
@@ -14,7 +17,6 @@ updates:
       prefix: "chore(deps): update github-actions"
     groups:
       github-actions-version-updates:
-        applies-to: version-updates
         patterns:
           - "*"
 
@@ -27,7 +29,6 @@ updates:
       prefix: "chore(deps): update uv"
     groups:
       uv-version-updates:
-        applies-to: version-updates
         patterns:
           - "*"
 
@@ -40,7 +41,6 @@ updates:
       prefix: "chore(deps): update npm"
     groups:
       npm-version-updates:
-        applies-to: version-updates
         patterns:
           - "*"
 
@@ -53,6 +53,5 @@ updates:
       prefix: "chore(deps): update docker images"
     groups:
       docker-version-updates:
-        applies-to: version-updates
         patterns:
           - "*"

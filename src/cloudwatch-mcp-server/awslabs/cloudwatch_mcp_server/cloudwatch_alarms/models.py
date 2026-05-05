@@ -54,7 +54,7 @@ class CompositeAlarmSummary(BaseModel):
 
 
 class ActiveAlarmsResponse(BaseModel):
-    """Response containing active CloudWatch alarms."""
+    """Response containing active CloudWatch Alarms."""
 
     metric_alarms: List[MetricAlarmSummary] = Field(
         default_factory=list, description='List of active metric alarms'

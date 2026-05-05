@@ -1,0 +1,714 @@
+"""Generated usage examples for DynamoDB entities and repositories"""
+from __future__ import annotations
+
+import os
+import sys
+import time
+from decimal import Decimal
+{%- if cross_table_patterns %}
+import boto3
+{%- endif %}
+
+# Import generated entities and repositories
+from entities import {{ entity_names | join(', ') }}
+from repositories import {{ repository_names | join(', ') }}
+{%- if cross_table_patterns %}
+
+# Import transaction service for cross-table operations
+try:
+    from transaction_service import TransactionService
+    TRANSACTION_SERVICE_AVAILABLE = True
+except ImportError:
+    TRANSACTION_SERVICE_AVAILABLE = False
+    print("⚠️  TransactionService not available (transaction_service.py not found)")
+{%- endif %}
+
+
+class UsageExamples:
+    """Examples of using the generated entities and repositories"""
+
+    def __init__(self):
+        """Initialize repositories with default table names from schema."""
+
+        # Initialize repositories with their respective table names
+{%- for table in tables %}
+        # {{ table.table_config.table_name }} table repositories
+{%- for entity_name in table.entities.keys() %}
+        try:
+            self.{{ entity_name.lower() }}_repo = {{ entity_name }}Repository("{{ table.table_config.table_name }}")
+            print(f"✅ Initialized {{ entity_name }}Repository for table '{{ table.table_config.table_name }}'")
+        except Exception as e:
+            print(f"❌ Failed to initialize {{ entity_name }}Repository: {e}")
+            self.{{ entity_name.lower() }}_repo = None
+{%- endfor %}
+{%- endfor %}
+{%- if cross_table_patterns %}
+
+        # Initialize TransactionService for cross-table operations
+        self.transaction_service = None
+        if TRANSACTION_SERVICE_AVAILABLE:
+            try:
+                dynamodb = boto3.resource('dynamodb')
+                self.transaction_service = TransactionService(dynamodb)
+                print("✅ Initialized TransactionService for cross-table operations")
+            except Exception as e:
+                print(f"❌ Failed to initialize TransactionService: {e}")
+                self.transaction_service = None
+{%- endif %}
+
+    def run_examples(self, include_additional_access_patterns: bool = False):
+        """Run CRUD examples for all entities"""
+        # Dictionary to store created entities for access pattern testing
+        created_entities = {}
+
+        # Step 0: Cleanup any leftover entities from previous runs (makes tests idempotent)
+        print("🧹 Pre-test Cleanup: Removing any leftover entities from previous runs")
+        print("=" * 50)
+{%- for table in tables %}
+{%- for entity_name, entity_config in table.entities.items() %}
+{%- set all_params = get_all_key_params(entity_config) %}
+        # Try to delete {{ entity_name }} ({{ ', '.join(all_params) }})
+        try:
+            sample_{{ entity_name.lower() }} = {{ entity_name }}(
+{%- for field in entity_config.fields %}
+                {{ field.name }}={{ generate_sample_value(field, entity_name=entity_name, table_name=table.table_config.table_name) }}{% if not loop.last %},{% endif %}
+{%- endfor %}
+            )
+            self.{{ entity_name.lower() }}_repo.delete_{{ to_snake_case(entity_name) }}(
+{%- for param in all_params -%}
+sample_{{ entity_name.lower() }}.{{ param }}
+{%- if not loop.last %}, {% endif -%}
+{%- endfor %})
+            print(f"   🗑️  Deleted leftover {{ entity_name.lower() }} (if existed)")
+        except Exception:
+            pass  # Ignore errors - item might not exist
+{%- endfor %}
+{%- endfor %}
+        print("✅ Pre-test cleanup completed\n")
+
+        print("Running Repository Examples")
+        print("=" * 50)
+
+{%- for table in tables %}
+        print("\n=== {{ table.table_config.table_name }} Table Operations ===")
+{%- for entity_name, entity_config in table.entities.items() %}
+
+        # {{ entity_name }} example
+        print("\n--- {{ entity_name }} ---")
+
+        # 1. CREATE - Create sample {{ entity_name.lower() }}
+        sample_{{ entity_name.lower() }} = {{ entity_name }}(
+{%- for field in entity_config.fields %}
+            {{ field.name }}={{ generate_sample_value(field, entity_name=entity_name, table_name=table.table_config.table_name) }}{% if not loop.last %},{% endif %}
+{%- endfor %}
+        )
+
+        print(f"📝 Creating {{ entity_name.lower() }}...")
+        print(f"📝 PK: {sample_{{ entity_name.lower() }}.pk()}, SK: {sample_{{ entity_name.lower() }}.sk()}")
+
+        try:
+            created_{{ entity_name.lower() }} = self.{{ entity_name.lower() }}_repo.create_{{ to_snake_case(entity_name) }}(sample_{{ entity_name.lower() }})
+            print(f"✅ Created: {created_{{ entity_name.lower() }}}")
+            # Store created entity for access pattern testing
+            created_entities["{{ entity_name }}"] = created_{{ entity_name.lower() }}
+        except Exception as e:
+            # Check if the error is due to item already existing
+            if "ConditionalCheckFailedException" in str(e) or "already exists" in str(e).lower():
+                print(f"⚠️  {{ entity_name.lower() }} already exists, retrieving existing entity...")
+                try:
+{%- set all_params = get_all_key_params(entity_config) %}
+                    existing_{{ entity_name.lower() }} = self.{{ entity_name.lower() }}_repo.get_{{ to_snake_case(entity_name) }}(
+{%- for param in all_params -%}
+sample_{{ entity_name.lower() }}.{{ param }}
+{%- if not loop.last %}, {% endif -%}
+{%- endfor %})
+
+                    if existing_{{ entity_name.lower() }}:
+                        print(f"✅ Retrieved existing: {existing_{{ entity_name.lower() }}}")
+                        # Store existing entity for access pattern testing
+                        created_entities["{{ entity_name }}"] = existing_{{ entity_name.lower() }}
+                    else:
+                        print(f"❌ Failed to retrieve existing {{ entity_name.lower() }}")
+                except Exception as get_error:
+                    print(f"❌ Failed to retrieve existing {{ entity_name.lower() }}: {get_error}")
+            else:
+                print(f"❌ Failed to create {{ entity_name.lower() }}: {e}")
+
+{%- set updatable_field = get_updatable_field(entity_config, entity_name) %}
+{%- if updatable_field %}
+        # 2. UPDATE - Update non-key field ({{ updatable_field.name }})
+        if "{{ entity_name }}" in created_entities:
+            print(f"\n🔄 Updating {{ updatable_field.name }} field...")
+            try:
+                # Refresh entity to get latest version (handles optimistic locking)
+                entity_for_refresh = created_entities["{{ entity_name }}"]
+{%- set all_params = get_all_key_params(entity_config) %}
+                refreshed_entity = self.{{ entity_name.lower() }}_repo.get_{{ to_snake_case(entity_name) }}(
+{%- for param in all_params -%}
+entity_for_refresh.{{ param }}
+{%- if not loop.last %}, {% endif -%}
+{%- endfor %})
+
+                if refreshed_entity:
+                    original_value = refreshed_entity.{{ updatable_field.name }}
+                    refreshed_entity.{{ updatable_field.name }} = {{ generate_update_value(updatable_field, entity_name=entity_name) }}
+
+                    updated_{{ entity_name.lower() }} = self.{{ entity_name.lower() }}_repo.update_{{ to_snake_case(entity_name) }}(refreshed_entity)
+                    print(f"✅ Updated {{ updatable_field.name }}: {original_value} → {updated_{{ entity_name.lower() }}.{{ updatable_field.name }}}")
+
+                    # Update stored entity with updated values
+                    created_entities["{{ entity_name }}"] = updated_{{ entity_name.lower() }}
+                else:
+                    print(f"❌ Could not refresh {{ entity_name.lower() }} for update")
+            except Exception as e:
+                if "version" in str(e).lower() or "modified by another process" in str(e).lower():
+                    print(f"⚠️  {{ entity_name.lower() }} was modified by another process (optimistic locking): {e}")
+                    print("💡 This is expected behavior in concurrent environments")
+                else:
+                    print(f"❌ Failed to update {{ entity_name.lower() }}: {e}")
+{%- endif %}
+
+        # 3. GET - Retrieve and print the entity
+        if "{{ entity_name }}" in created_entities:
+            print(f"\n🔍 Retrieving {{ entity_name.lower() }}...")
+{%- set all_params = get_all_key_params(entity_config) %}
+            try:
+                entity_for_get = created_entities["{{ entity_name }}"]
+                retrieved_{{ entity_name.lower() }} = self.{{ entity_name.lower() }}_repo.get_{{ to_snake_case(entity_name) }}(
+{%- for param in all_params -%}
+entity_for_get.{{ param }}
+{%- if not loop.last %}, {% endif -%}
+{%- endfor %})
+
+                if retrieved_{{ entity_name.lower() }}:
+                    print(f"✅ Retrieved: {retrieved_{{ entity_name.lower() }}}")
+                else:
+                    print("❌ Failed to retrieve {{ entity_name.lower() }}")
+            except Exception as e:
+                print(f"❌ Failed to retrieve {{ entity_name.lower() }}: {e}")
+
+        print(f"🎯 {{ entity_name }} CRUD cycle completed!")
+{%- endfor %}
+{%- endfor %}
+
+        print("\n" + "=" * 50)
+        print("🎉 Basic CRUD examples completed!")
+
+        # Additional Access Pattern Testing Section (before cleanup)
+        if include_additional_access_patterns:
+            self._test_additional_access_patterns(created_entities)
+{%- if cross_table_patterns %}
+
+        # Cross-Table Pattern Examples Section
+        if self.transaction_service:
+            self._test_cross_table_patterns(created_entities)
+{%- endif %}
+
+        # Cleanup - Delete all created entities
+        print("\n" + "=" * 50)
+        print("🗑️  Cleanup: Deleting all created entities")
+        print("=" * 50)
+{%- for table in tables %}
+{%- for entity_name, entity_config in table.entities.items() %}
+
+        # Delete {{ entity_name }}
+        if "{{ entity_name }}" in created_entities:
+            print(f"\n🗑️  Deleting {{ entity_name.lower() }}...")
+{%- set all_params = get_all_key_params(entity_config) %}
+            try:
+                deleted = self.{{ entity_name.lower() }}_repo.delete_{{ to_snake_case(entity_name) }}(
+{%- for param in all_params -%}
+created_entities["{{ entity_name }}"].{{ param }}
+{%- if not loop.last %}, {% endif -%}
+{%- endfor %})
+
+                if deleted:
+                    print(f"✅ Deleted {{ entity_name.lower() }} successfully")
+                else:
+                    print("❌ Failed to delete {{ entity_name.lower() }} (not found or already deleted)")
+            except Exception as e:
+                print(f"❌ Failed to delete {{ entity_name.lower() }}: {e}")
+{%- endfor %}
+{%- endfor %}
+        print('\n💡 Requirements:')
+{%- for table in tables %}
+        print("   - DynamoDB table '{{ table.table_config.table_name }}' must exist")
+{%- endfor %}
+        print('   - DynamoDB permissions: GetItem, PutItem, UpdateItem, DeleteItem')
+
+    def _test_additional_access_patterns(self, created_entities: dict):
+        """Test additional access patterns beyond basic CRUD"""
+        print("\n" + "=" * 60)
+        print("🔍 Additional Access Pattern Testing")
+        print("=" * 60)
+        print()
+
+{%- if access_patterns %}
+{%- set patterns_by_entity = {} %}
+{%- for pattern_id, pattern in access_patterns.items() %}
+{%- if pattern.status != "filtered_out" and "Use CRUD method:" not in pattern.test_instruction %}
+{%- set entity = pattern.entity %}
+{%- if entity not in patterns_by_entity %}
+{%- set _ = patterns_by_entity.update({entity: []}) %}
+{%- endif %}
+{%- set _ = patterns_by_entity[entity].append(pattern) %}
+{%- endif %}
+{%- endfor %}
+
+{%- if patterns_by_entity %}
+{%- for entity, entity_patterns in patterns_by_entity.items() %}
+{%- if not loop.first %}
+
+{%- endif %}
+
+        # {{ entity }}
+{%- for pattern in entity_patterns %}
+        # Access Pattern #{{ pattern.pattern_id }}: {{ pattern.description }}
+{%- if pattern.index_name %}
+        # GSI: {{ pattern.index_name }}
+{%- if pattern.range_condition %}
+        # Range Condition: {{ pattern.range_condition }}
+{%- endif %}
+{%- else %}
+        # Index: Main Table
+{%- if pattern.range_condition %}
+        # Range Condition: {{ pattern.range_condition }}
+{%- endif %}
+{%- endif %}
+        try:
+            print("🔍 Testing Access Pattern #{{ pattern.pattern_id }}: {{ pattern.description }}")
+{%- if pattern.index_name %}
+            print("   Using GSI: {{ pattern.index_name }}")
+{%- if pattern.range_condition %}
+            print("   Range Condition: {{ pattern.range_condition }}")
+{%- endif %}
+{%- else %}
+            print("   Using Main Table")
+{%- if pattern.range_condition %}
+            print("   Range Condition: {{ pattern.range_condition }}")
+{%- endif %}
+{%- endif %}
+{%- if pattern.operation == 'PutItem' %}
+            test_entity = {{ entity }}(
+{%- for field in entities[entity].fields %}
+                {{ field.name }}={{ generate_sample_value(field, entity_name=entity, use_access_pattern_data=True) }}{{ "," if not loop.last else "" }}
+{%- endfor %}
+            )
+            result = self.{{ entity | lower }}_repo.{{ pattern.method_name }}(test_entity)
+{%- elif pattern.operation == 'BatchWriteItem' %}
+            test_entity = {{ entity }}(
+{%- for field in entities[entity].fields %}
+                {{ field.name }}={{ generate_sample_value(field, entity_name=entity, use_access_pattern_data=True) }}{{ "," if not loop.last else "" }}
+{%- endfor %}
+            )
+            result = self.{{ entity | lower }}_repo.{{ pattern.method_name }}([test_entity])
+{%- elif pattern.operation == 'UpdateItem' %}
+{%- set valid_params = pattern.parameters | filter_resolvable_access_pattern_params(entity, entities, get_parameter_value, pattern) %}
+            result = self.{{ entity | lower }}_repo.{{ pattern.method_name }}(
+{%- for param_value in valid_params %}
+                {{ param_value }}{{ "," if not loop.last else "" }}
+{%- endfor %}
+            )
+{%- else %}
+{%- set valid_params = pattern.parameters | filter_resolvable_access_pattern_params(entity, entities, get_parameter_value, pattern) %}
+{%- if valid_params %}
+            result = self.{{ entity | lower }}_repo.{{ pattern.method_name }}(
+{%- for param_value in valid_params %}
+                {{ param_value }}{{ "," if not loop.last else "" }}
+{%- endfor %}
+            )
+{%- else %}
+            result = self.{{ entity | lower }}_repo.{{ pattern.method_name }}()
+{%- endif %}
+{%- endif %}
+            print(f"   ✅ {{ pattern.description }} completed")
+            print(f"   📊 Result: {result}")
+        except Exception as e:
+            print(f"❌ Error testing Access Pattern #{{ pattern.pattern_id }}: {e}")
+{% if not loop.last %}
+
+{% endif -%}
+{%- endfor %}
+{%- endfor %}
+
+        print("\n💡 Access Pattern Implementation Notes:")
+        print("   - Main Table queries use partition key and sort key")
+        print("   - GSI queries use different key structures and may have range conditions")
+        print("   - Range conditions (begins_with, between, >, <, >=, <=) require additional parameters")
+        print("   - Implement the access pattern methods in your repository classes")
+{%- else %}
+        print("📝 All access patterns are basic CRUD operations (already tested above)")
+{%- endif %}
+{%- else %}
+        print("📝 No access patterns found in this schema")
+{%- endif %}
+{%- if cross_table_patterns %}
+
+    def _test_cross_table_patterns(self, created_entities: dict):
+        """Test cross-table pattern examples."""
+        print("\n" + "=" * 60)
+        print("🔄 Cross-Table Pattern Examples")
+        print("=" * 60)
+        print()
+        print("Testing operations across multiple tables...")
+        print()
+{%- set ns = namespace(create_patterns=[], update_patterns=[], get_patterns=[], delete_patterns=[]) %}
+{%- for pattern in cross_table_patterns %}
+    {%- set has_delete = pattern.entities_involved | selectattr('action', 'equalto', 'Delete') | list | length > 0 %}
+    {%- set has_put = pattern.entities_involved | selectattr('action', 'equalto', 'Put') | list | length > 0 %}
+    {%- set has_update = pattern.entities_involved | selectattr('action', 'equalto', 'Update') | list | length > 0 %}
+    {%- set is_get = pattern.operation == 'TransactGet' %}
+    {%- if is_get %}
+        {%- set ns.get_patterns = ns.get_patterns + [pattern] %}
+    {%- elif has_update %}
+        {%- set ns.update_patterns = ns.update_patterns + [pattern] %}
+    {%- elif has_delete %}
+        {%- set ns.delete_patterns = ns.delete_patterns + [pattern] %}
+    {%- elif has_put %}
+        {%- set ns.create_patterns = ns.create_patterns + [pattern] %}
+    {%- endif %}
+{%- endfor %}
+{%- set sorted_patterns = ns.get_patterns + ns.update_patterns + ns.delete_patterns %}
+{%- for pattern in sorted_patterns %}
+
+        # Pattern #{{ pattern.pattern_id }}: {{ pattern.description }}
+        print("--- Pattern #{{ pattern.pattern_id }}: {{ pattern.description }} ---")
+        print(f"Operation: {{ pattern.operation }}")
+        print(f"Tables involved: {{ pattern.entities_involved | map(attribute='table') | join(', ') }}")
+{%- if pattern.operation in ['TransactWrite', 'TransactGet'] %}
+        try:
+{%- if pattern.operation == 'TransactWrite' %}
+{%- set needs_setup = pattern.entities_involved | selectattr('action', 'in', ['Delete', 'Update', 'ConditionCheck']) | list | length > 0 %}
+{%- if needs_setup %}
+            # Setup: Ensure required entities exist for this transaction
+{%- for entity_inv in pattern.entities_involved %}
+{%- if entity_inv.action in ['Delete', 'Update', 'ConditionCheck'] %}
+            if "{{ entity_inv.entity }}" not in created_entities:
+                print(f"   🔧 Setup: Creating {{ entity_inv.entity }} for transaction test...")
+                setup_{{ entity_inv.entity | lower }} = {{ entity_inv.entity }}(
+{%- set entity_config = get_entity_config(entity_inv.entity) %}
+{%- for field in entity_config.fields %}
+                    {{ field.name }}={{ generate_sample_value(field, entity_name=entity_inv.entity, use_transaction_data=True) }}{{ "," if not loop.last else "" }}
+{%- endfor %}
+                )
+                try:
+                    created_{{ entity_inv.entity | lower }} = self.{{ entity_inv.entity | lower }}_repo.create_{{ to_snake_case(entity_inv.entity) }}(setup_{{ entity_inv.entity | lower }})
+                    print(f"   ✅ Setup complete: {{ entity_inv.entity }} created")
+                    created_entities["{{ entity_inv.entity }}"] = created_{{ entity_inv.entity | lower }}
+                except Exception as e:
+                    if "ConditionalCheckFailedException" in str(e) or "already exists" in str(e).lower():
+                        print(f"   ⚠️  {{ entity_inv.entity }} already exists, retrieving existing...")
+                        try:
+{%- set pk_params = entity_config.pk_params %}
+                            existing_{{ entity_inv.entity | lower }} = self.{{ entity_inv.entity | lower }}_repo.get_{{ to_snake_case(entity_inv.entity) }}(
+{%- for pk_param in pk_params -%}
+setup_{{ entity_inv.entity | lower }}.{{ pk_param }}{{ ", " if not loop.last else "" }}
+{%- endfor -%}
+)
+                            if existing_{{ entity_inv.entity | lower }}:
+                                print(f"   ✅ Retrieved existing: {{ entity_inv.entity }}")
+                                created_entities["{{ entity_inv.entity }}"] = existing_{{ entity_inv.entity | lower }}
+                        except Exception as get_error:
+                            print(f"   ❌ Failed to retrieve existing {{ entity_inv.entity }}: {get_error}")
+                    else:
+                        print(f"   ❌ Failed to create {{ entity_inv.entity }}: {e}")
+{%- endif %}
+{%- endfor %}
+
+{%- endif %}
+{%- if pattern.parameters | selectattr('type', 'equalto', 'entity') | list %}
+            # Create test entities for transaction
+{%- for param in pattern.parameters %}
+{%- if param.type == 'entity' %}
+            test_{{ param.name }} = {{ param.entity_type }}(
+{%- set entity_config = get_entity_config(param.entity_type) %}
+{%- for field in entity_config.fields %}
+                {{ field.name }}={{ generate_sample_value(field, entity_name=param.entity_type, use_transaction_data=True) }}{{ "," if not loop.last else "" }}
+{%- endfor %}
+            )
+{%- endif %}
+{%- endfor %}
+
+            # Execute transaction
+            result = self.transaction_service.{{ pattern.name }}(
+{%- for param in pattern.parameters -%}
+{%- if param.type == 'entity' -%}
+test_{{ param.name }}
+{%- else -%}
+{%- set param_value = namespace(found=false, output='') %}
+{%- for entity_inv in pattern.entities_involved %}
+{%- if not param_value.found %}
+{%- set entity_config = get_entity_config(entity_inv.entity) %}
+{%- set pk_params = entity_config.pk_params %}
+{%- if param.name in pk_params %}
+{%- set param_value.found = true %}
+{%- set param_value.output %}created_entities.get("{{ entity_inv.entity }}").{{ param.name }} if created_entities.get("{{ entity_inv.entity }}") else {{ generate_sample_value({'name': param.name, 'type': param.type, 'required': True}, use_transaction_data=True) }}{%- endset %}
+{%- endif %}
+{%- endif %}
+{%- endfor %}
+{%- if param_value.found %}
+{{ param_value.output }}
+{%- else %}
+{{ generate_sample_value({'name': param.name, 'type': param.type, 'required': True}, use_transaction_data=True) }}
+{%- endif -%}
+{%- endif -%}
+{{ ", " if not loop.last else "" }}
+{%- endfor -%}
+)
+{%- else %}
+            # Execute transaction with primitive parameters
+            result = self.transaction_service.{{ pattern.name }}(
+{%- for param in pattern.parameters -%}
+{%- set param_value = namespace(found=false, output='') %}
+{%- for entity_inv in pattern.entities_involved %}
+{%- if not param_value.found %}
+{%- set entity_config = get_entity_config(entity_inv.entity) %}
+{%- set pk_params = entity_config.pk_params %}
+{%- if param.name in pk_params %}
+{%- set param_value.found = true %}
+{%- set param_value.output %}created_entities.get("{{ entity_inv.entity }}").{{ param.name }} if created_entities.get("{{ entity_inv.entity }}") else {{ generate_sample_value({'name': param.name, 'type': param.type, 'required': True}, use_transaction_data=True) }}{%- endset %}
+{%- endif %}
+{%- endif %}
+{%- endfor %}
+{%- if param_value.found %}
+{{ param_value.output }}
+{%- else %}
+{{ generate_sample_value({'name': param.name, 'type': param.type, 'required': True}, use_transaction_data=True) }}
+{%- endif -%}
+{{ ", " if not loop.last else "" }}
+{%- endfor -%}
+)
+{%- endif %}
+{%- elif pattern.operation == 'TransactGet' %}
+{%- set needs_setup = pattern.entities_involved | list | length > 0 %}
+{%- if needs_setup %}
+            # Setup: Ensure required entities exist for this transaction
+{%- for entity_inv in pattern.entities_involved %}
+            if "{{ entity_inv.entity }}" not in created_entities:
+                print(f"   🔧 Setup: Creating {{ entity_inv.entity }} for transaction test...")
+                setup_{{ entity_inv.entity | lower }} = {{ entity_inv.entity }}(
+{%- set entity_config = get_entity_config(entity_inv.entity) %}
+{%- for field in entity_config.fields %}
+                    {{ field.name }}={{ generate_sample_value(field, entity_name=entity_inv.entity, use_transaction_data=True) }}{{ "," if not loop.last else "" }}
+{%- endfor %}
+                )
+                try:
+                    created_{{ entity_inv.entity | lower }} = self.{{ entity_inv.entity | lower }}_repo.create_{{ to_snake_case(entity_inv.entity) }}(setup_{{ entity_inv.entity | lower }})
+                    print(f"   ✅ Setup complete: {{ entity_inv.entity }} created")
+                    created_entities["{{ entity_inv.entity }}"] = created_{{ entity_inv.entity | lower }}
+                except Exception as e:
+                    if "ConditionalCheckFailedException" in str(e) or "already exists" in str(e).lower():
+                        print(f"   ⚠️  {{ entity_inv.entity }} already exists, retrieving existing...")
+                        try:
+{%- set pk_params = entity_config.pk_params %}
+                            existing_{{ entity_inv.entity | lower }} = self.{{ entity_inv.entity | lower }}_repo.get_{{ to_snake_case(entity_inv.entity) }}(
+{%- for pk_param in pk_params -%}
+setup_{{ entity_inv.entity | lower }}.{{ pk_param }}{{ ", " if not loop.last else "" }}
+{%- endfor -%}
+)
+                            if existing_{{ entity_inv.entity | lower }}:
+                                print(f"   ✅ Retrieved existing: {{ entity_inv.entity }}")
+                                created_entities["{{ entity_inv.entity }}"] = existing_{{ entity_inv.entity | lower }}
+                        except Exception as get_error:
+                            print(f"   ❌ Failed to retrieve existing {{ entity_inv.entity }}: {get_error}")
+                    else:
+                        print(f"   ❌ Failed to create {{ entity_inv.entity }}: {e}")
+{%- endfor %}
+
+{%- endif %}
+            # Execute transaction get
+            result = self.transaction_service.{{ pattern.name }}(
+{%- for param in pattern.parameters -%}
+{%- set param_value = namespace(found=false, output='') %}
+{%- for entity_inv in pattern.entities_involved %}
+{%- if not param_value.found %}
+{%- set entity_config = get_entity_config(entity_inv.entity) %}
+{%- set pk_params = entity_config.pk_params %}
+{%- if param.name in pk_params %}
+{%- set param_value.found = true %}
+{%- set param_value.output %}created_entities.get("{{ entity_inv.entity }}").{{ param.name }} if created_entities.get("{{ entity_inv.entity }}") else {{ generate_sample_value({'name': param.name, 'type': param.type, 'required': True}, use_transaction_data=True) }}{%- endset %}
+{%- endif %}
+{%- endif %}
+{%- endfor %}
+{%- if param_value.found -%}
+{{ param_value.output }}
+{%- else -%}
+{{ generate_sample_value({'name': param.name, 'type': param.type, 'required': True}, use_transaction_data=True) }}
+{%- endif -%}
+{{ ", " if not loop.last else "" }}
+{%- endfor -%}
+)
+{%- endif %}
+            print(f"   ✅ Operation completed successfully")
+            print(f"   📊 Result: {result}")
+        except NotImplementedError:
+            print(f"   ⚠️  Method not yet implemented (returns pass)")
+            print(f"   💡 Implement the {{ pattern.name }} method in TransactionService")
+        except Exception as e:
+            print(f"   ❌ Operation failed: {e}")
+            if "TransactionCanceledException" in str(type(e).__name__):
+                print(f"   💡 This usually means a condition check failed (e.g., item already exists)")
+{%- else %}
+        print(f"   ⚠️  Operation type '{{ pattern.operation }}' not yet supported in usage examples")
+        print(f"   💡 This pattern will be available when {{ pattern.operation }} support is implemented")
+{%- endif %}
+{% if not loop.last %}
+
+{% endif -%}
+{%- endfor %}
+
+        # Intermediate Cleanup: Delete CRUD-created entities before testing Create patterns
+        # This prevents "already exists" conflicts between CRUD creates and transaction creates
+        print("\n" + "=" * 60)
+        print("🗑️  Intermediate Cleanup (before Create patterns)")
+        print("=" * 60)
+        print("Removing CRUD-created entities to avoid conflicts with Create patterns...")
+        print()
+{%- for entity_name in entity_names %}
+        if "{{ entity_name }}" in created_entities:
+            try:
+                entity = created_entities["{{ entity_name }}"]
+{%- set entity_config = entities[entity_name] %}
+{%- set all_params = get_all_key_params(entity_config) %}
+                deleted = self.{{ entity_name | lower }}_repo.delete_{{ to_snake_case(entity_name) }}(
+{%- for param in all_params -%}
+entity.{{ param }}{{ ", " if not loop.last else "" }}
+{%- endfor -%}
+)
+                if deleted:
+                    print(f"✅ Deleted {{ entity_name }}")
+                    del created_entities["{{ entity_name }}"]
+            except Exception as e:
+                print(f"⚠️  Failed to delete {{ entity_name }}: {e}")
+{%- endfor %}
+
+        # Now test Create patterns on clean slate
+{%- for pattern in ns.create_patterns %}
+
+        # Pattern #{{ pattern.pattern_id }}: {{ pattern.description }}
+        print("--- Pattern #{{ pattern.pattern_id }}: {{ pattern.description }} ---")
+        print(f"Operation: {{ pattern.operation }}")
+        print(f"Tables involved: {{ pattern.entities_involved | map(attribute='table') | join(', ') }}")
+{%- if pattern.operation in ['TransactWrite', 'TransactGet'] %}
+        try:
+{%- if pattern.operation == 'TransactWrite' %}
+{%- if pattern.parameters | selectattr('type', 'equalto', 'entity') | list %}
+            # Create test entities for transaction
+{%- for param in pattern.parameters %}
+{%- if param.type == 'entity' %}
+            test_{{ param.name }} = {{ param.entity_type }}(
+{%- set entity_config = get_entity_config(param.entity_type) %}
+{%- for field in entity_config.fields %}
+                {{ field.name }}={{ generate_sample_value(field, entity_name=param.entity_type, use_transaction_data=True) }}{{ "," if not loop.last else "" }}
+{%- endfor %}
+            )
+{%- endif %}
+{%- endfor %}
+
+            # Execute transaction
+            result = self.transaction_service.{{ pattern.name }}(
+{%- for param in pattern.parameters -%}
+{%- if param.type == 'entity' -%}
+test_{{ param.name }}
+{%- else -%}
+{{ generate_sample_value({'name': param.name, 'type': param.type, 'required': True}, use_transaction_data=True) }}
+{%- endif -%}
+{{ ", " if not loop.last else "" }}
+{%- endfor -%}
+)
+{%- else %}
+            # Execute transaction with primitive parameters
+            result = self.transaction_service.{{ pattern.name }}(
+{%- for param in pattern.parameters -%}
+{{ generate_sample_value({'name': param.name, 'type': param.type, 'required': True}, use_transaction_data=True) }}{{ ", " if not loop.last else "" }}
+{%- endfor -%}
+)
+{%- endif %}
+{%- endif %}
+            print(f"   ✅ Operation completed successfully")
+            print(f"   📊 Result: {result}")
+        except NotImplementedError:
+            print(f"   ⚠️  Method not yet implemented (returns pass)")
+            print(f"   💡 Implement the {{ pattern.name }} method in TransactionService")
+        except Exception as e:
+            print(f"   ❌ Operation failed: {e}")
+            if "TransactionCanceledException" in str(type(e).__name__):
+                print(f"   💡 This usually means a condition check failed (e.g., item already exists)")
+{%- else %}
+        print(f"   ⚠️  Operation type '{{ pattern.operation }}' not yet supported in usage examples")
+        print(f"   💡 This pattern will be available when {{ pattern.operation }} support is implemented")
+{%- endif %}
+{% if not loop.last %}
+
+{% endif -%}
+{%- endfor %}
+
+        print("\n💡 Cross-Table Pattern Notes:")
+        print("   - TransactWrite: Atomic write operations (all succeed or all fail)")
+        print("   - TransactGet: Atomic read operations across tables")
+        print("   - Future: Additional operation types may be supported")
+        print("   - Implement pattern methods in transaction_service.py")
+        print("   - Handle TransactionCanceledException for condition failures")
+{%- endif %}
+
+
+def main():
+    """Main function to run examples"""
+
+    # 🚨 SAFETY CHECK: Prevent accidental execution against production DynamoDB
+    endpoint_url = os.getenv("AWS_ENDPOINT_URL_DYNAMODB", "")
+
+    # Check if running against DynamoDB Local
+    is_local = (
+        "localhost" in endpoint_url.lower() or
+        "127.0.0.1" in endpoint_url
+    )
+
+    if not is_local:
+        print("=" * 80)
+        print("🚨 SAFETY WARNING: NOT RUNNING AGAINST DYNAMODB LOCAL")
+        print("=" * 80)
+        print()
+        print(f"Current endpoint: {endpoint_url or 'AWS DynamoDB (production)'}")
+        print()
+        print("⚠️  This script performs CREATE, UPDATE, and DELETE operations that could")
+        print("   affect your production data!")
+        print()
+        print("To run against production DynamoDB:")
+        print("  1. Review the code carefully to understand what data will be modified")
+        print("  2. Search for 'SAFETY CHECK' in this file")
+        print("  3. Comment out the 'raise RuntimeError' line below the safety check")
+        print("  4. Understand the risks before proceeding")
+        print()
+        print("To run safely against DynamoDB Local:")
+        print("  export AWS_ENDPOINT_URL_DYNAMODB=http://localhost:8000")
+        print()
+        print("=" * 80)
+
+        # 🛑 SAFETY CHECK: Comment out this line to run against production
+        raise RuntimeError("Safety check: Refusing to run against production DynamoDB. See warning above.")
+
+    # Parse command line arguments
+    include_additional_access_patterns = "--all" in sys.argv
+
+    # Check if we're running against DynamoDB Local
+    if endpoint_url:
+        print(f"🔗 Using DynamoDB endpoint: {endpoint_url}")
+        print(f"🌍 Using region: {os.getenv('AWS_DEFAULT_REGION', 'us-east-1')}")
+    else:
+        print("🌐 Using AWS DynamoDB (no local endpoint specified)")
+
+    print("📊 Using multiple tables:")
+{%- for table in tables %}
+    print(f"   - {{ table.table_config.table_name }}")
+{%- endfor %}
+
+    if include_additional_access_patterns:
+        print("🔍 Including additional access pattern examples")
+
+    examples = UsageExamples()
+    examples.run_examples(include_additional_access_patterns=include_additional_access_patterns)
+
+
+if __name__ == "__main__":
+    main()

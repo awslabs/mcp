@@ -20,16 +20,21 @@ and Kubernetes resources through the Model Context Protocol (MCP).
 Environment Variables:
     AWS_REGION: AWS region to use for AWS API calls
     AWS_PROFILE: AWS profile to use for credentials
+    EKS_AUTH_MODE: Authentication mode - 'iam' (default) or 'kubeconfig'
+    KUBECONFIG: Path to kubeconfig file (used when EKS_AUTH_MODE=kubeconfig)
     FASTMCP_LOG_LEVEL: Log level (default: WARNING)
 """
 
 import argparse
+import os
 from awslabs.eks_mcp_server.cloudwatch_handler import CloudWatchHandler
 from awslabs.eks_mcp_server.cloudwatch_metrics_guidance_handler import CloudWatchMetricsHandler
 from awslabs.eks_mcp_server.eks_kb_handler import EKSKnowledgeBaseHandler
 from awslabs.eks_mcp_server.eks_stack_handler import EksStackHandler
 from awslabs.eks_mcp_server.iam_handler import IAMHandler
+from awslabs.eks_mcp_server.insights_handler import InsightsHandler
 from awslabs.eks_mcp_server.k8s_handler import K8sHandler
+from awslabs.eks_mcp_server.vpc_config_handler import VpcConfigHandler
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
 
@@ -80,6 +85,17 @@ DO NOT use standard EKS and Kubernetes CLI commands (aws eks, eksctl, kubectl). 
 - Always verify API versions with list_api_versions before creating resources.
 """
 
+# Appended to instructions when running in kubeconfig mode
+_KUBECONFIG_ADDENDUM = """
+## Kubeconfig Authentication Mode (Active)
+
+This server is running in kubeconfig authentication mode. Note the following:
+- Only Kubernetes tools are available. AWS-specific tools (CloudWatch, IAM, CloudFormation, EKS Insights) are not registered.
+- Authentication is handled via your kubeconfig file (OIDC, certificates, exec plugins).
+- The cluster_name parameter accepts EKS cluster names, which are resolved to the matching kubeconfig context automatically.
+- Ignore any references to AWS-specific tools (manage_eks_stacks, get_cloudwatch_metrics, get_cloudwatch_logs, search_eks_troubleshoot_guide) in the workflows above — they are not available in this mode.
+"""
+
 SERVER_DEPENDENCIES = [
     'pydantic',
     'loguru',
@@ -95,11 +111,15 @@ SERVER_DEPENDENCIES = [
 mcp = None
 
 
-def create_server():
+def create_server(auth_mode: str = 'iam'):
     """Create and configure the MCP server instance."""
+    instructions = SERVER_INSTRUCTIONS
+    if auth_mode == 'kubeconfig':
+        instructions += _KUBECONFIG_ADDENDUM
+
     return FastMCP(
         'awslabs.eks-mcp-server',
-        instructions=SERVER_INSTRUCTIONS,
+        instructions=instructions,
         dependencies=SERVER_DEPENDENCIES,
     )
 
@@ -123,32 +143,51 @@ def main():
         default=False,
         help='Enable sensitive data access (required for reading logs, events, and Kubernetes Secrets)',
     )
+    parser.add_argument(
+        '--auth-mode',
+        choices=['iam', 'kubeconfig'],
+        default=None,
+        help='Authentication mode: iam (default, uses AWS IAM + STS) or kubeconfig (uses kubeconfig/OIDC). '
+        'Can also be set via EKS_AUTH_MODE environment variable. CLI arg takes precedence.',
+    )
 
     args = parser.parse_args()
 
     allow_write = args.allow_write
     allow_sensitive_data_access = args.allow_sensitive_data_access
 
+    # Set auth mode from CLI arg if provided (overrides env var)
+    if args.auth_mode:
+        os.environ['EKS_AUTH_MODE'] = args.auth_mode
+
     # Log startup mode
+    auth_mode = os.environ.get('EKS_AUTH_MODE', 'iam')
     mode_info = []
     if not allow_write:
         mode_info.append('read-only mode')
     if not allow_sensitive_data_access:
         mode_info.append('restricted sensitive data access mode')
+    if auth_mode == 'kubeconfig':
+        mode_info.append('kubeconfig authentication mode')
 
     mode_str = ' in ' + ', '.join(mode_info) if mode_info else ''
     logger.info(f'Starting EKS MCP Server{mode_str}')
 
     # Create the MCP server instance
-    mcp = create_server()
+    mcp = create_server(auth_mode)
 
     # Initialize handlers - all tools are always registered, access control is handled within tools
-    CloudWatchHandler(mcp, allow_sensitive_data_access)
-    EKSKnowledgeBaseHandler(mcp)
-    EksStackHandler(mcp, allow_write)
     K8sHandler(mcp, allow_write, allow_sensitive_data_access)
-    IAMHandler(mcp, allow_write)
-    CloudWatchMetricsHandler(mcp)
+
+    # AWS-dependent handlers require AWS credentials and are skipped in kubeconfig mode
+    if auth_mode != 'kubeconfig':
+        EKSKnowledgeBaseHandler(mcp)
+        CloudWatchHandler(mcp, allow_sensitive_data_access)
+        EksStackHandler(mcp, allow_write)
+        IAMHandler(mcp, allow_write)
+        CloudWatchMetricsHandler(mcp)
+        VpcConfigHandler(mcp, allow_sensitive_data_access)
+        InsightsHandler(mcp, allow_sensitive_data_access)
 
     # Run server
     mcp.run()

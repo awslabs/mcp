@@ -135,10 +135,11 @@ class TestOutputOptionsFiltering:
 
         assert len(result) == 2
 
-        # Check that only OnDemand terms remain
+        # Check that only OnDemand terms remain, Reserved should be filtered with placeholder
         for item in result:
             assert 'OnDemand' in item['terms']
-            assert 'Reserved' not in item['terms']
+            assert 'Reserved' in item['terms']
+            assert item['terms']['Reserved'] == '<filtered by output_options.pricing_terms>'
             assert 'serviceCode' not in item
 
     def test_transform_pricing_data_multiple_terms(self):
@@ -169,7 +170,8 @@ class TestOutputOptionsFiltering:
         item = result[0]
         assert 'OnDemand' in item['terms']
         assert 'Reserved' in item['terms']
-        assert 'Spot' not in item['terms']
+        assert 'Spot' in item['terms']
+        assert item['terms']['Spot'] == '<filtered by output_options.pricing_terms>'
         assert 'serviceCode' not in item
 
     def test_transform_pricing_data_reserved_only(self):
@@ -195,7 +197,8 @@ class TestOutputOptionsFiltering:
         assert len(result) == 1
 
         item = result[0]
-        assert 'OnDemand' not in item['terms']
+        assert 'OnDemand' in item['terms']
+        assert item['terms']['OnDemand'] == '<filtered by output_options.pricing_terms>'
         assert 'Reserved' in item['terms']
         assert 'serviceCode' not in item
 
@@ -276,7 +279,8 @@ class TestOutputOptionsFiltering:
         # Verify content is correct
         filtered_item = filtered_result[0]
         assert 'OnDemand' in filtered_item['terms']
-        assert 'Reserved' not in filtered_item['terms']
+        assert 'Reserved' in filtered_item['terms']
+        assert filtered_item['terms']['Reserved'] == '<filtered by output_options.pricing_terms>'
         assert 'serviceCode' not in filtered_item
 
     def test_transform_pricing_data_product_attributes_only(self):
@@ -361,10 +365,11 @@ class TestOutputOptionsFiltering:
 
         item = result[0]
 
-        # Check that only specified pricing terms remain
+        # Check that only specified pricing terms remain, Spot should be filtered with placeholder
         assert 'OnDemand' in item['terms']
         assert 'Reserved' in item['terms']
-        assert 'Spot' not in item['terms']
+        assert 'Spot' in item['terms']
+        assert item['terms']['Spot'] == '<filtered by output_options.pricing_terms>'
 
         # Check that only specified attributes remain
         attributes = item['product']['attributes']
@@ -516,10 +521,11 @@ class TestOutputOptionsFiltering:
 
         assert len(result) == 2
 
-        # Check that only OnDemand terms remain in both items
+        # Check that only OnDemand terms remain, Reserved should be filtered with placeholder
         for item in result:
             assert 'OnDemand' in item['terms']
-            assert 'Reserved' not in item['terms']
+            assert 'Reserved' in item['terms']
+            assert item['terms']['Reserved'] == '<filtered by output_options.pricing_terms>'
             assert 'serviceCode' not in item
 
 
@@ -729,11 +735,12 @@ class TestExcludeFreeProductsFiltering:
         )
         result = transform_pricing_data(sample_data, options)
 
-        # Only paid product remains, only OnDemand terms
+        # Only paid product remains, only OnDemand terms (Reserved filtered with placeholder)
         assert len(result) == 1
         assert result[0]['product']['productFamily'] == 'Paid Instance'
         assert 'OnDemand' in result[0]['terms']
-        assert 'Reserved' not in result[0]['terms']
+        assert 'Reserved' in result[0]['terms']
+        assert result[0]['terms']['Reserved'] == '<filtered by output_options.pricing_terms>'
 
     @pytest.mark.parametrize(
         'item,expected',

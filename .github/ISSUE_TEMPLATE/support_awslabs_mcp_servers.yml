@@ -50,27 +50,115 @@ body:
     attributes:
       label: What servers are you using from Awslabs MCP Servers?
       options:
+        - label: amazon-bedrock-agentcore-mcp-server
+          required: false
+        - label: amazon-kendra-index-mcp-server
+          required: false
+        - label: amazon-keyspaces-mcp-server
+          required: false
+        - label: amazon-mq-mcp-server
+          required: false
+        - label: amazon-neptune-mcp-server
+          required: false
+        - label: amazon-qbusiness-anonymous-mcp-server
+          required: false
+        - label: amazon-qindex-mcp-server
+          required: false
+        - label: amazon-sns-sqs-mcp-server
+          required: false
+        - label: aurora-dsql-mcp-server
+          required: false
         - label: aws-api-mcp-server
           required: false
-        - label: aws-diagram-mcp-server
+        - label: aws-appsync-mcp-server
+          required: false
+        - label: aws-bedrock-custom-model-import-mcp-server
+          required: false
+        - label: aws-dataprocessing-mcp-server
           required: false
         - label: aws-documentation-mcp-server
           required: false
-        - label: bedrock-kb-retrieval-mcp-server
+        - label: aws-healthomics-mcp-server
           required: false
-        - label: cdk-mcp-server
+        - label: aws-iac-mcp-server
           required: false
-        - label: core-mcp-server
+        - label: aws-iot-sitewise-mcp-server
+          required: false
+        - label: aws-knowledge-mcp-server
+          required: false
+        - label: aws-location-mcp-server
+          required: false
+        - label: aws-network-mcp-server
           required: false
         - label: aws-pricing-mcp-server
           required: false
-        - label: git-repo-research-msp-server
+        - label: aws-serverless-mcp-server
           required: false
-        - label: lambda-mcp-server
+        - label: aws-support-mcp-server
           required: false
-        - label: nova-canvas-mcp-server
+        - label: bedrock-kb-retrieval-mcp-server
           required: false
-        - label: terraform-mcp-server
+        - label: billing-cost-management-mcp-server
+          required: false
+        - label: ccapi-mcp-server
+          required: false
+        - label: cloudtrail-mcp-server
+          required: false
+        - label: cloudwatch-applicationsignals-mcp-server
+          required: false
+        - label: cloudwatch-mcp-server
+          required: false
+        - label: document-loader-mcp-server
+          required: false
+        - label: documentdb-mcp-server
+          required: false
+        - label: dynamodb-mcp-server
+          required: false
+        - label: ecs-mcp-server
+          required: false
+        - label: eks-mcp-server
+          required: false
+        - label: elasticache-mcp-server
+          required: false
+        - label: finch-mcp-server
+          required: false
+        - label: healthimaging-mcp-server
+          required: false
+        - label: healthlake-mcp-server
+          required: false
+        - label: iam-mcp-server
+          required: false
+        - label: lambda-tool-mcp-server
+          required: false
+        - label: mcp-lambda-handler
+          required: false
+        - label: memcached-mcp-server
+          required: false
+        - label: mysql-mcp-server
+          required: false
+        - label: openapi-mcp-server
+          required: false
+        - label: postgres-mcp-server
+          required: false
+        - label: prometheus-mcp-server
+          required: false
+        - label: redshift-mcp-server
+          required: false
+        - label: s3-tables-mcp-server
+          required: false
+        - label: sagemaker-ai-mcp-server
+          required: false
+        - label: sagemaker-unified-studio-spark-troubleshooting-mcp-server
+          required: false
+        - label: sagemaker-unified-studio-spark-upgrade-mcp-server
+          required: false
+        - label: stepfunctions-tool-mcp-server
+          required: false
+        - label: timestream-for-influxdb-mcp-server
+          required: false
+        - label: valkey-mcp-server
+          required: false
+        - label: well-architected-security-mcp-server
           required: false
   - type: markdown
     attributes:

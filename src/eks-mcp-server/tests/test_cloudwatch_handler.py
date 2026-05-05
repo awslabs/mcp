@@ -15,6 +15,7 @@
 """Tests for the CloudWatchHandler class."""
 
 import datetime
+import json
 import pytest
 from awslabs.eks_mcp_server.cloudwatch_handler import CloudWatchHandler
 from mcp.server.fastmcp import Context
@@ -209,16 +210,19 @@ class TestCloudWatchHandler:
                 assert not result.isError
                 assert isinstance(result.content[0], TextContent)
                 assert 'Successfully retrieved' in result.content[0].text
-                assert result.resource_type == 'pod'
-                assert result.resource_name == 'test-pod'
-                assert result.cluster_name == 'test-cluster'
-                assert result.log_type == 'application'
-                assert result.log_group == '/aws/containerinsights/test-cluster/application'
-                assert len(result.log_entries) == 2
-                assert result.log_entries[0]['timestamp'] == '2025-01-01 12:00:00.000'
-                assert result.log_entries[0]['message'] == 'Test log message 1 for test-pod'
-                assert result.log_entries[1]['timestamp'] == '2025-01-01 12:01:00.000'
-                assert result.log_entries[1]['message'] == 'Test log message 2 for test-pod'
+
+                # Parse JSON data from content
+                data = json.loads(result.content[1].text)
+                assert data['resource_type'] == 'pod'
+                assert data['resource_name'] == 'test-pod'
+                assert data['cluster_name'] == 'test-cluster'
+                assert data['log_type'] == 'application'
+                assert data['log_group'] == '/aws/containerinsights/test-cluster/application'
+                assert len(data['log_entries']) == 2
+                assert data['log_entries'][0]['timestamp'] == '2025-01-01 12:00:00.000'
+                assert data['log_entries'][0]['message'] == 'Test log message 1 for test-pod'
+                assert data['log_entries'][1]['timestamp'] == '2025-01-01 12:01:00.000'
+                assert data['log_entries'][1]['message'] == 'Test log message 2 for test-pod'
 
     @pytest.mark.asyncio
     async def test_get_cloudwatch_logs_with_custom_parameters(self, mock_context, mock_mcp):
@@ -272,10 +276,15 @@ class TestCloudWatchHandler:
 
                 # Verify the result
                 assert not result.isError
-                assert len(result.log_entries) == 1
-                assert result.log_entries[0]['timestamp'] == '2025-01-01 12:00:00.000'
-                assert result.log_entries[0]['message'] == 'ERROR: Test log message 1 for test-pod'
-                assert result.log_entries[0]['level'] == 'ERROR'
+
+                # Parse JSON data from content
+                data = json.loads(result.content[1].text)
+                assert len(data['log_entries']) == 1
+                assert data['log_entries'][0]['timestamp'] == '2025-01-01 12:00:00.000'
+                assert (
+                    data['log_entries'][0]['message'] == 'ERROR: Test log message 1 for test-pod'
+                )
+                assert data['log_entries'][0]['level'] == 'ERROR'
 
     @pytest.mark.asyncio
     async def test_get_cloudwatch_logs_control_plane(self, mock_context, mock_mcp):
@@ -316,8 +325,11 @@ class TestCloudWatchHandler:
 
                 # Verify the result
                 assert not result.isError
-                assert result.log_type == 'control-plane'
-                assert result.log_group == '/aws/eks/test-cluster/cluster'
+
+                # Parse JSON data from content
+                data = json.loads(result.content[1].text)
+                assert data['log_type'] == 'control-plane'
+                assert data['log_group'] == '/aws/eks/test-cluster/cluster'
 
     @pytest.mark.asyncio
     async def test_get_cloudwatch_logs_cluster_resource_type(self, mock_context, mock_mcp):
@@ -367,11 +379,14 @@ class TestCloudWatchHandler:
 
                 # Verify the result
                 assert not result.isError
-                assert result.resource_type == 'cluster'
-                assert result.resource_name == 'test-cluster'
-                assert result.log_type == 'control-plane'
-                assert len(result.log_entries) == 1
-                assert result.log_entries[0]['message'] == 'Test cluster log message'
+
+                # Parse JSON data from content
+                data = json.loads(result.content[1].text)
+                assert data['resource_type'] == 'cluster'
+                assert data['resource_name'] == 'test-cluster'
+                assert data['log_type'] == 'control-plane'
+                assert len(data['log_entries']) == 1
+                assert data['log_entries'][0]['message'] == 'Test cluster log message'
 
     @pytest.mark.asyncio
     async def test_get_cloudwatch_logs_custom_log_group(self, mock_context, mock_mcp):
@@ -412,8 +427,11 @@ class TestCloudWatchHandler:
 
                 # Verify the result
                 assert not result.isError
-                assert result.log_type == '/custom/log/group'
-                assert result.log_group == '/custom/log/group'
+
+                # Parse JSON data from content
+                data = json.loads(result.content[1].text)
+                assert data['log_type'] == '/custom/log/group'
+                assert data['log_group'] == '/custom/log/group'
 
     @pytest.mark.asyncio
     async def test_get_cloudwatch_logs_without_resource_name(self, mock_context, mock_mcp):
@@ -465,13 +483,16 @@ class TestCloudWatchHandler:
 
                 # Verify the result
                 assert not result.isError
-                assert result.resource_type == 'pod'
-                assert result.resource_name is None
-                assert result.cluster_name == 'test-cluster'
-                assert result.log_type == 'application'
-                assert len(result.log_entries) == 1
+
+                # Parse JSON data from content
+                data = json.loads(result.content[1].text)
+                assert data['resource_type'] == 'pod'
+                assert data['resource_name'] is None
+                assert data['cluster_name'] == 'test-cluster'
+                assert data['log_type'] == 'application'
+                assert len(data['log_entries']) == 1
                 assert (
-                    result.log_entries[0]['message']
+                    data['log_entries'][0]['message']
                     == 'Test log message without resource name filter'
                 )
 
@@ -499,10 +520,6 @@ class TestCloudWatchHandler:
             'Access to CloudWatch logs requires --allow-sensitive-data-access flag'
             in result.content[0].text
         )
-        assert result.resource_type == 'pod'
-        assert result.resource_name == 'test-pod'
-        assert result.cluster_name == 'test-cluster'
-        assert len(result.log_entries) == 0
 
     @pytest.mark.asyncio
     async def test_get_cloudwatch_logs_error(self, mock_context, mock_mcp):
@@ -537,10 +554,6 @@ class TestCloudWatchHandler:
                 assert isinstance(result.content[0], TextContent)
                 assert 'Failed to get logs' in result.content[0].text
                 assert 'Test error' in result.content[0].text
-                assert result.resource_type == 'pod'
-                assert result.resource_name == 'test-pod'
-                assert result.cluster_name == 'test-cluster'
-                assert len(result.log_entries) == 0
 
     @pytest.mark.asyncio
     async def test_get_cloudwatch_metrics_success(self, mock_context, mock_mcp):
@@ -628,16 +641,19 @@ class TestCloudWatchHandler:
                 assert not result.isError
                 assert isinstance(result.content[0], TextContent)
                 assert 'Successfully retrieved' in result.content[0].text
-                assert result.metric_name == 'cpu_usage_total'
-                assert result.namespace == 'ContainerInsights'
-                assert result.cluster_name == 'test-cluster'
-                assert len(result.data_points) == 3
-                assert result.data_points[0]['timestamp'] == '2025-01-01T11:58:00'
-                assert result.data_points[0]['value'] == 10.5
-                assert result.data_points[1]['timestamp'] == '2025-01-01T11:59:00'
-                assert result.data_points[1]['value'] == 11.2
-                assert result.data_points[2]['timestamp'] == '2025-01-01T12:00:00'
-                assert result.data_points[2]['value'] == 9.8
+
+                # Parse JSON data from content
+                data = json.loads(result.content[1].text)
+                assert data['metric_name'] == 'cpu_usage_total'
+                assert data['namespace'] == 'ContainerInsights'
+                assert data['cluster_name'] == 'test-cluster'
+                assert len(data['data_points']) == 3
+                assert data['data_points'][0]['timestamp'] == '2025-01-01T11:58:00'
+                assert data['data_points'][0]['value'] == 10.5
+                assert data['data_points'][1]['timestamp'] == '2025-01-01T11:59:00'
+                assert data['data_points'][1]['value'] == 11.2
+                assert data['data_points'][2]['timestamp'] == '2025-01-01T12:00:00'
+                assert data['data_points'][2]['value'] == 9.8
 
     @pytest.mark.asyncio
     async def test_get_cloudwatch_metrics_with_custom_parameters(self, mock_context, mock_mcp):
@@ -704,11 +720,14 @@ class TestCloudWatchHandler:
 
                 # Verify the result
                 assert not result.isError
-                assert result.metric_name == 'memory_utilization'
-                assert result.cluster_name == 'test-cluster'
-                assert len(result.data_points) == 1
-                assert result.data_points[0]['timestamp'] == '2025-01-01T11:58:00'
-                assert result.data_points[0]['value'] == 75.5
+
+                # Parse JSON data from content
+                data = json.loads(result.content[1].text)
+                assert data['metric_name'] == 'memory_utilization'
+                assert data['cluster_name'] == 'test-cluster'
+                assert len(data['data_points']) == 1
+                assert data['data_points'][0]['timestamp'] == '2025-01-01T11:58:00'
+                assert data['data_points'][0]['value'] == 75.5
 
     @pytest.mark.asyncio
     async def test_get_cloudwatch_metrics_cluster_name_mismatch(self, mock_context, mock_mcp):
@@ -750,10 +769,6 @@ class TestCloudWatchHandler:
                 assert 'does not match ClusterName dimension' in result.content[0].text
                 assert 'test-cluster' in result.content[0].text
                 assert 'different-cluster' in result.content[0].text
-                assert result.metric_name == 'cpu_usage_total'
-                assert result.namespace == 'ContainerInsights'
-                assert result.cluster_name == 'test-cluster'
-                assert len(result.data_points) == 0
 
     @pytest.mark.asyncio
     async def test_get_cloudwatch_metrics_empty_results(self, mock_context, mock_mcp):
@@ -797,10 +812,13 @@ class TestCloudWatchHandler:
                 assert not result.isError
                 assert isinstance(result.content[0], TextContent)
                 assert 'Successfully retrieved 0 metric data points' in result.content[0].text
-                assert result.metric_name == 'cpu_usage_total'
-                assert result.namespace == 'ContainerInsights'
-                assert result.cluster_name == 'test-cluster'
-                assert len(result.data_points) == 0
+
+                # Parse JSON data from content
+                data = json.loads(result.content[1].text)
+                assert data['metric_name'] == 'cpu_usage_total'
+                assert data['namespace'] == 'ContainerInsights'
+                assert data['cluster_name'] == 'test-cluster'
+                assert len(data['data_points']) == 0
 
     @pytest.mark.asyncio
     async def test_get_cloudwatch_metrics_error(self, mock_context, mock_mcp):
@@ -835,10 +853,6 @@ class TestCloudWatchHandler:
                 assert isinstance(result.content[0], TextContent)
                 assert 'Failed to get metrics' in result.content[0].text
                 assert 'Test error' in result.content[0].text
-                assert result.metric_name == 'cpu_usage_total'
-                assert result.namespace == 'ContainerInsights'
-                assert result.cluster_name == 'test-cluster'
-                assert len(result.data_points) == 0
 
     @pytest.mark.asyncio
     async def test_get_cloudwatch_metrics_with_field_objects(self, mock_context, mock_mcp):
@@ -894,10 +908,13 @@ class TestCloudWatchHandler:
 
                 # Verify the result
                 assert not result.isError
-                assert result.metric_name == 'network_rx_bytes'
-                assert result.cluster_name == 'test-cluster'
-                assert len(result.data_points) == 1
-                assert result.data_points[0]['value'] == 1024
+
+                # Parse JSON data from content
+                data = json.loads(result.content[1].text)
+                assert data['metric_name'] == 'network_rx_bytes'
+                assert data['cluster_name'] == 'test-cluster'
+                assert len(data['data_points']) == 1
+                assert data['data_points'][0]['value'] == 1024
 
     @pytest.mark.asyncio
     async def test_get_cloudwatch_logs_with_json_message(self, mock_context, mock_mcp):
@@ -941,13 +958,16 @@ class TestCloudWatchHandler:
 
                 # Verify the result
                 assert not result.isError
-                assert len(result.log_entries) == 1
-                assert result.log_entries[0]['timestamp'] == '2025-01-01 12:00:00.000'
-                assert isinstance(result.log_entries[0]['message'], dict)
-                assert result.log_entries[0]['message']['level'] == 'info'
-                assert result.log_entries[0]['message']['message'] == 'Pod started'
-                assert result.log_entries[0]['message']['pod'] == 'test-pod'
-                assert result.log_entries[0]['message']['namespace'] == 'default'
+
+                # Parse JSON data from content
+                data = json.loads(result.content[1].text)
+                assert len(data['log_entries']) == 1
+                assert data['log_entries'][0]['timestamp'] == '2025-01-01 12:00:00.000'
+                assert isinstance(data['log_entries'][0]['message'], dict)
+                assert data['log_entries'][0]['message']['level'] == 'info'
+                assert data['log_entries'][0]['message']['message'] == 'Pod started'
+                assert data['log_entries'][0]['message']['pod'] == 'test-pod'
+                assert data['log_entries'][0]['message']['namespace'] == 'default'
 
     @pytest.mark.asyncio
     async def test_get_cloudwatch_logs_with_nested_json_message(self, mock_context, mock_mcp):
@@ -991,24 +1011,27 @@ class TestCloudWatchHandler:
 
                 # Verify the result
                 assert not result.isError
-                assert len(result.log_entries) == 1
-                assert result.log_entries[0]['timestamp'] == '2025-01-01 12:00:00.000'
-                assert isinstance(result.log_entries[0]['message'], dict)
-                assert result.log_entries[0]['message']['level'] == 'info'
-                assert result.log_entries[0]['message']['message'] == 'Pod event'
-                assert isinstance(result.log_entries[0]['message']['details'], dict)
-                assert result.log_entries[0]['message']['details']['pod'] == 'test-pod'
-                assert isinstance(result.log_entries[0]['message']['details']['status'], dict)
-                assert result.log_entries[0]['message']['details']['status']['phase'] == 'Running'
+
+                # Parse JSON data from content
+                data = json.loads(result.content[1].text)
+                assert len(data['log_entries']) == 1
+                assert data['log_entries'][0]['timestamp'] == '2025-01-01 12:00:00.000'
+                assert isinstance(data['log_entries'][0]['message'], dict)
+                assert data['log_entries'][0]['message']['level'] == 'info'
+                assert data['log_entries'][0]['message']['message'] == 'Pod event'
+                assert isinstance(data['log_entries'][0]['message']['details'], dict)
+                assert data['log_entries'][0]['message']['details']['pod'] == 'test-pod'
+                assert isinstance(data['log_entries'][0]['message']['details']['status'], dict)
+                assert data['log_entries'][0]['message']['details']['status']['phase'] == 'Running'
                 assert isinstance(
-                    result.log_entries[0]['message']['details']['status']['conditions'], list
+                    data['log_entries'][0]['message']['details']['status']['conditions'], list
                 )
                 assert (
-                    result.log_entries[0]['message']['details']['status']['conditions'][0]['type']
+                    data['log_entries'][0]['message']['details']['status']['conditions'][0]['type']
                     == 'Ready'
                 )
                 assert (
-                    result.log_entries[0]['message']['details']['status']['conditions'][0][
+                    data['log_entries'][0]['message']['details']['status']['conditions'][0][
                         'status'
                     ]
                     == 'True'

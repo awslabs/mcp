@@ -152,7 +152,6 @@ async def _analyze_load_balancer_issues(
 
 
 async def fetch_service_events(
-    app_name: str,
     cluster_name: str,
     service_name: str,
     time_window: int = 3600,
@@ -166,12 +165,10 @@ async def fetch_service_events(
 
     Parameters
     ----------
-    app_name : str
-        The name of the application to analyze
     cluster_name : str
-        The name of the ECS cluster
+        The name of the ECS Cluster
     service_name : str
-        The name of the ECS service to analyze
+        The name of the ECS Service to analyze
     time_window : int, optional
         Time window in seconds to look back for events (default: 3600)
     start_time : datetime, optional

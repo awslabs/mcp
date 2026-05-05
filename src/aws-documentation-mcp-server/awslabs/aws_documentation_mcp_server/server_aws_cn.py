@@ -160,6 +160,9 @@ async def get_available_services(
     """
     url_str = 'https://docs.amazonaws.cn/en_us/aws/latest/userguide/services.html'
     url_with_session = f'{url_str}?session={SESSION_UUID}'
+
+    toc_url_str = 'https://docs.amazonaws.cn/en_us/aws/latest/userguide/toc-contents.json'
+    toc_url_with_session = f'{toc_url_str}?session={SESSION_UUID}'
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(
@@ -168,20 +171,59 @@ async def get_available_services(
                 headers={'User-Agent': DEFAULT_USER_AGENT},
                 timeout=30,
             )
+            # Fetch the Table of Contents in the Services page, which contains the list of supported services
+            toc_response = await client.get(
+                toc_url_with_session,
+                follow_redirects=True,
+                headers={'User-Agent': DEFAULT_USER_AGENT, 'Content-Type': 'application/json'},
+                timeout=30,
+            )
         except httpx.HTTPError as e:
-            error_msg = f'Failed to fetch {url_str}: {str(e)}'
+            error_msg = f'Failed to fetch AWS-CN services page: {str(e)}'
             logger.error(error_msg)
             await ctx.error(error_msg)
             return error_msg
 
         if response.status_code >= 400:
-            error_msg = f'Failed to fetch {url_str} - status code {response.status_code}'
+            error_msg = (
+                f'Failed to fetch AWS-CN services page - status code {response.status_code}'
+            )
             logger.error(error_msg)
             await ctx.error(error_msg)
             return error_msg
 
         page_raw = response.text
         content_type = response.headers.get('content-type', '')
+
+        page_toc_json = toc_response.json()
+        # Expecting a toc JSON object that has a href of 'services.html', which contains all of the AWS Services supported in China
+        # toc_response = { 'contents' : [ { 'title: '', 'href': '', 'contents: [] } ] }
+        services_json = [
+            toc_item.get('contents', [])
+            for toc_item in page_toc_json.get('contents', [])
+            if toc_item.get('href') == 'services.html'
+        ]
+
+        # If toc_response does not have `href: services.html`, and services_json is empty, raise an error so
+        # users can self-solve.
+        if len(services_json) == 0:
+            error_msg = (
+                f'Failed fetching list of available AWS Services, please go to {url_str} directly'
+            )
+            logger.error(error_msg)
+            await ctx.error(error_msg)
+            return error_msg
+
+        # Filtering out 'Services Unsupported in Amazon Web Services in China'
+        formatted_service_titles = ''
+        service_doc_links = [
+            f'[{service.get("title")}](https://docs.amazonaws.cn/en_us/aws/latest/userguide/{service.get("href")})'
+            for service in services_json[0]
+            if 'Services Unsupported' not in service.get('title')
+        ]
+        formatted_service_titles = '\n\n## Services in Amazon Web Services China\n\n' + '\n'.join(
+            [f'- {service_doc_link}' for service_doc_link in service_doc_links]
+        )
 
     if is_html_content(page_raw, content_type):
         content = extract_content_from_html(page_raw)
@@ -194,7 +236,7 @@ async def get_available_services(
         url_str, content, start_index=0, max_length=MAX_DOCUMENTATION_LENGTH
     )
 
-    return result
+    return result + formatted_service_titles
 
 
 def main():

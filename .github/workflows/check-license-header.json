@@ -14,14 +14,36 @@
       "**/*.pyc",
       "**/trivy-results.sarif",
       "**/py.typed",
-      "**/*.npz"
+      "**/*.npz",
+      "**/*.template",
+      "**/*.java",
+      "**/*.js",
+      "**/*.ts",
+      "**/*.cs",
+      "**/*.properties",
+      "**/*.xml",
+      "**/dist/**"
     ],
     "include": [
       "**/*.py",
       "**/*Dockerfile",
-      "**/*.sh"
+      "**/*.sh",
+      "**/*.guard",
+      "**/ruff.toml"
     ],
     "license": "./.github/workflows/check-license-header-hash.txt"
+  },
+  {
+    "exclude": [
+      "docusaurus/**"
+    ],
+    "include": [
+      "**/*.java",
+      "**/*.js",
+      "**/*.ts",
+      "**/*.cs"
+    ],
+    "license": "./.github/workflows/check-license-header-slash.txt"
   },
   {
     "include": [
@@ -52,7 +74,16 @@
       "**/*.pyc",
       "**/trivy-results.sarif",
       "**/py.typed",
-      "**/*.npz"
+      "**/*.npz",
+      "**/*.template",
+      "**/*.properties",
+      "**/*.xml",
+      "**/dist/**",
+      "**/skills/*/scripts",
+      "**/skills/*/references",
+      "**/skills/*/mcp",
+      "**/DO_NOT_RELEASE",
+      "**/*.pyi"
     ]
   }
 ]

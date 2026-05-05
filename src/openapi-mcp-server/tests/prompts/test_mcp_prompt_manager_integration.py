@@ -15,7 +15,7 @@
 
 import pytest
 from awslabs.openapi_mcp_server.prompts import MCPPromptManager
-from fastmcp.server.openapi import RouteType
+from fastmcp.server.providers.openapi import MCPType
 from unittest.mock import AsyncMock, MagicMock
 
 
@@ -24,9 +24,9 @@ def mock_server():
     """Create a mock server with the necessary attributes."""
     server = MagicMock()
 
-    # Mock _prompt_manager
-    server._prompt_manager = MagicMock()
-    server._prompt_manager.add_prompt = MagicMock()
+    # Mock add_prompt
+    server.add_prompt = MagicMock()
+    # add_prompt already mocked on server
 
     # Mock register_resource_handler
     server.register_resource_handler = MagicMock()
@@ -35,12 +35,12 @@ def mock_server():
     mock_route = MagicMock()
     mock_route.path = '/pet/{petId}'
     mock_route.method = 'GET'
-    mock_route.route_type = RouteType.RESOURCE
+    mock_route.mcp_type = MCPType.RESOURCE
 
     mock_route2 = MagicMock()
     mock_route2.path = '/pet/findByStatus'
     mock_route2.method = 'GET'
-    mock_route2.route_type = RouteType.TOOL
+    mock_route2.mcp_type = MCPType.TOOL
 
     server._openapi_router = MagicMock()
     server._openapi_router._routes = [mock_route, mock_route2]
@@ -189,7 +189,7 @@ async def test_generate_prompts_integration(mock_server, petstore_openapi_spec):
     result = await prompt_manager.generate_prompts(mock_server, 'petstore', petstore_openapi_spec)
 
     # Check that prompts were registered
-    assert mock_server._prompt_manager.add_prompt.call_count >= 3  # At least 3 operations
+    assert mock_server.add_prompt.call_count >= 3  # At least 3 operations
 
     # Check the result
     assert result['operation_prompts_generated'] is True
@@ -242,7 +242,7 @@ async def test_full_integration(mock_server, mock_client, petstore_openapi_spec)
     prompt_manager.register_api_resource_handler(mock_server, 'petstore', mock_client)
 
     # Check that prompts were registered
-    assert mock_server._prompt_manager.add_prompt.call_count >= 3
+    assert mock_server.add_prompt.call_count >= 3
 
     # Check that the resource handler was registered
     mock_server.register_resource_handler.assert_called_once()

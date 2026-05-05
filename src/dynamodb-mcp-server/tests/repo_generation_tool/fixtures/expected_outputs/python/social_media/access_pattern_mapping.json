@@ -1,0 +1,354 @@
+{
+  "access_pattern_mapping": {
+    "1": {
+      "consistent_read": false,
+      "description": "User login/authentication - get user profile by user_id",
+      "entity": "UserProfile",
+      "index_name": null,
+      "method_name": "get_user_profile",
+      "operation": "GetItem",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 1,
+      "range_condition": null,
+      "repository": "UserProfileRepository",
+      "return_type": "UserProfile | None"
+    },
+    "10": {
+      "description": "Follow a user",
+      "entity": "Follow",
+      "index_name": null,
+      "method_name": "follow_user",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "Follow",
+          "name": "follow",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 10,
+      "range_condition": null,
+      "repository": "FollowRepository",
+      "return_type": "Follow | None"
+    },
+    "11": {
+      "description": "Unfollow a user",
+      "entity": "Follow",
+      "index_name": null,
+      "method_name": "unfollow_user",
+      "operation": "DeleteItem",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        },
+        {
+          "name": "follower_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 11,
+      "range_condition": null,
+      "repository": "FollowRepository",
+      "return_type": "bool"
+    },
+    "12": {
+      "consistent_read": false,
+      "description": "Get list of users who liked a specific post",
+      "entity": "Like",
+      "index_name": null,
+      "method_name": "get_post_likes",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        },
+        {
+          "name": "post_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 12,
+      "range_condition": null,
+      "repository": "LikeRepository",
+      "return_type": "tuple[list[Like], dict | None]"
+    },
+    "13": {
+      "consistent_read": false,
+      "description": "Get user's followers list",
+      "entity": "Follow",
+      "index_name": null,
+      "method_name": "get_user_followers",
+      "operation": "Scan",
+      "parameters": [
+        {
+          "name": "target_user_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 13,
+      "range_condition": null,
+      "repository": "FollowRepository",
+      "return_type": "tuple[list[Follow], dict | None]"
+    },
+    "14": {
+      "consistent_read": false,
+      "description": "Get user's following list",
+      "entity": "Follow",
+      "index_name": null,
+      "method_name": "get_user_following",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 14,
+      "range_condition": null,
+      "repository": "FollowRepository",
+      "return_type": "tuple[list[Follow], dict | None]"
+    },
+    "15": {
+      "consistent_read": false,
+      "description": "Get user posts by post_id prefix (Main Table Range Query)",
+      "entity": "Post",
+      "index_name": null,
+      "method_name": "get_user_posts_by_prefix",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        },
+        {
+          "name": "post_id_prefix",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 15,
+      "range_condition": "begins_with",
+      "repository": "PostRepository",
+      "return_type": "tuple[list[Post], dict | None]"
+    },
+    "16": {
+      "consistent_read": false,
+      "description": "Get comments for a post within comment_id range (Main Table Range Query)",
+      "entity": "Comment",
+      "index_name": null,
+      "method_name": "get_comments_for_post_range",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        },
+        {
+          "name": "start_comment_prefix",
+          "type": "string"
+        },
+        {
+          "name": "end_comment_prefix",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 16,
+      "range_condition": "between",
+      "repository": "CommentRepository",
+      "return_type": "tuple[list[Comment], dict | None]"
+    },
+    "17": {
+      "consistent_read": false,
+      "description": "Get likes for a post after a specific prefix (Main Table Range Query)",
+      "entity": "Like",
+      "index_name": null,
+      "method_name": "get_likes_after_prefix",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        },
+        {
+          "name": "like_prefix",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 17,
+      "range_condition": ">",
+      "repository": "LikeRepository",
+      "return_type": "tuple[list[Like], dict | None]"
+    },
+    "2": {
+      "description": "Create new post",
+      "entity": "Post",
+      "index_name": null,
+      "method_name": "put_post",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "Post",
+          "name": "post",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 2,
+      "range_condition": null,
+      "repository": "PostRepository",
+      "return_type": "Post | None"
+    },
+    "3": {
+      "description": "Delete post",
+      "entity": "Post",
+      "index_name": null,
+      "method_name": "delete_post",
+      "operation": "DeleteItem",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        },
+        {
+          "name": "post_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 3,
+      "range_condition": null,
+      "repository": "PostRepository",
+      "return_type": "bool"
+    },
+    "4": {
+      "consistent_read": false,
+      "description": "Get personalized feed - posts from followed users",
+      "entity": "Post",
+      "index_name": null,
+      "method_name": "get_user_posts",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 4,
+      "range_condition": null,
+      "repository": "PostRepository",
+      "return_type": "tuple[list[Post], dict | None]"
+    },
+    "5": {
+      "consistent_read": false,
+      "description": "Get comments for a specific post",
+      "entity": "Comment",
+      "index_name": null,
+      "method_name": "get_post_comments",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        },
+        {
+          "name": "post_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 5,
+      "range_condition": null,
+      "repository": "CommentRepository",
+      "return_type": "tuple[list[Comment], dict | None]"
+    },
+    "6": {
+      "consistent_read": false,
+      "description": "View user profile and posts",
+      "entity": "UserProfile",
+      "index_name": null,
+      "method_name": "get_user_profile_and_posts",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 6,
+      "range_condition": null,
+      "repository": "UserProfileRepository",
+      "return_type": "tuple[list[dict[str, Any]], dict | None]"
+    },
+    "7": {
+      "description": "Like a post",
+      "entity": "Like",
+      "index_name": null,
+      "method_name": "like_post",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "Like",
+          "name": "like",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 7,
+      "range_condition": null,
+      "repository": "LikeRepository",
+      "return_type": "Like | None"
+    },
+    "8": {
+      "description": "Unlike a post",
+      "entity": "Like",
+      "index_name": null,
+      "method_name": "unlike_post",
+      "operation": "DeleteItem",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        },
+        {
+          "name": "post_id",
+          "type": "string"
+        },
+        {
+          "name": "liker_user_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 8,
+      "range_condition": null,
+      "repository": "LikeRepository",
+      "return_type": "bool"
+    },
+    "9": {
+      "description": "Add comment to post",
+      "entity": "Comment",
+      "index_name": null,
+      "method_name": "add_comment",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "Comment",
+          "name": "comment",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 9,
+      "range_condition": null,
+      "repository": "CommentRepository",
+      "return_type": "Comment | None"
+    }
+  },
+  "metadata": {
+    "generated_at": {
+      "timestamp": "auto-generated"
+    },
+    "generator_type": "Jinja2Generator",
+    "total_patterns": 17
+  }
+}

@@ -1,0 +1,15 @@
+---
+vulnerability:
+  # Add a VEX document
+  #
+  # ```shell
+  # brew install vexctl;
+  # vexctl create --impact-statement "Impact statement"         \
+  #               --justification "vulnerable_code_not_present" \
+  #               --product "package url (purl)"                \
+  #               --status "not_affected"                       \
+  #               --status-note "Status notes"                  \
+  #               --vuln "CVE-TBD" > .vex/CVE-TBD.openvex.json  \
+  # ```
+  vex:
+    - .vex/CVE-2023-45853.openvex.json

@@ -1,0 +1,106 @@
+{
+  "access_pattern_mapping": {
+    "100": {
+      "description": "Create user and email lookup atomically",
+      "entities_involved": [
+        {
+          "action": "Put",
+          "entity": "User",
+          "table": "Users"
+        },
+        {
+          "action": "Put",
+          "entity": "EmailLookup",
+          "table": "EmailLookup"
+        }
+      ],
+      "method_name": "register_user",
+      "operation": "TransactWrite",
+      "parameters": [
+        {
+          "entity_type": "User",
+          "name": "user",
+          "type": "entity"
+        },
+        {
+          "entity_type": "EmailLookup",
+          "name": "email_lookup",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 100,
+      "return_type": "bool",
+      "service": "TransactionService",
+      "transaction_type": "cross_table"
+    },
+    "101": {
+      "description": "Delete user and email lookup atomically",
+      "entities_involved": [
+        {
+          "action": "Delete",
+          "entity": "User",
+          "table": "Users"
+        },
+        {
+          "action": "Delete",
+          "entity": "EmailLookup",
+          "table": "EmailLookup"
+        }
+      ],
+      "method_name": "delete_user_with_email",
+      "operation": "TransactWrite",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        },
+        {
+          "name": "email",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 101,
+      "return_type": "bool",
+      "service": "TransactionService",
+      "transaction_type": "cross_table"
+    },
+    "102": {
+      "description": "Get user and email lookup atomically",
+      "entities_involved": [
+        {
+          "action": "Get",
+          "entity": "User",
+          "table": "Users"
+        },
+        {
+          "action": "Get",
+          "entity": "EmailLookup",
+          "table": "EmailLookup"
+        }
+      ],
+      "method_name": "get_user_and_email",
+      "operation": "TransactGet",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        },
+        {
+          "name": "email",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 102,
+      "return_type": "dict[str, Any]",
+      "service": "TransactionService",
+      "transaction_type": "cross_table"
+    }
+  },
+  "metadata": {
+    "generated_at": {
+      "timestamp": "auto-generated"
+    },
+    "generator_type": "Jinja2Generator",
+    "total_patterns": 3
+  }
+}

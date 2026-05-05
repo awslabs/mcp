@@ -15,7 +15,6 @@
 
 # Server information
 SERVER_NAME = 'keyspaces-mcp'
-SERVER_VERSION = '0.1.0'
 
 # Logging configuration
 DEFAULT_LOG_LEVEL = 'INFO'

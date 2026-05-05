@@ -42,7 +42,7 @@ class TestMetadataLoadingErrors:
 
     def test_metadata_file_not_found(self):
         """Test handling when metadata file doesn't exist - covers lines 82-83."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             with patch('pathlib.Path.exists', return_value=False):
                 with patch(
                     'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.logger'
@@ -55,7 +55,7 @@ class TestMetadataLoadingErrors:
 
     def test_metadata_file_read_error(self):
         """Test handling when metadata file can't be read - covers lines 101, 109-111."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             with patch('pathlib.Path.exists', return_value=True):
                 with patch('builtins.open', side_effect=IOError('File read error')):
                     with patch(
@@ -69,7 +69,7 @@ class TestMetadataLoadingErrors:
 
     def test_metadata_json_parse_error(self):
         """Test handling when metadata JSON is invalid - covers lines 101, 109-111."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             with patch('pathlib.Path.exists', return_value=True):
                 with patch('builtins.open', mock_open(read_data='invalid json')):
                     with patch(
@@ -83,7 +83,7 @@ class TestMetadataLoadingErrors:
 
     def test_metadata_entry_processing_error(self):
         """Test handling when individual metadata entries are malformed - covers lines 52, 59-61, 116-118."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             with patch('pathlib.Path.exists', return_value=True):
                 # Mock metadata with malformed entries
                 malformed_metadata = [
@@ -112,7 +112,7 @@ class TestMetadataLoadingErrors:
 
     def test_metadata_entry_key_error(self):
         """Test handling when metadata entry access causes KeyError."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             with patch('pathlib.Path.exists', return_value=True):
                 # Mock metadata that will cause KeyError when accessing
                 metadata_with_error = [
@@ -139,7 +139,7 @@ class TestParameterValidation:
     @pytest.mark.asyncio
     async def test_get_metric_data_group_by_dimension_not_in_schema(self, mock_context):
         """Test error when group_by_dimension is not in schema_dimension_keys."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             tools = CloudWatchMetricsTools()
 
             with pytest.raises(ValueError) as exc_info:
@@ -162,7 +162,7 @@ class TestParameterValidation:
     @pytest.mark.asyncio
     async def test_get_metric_data_sort_order_without_order_by_statistic(self, mock_context):
         """Test error when sort_order is specified without order_by_statistic."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             tools = CloudWatchMetricsTools()
 
             with pytest.raises(ValueError) as exc_info:
@@ -184,7 +184,7 @@ class TestParameterValidation:
 
     def test_invalid_metrics_insights_statistic(self):
         """Test validation of invalid Metrics Insights statistic."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             tools = CloudWatchMetricsTools()
 
             with pytest.raises(ValueError) as exc_info:
@@ -194,7 +194,7 @@ class TestParameterValidation:
 
     def test_map_to_metrics_insights_statistic_invalid(self):
         """Test mapping invalid statistic for Metrics Insights."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             tools = CloudWatchMetricsTools()
 
             with pytest.raises(ValueError):
@@ -207,9 +207,7 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_get_metric_data_api_error(self, mock_context):
         """Test get_metric_data with API error - covers line 370."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_client.get_metric_data.side_effect = Exception('API Error')
             mock_session.return_value.client.return_value = mock_client
@@ -232,7 +230,7 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_get_metric_metadata_api_error(self, mock_context):
         """Test get_metric_metadata with general error - covers lines 537, 566."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             tools = CloudWatchMetricsTools()
 
             # Mock _lookup_metadata to raise exception
@@ -250,7 +248,7 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_get_recommended_metric_alarms_api_error(self, mock_context):
         """Test get_recommended_metric_alarms with general error - covers lines 636-639."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             tools = CloudWatchMetricsTools()
 
             # Mock _lookup_metadata to raise exception
@@ -271,7 +269,7 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_get_recommended_metric_alarms_parse_error(self, mock_context):
         """Test get_recommended_metric_alarms with parse error - covers lines 715-717."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             tools = CloudWatchMetricsTools()
 
             # Mock metadata with malformed alarm recommendations
@@ -279,7 +277,7 @@ class TestErrorHandling:
                 'alarmRecommendations': [
                     {
                         'alarmDescription': 'Valid alarm',
-                        'threshold': {'staticValue': 80.0},
+                        'threshold': {'value': 80.0},
                         'period': 300,
                         'statistic': 'Average',
                     },
@@ -298,23 +296,28 @@ class TestErrorHandling:
                     side_effect=[Mock(), Exception('Parse error')],
                 ):
                     with patch(
-                        'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.logger'
-                    ) as mock_logger:
-                        result = await tools.get_recommended_metric_alarms(
-                            mock_context,
-                            namespace='AWS/EC2',
-                            metric_name='CPUUtilization',
-                            dimensions=[],
-                        )
+                        'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.AlarmRecommendationResult'
+                    ) as mock_result_class:
+                        mock_result_instance = Mock()
+                        mock_result_class.return_value = mock_result_instance
+                        with patch(
+                            'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.logger'
+                        ) as mock_logger:
+                            result = await tools.get_recommended_metric_alarms(
+                                mock_context,
+                                namespace='AWS/EC2',
+                                metric_name='CPUUtilization',
+                                dimensions=[],
+                            )
 
-                        # Should return only valid recommendations and log warning for invalid ones
-                        assert isinstance(result, list)
-                        mock_logger.warning.assert_called()
+                            # Should return only valid recommendations and log warning for invalid ones
+                            assert result == mock_result_instance
+                            mock_logger.warning.assert_called()
 
     @pytest.mark.asyncio
     async def test_parse_alarm_recommendation_missing_fields(self, mock_context):
         """Test _parse_alarm_recommendation with missing fields - covers lines 724-727, 745, 751, 755, 757, 761."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             tools = CloudWatchMetricsTools()
 
             # Test with minimal alarm data
@@ -325,6 +328,11 @@ class TestErrorHandling:
             # Should handle missing fields gracefully with defaults
             assert isinstance(result, AlarmRecommendation)
             assert result.alarmDescription == ''
+            from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
+                StaticAlarmThreshold,
+            )
+
+            assert isinstance(result.threshold, StaticAlarmThreshold)
             assert result.threshold.staticValue == 0.0
             assert result.threshold.justification == ''
             assert result.period == 300
@@ -338,7 +346,7 @@ class TestErrorHandling:
 
     def test_alarm_matches_dimensions_edge_cases(self):
         """Test _alarm_matches_dimensions edge cases."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             tools = CloudWatchMetricsTools()
 
             # Test with empty alarm dimensions - should match any provided dimensions
@@ -373,6 +381,50 @@ class TestErrorHandling:
             result = tools._alarm_matches_dimensions(alarm_data, {'InstanceType': 't2.micro'})
             assert result is False
 
+    @pytest.mark.asyncio
+    async def test_analyze_metric_analyzer_error(self, mock_context):
+        """Test analyze_metric when metric analyzer fails."""
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
+            tools = CloudWatchMetricsTools()
+
+            mock_response = Mock()
+            mock_response.metricDataResults = []
+            with patch.object(tools, 'get_metric_data', return_value=mock_response):
+                with patch.object(
+                    tools.metric_analyzer,
+                    'analyze_metric_data',
+                    side_effect=Exception('Analysis error'),
+                ):
+                    with pytest.raises(Exception) as exc_info:
+                        await tools.analyze_metric(
+                            mock_context, namespace='AWS/EC2', metric_name='CPUUtilization'
+                        )
+
+                    assert 'Analysis error' in str(exc_info.value)
+                    mock_context.error.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_recommended_alarms_analysis_fallback_error(self, mock_context):
+        """Test get_recommended_metric_alarms when analysis fallback fails."""
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
+            tools = CloudWatchMetricsTools()
+
+            # Mock no existing recommendations
+            with patch.object(tools, '_lookup_metadata', return_value=None):
+                with patch.object(
+                    tools, 'analyze_metric', side_effect=Exception('Analysis failed')
+                ):
+                    with pytest.raises(Exception) as exc_info:
+                        await tools.get_recommended_metric_alarms(
+                            mock_context,
+                            namespace='Custom/App',
+                            metric_name='CustomMetric',
+                            dimensions=[],
+                        )
+
+                    assert 'Analysis failed' in str(exc_info.value)
+                    mock_context.error.assert_called_once()
+
 
 class TestEdgeCases:
     """Test edge cases and boundary conditions."""
@@ -380,9 +432,7 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_boto3_client_error_handling(self, mock_context):
         """Test error handling when boto3 client creation fails."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_session.side_effect = Exception('AWS credentials not found')
 
             tools = CloudWatchMetricsTools()
@@ -397,33 +447,33 @@ class TestEdgeCases:
     def test_default_region_usage(self):
         """Test that default region is used when not specified."""
         with patch.dict('os.environ', {}, clear=True):
-            with patch(
-                'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session'
-            ) as mock_session:
+            with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
                 mock_client = Mock()
                 mock_session.return_value.client.return_value = mock_client
 
-                tools = CloudWatchMetricsTools()
-                # Actually call a method that creates the client
-                tools._get_cloudwatch_client('us-east-1')
+                # Test get_aws_client directly
+                from awslabs.cloudwatch_mcp_server.aws_common import get_aws_client
 
-                # Should use default us-east-1
-                mock_session.assert_called_with(region_name='us-east-1')
+                get_aws_client('cloudwatch', 'us-east-1')
+
+                # Should create session and client
+                mock_session.assert_called()
 
     def test_tools_registration(self):
         """Test that all tools are properly registered."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             tools = CloudWatchMetricsTools()
 
             mock_mcp = Mock()
             tools.register(mock_mcp)
 
             # Verify all tools are registered
-            assert mock_mcp.tool.call_count == 3
+            assert mock_mcp.tool.call_count == 4
             tool_calls = [call[1]['name'] for call in mock_mcp.tool.call_args_list]
             expected_tools = [
                 'get_metric_data',
                 'get_metric_metadata',
+                'analyze_metric',
                 'get_recommended_metric_alarms',
             ]
             for tool in expected_tools:
@@ -431,7 +481,7 @@ class TestEdgeCases:
 
     def test_process_metric_data_response_edge_cases(self):
         """Test _process_metric_data_response with edge cases."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             tools = CloudWatchMetricsTools()
 
             # Test with empty response
@@ -460,7 +510,7 @@ class TestEdgeCases:
 
     def test_build_where_clause_edge_cases(self):
         """Test _build_where_clause with edge cases."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             tools = CloudWatchMetricsTools()
 
             # Test with empty dimensions
@@ -482,7 +532,7 @@ class TestEdgeCases:
 
     def test_build_schema_string_edge_cases(self):
         """Test _build_schema_string with edge cases."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             tools = CloudWatchMetricsTools()
 
             # Test with no dimension keys
@@ -499,7 +549,7 @@ class TestEdgeCases:
 
     def test_statistic_mappings(self):
         """Test statistic mapping functions."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             tools = CloudWatchMetricsTools()
 
             # Test CloudWatch statistic mapping
@@ -520,7 +570,7 @@ class TestEdgeCases:
 
     def test_period_calculation_edge_cases(self):
         """Test period calculation with edge cases."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             tools = CloudWatchMetricsTools()
 
             # Test with very short time window

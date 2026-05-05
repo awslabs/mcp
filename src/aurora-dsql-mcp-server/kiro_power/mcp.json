@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "aurora-dsql": {
+      "args": [
+        "awslabs.aurora-dsql-mcp-server@latest"
+      ],
+      "command": "uvx",
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    },
+    "aws-core": {
+      "args": [
+        "awslabs.core-mcp-server@latest"
+      ],
+      "command": "uvx",
+      "disabled": true,
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    }
+  }
+}

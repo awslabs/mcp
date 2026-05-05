@@ -4,19 +4,22 @@ from ..history_handler import history
 from awslabs.aws_api_mcp_server.core.aws.driver import translate_cli_to_ir
 from awslabs.aws_api_mcp_server.core.aws.service import (
     execute_awscli_customization,
+    expand_regions_if_needed,
     interpret_command,
     is_operation_read_only,
     validate,
 )
 from awslabs.aws_api_mcp_server.core.common.command import IRCommand
+from awslabs.aws_api_mcp_server.core.common.errors import AwsApiMcpError, AwsRegionResolutionError
 from awslabs.aws_api_mcp_server.core.common.helpers import as_json
 from awslabs.aws_api_mcp_server.core.common.models import (
-    AwsApiMcpServerErrorResponse,
     AwsCliAliasResponse,
     CommandMetadata,
     Context,
+    Credentials,
     InterpretationMetadata,
     InterpretationResponse,
+    InterpretedProgram,
     IRTranslation,
     ProgramInterpretationResponse,
     ValidationFailure,
@@ -32,12 +35,17 @@ from tests.fixtures import (
     CLOUD9_PARAMS_MISSING_CONTEXT_FAILURES,
     EC2_DESCRIBE_INSTANCES,
     GET_CALLER_IDENTITY_PAYLOAD,
+    LAMBDA_INVOKE_PAYLOAD,
+    LIST_BUCKETS_SORTED_BY_CREATION_DATE,
+    S3_GET_OBJECT_PAYLOAD,
     SSM_LIST_NODES_PAYLOAD,
     T2_EC2_DESCRIBE_INSTANCES_FILTERED,
+    TEST_CREDENTIALS,
+    create_file_open_mock,
     patch_boto3,
 )
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, Mock, patch
 
 
 @pytest.mark.parametrize(
@@ -55,7 +63,6 @@ def test_interpret_returns_validation_failures(cli_command, reason, service, ope
     """Test that interpret_command returns validation failures for invalid operations."""
     response = interpret_command(
         cli_command=cli_command,
-        default_region='us-east-1',
     )
     assert response.response is None
     assert response.validation_failures == [
@@ -77,7 +84,6 @@ def test_interpret_returns_missing_context_failures():
     """Test that interpret_command returns missing context failures when required parameters are missing."""
     response = interpret_command(
         cli_command=CLOUD9_PARAMS_CLI_MISSING_CONTEXT,
-        default_region='us-east-1',
     )
     assert response.response is None
     assert response.missing_context_failures == [
@@ -101,7 +107,7 @@ def test_interpret_returns_missing_context_failures():
         (
             'aws cloud9 list-environments',
             CLOUD9_LIST_ENVIRONMENTS,
-            ('ListEnvironments', {}, 'us-east-1', 10, 'https://cloud9.us-east-1.amazonaws.com'),
+            ('ListEnvironments', {}, 'us-east-1', 60, 'https://cloud9.us-east-1.amazonaws.com'),
             'cloud9',
             'AWS Cloud9',
             'ListEnvironments',
@@ -115,7 +121,7 @@ def test_interpret_returns_missing_context_failures():
                     'Filters': [{'Name': 'instance-state-name', 'Values': ['running']}],
                 },
                 'us-east-1',
-                10,
+                60,
                 'https://ec2.us-east-1.amazonaws.com',
             ),
             'ec2',
@@ -129,7 +135,7 @@ def test_interpret_returns_missing_context_failures():
                 'DescribeInstances',
                 {},
                 'us-east-1',
-                10,
+                60,
                 'https://ec2.us-east-1.amazonaws.com',
             ),
             'ec2',
@@ -148,7 +154,7 @@ def test_interpret_returns_missing_context_failures():
                     ]
                 },
                 'us-east-1',
-                10,
+                60,
                 'https://cloud9.us-east-1.amazonaws.com',
             ),
             'cloud9',
@@ -158,7 +164,7 @@ def test_interpret_returns_missing_context_failures():
         (
             'aws sts get-caller-identity',
             GET_CALLER_IDENTITY_PAYLOAD,
-            ('GetCallerIdentity', {}, 'us-east-1', 10, 'https://sts.us-east-1.amazonaws.com'),
+            ('GetCallerIdentity', {}, 'us-east-1', 60, 'https://sts.us-east-1.amazonaws.com'),
             'sts',
             'AWS Security Token Service',
             'GetCallerIdentity',
@@ -179,12 +185,26 @@ def test_interpret_returns_missing_context_failures():
                     ],
                 },
                 'us-east-1',
-                10,
+                60,
                 'https://ssm.us-east-1.amazonaws.com',
             ),
             'ssm',
             'Amazon Simple Systems Manager (SSM)',
             'ListNodes',
+        ),
+        (
+            'aws s3api list-buckets --query "sort_by(Buckets, &CreationDate)[-1].[Name,CreationDate]"',
+            LIST_BUCKETS_SORTED_BY_CREATION_DATE,
+            (
+                'ListBuckets',
+                {},
+                'us-east-1',
+                60,
+                'https://s3.us-east-1.amazonaws.com',
+            ),
+            's3',
+            'Amazon Simple Storage Service',
+            'ListBuckets',
         ),
     ],
 )
@@ -193,8 +213,11 @@ def test_interpret_returns_valid_response(
 ):
     """Test that interpret_command returns a valid response for correct CLI commands."""
     with patch_boto3():
-        history.events.clear()
-        response = interpret_command(cli_command=cli, default_region='us-east-1')
+        with patch(
+            'awslabs.aws_api_mcp_server.core.parser.parser.get_region', return_value='us-east-1'
+        ):
+            history.events.clear()
+            response = interpret_command(cli_command=cli)
         assert response == ProgramInterpretationResponse(
             response=InterpretationResponse(json=as_json(output), error=None, status_code=200),
             failed_constraints=[],
@@ -208,9 +231,11 @@ def test_interpret_returns_valid_response(
         assert event in history.events
 
 
-def test_interpret_injects_region():
+@patch('awslabs.aws_api_mcp_server.core.parser.parser.get_region')
+def test_interpret_injects_region(mock_get_region):
     """Test that interpret_command injects the correct region into the request."""
     region = 'eu-south-1'
+    mock_get_region.return_value = region
     default_config = Config(region_name=region)
     with patch_boto3():
         with patch('awslabs.aws_api_mcp_server.core.parser.interpretation.Config') as patch_config:
@@ -218,7 +243,6 @@ def test_interpret_injects_region():
             patch_config.return_value = default_config
             response = interpret_command(
                 cli_command='aws cloud9 describe-environments --environment-ids 7d61007bd98b4d589f1504af84c168de b181ffd35fe2457c8c5ae9d75edc068a',
-                default_region=region,
             )
             assert response.metadata == InterpretationMetadata(
                 service='cloud9',
@@ -261,12 +285,14 @@ def test_interpret_injects_region():
 def test_region_picked_up_from_arn(cli, region):
     """Test that region is correctly picked up from ARN in the CLI command."""
     with patch_boto3():
-        response = interpret_command(
-            cli_command=cli,
-            default_region='us-east-1',
-        )
-        assert response.metadata is not None
-        assert response.metadata.region_name == region
+        with patch(
+            'awslabs.aws_api_mcp_server.core.parser.parser.get_region', return_value='us-east-1'
+        ):
+            response = interpret_command(
+                cli_command=cli,
+            )
+            assert response.metadata is not None
+            assert response.metadata.region_name == region
 
 
 def test_validate_success():
@@ -441,10 +467,12 @@ def test_is_operation_read_only_raises_error_for_missing_operation_name():
         is_operation_read_only(ir, read_only_operations)
 
 
-@patch('awslabs.aws_api_mcp_server.core.aws.service.driver')
-def test_execute_awscli_customization_success(mock_driver):
+@patch('awslabs.aws_api_mcp_server.core.aws.service.get_awscli_driver')
+def test_execute_awscli_customization_success(mock_get_driver):
     """Test execute_awscli_customization returns AwsCliAliasResponse on successful execution."""
+    mock_driver = Mock()
     mock_driver.main.return_value = None
+    mock_get_driver.return_value = mock_driver
 
     with patch('awslabs.aws_api_mcp_server.core.aws.service.StringIO') as mock_stringio:
         mock_stdout = MagicMock()
@@ -465,31 +493,35 @@ def test_execute_awscli_customization_success(mock_driver):
         mock_driver.main.assert_called_once_with(['s3', 'ls'])
 
 
-@patch('awslabs.aws_api_mcp_server.core.aws.service.driver')
-def test_execute_awscli_customization_error(mock_driver):
-    """Test execute_awscli_customization returns AwsApiMcpServerErrorResponse on exception."""
+@patch('awslabs.aws_api_mcp_server.core.aws.service.get_awscli_driver')
+def test_execute_awscli_customization_error(mock_get_driver):
+    """Test execute_awscli_customization raises AwsApiMcpError on exception."""
+    mock_driver = Mock()
     mock_driver.main.side_effect = Exception('Invalid command')
+    mock_get_driver.return_value = mock_driver
 
-    result = execute_awscli_customization(
-        'aws invalid command',
-        IRCommand(
-            command_metadata=CommandMetadata('invalid', None, 'command'),
-            parameters={},
-            is_awscli_customization=True,
-        ),
-    )
+    with pytest.raises(AwsApiMcpError) as exc_info:
+        execute_awscli_customization(
+            'aws invalid command',
+            IRCommand(
+                command_metadata=CommandMetadata('invalid', None, 'command'),
+                region='us-east-1',
+                parameters={},
+                is_awscli_customization=True,
+            ),
+        )
 
-    assert isinstance(result, AwsApiMcpServerErrorResponse)
-    assert result.error is True
-    assert result.detail == "Error while executing 'aws invalid command': Invalid command"
-
+    assert "Error while executing 'aws invalid command': Invalid command" in str(exc_info.value)
     mock_driver.main.assert_called_once_with(['invalid', 'command'])
 
 
-@patch('awslabs.aws_api_mcp_server.core.aws.service.driver.main')
+@patch('awslabs.aws_api_mcp_server.core.aws.service.get_awscli_driver')
 @patch('awslabs.aws_api_mcp_server.core.aws.service.AWS_API_MCP_PROFILE_NAME', None)
-def test_profile_not_added_when_env_var_none(mock_main):
+def test_profile_not_added_when_env_var_none(mock_get_driver):
     """Test that profile is not added when AWS_API_MCP_PROFILE_NAME is None."""
+    mock_driver = Mock()
+    mock_get_driver.return_value = mock_driver
+
     cli_command = 'aws s3 ls'
     ir_command = translate_cli_to_ir(cli_command).command
     assert ir_command is not None
@@ -497,39 +529,383 @@ def test_profile_not_added_when_env_var_none(mock_main):
     execute_awscli_customization(cli_command, ir_command)
 
     # Verify profile was not added to args
-    args = mock_main.call_args[0][0]
+    args = mock_driver.main.call_args[0][0]
     assert '--profile' not in args
 
 
-@patch('awslabs.aws_api_mcp_server.core.aws.service.driver.main')
+@patch('awslabs.aws_api_mcp_server.core.aws.service.get_awscli_driver')
 @patch('awslabs.aws_api_mcp_server.core.aws.service.AWS_API_MCP_PROFILE_NAME', 'test-profile')
-def test_profile_added_when_env_var_set(mock_main):
+def test_profile_added_when_env_var_set(mock_get_driver):
     """Test that profile is added when AWS_API_MCP_PROFILE_NAME is set."""
     cli_command = 'aws s3 ls'
     ir_command = translate_cli_to_ir(cli_command).command
     assert ir_command is not None
+    mock_driver = Mock()
+    mock_get_driver.return_value = mock_driver
 
     execute_awscli_customization(cli_command, ir_command)
 
     # Verify profile was added to args
-    args = mock_main.call_args[0][0]
+    args = mock_driver.main.call_args[0][0]
     assert '--profile' in args
     profile_index = args.index('--profile')
     assert args[profile_index + 1] == 'test-profile'
 
 
-@patch('awslabs.aws_api_mcp_server.core.aws.service.driver.main')
+@patch('awslabs.aws_api_mcp_server.core.aws.service.get_awscli_driver')
 @patch('awslabs.aws_api_mcp_server.core.aws.service.AWS_API_MCP_PROFILE_NAME', 'test-profile')
-def test_profile_not_added_if_present_for_customizations(mock_main):
+@patch('awslabs.aws_api_mcp_server.core.parser.parser.get_region', return_value='us-east-1')
+def test_profile_not_added_if_present_for_customizations(mock_get_region, mock_get_driver):
     """Test that profile is not added when one is already present."""
     cli_command = 'aws s3 ls --profile different'
     ir_command = translate_cli_to_ir(cli_command).command
     assert ir_command is not None
+    mock_driver = Mock()
+    mock_get_driver.return_value = mock_driver
 
     execute_awscli_customization(cli_command, ir_command)
 
     # Verify profile was added to args
-    args = mock_main.call_args[0][0]
+    args = mock_driver.main.call_args[0][0]
     assert '--profile' in args
     profile_index = args.index('--profile')
     assert args[profile_index + 1] == 'different'
+
+
+@pytest.mark.parametrize(
+    'command,expected_outfile,expected_content',
+    [
+        (
+            'aws s3api get-object --bucket test-bucket --key test-key {working_dir}/myfile.template',
+            '{working_dir}/myfile.template',
+            S3_GET_OBJECT_PAYLOAD['Body'].content,
+        ),
+        (
+            'aws lambda invoke --function-name my-function {working_dir}/response.json',
+            '{working_dir}/response.json',
+            LAMBDA_INVOKE_PAYLOAD['Payload'].content,
+        ),
+    ],
+)
+def test_interpret_command_creates_output_file_for_streaming_operations(
+    command, expected_outfile, expected_content
+):
+    """Test that interpret_command writes an output file for streaming operations with outfile parameter."""
+    from awslabs.aws_api_mcp_server.core.common.config import WORKING_DIRECTORY
+
+    # Replace placeholder with actual working directory
+    actual_command = command.format(working_dir=WORKING_DIRECTORY)
+    actual_outfile = expected_outfile.format(working_dir=WORKING_DIRECTORY)
+
+    with patch_boto3():
+        mock_open_side_effect, mock_files = create_file_open_mock(actual_outfile)
+
+        with patch('builtins.open', side_effect=mock_open_side_effect):
+            response = interpret_command(cli_command=actual_command)
+
+            assert response.response is not None
+            assert response.response.status_code == 200
+
+            mock_file = mock_files[actual_outfile]
+            mock_file.write.assert_called_with(expected_content)
+
+            assert response.response.as_json is not None
+            response_data = json.loads(response.response.as_json)
+
+            assert 'Body' not in response_data
+            assert 'Payload' not in response_data
+
+
+# Tests for credentials integration changes
+def test_interpret_command_with_credentials_parameter():
+    """Test that interpret_command passes credentials parameter through to driver."""
+    test_credentials = Credentials(**TEST_CREDENTIALS)
+
+    with patch('awslabs.aws_api_mcp_server.core.aws.service._interpret_command') as mock_interpret:
+        mock_interpret.return_value = InterpretedProgram(translation=IRTranslation())
+
+        interpret_command('aws s3api list-buckets', credentials=test_credentials)
+
+        mock_interpret.assert_called_once_with(
+            'aws s3api list-buckets',
+            max_results=None,
+            credentials=test_credentials,
+            default_region_override=None,
+        )
+
+
+def test_interpret_command_without_credentials_parameter():
+    """Test that interpret_command works without credentials parameter."""
+    with patch('awslabs.aws_api_mcp_server.core.aws.service._interpret_command') as mock_interpret:
+        mock_interpret.return_value = InterpretedProgram(translation=IRTranslation())
+
+        interpret_command('aws s3api list-buckets')
+
+        mock_interpret.assert_called_once_with(
+            'aws s3api list-buckets',
+            max_results=None,
+            credentials=None,
+            default_region_override=None,
+        )
+
+
+@patch('awslabs.aws_api_mcp_server.core.aws.driver.interpret')
+def test_interpret_command_with_region_parameter(mock_interpret):
+    """Test that interpret_command forwards region to driver.interpret."""
+    mock_interpret.return_value = {'ResponseMetadata': {'HTTPStatusCode': 200}}
+    mock_credentials = Credentials(access_key_id='a', secret_access_key='b', session_token='c')
+
+    interpret_command(
+        'aws s3api list-buckets', default_region_override='eu-west-1', credentials=mock_credentials
+    )
+
+    mock_interpret.assert_called_once_with(
+        ANY,
+        access_key_id=mock_credentials.access_key_id,
+        secret_access_key=mock_credentials.secret_access_key,
+        session_token=mock_credentials.session_token,
+        region='eu-west-1',
+        client_side_filter=None,
+        max_results=None,
+        endpoint_url=None,
+    )
+
+
+@patch('awslabs.aws_api_mcp_server.core.aws.service.get_awscli_driver')
+def test_execute_awscli_customization_uses_explicit_region_overrides_ir(mock_get_driver):
+    """Test that execute_awscli_customization uses explicit region over IR region and default."""
+    mock_driver = Mock()
+    mock_get_driver.return_value = mock_driver
+
+    ir_command = IRCommand(
+        command_metadata=CommandMetadata(
+            service_sdk_name='s3',
+            service_full_sdk_name='Amazon S3',
+            operation_sdk_name='list_objects_v2',
+        ),
+        parameters={},
+        region='us-east-1',
+        is_awscli_customization=True,
+    )
+
+    with (
+        patch('awslabs.aws_api_mcp_server.core.aws.service.split_cli_command') as mock_split,
+        patch('awslabs.aws_api_mcp_server.core.aws.service.operation_timer') as mock_timer,
+    ):
+        mock_split.return_value = ['aws', 's3', 'ls']
+
+        # Context manager mock
+        mock_cm = MagicMock()
+        mock_timer.return_value = mock_cm
+
+        with patch('sys.stdout'), patch('sys.stderr'):
+            execute_awscli_customization(
+                'aws s3 ls', ir_command, credentials=None, default_region_override='eu-west-2'
+            )
+
+    # Verify region precedence used in timer
+    assert mock_timer.call_args[0][0] == 's3'
+    assert mock_timer.call_args[0][1] == 'list_objects_v2'
+    assert mock_timer.call_args[0][2] == 'us-east-1'
+
+
+@patch('awslabs.aws_api_mcp_server.core.aws.service.get_awscli_driver')
+def test_execute_awscli_customization_with_credentials(mock_get_driver):
+    """Test that execute_awscli_customization uses provided credentials."""
+    test_credentials = Credentials(**TEST_CREDENTIALS)
+
+    mock_driver = MagicMock()
+    mock_get_driver.return_value = mock_driver
+
+    ir_command = IRCommand(
+        command_metadata=CommandMetadata(
+            service_sdk_name='s3',
+            service_full_sdk_name='Amazon S3',
+            operation_sdk_name='list_objects_v2',
+        ),
+        parameters={},
+        region='us-east-1',
+        is_awscli_customization=True,
+    )
+
+    with patch('awslabs.aws_api_mcp_server.core.aws.service.split_cli_command') as mock_split:
+        mock_split.return_value = ['aws', 's3', 'ls']
+
+        with patch(
+            'awslabs.aws_api_mcp_server.core.aws.service.is_operation_read_only'
+        ) as mock_is_read_only:
+            mock_is_read_only.return_value = True
+
+            with patch('sys.stdout'), patch('sys.stderr'):
+                execute_awscli_customization('aws s3 ls', ir_command, credentials=test_credentials)
+
+    mock_get_driver.assert_called_once_with(test_credentials)
+
+
+@patch('awslabs.aws_api_mcp_server.core.aws.service.get_awscli_driver')
+def test_execute_awscli_customization_without_credentials(mock_get_driver):
+    """Test that execute_awscli_customization works without credentials."""
+    mock_driver = MagicMock()
+    mock_get_driver.return_value = mock_driver
+
+    ir_command = IRCommand(
+        command_metadata=CommandMetadata(
+            service_sdk_name='s3',
+            service_full_sdk_name='Amazon S3',
+            operation_sdk_name='list_objects_v2',
+        ),
+        parameters={},
+        region='us-east-1',
+        is_awscli_customization=True,
+    )
+
+    with patch('awslabs.aws_api_mcp_server.core.aws.service.split_cli_command') as mock_split:
+        mock_split.return_value = ['aws', 's3', 'ls']
+
+        with patch(
+            'awslabs.aws_api_mcp_server.core.aws.service.is_operation_read_only'
+        ) as mock_is_read_only:
+            mock_is_read_only.return_value = True
+
+            with patch('sys.stdout'), patch('sys.stderr'):
+                execute_awscli_customization('aws s3 ls', ir_command, credentials=None)
+
+    mock_get_driver.assert_called_once_with(None)
+
+
+@patch('awslabs.aws_api_mcp_server.core.aws.service.get_awscli_driver')
+def test_execute_awscli_customization_raises_error(mock_get_driver):
+    """Test execute_awscli_customization raises AwsApiMcpError for streaming to stdout."""
+    mock_driver = Mock()
+    mock_driver.main.return_value = None
+    mock_get_driver.return_value = mock_driver
+
+    with patch('awslabs.aws_api_mcp_server.core.aws.service.StringIO') as mock_stringio:
+        mock_stdout = MagicMock()
+        mock_stderr = MagicMock()
+        mock_stdout.getvalue.return_value = ''
+        mock_stderr.getvalue.return_value = (
+            'Streaming currently is only compatible with non-recursive cp commands'
+        )
+        mock_stringio.side_effect = [mock_stdout, mock_stderr]
+
+        cli_command = 'aws s3 mv s3://my-bucket/my-object -'
+        ir_command = IRCommand(
+            command_metadata=CommandMetadata(
+                service_sdk_name='s3',
+                service_full_sdk_name='Amazon S3',
+                operation_sdk_name='mv',
+            ),
+            parameters={},
+            region='us-east-1',
+            is_awscli_customization=True,
+        )
+
+        with pytest.raises(AwsApiMcpError) as exc_info:
+            execute_awscli_customization(cli_command, ir_command)
+
+        assert cli_command in str(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    'command',
+    [
+        'aws s3 ls',
+        'aws account list-regions',
+        'aws s3 ls --region us-east-1',
+        'aws s3api list-buckets --region ap-south-1 --output json',
+    ],
+)
+def test_expand_regions_if_needed_without_expansion(command):
+    """Test expand_regions_if_needed with no --region parameter."""
+    result = expand_regions_if_needed(command)
+    assert result == [command]
+
+
+@pytest.mark.parametrize(
+    'command',
+    [
+        'aws s3 ls --region us-east-1*',
+        'aws s3 ls --region *us-east-1',
+        'aws s3 ls --region a*b',
+        'aws s3 ls --region',
+    ],
+)
+def test_expand_regions_if_needed_with_invalid_region(command):
+    """Test expand_regions_if_needed with invalid --region parameter."""
+    result = expand_regions_if_needed(command)
+    assert result == [command]
+
+
+@patch('awslabs.aws_api_mcp_server.core.aws.service.get_active_regions')
+@pytest.mark.parametrize(
+    'command,expected',
+    [
+        ('aws s3 ls --region *', ['aws s3 ls --region us-east-1', 'aws s3 ls --region us-west-2']),
+        (
+            'aws s3 ls --region  *',
+            ['aws s3 ls --region us-east-1', 'aws s3 ls --region us-west-2'],
+        ),
+        (
+            'aws s3 ls --region \t*',
+            ['aws s3 ls --region us-east-1', 'aws s3 ls --region us-west-2'],
+        ),
+        (
+            'aws s3 ls --region   *',
+            ['aws s3 ls --region us-east-1', 'aws s3 ls --region us-west-2'],
+        ),
+        (
+            'aws s3api list-buckets --region * --output json',
+            [
+                'aws s3api list-buckets --region us-east-1 --output json',
+                'aws s3api list-buckets --region us-west-2 --output json',
+            ],
+        ),
+    ],
+)
+def test_expand_regions_if_needed_wildcard(mock_get_active_regions, command, expected):
+    """Test expand_regions_if_needed with wildcard region including whitespace variations."""
+    mock_get_active_regions.return_value = ['us-east-1', 'us-west-2']
+    result = expand_regions_if_needed(command)
+    assert result == expected
+    mock_get_active_regions.assert_called_once_with(None)
+
+
+@patch('awslabs.aws_api_mcp_server.core.aws.service.get_active_regions')
+def test_expand_regions_if_needed_with_api_mcp_profile_name(mock_get_active_regions):
+    """Test expand_regions_if_needed with wildcard region and check api mcp profile is used."""
+    mock_get_active_regions.return_value = ['us-east-1']
+    with patch(
+        'awslabs.aws_api_mcp_server.core.aws.service.AWS_API_MCP_PROFILE_NAME', 'test-profile'
+    ):
+        expand_regions_if_needed('aws s3 ls --region *')
+        mock_get_active_regions.assert_called_once_with('test-profile')
+
+
+@patch('awslabs.aws_api_mcp_server.core.aws.service.get_active_regions')
+@pytest.mark.parametrize(
+    'command',
+    [
+        'aws s3 ls --region * --profile my-profile',
+        'aws s3 ls  --profile my-profile --region  *',
+        'aws s3 ls --region \t*  --profile \tmy-profile\t',
+        'aws s3api list-buckets --region * --profile my-profile --output json',
+    ],
+)
+def test_expand_regions_if_needed_with_profile(mock_get_active_regions, command):
+    """Test that --profile is extracted from the command and passed to get_active_regions."""
+    mock_get_active_regions.return_value = ['us-east-1']
+    expand_regions_if_needed(command)
+    mock_get_active_regions.assert_called_once_with('my-profile')
+
+
+@patch('awslabs.aws_api_mcp_server.core.aws.service.get_active_regions')
+def test_expand_regions_if_needed_get_regions_fails(mock_get_active_regions):
+    """Test expand_regions_if_needed when get_active_regions raises AwsRegionResolutionError."""
+    mock_get_active_regions.side_effect = AwsRegionResolutionError(
+        'Failed to retrieve regions', 'test-profile'
+    )
+
+    # The function should let the AwsRegionResolutionError propagate
+    with pytest.raises(AwsRegionResolutionError):
+        expand_regions_if_needed('aws s3 ls --region *')

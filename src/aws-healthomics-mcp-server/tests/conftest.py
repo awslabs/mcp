@@ -62,6 +62,7 @@ def mock_environment():
     test_env = {
         'AWS_REGION': 'us-east-1',
         'FASTMCP_LOG_LEVEL': 'ERROR',
+        'HEALTHOMICS_DEFAULT_MAX_RESULTS': '10',
     }
 
     # Store original values

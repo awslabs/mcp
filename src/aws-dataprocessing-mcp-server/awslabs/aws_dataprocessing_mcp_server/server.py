@@ -45,6 +45,12 @@ from awslabs.aws_dataprocessing_mcp_server.handlers.emr.emr_ec2_instance_handler
 from awslabs.aws_dataprocessing_mcp_server.handlers.emr.emr_ec2_steps_handler import (
     EMREc2StepsHandler,
 )
+from awslabs.aws_dataprocessing_mcp_server.handlers.emr.emr_serverless_application_handler import (
+    EMRServerlessApplicationHandler,
+)
+from awslabs.aws_dataprocessing_mcp_server.handlers.emr.emr_serverless_job_run_handler import (
+    EMRServerlessJobRunHandler,
+)
 from awslabs.aws_dataprocessing_mcp_server.handlers.glue.crawler_handler import (
     CrawlerHandler,
 )
@@ -120,6 +126,21 @@ It enables you to create, manage, and monitor data processing workflows.
 2. Delete a table: `manage_aws_glue_tables(operation='delete-table', database_name='my-database', table_name='my-table')`
 3. Delete a connection: `manage_aws_glue_connections(operation='delete-connection', connection_name='my-connection')`
 4. Delete a database: `manage_aws_glue_databases(operation='delete-database', database_name='my-database')`
+5. Batch delete connections: `manage_aws_glue_connections(operation='batch-delete-connection', connection_name_list=['conn-1', 'conn-2'])`
+
+### Testing Connections
+1. Test an existing connection: `manage_aws_glue_connections(operation='test-connection', connection_name='my-connection')`
+2. Test a new connection input: `manage_aws_glue_connections(operation='test-connection', test_connection_input={'ConnectionType': 'JDBC', 'ConnectionProperties': {...}})`
+
+### Discovering Connection Types
+1. List all available connection types: `manage_aws_glue_connection_types(operation='list-connection-types')`
+2. Describe a specific connection type: `manage_aws_glue_connection_types(operation='describe-connection-type', connection_type='JDBC')`
+
+### Exploring Connection Metadata and Entity Data
+1. List entities for a connection: `manage_aws_glue_connection_metadata(operation='list-entities', connection_name='my-connection')`
+2. List child entities: `manage_aws_glue_connection_metadata(operation='list-entities', connection_name='my-connection', parent_entity_name='my-database')`
+3. Describe an entity's schema: `manage_aws_glue_connection_metadata(operation='describe-entity', connection_name='my-connection', entity_name='my-table')`
+4. Preview entity records: `manage_aws_glue_connection_metadata(operation='get-entity-records', connection_name='my-connection', entity_name='my-table', limit=10)`
 
 
 ### Setup EMR EC2 Cluster
@@ -372,6 +393,19 @@ def main():
         allow_write=allow_write,
         allow_sensitive_data_access=allow_sensitive_data_access,
     )
+
+    EMRServerlessApplicationHandler(
+        mcp,
+        allow_write=allow_write,
+        allow_sensitive_data_access=allow_sensitive_data_access,
+    )
+
+    EMRServerlessJobRunHandler(
+        mcp,
+        allow_write=allow_write,
+        allow_sensitive_data_access=allow_sensitive_data_access,
+    )
+
     CommonResourceHandler(mcp, allow_write=allow_write)
 
     # Run server

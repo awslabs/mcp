@@ -56,6 +56,7 @@ async def query_knowledge_base(
         'us-east-1',
         'ap-northeast-1',
         'ca-central-1',
+        'eu-central-1',
     ]:
         raise ValueError(
             f'Reranking is not supported in region {kb_agent_client.meta.region_name}'

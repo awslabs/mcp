@@ -1,8 +1,10 @@
 repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
     -   id: check-added-large-files
+    -   id: check-ast
+    -   id: check-builtin-literals
     -   id: check-case-conflict
     -   id: check-executables-have-shebangs
     -   id: check-illegal-windows-names
@@ -11,27 +13,37 @@ repos:
     -   id: check-shebang-scripts-are-executable
     -   id: check-symlinks
     -   id: check-toml
+    -   id: check-vcs-permalinks
     -   id: check-xml
         # Full check against all YAML files excluding mkdocs.yml
     -   id: check-yaml
-    -   id: end-of-file-fixer
     -   id: debug-statements
     -   id: destroyed-symlinks
-    -   id: detect-private-key
     -   id: detect-aws-credentials
         args: [ --allow-missing-credentials ]
+    -   id: detect-private-key
+    -   id: end-of-file-fixer
+    -   id: fix-byte-order-marker
     -   id: forbid-submodules
+    -   id: forbid-new-submodules
+    -   id: mixed-line-ending
+    -   id: no-commit-to-branch
     -   id: pretty-format-json
         exclude: ^docusaurus\/package-lock.json$
         args: [ --autofix ]
     -   id: trailing-whitespace
 
 -   repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.11.4
+    rev: v0.14.10
     hooks:
-    - id: ruff
-      args: [ --fix ]
+    - id: ruff-check
+      args: [ --fix, --exit-non-zero-on-fix ]
     - id: ruff-format
+
+- repo: https://github.com/gitleaks/gitleaks
+  rev: v8.27.2
+  hooks:
+    - id: gitleaks
 
 -   repo: https://github.com/Yelp/detect-secrets
     rev: v1.5.0

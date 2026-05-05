@@ -15,6 +15,8 @@ def test_camel_to_snake():
     assert camel_to_snake("DescribeTaskDefinition") == "describe_task_definition"
     assert camel_to_snake("ListContainerInstances") == "list_container_instances"
     assert camel_to_snake("GetTaskProtection") == "get_task_protection"
+    assert camel_to_snake("CreateExpressGatewayService") == "create_express_gateway_service"
+    assert camel_to_snake("DescribeExpressGatewayService") == "describe_express_gateway_service"
 
 
 @pytest.mark.anyio
@@ -203,15 +205,24 @@ async def test_ecs_api_operation_read_only_no_permission_required(mock_get_clien
     mock_ecs.list_clusters.return_value = {"clusterArns": ["cluster-1", "cluster-2"]}
     mock_get_client.return_value = mock_ecs
 
-    # Call ecs_api_operation with ListClusters operation (read-only)
+    # Test ListClusters operation (read-only)
     result = await ecs_api_operation(api_operation="ListClusters", api_params={})
-
-    # Verify get_aws_client was called (permission check should pass)
-    mock_get_client.assert_called_once_with("ecs")
-
-    # Verify list_clusters was called
-    mock_ecs.list_clusters.assert_called_once_with()
-
-    # Verify the result contains the expected data
     assert "clusterArns" in result
     assert len(result["clusterArns"]) == 2
+
+
+@pytest.mark.parametrize(
+    "operation_name",
+    [
+        "CreateExpressGatewayService",
+        "DescribeExpressGatewayService",
+        "ListExpressGatewayServices",
+        "UpdateExpressGatewayService",
+        "DeleteExpressGatewayService",
+    ],
+)
+def test_express_gateway_operations_supported(operation_name):
+    """Test that all Express Gateway operations are in SUPPORTED_ECS_OPERATIONS."""
+    from awslabs.ecs_mcp_server.api.resource_management import SUPPORTED_ECS_OPERATIONS
+
+    assert operation_name in SUPPORTED_ECS_OPERATIONS

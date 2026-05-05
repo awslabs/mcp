@@ -203,3 +203,63 @@ class TestSecurityScanning:
         request = RunCheckovRequest(explained_token='invalid')
         with pytest.raises(Exception):
             await run_checkov_impl(request, {})
+
+    @pytest.mark.asyncio
+    @patch('awslabs.ccapi_mcp_server.impl.tools.security_scanning._check_checkov_installed')
+    async def test_run_checkov_impl_needs_user_action(self, mock_check):
+        """Test run_checkov_impl when checkov needs user action."""
+        mock_check.return_value = {
+            'installed': False,
+            'needs_user_action': True,
+            'message': 'Please install checkov',
+        }
+
+        workflow_store = {
+            'test_token': {
+                'type': 'explained_properties',
+                'data': {
+                    'cloudformation_template': '{}',
+                    'properties': {'Type': 'AWS::S3::Bucket'},
+                },
+            }
+        }
+
+        request = RunCheckovRequest(explained_token='test_token')
+        result = await run_checkov_impl(request, workflow_store)
+        assert result['passed'] is False
+        assert 'Checkov is not installed' in result['error']
+
+    @pytest.mark.asyncio
+    @patch('awslabs.ccapi_mcp_server.impl.tools.security_scanning._check_checkov_installed')
+    @patch('subprocess.run')
+    @patch('tempfile.NamedTemporaryFile')
+    async def test_run_checkov_impl_with_framework(self, mock_temp, mock_run, mock_check):
+        """Test run_checkov_impl with specific framework."""
+        mock_check.return_value = {'installed': True, 'needs_user_action': False}
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout='{"results": {"passed_checks": [], "failed_checks": []}, "summary": {"passed": 0, "failed": 0}}',
+        )
+
+        mock_file = MagicMock()
+        mock_file.name = '/tmp/test.json'
+        mock_temp.return_value.__enter__.return_value = mock_file
+
+        workflow_store = {
+            'test_token': {
+                'type': 'explained_properties',
+                'data': {
+                    'cloudformation_template': '{}',
+                    'properties': {'Type': 'AWS::S3::Bucket'},
+                },
+            }
+        }
+
+        request = RunCheckovRequest(explained_token='test_token', framework='terraform')
+        result = await run_checkov_impl(request, workflow_store)
+        assert 'security_scan_token' in result
+        # Verify terraform framework was used in the command
+        mock_run.assert_called_once()
+        call_args = mock_run.call_args[0][0]
+        assert '--framework' in call_args
+        assert 'terraform' in call_args

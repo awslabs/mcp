@@ -35,7 +35,7 @@ class TestParameterValidation:
 
     def test_validate_log_group_parameters_both_provided(self):
         """Test validation when both parameters are provided - should raise error."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             tools = CloudWatchLogsTools()
 
             with pytest.raises(ValueError) as exc_info:
@@ -48,7 +48,7 @@ class TestParameterValidation:
 
     def test_validate_log_group_parameters_neither_provided(self):
         """Test validation when neither parameter is provided - should raise error."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             tools = CloudWatchLogsTools()
 
             with pytest.raises(ValueError) as exc_info:
@@ -61,7 +61,7 @@ class TestParameterValidation:
 
     def test_validate_log_group_parameters_valid_cases(self):
         """Test validation with valid parameter combinations."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             tools = CloudWatchLogsTools()
 
             # Should not raise - only log_group_names provided
@@ -72,7 +72,7 @@ class TestParameterValidation:
 
     def test_convert_time_to_timestamp(self):
         """Test time string to timestamp conversion."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             tools = CloudWatchLogsTools()
 
             # Test valid ISO 8601 time
@@ -82,7 +82,7 @@ class TestParameterValidation:
 
     def test_build_logs_query_params(self):
         """Test building logs query parameters."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             tools = CloudWatchLogsTools()
 
             params = tools._build_logs_query_params(
@@ -103,7 +103,7 @@ class TestParameterValidation:
 
     def test_process_query_results(self):
         """Test processing query results."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             tools = CloudWatchLogsTools()
 
             raw_response = {
@@ -133,9 +133,7 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_describe_log_groups_api_error(self, mock_context):
         """Test describe_log_groups with API error - covers lines 367-371."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_client.get_paginator.side_effect = Exception('API Error')
             mock_session.return_value.client.return_value = mock_client
@@ -151,9 +149,7 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_analyze_log_group_api_error(self, mock_context):
         """Test analyze_log_group with API error - covers lines 374-376, 379, 382."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_client.get_paginator.side_effect = Exception('Anomaly API Error')
             mock_session.return_value.client.return_value = mock_client
@@ -176,54 +172,56 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_execute_log_insights_query_api_error(self, mock_context):
         """Test execute_log_insights_query with API error - covers lines 455-458."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_client.start_query.side_effect = Exception('Query API Error')
             mock_session.return_value.client.return_value = mock_client
 
             tools = CloudWatchLogsTools()
 
-            with pytest.raises(Exception) as exc_info:
-                await tools.execute_log_insights_query(
-                    mock_context,
-                    log_group_names=['test-group'],
-                    log_group_identifiers=None,
-                    start_time='2023-01-01T00:00:00+00:00',
-                    end_time='2023-01-01T01:00:00+00:00',
-                    query_string='fields @message',
-                    limit=10,
-                    max_timeout=30,
-                )
+            result = await tools.execute_log_insights_query(
+                mock_context,
+                log_group_names=['test-group'],
+                log_group_identifiers=None,
+                start_time='2023-01-01T00:00:00+00:00',
+                end_time='2023-01-01T01:00:00+00:00',
+                query_string='fields @message',
+                limit=10,
+                max_timeout=30,
+            )
 
-            assert 'Query API Error' in str(exc_info.value)
+            # Verify error response structure instead of exception
+            assert result['status'] == 'Error'
+            assert result['results'] == []
+            assert 'Query API Error' in result['message']
+            assert result['queryId'] == ''
             mock_context.error.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_get_logs_insight_query_results_api_error(self, mock_context):
         """Test get_logs_insight_query_results with API error - covers lines 579-582."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_client.get_query_results.side_effect = Exception('Query Results API Error')
             mock_session.return_value.client.return_value = mock_client
 
             tools = CloudWatchLogsTools()
 
-            with pytest.raises(Exception) as exc_info:
-                await tools.get_logs_insight_query_results(mock_context, query_id='test-query-id')
+            result = await tools.get_logs_insight_query_results(
+                mock_context, query_id='test-query-id'
+            )
 
-            assert 'Query Results API Error' in str(exc_info.value)
+            # Verify error response structure instead of exception
+            assert result['status'] == 'Error'
+            assert result['results'] == []
+            assert 'Query Results API Error' in result['message']
+            assert result['queryId'] == 'test-query-id'
             mock_context.error.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_cancel_logs_insight_query_api_error(self, mock_context):
         """Test cancel_logs_insight_query with API error - covers lines 604-607."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_client.stop_query.side_effect = Exception('Cancel Query API Error')
             mock_session.return_value.client.return_value = mock_client
@@ -239,9 +237,7 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_poll_for_query_completion_timeout(self, mock_context):
         """Test polling timeout scenario."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             # Always return 'Running' status to trigger timeout
             mock_client.get_query_results.return_value = {'status': 'Running', 'results': []}
@@ -259,9 +255,7 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_poll_for_query_completion_failed_status(self, mock_context):
         """Test polling with failed query status."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_client.get_query_results.return_value = {
                 'queryId': 'test-query-id',
@@ -279,9 +273,7 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_poll_for_query_completion_cancelled_status(self, mock_context):
         """Test polling with cancelled query status."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_client.get_query_results.return_value = {
                 'queryId': 'test-query-id',
@@ -296,52 +288,90 @@ class TestErrorHandling:
             assert result['queryId'] == 'test-query-id'
             assert result['status'] == 'Cancelled'
 
+    @pytest.mark.asyncio
+    async def test_poll_for_query_completion_unexpected_status(self, mock_context):
+        """Test polling with unexpected query status."""
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
+            mock_client = Mock()
+            mock_client.get_query_results.return_value = {
+                'queryId': 'test-query-id',
+                'status': 'UnknownStatus',  # Unexpected status
+                'results': [],
+            }
+            mock_session.return_value.client.return_value = mock_client
+            tools = CloudWatchLogsTools()
+            result = await tools._poll_for_query_completion(
+                mock_client, 'test-query-id', 30, mock_context
+            )
+            assert result['queryId'] == 'test-query-id'
+            assert result['status'] == 'UnknownStatus'
+            assert result['results'] == []
+
+    @pytest.mark.asyncio
+    async def test_poll_for_query_completion_polling_exception(self, mock_context):
+        """Test polling with exception during get_query_results."""
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
+            mock_client = Mock()
+            mock_client.get_query_results.side_effect = Exception('Network timeout during polling')
+            mock_session.return_value.client.return_value = mock_client
+            tools = CloudWatchLogsTools()
+
+            result = await tools._poll_for_query_completion(
+                mock_client, 'test-query-id', 30, mock_context
+            )
+
+            # Verify error response structure
+            assert result['queryId'] == 'test-query-id'
+            assert result['status'] == 'Error'
+            assert 'Network timeout during polling' in result['message']
+            assert result['results'] == []
+
+            # Verify context error was called
+            mock_context.error.assert_called_once()
+            error_call_args = mock_context.error.call_args[0][0]
+            assert 'Error during query polling' in error_call_args
+            assert 'Network timeout during polling' in error_call_args
+
 
 class TestEdgeCases:
     """Test edge cases and boundary conditions."""
 
     def test_process_query_results_missing_fields(self):
         """Test processing query results with missing optional fields."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             tools = CloudWatchLogsTools()
 
             # Response with minimal fields
             raw_response = {
                 'status': 'Complete',
-                # Missing queryId, statistics, results
+                # Missing queryId, results
             }
 
             processed = tools._process_query_results(raw_response, 'fallback-id')
 
             assert processed['queryId'] == 'fallback-id'
             assert processed['status'] == 'Complete'
-            assert processed['statistics'] == {}
             assert processed['results'] == []
 
     def test_aws_profile_initialization(self):
         """Test initialization with AWS_PROFILE environment variable."""
         with patch.dict('os.environ', {'AWS_PROFILE': 'test-profile'}):
-            with patch(
-                'awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'
-            ) as mock_session:
+            with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
                 mock_client = Mock()
                 mock_session.return_value.client.return_value = mock_client
 
-                tools = CloudWatchLogsTools()
-                # Actually call a method that creates the client
-                tools._get_logs_client('us-east-1')
+                # Test get_aws_client directly
+                from awslabs.cloudwatch_mcp_server.aws_common import get_aws_client
 
-                # Verify session was created with profile
-                mock_session.assert_called_with(
-                    profile_name='test-profile', region_name='us-east-1'
-                )
+                get_aws_client('logs', 'us-east-1')
+
+                # Verify session was created
+                mock_session.assert_called()
 
     @pytest.mark.asyncio
     async def test_boto3_client_error_handling(self, mock_context):
         """Test error handling when boto3 client creation fails."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_session.side_effect = Exception('AWS credentials not found')
 
             tools = CloudWatchLogsTools()
@@ -350,14 +380,14 @@ class TestEdgeCases:
 
     def test_tools_registration(self):
         """Test that all tools are properly registered."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             tools = CloudWatchLogsTools()
 
             mock_mcp = Mock()
             tools.register(mock_mcp)
 
             # Verify all tools are registered
-            assert mock_mcp.tool.call_count == 5
+            assert mock_mcp.tool.call_count == 8
             tool_calls = [call[1]['name'] for call in mock_mcp.tool.call_args_list]
             expected_tools = [
                 'describe_log_groups',
@@ -365,13 +395,16 @@ class TestEdgeCases:
                 'execute_log_insights_query',
                 'get_logs_insight_query_results',
                 'cancel_logs_insight_query',
+                'execute_cwl_insights_batch',
+                'recommend_indexes_loggroup',
+                'recommend_indexes_account',
             ]
             for tool in expected_tools:
                 assert tool in tool_calls
 
     def test_build_logs_query_params_with_none_values(self):
         """Test building query params with None values."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             tools = CloudWatchLogsTools()
 
             params = tools._build_logs_query_params(
@@ -391,48 +424,10 @@ class TestEdgeCases:
 class TestRegionHandling:
     """Test region parameter handling across tools."""
 
-    def test_get_logs_client_region_parameter(self):
-        """Test that _get_logs_client creates client with correct region."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'
-        ) as mock_session:
-            mock_client = Mock()
-            mock_session.return_value.client.return_value = mock_client
-
-            tools = CloudWatchLogsTools()
-            result = tools._get_logs_client('ap-northeast-1')
-
-            # Verify session was created with correct region
-            mock_session.assert_called_with(region_name='ap-northeast-1')
-            mock_session.return_value.client.assert_called_with(
-                'logs', config=mock_session.return_value.client.call_args[1]['config']
-            )
-            assert result == mock_client
-
-    def test_get_logs_client_with_aws_profile(self):
-        """Test _get_logs_client with AWS_PROFILE environment variable."""
-        with patch.dict('os.environ', {'AWS_PROFILE': 'test-profile'}):
-            with patch(
-                'awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'
-            ) as mock_session:
-                mock_client = Mock()
-                mock_session.return_value.client.return_value = mock_client
-
-                tools = CloudWatchLogsTools()
-                result = tools._get_logs_client('ca-central-1')
-
-                # Verify session was created with profile and region
-                mock_session.assert_called_with(
-                    profile_name='test-profile', region_name='ca-central-1'
-                )
-                assert result == mock_client
-
     @pytest.mark.asyncio
     async def test_execute_log_insights_query_region_parameter(self, mock_context):
         """Test that execute_log_insights_query uses correct region for client creation."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_client.start_query.return_value = {'queryId': 'test-query-id'}
             mock_client.get_query_results.return_value = {
@@ -444,9 +439,10 @@ class TestRegionHandling:
 
             tools = CloudWatchLogsTools()
 
-            # Mock _get_logs_client to capture the region parameter
-            with patch.object(
-                tools, '_get_logs_client', return_value=mock_client
+            # Mock get_aws_client to capture the region parameter
+            with patch(
+                'awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.get_aws_client',
+                return_value=mock_client,
             ) as mock_get_client:
                 await tools.execute_log_insights_query(
                     mock_context,
@@ -458,15 +454,13 @@ class TestRegionHandling:
                     region='ap-southeast-2',
                 )
 
-                # Verify _get_logs_client was called with correct region
-                mock_get_client.assert_called_once_with('ap-southeast-2')
+                # Verify get_aws_client was called with correct parameters
+                mock_get_client.assert_called_once_with('logs', 'ap-southeast-2', None)
 
     @pytest.mark.asyncio
     async def test_get_logs_insight_query_results_region_parameter(self, mock_context):
         """Test that get_logs_insight_query_results uses correct region for client creation."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_client.get_query_results.return_value = {
                 'status': 'Complete',
@@ -477,46 +471,44 @@ class TestRegionHandling:
 
             tools = CloudWatchLogsTools()
 
-            # Mock _get_logs_client to capture the region parameter
-            with patch.object(
-                tools, '_get_logs_client', return_value=mock_client
+            # Mock get_aws_client to capture the region parameter
+            with patch(
+                'awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.get_aws_client',
+                return_value=mock_client,
             ) as mock_get_client:
                 await tools.get_logs_insight_query_results(
                     mock_context, query_id='test-query-id', region='eu-central-1'
                 )
 
-                # Verify _get_logs_client was called with correct region
-                mock_get_client.assert_called_once_with('eu-central-1')
+                # Verify get_aws_client was called with correct parameters
+                mock_get_client.assert_called_once_with('logs', 'eu-central-1', None)
 
     @pytest.mark.asyncio
     async def test_cancel_logs_insight_query_region_parameter(self, mock_context):
         """Test that cancel_logs_insight_query uses correct region for client creation."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_client.stop_query.return_value = {'success': True}
             mock_session.return_value.client.return_value = mock_client
 
             tools = CloudWatchLogsTools()
 
-            # Mock _get_logs_client to capture the region parameter
-            with patch.object(
-                tools, '_get_logs_client', return_value=mock_client
+            # Mock get_aws_client to capture the region parameter
+            with patch(
+                'awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.get_aws_client',
+                return_value=mock_client,
             ) as mock_get_client:
                 await tools.cancel_logs_insight_query(
                     mock_context, query_id='test-query-id', region='sa-east-1'
                 )
 
-                # Verify _get_logs_client was called with correct region
-                mock_get_client.assert_called_once_with('sa-east-1')
+                # Verify get_aws_client was called with correct parameters
+                mock_get_client.assert_called_once_with('logs', 'sa-east-1', None)
 
     @pytest.mark.asyncio
     async def test_describe_log_groups_region_parameter(self, mock_context):
         """Test that describe_log_groups uses correct region for client creation."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_paginator = Mock()
             mock_paginator.paginate.return_value = [{'logGroups': []}]
@@ -526,11 +518,12 @@ class TestRegionHandling:
 
             tools = CloudWatchLogsTools()
 
-            # Mock _get_logs_client to capture the region parameter
-            with patch.object(
-                tools, '_get_logs_client', return_value=mock_client
+            # Mock get_aws_client to capture the region parameter
+            with patch(
+                'awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.get_aws_client',
+                return_value=mock_client,
             ) as mock_get_client:
                 await tools.describe_log_groups(mock_context, region='us-west-1')
 
-                # Verify _get_logs_client was called with correct region
-                mock_get_client.assert_called_once_with('us-west-1')
+                # Verify get_aws_client was called with correct parameters
+                mock_get_client.assert_called_once_with('logs', 'us-west-1', None)

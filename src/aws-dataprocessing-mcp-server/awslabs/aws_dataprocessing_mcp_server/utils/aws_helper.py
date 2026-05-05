@@ -20,6 +20,7 @@ from .consts import (
     CUSTOM_TAGS_ENV_VAR,
     DEFAULT_RESOURCE_TAGS,
     EMR_CLUSTER_RESOURCE_TYPE,
+    EMR_SERVERLESS_APPLICATION_RESOURCE_TYPE,
     MCP_CREATION_TIME_TAG_KEY,
     MCP_MANAGED_TAG_KEY,
     MCP_MANAGED_TAG_VALUE,
@@ -40,14 +41,40 @@ class AwsHelper:
     """
 
     @staticmethod
-    def get_aws_region() -> str:
-        """Get the AWS region from the environment if set."""
-        aws_region = os.environ.get(
-            'AWS_REGION',
-        )
-        if not aws_region:
-            return 'us-east-1'
-        return aws_region
+    def get_or_default_aws_region() -> str:
+        """Get the AWS region from environment, AWS config, or default.
+
+        This method follows the standard AWS SDK credential/config resolution chain:
+        1. AWS_REGION environment variable (explicit override)
+        2. AWS_DEFAULT_REGION environment variable (legacy override)
+        3. boto3.Session().region_name (reads ~/.aws/config, instance metadata, etc.)
+        4. 'us-east-1' as last resort fallback
+
+        Returns:
+            The AWS region as a string
+        """
+        # Check AWS_REGION environment variable first
+        aws_region = os.environ.get('AWS_REGION')
+        if aws_region:
+            return aws_region
+
+        # Check AWS_DEFAULT_REGION environment variable
+        aws_region = os.environ.get('AWS_DEFAULT_REGION')
+        if aws_region:
+            return aws_region
+
+        # Use boto3 Session to read from AWS config files and other sources
+        try:
+            session = boto3.Session()
+            aws_region = session.region_name
+            if aws_region:
+                return aws_region
+        except Exception:
+            # If boto3 Session fails, continue to fallback
+            pass
+
+        # Last resort fallback
+        return 'us-east-1'
 
     @staticmethod
     def get_aws_profile() -> Optional[str]:
@@ -134,14 +161,16 @@ class AwsHelper:
             A boto3 client for the specified service
         """
         # Get region from parameter or environment if set
-        region: Optional[str] = region_name if region_name is not None else cls.get_aws_region()
+        region: Optional[str] = (
+            region_name if region_name is not None else cls.get_or_default_aws_region()
+        )
 
         # Get profile from environment if set
         profile = cls.get_aws_profile()
 
         # Create config with user agent suffix
         config = Config(
-            user_agent_extra=f'awslabs/mcp/aws-dataprocessing-mcp-server/{__version__}'
+            user_agent_extra=f'md/awslabs#mcp#aws-dataprocessing-mcp-server#{__version__}'
         )
 
         # Create session with profile if specified
@@ -217,7 +246,7 @@ class AwsHelper:
         """
         try:
             response = athena_client.list_tags_for_resource(
-                ResourceARN=f'arn:aws:athena:{AwsHelper.get_aws_region()}:{AwsHelper.get_aws_account_id()}:workgroup/{workgroup_name}'
+                ResourceARN=f'arn:aws:athena:{AwsHelper.get_or_default_aws_region()}:{AwsHelper.get_aws_account_id()}:workgroup/{workgroup_name}'
             )
             return response.get('Tags', [])
         except ClientError:
@@ -397,7 +426,7 @@ class AwsHelper:
 
             # Construct the ARN for the data catalog
             account_id = cls.get_aws_account_id()
-            region = cls.get_aws_region()
+            region = cls.get_or_default_aws_region()
             data_catalog_arn = (
                 f'arn:{cls.get_aws_partition()}:athena:{region}:{account_id}:datacatalog/{name}'
             )
@@ -424,4 +453,65 @@ class AwsHelper:
 
         except Exception as e:
             result['error_message'] = f'Error getting data catalog: {str(e)}'
+            return result
+
+    @classmethod
+    def verify_emr_serverless_application_managed_by_mcp(
+        cls,
+        emr_serverless_client: Any,
+        application_id: str,
+        expected_resource_type: str = EMR_SERVERLESS_APPLICATION_RESOURCE_TYPE,
+    ) -> Dict[str, Any]:
+        """Verify if an EMR Serverless application is managed by the MCP server and has the expected resource type.
+
+        This method checks if the EMR Serverless application has the MCP managed tag and the correct resource type tag.
+
+        Args:
+            emr_serverless_client: EMR Serverless boto3 client
+            application_id: ID of the EMR Serverless application to verify
+            expected_resource_type: The expected resource type value (default: EMR_SERVERLESS_APPLICATION_RESOURCE_TYPE)
+
+        Returns:
+            Dictionary with verification result:
+                - is_valid: True if verification passed, False otherwise
+                - error_message: Error message if verification failed, None otherwise
+        """
+        # If custom tags are enabled, skip verification
+        if cls.is_custom_tags_enabled():
+            return {'is_valid': True, 'error_message': None}
+
+        result = {'is_valid': False, 'error_message': None}
+
+        try:
+            response = emr_serverless_client.get_application(applicationId=application_id)
+            tags_dict = response.get('application', {}).get('tags', {})
+
+            # Convert tags dictionary to list format for verification
+            tags_list = [{'Key': key, 'Value': value} for key, value in tags_dict.items()]
+
+            # Check if the resource is managed by MCP
+            if not cls.verify_resource_managed_by_mcp(tags_list):
+                result['error_message'] = (
+                    f'Application {application_id} is not managed by MCP (missing required tags)'
+                )
+                return result
+
+            # Check if the resource has the expected resource type
+            actual_type = tags_dict.get(MCP_RESOURCE_TYPE_TAG_KEY, 'unknown')
+            if (
+                actual_type != expected_resource_type
+                and actual_type != EMR_SERVERLESS_APPLICATION_RESOURCE_TYPE
+            ):
+                result['error_message'] = (
+                    f'Application {application_id} has incorrect type (expected {expected_resource_type}, got {actual_type})'
+                )
+                return result
+
+            # All checks passed
+            result['is_valid'] = True
+            return result
+
+        except ClientError as e:
+            # If we can't get the application information, return error
+            result['error_message'] = f'Error retrieving application {application_id}: {str(e)}'
             return result

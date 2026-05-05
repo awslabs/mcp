@@ -28,7 +28,8 @@ Alarm Recommendations - Suggests recommended alarm configurations for CloudWatch
 ### Tools for CloudWatch Metrics
 * `get_metric_data` - Retrieves detailed CloudWatch metric data for any CloudWatch metric. Use this for general CloudWatch metrics that aren't specific to Application Signals. Provides ability to query any metric namespace, dimension, and statistic
 * `get_metric_metadata` - Retrieves comprehensive metadata about a specific CloudWatch metric
-* `get_recommended_metric_alarms` - Gets recommended alarms for a CloudWatch metric
+* `get_recommended_metric_alarms` - Gets recommended alarms for a CloudWatch metric based on best practice, and trend, seasonality and statistical analysis.
+* `analyze_metric` - Analyzes CloudWatch metric data to determine trend, seasonality, and statistical properties
 
 ### Tools for CloudWatch Alarms
 * `get_active_alarms` - Identifies currently active CloudWatch alarms across the account
@@ -38,8 +39,58 @@ Alarm Recommendations - Suggests recommended alarm configurations for CloudWatch
 * `describe_log_groups` - Finds metadata about CloudWatch log groups
 * `analyze_log_group` - Analyzes CloudWatch logs for anomalies, message patterns, and error patterns
 * `execute_log_insights_query` - Executes CloudWatch Logs insights query on CloudWatch log group(s) with specified time range and query syntax, returns a unique ID used to retrieve results
+* `execute_cwl_insights_batch` - Runs a Logs Insights query across multiple log groups and regions in a single call, automatically chunking log groups (max 50 per query), throttling concurrency (max 7 per region), polling for completion, retrying failures, and splitting time ranges when hitting the 10,000-record or timeout limits. Returns one merged result set annotated with region, log group, and optional account labels. See [`execute_cwl_insights_batch` Examples](#execute_cwl_insights_batch-examples) below.
 * `get_logs_insight_query_results` - Retrieves the results of an executed CloudWatch insights query using the query ID. It is used after `execute_log_insights_query` has been called
 * `cancel_logs_insight_query` - Cancels in progress CloudWatch logs insights query
+
+#### `execute_cwl_insights_batch` Examples
+
+**Basic usage:**
+```python
+result = await execute_cwl_insights_batch(
+    ctx,
+    log_group_names=['/aws/lambda/my-app'],  # Log group names (or ARNs for cross-account/region)
+    regions=['us-east-1', 'us-west-2', 'eu-west-1'],  # Regions to query
+    start_time='2025-04-19T20:00:00+00:00',  # ISO 8601 start time with timezone
+    end_time='2025-04-19T21:00:00+00:00',  # ISO 8601 end time with timezone
+    query_string='fields @timestamp, @message | filter @message like /ERROR/ | limit 100'  # Logs Insights query
+)
+
+print(f"Found {result.summary.total_records_returned} errors across {result.summary.total_regions} regions")
+for warning in result.summary.warnings:
+    print(f"Warning: {warning}")
+```
+
+**Cross-account/cross-region query using log group ARNs:**
+```python
+# When querying log groups in different accounts or regions, use ARN format:
+# arn:aws:logs:<region>:<account-id>:log-group:<log-group-name>
+result = await execute_cwl_insights_batch(
+    ctx,
+    log_group_names=[
+        'arn:aws:logs:us-east-1:123456789012:log-group:/aws/ecs/my-service',  # Source account log group ARN
+        'arn:aws:logs:eu-west-1:123456789012:log-group:/aws/ecs/my-service'   # Different region
+    ],
+    regions=['us-east-1'],  # Monitoring account region
+    start_time='2025-04-19T00:00:00+00:00',
+    end_time='2025-04-19T23:59:59+00:00',
+    query_string='fields @timestamp, @message | filter level = "ERROR" | stats count() by bin(5m)',
+    account_label='prod-123456789012',  # Optional label for result annotation
+    profile_name='prod-readonly'  # AWS profile with cross-account access
+)
+```
+
+**Performance tips:**
+- Use `limit` parameter or `| limit N` in query to control result size
+- Narrow time ranges for faster queries
+- The tool automatically splits time ranges if hitting 10,000-record limit
+- Monitor `summary.warnings` for optimization suggestions
+
+**Common errors and solutions:**
+- `Invalid ISO 8601 timestamp`: Ensure timestamps include timezone (e.g., `+00:00`)
+- `start_time must be before end_time`: Check time range order
+- `Query failed... bad query syntax`: Verify query syntax at [AWS Logs Insights docs](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax.html)
+- Large result warnings: Add `| limit N` to query or use smaller time ranges
 
 ### Required IAM Permissions
 * `cloudwatch:DescribeAlarms`
@@ -64,12 +115,12 @@ Alarm Recommendations - Suggests recommended alarm configurations for CloudWatch
 
 #### One Click Install
 
-| Cursor | VS Code |
-|:------:|:-------:|
-| [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.cloudwatch-mcp-server&config=ewogICAgImF1dG9BcHByb3ZlIjogW10sCiAgICAiZGlzYWJsZWQiOiBmYWxzZSwKICAgICJjb21tYW5kIjogInV2eCBhd3NsYWJzLmNsb3Vkd2F0Y2gtbWNwLXNlcnZlckBsYXRlc3QiLAogICAgImVudiI6IHsKICAgICAgIkFXU19QUk9GSUxFIjogIltUaGUgQVdTIFByb2ZpbGUgTmFtZSB0byB1c2UgZm9yIEFXUyBhY2Nlc3NdIiwKICAgICAgIkZBU1RNQ1BfTE9HX0xFVkVMIjogIkVSUk9SIgogICAgfSwKICAgICJ0cmFuc3BvcnRUeXBlIjogInN0ZGlvIgp9) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=CloudWatch%20MCP%20Server&config=%7B%22autoApprove%22%3A%5B%5D%2C%22disabled%22%3Afalse%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.cloudwatch-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22%5BThe%20AWS%20Profile%20Name%20to%20use%20for%20AWS%20access%5D%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22transportType%22%3A%22stdio%22%7D) |
+| Kiro | Cursor | VS Code |
+|:----:|:------:|:-------:|
+| [![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=awslabs.cloudwatch-mcp-server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.cloudwatch-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22%5BThe%20AWS%20Profile%20Name%20to%20use%20for%20AWS%20access%5D%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%7D) | [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.cloudwatch-mcp-server&config=ewogICAgImF1dG9BcHByb3ZlIjogW10sCiAgICAiZGlzYWJsZWQiOiBmYWxzZSwKICAgICJjb21tYW5kIjogInV2eCBhd3NsYWJzLmNsb3Vkd2F0Y2gtbWNwLXNlcnZlckBsYXRlc3QiLAogICAgImVudiI6IHsKICAgICAgIkFXU19QUk9GSUxFIjogIltUaGUgQVdTIFByb2ZpbGUgTmFtZSB0byB1c2UgZm9yIEFXUyBhY2Nlc3NdIiwKICAgICAgIkZBU1RNQ1BfTE9HX0xFVkVMIjogIkVSUk9SIgogICAgfSwKICAgICJ0cmFuc3BvcnRUeXBlIjogInN0ZGlvIgp9) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=CloudWatch%20MCP%20Server&config=%7B%22autoApprove%22%3A%5B%5D%2C%22disabled%22%3Afalse%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.cloudwatch-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22%5BThe%20AWS%20Profile%20Name%20to%20use%20for%20AWS%20access%5D%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22transportType%22%3A%22stdio%22%7D) |
 
-#### MCP Config (Q CLI, Cline)
-* For Q CLI, update MCP Config Amazon Q Developer CLI (~/.aws/amazonq/mcp.json)
+#### MCP Config (Kiro, Cline)
+* For Kiro, update MCP Config (~/.kiro/settings/mcp.json)
 * For Cline click on "Configure MCP Servers" option from MCP tab
 ```json
 {
@@ -90,6 +141,35 @@ Alarm Recommendations - Suggests recommended alarm configurations for CloudWatch
   }
 }
 ```
+### Windows Installation
+
+For Windows users, the MCP server configuration format is slightly different:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.cloudwatch-mcp-server": {
+      "disabled": false,
+      "timeout": 60,
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "tool",
+        "run",
+        "--from",
+        "awslabs.cloudwatch-mcp-server@latest",
+        "awslabs.cloudwatch-mcp-server.exe"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1"
+      }
+    }
+  }
+}
+```
+
 
 Please reference [AWS documentation](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-files.html) to create and manage your credentials profile
 
@@ -104,7 +184,7 @@ Build and install docker image locally on the same host of your LLM client
 #### One Click Cursor Install
 [![Install CloudWatch MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://www.cursor.com/install-mcp?name=awslabs.cloudwatch-mcp-server&config=ewogICAgICAgICJjb21tYW5kIjogImRvY2tlciIsCiAgICAgICAgImFyZ3MiOiBbCiAgICAgICAgICAicnVuIiwKICAgICAgICAgICItLXJtIiwKICAgICAgICAgICItLWludGVyYWN0aXZlIiwKICAgICAgICAgICItZSBBV1NfUFJPRklMRT1bVGhlIEFXUyBQcm9maWxlIE5hbWVdIiwKICAgICAgICAgICJhd3NsYWJzL2Nsb3Vkd2F0Y2gtbWNwLXNlcnZlcjpsYXRlc3QiCiAgICAgICAgXSwKICAgICAgICAiZW52Ijoge30sCiAgICAgICAgImRpc2FibGVkIjogZmFsc2UsCiAgICAgICAgImF1dG9BcHByb3ZlIjogW10KfQ==)
 
-#### MCP Config using Docker image(Q CLI, Cline)
+#### MCP Config using Docker image(Kiro, Cline)
 ```json
   {
     "mcpServers": {
@@ -114,8 +194,10 @@ Build and install docker image locally on the same host of your LLM client
           "run",
           "--rm",
           "--interactive",
-          "-v ~/.aws:/root/.aws",
-          "-e AWS_PROFILE=[The AWS Profile Name to use for AWS access]",
+          "-v",
+          "~/.aws:/root/.aws",
+          "-e",
+          "AWS_PROFILE=[The AWS Profile Name to use for AWS access]",
           "awslabs/cloudwatch-mcp-server:latest"
         ],
         "env": {},
@@ -126,6 +208,18 @@ Build and install docker image locally on the same host of your LLM client
   }
 ```
 Please reference [AWS documentation](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-files.html) to create and manage your credentials profile
+
+## Skills
+
+This MCP server includes reusable investigation skills that encode domain expertise into structured workflows for AI agents.
+
+| Skill | Description | Setup Guide |
+|-------|-------------|-------------|
+| [AgentCore Investigation](https://github.com/awslabs/mcp/blob/main/src/cloudwatch-mcp-server/skills/agentcore-investigation/SKILL.md) | Investigate Bedrock AgentCore runtime sessions — resolve session/trace IDs, query OTEL spans, filter noise, build timelines | [Kiro CLI setup](https://github.com/awslabs/mcp/blob/main/src/cloudwatch-mcp-server/skills/agentcore-investigation/kiro-skill-setup.md) |
+
+Skills provide pre-built investigation pipelines that agents can follow. They include the skill definition (`SKILL.md`), reference documentation, and MCP server configuration.
+
+See the [skills directory](https://github.com/awslabs/mcp/tree/main/src/cloudwatch-mcp-server/skills) for details.
 
 ## Contributing
 

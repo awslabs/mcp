@@ -16,7 +16,9 @@
 
 import asyncio
 import boto3
+from awslabs.postgres_mcp_server import __user_agent__
 from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection
+from botocore.config import Config
 from loguru import logger
 from typing import Any, Dict, List, Optional
 
@@ -48,7 +50,9 @@ class RDSDataAPIConnection(AbstractDBConnection):
         self.secret_arn = secret_arn
         self.database = database
         if not is_test:
-            self.data_client = boto3.client('rds-data', region_name=region)
+            self.data_client = boto3.client(
+                'rds-data', region_name=region, config=Config(user_agent_extra=__user_agent__)
+            )
 
     async def execute_query(
         self, sql: str, parameters: Optional[List[Dict[str, Any]]] = None
@@ -129,14 +133,15 @@ class RDSDataAPIConnection(AbstractDBConnection):
                 transactionId=tx_id,
             )
             return result
-        except Exception as e:
+        except Exception:
             if tx_id:
                 self.data_client.rollback_transaction(
                     resourceArn=self.cluster_arn,
                     secretArn=self.secret_arn,
                     transactionId=tx_id,
                 )
-            raise e
+            logger.exception('RDS Data API query failed, transaction rolled back')
+            raise
 
     async def close(self) -> None:
         """Close the database connection asynchronously."""
@@ -153,5 +158,5 @@ class RDSDataAPIConnection(AbstractDBConnection):
             result = await self.execute_query('SELECT 1')
             return len(result.get('records', [])) > 0
         except Exception as e:
-            logger.error(f'RDS Data API connection health check failed: {str(e)}')
+            logger.exception(f'RDS Data API connection health check failed: {str(e)}')
             return False

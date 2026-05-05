@@ -1,0 +1,1 @@
+Tests AWS Knowledge MCP Server proxy integration via MCP Inspector CLI. Validates that exactly 3 knowledge tools are available, tool descriptions include ECS guidance, and each tool returns expected information when called with ECS-related queries. Expected outcome: All 3 knowledge tools pass validation with proper ECS documentation responses.
