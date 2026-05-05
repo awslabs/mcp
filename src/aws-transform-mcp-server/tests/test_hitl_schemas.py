@@ -70,7 +70,10 @@ class TestEnrichTask:
         task = {'uxComponentId': 'CreateOrSelectConnectors', 'taskId': 't-conn'}
         result = enrich_task(task)
 
-        assert result['_responseTemplate'] == {'connectorId': '<connector-id>'}
+        assert result['_responseTemplate'] == {
+            'connectorId': '<connector-id>',
+            'connectorType': '<auto-filled from agent artifact>',
+        }
         assert (
             'connectorId' in result['_responseHint'].lower()
             or 'connector' in result['_responseHint'].lower()

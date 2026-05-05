@@ -14,16 +14,23 @@
 
 """Job tool handlers for AWS Transform MCP server."""
 
+import asyncio
 import uuid
 from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.config_store import is_fes_available
 from awslabs.aws_transform_mcp_server.fes_client import call_fes
 from awslabs.aws_transform_mcp_server.fes_models import (
+    BatchGetMessageRequest,
+    ChatJobMetadata,
     CreateJobRequest,
     DeleteJobRequest,
     GetJobRequest,
+    ListMessagesRequest,
+    Metadata,
+    ResourcesOnScreen,
     StartJobRequest,
     StopJobRequest,
+    WorkspaceMetadata,
 )
 from awslabs.aws_transform_mcp_server.tool_utils import (
     CREATE,
@@ -34,14 +41,19 @@ from awslabs.aws_transform_mcp_server.tool_utils import (
     format_job_response,
     success_result,
 )
+from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import Field
-from typing import Annotated, Any, Literal, Optional
+from typing import Annotated, Any, Dict, List, Literal, Optional
 
 
 _NOT_CONFIGURED_CODE = 'NOT_CONFIGURED'
 _NOT_CONFIGURED_MSG = 'Not connected to AWS Transform.'
 _NOT_CONFIGURED_ACTION = 'Call configure with authMode "cookie" or "sso".'
+
+_POLL_INTERVAL = 3  # seconds between GetJob polls
+_POLL_MAX_WAIT = 90  # max seconds to wait for job to exit ASSESSING
+_TRANSITIONAL_STATUSES = {'CREATED', 'STARTING', 'ASSESSING'}
 
 
 class JobHandler:
@@ -76,6 +88,10 @@ class JobHandler:
     ) -> dict:
         """Create a new code transformation job and immediately start it.
 
+        Polls until the agent is ready for interaction (job exits ASSESSING
+        state), then returns the job status along with any initial messages
+        from the agent.
+
         Only orchestrator agents can create jobs. Use list_resources with
         resource="agents" and agentType="ORCHESTRATOR_AGENT" to discover
         available agents before creating a job.
@@ -100,13 +116,78 @@ class JobHandler:
                 'StartJob',
                 StartJobRequest(workspaceId=workspaceId, jobId=job_id),
             )
-            status = await call_fes(
-                'GetJob',
-                GetJobRequest(workspaceId=workspaceId, jobId=job_id),
-            )
-            return success_result(format_job_response(status))
+
+            # Poll until job exits transitional states (CREATED/STARTING/ASSESSING)
+            status = await self._poll_until_ready(workspaceId, job_id)
+            job_data = format_job_response(status)
+
+            # Fetch initial messages from the agent
+            messages = await self._fetch_initial_messages(workspaceId, job_id)
+
+            result_data: Dict[str, Any] = {'job': job_data}
+            if messages:
+                result_data['messages'] = messages
+            return success_result(result_data)
         except Exception as error:
             return failure_result(error)
+
+    async def _poll_until_ready(self, workspace_id: str, job_id: str) -> dict:
+        """Poll GetJob until status exits ASSESSING/STARTING/CREATED."""
+        elapsed = 0.0
+        status: dict = {}
+        current = ''
+        while elapsed < _POLL_MAX_WAIT:
+            status = await call_fes(
+                'GetJob',
+                GetJobRequest(workspaceId=workspace_id, jobId=job_id),
+            )
+            job = status.get('job', status) if isinstance(status, dict) else {}
+            current = job.get('status', '') if isinstance(job, dict) else ''
+            if current not in _TRANSITIONAL_STATUSES:
+                logger.info('[create_job] Job {} ready: status={}', job_id, current)
+                return status
+            await asyncio.sleep(_POLL_INTERVAL)
+            elapsed += _POLL_INTERVAL
+        logger.warning(
+            '[create_job] Job {} still in {} after {}s', job_id, current, _POLL_MAX_WAIT
+        )
+        return status
+
+    async def _fetch_initial_messages(
+        self, workspace_id: str, job_id: str
+    ) -> List[Dict[str, Any]]:
+        """List and fetch initial messages for the job."""
+        try:
+            metadata = Metadata(
+                resourcesOnScreen=ResourcesOnScreen(
+                    workspace=WorkspaceMetadata(
+                        workspaceId=workspace_id,
+                        jobs=[ChatJobMetadata(jobId=job_id, focusState='ACTIVE')],
+                    ),
+                ),
+            )
+            list_result = await call_fes(
+                'ListMessages',
+                ListMessagesRequest(metadata=metadata, maxResults=10),
+            )
+            message_ids: List[str] = (
+                list_result.get('messageIds', []) if isinstance(list_result, dict) else []
+            )
+            if not message_ids:
+                return []
+            batch_result = await call_fes(
+                'BatchGetMessage',
+                BatchGetMessageRequest(messageIds=message_ids[:10], workspaceId=workspace_id),
+            )
+            messages = batch_result.get('messages', []) if isinstance(batch_result, dict) else []
+            return [
+                {k: m[k] for k in ('messageId', 'body', 'sender', 'createdAt') if k in m}
+                for m in messages
+                if isinstance(m, dict)
+            ]
+        except Exception as exc:
+            logger.debug('[create_job] Failed to fetch initial messages: {}', exc)
+            return []
 
     async def control_job(
         self,

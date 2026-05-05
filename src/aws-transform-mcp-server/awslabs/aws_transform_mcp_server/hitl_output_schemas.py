@@ -3552,19 +3552,23 @@ OUTPUT_SCHEMA_META: Dict[str, OutputSchemaMeta] = {
     'CreateOrSelectConnectors': OutputSchemaMeta(
         display_only=False,
         merge_with_artifact=False,
-        examples=[{'connectorId': 'connector-abc123'}],
+        examples=[{'connectorId': 'connector-abc123', 'connectorType': 'AMAZON_S3'}],
         json_schema={
             'title': 'CreateOrSelectConnectors Output',
             'description': 'Output schema for CreateOrSelectConnectors. Identifies which connector is used for the job.',
             'displayOnly': False,
             'mergeWithArtifact': False,
             'type': 'object',
-            'examples': [{'connectorId': 'connector-abc123'}],
+            'examples': [{'connectorId': 'connector-abc123', 'connectorType': 'AMAZON_S3'}],
             'properties': {
                 'connectorId': {
                     'type': 'string',
                     'description': 'Identifies which connector is used for the job.',
-                }
+                },
+                'connectorType': {
+                    'type': 'string',
+                    'description': 'The connector type (auto-filled from agent artifact if not provided).',
+                },
             },
             'required': ['connectorId'],
             'additionalProperties': True,

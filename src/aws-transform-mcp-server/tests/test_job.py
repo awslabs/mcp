@@ -48,7 +48,7 @@ class TestCreateJob:
     @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_create_start_get(self, _mock_configured, mock_fes, handler, ctx):
-        """CreateJob -> StartJob -> GetJob chain."""
+        """CreateJob -> StartJob -> poll GetJob -> ListMessages chain."""
         mock_fes.side_effect = [
             {'jobId': 'job-001'},  # CreateJob
             {},  # StartJob
@@ -56,10 +56,12 @@ class TestCreateJob:
                 'job': {
                     'jobId': 'job-001',
                     'jobName': 'Migration',
+                    'status': 'EXECUTING',
                     'statusDetails': {'status': 'RUNNING'},
                     'workspaceId': 'ws-1',
                 }
-            },  # GetJob
+            },  # GetJob (poll)
+            {'messageIds': []},  # ListMessages
         ]
 
         result = await handler.create_job(
@@ -72,9 +74,9 @@ class TestCreateJob:
         parsed = _parse(result)
 
         assert parsed['success'] is True
-        assert parsed['data']['statusDetails']['status'] == 'RUNNING'
-        assert parsed['data']['jobId'] == 'job-001'
-        assert mock_fes.call_count == 3
+        assert parsed['data']['job']['statusDetails']['status'] == 'RUNNING'
+        assert parsed['data']['job']['jobId'] == 'job-001'
+        assert mock_fes.call_count == 4
 
         calls = mock_fes.call_args_list
         assert calls[0][0][0] == 'CreateJob'
@@ -91,6 +93,7 @@ class TestCreateJob:
             'workspaceId': 'ws-1',
             'jobId': 'job-001',
         }
+        assert calls[3][0][0] == 'ListMessages'
 
     @patch(f'{_MOD}.is_fes_available', return_value=False)
     async def test_not_configured(self, _mock_configured, handler, ctx):
@@ -198,7 +201,8 @@ class TestCreateJobWithOrchestrator:
         mock_fes.side_effect = [
             {'jobId': 'j-1'},
             None,
-            {'jobId': 'j-1', 'status': 'STARTING'},
+            {'job': {'jobId': 'j-1', 'status': 'EXECUTING', 'workspaceId': 'ws-1'}},
+            {'messageIds': []},
         ]
         result = await handler.create_job(
             ctx,

@@ -143,9 +143,21 @@ def _preprocess_auto_form(inp: Any, agent_artifact: Any = None) -> Any:
 
 
 def _preprocess_general_connector(inp: Any, agent_artifact: Any = None) -> Any:
-    """Normalize bare connector ID string to {connectorId: string}."""
+    """Normalize bare connector ID string to {connectorId, connectorType}."""
     if isinstance(inp, str):
-        return {'connectorId': inp}
+        inp = {'connectorId': inp}
+    if isinstance(inp, dict) and 'connectorType' not in inp and agent_artifact:
+        # Extract connectorType from agent artifact's connectors array
+        props = (
+            agent_artifact.get('properties', agent_artifact)
+            if isinstance(agent_artifact, dict)
+            else {}
+        )
+        connectors = props.get('connectors', []) if isinstance(props, dict) else []
+        if connectors and isinstance(connectors, list) and isinstance(connectors[0], dict):
+            ct = connectors[0].get('connectorType', '')
+            if ct:
+                inp = {**inp, 'connectorType': ct}
     return inp
 
 
@@ -308,8 +320,11 @@ CUSTOMIZATIONS: Dict[str, ComponentCustomization] = {
         preprocess=_preprocess_general_connector,
     ),
     'CreateOrSelectConnectors': ComponentCustomization(
-        template={'connectorId': '<connector-id>'},
-        hint='Provide the connector ID. You can send just a string or {"connectorId": "..."}.',
+        template={
+            'connectorId': '<connector-id>',
+            'connectorType': '<auto-filled from agent artifact>',
+        },
+        hint='Provide the connector ID. connectorType is auto-filled from the agent artifact. You can send just a string or {"connectorId": "..."}.',
         merge_with_artifact=False,
         preprocess=_preprocess_general_connector,
     ),
