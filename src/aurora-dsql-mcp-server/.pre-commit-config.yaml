@@ -1,0 +1,30 @@
+repos:
+-   repo: local
+    hooks:
+    -   id: sync-dsql-skill-aliases
+        name: sync dsql skill alias SKILL.md files
+        language: system
+        entry: |-
+            bash -c '
+            DIR=src/aurora-dsql-mcp-server/skills
+            c=0
+            for p in \
+              "aurora-dsql-skill=aurora dsql" \
+              "amazon-aurora-dsql-skill=amazon aurora dsql" \
+              "aws-dsql-skill=aws dsql" \
+              "distributed-sql-skill=distributed sql" \
+              "distributed-postgres-skill=distributed postgres" \
+            ; do
+              f="${p%%=*}"
+              n="${p#*=}"
+              t="$DIR/$f/SKILL.md"
+              e=$(sed "s/^name: dsql$/name: $n/" "$DIR/dsql-skill/SKILL.md")
+              if [ ! -f "$t" ] || [ "$e" != "$(cat "$t")" ]; then
+                printf "%s\n" "$e" > "$t"
+                echo "Fixed $f/SKILL.md"
+                c=1
+              fi
+            done
+            exit $c'
+        files: src/aurora-dsql-mcp-server/skills/dsql-skill/SKILL\.md$
+        pass_filenames: false

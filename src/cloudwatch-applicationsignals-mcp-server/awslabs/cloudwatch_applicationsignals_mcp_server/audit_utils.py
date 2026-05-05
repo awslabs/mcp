@@ -16,6 +16,7 @@
 
 import json
 import os
+import re
 import tempfile
 from datetime import datetime, timezone
 from loguru import logger
@@ -525,16 +526,15 @@ def expand_service_wildcard_patterns(
 
             # Handle wildcard patterns
             for original_target, pattern in service_patterns:
-                search_term = pattern.strip('*').lower() if pattern != '*' else ''
                 matches_found = 0
-
+                compiled_pattern = _compile_wildcard_pattern(pattern)
                 for service in instrumented_services:
                     service_attrs = service.get('KeyAttributes', {})
                     service_name = service_attrs.get('Name', '')
                     environment = service_attrs.get('Environment', '')
 
-                    # Apply search filter
-                    if search_term == '' or search_term in service_name.lower():
+                    # Apply wildcard pattern matching
+                    if _matches_wildcard_pattern(service_name, compiled_pattern):
                         expanded_targets.append(_create_service_target(service_name, environment))
                         matches_found += 1
                         logger.debug(
@@ -687,12 +687,11 @@ def expand_slo_wildcard_patterns(
 
             # Handle wildcard patterns
             for original_target, pattern in wildcard_patterns:
-                search_term = pattern.strip('*').lower() if pattern != '*' else ''
                 matches_found = 0
-
+                compiled_pattern = _compile_wildcard_pattern(pattern)
                 for slo in slos_batch:
                     slo_name = slo.get('Name', '')
-                    if search_term == '' or search_term in slo_name.lower():
+                    if _matches_wildcard_pattern(slo_name, compiled_pattern):
                         expanded_targets.append(
                             {
                                 'Type': 'slo',
@@ -776,12 +775,8 @@ def expand_service_operation_wildcard_patterns(
             )
 
             for original_target, service_pattern, operation_pattern in wildcard_patterns:
-                service_search_term = (
-                    service_pattern.strip('*').lower() if service_pattern != '*' else ''
-                )
-                operation_search_term = (
-                    operation_pattern.strip('*').lower() if operation_pattern != '*' else ''
-                )
+                compiled_service_pattern = _compile_wildcard_pattern(service_pattern)
+                compiled_operation_pattern = _compile_wildcard_pattern(operation_pattern)
                 matches_found = 0
 
                 # Get the original metric type from the pattern
@@ -794,18 +789,9 @@ def expand_service_operation_wildcard_patterns(
                     service_attrs = service.get('KeyAttributes', {})
                     service_name = service_attrs.get('Name', '')
 
-                    # Check if service matches the pattern
-                    if '*' not in service_pattern:
-                        # Exact service name match
-                        if service_name == service_pattern:
-                            matching_services.append(service)
-                    else:
-                        # Wildcard service name match
-                        if (
-                            service_search_term == ''
-                            or service_search_term in service_name.lower()
-                        ):
-                            matching_services.append(service)
+                    # Check if service matches the pattern using wildcard matching
+                    if _matches_wildcard_pattern(service_name, compiled_service_pattern):
+                        matching_services.append(service)
 
                 logger.debug(
                     f"Found {len(matching_services)} instrumented services matching pattern '{service_pattern}'"
@@ -826,7 +812,7 @@ def expand_service_operation_wildcard_patterns(
                             MaxResults=100,
                         )
 
-                        operations = operations_response.get('Operations', [])
+                        operations = operations_response.get('ServiceOperations', [])
                         logger.debug(
                             f"Found {len(operations)} operations for service '{service_name}'"
                         )
@@ -835,30 +821,17 @@ def expand_service_operation_wildcard_patterns(
                         for operation in operations:
                             operation_name = operation.get('Name', '')
 
-                            # Check if operation matches the pattern
-                            operation_matches = False
-                            if '*' not in operation_pattern:
-                                # Exact operation name match
-                                operation_matches = operation_name == operation_pattern
-                            else:
-                                # Wildcard operation name match
-                                if operation_search_term == '':
-                                    # Match all operations
-                                    operation_matches = True
-                                else:
-                                    # Check if operation contains the search term
-                                    operation_matches = (
-                                        operation_search_term in operation_name.lower()
-                                    )
-
-                            if operation_matches:
+                            # Check if operation matches the pattern using wildcard matching
+                            if _matches_wildcard_pattern(
+                                operation_name, compiled_operation_pattern
+                            ):
                                 # Check if this operation has the required metric type
                                 metric_refs = operation.get('MetricReferences', [])
                                 has_metric_type = any(
-                                    ref.get('MetricType', '') == metric_type
+                                    ref.get('MetricType', '').casefold() == metric_type.casefold()
                                     or (
-                                        metric_type == 'Availability'
-                                        and ref.get('MetricType', '') == 'Fault'
+                                        metric_type.casefold() == 'Availability'.casefold()
+                                        and ref.get('MetricType', '') == 'FAULT'
                                     )
                                     for ref in metric_refs
                                 )
@@ -910,3 +883,60 @@ def expand_service_operation_wildcard_patterns(
             raise ValueError(f'Failed to expand service operation wildcard patterns. {str(e)}')
 
     return expanded_targets, None, all_service_names, filtering_stats
+
+
+def _compile_wildcard_pattern(pattern: Optional[str]) -> Optional[re.Pattern]:
+    """Compile wildcard pattern once for reuse.
+
+    Args:
+        pattern: Wildcard pattern with * for any characters
+
+    Returns:
+        Compiled regex pattern or None if pattern is invalid
+
+    Examples:
+        _compile_wildcard_pattern('hello*world') -> compiled regex for 'hello.*world'
+        _compile_wildcard_pattern('*payment*') -> compiled regex for '.*payment.*'
+        _compile_wildcard_pattern('*') -> compiled regex for '.*'
+    """
+    # Handle patterns that are empty or only contain wildcards (match everything)
+    if pattern is None or pattern.strip('*') == '':
+        # Empty or all-wildcard patterns match everything, including empty strings
+        return re.compile('^.*$', re.IGNORECASE)
+
+    # Escape special regex characters except *
+    escaped = re.escape(pattern)
+
+    # Replace escaped \* with regex .*
+    regex_pattern = escaped.replace(r'\*', '.*')
+
+    # Anchor the pattern to match the entire string
+    regex_pattern = f'^{regex_pattern}$'
+
+    return re.compile(regex_pattern, re.IGNORECASE)
+
+
+def _matches_wildcard_pattern(text: Optional[str], compiled_pattern: Optional[re.Pattern]) -> bool:
+    """Check if text matches pre-compiled wildcard pattern.
+
+    Args:
+        text: Text to test
+        compiled_pattern: Pre-compiled regex pattern from _compile_wildcard_pattern
+
+    Returns:
+        True if text matches pattern
+
+    Examples:
+        pattern = _compile_wildcard_pattern('hello*world')
+        _matches_wildcard_pattern('hello123world', pattern) -> True
+        _matches_wildcard_pattern('helloworld', pattern) -> True
+        _matches_wildcard_pattern('hello', pattern) -> False
+    """
+    if not compiled_pattern:
+        return False
+
+    # Handle case where text is None by treating it as empty string
+    if text is None:
+        text = ''
+
+    return compiled_pattern.match(text) is not None

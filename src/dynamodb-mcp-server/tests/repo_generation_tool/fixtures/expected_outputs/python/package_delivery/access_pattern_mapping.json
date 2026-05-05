@@ -1,0 +1,660 @@
+{
+  "access_pattern_mapping": {
+    "1": {
+      "consistent_read": false,
+      "description": "Get warehouses by city and category",
+      "entity": "WarehouseProfile",
+      "index_name": "WarehousesByCity",
+      "method_name": "get_warehouses_by_city_category",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "city",
+          "type": "string"
+        },
+        {
+          "name": "category",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 1,
+      "projected_attributes": [
+        "name",
+        "processing_time"
+      ],
+      "projection": "INCLUDE",
+      "range_condition": null,
+      "repository": "WarehouseProfileRepository",
+      "return_type": "tuple[list[WarehouseProfile], dict | None]"
+    },
+    "10": {
+      "consistent_read": false,
+      "description": "View incoming shipments for warehouse",
+      "entity": "Shipment",
+      "index_name": "ShipmentsByWarehouse",
+      "method_name": "get_warehouse_shipments",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "warehouse_id",
+          "type": "string"
+        },
+        {
+          "name": "status",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 10,
+      "projected_attributes": [
+        "recipient_name",
+        "total_weight"
+      ],
+      "projection": "INCLUDE",
+      "range_condition": null,
+      "repository": "ShipmentRepository",
+      "return_type": "tuple[list[Shipment], dict | None]"
+    },
+    "11": {
+      "description": "Update shipment status (warehouse)",
+      "entity": "Shipment",
+      "index_name": null,
+      "method_name": "update_shipment_status",
+      "operation": "UpdateItem",
+      "parameters": [
+        {
+          "name": "shipment_id",
+          "type": "string"
+        },
+        {
+          "name": "status",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 11,
+      "range_condition": null,
+      "repository": "ShipmentRepository",
+      "return_type": "Shipment | None"
+    },
+    "12": {
+      "consistent_read": false,
+      "description": "View available shipments for pickup by city",
+      "entity": "Shipment",
+      "index_name": "AvailableShipmentsByCity",
+      "method_name": "get_available_shipments_by_city",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "available_city",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 12,
+      "projected_attributes": [
+        "warehouse_name",
+        "origin_address",
+        "destination_address"
+      ],
+      "projection": "INCLUDE",
+      "range_condition": null,
+      "repository": "ShipmentRepository",
+      "return_type": "tuple[list[Shipment], dict | None]"
+    },
+    "13": {
+      "description": "Accept a delivery (assign courier)",
+      "entity": "Shipment",
+      "index_name": null,
+      "method_name": "accept_delivery",
+      "operation": "UpdateItem",
+      "parameters": [
+        {
+          "name": "shipment_id",
+          "type": "string"
+        },
+        {
+          "name": "courier_id",
+          "type": "string"
+        },
+        {
+          "name": "active_delivery",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 13,
+      "range_condition": null,
+      "repository": "ShipmentRepository",
+      "return_type": "Shipment | None"
+    },
+    "14": {
+      "description": "Update delivery status",
+      "entity": "Shipment",
+      "index_name": null,
+      "method_name": "update_delivery_status",
+      "operation": "UpdateItem",
+      "parameters": [
+        {
+          "name": "shipment_id",
+          "type": "string"
+        },
+        {
+          "name": "status",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 14,
+      "range_condition": null,
+      "repository": "ShipmentRepository",
+      "return_type": "Shipment | None"
+    },
+    "15": {
+      "consistent_read": false,
+      "description": "View courier delivery history",
+      "entity": "Shipment",
+      "index_name": "ShipmentsByCourier",
+      "method_name": "get_courier_shipments",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "courier_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 15,
+      "projected_attributes": [
+        "warehouse_name",
+        "total_weight"
+      ],
+      "projection": "INCLUDE",
+      "range_condition": null,
+      "repository": "ShipmentRepository",
+      "return_type": "tuple[list[Shipment], dict | None]"
+    },
+    "16": {
+      "description": "Create recipient account",
+      "entity": "Recipient",
+      "index_name": null,
+      "method_name": "put_recipient",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "Recipient",
+          "name": "recipient",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 16,
+      "range_condition": null,
+      "repository": "RecipientRepository",
+      "return_type": "Recipient | None"
+    },
+    "17": {
+      "description": "Create warehouse profile",
+      "entity": "WarehouseProfile",
+      "index_name": null,
+      "method_name": "create_warehouse",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "WarehouseProfile",
+          "name": "warehouse_profile",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 17,
+      "range_condition": null,
+      "repository": "WarehouseProfileRepository",
+      "return_type": "WarehouseProfile | None"
+    },
+    "18": {
+      "description": "Register courier",
+      "entity": "Courier",
+      "index_name": null,
+      "method_name": "register_courier",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "Courier",
+          "name": "courier",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 18,
+      "range_condition": null,
+      "repository": "CourierRepository",
+      "return_type": "Courier | None"
+    },
+    "19": {
+      "description": "Recipient rates warehouse",
+      "entity": "Rating",
+      "index_name": null,
+      "method_name": "put_rating",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "Rating",
+          "name": "rating",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 19,
+      "range_condition": null,
+      "repository": "RatingRepository",
+      "return_type": "Rating | None"
+    },
+    "2": {
+      "consistent_read": false,
+      "description": "Search warehouses by name prefix within a city",
+      "entity": "WarehouseProfile",
+      "index_name": "WarehousesByName",
+      "method_name": "search_warehouses_by_name",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "city",
+          "type": "string"
+        },
+        {
+          "name": "name_prefix",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 2,
+      "projection": "KEYS_ONLY",
+      "range_condition": "begins_with",
+      "repository": "WarehouseProfileRepository",
+      "return_type": "tuple[list[WarehouseProfile], dict | None]"
+    },
+    "20": {
+      "consistent_read": false,
+      "description": "View ratings for warehouse",
+      "entity": "Rating",
+      "index_name": null,
+      "method_name": "get_warehouse_ratings",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "warehouse_id",
+          "type": "string"
+        },
+        {
+          "name": "sort_key_prefix",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 20,
+      "range_condition": "begins_with",
+      "repository": "RatingRepository",
+      "return_type": "tuple[list[Rating], dict | None]"
+    },
+    "21": {
+      "consistent_read": false,
+      "description": "Get recipient profile by ID",
+      "entity": "Recipient",
+      "index_name": null,
+      "method_name": "get_recipient",
+      "operation": "GetItem",
+      "parameters": [
+        {
+          "name": "recipient_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 21,
+      "range_condition": null,
+      "repository": "RecipientRepository",
+      "return_type": "Recipient | None"
+    },
+    "22": {
+      "consistent_read": false,
+      "description": "Get courier profile by ID",
+      "entity": "Courier",
+      "index_name": null,
+      "method_name": "get_courier",
+      "operation": "GetItem",
+      "parameters": [
+        {
+          "name": "courier_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 22,
+      "range_condition": null,
+      "repository": "CourierRepository",
+      "return_type": "Courier | None"
+    },
+    "23": {
+      "consistent_read": false,
+      "description": "Get courier's current active delivery",
+      "entity": "Shipment",
+      "index_name": "CourierActiveDelivery",
+      "method_name": "get_courier_active_delivery",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "active_delivery",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 23,
+      "projected_attributes": [
+        "warehouse_name",
+        "status",
+        "destination_address",
+        "origin_address"
+      ],
+      "projection": "INCLUDE",
+      "range_condition": null,
+      "repository": "ShipmentRepository",
+      "return_type": "tuple[list[Shipment], dict | None]"
+    },
+    "24": {
+      "consistent_read": false,
+      "description": "Get shipments by recipient and status",
+      "entity": "Shipment",
+      "index_name": "ShipmentsByRecipient",
+      "method_name": "get_recipient_shipments_by_status",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "recipient_id",
+          "type": "string"
+        },
+        {
+          "name": "status",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 24,
+      "projected_attributes": [
+        "warehouse_name",
+        "total_weight"
+      ],
+      "projection": "INCLUDE",
+      "range_condition": null,
+      "repository": "ShipmentRepository",
+      "return_type": "tuple[list[Shipment], dict | None]"
+    },
+    "25": {
+      "consistent_read": false,
+      "description": "Get shipments by warehouse and status",
+      "entity": "Shipment",
+      "index_name": "ShipmentsByWarehouse",
+      "method_name": "get_warehouse_shipments_by_status",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "warehouse_id",
+          "type": "string"
+        },
+        {
+          "name": "status",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 25,
+      "projected_attributes": [
+        "recipient_name",
+        "total_weight"
+      ],
+      "projection": "INCLUDE",
+      "range_condition": null,
+      "repository": "ShipmentRepository",
+      "return_type": "tuple[list[Shipment], dict | None]"
+    },
+    "26": {
+      "consistent_read": false,
+      "description": "Get shipments by courier and status",
+      "entity": "Shipment",
+      "index_name": "ShipmentsByCourier",
+      "method_name": "get_courier_shipments_by_status",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "courier_id",
+          "type": "string"
+        },
+        {
+          "name": "status",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 26,
+      "projected_attributes": [
+        "warehouse_name",
+        "total_weight"
+      ],
+      "projection": "INCLUDE",
+      "range_condition": null,
+      "repository": "ShipmentRepository",
+      "return_type": "tuple[list[Shipment], dict | None]"
+    },
+    "27": {
+      "consistent_read": false,
+      "description": "Get warehouses by city, category and minimum rating",
+      "entity": "WarehouseProfile",
+      "index_name": "WarehousesByCity",
+      "method_name": "get_warehouses_by_city_category_rating",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "city",
+          "type": "string"
+        },
+        {
+          "name": "category",
+          "type": "string"
+        },
+        {
+          "name": "min_rating",
+          "type": "decimal"
+        }
+      ],
+      "pattern_id": 27,
+      "projected_attributes": [
+        "name",
+        "processing_time"
+      ],
+      "projection": "INCLUDE",
+      "range_condition": ">=",
+      "repository": "WarehouseProfileRepository",
+      "return_type": "tuple[list[WarehouseProfile], dict | None]"
+    },
+    "28": {
+      "consistent_read": false,
+      "description": "Get all products by city and category",
+      "entity": "Product",
+      "index_name": "ProductsByCategory",
+      "method_name": "get_products_by_city_category",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "city",
+          "type": "string"
+        },
+        {
+          "name": "category",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 28,
+      "projected_attributes": [
+        "description",
+        "price",
+        "available"
+      ],
+      "projection": "INCLUDE",
+      "range_condition": null,
+      "repository": "ProductRepository",
+      "return_type": "tuple[list[Product], dict | None]"
+    },
+    "3": {
+      "consistent_read": false,
+      "description": "View warehouse profile",
+      "entity": "WarehouseProfile",
+      "index_name": null,
+      "method_name": "get_warehouse_profile",
+      "operation": "GetItem",
+      "parameters": [
+        {
+          "name": "warehouse_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 3,
+      "range_condition": null,
+      "repository": "WarehouseProfileRepository",
+      "return_type": "WarehouseProfile | None"
+    },
+    "30": {
+      "consistent_read": false,
+      "description": "View warehouse products",
+      "entity": "Product",
+      "index_name": null,
+      "method_name": "get_warehouse_products",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "warehouse_id",
+          "type": "string"
+        },
+        {
+          "name": "sort_key_prefix",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 30,
+      "range_condition": "begins_with",
+      "repository": "ProductRepository",
+      "return_type": "tuple[list[Product], dict | None]"
+    },
+    "4": {
+      "description": "Create a shipment",
+      "entity": "Shipment",
+      "index_name": null,
+      "method_name": "put_shipment",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "Shipment",
+          "name": "shipment",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 4,
+      "range_condition": null,
+      "repository": "ShipmentRepository",
+      "return_type": "Shipment | None"
+    },
+    "5": {
+      "consistent_read": false,
+      "description": "View shipment status",
+      "entity": "Shipment",
+      "index_name": null,
+      "method_name": "get_shipment",
+      "operation": "GetItem",
+      "parameters": [
+        {
+          "name": "shipment_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 5,
+      "range_condition": null,
+      "repository": "ShipmentRepository",
+      "return_type": "Shipment | None"
+    },
+    "6": {
+      "consistent_read": false,
+      "description": "View recipient shipment history",
+      "entity": "Shipment",
+      "index_name": "ShipmentsByRecipient",
+      "method_name": "get_recipient_shipments",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "recipient_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 6,
+      "projected_attributes": [
+        "warehouse_name",
+        "total_weight"
+      ],
+      "projection": "INCLUDE",
+      "range_condition": null,
+      "repository": "ShipmentRepository",
+      "return_type": "tuple[list[Shipment], dict | None]"
+    },
+    "7": {
+      "description": "Update warehouse profile",
+      "entity": "WarehouseProfile",
+      "index_name": null,
+      "method_name": "update_warehouse_profile_with_warehouse_id_and_name",
+      "operation": "UpdateItem",
+      "parameters": [
+        {
+          "name": "warehouse_id",
+          "type": "string"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "processing_time",
+          "type": "integer"
+        }
+      ],
+      "pattern_id": 7,
+      "range_condition": null,
+      "repository": "WarehouseProfileRepository",
+      "return_type": "WarehouseProfile | None"
+    },
+    "8": {
+      "description": "Add or update product",
+      "entity": "Product",
+      "index_name": null,
+      "method_name": "upsert_product",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "Product",
+          "name": "product",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 8,
+      "range_condition": null,
+      "repository": "ProductRepository",
+      "return_type": "Product | None"
+    },
+    "9": {
+      "description": "Remove product",
+      "entity": "Product",
+      "index_name": null,
+      "method_name": "delete_product_with_warehouse_id_and_sort_key",
+      "operation": "DeleteItem",
+      "parameters": [
+        {
+          "name": "warehouse_id",
+          "type": "string"
+        },
+        {
+          "name": "sort_key",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 9,
+      "range_condition": null,
+      "repository": "ProductRepository",
+      "return_type": "bool"
+    }
+  },
+  "metadata": {
+    "generated_at": {
+      "timestamp": "auto-generated"
+    },
+    "generator_type": "Jinja2Generator",
+    "total_patterns": 29
+  }
+}

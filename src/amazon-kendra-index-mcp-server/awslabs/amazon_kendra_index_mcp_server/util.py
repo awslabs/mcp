@@ -15,7 +15,13 @@
 
 import boto3
 import os
+from . import __version__
+from botocore.config import Config
 from mypy_boto3_kendra.client import KendraClient
+
+
+USER_AGENT_EXTRA = f'md/awslabs#mcp#amazon-kendra-index-mcp-server#{__version__}'
+_config = Config(user_agent_extra=USER_AGENT_EXTRA)
 
 
 def get_kendra_client(region=None) -> KendraClient:
@@ -31,9 +37,9 @@ def get_kendra_client(region=None) -> KendraClient:
     AWS_REGION = region or os.environ.get('AWS_REGION', 'us-east-1')
     if AWS_PROFILE:
         kendra_client = boto3.Session(profile_name=AWS_PROFILE, region_name=AWS_REGION).client(
-            'kendra'
+            'kendra', config=_config
         )
         return kendra_client
 
-    kendra_client = boto3.client('kendra', region_name=AWS_REGION)
+    kendra_client = boto3.client('kendra', region_name=AWS_REGION, config=_config)
     return kendra_client

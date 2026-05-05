@@ -18,6 +18,7 @@ from awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools import CloudWatchAlar
 from awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools import CloudWatchLogsTools
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools import CloudWatchMetricsTools
 from awslabs.cloudwatch_mcp_server.database_insights.tools import DatabaseInsightsTools
+from awslabs.cloudwatch_mcp_server.observability_admin.tools import ObservabilityAdminTools
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
 
@@ -45,6 +46,9 @@ try:
     database_insights_tools = DatabaseInsightsTools()
     database_insights_tools.register(mcp)
     logger.info('Database Insights tools registered successfully')
+    observability_admin_tools = ObservabilityAdminTools()
+    observability_admin_tools.register(mcp)
+    logger.info('Observability Admin tools registered successfully')
 except Exception as e:
     logger.error(f'Error initializing MCP server tools: {str(e)}')
     raise

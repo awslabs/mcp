@@ -1,0 +1,70 @@
+import * as cdk from 'aws-cdk-lib';
+import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
+import { Construct } from 'constructs';
+
+export class {{ stack_class_name }} extends cdk.Stack {
+  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+    super(scope, id, props);
+
+{% for table in data_model.tables %}
+    this.create{{ table.table_name | to_pascal_case }}Table();
+{% endfor %}
+  }
+{% for table in data_model.tables %}
+
+  private create{{ table.table_name | to_pascal_case }}Table(): void {
+    const {{ table.table_name | to_camel_case }}Table = new dynamodb.TableV2(this, '{{ table.table_name }}', {
+      partitionKey: {
+        name: '{{ table.partition_key.name }}',
+        type: dynamodb.AttributeType.{{ table.partition_key.to_cdk_type() }},
+      },
+{% if table.sort_key %}
+      sortKey: {
+        name: '{{ table.sort_key.name }}',
+        type: dynamodb.AttributeType.{{ table.sort_key.to_cdk_type() }},
+      },
+{% endif %}
+{% if table.global_secondary_indexes %}
+      globalSecondaryIndexes: [
+{% for gsi in table.global_secondary_indexes %}
+        {
+          indexName: '{{ gsi.index_name }}',
+          partitionKeys: [
+{% for pk in gsi.partition_keys %}
+            {
+              name: '{{ pk.name }}',
+              type: dynamodb.AttributeType.{{ pk.to_cdk_type() }},
+            },
+{% endfor %}
+          ],
+{% if gsi.sort_keys %}
+          sortKeys: [
+{% for sk in gsi.sort_keys %}
+            {
+              name: '{{ sk.name }}',
+              type: dynamodb.AttributeType.{{ sk.to_cdk_type() }},
+            },
+{% endfor %}
+          ],
+{% endif %}
+          projectionType: dynamodb.ProjectionType.{{ gsi.projection_type }},
+{% if gsi.non_key_attributes %}
+          nonKeyAttributes: [{{ gsi.non_key_attributes | map('tojson') | join(', ') }}],
+{% endif %}
+        },
+{% endfor %}
+      ],
+{% endif %}
+{% if table.ttl_attribute %}
+      timeToLiveAttribute: '{{ table.ttl_attribute }}',
+{% endif %}
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    new cdk.CfnOutput(this, '{{ table.table_name }}Name', {
+      value: {{ table.table_name | to_camel_case }}Table.tableName,
+      description: 'Physical table name for {{ table.table_name }}',
+    });
+  }
+{% endfor %}
+}

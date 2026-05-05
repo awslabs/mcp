@@ -1,0 +1,169 @@
+{
+  "entities": {
+    "Brand": {
+      "access_pattern_data": {
+        "brand_id": "brand-apple",
+        "brand_name": "Apple",
+        "created_at": "2023-12-15T00:00:00Z",
+        "description": "Innovative technology company known for premium consumer electronics",
+        "logo_url": "https://example.com/logos/apple.png"
+      },
+      "sample_data": {
+        "brand_id": "brand-sony",
+        "brand_name": "Sony",
+        "created_at": "2024-01-01T00:00:00Z",
+        "description": "Leading electronics and entertainment company",
+        "logo_url": "https://example.com/logos/sony.png"
+      },
+      "update_data": {
+        "brand_name": "Sony Corporation",
+        "description": "Global leader in electronics, gaming, and entertainment",
+        "logo_url": "https://example.com/logos/sony-updated.png"
+      }
+    },
+    "Deal": {
+      "access_pattern_data": {
+        "brand_id": "brand-asus",
+        "brand_name": "ASUS",
+        "category_id": "computers",
+        "category_name": "Computers",
+        "created_at": "2024-01-12T14:30:00Z",
+        "deal_id": "deal-98765",
+        "description": "High-performance gaming laptop with RTX graphics card and 16GB RAM",
+        "price": 899.99,
+        "status": "featured",
+        "title": "30% Off Gaming Laptop"
+      },
+      "sample_data": {
+        "brand_id": "brand-sony",
+        "brand_name": "Sony",
+        "category_id": "electronics",
+        "category_name": "Electronics",
+        "created_at": "2024-01-15T10:00:00Z",
+        "deal_id": "deal-12345",
+        "description": "High-quality wireless headphones with noise cancellation",
+        "price": 149.99,
+        "status": "active",
+        "title": "50% Off Premium Headphones"
+      },
+      "update_data": {
+        "description": "Updated: High-quality wireless headphones with advanced noise cancellation",
+        "price": 129.99,
+        "status": "featured",
+        "title": "60% Off Premium Headphones - Limited Time"
+      }
+    },
+    "TrendingDeal": {
+      "access_pattern_data": {
+        "brand_id": "brand-nike",
+        "category_id": "fashion",
+        "clicks": 156,
+        "deal_id": "deal-77777",
+        "discount_percentage": 40.0,
+        "engagement_score": 720,
+        "title": "40% Off Designer Sneakers",
+        "views": 980
+      },
+      "sample_data": {
+        "brand_id": "brand-sony",
+        "category_id": "electronics",
+        "clicks": 89,
+        "deal_id": "deal-12345",
+        "discount_percentage": 50.0,
+        "engagement_score": 850,
+        "title": "50% Off Premium Headphones",
+        "views": 1250
+      },
+      "update_data": {
+        "clicks": 142,
+        "discount_percentage": 60.0,
+        "engagement_score": 920,
+        "title": "60% Off Premium Headphones - Limited Time",
+        "views": 1580
+      }
+    },
+    "User": {
+      "access_pattern_data": {
+        "created_at": "2024-01-08T12:15:00Z",
+        "display_name": "Sarah Wilson",
+        "email": "sarah.wilson@gmail.com",
+        "last_login": "2024-01-14T18:30:00Z",
+        "user_id": "user-54321",
+        "username": "bargainhunter"
+      },
+      "sample_data": {
+        "created_at": "2024-01-10T08:30:00Z",
+        "display_name": "John Doe",
+        "email": "john.doe@example.com",
+        "last_login": "2024-01-15T09:45:00Z",
+        "user_id": "user-67890",
+        "username": "dealseeker123"
+      },
+      "update_data": {
+        "display_name": "John D. Smith",
+        "last_login": "2024-01-16T14:20:00Z",
+        "username": "dealhunter123"
+      }
+    },
+    "UserActivity": {
+      "access_pattern_data": {
+        "activity_id": "activity-click-deal-98765",
+        "activity_type": "deal_click",
+        "details": {
+          "deal_id": "deal-98765",
+          "duration_seconds": 78,
+          "search_term": "gaming laptop",
+          "source": "search_results"
+        },
+        "timestamp": "2024-01-14T16:22:00Z",
+        "user_id": "user-54321"
+      },
+      "sample_data": {
+        "activity_id": "activity-view-deal-12345",
+        "activity_type": "deal_view",
+        "details": {
+          "deal_id": "deal-12345",
+          "duration_seconds": 45,
+          "source": "homepage"
+        },
+        "timestamp": "2024-01-15T10:30:00Z",
+        "user_id": "user-67890"
+      },
+      "update_data": {
+        "activity_type": "deal_interaction",
+        "details": {
+          "clicked": true,
+          "deal_id": "deal-12345",
+          "duration_seconds": 120,
+          "source": "homepage"
+        }
+      }
+    },
+    "UserWatch": {
+      "access_pattern_data": {
+        "brand_id": "brand-nike",
+        "category_id": "fashion",
+        "created_at": "2024-01-10T11:45:00Z",
+        "target_id": "brand-nike",
+        "target_name": "Nike Sportswear",
+        "user_id": "user-54321",
+        "watch_key": "watch-fashion-nike",
+        "watch_type": "brand_category"
+      },
+      "sample_data": {
+        "brand_id": "brand-sony",
+        "category_id": "electronics",
+        "created_at": "2024-01-12T16:00:00Z",
+        "target_id": "brand-sony",
+        "target_name": "Sony Electronics",
+        "user_id": "user-67890",
+        "watch_key": "watch-electronics-sony",
+        "watch_type": "brand_category"
+      },
+      "update_data": {
+        "target_name": "Sony Premium Electronics",
+        "watch_type": "premium_brand_category"
+      }
+    }
+  }
+}

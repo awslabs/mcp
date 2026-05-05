@@ -15,12 +15,13 @@
 """awslabs Aurora DSQL MCP Server implementation."""
 
 import argparse
-import asyncio
 import boto3
 import httpx
+import json
 import psycopg
 import psycopg.rows
 import sys
+from awslabs.aurora_dsql_mcp_server import __version__
 from awslabs.aurora_dsql_mcp_server.consts import (
     BEGIN_READ_ONLY_TRANSACTION_SQL,
     BEGIN_TRANSACTION_SQL,
@@ -42,6 +43,7 @@ from awslabs.aurora_dsql_mcp_server.consts import (
     ERROR_TRANSACT,
     ERROR_TRANSACTION_BYPASS_ATTEMPT,
     ERROR_WRITE_QUERY_PROHIBITED,
+    GET_QUALIFIED_SCHEMA_SQL,
     GET_SCHEMA_SQL,
     INTERNAL_ERROR,
     READ_ONLY_QUERY_WRITE_ERROR,
@@ -52,11 +54,16 @@ from awslabs.aurora_dsql_mcp_server.mutable_sql_detector import (
     detect_mutating_keywords,
     detect_transaction_bypass_attempt,
 )
+from botocore.config import Config
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Annotated, Any, List
 from urllib.parse import urlparse
+
+
+USER_AGENT_EXTRA = f'md/awslabs#mcp#aurora-dsql-mcp-server#{__version__}'
+_config = Config(user_agent_extra=USER_AGENT_EXTRA)
 
 
 # Global variables
@@ -67,7 +74,7 @@ read_only = False
 dsql_client: Any = None
 persistent_connection = None
 aws_profile = None
-knowledge_server = 'https://xmfe3hc3pk.execute-api.us-east-2.amazonaws.com'
+knowledge_server = 'https://d38p8g9d7yc7ms.cloudfront.net'
 knowledge_timeout = 30.0
 
 mcp = FastMCP(
@@ -132,18 +139,40 @@ also be supported, as this is a point in time snapshot.
 """,
 )
 async def readonly_query(
-    sql: Annotated[str, Field(description='The SQL query to run')], ctx: Context
+    sql: Annotated[str, Field(description='The SQL query to run')],
+    ctx: Context,
+    params: Annotated[
+        List[Any] | None,
+        Field(
+            description='Optional list of parameter values to bind. '
+            'Use %s placeholders in the SQL string (e.g. '
+            '"SELECT * FROM t WHERE id = %s", params=["abc"]). '
+            'When provided, values are bound by the database driver '
+            'and never interpolated into the SQL string. '
+            'Note: heuristic injection checks still run against '
+            'the SQL template itself.',
+            default=None,
+        ),
+    ] = None,
 ) -> List[dict]:
     """Runs a read-only SQL query.
 
     Args:
         sql: The sql statement to run
         ctx: MCP context for logging and state management
+        params: Optional list of bind-parameter values. When provided, the SQL
+            string should contain %s placeholders and the driver binds the values
+            safely. Heuristic injection checks still run against the SQL template.
 
     Returns:
         List of rows. Each row is a dictionary with column name as the key and column value as the value.
         Empty list if the SQL execution did not return any results
     """
+    if not cluster_endpoint:
+        error_msg = 'Database not configured. Please configure --cluster_endpoint, --database_user, and --region.'
+        await ctx.error(error_msg)
+        raise Exception(error_msg)
+
     logger.info(f'query: {sql}')
 
     if not sql:
@@ -160,8 +189,9 @@ async def readonly_query(
         await ctx.error(ERROR_WRITE_QUERY_PROHIBITED)
         raise Exception(ERROR_WRITE_QUERY_PROHIBITED)
 
-    # Check for SQL injection risks
-    injection_issues = check_sql_injection_risk(sql)
+    # Check for SQL injection risks (readonly_query always uses the full
+    # pattern set since mutating keywords are already blocked above)
+    injection_issues = check_sql_injection_risk(sql, read_only=True)
     if injection_issues:
         logger.warning(
             f'readonly_query rejected due to injection risks: {injection_issues}, SQL: {sql}'
@@ -186,7 +216,7 @@ async def readonly_query(
             raise Exception(INTERNAL_ERROR)
 
         try:
-            rows = await execute_query(ctx, conn, sql)
+            rows = await execute_query(ctx, conn, sql, params)
             await execute_query(ctx, conn, COMMIT_TRANSACTION_SQL)
             return rows
         except psycopg.errors.ReadOnlySqlTransaction:
@@ -258,27 +288,61 @@ async def transact(
         Field(description='List of one or more SQL statements to execute in a transaction'),
     ],
     ctx: Context,
+    params_list: Annotated[
+        List[List[Any] | None] | None,
+        Field(
+            description='Optional list of parameter lists, one per SQL '
+            'statement. Use %s placeholders in the SQL strings. '
+            'When provided, must be the same length as sql_list. '
+            'An entry of null means no params for that statement. '
+            'Example: sql_list=["INSERT INTO t (id, name) VALUES (%s, %s)"], '
+            'params_list=[["uuid-1", "Widget"]]',
+            default=None,
+        ),
+    ] = None,
 ) -> List[dict]:
     """Executes one or more SQL commands in a transaction.
 
     Args:
         sql_list: List of SQL statements to run
         ctx: MCP context for logging and state management
+        params_list: Optional list of parameter lists, parallel to sql_list.
+            When provided, len(params_list) must equal len(sql_list). Each
+            element is either a list of values to bind with %s placeholders,
+            or None for statements that need no params.
 
     Returns:
         List of rows. Each row is a dictionary with column name as the key and column value as
         the value. Empty list if the execution of the last SQL did not return any results
     """
+    if not cluster_endpoint:
+        error_msg = 'Database not configured. Please configure --cluster_endpoint, --database_user, and --region.'
+        await ctx.error(error_msg)
+        raise Exception(error_msg)
+
     logger.info(f'transact: {sql_list}')
 
     if not sql_list:
         await ctx.error(ERROR_EMPTY_SQL_LIST_PASSED_TO_TRANSACT)
         raise ValueError(ERROR_EMPTY_SQL_LIST_PASSED_TO_TRANSACT)
 
-    # In read-only mode, validate all statements before executing
-    if read_only:
-        for idx, sql in enumerate(sql_list):
-            # Apply the same security checks as readonly_query
+    if params_list is not None and len(params_list) != len(sql_list):
+        error_msg = (
+            f'params_list length ({len(params_list)}) must equal sql_list length ({len(sql_list)})'
+        )
+        logger.warning(f'transact rejected due to params_list length mismatch: {error_msg}')
+        await ctx.error(error_msg)
+        raise ValueError(error_msg)
+
+    # Injection-shape checks (tautologies, stacked queries, time-based,
+    # comment injection) run in both modes — these never appear in
+    # legitimate single-statement SQL. Keyword-level checks (DROP,
+    # TRUNCATE, etc.), mutating-keyword rejection, and transaction-bypass
+    # detection only run in read-only mode where those operations are
+    # prohibited. Callers that need stacked statements should split them
+    # into separate sql_list items.
+    for sql in sql_list:
+        if read_only:
             mutating_matches = detect_mutating_keywords(sql)
             if mutating_matches:
                 logger.warning(
@@ -287,18 +351,18 @@ async def transact(
                 await ctx.error(ERROR_WRITE_QUERY_PROHIBITED)
                 raise Exception(ERROR_WRITE_QUERY_PROHIBITED)
 
-            injection_issues = check_sql_injection_risk(sql)
-            if injection_issues:
-                logger.warning(
-                    f'transact rejected due to injection risks: {injection_issues}, SQL: {sql}'
-                )
-                await ctx.error(f'{ERROR_QUERY_INJECTION_RISK}: {injection_issues}')
-                raise Exception(f'{ERROR_QUERY_INJECTION_RISK}: {injection_issues}')
+        injection_issues = check_sql_injection_risk(sql, read_only=read_only)
+        if injection_issues:
+            logger.warning(
+                f'transact rejected due to injection risks: {injection_issues}, SQL: {sql}'
+            )
+            await ctx.error(f'{ERROR_QUERY_INJECTION_RISK}: {injection_issues}')
+            raise Exception(f'{ERROR_QUERY_INJECTION_RISK}: {injection_issues}')
 
-            if detect_transaction_bypass_attempt(sql):
-                logger.warning(f'transact rejected due to transaction bypass attempt, SQL: {sql}')
-                await ctx.error(ERROR_TRANSACTION_BYPASS_ATTEMPT)
-                raise Exception(ERROR_TRANSACTION_BYPASS_ATTEMPT)
+        if read_only and detect_transaction_bypass_attempt(sql):
+            logger.warning(f'transact rejected due to transaction bypass attempt, SQL: {sql}')
+            await ctx.error(ERROR_TRANSACTION_BYPASS_ATTEMPT)
+            raise Exception(ERROR_TRANSACTION_BYPASS_ATTEMPT)
 
     try:
         conn = await get_connection(ctx)
@@ -316,8 +380,9 @@ async def transact(
 
         try:
             rows = []
-            for query in sql_list:
-                rows = await execute_query(ctx, conn, query)
+            for idx, query in enumerate(sql_list):
+                p = params_list[idx] if params_list else None
+                rows = await execute_query(ctx, conn, query, p)
             await execute_query(ctx, conn, COMMIT_TRANSACTION_SQL)
             return rows
         except psycopg.errors.ReadOnlySqlTransaction:
@@ -349,6 +414,11 @@ async def get_schema(
         List of rows. Each row contains column name and type information for a column in the
         table provided in a dictionary form. Empty list is returned if table is not found.
     """
+    if not cluster_endpoint:
+        error_msg = 'Database not configured. Please configure --cluster_endpoint, --database_user, and --region.'
+        await ctx.error(error_msg)
+        raise Exception(error_msg)
+
     logger.info(f'get_schema: {table_name}')
 
     if not table_name:
@@ -357,7 +427,11 @@ async def get_schema(
 
     try:
         conn = await get_connection(ctx)
-        return await execute_query(ctx, conn, GET_SCHEMA_SQL, [table_name])
+        if '.' in table_name:
+            schema, table = table_name.split('.', 1)
+            return await execute_query(ctx, conn, GET_QUALIFIED_SCHEMA_SQL, [schema, table])
+        else:
+            return await execute_query(ctx, conn, GET_SCHEMA_SQL, [table_name])
     except Exception as e:
         await ctx.error(f'{ERROR_GET_SCHEMA}: {str(e)}')
         raise Exception(f'{ERROR_GET_SCHEMA}: {str(e)}')
@@ -482,7 +556,13 @@ async def _proxy_to_knowledge_server(
                     await ctx.error(error_msg)
                 raise Exception(error_msg)
 
-            return result.get('result', {})
+            res = result.get('result', {})
+            if not res:
+                content = result.get('content', [])
+                if content and isinstance(content, list) and content[0].get('type') == 'text':
+                    return json.loads(content[0]['text'])
+                return {'content': content}
+            return res
 
     except httpx.HTTPError as e:
         error_msg = 'The DSQL knowledge server is currently unavailable. Please try again later.'
@@ -609,11 +689,10 @@ def main():
     )
     parser.add_argument(
         '--cluster_endpoint',
-        required=True,
         help='Endpoint for your Aurora DSQL cluster',
     )
-    parser.add_argument('--database_user', required=True, help='Database username')
-    parser.add_argument('--region', required=True)
+    parser.add_argument('--database_user', help='Database username')
+    parser.add_argument('--region')
     parser.add_argument(
         '--allow-writes',
         action='store_true',
@@ -684,6 +763,17 @@ def main():
     global knowledge_timeout
     knowledge_timeout = args.knowledge_timeout
 
+    # Check if cluster is configured
+    if not cluster_endpoint or not database_user or not region:
+        logger.warning(
+            'Aurora DSQL MCP server starting without cluster configuration. '
+            'Database tools will not be available. '
+            'Please configure --cluster_endpoint, --database_user, and --region to enable database operations.'
+        )
+        logger.info('Starting Aurora DSQL MCP server (documentation tools only)')
+        mcp.run()
+        return
+
     mode_description = 'READ-WRITE' if args.allow_writes else 'READ-ONLY'
     logger.info(
         'Aurora DSQL MCP init with CLUSTER_ENDPOINT:{}, REGION: {}, DATABASE_USER:{}, MODE:{}, AWS_PROFILE:{}, KNOWLEDGE_SERVER:{}, KNOWLEDGE_TIMEOUT:{}',
@@ -698,20 +788,7 @@ def main():
 
     global dsql_client
     session = boto3.Session(profile_name=aws_profile) if aws_profile else boto3.Session()
-    dsql_client = session.client('dsql', region_name=region)
-
-    try:
-        # Validate connection by trying to execute a simple query directly
-        # Connection errors will be handled in execute_query
-        ctx = NoOpCtx()
-        asyncio.run(execute_query(ctx, None, 'SELECT 1'))
-    except Exception as e:
-        logger.error(
-            f'Failed to create and validate db connection to Aurora DSQL. Exit the MCP server. error: {e}'
-        )
-        sys.exit(1)
-
-    logger.success('Successfully validated connection to Aurora DSQL Cluster')
+    dsql_client = session.client('dsql', region_name=region, config=_config)
 
     logger.info('Starting Aurora DSQL MCP server')
     mcp.run()

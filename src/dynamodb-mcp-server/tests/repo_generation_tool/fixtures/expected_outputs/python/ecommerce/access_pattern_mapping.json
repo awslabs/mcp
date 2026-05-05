@@ -1,0 +1,509 @@
+{
+  "access_pattern_mapping": {
+    "1": {
+      "consistent_read": false,
+      "description": "Get user profile by user ID",
+      "entity": "User",
+      "index_name": null,
+      "method_name": "get_user",
+      "operation": "GetItem",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 1,
+      "range_condition": null,
+      "repository": "UserRepository",
+      "return_type": "User | None"
+    },
+    "10": {
+      "description": "Add product to category index",
+      "entity": "ProductCategory",
+      "index_name": null,
+      "method_name": "add_product_to_category",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "ProductCategory",
+          "name": "category_item",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 10,
+      "range_condition": null,
+      "repository": "ProductCategoryRepository",
+      "return_type": "ProductCategory | None"
+    },
+    "11": {
+      "consistent_read": false,
+      "description": "Get all reviews for a product",
+      "entity": "ProductReview",
+      "index_name": null,
+      "method_name": "get_product_reviews",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "product_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 11,
+      "range_condition": null,
+      "repository": "ProductReviewRepository",
+      "return_type": "tuple[list[ProductReview], dict | None]"
+    },
+    "12": {
+      "description": "Create new product review with user reference",
+      "entity": "ProductReview",
+      "index_name": null,
+      "method_name": "put_product_review",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "ProductReview",
+          "name": "review",
+          "type": "entity"
+        },
+        {
+          "entity_type": "User",
+          "name": "user",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 12,
+      "range_condition": null,
+      "repository": "ProductReviewRepository",
+      "return_type": "ProductReview | None"
+    },
+    "13": {
+      "consistent_read": false,
+      "description": "Get order details by order ID",
+      "entity": "Order",
+      "index_name": null,
+      "method_name": "get_order",
+      "operation": "GetItem",
+      "parameters": [
+        {
+          "name": "order_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 13,
+      "range_condition": null,
+      "repository": "OrderRepository",
+      "return_type": "Order | None"
+    },
+    "14": {
+      "description": "Create new order with user reference",
+      "entity": "Order",
+      "index_name": null,
+      "method_name": "put_order",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "Order",
+          "name": "order",
+          "type": "entity"
+        },
+        {
+          "entity_type": "User",
+          "name": "user",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 14,
+      "range_condition": null,
+      "repository": "OrderRepository",
+      "return_type": "Order | None"
+    },
+    "15": {
+      "description": "Update order status and tracking information",
+      "entity": "Order",
+      "index_name": null,
+      "method_name": "update_order_status",
+      "operation": "UpdateItem",
+      "parameters": [
+        {
+          "name": "order_id",
+          "type": "string"
+        },
+        {
+          "name": "status",
+          "type": "string"
+        },
+        {
+          "name": "tracking_number",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 15,
+      "range_condition": null,
+      "repository": "OrderRepository",
+      "return_type": "Order | None"
+    },
+    "16": {
+      "consistent_read": false,
+      "description": "Get all items for an order",
+      "entity": "OrderItem",
+      "index_name": null,
+      "method_name": "get_order_items",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "order_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 16,
+      "range_condition": null,
+      "repository": "OrderItemRepository",
+      "return_type": "tuple[list[OrderItem], dict | None]"
+    },
+    "17": {
+      "description": "Add item to order with product reference",
+      "entity": "OrderItem",
+      "index_name": null,
+      "method_name": "add_order_item",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "OrderItem",
+          "name": "order_item",
+          "type": "entity"
+        },
+        {
+          "entity_type": "Product",
+          "name": "product",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 17,
+      "range_condition": null,
+      "repository": "OrderItemRepository",
+      "return_type": "OrderItem | None"
+    },
+    "18": {
+      "consistent_read": false,
+      "description": "Get order history for a user (sorted by date)",
+      "entity": "UserOrderHistory",
+      "index_name": null,
+      "method_name": "get_user_order_history_list",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 18,
+      "range_condition": null,
+      "repository": "UserOrderHistoryRepository",
+      "return_type": "tuple[list[UserOrderHistory], dict | None]"
+    },
+    "19": {
+      "consistent_read": false,
+      "description": "Get recent orders for a user with date range",
+      "entity": "UserOrderHistory",
+      "index_name": null,
+      "method_name": "get_user_recent_orders",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        },
+        {
+          "name": "start_date",
+          "type": "string"
+        },
+        {
+          "name": "end_date",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 19,
+      "range_condition": null,
+      "repository": "UserOrderHistoryRepository",
+      "return_type": "tuple[list[UserOrderHistory], dict | None]"
+    },
+    "2": {
+      "description": "Create new user account",
+      "entity": "User",
+      "index_name": null,
+      "method_name": "put_user",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "User",
+          "name": "user",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 2,
+      "range_condition": null,
+      "repository": "UserRepository",
+      "return_type": "User | None"
+    },
+    "20": {
+      "description": "Add order to user's order history with cross-table references",
+      "entity": "UserOrderHistory",
+      "index_name": null,
+      "method_name": "add_order_to_user_history",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "UserOrderHistory",
+          "name": "user_order",
+          "type": "entity"
+        },
+        {
+          "entity_type": "User",
+          "name": "user",
+          "type": "entity"
+        },
+        {
+          "entity_type": "Order",
+          "name": "order",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 20,
+      "range_condition": null,
+      "repository": "UserOrderHistoryRepository",
+      "return_type": "UserOrderHistory | None"
+    },
+    "21": {
+      "consistent_read": false,
+      "description": "Get user orders after a specific date (Main Table Range Query)",
+      "entity": "UserOrderHistory",
+      "index_name": null,
+      "method_name": "get_user_orders_after_date",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        },
+        {
+          "name": "since_date",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 21,
+      "range_condition": ">=",
+      "repository": "UserOrderHistoryRepository",
+      "return_type": "tuple[list[UserOrderHistory], dict | None]"
+    },
+    "22": {
+      "consistent_read": false,
+      "description": "Get user orders within date range (Main Table Range Query)",
+      "entity": "UserOrderHistory",
+      "index_name": null,
+      "method_name": "get_user_orders_in_date_range",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        },
+        {
+          "name": "start_date",
+          "type": "string"
+        },
+        {
+          "name": "end_date",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 22,
+      "range_condition": "between",
+      "repository": "UserOrderHistoryRepository",
+      "return_type": "tuple[list[UserOrderHistory], dict | None]"
+    },
+    "23": {
+      "consistent_read": false,
+      "description": "Get product reviews by review_id prefix (Main Table Range Query)",
+      "entity": "ProductReview",
+      "index_name": null,
+      "method_name": "get_product_reviews_by_id_prefix",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "product_id",
+          "type": "string"
+        },
+        {
+          "name": "review_id_prefix",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 23,
+      "range_condition": "begins_with",
+      "repository": "ProductReviewRepository",
+      "return_type": "tuple[list[ProductReview], dict | None]"
+    },
+    "24": {
+      "consistent_read": false,
+      "description": "Get category products after a specific product_id (Main Table Range Query)",
+      "entity": "ProductCategory",
+      "index_name": null,
+      "method_name": "get_category_products_after_id",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "category_name",
+          "type": "string"
+        },
+        {
+          "name": "after_product_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 24,
+      "range_condition": ">",
+      "repository": "ProductCategoryRepository",
+      "return_type": "tuple[list[ProductCategory], dict | None]"
+    },
+    "3": {
+      "description": "Update user profile information",
+      "entity": "User",
+      "index_name": null,
+      "method_name": "update_user_profile",
+      "operation": "UpdateItem",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        },
+        {
+          "name": "email",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 3,
+      "range_condition": null,
+      "repository": "UserRepository",
+      "return_type": "User | None"
+    },
+    "4": {
+      "consistent_read": false,
+      "description": "Get all addresses for a user",
+      "entity": "UserAddress",
+      "index_name": null,
+      "method_name": "get_user_addresses",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 4,
+      "range_condition": null,
+      "repository": "UserAddressRepository",
+      "return_type": "tuple[list[UserAddress], dict | None]"
+    },
+    "5": {
+      "description": "Add new address for user",
+      "entity": "UserAddress",
+      "index_name": null,
+      "method_name": "add_user_address",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "UserAddress",
+          "name": "address",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 5,
+      "range_condition": null,
+      "repository": "UserAddressRepository",
+      "return_type": "UserAddress | None"
+    },
+    "6": {
+      "consistent_read": false,
+      "description": "Get product details by product ID",
+      "entity": "Product",
+      "index_name": null,
+      "method_name": "get_product",
+      "operation": "GetItem",
+      "parameters": [
+        {
+          "name": "product_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 6,
+      "range_condition": null,
+      "repository": "ProductRepository",
+      "return_type": "Product | None"
+    },
+    "7": {
+      "description": "Create new product",
+      "entity": "Product",
+      "index_name": null,
+      "method_name": "put_product",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "Product",
+          "name": "product",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 7,
+      "range_condition": null,
+      "repository": "ProductRepository",
+      "return_type": "Product | None"
+    },
+    "8": {
+      "description": "Update product stock quantity",
+      "entity": "Product",
+      "index_name": null,
+      "method_name": "update_product_stock",
+      "operation": "UpdateItem",
+      "parameters": [
+        {
+          "name": "product_id",
+          "type": "string"
+        },
+        {
+          "name": "stock_quantity",
+          "type": "integer"
+        }
+      ],
+      "pattern_id": 8,
+      "range_condition": null,
+      "repository": "ProductRepository",
+      "return_type": "Product | None"
+    },
+    "9": {
+      "consistent_read": false,
+      "description": "Get all products in a specific category",
+      "entity": "ProductCategory",
+      "index_name": null,
+      "method_name": "get_products_by_category",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "category_name",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 9,
+      "range_condition": null,
+      "repository": "ProductCategoryRepository",
+      "return_type": "tuple[list[ProductCategory], dict | None]"
+    }
+  },
+  "metadata": {
+    "generated_at": {
+      "timestamp": "auto-generated"
+    },
+    "generator_type": "Jinja2Generator",
+    "total_patterns": 24
+  }
+}

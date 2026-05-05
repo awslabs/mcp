@@ -118,13 +118,13 @@ def mock_boto3():
         mock_bedrock_agent_runtime = MagicMock()
         mock_bedrock_agent = MagicMock()
 
-        mock_client.side_effect = lambda service, region_name=None: {
+        mock_client.side_effect = lambda service, region_name=None, **kwargs: {
             'bedrock-agent-runtime': mock_bedrock_agent_runtime,
             'bedrock-agent': mock_bedrock_agent,
         }[service]
 
         mock_session_instance = MagicMock()
-        mock_session_instance.client.side_effect = lambda service, region_name=None: {
+        mock_session_instance.client.side_effect = lambda service, region_name=None, **kwargs: {
             'bedrock-agent-runtime': mock_bedrock_agent_runtime,
             'bedrock-agent': mock_bedrock_agent,
         }[service]

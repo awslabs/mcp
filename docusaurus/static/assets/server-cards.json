@@ -1,6 +1,12 @@
 {
   "categories": [
     {
+      "description": "Essential MCP servers for AWS resource management",
+      "icon": "\ud83d\udd11",
+      "id": "essential-setup",
+      "name": "Essential Setup"
+    },
+    {
       "description": "Real-time access to official AWS documentation",
       "icon": "\ud83d\udcda",
       "id": "documentation",
@@ -56,6 +62,30 @@
     }
   ],
   "servers": [
+    {
+      "category": "Essential Setup",
+      "description": "Secure, auditable AWS operations with API access, documentation, Agent SOPs, and CloudTrail logging.",
+      "icon": "\ud83d\udd11",
+      "id": "aws-mcp",
+      "name": "AWS MCP (in preview)",
+      "source_path": "https://docs.aws.amazon.com/aws-mcp/latest/userguide/what-is-mcp-server.html",
+      "subcategory": "Essential Setup",
+      "tags": [
+        "aws-api",
+        "documentation",
+        "security",
+        "audit-logging",
+        "cloudtrail",
+        "iam",
+        "remote-mcp",
+        "managed-service",
+        "best-practices"
+      ],
+      "workflows": [
+        "vibe-coding",
+        "conversational"
+      ]
+    },
     {
       "category": "Documentation",
       "description": "Get latest AWS docs and APIs",
@@ -131,67 +161,6 @@
         "security-scanning",
         "resource-management",
         "crudl-operations",
-        "vibe-coding",
-        "infrastructure-deployment"
-      ],
-      "workflows": [
-        "vibe-coding"
-      ]
-    },
-    {
-      "category": "Infrastructure & Deployment",
-      "description": "Direct CloudFormation resource management via Cloud Control API",
-      "icon": "\ud83c\udfd7\ufe0f",
-      "id": "cfn-mcp-server",
-      "name": "AWS CloudFormation MCP Server",
-      "source_path": "src/cfn-mcp-server/",
-      "subcategory": "Infrastructure as Code",
-      "tags": [
-        "infrastructure-as-code",
-        "cloudformation",
-        "cloud-control-api",
-        "resource-management",
-        "vibe-coding",
-        "infrastructure-deployment"
-      ],
-      "workflows": [
-        "vibe-coding"
-      ]
-    },
-    {
-      "category": "Infrastructure & Deployment",
-      "description": "AWS CDK development with security compliance",
-      "icon": "\ud83c\udfd7\ufe0f",
-      "id": "cdk-mcp-server",
-      "name": "AWS CDK MCP Server",
-      "source_path": "src/cdk-mcp-server/",
-      "subcategory": "Infrastructure as Code",
-      "tags": [
-        "infrastructure-as-code",
-        "cdk",
-        "security",
-        "compliance",
-        "best-practices",
-        "vibe-coding",
-        "infrastructure-deployment"
-      ],
-      "workflows": [
-        "vibe-coding"
-      ]
-    },
-    {
-      "category": "Infrastructure & Deployment",
-      "description": "Terraform workflows with integrated security scanning",
-      "icon": "\ud83c\udfd7\ufe0f",
-      "id": "terraform-mcp-server",
-      "name": "AWS Terraform MCP Server",
-      "source_path": "src/terraform-mcp-server/",
-      "subcategory": "Infrastructure as Code",
-      "tags": [
-        "infrastructure-as-code",
-        "terraform",
-        "security-scanning",
-        "workflows",
         "vibe-coding",
         "infrastructure-deployment"
       ],
@@ -419,48 +388,6 @@
         "pdf-parsing",
         "office-documents",
         "image-analysis",
-        "conversational",
-        "content-processing"
-      ],
-      "workflows": [
-        "conversational"
-      ]
-    },
-    {
-      "category": "AI & Machine Learning",
-      "description": "AI image generation with text and color guidance",
-      "icon": "\ud83e\udd16",
-      "id": "nova-canvas-mcp-server",
-      "name": "Amazon Nova Canvas MCP Server",
-      "source_path": "src/nova-canvas-mcp-server/",
-      "subcategory": "Content Processing & Generation",
-      "tags": [
-        "ai-ml",
-        "image-generation",
-        "nova-canvas",
-        "text-guidance",
-        "color-guidance",
-        "conversational",
-        "content-generation"
-      ],
-      "workflows": [
-        "conversational"
-      ]
-    },
-    {
-      "category": "AI & Machine Learning",
-      "description": "Analyze documents, images, videos, and audio files",
-      "icon": "\ud83e\udd16",
-      "id": "aws-bedrock-data-automation-mcp-server",
-      "name": "Amazon Bedrock Data Automation MCP Server",
-      "source_path": "src/aws-bedrock-data-automation-mcp-server/",
-      "subcategory": "Content Processing & Generation",
-      "tags": [
-        "ai-ml",
-        "bedrock",
-        "data-automation",
-        "document-analysis",
-        "media-analysis",
         "conversational",
         "content-processing"
       ],
@@ -808,110 +735,6 @@
       ]
     },
     {
-      "category": "Developer Tools & Support",
-      "description": "Semantic code search and repository analysis",
-      "icon": "\ud83d\udee0\ufe0f",
-      "id": "git-repo-research-mcp-server",
-      "name": "Git Repo Research MCP Server",
-      "source_path": "src/git-repo-research-mcp-server/",
-      "subcategory": "Code Analysis",
-      "tags": [
-        "developer-tools",
-        "git",
-        "repository-analysis",
-        "semantic-search",
-        "code-analysis",
-        "vibe-coding",
-        "core-development"
-      ],
-      "workflows": [
-        "vibe-coding"
-      ]
-    },
-    {
-      "category": "Developer Tools & Support",
-      "description": "Automated documentation from code analysis",
-      "icon": "\ud83d\udee0\ufe0f",
-      "id": "code-doc-gen-mcp-server",
-      "name": "Code Documentation Generation MCP Server",
-      "source_path": "src/code-doc-gen-mcp-server/",
-      "subcategory": "Documentation",
-      "tags": [
-        "developer-tools",
-        "documentation",
-        "code-analysis",
-        "automation",
-        "vibe-coding",
-        "application-development"
-      ],
-      "workflows": [
-        "vibe-coding"
-      ]
-    },
-    {
-      "category": "Developer Tools & Support",
-      "description": "Generate architecture diagrams and technical illustrations",
-      "icon": "\ud83d\udee0\ufe0f",
-      "id": "aws-diagram-mcp-server",
-      "name": "AWS Diagram MCP Server",
-      "source_path": "src/aws-diagram-mcp-server/",
-      "subcategory": "Visualization",
-      "tags": [
-        "developer-tools",
-        "diagrams",
-        "architecture",
-        "visualization",
-        "technical-illustrations",
-        "vibe-coding",
-        "application-development"
-      ],
-      "workflows": [
-        "vibe-coding"
-      ]
-    },
-    {
-      "category": "Developer Tools & Support",
-      "description": "React and modern web development guidance",
-      "icon": "\ud83d\udee0\ufe0f",
-      "id": "frontend-mcp-server",
-      "name": "Frontend MCP Server",
-      "source_path": "src/frontend-mcp-server/",
-      "subcategory": "Web Development",
-      "tags": [
-        "developer-tools",
-        "frontend",
-        "react",
-        "web-development",
-        "modern-development",
-        "vibe-coding",
-        "application-development"
-      ],
-      "workflows": [
-        "vibe-coding"
-      ]
-    },
-    {
-      "category": "Developer Tools & Support",
-      "description": "Generate realistic test data for development and ML",
-      "icon": "\ud83d\udee0\ufe0f",
-      "id": "syntheticdata-mcp-server",
-      "name": "Synthetic Data MCP Server",
-      "source_path": "src/syntheticdata-mcp-server/",
-      "subcategory": "Testing & Data",
-      "tags": [
-        "developer-tools",
-        "synthetic-data",
-        "test-data",
-        "machine-learning",
-        "development",
-        "vibe-coding",
-        "testing-data"
-      ],
-      "workflows": [
-        "vibe-coding"
-      ]
-    },
-    {
       "category": "Integration & Messaging",
       "description": "Dynamic API integration through OpenAPI specifications",
       "icon": "\ud83d\udce1",
@@ -1031,6 +854,9 @@
         "cost-analysis",
         "cost-optimization",
         "budgets",
+        "proforma-cost",
+        "chargeback",
+        "showback",
         "conversational",
         "business-services",
         "free-tier"
@@ -1063,28 +889,6 @@
     },
     {
       "category": "Cost & Operations",
-      "description": "Detailed cost analysis and reporting",
-      "icon": "\ud83d\udcb0",
-      "id": "cost-explorer-mcp-server",
-      "name": "AWS Cost Explorer MCP Server",
-      "source_path": "src/cost-explorer-mcp-server/",
-      "subcategory": "Cost Analysis",
-      "tags": [
-        "cost-operations",
-        "cost-explorer",
-        "detailed-analysis",
-        "reporting",
-        "autonomous",
-        "conversational",
-        "operations-monitoring"
-      ],
-      "workflows": [
-        "autonomous",
-        "conversational"
-      ]
-    },
-    {
-      "category": "Cost & Operations",
       "description": "Prometheus-compatible operations",
       "icon": "\ud83d\udcb0",
       "id": "prometheus-mcp-server",
@@ -1105,28 +909,8 @@
       ]
     },
     {
-      "category": "Core",
-      "description": "Intelligent planning and AWS MCP server orchestration",
-      "icon": "\u26a1",
-      "id": "core-mcp-server",
-      "name": "Core MCP Server",
-      "source_path": "src/core-mcp-server/",
-      "subcategory": "Orchestration",
-      "tags": [
-        "core",
-        "orchestration",
-        "planning",
-        "intelligent",
-        "vibe-coding",
-        "core-development"
-      ],
-      "workflows": [
-        "vibe-coding"
-      ]
-    },
-    {
       "category": "Data & Analytics",
-      "description": "Comprehensive data processing tools and real-time pipeline visibility across AWS Glue and Amazon EMR-EC2",
+      "description": "Comprehensive data processing tools and real-time pipeline visibility across AWS Glue, Amazon EMR-EC2, and Amazon Athena",
       "icon": "\ud83d\udcca",
       "id": "aws-dataprocessing-mcp-server",
       "name": "Amazon Data Processing MCP Server",
@@ -1136,6 +920,7 @@
         "data-analytics",
         "glue",
         "emr",
+        "athena",
         "data-processing",
         "etl",
         "pipeline",
@@ -1164,6 +949,26 @@
       ],
       "workflows": [
         "vibe-coding"
+      ]
+    },
+    {
+      "category": "Healthcare & Lifesciences",
+      "description": "Comprehensive medical imaging data lifecycle management with AWS HealthImaging - 21 tools for DICOM operations, datastore management, and patient data handling",
+      "icon": "\ud83c\udfe5",
+      "id": "healthimaging-mcp-server",
+      "name": "HealthImaging MCP Server",
+      "source_path": "src/healthimaging-mcp-server/",
+      "subcategory": "Medical Imaging Management",
+      "tags": [
+        "healthcare",
+        "medical-imaging",
+        "healthimaging",
+        "dicom",
+        "radiology",
+        "patient-data"
+      ],
+      "workflows": [
+        "healthcare-data"
       ]
     },
     {
@@ -1273,30 +1078,6 @@
         "vibe-coding"
       ],
       "workflows": [
-        "vibe-coding"
-      ]
-    },
-    {
-      "category": "Developer Tools & Support",
-      "description": "Manage, monitor, and optimize Amazon MSK clusters with best practices",
-      "icon": "\ud83d\udee0\ufe0f",
-      "id": "aws-msk-mcp-server",
-      "name": "AWS MSK MCP Server",
-      "source_path": "src/aws-msk-mcp-server/",
-      "subcategory": "Messaging & Streaming",
-      "tags": [
-        "developer-tools",
-        "msk",
-        "kafka",
-        "streaming",
-        "messaging",
-        "cluster-management",
-        "monitoring",
-        "autonomous",
-        "vibe-coding"
-      ],
-      "workflows": [
-        "autonomous",
         "vibe-coding"
       ]
     },
@@ -1414,6 +1195,32 @@
       ],
       "workflows": [
         "autonomous"
+      ]
+    },
+    {
+      "category": "Infrastructure & Deployment",
+      "description": "Manage, monitor, and operate SAP applications on AWS with health checks, configuration validation, and scheduling",
+      "icon": "\ud83c\udfd7\ufe0f",
+      "id": "aws-for-sap-management-mcp-server",
+      "name": "AWS Systems Manager for SAP MCP Server",
+      "source_path": "src/aws-for-sap-management-mcp-server/",
+      "subcategory": "SAP Management",
+      "tags": [
+        "infrastructure-deployment",
+        "ssm-sap",
+        "sap",
+        "hana",
+        "operations",
+        "monitoring",
+        "health-checks",
+        "configuration",
+        "scheduling",
+        "autonomous",
+        "conversational"
+      ],
+      "workflows": [
+        "autonomous",
+        "conversational"
       ]
     }
   ],

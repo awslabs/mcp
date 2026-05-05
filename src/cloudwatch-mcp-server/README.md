@@ -41,6 +41,7 @@ Database Insights - Analyzes RDS and Aurora database performance using Performan
 * `describe_log_groups` - Finds metadata about CloudWatch log groups
 * `analyze_log_group` - Analyzes CloudWatch logs for anomalies, message patterns, and error patterns
 * `execute_log_insights_query` - Executes CloudWatch Logs insights query on CloudWatch log group(s) with specified time range and query syntax, returns a unique ID used to retrieve results
+* `execute_cwl_insights_batch` - Runs a Logs Insights query across multiple log groups and regions in a single call, automatically chunking log groups (max 50 per query), throttling concurrency (max 7 per region), polling for completion, retrying failures, and splitting time ranges when hitting the 10,000-record or timeout limits. Returns one merged result set annotated with region, log group, and optional account labels. See [`execute_cwl_insights_batch` Examples](#execute_cwl_insights_batch-examples) below.
 * `get_logs_insight_query_results` - Retrieves the results of an executed CloudWatch insights query using the query ID. It is used after `execute_log_insights_query` has been called
 * `cancel_logs_insight_query` - Cancels in progress CloudWatch logs insights query
 
@@ -54,6 +55,54 @@ Database Insights - Analyzes RDS and Aurora database performance using Performan
 * `get-wait-event-breakdown` - Gets detailed wait event breakdown with interpretations
 * `compare-database-periods` - Compares database load between two time periods to identify changes
 * `get-database-resource-info` - Gets database instance resource information (vCPUs, memory, storage)
+#### `execute_cwl_insights_batch` Examples
+
+**Basic usage:**
+```python
+result = await execute_cwl_insights_batch(
+    ctx,
+    log_group_names=['/aws/lambda/my-app'],  # Log group names (or ARNs for cross-account/region)
+    regions=['us-east-1', 'us-west-2', 'eu-west-1'],  # Regions to query
+    start_time='2025-04-19T20:00:00+00:00',  # ISO 8601 start time with timezone
+    end_time='2025-04-19T21:00:00+00:00',  # ISO 8601 end time with timezone
+    query_string='fields @timestamp, @message | filter @message like /ERROR/ | limit 100'  # Logs Insights query
+)
+
+print(f"Found {result.summary.total_records_returned} errors across {result.summary.total_regions} regions")
+for warning in result.summary.warnings:
+    print(f"Warning: {warning}")
+```
+
+**Cross-account/cross-region query using log group ARNs:**
+```python
+# When querying log groups in different accounts or regions, use ARN format:
+# arn:aws:logs:<region>:<account-id>:log-group:<log-group-name>
+result = await execute_cwl_insights_batch(
+    ctx,
+    log_group_names=[
+        'arn:aws:logs:us-east-1:123456789012:log-group:/aws/ecs/my-service',  # Source account log group ARN
+        'arn:aws:logs:eu-west-1:123456789012:log-group:/aws/ecs/my-service'   # Different region
+    ],
+    regions=['us-east-1'],  # Monitoring account region
+    start_time='2025-04-19T00:00:00+00:00',
+    end_time='2025-04-19T23:59:59+00:00',
+    query_string='fields @timestamp, @message | filter level = "ERROR" | stats count() by bin(5m)',
+    account_label='prod-123456789012',  # Optional label for result annotation
+    profile_name='prod-readonly'  # AWS profile with cross-account access
+)
+```
+
+**Performance tips:**
+- Use `limit` parameter or `| limit N` in query to control result size
+- Narrow time ranges for faster queries
+- The tool automatically splits time ranges if hitting 10,000-record limit
+- Monitor `summary.warnings` for optimization suggestions
+
+**Common errors and solutions:**
+- `Invalid ISO 8601 timestamp`: Ensure timestamps include timezone (e.g., `+00:00`)
+- `start_time must be before end_time`: Check time range order
+- `Query failed... bad query syntax`: Verify query syntax at [AWS Logs Insights docs](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax.html)
+- Large result warnings: Add `| limit N` to query or use smaller time ranges
 
 ### Required IAM Permissions
 * `cloudwatch:DescribeAlarms`
@@ -162,8 +211,10 @@ Build and install docker image locally on the same host of your LLM client
           "run",
           "--rm",
           "--interactive",
-          "-v ~/.aws:/root/.aws",
-          "-e AWS_PROFILE=[The AWS Profile Name to use for AWS access]",
+          "-v",
+          "~/.aws:/root/.aws",
+          "-e",
+          "AWS_PROFILE=[The AWS Profile Name to use for AWS access]",
           "awslabs/cloudwatch-mcp-server:latest"
         ],
         "env": {},
@@ -174,6 +225,18 @@ Build and install docker image locally on the same host of your LLM client
   }
 ```
 Please reference [AWS documentation](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-files.html) to create and manage your credentials profile
+
+## Skills
+
+This MCP server includes reusable investigation skills that encode domain expertise into structured workflows for AI agents.
+
+| Skill | Description | Setup Guide |
+|-------|-------------|-------------|
+| [AgentCore Investigation](https://github.com/awslabs/mcp/blob/main/src/cloudwatch-mcp-server/skills/agentcore-investigation/SKILL.md) | Investigate Bedrock AgentCore runtime sessions — resolve session/trace IDs, query OTEL spans, filter noise, build timelines | [Kiro CLI setup](https://github.com/awslabs/mcp/blob/main/src/cloudwatch-mcp-server/skills/agentcore-investigation/kiro-skill-setup.md) |
+
+Skills provide pre-built investigation pipelines that agents can follow. They include the skill definition (`SKILL.md`), reference documentation, and MCP server configuration.
+
+See the [skills directory](https://github.com/awslabs/mcp/tree/main/src/cloudwatch-mcp-server/skills) for details.
 
 ## Contributing
 

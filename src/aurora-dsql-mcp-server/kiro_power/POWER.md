@@ -1,7 +1,7 @@
 ---
 name: "amazon-aurora-dsql"
-displayName: "Build a database with Aurora DSQL"
-description: "Build and deploy a PostgreSQL-compatible serverless distributed SQL database with Aurora DSQL - manage schemas, execute queries, and handle migrations with DSQL-specific requirements."
+displayName: "Build applications with Aurora DSQL"
+description: "Build applications using a serverless, PostgreSQL-compatible database with scale-to-zero and pay-per-use pricing - built for applications at any scale."
 keywords: ["aurora", "dsql", "postgresql", "serverless", "database", "sql", "aws", "distributed"]
 author: "AWS"
 ---
@@ -10,41 +10,78 @@ author: "AWS"
 
 ## Overview
 
-The Amazon Aurora DSQL Power provides access to Aurora DSQL, a serverless, PostgreSQL-compatible distributed SQL database with specific constraints and capabilities. Execute queries, manage schemas, handle migrations, and work with multi-tenant data while respecting DSQL's unique limitations.
-
-Aurora DSQL is a true serverless database with scale-to-zero capability, zero operations overhead, and consumption-based pricing. It uses the PostgreSQL wire protocol but has specific limitations around foreign keys, array types, JSON columns, and transaction sizes.
+The Amazon Aurora DSQL Power provides access to Aurora DSQL, a serverless, PostgreSQL-compatible distributed SQL database. Execute queries, manage schemas, handle migrations, and work with multi-tenant data while respecting DSQL's unique constraints.
 
 **Key capabilities:**
-- **Direct Query Execution**: Run SQL queries directly against your DSQL cluster via MCP tools
-- **Schema Management**: Create tables, indexes, and manage DDL operations
-- **Migration Support**: Execute schema migrations safely with proper transaction handling
-- **Multi-Tenant Patterns**: Built-in tenant isolation and data scoping
-- **IAM Authentication**: Automatic token generation using AWS credentials
+- Direct query execution via MCP tools
+- Schema management with DSQL constraints
+- Migration support and safe schema evolution
+- Multi-tenant isolation patterns
+- IAM-based authentication
 
 ---
 
 ## Available Steering Files
 
 This power includes the following steering files in [steering](./steering)
+
 - **development-guide**
   - ALWAYS load before implementing schema changes or database operations
-  - MAY load when planning database application design
-  - DSQL Guidelines and Operational Rules
+  - [Best Practices](steering/development-guide.md#best-practices), DDL rules, connection patterns, transaction limits, security best practices
+- **input-validation**
+  - ALWAYS load before building any SQL query with user-supplied values
+  - Validator selection table, [`safe_query.build()`](steering/safe_query.py) required pattern, authorization rules
 - **language**
-  - MUST load when making language-specific implementation choices
-  - Driver selection, framework patterns, connection code for various languages
+  - MUST load when making language-specific implementation choices. ALWAYS prefer DSQL Connector when available
+  - Driver selection, framework patterns, connection code for Python/JS/Go/Java/Rust
 - **dsql-examples**
-  - CAN Load when looking for specific implementation examples
-  - Specific examples and implementation patterns
+  - CAN load when looking for specific implementation examples
+  - Code examples, repository patterns, multi-tenant implementations
 - **troubleshooting**
-  - SHOULD Load when debugging errors or unexpected behavior
-  - Common pitfalls and errors and how to solve
+  - SHOULD load when debugging errors or unexpected behavior
+  - Common pitfalls, error messages, solutions
+- **mcp-setup**
+  - ALWAYS load for MCP server configurations or MCP server operations
+  - MUST refer to the [Database Operations Configuration](steering/mcp-setup.md#cluster-configuration-for-database-operations)
+    to correctly add DSQL cluster to MCP configuration
+  - Interactive edits when user requests to "Add cluster XYZ to power/mcp" or similar phrase
 - **onboarding**
   - SHOULD load when user requests to try the power, "Get started with DSQL" or similar phrase
   - Interactive "Get Started with DSQL" guide for onboarding users step-by-step
-- **mcp-setup**
-  - SHOULD load when MCP server isn't configured and MCP operation is being invoked
-  - Guides the user through updated MCP server configuration
+- **access-control**
+  - MUST load when creating database roles, granting permissions, setting up schemas, or handling sensitive data
+  - Scoped role setup, IAM-to-database role mapping, schema separation for sensitive data, role design patterns
+- **ddl-migrations-overview**
+  - MUST load when performing DROP COLUMN, ALTER COLUMN TYPE, or DROP CONSTRAINT
+  - Table recreation pattern overview, transaction rules, verify & swap pattern
+- **ddl-migrations-column-operations**
+  - Load for DROP COLUMN, ALTER COLUMN TYPE, SET/DROP NOT NULL, SET/DROP DEFAULT
+- **ddl-migrations-constraint-operations**
+  - Load for ADD/DROP CONSTRAINT, MODIFY PRIMARY KEY, column split/merge
+- **ddl-migrations-batched**
+  - Load when migrating tables exceeding 3,000 rows
+- **mysql-type-mapping**
+  - MUST load when migrating MySQL schemas to DSQL
+  - MySQL data type mappings, feature alternatives, DDL operation mapping
+- **mysql-ddl-operations**
+  - Load when translating MySQL DDL operations to DSQL equivalents
+- **mysql-full-example**
+  - Load when migrating a complete MySQL table to DSQL
+- **query-plan-interpretation**
+  - MUST load when diagnosing slow queries or unexpected plans
+  - DSQL node types, duration math, estimation-error bands
+- **query-plan-catalog-queries**
+  - Load alongside interpretation — pg_class/pg_stats/pg_indexes SQL
+- **query-plan-guc-experiments**
+  - Load alongside interpretation — GUC procedures, >30s skip protocol
+- **query-plan-report-format**
+  - Load alongside interpretation — required report structure, element checklist
+- **auth-guide**
+  - SHOULD load when configuring IAM auth or troubleshooting token issues
+- **auth-connectivity**
+  - Load when setting up connection pooling or connectivity tools
+- **auth-scaling**
+  - Load when planning connection scaling patterns
 
 ---
 
@@ -66,9 +103,11 @@ The `aurora-dsql` MCP server provides these tools:
 
 ## Configuration
 
-Currently the Aurora DSQL MCP Server REQUIRES an existing DSQL cluster which
-all operations are executed atop. If the user requires complete onboarding
-guidance for creating a cluster, refer to the [onboarding guide](steering/onboarding.md).
+To use **Database Operations** MCP tools, the DSQL MCP Server REQUIRES an existing DSQL
+cluster be correctly added to the MCP configuration.
+Refer to the provided [MCP Setup Guide](steering/mcp-setup.md), using the
+[Cluster-Added MCP Configuration](steering/mcp-setup.md#cluster-configuration-for-database-operations),
+to update the power's MCP configuration.
 
 - **Package:** `awslabs.aurora-dsql-mcp-server@latest`
 
@@ -77,37 +116,41 @@ guidance for creating a cluster, refer to the [onboarding guide](steering/onboar
 2. Note your cluster identifier from the console
 3. Ensure AWS Credentials are configured from CLI: `aws configure`
 4. Configure environment variables in MCP server settings:
-   - `CLUSTER` - Your DSQL cluster identifier (e.g., "abcdefghijklmnopqrstuvwxyz")
+   - `CLUSTER` - Your DSQL cluster identifier
    - `REGION` - AWS region (e.g., "us-east-1")
    - `AWS_PROFILE` - AWS CLI profile (optional)
 5. Ensure profile has required IAM permissions:
    - `dsql:DbConnect` - Connect to DSQL cluster
    - `dsql:DbConnectAdmin` - Admin access for DDL operations
-6. Test connection with `readonly_query` on `information_schema` as
-   detailed in basic operations.
+6. Test connection with `readonly_query` on `information_schema`
 
 **Database Name:** Always use `postgres` (only database available in DSQL)
 
 ---
 
-## Basic Operations
+## Input Validation
 
-### 1. Schema Exploration
-Use `readonly_query` with `information_schema` to list tables and explore database structure. Use
-`get_schema` to understand specific table structures including columns, types, and indexes.
+The `readonly_query` and `transact` tools accept only SQL strings — no parameter
+binding. **MUST** build every SQL string with [`safe_query.build()`](steering/safe_query.py).
+See [input-validation.md](steering/input-validation.md) for the required pattern and
+validator selection table.
 
-### 2. Query Data
-Use `readonly_query` for SELECT queries. Always include `tenant_id` in WHERE clause for multi-tenant
-applications. Use parameterized queries with `$1, $2` placeholders to prevent SQL injection.
+```python
+from safe_query import build, allow, regex, ident, literal, TENANT_SLUG, UUID
 
-### 3. Execute Schema Changes
-Use `transact` tool with a list of SQL statements. Follow one-DDL-per-transaction rule. Always use
-`CREATE INDEX ASYNC` in separate transaction. Each DDL operation should be in its own `transact`
-call.
+sql = build(
+    "SELECT * FROM {tbl} WHERE tenant_id = {tid} AND entity_id = {eid}",
+    tbl=ident("entities"),
+    tid=regex(tenant_id, TENANT_SLUG),
+    eid=regex(entity_id, UUID),
+)
+readonly_query(sql)
+```
 
-### 4. Data Modifications
-Use `transact` for INSERT, UPDATE, DELETE operations. Respect transaction limits: 3,000 rows max,
-10 MiB max data size, 5 minutes max duration. Batch large operations appropriately.
+`build()` raises `UnsafeSQLError` when a placeholder receives a raw string, so
+`build("... {x} ...", x=user_input)` fails loudly at the call site.
+
+Authorize the caller against the tenant **before** validating format or calling `build()`.
 
 ---
 
@@ -115,172 +158,68 @@ Use `transact` for INSERT, UPDATE, DELETE operations. Respect transaction limits
 
 ### Workflow 1: Create Multi-Tenant Schema
 
-**Goal:** Create a new table with proper tenant isolation and indexing
-
-**Steps:**
 1. Create main table with `tenant_id` column using `transact`
 2. Create async index on `tenant_id` in separate `transact` call
 3. Create composite indexes for common query patterns (separate `transact` calls)
 4. Verify schema with `get_schema`
 
-**Critical rules:**
-- Include `tenant_id` in all tables
-- Use `CREATE INDEX ASYNC` (never synchronous)
-- Each DDL in its own `transact` call
-- Store arrays/JSON as TEXT
-
-**Example:**
-```sql
--- Step 1: Create table
-transact([
-  "CREATE TABLE entities (
-     entity_id VARCHAR(255) PRIMARY KEY,
-     tenant_id VARCHAR(255) NOT NULL,
-     name VARCHAR(255) NOT NULL
-   )"
-])
-
--- Step 2: Create tenant index
-transact(["CREATE INDEX ASYNC idx_entities_tenant ON entities(tenant_id)"])
-
--- Step 3: Verify schema
-get_schema("entities")
-```
+- **MUST** include `tenant_id` in all tables
+- **MUST** use `CREATE INDEX ASYNC` exclusively
+- **MUST** issue each DDL in its own `transact` call
+- **MUST** store arrays/JSON as TEXT
 
 ### Workflow 2: Safe Data Migration
 
-**Goal:** Add a new column with defaults safely across all rows
-
-**Steps:**
 1. Add column using `transact`: `transact(["ALTER TABLE ... ADD COLUMN ..."])`
 2. Populate existing rows with UPDATE in separate `transact` calls (batched under 3,000 rows)
 3. Verify migration with `readonly_query` using COUNT
 4. Create async index for new column using `transact` if needed
 
-**Critical rules:**
-- Add column first, populate later (never add DEFAULT in ALTER TABLE)
-- Batch updates under 3,000 rows per transaction
-- Each ALTER TABLE in its own transaction
-- Verify data before creating indexes
-
-**Example:**
-```sql
--- Step 1: Add column
-transact(["ALTER TABLE entities ADD COLUMN status VARCHAR(50)"])
-
--- Step 2: Populate with defaults (batched by tenant)
-transact([
-  "UPDATE entities
-   SET status = 'active'
-   WHERE status IS NULL AND tenant_id = $1"
-], parameters=["tenant-123"])
-
--- Step 3: Verify migration
-readonly_query(
-  "SELECT COUNT(*) as total, COUNT(status) as with_status
-   FROM entities
-   WHERE tenant_id = $1",
-  parameters=["tenant-123"]
-)
-
--- Step 4: Create index
-transact(["CREATE INDEX ASYNC idx_entities_status ON entities(tenant_id, status)"])
-```
+- **MUST** add column first, populate later
+- **MUST** issue ADD COLUMN with only name and type; apply DEFAULT via separate UPDATE
+- **MUST** batch updates under 3,000 rows in separate `transact` calls
 
 ### Workflow 3: Application-Layer Referential Integrity
 
-**Goal:** Safely insert/delete records with parent-child relationships
+**INSERT:** Validate parent exists with `readonly_query` → throw error if not found → insert child with `transact`.
 
-**Steps for INSERT:**
-1. Validate parent exists with `readonly_query`
-2. Throw error if parent not found
-3. Insert child record using `transact` with parent reference
+**DELETE:** Check dependents with `readonly_query` COUNT → return error if dependents exist → delete with `transact` if safe.
 
-**Steps for DELETE:**
-1. Check for dependent records with `readonly_query` (COUNT)
-2. Return error if dependents exist
-3. Delete record using `transact` if safe
+### Workflow 4: Query with Tenant Isolation
 
-**Critical rules:**
-- Always validate references before mutations
-- Check for dependents before deletion
-- All checks include `tenant_id` in WHERE clause
-- Use parameterized queries
+1. **MUST** authorize the caller against the tenant — format validation does not establish authorization
+2. **MUST** build SQL with [`safe_query.build()`](steering/safe_query.py) — use `allow()`/`regex()` for
+   values (emits `'v'`), `ident()` for table/column names (emits `"v"`).
+   See [input-validation.md](steering/input-validation.md)
+3. **MUST** include `tenant_id` in the WHERE clause; reject cross-tenant access at the application layer
 
-**Example:**
-```sql
--- Step 1: Validate parent exists
-readonly_query(
-  "SELECT entity_id
-   FROM entities
-   WHERE entity_id = $1 AND tenant_id = $2",
-  parameters=["parent-123", "tenant-123"]
-)
+### Workflow 5: Set Up Scoped Database Roles
 
--- Step 2: If parent exists, insert child
-transact([
-  "INSERT INTO objectives (objective_id, entity_id, tenant_id, title)
-   VALUES ($1, $2, $3, $4)"
-], parameters=["obj-456", "parent-123", "tenant-123", "My Objective"])
-```
+**MUST** load [access-control.md](steering/access-control.md) for role setup, IAM mapping, and schema permissions.
 
-### Workflow 4: Multi-Tenant Query Patterns
+### Workflow 6: Table Recreation DDL Migration
 
-**Goal:** Retrieve data scoped to a specific tenant safely
+DSQL does NOT support direct `ALTER COLUMN TYPE`, `DROP COLUMN`, `DROP CONSTRAINT`, or `MODIFY PRIMARY KEY`. These operations require the **Table Recreation Pattern**.
 
-**Steps:**
-1. Always include `tenant_id` in WHERE clause
-2. Use parameterized queries with validated inputs
-3. Execute with `readonly_query`
-4. Never allow cross-tenant data access
+**MUST** load [ddl-migrations-overview.md](steering/ddl-migrations-overview.md) before attempting any of these operations.
 
-**Critical rules:**
-- ALL queries include `WHERE tenant_id = $1`
-- Use parameterized queries (never string interpolation)
-- Validate tenant_id before query execution
-- Reject cross-tenant access at application layer
+### Workflow 7: MySQL to DSQL Schema Migration
 
-**Example:**
-```sql
--- Simple tenant-scoped query
-readonly_query(
-  "SELECT *
-   FROM orders
-   WHERE tenant_id = $1 AND status = $2",
-  parameters=["tenant-123", "active"]
-)
+**MUST** load [mysql-type-mapping.md](steering/mysql-type-mapping.md) for type mappings, feature alternatives, and migration steps.
 
--- Aggregation with tenant isolation
-readonly_query(
-  "SELECT e.name, COUNT(o.order_id) as order_count
-   FROM entities e
-   LEFT JOIN orders o ON e.entity_id = o.entity_id
-   WHERE e.tenant_id = $1
-   GROUP BY e.name",
-  parameters=["tenant-123"]
-)
-```
+### Workflow 8: Query Plan Explainability
+
+Explains why the DSQL optimizer chose a particular plan. Triggered by slow queries, high DPU, unexpected Full Scans, or plans the user doesn't understand.
+
+**MUST** load [query-plan-interpretation.md](steering/query-plan-interpretation.md) plus the three companion files (catalog-queries, guc-experiments, report-format) before starting.
 
 ---
 
+## Error Scenarios
 
-## Best Practices
-
-- **SHOULD read guidelines first** - Check [development_guide.md](steering/development-guide.md) before making schema changes
-- **SHOULD use preferred language patterns** - Check [language.md](steering/language.md)
-- **SHOULD Execute queries directly** - PREFER MCP tools for ad-hoc queries
-- **REQUIRED: Follow DDL Guidelines** - Refer to [DDL Rules](steering/development-guide.md#schema-ddl-rules)
-- **SHALL repeatedly generate fresh tokens** - Refer to [Connection Limits](steering/development-guide.md#connection-rules)
-- **ALWAYS use ASYNC indexes** - `CREATE INDEX ASYNC` is mandatory
-- **MUST Serialize arrays/JSON as TEXT** - Store arrays/JSON as TEXT (comma separated, JSON.stringify)
-- **ALWAYS Batch under 3,000 rows** - maintain transaction limits
-- **REQUIRED: Use parameterized queries** - Prevent SQL injection with $1, $2 placeholders
-- **MUST follow correct Application Layer Patterns** - when multi-tenant isolation or application referential itegrity are required; refer to [Application Layer Patterns](steering/development-guide.md#application-layer-patterns)
-- **REQUIRED use DELETE for truncation** - DELETE is the only supported operation for truncation
-- **SHOULD test any migrations** - Verify DDL on dev clusters before production
-- **Plan for Horizontal Scale** - DSQL is designed to optimize for massive scales without latency drops; refer to [Horizontal Scaling](steering/development-guide.md#horizontal-scaling-best-practice)
-- **SHOULD use connection pooling in production applications** - Refer to [Connection Pooling](steering/development-guide.md#connection-pooling-recommended)
-- **SHOULD debug with the troubleshooting guide:** - Always refer to the resources and guidelines in [troubleshooting.md](steering/troubleshooting.md)
+- **OCC serialization error:** Retry the transaction. If persistent, check for hot-key contention — see [troubleshooting.md](steering/troubleshooting.md).
+- **Transaction exceeds limits:** Split into batches under 3,000 rows — see [ddl-migrations-batched.md](steering/ddl-migrations-batched.md).
+- **Token expiration mid-operation:** Generate a fresh IAM token — see [auth-guide.md](steering/auth-guide.md).
 
 ---
 
@@ -289,5 +228,4 @@ readonly_query(
 - [Aurora DSQL Documentation](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/)
 - [Code Samples Repository](https://github.com/aws-samples/aurora-dsql-samples)
 - [PostgreSQL Compatibility](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/working-with-postgresql-compatibility.html)
-- [IAM Authentication Guide](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/using-database-and-iam-roles.html)
 - [CloudFormation Resource](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dsql-cluster.html)

@@ -1,0 +1,889 @@
+{
+  "tables": [
+    {
+      "entities": {
+        "TenantCertificate": {
+          "access_patterns": [
+            {
+              "description": "Get all certificates earned by user in tenant",
+              "name": "get_user_certificates",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "tenant_id",
+                  "type": "string"
+                },
+                {
+                  "name": "user_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 18,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Issue certificate for course completion",
+              "name": "issue_course_certificate",
+              "operation": "PutItem",
+              "parameters": [
+                {
+                  "entity_type": "TenantCertificate",
+                  "name": "certificate",
+                  "type": "entity"
+                }
+              ],
+              "pattern_id": 19,
+              "return_type": "single_entity"
+            },
+            {
+              "description": "Verify certificate by verification code",
+              "name": "verify_certificate",
+              "operation": "GetItem",
+              "parameters": [
+                {
+                  "name": "tenant_id",
+                  "type": "string"
+                },
+                {
+                  "name": "user_id",
+                  "type": "string"
+                },
+                {
+                  "name": "course_id",
+                  "type": "string"
+                },
+                {
+                  "name": "issued_date",
+                  "type": "integer"
+                }
+              ],
+              "pattern_id": 20,
+              "return_type": "single_entity"
+            }
+          ],
+          "entity_type": "CERTIFICATE",
+          "fields": [
+            {
+              "name": "tenant_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "user_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "course_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "certificate_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "course_title",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "user_name",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "instructor_name",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "issued_date",
+              "required": true,
+              "type": "integer"
+            },
+            {
+              "name": "completion_date",
+              "required": true,
+              "type": "integer"
+            },
+            {
+              "name": "final_grade",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "certificate_url",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "name": "verification_code",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "expiry_date",
+              "required": false,
+              "type": "integer"
+            },
+            {
+              "name": "status",
+              "required": true,
+              "type": "string"
+            }
+          ],
+          "pk_template": "TENANT#{tenant_id}#USER#{user_id}",
+          "sk_template": "CERT#{course_id}#{issued_date}"
+        },
+        "TenantCourse": {
+          "access_patterns": [
+            {
+              "description": "Get course details within tenant",
+              "name": "get_tenant_course",
+              "operation": "GetItem",
+              "parameters": [
+                {
+                  "name": "tenant_id",
+                  "type": "string"
+                },
+                {
+                  "name": "course_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 6,
+              "return_type": "single_entity"
+            },
+            {
+              "description": "Create new course in tenant",
+              "name": "create_tenant_course",
+              "operation": "PutItem",
+              "parameters": [
+                {
+                  "entity_type": "TenantCourse",
+                  "name": "course",
+                  "type": "entity"
+                }
+              ],
+              "pattern_id": 7,
+              "return_type": "single_entity"
+            },
+            {
+              "description": "Update course information",
+              "name": "update_course_details",
+              "operation": "UpdateItem",
+              "parameters": [
+                {
+                  "name": "tenant_id",
+                  "type": "string"
+                },
+                {
+                  "name": "course_id",
+                  "type": "string"
+                },
+                {
+                  "entity_type": "TenantCourse",
+                  "name": "updates",
+                  "type": "entity"
+                }
+              ],
+              "pattern_id": 8,
+              "return_type": "single_entity"
+            }
+          ],
+          "entity_type": "COURSE",
+          "fields": [
+            {
+              "name": "tenant_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "course_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "title",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "description",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "instructor_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "instructor_name",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "category",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "difficulty_level",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "duration_hours",
+              "required": true,
+              "type": "integer"
+            },
+            {
+              "name": "max_enrollments",
+              "required": false,
+              "type": "integer"
+            },
+            {
+              "item_type": "string",
+              "name": "prerequisites",
+              "required": false,
+              "type": "array"
+            },
+            {
+              "item_type": "string",
+              "name": "tags",
+              "required": false,
+              "type": "array"
+            },
+            {
+              "name": "created_at",
+              "required": true,
+              "type": "integer"
+            },
+            {
+              "name": "updated_at",
+              "required": true,
+              "type": "integer"
+            },
+            {
+              "name": "status",
+              "required": true,
+              "type": "string"
+            }
+          ],
+          "pk_template": "TENANT#{tenant_id}#COURSE#{course_id}",
+          "sk_template": "COURSE#DETAILS"
+        },
+        "TenantEnrollment": {
+          "access_patterns": [
+            {
+              "description": "Get all course enrollments for a user in tenant",
+              "name": "get_user_enrollments",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "tenant_id",
+                  "type": "string"
+                },
+                {
+                  "name": "user_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 9,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Enroll user in a course",
+              "name": "enroll_user_in_course",
+              "operation": "PutItem",
+              "parameters": [
+                {
+                  "entity_type": "TenantEnrollment",
+                  "name": "enrollment",
+                  "type": "entity"
+                }
+              ],
+              "pattern_id": 10,
+              "return_type": "single_entity"
+            },
+            {
+              "description": "Update user's progress in course",
+              "name": "update_enrollment_progress",
+              "operation": "UpdateItem",
+              "parameters": [
+                {
+                  "name": "tenant_id",
+                  "type": "string"
+                },
+                {
+                  "name": "user_id",
+                  "type": "string"
+                },
+                {
+                  "name": "course_id",
+                  "type": "string"
+                },
+                {
+                  "name": "enrollment_date",
+                  "type": "integer"
+                },
+                {
+                  "name": "progress_percentage",
+                  "type": "integer"
+                },
+                {
+                  "name": "current_lesson",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 11,
+              "return_type": "single_entity"
+            }
+          ],
+          "entity_type": "ENROLLMENT",
+          "fields": [
+            {
+              "name": "tenant_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "user_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "course_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "course_title",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "instructor_name",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "enrollment_date",
+              "required": true,
+              "type": "integer"
+            },
+            {
+              "name": "completion_date",
+              "required": false,
+              "type": "integer"
+            },
+            {
+              "name": "progress_percentage",
+              "required": true,
+              "type": "integer"
+            },
+            {
+              "name": "current_lesson",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "name": "grade",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "name": "certificate_issued",
+              "required": true,
+              "type": "boolean"
+            },
+            {
+              "name": "status",
+              "required": true,
+              "type": "string"
+            }
+          ],
+          "pk_template": "TENANT#{tenant_id}#USER#{user_id}",
+          "sk_template": "ENROLLMENT#{course_id}#{enrollment_date}"
+        },
+        "TenantLesson": {
+          "access_patterns": [
+            {
+              "description": "Get all lessons for a course in tenant (ordered)",
+              "name": "get_course_lessons",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "tenant_id",
+                  "type": "string"
+                },
+                {
+                  "name": "course_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 12,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Get specific lesson details",
+              "name": "get_specific_lesson",
+              "operation": "GetItem",
+              "parameters": [
+                {
+                  "name": "tenant_id",
+                  "type": "string"
+                },
+                {
+                  "name": "course_id",
+                  "type": "string"
+                },
+                {
+                  "name": "lesson_order",
+                  "type": "integer"
+                },
+                {
+                  "name": "lesson_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 13,
+              "return_type": "single_entity"
+            },
+            {
+              "description": "Create new lesson in course",
+              "name": "create_course_lesson",
+              "operation": "PutItem",
+              "parameters": [
+                {
+                  "entity_type": "TenantLesson",
+                  "name": "lesson",
+                  "type": "entity"
+                }
+              ],
+              "pattern_id": 14,
+              "return_type": "single_entity"
+            }
+          ],
+          "entity_type": "LESSON",
+          "fields": [
+            {
+              "name": "tenant_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "course_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "lesson_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "lesson_order",
+              "required": true,
+              "type": "integer"
+            },
+            {
+              "name": "title",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "description",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "content_type",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "content_url",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "name": "duration_minutes",
+              "required": true,
+              "type": "integer"
+            },
+            {
+              "name": "is_mandatory",
+              "required": true,
+              "type": "boolean"
+            },
+            {
+              "name": "quiz_required",
+              "required": true,
+              "type": "boolean"
+            },
+            {
+              "name": "passing_score",
+              "required": false,
+              "type": "integer"
+            },
+            {
+              "name": "created_at",
+              "required": true,
+              "type": "integer"
+            },
+            {
+              "name": "updated_at",
+              "required": true,
+              "type": "integer"
+            }
+          ],
+          "pk_template": "TENANT#{tenant_id}#COURSE#{course_id}",
+          "sk_template": "LESSON#{lesson_order}#{lesson_id}"
+        },
+        "TenantOrganization": {
+          "access_patterns": [
+            {
+              "description": "Get organization details for a tenant",
+              "name": "get_tenant_organization",
+              "operation": "GetItem",
+              "parameters": [
+                {
+                  "name": "tenant_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 1,
+              "return_type": "single_entity"
+            },
+            {
+              "description": "Create new tenant organization",
+              "name": "create_tenant_organization",
+              "operation": "PutItem",
+              "parameters": [
+                {
+                  "entity_type": "TenantOrganization",
+                  "name": "organization",
+                  "type": "entity"
+                }
+              ],
+              "pattern_id": 2,
+              "return_type": "single_entity"
+            }
+          ],
+          "entity_type": "ORG",
+          "fields": [
+            {
+              "name": "tenant_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "organization_name",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "domain",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "subscription_plan",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "max_users",
+              "required": true,
+              "type": "integer"
+            },
+            {
+              "name": "max_courses",
+              "required": true,
+              "type": "integer"
+            },
+            {
+              "name": "admin_email",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "created_at",
+              "required": true,
+              "type": "integer"
+            },
+            {
+              "name": "status",
+              "required": true,
+              "type": "string"
+            }
+          ],
+          "pk_template": "TENANT#{tenant_id}",
+          "sk_template": "ORG#PROFILE"
+        },
+        "TenantProgress": {
+          "access_patterns": [
+            {
+              "description": "Get user's progress for all lessons in a course",
+              "name": "get_user_course_progress",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "tenant_id",
+                  "type": "string"
+                },
+                {
+                  "name": "user_id",
+                  "type": "string"
+                },
+                {
+                  "name": "course_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 15,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Record user's progress on a lesson",
+              "name": "record_lesson_progress",
+              "operation": "PutItem",
+              "parameters": [
+                {
+                  "entity_type": "TenantProgress",
+                  "name": "progress",
+                  "type": "entity"
+                }
+              ],
+              "pattern_id": 16,
+              "return_type": "single_entity"
+            },
+            {
+              "description": "Update user's lesson progress",
+              "name": "update_lesson_progress",
+              "operation": "UpdateItem",
+              "parameters": [
+                {
+                  "name": "tenant_id",
+                  "type": "string"
+                },
+                {
+                  "name": "user_id",
+                  "type": "string"
+                },
+                {
+                  "name": "course_id",
+                  "type": "string"
+                },
+                {
+                  "name": "lesson_id",
+                  "type": "string"
+                },
+                {
+                  "name": "attempt_date",
+                  "type": "integer"
+                },
+                {
+                  "name": "completion_status",
+                  "type": "string"
+                },
+                {
+                  "name": "time_spent_minutes",
+                  "type": "integer"
+                }
+              ],
+              "pattern_id": 17,
+              "return_type": "single_entity"
+            }
+          ],
+          "entity_type": "PROGRESS",
+          "fields": [
+            {
+              "name": "tenant_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "user_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "course_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "lesson_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "attempt_date",
+              "required": true,
+              "type": "integer"
+            },
+            {
+              "name": "completion_status",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "time_spent_minutes",
+              "required": true,
+              "type": "integer"
+            },
+            {
+              "name": "quiz_score",
+              "required": false,
+              "type": "integer"
+            },
+            {
+              "name": "quiz_passed",
+              "required": false,
+              "type": "boolean"
+            },
+            {
+              "name": "notes",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "name": "last_accessed",
+              "required": true,
+              "type": "integer"
+            }
+          ],
+          "pk_template": "TENANT#{tenant_id}#USER#{user_id}#COURSE#{course_id}",
+          "sk_template": "PROGRESS#{lesson_id}#{attempt_date}"
+        },
+        "TenantUser": {
+          "access_patterns": [
+            {
+              "description": "Get user profile within tenant",
+              "name": "get_tenant_user",
+              "operation": "GetItem",
+              "parameters": [
+                {
+                  "name": "tenant_id",
+                  "type": "string"
+                },
+                {
+                  "name": "user_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 3,
+              "return_type": "single_entity"
+            },
+            {
+              "description": "Create new user in tenant",
+              "name": "create_tenant_user",
+              "operation": "PutItem",
+              "parameters": [
+                {
+                  "entity_type": "TenantUser",
+                  "name": "user",
+                  "type": "entity"
+                }
+              ],
+              "pattern_id": 4,
+              "return_type": "single_entity"
+            },
+            {
+              "description": "Update user profile information",
+              "name": "update_user_profile",
+              "operation": "UpdateItem",
+              "parameters": [
+                {
+                  "name": "tenant_id",
+                  "type": "string"
+                },
+                {
+                  "name": "user_id",
+                  "type": "string"
+                },
+                {
+                  "entity_type": "TenantUser",
+                  "name": "updates",
+                  "type": "entity"
+                }
+              ],
+              "pattern_id": 5,
+              "return_type": "single_entity"
+            }
+          ],
+          "entity_type": "USER",
+          "fields": [
+            {
+              "name": "tenant_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "user_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "email",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "first_name",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "last_name",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "role",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "department",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "name": "job_title",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "name": "enrollment_date",
+              "required": true,
+              "type": "integer"
+            },
+            {
+              "name": "last_login",
+              "required": false,
+              "type": "integer"
+            },
+            {
+              "name": "status",
+              "required": true,
+              "type": "string"
+            }
+          ],
+          "pk_template": "TENANT#{tenant_id}#USER#{user_id}",
+          "sk_template": "USER#PROFILE"
+        }
+      },
+      "table_config": {
+        "partition_key": "pk",
+        "sort_key": "sk",
+        "table_name": "ELearningPlatform"
+      }
+    }
+  ]
+}

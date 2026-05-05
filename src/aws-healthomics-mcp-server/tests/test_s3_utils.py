@@ -245,7 +245,7 @@ class TestValidateBucketAccess:
 
         assert 'No S3 bucket paths provided' in str(exc_info.value)
 
-    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.s3_utils.get_aws_session')
     def test_validate_bucket_access_all_accessible(self, mock_get_session):
         """Test bucket access validation when all buckets are accessible."""
         # Mock S3 client
@@ -265,7 +265,7 @@ class TestValidateBucketAccess:
         mock_s3_client.head_bucket.assert_any_call(Bucket='bucket1')
         mock_s3_client.head_bucket.assert_any_call(Bucket='bucket2')
 
-    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.s3_utils.get_aws_session')
     def test_validate_bucket_access_some_inaccessible(self, mock_get_session):
         """Test bucket access validation when some buckets are inaccessible."""
         # Mock S3 client
@@ -289,7 +289,7 @@ class TestValidateBucketAccess:
         assert result == ['s3://bucket1/']
         assert mock_s3_client.head_bucket.call_count == 2
 
-    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.s3_utils.get_aws_session')
     def test_validate_bucket_access_all_inaccessible(self, mock_get_session):
         """Test bucket access validation when all buckets are inaccessible."""
         # Mock S3 client
@@ -308,7 +308,7 @@ class TestValidateBucketAccess:
         with pytest.raises(ValueError, match='No S3 buckets are accessible'):
             validate_bucket_access(bucket_paths)
 
-    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.s3_utils.get_aws_session')
     def test_validate_bucket_access_no_credentials(self, mock_get_session):
         """Test bucket access validation with no AWS credentials."""
         # Mock S3 client
@@ -325,7 +325,7 @@ class TestValidateBucketAccess:
         with pytest.raises(ValueError, match='No S3 buckets are accessible'):
             validate_bucket_access(bucket_paths)
 
-    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.s3_utils.get_aws_session')
     def test_validate_bucket_access_access_denied(self, mock_get_session):
         """Test bucket access validation with access denied."""
         # Mock S3 client
@@ -344,7 +344,7 @@ class TestValidateBucketAccess:
         with pytest.raises(ValueError, match='No S3 buckets are accessible'):
             validate_bucket_access(bucket_paths)
 
-    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.s3_utils.get_aws_session')
     def test_validate_bucket_access_mixed_results(self, mock_get_session):
         """Test bucket access validation with mixed success and failure."""
         # Mock S3 client
@@ -374,7 +374,7 @@ class TestValidateBucketAccess:
         assert result == ['s3://accessible-bucket/']
         assert mock_s3_client.head_bucket.call_count == 3
 
-    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.s3_utils.get_aws_session')
     def test_validate_bucket_access_unexpected_error(self, mock_get_session):
         """Test bucket access validation with unexpected error."""
         # Mock S3 client
@@ -391,7 +391,7 @@ class TestValidateBucketAccess:
         with pytest.raises(ValueError, match='No S3 buckets are accessible'):
             validate_bucket_access(bucket_paths)
 
-    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.s3_utils.get_aws_session')
     def test_validate_bucket_access_duplicate_buckets(self, mock_get_session):
         """Test bucket access validation with duplicate bucket names."""
         # Mock S3 client
@@ -418,7 +418,7 @@ class TestValidateBucketAccess:
         with pytest.raises(ValueError, match="Invalid S3 path format.*Must start with 's3://'"):
             validate_bucket_access(bucket_paths)
 
-    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.s3_utils.get_aws_session')
     def test_validate_bucket_access_mixed_valid_invalid_paths(self, mock_get_session):
         """Test bucket access validation with mix of valid and invalid paths."""
         # Mock S3 client
@@ -440,7 +440,7 @@ class TestValidateBucketAccess:
         mock_s3_client.head_bucket.assert_any_call(Bucket='valid-bucket')
         mock_s3_client.head_bucket.assert_any_call(Bucket='another-valid-bucket')
 
-    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.s3_utils.get_aws_session')
     def test_validate_bucket_access_other_client_error(self, mock_get_session):
         """Test bucket access validation with other ClientError codes."""
         # Mock S3 client

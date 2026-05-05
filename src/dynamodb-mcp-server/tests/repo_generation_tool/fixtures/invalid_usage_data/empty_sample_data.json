@@ -1,0 +1,24 @@
+{
+  "entities": {
+    "Post": {
+      "access_pattern_data": {},
+      "sample_data": {
+        "content": "Sample post content",
+        "post_id": "post-456",
+        "user_id": "user-123"
+      },
+      "update_data": {
+        "content": "updated content"
+      }
+    },
+    "UserProfile": {
+      "access_pattern_data": {
+        "user_id": "sample_user_id"
+      },
+      "sample_data": {},
+      "update_data": {
+        "username": "updated_user"
+      }
+    }
+  }
+}

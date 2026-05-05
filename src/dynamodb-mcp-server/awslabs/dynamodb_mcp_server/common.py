@@ -12,34 +12,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 import re
 from functools import wraps
 from typing import Callable
 
 
-def validate_database_name(database_name: str) -> None:
-    """Validate database name.
+logger = logging.getLogger(__name__)
+
+
+def validate_source_identifier(source_identifier: str) -> None:
+    """Validate source identifier (database name or schema/owner name).
 
     Args:
-        database_name: The database name to validate
+        source_identifier: The database name or schema/owner name to validate
 
     Raises:
-        ValueError: If the database name contains invalid characters or exceeds length limit
+        ValueError: If the identifier contains invalid characters or exceeds length limit
     """
     # Max identifier length: SQL Server=128, MySQL=64, PostgreSQL=63
     # Use 128 as upper bound; each database will enforce its own limit
     MAX_DB_NAME_LENGTH = 128
 
-    if len(database_name) > MAX_DB_NAME_LENGTH:
+    if len(source_identifier) > MAX_DB_NAME_LENGTH:
         raise ValueError(
-            f'Invalid database name: {database_name}. '
+            f'Invalid database name: {source_identifier}. '
             f'Database name must not exceed {MAX_DB_NAME_LENGTH} characters.'
         )
 
-    if not re.match(r'^[a-zA-Z0-9_.$-]+$', database_name):
+    if not re.match(r'^[a-zA-Z0-9_.$-]+$', source_identifier):
         raise ValueError(
-            f'Invalid database name: {database_name}. '
+            f'Invalid database name: {source_identifier}. '
             'Only alphanumeric characters, underscores, periods, dollar signs, and hyphens are allowed.'
         )
 
@@ -89,6 +93,7 @@ def handle_exceptions(func: Callable) -> Callable:
         try:
             return await func(*args, **kwargs)
         except Exception as e:
+            logger.exception('Error in %s', func.__name__)
             return {'error': str(e)}
 
     return wrapper

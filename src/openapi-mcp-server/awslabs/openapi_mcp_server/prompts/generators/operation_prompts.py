@@ -20,7 +20,7 @@ from awslabs.openapi_mcp_server.prompts.models import (
 )
 from fastmcp.prompts.prompt import Prompt
 from fastmcp.prompts.prompt import PromptArgument as FastMCPPromptArgument
-from fastmcp.server.openapi import MCPType
+from fastmcp.server.providers.openapi import MCPType
 from typing import Any, Dict, List, Optional
 
 
@@ -604,7 +604,7 @@ def create_operation_prompt(
         operation_fn = create_operation_function()
 
         # Register the function as a prompt
-        if hasattr(server, '_prompt_manager'):
+        if hasattr(server, 'add_prompt'):
             # Create tags based on operation metadata
             tags = set()
             # Get tags from the OpenAPI operation object if available
@@ -639,13 +639,13 @@ def create_operation_prompt(
             prompt.arguments = prompt_args
 
             # Add the prompt to the server
-            server._prompt_manager.add_prompt(prompt)
+            server.add_prompt(prompt)
             logger.debug(
                 f'Added operation prompt: {operation_id} with arguments: {[arg.name for arg in prompt.arguments]}'
             )
             return True
         else:
-            logger.warning('Server does not have _prompt_manager')
+            logger.warning('Server does not have add_prompt')
             return False
 
     except Exception as e:
