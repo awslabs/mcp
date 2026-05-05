@@ -24,7 +24,7 @@ class CustomerService:
         self.cell_id = cell_id
         self.database = connect_to_cell_database(cell_id)
         self.cache = connect_to_cell_cache(cell_id)
-    
+
     def get_customer(self, customer_id):
         return self.database.query(
             f"SELECT * FROM customers WHERE id = {customer_id}"
@@ -59,7 +59,7 @@ def route_customer(customer_id):
     customer_profile = external_service.get_profile(customer_id)
     geo_location = geo_service.get_location(customer_profile.ip)
     tier = billing_service.get_tier(customer_id)
-    
+
     if tier == 'premium' and geo_location.country == 'US':
         return select_premium_us_cell(customer_profile)
     # ... complex logic continues
@@ -81,10 +81,10 @@ class CellMigrationService:
     def migrate_customer(self, customer_id, source_cell, target_cell):
         # 1. Copy data to target cell
         self.copy_customer_data(customer_id, source_cell, target_cell)
-        
+
         # 2. Update routing
         self.update_routing_table(customer_id, target_cell)
-        
+
         # 3. Validate migration
         if self.validate_migration(customer_id, target_cell):
             # 4. Cleanup source data
@@ -115,17 +115,17 @@ class CellSizingCalculator:
             workload_characteristics.largest_customer_size * 10,
             OPERATIONAL_LIMIT_CUSTOMERS
         )
-        
+
         max_tps = min(
             workload_characteristics.peak_tps / MIN_CELL_COUNT,
             SERVICE_LIMIT_TPS
         )
-        
+
         max_storage = min(
             workload_characteristics.data_growth_rate * 12,  # 12 months
             STORAGE_LIMIT_GB
         )
-        
+
         return CellSize(
             max_customers=max_customers,
             max_tps=max_tps,
@@ -153,7 +153,7 @@ class CellAwareLogger:
         self.cell_id = cell_id
         self.service_name = service_name
         self.logger = logging.getLogger(f"{service_name}-{cell_id}")
-    
+
     def log_request(self, request_id, customer_id, duration_ms, status):
         log_entry = {
             'timestamp': datetime.utcnow().isoformat(),
@@ -164,7 +164,7 @@ class CellAwareLogger:
             'duration_ms': duration_ms,
             'status': status
         }
-        
+
         self.logger.info(json.dumps(log_entry))
 ```
 
@@ -215,21 +215,21 @@ class CellCircuitBreaker:
         self.timeout = timeout
         self.last_failure_time = None
         self.state = 'CLOSED'  # CLOSED, OPEN, HALF_OPEN
-    
+
     def call_cell_service(self, request):
         if self.state == 'OPEN':
             if time.time() - self.last_failure_time > self.timeout:
                 self.state = 'HALF_OPEN'
             else:
                 raise CellUnavailableException(f"Cell {self.cell_id} is unavailable")
-        
+
         try:
             response = self.make_request(request)
             if self.state == 'HALF_OPEN':
                 self.state = 'CLOSED'
                 self.failure_count = 0
             return response
-            
+
         except Exception as e:
             self.failure_count += 1
             if self.failure_count >= self.failure_threshold:
@@ -253,22 +253,22 @@ class CellCircuitBreaker:
 class CellLoadTester:
     def test_cell_capacity(self, cell_id):
         cell_config = get_cell_configuration(cell_id)
-        
+
         # Generate load up to cell capacity
         load_generator = LoadGenerator(
             target_tps=cell_config.max_tps,
             duration_minutes=30,
             ramp_up_minutes=5
         )
-        
+
         # Monitor cell performance during test
         performance_monitor = CellPerformanceMonitor(cell_id)
-        
+
         test_results = load_generator.run_test(
             target_endpoint=get_cell_endpoint(cell_id),
             monitor=performance_monitor
         )
-        
+
         # Validate results against SLA
         return self.validate_performance(test_results, cell_config.sla)
 ```
@@ -292,7 +292,7 @@ class CellSecurityManager:
         self.cell_id = cell_id
         self.kms_key = f"alias/cell-{cell_id}-key"
         self.audit_logger = CellAuditLogger(cell_id)
-    
+
     def encrypt_sensitive_data(self, data):
         kms = boto3.client('kms')
         response = kms.encrypt(
@@ -300,7 +300,7 @@ class CellSecurityManager:
             Plaintext=data
         )
         return response['CiphertextBlob']
-    
+
     def audit_access(self, user_id, resource, action):
         self.audit_logger.log_access(
             cell_id=self.cell_id,
@@ -371,7 +371,7 @@ class CellSecurityManager:
 class SharedMonitoringService:
     def __init__(self):
         self.cloudwatch = boto3.client('cloudwatch')
-    
+
     def put_cell_metric(self, cell_id, metric_name, value):
         self.cloudwatch.put_metric_data(
             Namespace='CellBasedArchitecture',

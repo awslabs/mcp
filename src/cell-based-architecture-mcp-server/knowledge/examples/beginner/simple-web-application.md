@@ -84,11 +84,11 @@ def route_customer_to_cell(customer_id):
 @app.route('/api/customers/<customer_id>', methods=['GET', 'POST', 'PUT', 'DELETE'])
 def route_customer_request(customer_id):
     """Route customer requests to appropriate cell"""
-    
+
     # Determine which cell should handle this customer
     target_cell = route_customer_to_cell(customer_id)
     target_url = CELL_ENDPOINTS[target_cell]
-    
+
     # Forward the request to the appropriate cell
     try:
         response = requests.request(
@@ -98,9 +98,9 @@ def route_customer_request(customer_id):
             data=request.get_data(),
             params=request.args
         )
-        
+
         return response.content, response.status_code, response.headers.items()
-        
+
     except requests.RequestException as e:
         return jsonify({'error': 'Cell unavailable', 'details': str(e)}), 503
 
@@ -134,7 +134,7 @@ def init_database():
     """Initialize the cell-specific database"""
     conn = sqlite3.connect(DATABASE_PATH)
     cursor = conn.cursor()
-    
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS customers (
             customer_id TEXT PRIMARY KEY,
@@ -144,7 +144,7 @@ def init_database():
             cell_id TEXT NOT NULL
         )
     ''')
-    
+
     conn.commit()
     conn.close()
 
@@ -157,14 +157,14 @@ def get_db_connection():
 @app.route('/api/customers/<customer_id>', methods=['GET'])
 def get_customer(customer_id):
     """Get customer information"""
-    
+
     conn = get_db_connection()
     customer = conn.execute(
         'SELECT * FROM customers WHERE customer_id = ?',
         (customer_id,)
     ).fetchone()
     conn.close()
-    
+
     if customer:
         return jsonify({
             'customer_id': customer['customer_id'],
@@ -179,14 +179,14 @@ def get_customer(customer_id):
 @app.route('/api/customers/<customer_id>', methods=['POST'])
 def create_customer(customer_id):
     """Create a new customer"""
-    
+
     data = request.get_json()
-    
+
     if not data or 'name' not in data or 'email' not in data:
         return jsonify({'error': 'Name and email are required'}), 400
-    
+
     conn = get_db_connection()
-    
+
     try:
         conn.execute(
             'INSERT INTO customers (customer_id, name, email, created_at, cell_id) VALUES (?, ?, ?, ?, ?)',
@@ -194,7 +194,7 @@ def create_customer(customer_id):
         )
         conn.commit()
         conn.close()
-        
+
         return jsonify({
             'customer_id': customer_id,
             'name': data['name'],
@@ -202,7 +202,7 @@ def create_customer(customer_id):
             'cell_id': CELL_ID,
             'status': 'created'
         }), 201
-        
+
     except sqlite3.IntegrityError:
         conn.close()
         return jsonify({'error': 'Customer already exists'}), 409
@@ -210,36 +210,36 @@ def create_customer(customer_id):
 @app.route('/api/customers/<customer_id>', methods=['PUT'])
 def update_customer(customer_id):
     """Update customer information"""
-    
+
     data = request.get_json()
-    
+
     if not data:
         return jsonify({'error': 'No data provided'}), 400
-    
+
     conn = get_db_connection()
-    
+
     # Check if customer exists
     existing = conn.execute(
         'SELECT customer_id FROM customers WHERE customer_id = ?',
         (customer_id,)
     ).fetchone()
-    
+
     if not existing:
         conn.close()
         return jsonify({'error': 'Customer not found'}), 404
-    
+
     # Update customer
     update_fields = []
     update_values = []
-    
+
     if 'name' in data:
         update_fields.append('name = ?')
         update_values.append(data['name'])
-    
+
     if 'email' in data:
         update_fields.append('email = ?')
         update_values.append(data['email'])
-    
+
     if update_fields:
         update_values.append(customer_id)
         conn.execute(
@@ -247,15 +247,15 @@ def update_customer(customer_id):
             update_values
         )
         conn.commit()
-    
+
     # Get updated customer
     updated_customer = conn.execute(
         'SELECT * FROM customers WHERE customer_id = ?',
         (customer_id,)
     ).fetchone()
-    
+
     conn.close()
-    
+
     return jsonify({
         'customer_id': updated_customer['customer_id'],
         'name': updated_customer['name'],
@@ -267,7 +267,7 @@ def update_customer(customer_id):
 @app.route('/health')
 def health_check():
     """Health check endpoint"""
-    
+
     # Check database connectivity
     try:
         conn = get_db_connection()
@@ -276,7 +276,7 @@ def health_check():
         db_status = 'healthy'
     except Exception as e:
         db_status = f'unhealthy: {str(e)}'
-    
+
     return jsonify({
         'status': 'healthy' if db_status == 'healthy' else 'unhealthy',
         'cell_id': CELL_ID,
@@ -286,11 +286,11 @@ def health_check():
 @app.route('/metrics')
 def metrics():
     """Basic metrics endpoint"""
-    
+
     conn = get_db_connection()
     customer_count = conn.execute('SELECT COUNT(*) as count FROM customers').fetchone()['count']
     conn.close()
-    
+
     return jsonify({
         'cell_id': CELL_ID,
         'customer_count': customer_count,
@@ -417,57 +417,57 @@ ROUTER_URL = 'http://localhost:8000'
 
 def test_customer_operations():
     """Test basic customer operations across cells"""
-    
+
     # Test data
     customers = [
         {'id': 'customer-001', 'name': 'Alice Johnson', 'email': 'alice@example.com'},
         {'id': 'customer-002', 'name': 'Bob Smith', 'email': 'bob@example.com'},
         {'id': 'customer-003', 'name': 'Carol Davis', 'email': 'carol@example.com'},
     ]
-    
+
     print("Testing Cell-Based Customer Management System")
     print("=" * 50)
-    
+
     # Create customers
     for customer in customers:
         print(f"\nCreating customer: {customer['id']}")
-        
+
         response = requests.post(
             f"{ROUTER_URL}/api/customers/{customer['id']}",
             json={'name': customer['name'], 'email': customer['email']}
         )
-        
+
         if response.status_code == 201:
             result = response.json()
             print(f"✓ Customer created in {result['cell_id']}")
         else:
             print(f"✗ Failed to create customer: {response.text}")
-    
+
     # Retrieve customers
     print("\n" + "=" * 50)
     print("Retrieving customers:")
-    
+
     for customer in customers:
         print(f"\nRetrieving customer: {customer['id']}")
-        
+
         response = requests.get(f"{ROUTER_URL}/api/customers/{customer['id']}")
-        
+
         if response.status_code == 200:
             result = response.json()
             print(f"✓ Customer found in {result['cell_id']}: {result['name']}")
         else:
             print(f"✗ Failed to retrieve customer: {response.text}")
-    
+
     # Update a customer
     print("\n" + "=" * 50)
     print("Updating customer:")
-    
+
     update_data = {'name': 'Alice Johnson-Updated', 'email': 'alice.updated@example.com'}
     response = requests.put(
         f"{ROUTER_URL}/api/customers/customer-001",
         json=update_data
     )
-    
+
     if response.status_code == 200:
         result = response.json()
         print(f"✓ Customer updated in {result['cell_id']}: {result['name']}")
@@ -476,74 +476,74 @@ def test_customer_operations():
 
 def test_cell_isolation():
     """Test that cells are properly isolated"""
-    
+
     print("\n" + "=" * 50)
     print("Testing Cell Isolation:")
-    
+
     # Create customers and track which cells they go to
     cell_distribution = {}
-    
+
     for i in range(10):
         customer_id = f"test-customer-{i:03d}"
-        
+
         response = requests.post(
             f"{ROUTER_URL}/api/customers/{customer_id}",
             json={'name': f'Test Customer {i}', 'email': f'test{i}@example.com'}
         )
-        
+
         if response.status_code == 201:
             result = response.json()
             cell_id = result['cell_id']
-            
+
             if cell_id not in cell_distribution:
                 cell_distribution[cell_id] = 0
             cell_distribution[cell_id] += 1
-    
+
     print("\nCustomer distribution across cells:")
     for cell_id, count in cell_distribution.items():
         print(f"  {cell_id}: {count} customers")
-    
+
     # Verify customers are consistently routed to the same cell
     print("\nTesting routing consistency:")
     for i in range(3):
         customer_id = "test-customer-001"
         response = requests.get(f"{ROUTER_URL}/api/customers/{customer_id}")
-        
+
         if response.status_code == 200:
             result = response.json()
             print(f"  Attempt {i+1}: Customer routed to {result['cell_id']}")
 
 def test_cell_health():
     """Test cell health endpoints"""
-    
+
     print("\n" + "=" * 50)
     print("Testing Cell Health:")
-    
+
     # Test router health
     response = requests.get(f"{ROUTER_URL}/health")
     if response.status_code == 200:
         print("✓ Router is healthy")
     else:
         print("✗ Router health check failed")
-    
+
     # We can't directly access individual cells in this setup,
     # but in a real deployment you would test each cell's health endpoint
 
 if __name__ == '__main__':
     print("Starting Cell-Based Architecture Tests")
     print("Make sure the system is running with: docker-compose up")
-    
+
     # Wait a moment for services to start
     time.sleep(2)
-    
+
     try:
         test_customer_operations()
         test_cell_isolation()
         test_cell_health()
-        
+
         print("\n" + "=" * 50)
         print("All tests completed!")
-        
+
     except requests.ConnectionError:
         print("Error: Could not connect to the system. Make sure it's running.")
     except Exception as e:

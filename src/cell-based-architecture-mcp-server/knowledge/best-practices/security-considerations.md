@@ -25,25 +25,25 @@ class CellSecurityManager:
         self.kms = boto3.client('kms')
         self.iam = boto3.client('iam')
         self.ec2 = boto3.client('ec2')
-        
+
     def setup_cell_security(self):
         """Set up comprehensive security for a cell"""
-        
+
         # 1. Create cell-specific VPC
         vpc_id = self.create_cell_vpc()
-        
+
         # 2. Set up network security
         self.configure_network_security(vpc_id)
-        
+
         # 3. Create cell-specific IAM roles
         self.create_cell_iam_roles()
-        
+
         # 4. Set up encryption keys
         self.create_cell_encryption_keys()
-        
+
         # 5. Configure audit logging
         self.setup_cell_audit_logging()
-        
+
         return {
             'vpc_id': vpc_id,
             'security_status': 'configured',
@@ -79,7 +79,7 @@ Resources:
       VpcId: !Ref CellVPC
       CidrBlock: !Sub "10.${CellNumber}.1.0/24"
       AvailabilityZone: !Select [0, !GetAZs '']
-      
+
   PrivateSubnetB:
     Type: AWS::EC2::Subnet
     Properties:
@@ -115,9 +115,9 @@ Implement granular IAM policies that enforce cell boundaries and least privilege
 class CellIAMManager:
     def create_cell_service_role(self, cell_id, service_name):
         """Create IAM role for cell service with minimal permissions"""
-        
+
         role_name = f"{cell_id}-{service_name}-role"
-        
+
         # Trust policy allowing only this cell's resources
         trust_policy = {
             "Version": "2012-10-17",
@@ -135,7 +135,7 @@ class CellIAMManager:
                 }
             ]
         }
-        
+
         # Create role
         self.iam.create_role(
             RoleName=role_name,
@@ -145,21 +145,21 @@ class CellIAMManager:
                 {'Key': 'Service', 'Value': service_name}
             ]
         )
-        
+
         # Attach cell-specific policy
         policy_arn = self.create_cell_service_policy(cell_id, service_name)
         self.iam.attach_role_policy(
             RoleName=role_name,
             PolicyArn=policy_arn
         )
-        
+
         return f"arn:aws:iam::{self.account_id}:role/{role_name}"
-    
+
     def create_cell_service_policy(self, cell_id, service_name):
         """Create IAM policy with cell-specific resource access"""
-        
+
         policy_name = f"{cell_id}-{service_name}-policy"
-        
+
         policy_document = {
             "Version": "2012-10-17",
             "Statement": [
@@ -211,7 +211,7 @@ class CellIAMManager:
                 }
             ]
         }
-        
+
         response = self.iam.create_policy(
             PolicyName=policy_name,
             PolicyDocument=json.dumps(policy_document),
@@ -220,7 +220,7 @@ class CellIAMManager:
                 {'Key': 'Service', 'Value': service_name}
             ]
         )
-        
+
         return response['Policy']['Arn']
 ```
 
@@ -232,7 +232,7 @@ Implement controls to prevent unauthorized cross-cell access.
 ```python
 def create_cell_s3_bucket_policy(cell_id, bucket_name):
     """Create S3 bucket policy that restricts access to cell resources only"""
-    
+
     bucket_policy = {
         "Version": "2012-10-17",
         "Statement": [
@@ -269,7 +269,7 @@ def create_cell_s3_bucket_policy(cell_id, bucket_name):
             }
         ]
     }
-    
+
     return bucket_policy
 ```
 
@@ -285,10 +285,10 @@ class CellEncryptionManager:
     def __init__(self, cell_id):
         self.cell_id = cell_id
         self.kms = boto3.client('kms')
-    
+
     def create_cell_encryption_key(self):
         """Create cell-specific KMS key"""
-        
+
         key_policy = {
             "Version": "2012-10-17",
             "Statement": [
@@ -319,7 +319,7 @@ class CellEncryptionManager:
                 }
             ]
         }
-        
+
         response = self.kms.create_key(
             Policy=json.dumps(key_policy),
             Description=f"Encryption key for {self.cell_id}",
@@ -329,29 +329,29 @@ class CellEncryptionManager:
                 {'TagKey': 'Purpose', 'TagValue': 'CellEncryption'}
             ]
         )
-        
+
         key_id = response['KeyMetadata']['KeyId']
-        
+
         # Create alias for easier reference
         self.kms.create_alias(
             AliasName=f"alias/{self.cell_id}-key",
             TargetKeyId=key_id
         )
-        
+
         return key_id
-    
+
     def encrypt_cell_data(self, plaintext_data, encryption_context=None):
         """Encrypt data using cell-specific key"""
-        
+
         if encryption_context is None:
             encryption_context = {'CellId': self.cell_id}
-        
+
         response = self.kms.encrypt(
             KeyId=f"alias/{self.cell_id}-key",
             Plaintext=plaintext_data,
             EncryptionContext=encryption_context
         )
-        
+
         return response['CiphertextBlob']
 ```
 
@@ -390,22 +390,22 @@ class CellDataClassifier:
             ]
         }
     }
-    
+
     def classify_and_protect_data(self, data, classification, cell_id):
         """Apply protection based on data classification"""
-        
+
         controls = self.DATA_CLASSIFICATIONS[classification]
         protected_data = data.copy()
-        
+
         if controls['encryption_required']:
             protected_data = self.encrypt_sensitive_fields(protected_data, cell_id)
-        
+
         if 'field_level_encryption' in controls.get('additional_controls', []):
             protected_data = self.apply_field_level_encryption(protected_data, cell_id)
-        
+
         if controls['access_logging']:
             self.log_data_access(data, classification, cell_id)
-        
+
         return protected_data
 ```
 
@@ -422,33 +422,33 @@ class CellNetworkSecurity:
         self.cell_id = cell_id
         self.ec2 = boto3.client('ec2')
         self.wafv2 = boto3.client('wafv2')
-    
+
     def setup_network_security(self, vpc_id):
         """Set up comprehensive network security for cell"""
-        
+
         # 1. Create security groups
         app_sg = self.create_application_security_group(vpc_id)
         db_sg = self.create_database_security_group(vpc_id, app_sg)
-        
+
         # 2. Set up NACLs
         self.create_network_acls(vpc_id)
-        
+
         # 3. Configure WAF
         web_acl_arn = self.create_cell_waf(self.cell_id)
-        
+
         # 4. Set up VPC Flow Logs
         self.enable_vpc_flow_logs(vpc_id)
-        
+
         return {
             'application_sg': app_sg,
             'database_sg': db_sg,
             'web_acl_arn': web_acl_arn,
             'flow_logs_enabled': True
         }
-    
+
     def create_cell_waf(self, cell_id):
         """Create WAF with cell-specific rules"""
-        
+
         web_acl = self.wafv2.create_web_acl(
             Name=f"{cell_id}-waf",
             Scope='REGIONAL',
@@ -491,7 +491,7 @@ class CellNetworkSecurity:
                 {'Key': 'CellId', 'Value': cell_id}
             ]
         )
-        
+
         return web_acl['Summary']['ARN']
 ```
 
@@ -508,13 +508,13 @@ class CellAuditLogger:
         self.cell_id = cell_id
         self.cloudtrail = boto3.client('cloudtrail')
         self.logs = boto3.client('logs')
-        
+
     def setup_cell_audit_logging(self):
         """Set up comprehensive audit logging for cell"""
-        
+
         # 1. Create cell-specific CloudTrail
         trail_name = f"{self.cell_id}-audit-trail"
-        
+
         self.cloudtrail.create_trail(
             Name=trail_name,
             S3BucketName=f"audit-logs-{self.cell_id}",
@@ -542,18 +542,18 @@ class CellAuditLogger:
                 {'Key': 'CellId', 'Value': self.cell_id}
             ]
         )
-        
+
         # 2. Create application audit log group
         self.logs.create_log_group(
             logGroupName=f'/aws/cell/{self.cell_id}/audit',
             retentionInDays=2555  # 7 years retention
         )
-        
+
         return trail_name
-    
+
     def log_security_event(self, event_type, details, user_id=None):
         """Log security-related events"""
-        
+
         log_entry = {
             'timestamp': datetime.utcnow().isoformat(),
             'cell_id': self.cell_id,
@@ -563,7 +563,7 @@ class CellAuditLogger:
             'source_ip': self.get_source_ip(),
             'user_agent': self.get_user_agent()
         }
-        
+
         self.logs.put_log_events(
             logGroupName=f'/aws/cell/{self.cell_id}/audit',
             logStreamName=f'security-events-{datetime.utcnow().strftime("%Y-%m-%d")}',
@@ -629,24 +629,24 @@ class CellThreatModel:
             ]
         }
     }
-    
+
     def assess_cell_security_posture(self, cell_id):
         """Assess security posture against threat model"""
-        
+
         assessment = {}
-        
+
         for threat_id, threat_info in self.THREATS.items():
             mitigations_implemented = self.check_mitigations_implemented(
-                cell_id, 
+                cell_id,
                 threat_info['mitigations']
             )
-            
+
             risk_score = self.calculate_risk_score(
                 threat_info['impact'],
                 threat_info['likelihood'],
                 mitigations_implemented
             )
-            
+
             assessment[threat_id] = {
                 'threat': threat_info,
                 'mitigations_implemented': mitigations_implemented,
@@ -656,7 +656,7 @@ class CellThreatModel:
                     mitigations_implemented
                 )
             }
-        
+
         return assessment
 ```
 
@@ -672,22 +672,22 @@ class CellSecurityMonitor:
     def __init__(self):
         self.cloudwatch = boto3.client('cloudwatch')
         self.guardduty = boto3.client('guardduty')
-        
+
     def setup_security_monitoring(self, cell_id):
         """Set up security monitoring for cell"""
-        
+
         # 1. Create security-specific alarms
         self.create_security_alarms(cell_id)
-        
+
         # 2. Set up GuardDuty for threat detection
         self.configure_guardduty_for_cell(cell_id)
-        
+
         # 3. Create security dashboard
         self.create_security_dashboard(cell_id)
-        
+
     def create_security_alarms(self, cell_id):
         """Create security-related CloudWatch alarms"""
-        
+
         security_alarms = [
             {
                 'name': f'{cell_id}-UnauthorizedAPICalls',
@@ -708,7 +708,7 @@ class CellSecurityMonitor:
                 'description': 'Unusual data transfer patterns'
             }
         ]
-        
+
         for alarm in security_alarms:
             self.cloudwatch.put_metric_alarm(
                 AlarmName=alarm['name'],

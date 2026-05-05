@@ -14,7 +14,7 @@
 
 **Best Practice**: Implement gradual cell-by-cell deployment for risk management and service reliability.
 
-**Example**: 
+**Example**:
 - Start with 1 cell (5% traffic) → Monitor 24-48 hours
 - Expand to 10% of cells → Monitor performance
 - Roll out to 50% of cells → Validate stability

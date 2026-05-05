@@ -52,16 +52,16 @@ def lambda_handler(event, context):
     # Extract customer ID from path
     customer_id = event['pathParameters']['customerId']
     proxy_path = event['pathParameters']['proxy']
-    
+
     # Get cell assignment
     cell_id = get_cell_for_customer(customer_id)
-    
+
     # Build target URL
     target_url = f"https://{cell_id}.internal.example.com/{proxy_path}"
-    
+
     # Forward request to cell
     response = forward_to_cell(target_url, event)
-    
+
     return response
 
 def get_cell_for_customer(customer_id):
@@ -122,7 +122,7 @@ Implement cell-aware throttling:
 def lambda_handler(event, context):
     customer_id = event['pathParameters']['customerId']
     cell_id = get_cell_for_customer(customer_id)
-    
+
     # Check cell capacity
     if is_cell_at_capacity(cell_id):
         return {
@@ -136,7 +136,7 @@ def lambda_handler(event, context):
                 'Retry-After': '60'
             }
         }
-    
+
     # Route to cell
     return route_to_cell(cell_id, event)
 ```
@@ -227,10 +227,10 @@ connections_table = dynamodb.Table('WebSocketConnections')
 def connect_handler(event, context):
     connection_id = event['requestContext']['connectionId']
     customer_id = event['queryStringParameters']['customerId']
-    
+
     # Determine cell for customer
     cell_id = get_cell_for_customer(customer_id)
-    
+
     # Store connection with cell information
     connections_table.put_item(
         Item={
@@ -240,22 +240,22 @@ def connect_handler(event, context):
             'ConnectedAt': datetime.utcnow().isoformat()
         }
     )
-    
+
     return {'statusCode': 200}
 
 def message_handler(event, context):
     connection_id = event['requestContext']['connectionId']
-    
+
     # Get cell for this connection
     connection = connections_table.get_item(
         Key={'ConnectionId': connection_id}
     )
-    
+
     if 'Item' in connection:
         cell_id = connection['Item']['CellId']
         # Route message to appropriate cell
         return route_websocket_message(cell_id, event)
-    
+
     return {'statusCode': 404}
 ```
 
@@ -347,15 +347,15 @@ Implement cell-aware security:
 def authorizer_handler(event, context):
     token = event['authorizationToken']
     method_arn = event['methodArn']
-    
+
     # Validate token and extract customer info
     customer_info = validate_token(token)
     if not customer_info:
         raise Exception('Unauthorized')
-    
+
     # Get customer's cell
     cell_id = get_cell_for_customer(customer_info['customerId'])
-    
+
     # Generate policy with cell context
     policy = generate_policy(
         customer_info['customerId'],
@@ -366,7 +366,7 @@ def authorizer_handler(event, context):
             'cellId': cell_id
         }
     )
-    
+
     return policy
 ```
 

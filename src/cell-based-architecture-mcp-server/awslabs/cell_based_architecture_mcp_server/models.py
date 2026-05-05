@@ -14,69 +14,88 @@
 """Pydantic models for cell-based architecture concepts."""
 
 from typing import List, Literal, Optional
+
 from pydantic import BaseModel, Field
 
 
 class CellArchitectureQuery(BaseModel):
     """Query model for cell-based architecture concepts following whitepaper structure."""
-    
+
     concept: str = Field(
-        ..., 
-        description="The cell-based architecture concept to query"
+        ...,
+        description='The cell-based architecture concept to query',
     )
-    detail_level: Literal["beginner", "intermediate", "expert"] = Field(
-        default="intermediate",
-        description="Experience level: beginner (new to cell-based architecture), intermediate (some experience), expert (advanced implementation)"
+    detail_level: Literal['beginner', 'intermediate', 'expert'] = Field(
+        default='intermediate',
+        description=(
+            'Experience level: beginner (new to cell-based architecture), '
+            'intermediate (some experience), expert (advanced implementation)'
+        ),
     )
-    whitepaper_section: Optional[Literal[
-        "introduction", "shared_responsibility", "what_is_cell_based", "why_use_cell_based", 
-        "when_to_use", "control_data_plane", "cell_design", "cell_partition", "cell_routing", 
-        "cell_sizing", "cell_placement", "cell_migration", "cell_deployment", 
-        "cell_observability", "best_practices", "faq"
-    ]] = Field(
+    whitepaper_section: Optional[
+        Literal[
+            'introduction',
+            'shared_responsibility',
+            'what_is_cell_based',
+            'why_use_cell_based',
+            'when_to_use',
+            'control_data_plane',
+            'cell_design',
+            'cell_partition',
+            'cell_routing',
+            'cell_sizing',
+            'cell_placement',
+            'cell_migration',
+            'cell_deployment',
+            'cell_observability',
+            'best_practices',
+            'faq',
+        ]
+    ] = Field(
         default=None,
-        description="Specific whitepaper section to focus the response on"
+        description='Specific whitepaper section to focus the response on',
     )
 
 
 class ImplementationStage(BaseModel):
     """Model for implementation stage guidance."""
-    
-    stage: Literal["planning", "design", "implementation", "monitoring"] = Field(
+
+    stage: Literal['planning', 'design', 'implementation', 'monitoring'] = Field(
         ...,
-        description="Implementation stage following whitepaper methodology"
+        description='Implementation stage following whitepaper methodology',
     )
     aws_services: List[str] = Field(
         default_factory=list,
-        description="AWS services to consider for this stage"
+        description='AWS services to consider for this stage',
     )
-    experience_level: Literal["beginner", "intermediate", "expert"] = Field(
-        default="intermediate",
-        description="User experience level for tailored guidance"
+    experience_level: Literal['beginner', 'intermediate', 'expert'] = Field(
+        default='intermediate',
+        description='User experience level for tailored guidance',
     )
 
 
 class CellDesignAnalysis(BaseModel):
     """Model for cell design analysis results."""
-    
+
     strengths: List[str] = Field(
         default_factory=list,
-        description="Identified strengths in the cell design"
+        description='Identified strengths in the cell design',
     )
     weaknesses: List[str] = Field(
         default_factory=list,
-        description="Identified weaknesses or areas for improvement"
+        description='Identified weaknesses or areas for improvement',
     )
     recommendations: List[str] = Field(
         default_factory=list,
-        description="Specific recommendations for improvement"
+        description='Specific recommendations for improvement',
     )
     compliance_score: float = Field(
-        ge=0.0, 
+        ...,
+        ge=0.0,
         le=1.0,
-        description="Compliance score against cell-based architecture principles (0.0 to 1.0)"
+        description='Compliance score against cell-based architecture principles (0.0 to 1.0)',
     )
     whitepaper_references: List[str] = Field(
         default_factory=list,
-        description="Relevant whitepaper sections for the analysis"
+        description='Relevant whitepaper sections for the analysis',
     )

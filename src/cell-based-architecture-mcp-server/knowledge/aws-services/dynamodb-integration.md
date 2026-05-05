@@ -61,13 +61,13 @@ def get_cell_for_customer(customer_id):
         response = mapping_table.get_item(
             Key={'PartitionKey': customer_id}
         )
-        
+
         if 'Item' in response:
             return response['Item']['CellId']
         else:
             # Customer not found, assign to new cell
             return assign_customer_to_cell(customer_id)
-            
+
     except ClientError as e:
         # Handle DynamoDB errors
         print(f"Error retrieving cell mapping: {e}")
@@ -76,7 +76,7 @@ def get_cell_for_customer(customer_id):
 def assign_customer_to_cell(customer_id):
     # Implement cell assignment logic
     cell_id = calculate_optimal_cell(customer_id)
-    
+
     # Store mapping
     mapping_table.put_item(
         Item={
@@ -86,7 +86,7 @@ def assign_customer_to_cell(customer_id):
             'LastUpdated': datetime.utcnow().isoformat()
         }
     )
-    
+
     return cell_id
 ```
 
@@ -108,10 +108,10 @@ def get_cell_with_dax(customer_id):
             TableName='CellMappings',
             Key={'PartitionKey': {'S': customer_id}}
         )
-        
+
         if 'Item' in response:
             return response['Item']['CellId']['S']
-            
+
     except Exception as e:
         # Fallback to regular DynamoDB
         return get_cell_for_customer(customer_id)
@@ -155,7 +155,7 @@ Use single table design within each cell:
 }
 
 {
-    "PK": "CUSTOMER#12345", 
+    "PK": "CUSTOMER#12345",
     "SK": "ORDER#67890",
     "EntityType": "Order",
     "OrderDate": "2025-01-11",
@@ -171,17 +171,17 @@ Handle scenarios requiring cross-cell data access:
 def get_customer_orders_across_cells(customer_id):
     # First, determine which cell contains the customer
     primary_cell = get_cell_for_customer(customer_id)
-    
+
     # Query primary cell
     orders = query_cell_table(primary_cell, customer_id)
-    
+
     # If customer has been migrated, check previous cells
     if customer_has_migration_history(customer_id):
         historical_cells = get_customer_cell_history(customer_id)
         for cell_id in historical_cells:
             historical_orders = query_cell_table(cell_id, customer_id)
             orders.extend(historical_orders)
-    
+
     return orders
 ```
 
@@ -194,19 +194,19 @@ Implement data migration between cells:
 def migrate_customer_data(customer_id, source_cell, target_cell):
     source_table = get_cell_table(source_cell)
     target_table = get_cell_table(target_cell)
-    
+
     # 1. Copy data to target cell
     customer_items = scan_customer_data(source_table, customer_id)
-    
+
     with target_table.batch_writer() as batch:
         for item in customer_items:
             # Update cell reference
             item['CellId'] = target_cell
             batch.put_item(Item=item)
-    
+
     # 2. Update routing table
     update_cell_mapping(customer_id, target_cell)
-    
+
     # 3. Verify migration success
     if verify_migration_success(customer_id, target_cell):
         # 4. Clean up source data
@@ -255,7 +255,7 @@ def put_cell_metrics(cell_id, table_name, consumed_read_units, consumed_write_un
                 'Unit': 'Count'
             },
             {
-                'MetricName': 'ConsumedWriteCapacityUnits', 
+                'MetricName': 'ConsumedWriteCapacityUnits',
                 'Dimensions': [
                     {'Name': 'CellId', 'Value': cell_id},
                     {'Name': 'TableName', 'Value': table_name}
@@ -274,7 +274,7 @@ Use streams to track cell-level changes:
 def process_cell_stream_record(record):
     cell_id = record['dynamodb']['NewImage']['CellId']['S']
     event_name = record['eventName']
-    
+
     # Process cell-specific events
     if event_name == 'INSERT':
         handle_new_item_in_cell(cell_id, record)

@@ -5,7 +5,7 @@
 ### Required Context in All Events
 Every log, metric, and trace must include:
 - `cell_id`: Unique cell identifier
-- `availability_zone`: AZ where processing occurs  
+- `availability_zone`: AZ where processing occurs
 - `region`: AWS region
 - `service_version`: Deployed version per cell
 
@@ -66,7 +66,7 @@ Every log, metric, and trace must include:
 - Latency P99 > 500ms per cell
 - Resource utilization > 80% per cell
 
-### Zone-Level Alarms  
+### Zone-Level Alarms
 - Multiple cells in AZ degraded
 - Cross-AZ latency spikes
 - AZ infrastructure issues

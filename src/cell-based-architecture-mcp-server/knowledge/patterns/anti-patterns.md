@@ -14,27 +14,27 @@ Creating dependencies between cells that violate isolation principles.
 # ANTI-PATTERN: Cross-cell database queries
 def get_customer_orders(customer_id):
     customer_cell = get_customer_cell(customer_id)
-    
+
     # BAD: Querying other cells for related data
     all_orders = []
     for cell_id in get_all_cells():
         if cell_id != customer_cell:
             orders = query_cell_database(cell_id, customer_id)
             all_orders.extend(orders)
-    
+
     return all_orders
 
 # ANTI-PATTERN: Cross-cell synchronous calls
 def process_payment(payment_request):
     customer_cell = get_customer_cell(payment_request.customer_id)
-    
+
     # BAD: Calling other cells synchronously
     inventory_cell = get_inventory_cell(payment_request.product_id)
     inventory_service = get_cell_service(inventory_cell, 'inventory')
-    
+
     # This creates tight coupling between cells
     inventory_check = inventory_service.check_availability(payment_request.product_id)
-    
+
     if inventory_check.available:
         return process_in_cell(customer_cell, payment_request)
 ```
@@ -50,7 +50,7 @@ def process_payment(payment_request):
 # GOOD: Self-contained cell processing
 def process_payment(payment_request):
     customer_cell = get_customer_cell(payment_request.customer_id)
-    
+
     # All required data should be available within the cell
     return process_payment_in_cell(customer_cell, payment_request)
 
@@ -58,7 +58,7 @@ def process_payment(payment_request):
 def handle_inventory_update(inventory_event):
     # Replicate necessary inventory data to customer cells
     affected_cells = get_cells_for_product(inventory_event.product_id)
-    
+
     for cell_id in affected_cells:
         replicate_inventory_data(cell_id, inventory_event)
 ```
@@ -75,7 +75,7 @@ class CustomerService:
     def __init__(self):
         # BAD: All cells share the same database
         self.shared_db = connect_to_database("shared-customer-db")
-    
+
     def get_customer(self, customer_id):
         # This creates a shared dependency
         return self.shared_db.query(f"SELECT * FROM customers WHERE id = {customer_id}")
@@ -85,7 +85,7 @@ class CacheService:
     def __init__(self):
         # BAD: Shared Redis cluster across all cells
         self.shared_cache = redis.Redis(host='shared-cache-cluster')
-    
+
     def get_cached_data(self, key):
         return self.shared_cache.get(key)
 ```
@@ -104,7 +104,7 @@ class CustomerService:
         # Each cell has its own database
         self.cell_db = connect_to_database(f"customer-db-{cell_id}")
         self.cell_id = cell_id
-    
+
     def get_customer(self, customer_id):
         return self.cell_db.query(f"SELECT * FROM customers WHERE id = {customer_id}")
 
@@ -184,10 +184,10 @@ Cell routers that are too complex, unreliable, or become bottlenecks.
 # ANTI-PATTERN: Complex business logic in router
 def route_request(request):
     customer_id = request.customer_id
-    
+
     # BAD: Complex business logic in router
     customer = get_customer_details(customer_id)  # External call
-    
+
     if customer.tier == 'premium':
         if customer.region == 'us-east':
             if customer.account_balance > 1000:
@@ -196,7 +196,7 @@ def route_request(request):
                 return route_to_standard_cell(request)
         else:
             return route_to_regional_cell(customer.region, request)
-    
+
     # More complex logic...
     return calculate_optimal_cell(customer, request)
 ```
@@ -210,7 +210,7 @@ class CellRouter:
         self.routing_db = connect_to_single_db()
         # BAD: No fallback routing logic
         self.fallback_enabled = False
-    
+
     def route_request(self, request):
         try:
             return self.routing_db.get_cell_for_customer(request.customer_id)
@@ -227,7 +227,7 @@ class CellRouter:
         # Highly available routing data
         self.routing_cache = setup_distributed_cache()
         self.fallback_enabled = True
-    
+
     def route_request(self, request):
         try:
             # Simple lookup with caching
@@ -235,7 +235,7 @@ class CellRouter:
         except Exception:
             # Fallback to hash-based routing
             return self.hash_based_fallback(request.customer_id)
-    
+
     def hash_based_fallback(self, customer_id):
         # Simple, stateless fallback
         hash_value = hash(customer_id)
@@ -332,7 +332,7 @@ def create_initial_deployment():
     # Start with minimum viable cell count
     for cell_id in INITIAL_CELL_STRUCTURE['cells']:
         create_cell(cell_id)
-    
+
     # Plan for growth but don't over-engineer initially
     setup_cell_scaling_automation()
 ```
@@ -354,7 +354,7 @@ class CustomerService:
             'customer-3': 'cell-002'
             # Hard-coded mappings with no migration capability
         }
-    
+
     def get_customer_cell(self, customer_id):
         return self.customer_cell_mapping.get(customer_id, 'cell-001')
 ```
@@ -367,14 +367,14 @@ class CustomerService:
         # Flexible routing with migration support
         self.routing_service = CellRoutingService()
         self.migration_service = CellMigrationService()
-    
+
     def get_customer_cell(self, customer_id):
         # Check for active migrations
         if self.migration_service.is_customer_migrating(customer_id):
             return self.migration_service.get_migration_target(customer_id)
-        
+
         return self.routing_service.get_customer_cell(customer_id)
-    
+
     def migrate_customer(self, customer_id, target_cell):
         return self.migration_service.migrate_customer(customer_id, target_cell)
 ```
@@ -391,7 +391,7 @@ def test_application():
     # BAD: Only testing system-wide functionality
     response = make_request('/api/customers/123')
     assert response.status_code == 200
-    
+
     # No cell-specific testing
     # No cell failure testing
     # No cell migration testing
@@ -403,7 +403,7 @@ def test_application():
 def test_cell_isolation():
     # Test that cell failures don't affect other cells
     disable_cell('cell-001')
-    
+
     # Customers in other cells should be unaffected
     response = make_request_to_cell('cell-002', '/api/customers/456')
     assert response.status_code == 200
@@ -413,9 +413,9 @@ def test_cell_migration():
     customer_id = 'customer-123'
     source_cell = get_customer_cell(customer_id)
     target_cell = 'cell-003'
-    
+
     migrate_customer(customer_id, source_cell, target_cell)
-    
+
     # Verify customer can be accessed in new cell
     response = make_request(f'/api/customers/{customer_id}')
     assert response.status_code == 200
@@ -423,10 +423,10 @@ def test_cell_migration():
 def test_cell_capacity_limits():
     # Test cell behavior at capacity limits
     cell_id = 'cell-001'
-    
+
     # Load cell to capacity
     load_cell_to_capacity(cell_id)
-    
+
     # Verify graceful degradation
     response = make_request_to_cell(cell_id, '/api/test')
     assert response.status_code in [200, 429]  # Success or rate limited

@@ -47,16 +47,16 @@ def lambda_handler(event, context):
     # Extract customer ID from request
     path_params = event.get('pathParameters', {})
     customer_id = path_params.get('customerId')
-    
+
     if not customer_id:
         return {
             'statusCode': 400,
             'body': json.dumps({'error': 'Customer ID required'})
         }
-    
+
     # Route to appropriate cell
     cell_id = route_customer_to_cell(customer_id)
-    
+
     # Forward request to cell
     return forward_to_cell(cell_id, event)
 
@@ -69,7 +69,7 @@ def route_customer_to_cell(customer_id):
 def forward_to_cell(cell_id, event):
     # Get cell-specific endpoint
     cell_endpoint = get_cell_endpoint(cell_id)
-    
+
     # Forward request to cell
     response = invoke_cell_service(cell_endpoint, event)
     return response
@@ -87,14 +87,14 @@ sqs = boto3.client('sqs')
 
 def process_order(event, context):
     cell_id = os.environ['CELL_ID']
-    
+
     # Parse order request
     order_data = json.loads(event['body'])
     customer_id = order_data['customerId']
-    
+
     # Store order in cell-specific table
     orders_table = dynamodb.Table(f'Orders-{cell_id}')
-    
+
     order_item = {
         'OrderId': generate_order_id(),
         'CustomerId': customer_id,
@@ -104,16 +104,16 @@ def process_order(event, context):
         'CreatedAt': datetime.utcnow().isoformat(),
         'CellId': cell_id
     }
-    
+
     orders_table.put_item(Item=order_item)
-    
+
     # Queue for async processing
     queue_url = f"https://sqs.us-east-1.amazonaws.com/123456789012/orders-{cell_id}"
     sqs.send_message(
         QueueUrl=queue_url,
         MessageBody=json.dumps(order_item)
     )
-    
+
     return {
         'statusCode': 201,
         'body': json.dumps({
@@ -131,7 +131,7 @@ Parameters:
   CellId:
     Type: String
     Description: Unique identifier for this cell
-  
+
 Resources:
   # Cell-specific DynamoDB tables
   OrdersTable:
@@ -154,7 +154,7 @@ Resources:
               KeyType: HASH
           Projection:
             ProjectionType: ALL
-  
+
   # Cell-specific processing queue
   OrderQueue:
     Type: AWS::SQS::Queue
@@ -162,7 +162,7 @@ Resources:
       QueueName: !Sub "orders-${CellId}"
       VisibilityTimeoutSeconds: 300
       MessageRetentionPeriod: 1209600
-  
+
   # Cell processing Lambda
   OrderProcessor:
     Type: AWS::Lambda::Function
@@ -227,7 +227,7 @@ app = Flask(__name__)
 
 CELL_ENDPOINTS = {
     'cell-1': 'http://cell-1-alb.internal:8080',
-    'cell-2': 'http://cell-2-alb.internal:8080', 
+    'cell-2': 'http://cell-2-alb.internal:8080',
     'cell-3': 'http://cell-3-alb.internal:8080'
 }
 
@@ -235,31 +235,31 @@ CELL_ENDPOINTS = {
 def route_request(path):
     # Extract tenant ID from request
     tenant_id = extract_tenant_id(request)
-    
+
     if not tenant_id:
         return jsonify({'error': 'Tenant ID required'}), 400
-    
+
     # Route to appropriate cell
     cell_id = route_tenant_to_cell(tenant_id)
-    
+
     # Forward request to cell
     return forward_to_cell(cell_id, path, request)
 
 def extract_tenant_id(request):
     # Try multiple methods to extract tenant ID
-    
+
     # 1. From subdomain (tenant.example.com)
     host = request.headers.get('Host', '')
     if '.' in host:
         subdomain = host.split('.')[0]
         if subdomain != 'www' and subdomain != 'api':
             return subdomain
-    
+
     # 2. From path (/tenant/123/api/...)
     path_parts = request.path.split('/')
     if len(path_parts) > 2 and path_parts[1] == 'tenant':
         return path_parts[2]
-    
+
     # 3. From header
     return request.headers.get('X-Tenant-ID')
 
@@ -272,7 +272,7 @@ def route_tenant_to_cell(tenant_id):
 def forward_to_cell(cell_id, path, request):
     cell_endpoint = CELL_ENDPOINTS[cell_id]
     url = f"{cell_endpoint}/{path}"
-    
+
     # Forward request with all headers and data
     response = requests.request(
         method=request.method,
@@ -281,7 +281,7 @@ def forward_to_cell(cell_id, path, request):
         data=request.get_data(),
         params=request.args
     )
-    
+
     return response.content, response.status_code, response.headers.items()
 ```
 
@@ -313,47 +313,47 @@ cache = redis.Redis(host=REDIS_HOST, port=6379, db=0)
 @app.route('/api/users', methods=['GET'])
 def get_users():
     tenant_id = request.headers.get('X-Tenant-ID')
-    
+
     # Check cache first
     cache_key = f"users:{tenant_id}"
     cached_users = cache.get(cache_key)
-    
+
     if cached_users:
         return jsonify(json.loads(cached_users))
-    
+
     # Query database
     cursor = db_conn.cursor()
     cursor.execute(
         "SELECT * FROM users WHERE tenant_id = %s",
         (tenant_id,)
     )
-    
+
     users = cursor.fetchall()
-    
+
     # Cache results
     cache.setex(cache_key, 300, json.dumps(users))
-    
+
     return jsonify(users)
 
 @app.route('/api/users', methods=['POST'])
 def create_user():
     tenant_id = request.headers.get('X-Tenant-ID')
     user_data = request.json
-    
+
     # Insert into cell-specific database
     cursor = db_conn.cursor()
     cursor.execute(
-        """INSERT INTO users (tenant_id, name, email, created_at) 
+        """INSERT INTO users (tenant_id, name, email, created_at)
            VALUES (%s, %s, %s, NOW()) RETURNING id""",
         (tenant_id, user_data['name'], user_data['email'])
     )
-    
+
     user_id = cursor.fetchone()[0]
     db_conn.commit()
-    
+
     # Invalidate cache
     cache.delete(f"users:{tenant_id}")
-    
+
     return jsonify({'id': user_id, 'status': 'created'}), 201
 ```
 
@@ -412,22 +412,22 @@ def lambda_handler(event, context):
         # Validate JWT token
         token = extract_token(event)
         claims = validate_jwt_token(token)
-        
+
         # Extract customer information
         customer_id = claims['sub']
         customer_tier = claims.get('tier', 'retail')
-        
+
         # Route based on customer tier
         cell_id = route_by_tier(customer_tier, customer_id)
-        
+
         # Audit log the routing decision
         audit_log_routing(customer_id, cell_id, event)
-        
+
         # Generate policy for API Gateway
         policy = generate_policy(claims, cell_id)
-        
+
         return policy
-        
+
     except Exception as e:
         # Log security event
         log_security_event(str(e), event)
@@ -451,9 +451,9 @@ def validate_jwt_token(token):
     key_response = kms.decrypt(
         CiphertextBlob=base64.b64decode(ENCRYPTED_JWT_KEY)
     )
-    
+
     signing_key = key_response['Plaintext']
-    
+
     # Validate token
     claims = jwt.decode(
         token,
@@ -461,7 +461,7 @@ def validate_jwt_token(token):
         algorithms=['HS256'],
         options={'verify_exp': True}
     )
-    
+
     return claims
 
 def audit_log_routing(customer_id, cell_id, event):
@@ -474,7 +474,7 @@ def audit_log_routing(customer_id, cell_id, event):
         'user_agent': event['requestContext']['identity']['userAgent'],
         'request_id': event['requestContext']['requestId']
     }
-    
+
     logs.put_log_events(
         logGroupName='/aws/lambda/financial-routing-audit',
         logStreamName=datetime.utcnow().strftime('%Y/%m/%d'),
@@ -496,7 +496,7 @@ class HNWCellService:
     def __init__(self):
         self.cell_id = 'hnw-cell'
         self.kms = boto3.client('kms')
-        
+
         # Dedicated database connection
         self.db = psycopg2.connect(
             host=os.environ['HNW_DB_HOST'],
@@ -505,53 +505,53 @@ class HNWCellService:
             password=os.environ['DB_PASSWORD'],
             sslmode='require'
         )
-        
+
         # Cell-specific encryption key
         self.encryption_key = self.get_cell_encryption_key()
-    
+
     def get_cell_encryption_key(self):
         """Get cell-specific encryption key from KMS"""
         response = self.kms.decrypt(
             CiphertextBlob=base64.b64decode(os.environ['HNW_CELL_KEY'])
         )
         return Fernet(base64.urlsafe_b64encode(response['Plaintext'][:32]))
-    
+
     def get_account_balance(self, customer_id, account_id):
         """Get encrypted account balance"""
         cursor = self.db.cursor()
-        
+
         cursor.execute(
-            """SELECT encrypted_balance, last_updated 
-               FROM accounts 
+            """SELECT encrypted_balance, last_updated
+               FROM accounts
                WHERE customer_id = %s AND account_id = %s""",
             (customer_id, account_id)
         )
-        
+
         result = cursor.fetchone()
         if not result:
             return None
-        
+
         # Decrypt balance
         encrypted_balance, last_updated = result
         decrypted_balance = self.encryption_key.decrypt(encrypted_balance)
-        
+
         return {
             'balance': float(decrypted_balance.decode()),
             'last_updated': last_updated.isoformat(),
             'cell_id': self.cell_id
         }
-    
+
     def create_transaction(self, customer_id, transaction_data):
         """Create encrypted transaction record"""
         cursor = self.db.cursor()
-        
+
         # Encrypt sensitive data
         encrypted_amount = self.encryption_key.encrypt(
             str(transaction_data['amount']).encode()
         )
-        
+
         cursor.execute(
-            """INSERT INTO transactions 
+            """INSERT INTO transactions
                (customer_id, account_id, encrypted_amount, description, created_at)
                VALUES (%s, %s, %s, %s, NOW())
                RETURNING transaction_id""",
@@ -562,13 +562,13 @@ class HNWCellService:
                 transaction_data['description']
             )
         )
-        
+
         transaction_id = cursor.fetchone()[0]
         self.db.commit()
-        
+
         # Audit log
         self.audit_transaction(customer_id, transaction_id, transaction_data)
-        
+
         return {'transaction_id': transaction_id, 'status': 'created'}
 ```
 

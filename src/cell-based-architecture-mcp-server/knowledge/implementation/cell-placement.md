@@ -81,12 +81,12 @@ Distribute customers evenly across available cells:
 def select_cell_even_distribution(cells, customer_load):
     # Sort cells by current utilization
     sorted_cells = sorted(cells, key=lambda c: c.utilization)
-    
+
     # Select cell with lowest utilization
     for cell in sorted_cells:
         if cell.available_capacity >= customer_load:
             return cell
-    
+
     # No cell has sufficient capacity
     return None
 ```
@@ -101,7 +101,7 @@ def select_cell_with_affinity(cells, customer, related_customers):
         if any(related in cell.customers for related in related_customers):
             if cell.available_capacity >= customer.expected_load:
                 return cell
-    
+
     # Fall back to even distribution
     return select_cell_even_distribution(cells, customer.expected_load)
 ```
@@ -113,16 +113,16 @@ Consider latency and compliance requirements:
 def select_cell_geographic(cells, customer_location, compliance_requirements):
     # Filter cells by compliance requirements
     compliant_cells = [c for c in cells if c.meets_compliance(compliance_requirements)]
-    
+
     # Sort by geographic proximity
-    sorted_cells = sorted(compliant_cells, 
+    sorted_cells = sorted(compliant_cells,
                          key=lambda c: distance(c.location, customer_location))
-    
+
     # Select closest cell with capacity
     for cell in sorted_cells:
         if cell.available_capacity >= customer.expected_load:
             return cell
-    
+
     return None
 ```
 

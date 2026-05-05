@@ -164,7 +164,3 @@ cython_debug/
 
 # VS Code
 .vscode/
-
-# uv
-.python-version
-uv.lock

@@ -12,7 +12,7 @@ Every organization is at a different point in their resilience journey—some ar
 
 Cell-based architecture can give your workload more:
 - **Fault isolation**
-- **Predictability** 
+- **Predictability**
 - **Testability**
 
 These are fundamental properties for workloads that need extreme levels of resilience.

@@ -18,8 +18,8 @@ from pydantic import ValidationError
 
 from awslabs.cell_based_architecture_mcp_server.models import (
     CellArchitectureQuery,
-    ImplementationStage,
     CellDesignAnalysis,
+    ImplementationStage,
 )
 
 
@@ -29,34 +29,34 @@ class TestCellArchitectureQuery:
     def test_valid_query(self):
         """Test valid query creation."""
         query = CellArchitectureQuery(
-            concept="cell isolation",
-            detail_level="intermediate",
-            whitepaper_section="cell_design"
+            concept='cell isolation',
+            detail_level='intermediate',
+            whitepaper_section='cell_design',
         )
-        assert query.concept == "cell isolation"
-        assert query.detail_level == "intermediate"
-        assert query.whitepaper_section == "cell_design"
+        assert query.concept == 'cell isolation'
+        assert query.detail_level == 'intermediate'
+        assert query.whitepaper_section == 'cell_design'
 
     def test_default_values(self):
         """Test default values."""
-        query = CellArchitectureQuery(concept="fault tolerance")
-        assert query.detail_level == "intermediate"
+        query = CellArchitectureQuery(concept='fault tolerance')
+        assert query.detail_level == 'intermediate'
         assert query.whitepaper_section is None
 
     def test_invalid_detail_level(self):
         """Test invalid detail level."""
         with pytest.raises(ValidationError):
             CellArchitectureQuery(
-                concept="test",
-                detail_level="invalid"
+                concept='test',
+                detail_level='invalid',  # pyright: ignore[reportArgumentType]
             )
 
     def test_invalid_whitepaper_section(self):
         """Test invalid whitepaper section."""
         with pytest.raises(ValidationError):
             CellArchitectureQuery(
-                concept="test",
-                whitepaper_section="invalid_section"
+                concept='test',
+                whitepaper_section='invalid_section',  # pyright: ignore[reportArgumentType]
             )
 
 
@@ -66,24 +66,24 @@ class TestImplementationStage:
     def test_valid_stage(self):
         """Test valid stage creation."""
         stage = ImplementationStage(
-            stage="design",
-            aws_services=["lambda", "dynamodb"],
-            experience_level="expert"
+            stage='design',
+            aws_services=['lambda', 'dynamodb'],
+            experience_level='expert',
         )
-        assert stage.stage == "design"
-        assert stage.aws_services == ["lambda", "dynamodb"]
-        assert stage.experience_level == "expert"
+        assert stage.stage == 'design'
+        assert stage.aws_services == ['lambda', 'dynamodb']
+        assert stage.experience_level == 'expert'
 
     def test_default_values(self):
         """Test default values."""
-        stage = ImplementationStage(stage="planning")
+        stage = ImplementationStage(stage='planning')
         assert stage.aws_services == []
-        assert stage.experience_level == "intermediate"
+        assert stage.experience_level == 'intermediate'
 
     def test_invalid_stage(self):
         """Test invalid stage."""
         with pytest.raises(ValidationError):
-            ImplementationStage(stage="invalid")
+            ImplementationStage(stage='invalid')  # pyright: ignore[reportArgumentType]
 
 
 class TestCellDesignAnalysis:
@@ -92,20 +92,20 @@ class TestCellDesignAnalysis:
     def test_valid_analysis(self):
         """Test valid analysis creation."""
         analysis = CellDesignAnalysis(
-            strengths=["Good isolation"],
-            weaknesses=["Poor monitoring"],
-            recommendations=["Add observability"],
+            strengths=['Good isolation'],
+            weaknesses=['Poor monitoring'],
+            recommendations=['Add observability'],
             compliance_score=0.8,
-            whitepaper_references=["cell_design"]
+            whitepaper_references=['cell_design'],
         )
-        assert analysis.strengths == ["Good isolation"]
+        assert analysis.strengths == ['Good isolation']
         assert analysis.compliance_score == 0.8
 
     def test_compliance_score_validation(self):
         """Test compliance score validation."""
         with pytest.raises(ValidationError):
             CellDesignAnalysis(compliance_score=1.5)
-        
+
         with pytest.raises(ValidationError):
             CellDesignAnalysis(compliance_score=-0.1)
 

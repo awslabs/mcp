@@ -77,19 +77,19 @@ You can have microservices within each cell, where each cell contains multiple m
 def calculate_cell_size(workload_characteristics):
     # Start with largest customer requirements
     min_size = workload_characteristics.largest_customer_size
-    
+
     # Consider operational limits
     max_manageable_cells = 50  # What your team can operate
     total_capacity_needed = workload_characteristics.total_capacity
     max_size = total_capacity_needed / max_manageable_cells
-    
+
     # Consider testing constraints
     testable_size = workload_characteristics.testing_budget_capacity
-    
+
     # Choose the constraining factor
     optimal_size = min(max_size, testable_size)
     optimal_size = max(optimal_size, min_size)
-    
+
     return optimal_size
 ```
 
@@ -143,29 +143,29 @@ def assign_customer_to_cells(customer_id, customer_size):
 class CellMigrationService:
     def migrate_customer(self, customer_id, source_cell, target_cell):
         migration_id = self.start_migration(customer_id, source_cell, target_cell)
-        
+
         try:
             # Phase 1: Replicate data
             self.replicate_customer_data(customer_id, source_cell, target_cell)
-            
+
             # Phase 2: Validate replication
             if not self.validate_data_integrity(customer_id, target_cell):
                 raise MigrationError("Data validation failed")
-            
+
             # Phase 3: Switch traffic
             self.update_routing(customer_id, target_cell)
-            
+
             # Phase 4: Monitor for issues
             if not self.monitor_migration_success(customer_id, target_cell):
                 # Rollback if issues detected
                 self.rollback_migration(customer_id, source_cell)
                 raise MigrationError("Migration monitoring failed")
-            
+
             # Phase 5: Cleanup
             self.cleanup_source_data(customer_id, source_cell)
-            
+
             return self.complete_migration(migration_id)
-            
+
         except Exception as e:
             self.handle_migration_failure(migration_id, str(e))
             raise
@@ -203,11 +203,11 @@ class CellMonitoringSystem:
             # Individual cell metrics
             self.create_cell_dashboard(cell_id)
             self.setup_cell_alarms(cell_id)
-            
+
         # System-wide monitoring
         self.create_system_dashboard(cell_ids)
         self.setup_cross_cell_pattern_detection(cell_ids)
-        
+
         # Alerting
         self.configure_tiered_alerting()
 ```
@@ -325,13 +325,13 @@ def choose_cell_az_strategy(requirements):
 class CrossCellEventHandler:
     def handle_customer_update(self, event):
         customer_id = event['customer_id']
-        
+
         # Update in local cell
         self.update_local_customer(customer_id, event['data'])
-        
+
         # Propagate to other cells that need this data
         affected_cells = self.get_cells_with_customer_data(customer_id)
-        
+
         for cell_id in affected_cells:
             self.send_event_to_cell(cell_id, event)
 ```
@@ -370,16 +370,16 @@ class CellSecurityManager:
         # Network isolation
         vpc_id = self.create_cell_vpc(cell_id)
         self.configure_security_groups(vpc_id, cell_id)
-        
+
         # IAM roles
         self.create_cell_service_roles(cell_id)
-        
+
         # Encryption
         kms_key = self.create_cell_encryption_key(cell_id)
-        
+
         # Monitoring
         self.setup_security_monitoring(cell_id)
-        
+
         return {
             'vpc_id': vpc_id,
             'kms_key_id': kms_key,
@@ -406,16 +406,16 @@ class CellSecurityManager:
 def troubleshoot_single_cell(cell_id):
     # Check cell health
     health = get_cell_health(cell_id)
-    
+
     # Check recent deployments
     recent_deployments = get_recent_deployments(cell_id)
-    
+
     # Check resource utilization
     utilization = get_cell_utilization(cell_id)
-    
+
     # Check dependencies
     dependency_health = check_cell_dependencies(cell_id)
-    
+
     return {
         'health': health,
         'deployments': recent_deployments,
@@ -429,13 +429,13 @@ def troubleshoot_single_cell(cell_id):
 def troubleshoot_multi_cell_issue():
     # Check for common dependencies
     shared_services = check_shared_service_health()
-    
+
     # Check for cascade patterns
     cascade_detected = detect_cascade_failure_pattern()
-    
+
     # Check router health
     router_health = check_cell_router_health()
-    
+
     return {
         'shared_services': shared_services,
         'cascade_detected': cascade_detected,

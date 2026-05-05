@@ -101,7 +101,7 @@ Scope of impact in single-az and multi-az applications
 
 Another fault isolation boundary is the availability zone, being one or more data centers with redundant power and connectivity.  Even if your application is made up of several independent services, you can still have infrastructure failures where one or more services can fail in an AZ, or even the entire AZ can become unavailable.
 
-To mitigate this type of failure, AWS recommends using multiple Availability Zones, so we use redundancy to reduce the scope of failures that can occur. In the image below, even if one AZ becomes unavailable, the application can still continue to operate because the services are deployed in another Availability Zone. 
+To mitigate this type of failure, AWS recommends using multiple Availability Zones, so we use redundancy to reduce the scope of failures that can occur. In the image below, even if one AZ becomes unavailable, the application can still continue to operate because the services are deployed in another Availability Zone.
 Another important aspect is to ensure that even when using multiple availability zones, they can fail independently, that is, even if one AZ fails, your application can continue to operate normally. By definition, AZs are designed to fail independently, but you can design your application so that the order management service in Zone 1 depends on a database that is in another zone. When this happens, even if you are using more than 1 AZ, if one fails, your application becomes unavailable. Designing for this is what we call Availability Zone Independence.
 
 Scope of impact with cell-based architecture
@@ -254,11 +254,11 @@ Supporting specific customers per cell is important for meeting unique customer 
 
 Cell balancing requires sophisticated automation and clear metrics. For instance, if you notice one cell is consistently running at 80% capacity while others are at 40%, you might implement automated customer migration processes. This could involve gradually shifting traffic using DNS routing or load balancer configurations, ensuring zero downtime during the transition. The process should consider factors like customer usage patterns, time zones, and service dependencies.
 
- 6. Can you automatically rollback changes that cause failures? 
+ 6. Can you automatically rollback changes that cause failures?
 
 Automatic rollback capabilities are essential for maintaining service reliability. For example, if you deploy a new version that causes error rates to spike above 1%, an automated system should detect this through monitoring metrics and immediately initiate a rollback to the last known good version. This process should include automated health checks, metric validation, and notification systems to alert relevant teams.
 
-7. Do you test your cell limits in your deployment pipeline? 
+7. Do you test your cell limits in your deployment pipeline?
 
 Testing cell limits in the deployment pipeline is crucial for preventing production issues. This involves creating automated tests that simulate maximum load conditions, such as running load tests that push the cell to its designed capacity limits. For example, if a cell is designed to handle 10,000 requests per second, the pipeline should include tests that verify performance at this level and slightly beyond to ensure proper degradation behavior.
 
@@ -311,4 +311,3 @@ Resources
 * https://docs.aws.amazon.com/whitepapers/latest/aws-fault-isolation-boundaries/control-planes-and-data-planes.html
 * https://docs.aws.amazon.com/whitepapers/latest/overview-deployment-options/deployment-strategies.html
 * https://aws-samples.github.io/aws-deployment-pipeline-reference-architecture/dynamic-configuration-pipeline/ri-cdk-codepipeline-appconfig/
-

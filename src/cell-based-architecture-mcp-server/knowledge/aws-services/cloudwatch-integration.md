@@ -121,14 +121,14 @@ def create_system_dashboard():
             }
         ]
     }
-    
+
     # Add metrics for each cell
     cells = get_active_cells()
     for cell_id in cells:
         dashboard_body["widgets"][0]["properties"]["metrics"].append([
             "CellBasedArchitecture", "RequestCount", "CellId", cell_id
         ])
-    
+
     cloudwatch.put_dashboard(
         DashboardName='CellBasedArchitecture-System',
         DashboardBody=json.dumps(dashboard_body)
@@ -149,7 +149,7 @@ class CellAwareFormatter(logging.Formatter):
     def __init__(self, cell_id):
         self.cell_id = cell_id
         super().__init__()
-    
+
     def format(self, record):
         log_entry = {
             'timestamp': datetime.utcnow().isoformat(),
@@ -161,13 +161,13 @@ class CellAwareFormatter(logging.Formatter):
             'function': record.funcName,
             'line': record.lineno
         }
-        
+
         # Add custom fields if present
         if hasattr(record, 'customer_id'):
             log_entry['customer_id'] = record.customer_id
         if hasattr(record, 'request_id'):
             log_entry['request_id'] = record.request_id
-            
+
         return json.dumps(log_entry)
 
 # Usage
@@ -236,7 +236,7 @@ def create_cell_alarms(cell_id):
             }
         ]
     )
-    
+
     # High response time alarm
     cloudwatch.put_metric_alarm(
         AlarmName=f'{cell_id}-HighResponseTime',
@@ -269,10 +269,10 @@ def create_system_composite_alarm():
     # Get all cell alarm ARNs
     cell_alarms = []
     cells = get_active_cells()
-    
+
     for cell_id in cells:
         cell_alarms.append(f'arn:aws:cloudwatch:us-east-1:123456789012:alarm:{cell_id}-HighErrorRate')
-    
+
     # Create composite alarm that triggers if multiple cells have issues
     cloudwatch.put_composite_alarm(
         AlarmName='SystemWideIssue',
@@ -293,7 +293,7 @@ Create Log Insights queries for cell analysis:
 ```python
 def query_cell_errors(cell_id, start_time, end_time):
     logs_client = boto3.client('logs')
-    
+
     query = f"""
     fields @timestamp, @message, level, customer_id, request_id
     | filter cell_id = "{cell_id}"
@@ -301,14 +301,14 @@ def query_cell_errors(cell_id, start_time, end_time):
     | sort @timestamp desc
     | limit 100
     """
-    
+
     response = logs_client.start_query(
         logGroupName=f'/aws/cell/{cell_id}',
         startTime=int(start_time.timestamp()),
         endTime=int(end_time.timestamp()),
         queryString=query
     )
-    
+
     return response['queryId']
 
 def query_cell_performance(cell_id, start_time, end_time):
@@ -318,14 +318,14 @@ def query_cell_performance(cell_id, start_time, end_time):
     | filter ispresent(response_time_ms)
     | stats avg(response_time_ms), max(response_time_ms), min(response_time_ms) by bin(5m)
     """
-    
+
     response = logs_client.start_query(
         logGroupName=f'/aws/cell/{cell_id}',
         startTime=int(start_time.timestamp()),
         endTime=int(end_time.timestamp()),
         queryString=query
     )
-    
+
     return response['queryId']
 ```
 
@@ -340,17 +340,17 @@ def query_system_wide_patterns():
     | stats count() by cell_id, bin(5m)
     | sort @timestamp desc
     """
-    
+
     # Query all cell log groups
     log_groups = [f'/aws/cell/{cell_id}' for cell_id in get_active_cells()]
-    
+
     response = logs_client.start_query(
         logGroupNames=log_groups,
         startTime=int((datetime.utcnow() - timedelta(hours=1)).timestamp()),
         endTime=int(datetime.utcnow().timestamp()),
         queryString=query
     )
-    
+
     return response['queryId']
 ```
 
@@ -362,7 +362,7 @@ Implement auto-scaling responses to cell metrics:
 ```python
 def check_cell_capacity_and_scale():
     cells = get_active_cells()
-    
+
     for cell_id in cells:
         # Get current metrics
         response = cloudwatch.get_metric_statistics(
@@ -374,18 +374,18 @@ def check_cell_capacity_and_scale():
             Period=300,
             Statistics=['Average']
         )
-        
+
         if response['Datapoints']:
             avg_requests = response['Datapoints'][-1]['Average']
-            
+
             # Check if cell is approaching capacity
             if avg_requests > CELL_CAPACITY_THRESHOLD:
                 trigger_cell_scaling(cell_id)
-                
+
 def trigger_cell_scaling(cell_id):
     # Trigger auto-scaling group scaling
     autoscaling = boto3.client('autoscaling')
-    
+
     autoscaling.set_desired_capacity(
         AutoScalingGroupName=f'{cell_id}-asg',
         DesiredCapacity=get_current_capacity(cell_id) + 1,
@@ -399,14 +399,14 @@ Trigger cell migration based on performance metrics:
 ```python
 def monitor_and_migrate_overloaded_cells():
     cells = get_active_cells()
-    
+
     for cell_id in cells:
         utilization = get_cell_utilization(cell_id)
-        
+
         if utilization > MIGRATION_THRESHOLD:
             # Find customers to migrate
             customers_to_migrate = identify_migration_candidates(cell_id)
-            
+
             for customer_id in customers_to_migrate:
                 target_cell = find_optimal_target_cell(customer_id)
                 if target_cell:

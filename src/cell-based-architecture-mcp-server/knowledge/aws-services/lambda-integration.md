@@ -39,13 +39,13 @@ import hashlib
 def lambda_handler(event, context):
     # Extract partition key from request
     customer_id = event['pathParameters']['customerId']
-    
+
     # Calculate cell assignment
     cell_id = get_cell_for_customer(customer_id)
-    
+
     # Route to appropriate cell
     target_url = f"https://{cell_id}.example.com{event['path']}"
-    
+
     return {
         'statusCode': 302,
         'headers': {
@@ -105,7 +105,7 @@ def lambda_handler(event, context):
         # Extract cell information from message
         message_body = json.loads(record['body'])
         cell_id = message_body.get('cellId')
-        
+
         # Process within cell context
         process_message_for_cell(message_body, cell_id)
 ```
@@ -127,14 +127,14 @@ Handle scenarios requiring cross-cell communication:
 def lambda_handler(event, context):
     source_cell = event.get('sourceCell')
     target_cell = event.get('targetCell')
-    
+
     if source_cell != target_cell:
         # Handle cross-cell communication carefully
         result = invoke_target_cell(target_cell, event['payload'])
     else:
         # Process within same cell
         result = process_local_request(event['payload'])
-    
+
     return result
 ```
 
@@ -159,14 +159,14 @@ patch_all()
 @xray_recorder.capture('cell_processing')
 def lambda_handler(event, context):
     cell_id = event.get('cellId')
-    
+
     # Add cell context to trace
     xray_recorder.put_annotation('cell_id', cell_id)
     xray_recorder.put_metadata('cell_info', {
         'cell_id': cell_id,
         'request_type': event.get('requestType')
     })
-    
+
     return process_request(event)
 ```
 

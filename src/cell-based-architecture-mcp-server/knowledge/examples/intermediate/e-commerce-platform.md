@@ -78,7 +78,7 @@ class AdvancedCellRouter:
         self.dynamodb = boto3.resource('dynamodb')
         self.cloudwatch = boto3.client('cloudwatch')
         self.routing_table = self.dynamodb.Table('CustomerCellMapping')
-        
+
         # Cell configuration
         self.cells = {
             'cell-a': {
@@ -100,10 +100,10 @@ class AdvancedCellRouter:
                 'health_status': 'healthy'
             }
         }
-        
+
         # Rate limiting
         self.rate_limits = defaultdict(list)
-        
+
     def authenticate_request(self, token):
         """Authenticate JWT token and extract customer info"""
         try:
@@ -111,7 +111,7 @@ class AdvancedCellRouter:
             return payload
         except jwt.InvalidTokenError:
             return None
-    
+
     def get_customer_cell(self, customer_id):
         """Get cell assignment for customer with fallback"""
         try:
@@ -119,16 +119,16 @@ class AdvancedCellRouter:
             response = self.routing_table.get_item(
                 Key={'customer_id': customer_id}
             )
-            
+
             if 'Item' in response:
                 return response['Item']['cell_id']
-            
+
         except Exception as e:
             print(f"DynamoDB lookup failed: {e}")
-        
+
         # Fallback to hash-based routing
         return self.hash_based_routing(customer_id)
-    
+
     def hash_based_routing(self, customer_id):
         """Fallback hash-based routing"""
         hash_value = int(hashlib.md5(customer_id.encode()).hexdigest(), 16)
@@ -136,41 +136,41 @@ class AdvancedCellRouter:
             cell_id for cell_id, config in self.cells.items()
             if config['health_status'] == 'healthy'
         ]
-        
+
         if not healthy_cells:
             raise Exception("No healthy cells available")
-        
+
         cell_index = hash_value % len(healthy_cells)
         return healthy_cells[cell_index]
-    
+
     def check_rate_limit(self, customer_id, limit=100, window=60):
         """Check rate limiting for customer"""
         now = time.time()
-        
+
         # Clean old entries
         self.rate_limits[customer_id] = [
             timestamp for timestamp in self.rate_limits[customer_id]
             if now - timestamp < window
         ]
-        
+
         # Check limit
         if len(self.rate_limits[customer_id]) >= limit:
             return False
-        
+
         # Add current request
         self.rate_limits[customer_id].append(now)
         return True
-    
+
     def route_request(self, customer_id, path, method, headers, data):
         """Route request to appropriate cell"""
-        
+
         # Get target cell
         target_cell = self.get_customer_cell(customer_id)
         target_endpoint = self.cells[target_cell]['endpoint']
-        
+
         # Update load metrics
         self.cells[target_cell]['current_load'] += 1
-        
+
         try:
             # Forward request
             import requests
@@ -181,21 +181,21 @@ class AdvancedCellRouter:
                 data=data,
                 timeout=30
             )
-            
+
             # Emit metrics
             self.emit_routing_metrics(customer_id, target_cell, response.status_code)
-            
+
             return response
-            
+
         except Exception as e:
             # Handle cell failure
             self.handle_cell_failure(target_cell, str(e))
             raise
-        
+
         finally:
             # Update load metrics
             self.cells[target_cell]['current_load'] -= 1
-    
+
     def emit_routing_metrics(self, customer_id, cell_id, status_code):
         """Emit routing metrics to CloudWatch"""
         try:
@@ -234,32 +234,32 @@ def require_auth(f):
         token = request.headers.get('Authorization')
         if not token:
             return jsonify({'error': 'No authorization token provided'}), 401
-        
+
         if token.startswith('Bearer '):
             token = token[7:]
-        
+
         user_info = router.authenticate_request(token)
         if not user_info:
             return jsonify({'error': 'Invalid token'}), 401
-        
+
         request.user_info = user_info
         return f(*args, **kwargs)
-    
+
     return decorated_function
 
 @app.route('/api/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE'])
 @require_auth
 def route_api_request(path):
     """Route API requests to appropriate cell"""
-    
+
     customer_id = request.user_info.get('customer_id')
     if not customer_id:
         return jsonify({'error': 'Customer ID not found in token'}), 400
-    
+
     # Check rate limiting
     if not router.check_rate_limit(customer_id):
         return jsonify({'error': 'Rate limit exceeded'}), 429
-    
+
     try:
         response = router.route_request(
             customer_id=customer_id,
@@ -268,9 +268,9 @@ def route_api_request(path):
             headers=dict(request.headers),
             data=request.get_data()
         )
-        
+
         return response.content, response.status_code, response.headers.items()
-        
+
     except Exception as e:
         return jsonify({'error': 'Service unavailable', 'details': str(e)}), 503
 
@@ -297,7 +297,7 @@ app = Flask(__name__)
 class CellApplication:
     def __init__(self):
         self.cell_id = os.environ.get('CELL_ID', 'cell-unknown')
-        
+
         # Database connection
         self.db_config = {
             'host': os.environ.get('DB_HOST'),
@@ -305,7 +305,7 @@ class CellApplication:
             'user': os.environ.get('DB_USER'),
             'password': os.environ.get('DB_PASSWORD')
         }
-        
+
         # Redis cache
         self.cache = redis.Redis(
             host=os.environ.get('REDIS_HOST'),
@@ -313,26 +313,26 @@ class CellApplication:
             db=0,
             decode_responses=True
         )
-        
+
         # SQS for async processing
         self.sqs = boto3.client('sqs')
         self.order_queue_url = os.environ.get('ORDER_QUEUE_URL')
-        
+
         # S3 for file storage
         self.s3 = boto3.client('s3')
         self.bucket_name = f'ecommerce-{self.cell_id}'
-        
+
         self.init_database()
-    
+
     def get_db_connection(self):
         """Get database connection"""
         return psycopg2.connect(**self.db_config)
-    
+
     def init_database(self):
         """Initialize database schema"""
         conn = self.get_db_connection()
         cursor = conn.cursor()
-        
+
         # Customers table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS customers (
@@ -344,7 +344,7 @@ class CellApplication:
                 cell_id VARCHAR(50) NOT NULL
             )
         ''')
-        
+
         # Products table (replicated in each cell)
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS products (
@@ -356,7 +356,7 @@ class CellApplication:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
-        
+
         # Orders table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS orders (
@@ -371,7 +371,7 @@ class CellApplication:
                 FOREIGN KEY (customer_id) REFERENCES customers(customer_id)
             )
         ''')
-        
+
         # Shopping cart table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS shopping_carts (
@@ -381,7 +381,7 @@ class CellApplication:
                 FOREIGN KEY (customer_id) REFERENCES customers(customer_id)
             )
         ''')
-        
+
         conn.commit()
         conn.close()
 
@@ -392,35 +392,35 @@ cell_app = CellApplication()
 @app.route('/api/customers/<customer_id>', methods=['GET'])
 def get_customer(customer_id):
     """Get customer information"""
-    
+
     # Try cache first
     cached_customer = cell_app.cache.get(f"customer:{customer_id}")
     if cached_customer:
         return jsonify(json.loads(cached_customer))
-    
+
     # Query database
     conn = cell_app.get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
-    
+
     cursor.execute(
         'SELECT * FROM customers WHERE customer_id = %s',
         (customer_id,)
     )
-    
+
     customer = cursor.fetchone()
     conn.close()
-    
+
     if customer:
         customer_data = dict(customer)
         customer_data['created_at'] = customer_data['created_at'].isoformat()
-        
+
         # Cache for 5 minutes
         cell_app.cache.setex(
             f"customer:{customer_id}",
             300,
             json.dumps(customer_data)
         )
-        
+
         return jsonify(customer_data)
     else:
         return jsonify({'error': 'Customer not found'}), 404
@@ -428,61 +428,61 @@ def get_customer(customer_id):
 @app.route('/api/customers/<customer_id>', methods=['PUT'])
 def update_customer(customer_id):
     """Update customer information"""
-    
+
     data = request.get_json()
-    
+
     conn = cell_app.get_db_connection()
     cursor = conn.cursor()
-    
+
     # Update customer
     update_fields = []
     update_values = []
-    
+
     if 'name' in data:
         update_fields.append('name = %s')
         update_values.append(data['name'])
-    
+
     if 'email' in data:
         update_fields.append('email = %s')
         update_values.append(data['email'])
-    
+
     if 'address' in data:
         update_fields.append('address = %s')
         update_values.append(json.dumps(data['address']))
-    
+
     if update_fields:
         update_fields.append('updated_at = CURRENT_TIMESTAMP')
         update_values.append(customer_id)
-        
+
         cursor.execute(
             f'UPDATE customers SET {", ".join(update_fields)} WHERE customer_id = %s',
             update_values
         )
         conn.commit()
-        
+
         # Invalidate cache
         cell_app.cache.delete(f"customer:{customer_id}")
-    
+
     conn.close()
-    
+
     return jsonify({'status': 'updated', 'customer_id': customer_id})
 
 # Shopping Cart Endpoints
 @app.route('/api/customers/<customer_id>/cart', methods=['GET'])
 def get_cart(customer_id):
     """Get customer's shopping cart"""
-    
+
     conn = cell_app.get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
-    
+
     cursor.execute(
         'SELECT items FROM shopping_carts WHERE customer_id = %s',
         (customer_id,)
     )
-    
+
     cart = cursor.fetchone()
     conn.close()
-    
+
     if cart:
         return jsonify({
             'customer_id': customer_id,
@@ -499,26 +499,26 @@ def get_cart(customer_id):
 @app.route('/api/customers/<customer_id>/cart/items', methods=['POST'])
 def add_to_cart(customer_id):
     """Add item to shopping cart"""
-    
+
     data = request.get_json()
     product_id = data.get('product_id')
     quantity = data.get('quantity', 1)
-    
+
     if not product_id:
         return jsonify({'error': 'Product ID required'}), 400
-    
+
     conn = cell_app.get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
-    
+
     # Get current cart
     cursor.execute(
         'SELECT items FROM shopping_carts WHERE customer_id = %s',
         (customer_id,)
     )
-    
+
     cart = cursor.fetchone()
     items = cart['items'] if cart else []
-    
+
     # Add or update item
     item_found = False
     for item in items:
@@ -526,14 +526,14 @@ def add_to_cart(customer_id):
             item['quantity'] += quantity
             item_found = True
             break
-    
+
     if not item_found:
         items.append({
             'product_id': product_id,
             'quantity': quantity,
             'added_at': datetime.utcnow().isoformat()
         })
-    
+
     # Update cart
     cursor.execute('''
         INSERT INTO shopping_carts (customer_id, items, updated_at)
@@ -541,10 +541,10 @@ def add_to_cart(customer_id):
         ON CONFLICT (customer_id)
         DO UPDATE SET items = %s, updated_at = CURRENT_TIMESTAMP
     ''', (customer_id, json.dumps(items), json.dumps(items)))
-    
+
     conn.commit()
     conn.close()
-    
+
     return jsonify({
         'status': 'added',
         'customer_id': customer_id,
@@ -555,20 +555,20 @@ def add_to_cart(customer_id):
 @app.route('/api/customers/<customer_id>/orders', methods=['POST'])
 def create_order(customer_id):
     """Create order from shopping cart"""
-    
+
     conn = cell_app.get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
-    
+
     # Get cart items
     cursor.execute(
         'SELECT items FROM shopping_carts WHERE customer_id = %s',
         (customer_id,)
     )
-    
+
     cart = cursor.fetchone()
     if not cart or not cart['items']:
         return jsonify({'error': 'Cart is empty'}), 400
-    
+
     # Calculate total (simplified - in real system, get current prices)
     total_amount = 0
     for item in cart['items']:
@@ -580,10 +580,10 @@ def create_order(customer_id):
         product = cursor.fetchone()
         if product:
             total_amount += float(product['price']) * item['quantity']
-    
+
     # Create order
     order_id = str(uuid.uuid4())
-    
+
     cursor.execute('''
         INSERT INTO orders (order_id, customer_id, status, total_amount, items, cell_id)
         VALUES (%s, %s, %s, %s, %s, %s)
@@ -595,16 +595,16 @@ def create_order(customer_id):
         json.dumps(cart['items']),
         cell_app.cell_id
     ))
-    
+
     # Clear cart
     cursor.execute(
         'DELETE FROM shopping_carts WHERE customer_id = %s',
         (customer_id,)
     )
-    
+
     conn.commit()
     conn.close()
-    
+
     # Send order to processing queue
     cell_app.sqs.send_message(
         QueueUrl=cell_app.order_queue_url,
@@ -615,7 +615,7 @@ def create_order(customer_id):
             'action': 'process_order'
         })
     )
-    
+
     return jsonify({
         'order_id': order_id,
         'status': 'pending',
@@ -626,18 +626,18 @@ def create_order(customer_id):
 @app.route('/api/customers/<customer_id>/orders', methods=['GET'])
 def get_customer_orders(customer_id):
     """Get customer's orders"""
-    
+
     conn = cell_app.get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
-    
+
     cursor.execute(
         'SELECT * FROM orders WHERE customer_id = %s ORDER BY created_at DESC',
         (customer_id,)
     )
-    
+
     orders = cursor.fetchall()
     conn.close()
-    
+
     # Convert to JSON serializable format
     orders_data = []
     for order in orders:
@@ -645,7 +645,7 @@ def get_customer_orders(customer_id):
         order_data['created_at'] = order_data['created_at'].isoformat()
         order_data['updated_at'] = order_data['updated_at'].isoformat()
         orders_data.append(order_data)
-    
+
     return jsonify({
         'customer_id': customer_id,
         'orders': orders_data,
@@ -656,13 +656,13 @@ def get_customer_orders(customer_id):
 @app.route('/health')
 def health_check():
     """Comprehensive health check"""
-    
+
     health_status = {
         'cell_id': cell_app.cell_id,
         'status': 'healthy',
         'checks': {}
     }
-    
+
     # Database check
     try:
         conn = cell_app.get_db_connection()
@@ -673,7 +673,7 @@ def health_check():
     except Exception as e:
         health_status['checks']['database'] = f'unhealthy: {str(e)}'
         health_status['status'] = 'unhealthy'
-    
+
     # Cache check
     try:
         cell_app.cache.ping()
@@ -681,7 +681,7 @@ def health_check():
     except Exception as e:
         health_status['checks']['cache'] = f'unhealthy: {str(e)}'
         health_status['status'] = 'unhealthy'
-    
+
     # Queue check
     try:
         cell_app.sqs.get_queue_attributes(
@@ -692,34 +692,34 @@ def health_check():
     except Exception as e:
         health_status['checks']['queue'] = f'unhealthy: {str(e)}'
         health_status['status'] = 'unhealthy'
-    
+
     status_code = 200 if health_status['status'] == 'healthy' else 503
     return jsonify(health_status), status_code
 
 @app.route('/metrics')
 def metrics():
     """Cell metrics endpoint"""
-    
+
     conn = cell_app.get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
-    
+
     # Get customer count
     cursor.execute('SELECT COUNT(*) as count FROM customers')
     customer_count = cursor.fetchone()['count']
-    
+
     # Get order count (last 24 hours)
     cursor.execute('''
-        SELECT COUNT(*) as count FROM orders 
+        SELECT COUNT(*) as count FROM orders
         WHERE created_at > %s
     ''', (datetime.utcnow() - timedelta(hours=24),))
     recent_orders = cursor.fetchone()['count']
-    
+
     # Get pending orders
     cursor.execute('SELECT COUNT(*) as count FROM orders WHERE status = %s', ('pending',))
     pending_orders = cursor.fetchone()['count']
-    
+
     conn.close()
-    
+
     return jsonify({
         'cell_id': cell_app.cell_id,
         'customer_count': customer_count,

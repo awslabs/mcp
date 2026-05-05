@@ -21,11 +21,11 @@ If a workload uses 10 cells to service 100 requests, when a failure occurs in on
 
 ## Partition Key
 
-The overall workload is partitioned by a **partition key**. This key needs to align with the grain of the service, or the natural way that a service's workload can be subdivided with minimal cross-cell interactions. 
+The overall workload is partitioned by a **partition key**. This key needs to align with the grain of the service, or the natural way that a service's workload can be subdivided with minimal cross-cell interactions.
 
 Examples of partition keys:
 - Customer ID
-- Resource ID  
+- Resource ID
 - Any other parameter easily accessible in most API calls
 
 ## Cell Router

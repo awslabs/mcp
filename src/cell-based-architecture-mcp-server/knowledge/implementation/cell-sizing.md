@@ -98,14 +98,14 @@ class TokenBucket:
         self.tokens = capacity
         self.refill_rate = refill_rate
         self.last_refill = time.time()
-    
+
     def consume(self, tokens=1):
         self._refill()
         if self.tokens >= tokens:
             self.tokens -= tokens
             return True
         return False
-    
+
     def _refill(self):
         now = time.time()
         tokens_to_add = (now - self.last_refill) * self.refill_rate

@@ -101,12 +101,12 @@ stages:
     actions:
       - build-and-test
       - create-artifacts
-  
+
   - name: deploy-canary
     actions:
       - deploy-to-canary-cells
       - validate-canary-deployment
-  
+
   - name: deploy-production
     actions:
       - deploy-wave-1

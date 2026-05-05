@@ -21,21 +21,21 @@ class CellMonitoringStrategy:
         self.cell_monitors = {}
         self.system_monitor = SystemLevelMonitor()
         self.pattern_detector = CrossCellPatternDetector()
-    
+
     def setup_comprehensive_monitoring(self, cell_ids):
         """Set up monitoring for all levels"""
-        
+
         # Individual cell monitoring
         for cell_id in cell_ids:
             self.cell_monitors[cell_id] = CellLevelMonitor(cell_id)
             self.cell_monitors[cell_id].setup_monitoring()
-        
+
         # System-level monitoring
         self.system_monitor.setup_aggregate_monitoring(cell_ids)
-        
+
         # Cross-cell pattern detection
         self.pattern_detector.setup_pattern_detection(cell_ids)
-        
+
         return {
             'cell_monitors_configured': len(self.cell_monitors),
             'system_monitoring_enabled': True,
@@ -54,10 +54,10 @@ class CellLevelMonitor:
     def __init__(self, cell_id):
         self.cell_id = cell_id
         self.cloudwatch = boto3.client('cloudwatch')
-        
+
     def setup_cell_metrics(self):
         """Set up core metrics for individual cell"""
-        
+
         core_metrics = [
             {
                 'name': 'RequestCount',
@@ -90,15 +90,15 @@ class CellLevelMonitor:
                 'description': 'Overall health score of cell (0-100)'
             }
         ]
-        
+
         for metric in core_metrics:
             self.create_custom_metric(metric)
-    
+
     def emit_cell_metrics(self, metrics_data):
         """Emit metrics for this cell"""
-        
+
         metric_data = []
-        
+
         for metric_name, value in metrics_data.items():
             metric_data.append({
                 'MetricName': metric_name,
@@ -109,7 +109,7 @@ class CellLevelMonitor:
                 'Unit': self.get_metric_unit(metric_name),
                 'Timestamp': datetime.utcnow()
             })
-        
+
         self.cloudwatch.put_metric_data(
             Namespace='CellBasedArchitecture/Cells',
             MetricData=metric_data
@@ -130,22 +130,22 @@ class CellHealthScorer:
             'error_rate': 0.25,
             'capacity': 0.2
         }
-    
+
     def calculate_cell_health_score(self):
         """Calculate comprehensive health score for cell"""
-        
+
         # Get current metrics
         metrics = self.get_current_cell_metrics()
-        
+
         # Calculate component scores (0-100)
         availability_score = min(metrics.availability_percentage, 100)
-        
+
         performance_score = max(0, 100 - (metrics.avg_response_time / 10))  # 1000ms = 0 score
-        
+
         error_rate_score = max(0, 100 - (metrics.error_rate * 20))  # 5% error = 0 score
-        
+
         capacity_score = self.calculate_capacity_score(metrics.capacity_utilization)
-        
+
         # Weighted average
         health_score = (
             availability_score * self.weights['availability'] +
@@ -153,7 +153,7 @@ class CellHealthScorer:
             error_rate_score * self.weights['error_rate'] +
             capacity_score * self.weights['capacity']
         )
-        
+
         return {
             'overall_score': round(health_score, 2),
             'component_scores': {
@@ -164,10 +164,10 @@ class CellHealthScorer:
             },
             'health_status': self.determine_health_status(health_score)
         }
-    
+
     def calculate_capacity_score(self, utilization):
         """Calculate capacity score based on utilization"""
-        
+
         # Optimal utilization is around 70%
         if utilization <= 70:
             return 100 - (70 - utilization)  # Penalty for underutilization
@@ -187,10 +187,10 @@ Monitor system-wide metrics across all cells:
 class SystemLevelMonitor:
     def __init__(self):
         self.cloudwatch = boto3.client('cloudwatch')
-    
+
     def setup_aggregate_monitoring(self, cell_ids):
         """Set up system-level aggregate monitoring"""
-        
+
         aggregate_metrics = [
             {
                 'name': 'TotalSystemRequests',
@@ -213,33 +213,33 @@ class SystemLevelMonitor:
                 'aggregation': 'count_healthy'
             }
         ]
-        
+
         for metric in aggregate_metrics:
             self.setup_aggregate_metric(metric, cell_ids)
-    
+
     def calculate_system_metrics(self, cell_ids):
         """Calculate system-wide metrics"""
-        
+
         cell_metrics = {}
         for cell_id in cell_ids:
             cell_metrics[cell_id] = self.get_cell_metrics(cell_id)
-        
+
         # Calculate aggregates
         total_requests = sum(metrics.request_count for metrics in cell_metrics.values())
-        
+
         # Weighted average availability (by request volume)
         total_weighted_availability = sum(
-            metrics.availability * metrics.request_count 
+            metrics.availability * metrics.request_count
             for metrics in cell_metrics.values()
         )
         system_availability = total_weighted_availability / total_requests if total_requests > 0 else 0
-        
+
         # Count healthy cells
         healthy_cells = sum(
-            1 for metrics in cell_metrics.values() 
+            1 for metrics in cell_metrics.values()
             if metrics.health_score >= 80
         )
-        
+
         return {
             'total_requests': total_requests,
             'system_availability': system_availability,
@@ -264,17 +264,17 @@ class CrossCellPatternDetector:
             'coordinated_attack': CoordinatedAttackDetector(),
             'system_degradation': SystemDegradationDetector()
         }
-    
+
     def detect_cross_cell_patterns(self, cell_ids):
         """Detect patterns across multiple cells"""
-        
+
         detected_patterns = {}
-        
+
         # Get metrics for all cells
         all_cell_metrics = {}
         for cell_id in cell_ids:
             all_cell_metrics[cell_id] = self.get_cell_metrics(cell_id)
-        
+
         # Run pattern detection
         for pattern_name, detector in self.pattern_detectors.items():
             try:
@@ -283,36 +283,36 @@ class CrossCellPatternDetector:
                     detected_patterns[pattern_name] = pattern_result
             except Exception as e:
                 self.log_pattern_detection_error(pattern_name, str(e))
-        
+
         return detected_patterns
 
 class CascadeFailureDetector:
     def detect_pattern(self, cell_metrics):
         """Detect cascade failure patterns"""
-        
+
         # Look for sequential cell failures
         failed_cells = [
             cell_id for cell_id, metrics in cell_metrics.items()
             if metrics.health_score < 50
         ]
-        
+
         if len(failed_cells) >= 2:
             # Check if failures are recent and sequential
             failure_times = [
-                self.get_cell_failure_time(cell_id) 
+                self.get_cell_failure_time(cell_id)
                 for cell_id in failed_cells
             ]
-            
+
             # Sort by failure time
             failure_times.sort()
-            
+
             # Check if failures occurred within cascade window (e.g., 10 minutes)
             cascade_window = timedelta(minutes=10)
             is_cascade = all(
                 failure_times[i+1] - failure_times[i] <= cascade_window
                 for i in range(len(failure_times)-1)
             )
-            
+
             if is_cascade:
                 return PatternDetectionResult(
                     detected=True,
@@ -324,7 +324,7 @@ class CascadeFailureDetector:
                         'cascade_duration': failure_times[-1] - failure_times[0]
                     }
                 )
-        
+
         return PatternDetectionResult(detected=False)
 ```
 
@@ -343,12 +343,12 @@ class CellAlertingFramework:
             'CRITICAL': ['slack_channel', 'email', 'pagerduty', 'sms'],
             'EMERGENCY': ['slack_channel', 'email', 'pagerduty', 'sms', 'phone_call']
         }
-        
+
         self.alert_rules = self.setup_alert_rules()
-    
+
     def setup_alert_rules(self):
         """Set up comprehensive alert rules"""
-        
+
         return {
             'cell_level_alerts': [
                 {
@@ -417,23 +417,23 @@ class CellAlertingFramework:
                 }
             ]
         }
-    
+
     def process_alert(self, alert_data):
         """Process and route alerts based on severity"""
-        
+
         alert_severity = alert_data.get('severity', 'INFO')
         channels = self.alert_channels.get(alert_severity, ['slack_channel'])
-        
+
         # Enrich alert with context
         enriched_alert = self.enrich_alert_context(alert_data)
-        
+
         # Send to appropriate channels
         for channel in channels:
             self.send_alert_to_channel(enriched_alert, channel)
-        
+
         # Log alert
         self.log_alert(enriched_alert)
-        
+
         return {
             'alert_id': enriched_alert['alert_id'],
             'severity': alert_severity,
@@ -451,31 +451,31 @@ class AlertCorrelationEngine:
     def __init__(self):
         self.correlation_rules = self.setup_correlation_rules()
         self.alert_history = AlertHistory()
-    
+
     def correlate_alerts(self, new_alert):
         """Correlate new alert with existing alerts"""
-        
+
         # Get recent alerts (last 15 minutes)
         recent_alerts = self.alert_history.get_recent_alerts(minutes=15)
-        
+
         # Check for correlation patterns
         correlations = []
-        
+
         for rule in self.correlation_rules:
             correlation_result = rule.check_correlation(new_alert, recent_alerts)
             if correlation_result.correlated:
                 correlations.append(correlation_result)
-        
+
         if correlations:
             # Create correlated alert
             correlated_alert = self.create_correlated_alert(new_alert, correlations)
             return correlated_alert
-        
+
         return new_alert
-    
+
     def setup_correlation_rules(self):
         """Set up alert correlation rules"""
-        
+
         return [
             CellFailureCorrelationRule(),
             CapacityCorrelationRule(),
@@ -486,14 +486,14 @@ class AlertCorrelationEngine:
 class CellFailureCorrelationRule:
     def check_correlation(self, new_alert, recent_alerts):
         """Check for cell failure correlation patterns"""
-        
+
         if new_alert.alert_type == 'CellDown':
             # Look for other cell failures
             other_cell_failures = [
                 alert for alert in recent_alerts
                 if alert.alert_type == 'CellDown' and alert.cell_id != new_alert.cell_id
             ]
-            
+
             if len(other_cell_failures) >= 1:
                 return CorrelationResult(
                     correlated=True,
@@ -501,7 +501,7 @@ class CellFailureCorrelationRule:
                     related_alerts=other_cell_failures,
                     severity_escalation='EMERGENCY' if len(other_cell_failures) >= 2 else 'CRITICAL'
                 )
-        
+
         return CorrelationResult(correlated=False)
 ```
 
@@ -515,7 +515,7 @@ Create comprehensive dashboards for cell monitoring:
 class CellDashboardGenerator:
     def create_cell_overview_dashboard(self, cell_ids):
         """Create overview dashboard for all cells"""
-        
+
         dashboard_config = {
             "widgets": [
                 {
@@ -563,12 +563,12 @@ class CellDashboardGenerator:
                 }
             ]
         }
-        
+
         return dashboard_config
-    
+
     def create_individual_cell_dashboard(self, cell_id):
         """Create detailed dashboard for individual cell"""
-        
+
         dashboard_config = {
             "widgets": [
                 {
@@ -606,7 +606,7 @@ class CellDashboardGenerator:
                 }
             ]
         }
-        
+
         return dashboard_config
 ```
 

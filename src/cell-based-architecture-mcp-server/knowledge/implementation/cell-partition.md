@@ -57,7 +57,7 @@ Prefix and range-based mapping groups ranges of keys (or hashes of keys) to cell
 ### Implementation Example
 ```
 Range 000-199: Cell A
-Range 200-399: Cell B  
+Range 200-399: Cell B
 Range 400-599: Cell C
 Range 600-799: Cell D
 Range 800-999: Cell E

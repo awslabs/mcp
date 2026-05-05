@@ -10,7 +10,7 @@
 ### Wave-Based Deployment Strategy
 ```
 Wave 1: 1 cell (canary) → Bake time → Monitor
-Wave 2: 10% of cells → Bake time → Monitor  
+Wave 2: 10% of cells → Bake time → Monitor
 Wave 3: 50% of cells → Bake time → Monitor
 Wave 4: Remaining cells → Final validation
 ```
@@ -46,7 +46,7 @@ Wave 4: Remaining cells → Final validation
 ### Deployment Pipeline Boundaries
 - **AWS Account**: Highest isolation level
 - **Region**: Geographic fault isolation
-- **Availability Zone**: Infrastructure fault isolation  
+- **Availability Zone**: Infrastructure fault isolation
 - **Cell**: Application-level fault isolation
 
 ### Scope of Impact Reduction
