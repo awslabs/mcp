@@ -184,7 +184,7 @@ uv run pyright
 
 ## License
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache License 2.0 - see the [LICENSE](https://github.com/awslabs/mcp/blob/main/src/cell-based-architecture-mcp-server/LICENSE) file for details.
 
 ## Related Resources
 

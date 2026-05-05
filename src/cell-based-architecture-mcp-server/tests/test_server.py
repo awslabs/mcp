@@ -214,3 +214,77 @@ class TestErrorHandling:
         result = await analyze_cell_design(architecture_description='')
         assert isinstance(result, str)
         assert len(result) > 0
+
+
+class TestErrorPathsAndMain:
+    """Exercise the top-level ``except`` blocks and ``main()``.
+
+    These tests pin coverage on the safety net around each handler and the
+    CLI entry point. They patch the knowledge facade / ``mcp.run`` to force
+    the desired code path without needing a real MCP transport.
+    """
+
+    @pytest.mark.asyncio
+    async def test_query_cell_concepts_handles_internal_error(self, mocker):
+        """When the knowledge facade raises, the tool returns a string, not an exception."""
+        mocker.patch(
+            'awslabs.cell_based_architecture_mcp_server.server.CellBasedArchitectureKnowledge',
+            side_effect=RuntimeError('boom'),
+        )
+        result = await query_cell_concepts(concept='x', detail_level='beginner')
+        assert isinstance(result, str)
+        assert 'Error querying' in result
+
+    @pytest.mark.asyncio
+    async def test_get_implementation_guidance_handles_internal_error(self, mocker):
+        """When the knowledge facade raises, the tool returns a string."""
+        mocker.patch(
+            'awslabs.cell_based_architecture_mcp_server.server.CellBasedArchitectureKnowledge',
+            side_effect=RuntimeError('boom'),
+        )
+        result = await get_implementation_guidance(stage='planning', experience_level='beginner')
+        assert isinstance(result, str)
+        assert 'Error getting implementation guidance' in result
+
+    @pytest.mark.asyncio
+    async def test_cell_architecture_guide_handles_internal_error(self, mocker):
+        """A resource that hits an internal error still returns valid JSON."""
+        # Force `.items()` iteration to raise by replacing the class dict with a Mock.
+        mock = mocker.MagicMock()
+        mock.items.side_effect = RuntimeError('boom')
+        mocker.patch(
+            'awslabs.cell_based_architecture_mcp_server.server.'
+            'CellBasedArchitectureKnowledge.WHITEPAPER_SECTIONS',
+            mock,
+        )
+        result = await cell_architecture_guide()
+        data = json.loads(result)
+        assert 'error' in data
+
+    def test_main_runs_mcp_and_defaults_region(self, mocker):
+        """main() starts the MCP server and defaults AWS_REGION when unset."""
+        from awslabs.cell_based_architecture_mcp_server import server as server_mod
+
+        mocker.patch.dict('os.environ', {}, clear=True)
+        run_mock = mocker.patch.object(server_mod.mcp, 'run')
+        server_mod.main()
+        run_mock.assert_called_once()
+        assert server_mod.os.environ['AWS_REGION'] == 'us-east-1'
+
+    def test_main_handles_keyboard_interrupt(self, mocker):
+        """main() exits with code 0 on KeyboardInterrupt."""
+        from awslabs.cell_based_architecture_mcp_server import server as server_mod
+
+        mocker.patch.object(server_mod.mcp, 'run', side_effect=KeyboardInterrupt())
+        exit_mock = mocker.patch.object(server_mod.sys, 'exit')
+        server_mod.main()
+        exit_mock.assert_called_with(0)
+
+    def test_main_handles_unexpected_exception(self, mocker):
+        """main() exits with code 1 on unexpected exceptions."""
+        from awslabs.cell_based_architecture_mcp_server import server as server_mod
+
+        mocker.patch.object(server_mod.mcp, 'run', side_effect=RuntimeError('boom'))
+        exit_mock = mocker.patch.object(server_mod.sys, 'exit')
+        server_mod.main()
+        exit_mock.assert_called_with(1)

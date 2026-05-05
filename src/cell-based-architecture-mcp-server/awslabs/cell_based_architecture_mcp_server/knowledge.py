@@ -20,7 +20,7 @@ the MCP tool handlers in :mod:`server`.
 """
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Union
@@ -217,17 +217,6 @@ class MarkdownKnowledgeLoader:
         self.category_index.clear()
         self.tag_index.clear()
         self._load_all_content()
-
-
-@dataclass
-class _SectionData:
-    """Private structured container for WHITEPAPER_SECTIONS entries."""
-
-    title: str
-    content: str
-    complexity_level: ComplexityLevel = 'intermediate'
-    subsections: List[str] = field(default_factory=list)
-    related_sections: List[str] = field(default_factory=list)
 
 
 class CellBasedArchitectureKnowledge:
