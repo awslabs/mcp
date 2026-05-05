@@ -15,6 +15,7 @@
 """awslabs Aurora DSQL MCP Server implementation."""
 
 import argparse
+import asyncio
 import boto3
 import httpx
 import json
@@ -523,6 +524,11 @@ async def dsql_recommend(
     return await _proxy_to_knowledge_server('dsql_recommend', {'url': url}, ctx)
 
 
+MAX_LINT_SQL_BYTES = 1_000_000
+DSQL_LINT_TIMEOUT_SECONDS = 30
+_DSQL_LINT_VALID_RETURNCODES = {0, 1, 3}
+
+
 @mcp.tool(
     name='dsql_lint',
     description="""Validate SQL for Aurora DSQL compatibility and optionally auto-fix issues.
@@ -537,23 +543,25 @@ Use fix=True to generate DSQL-compatible SQL automatically.
 - To check transaction structure (DSQL requires one DDL per transaction)
 
 ## Fix Behavior
-When fix=True:
-- FIXED: Safe mechanical transformation applied
-- WARNING: Fix applied but may require application code changes
-- ERROR (unfixable): Cannot be auto-fixed, requires manual intervention
-
-## Example
-Input: "CREATE TABLE t (id SERIAL PRIMARY KEY, data JSON);"
-Output with fix=True returns diagnostics with suggestions and fixed_sql with DSQL-compatible SQL.
+When fix=True, each diagnostic carries a `fix_result.status`:
+- `fixed`: safe mechanical transformation applied
+- `fixed_with_warning`: fix applied but may require application code changes
+- unfixable diagnostics have no `fix_result` and require manual intervention
 """,
 )
 async def dsql_lint(
-    sql: Annotated[str, Field(description='SQL string to validate for DSQL compatibility')],
+    sql: Annotated[
+        str,
+        Field(
+            description='SQL string to validate for DSQL compatibility',
+            max_length=MAX_LINT_SQL_BYTES,
+        ),
+    ],
+    ctx: Context,
     fix: Annotated[
         bool,
         Field(
-            description='When true, returns DSQL-compatible fixed SQL in addition to diagnostics',
-            default=False,
+            description='When true, returns DSQL-compatible fixed SQL in addition to diagnostics'
         ),
     ] = False,
 ) -> dict:
@@ -561,10 +569,11 @@ async def dsql_lint(
 
     Args:
         sql: SQL string to validate
+        ctx: MCP context for structured error reporting
         fix: When true, attempt to auto-fix issues and return corrected SQL
 
     Returns:
-        Dictionary with diagnostics array and optionally fixed_sql string.
+        Dictionary with diagnostics array, fixed_sql (only when fix=True), and summary.
         Each diagnostic contains: rule, line, message, suggestion, fix_result.
     """
     logger.info(f'dsql_lint: fix={fix}, sql_length={len(sql)}')
@@ -584,7 +593,8 @@ async def dsql_lint(
             'Try: pip install dsql-lint'
         )
         logger.error(error_msg)
-        raise Exception(error_msg)
+        await ctx.error(error_msg)
+        raise RuntimeError(error_msg)
 
     cmd = [dsql_lint_bin, '--format', 'json']
     if fix:
@@ -592,48 +602,66 @@ async def dsql_lint(
     cmd.append('-')
 
     try:
-        result = subprocess.run(
+        result = await asyncio.to_thread(
+            subprocess.run,
             cmd,
             input=sql,
             capture_output=True,
             text=True,
-            timeout=30,
+            encoding='utf-8',
+            timeout=DSQL_LINT_TIMEOUT_SECONDS,
         )
-    except subprocess.TimeoutExpired:
-        raise Exception('dsql-lint timed out after 30 seconds')
-    except FileNotFoundError:
-        raise Exception('dsql-lint binary not found. Try: pip install dsql-lint')
+    except subprocess.TimeoutExpired as e:
+        error_msg = f'dsql-lint timed out after {DSQL_LINT_TIMEOUT_SECONDS} seconds'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        raise RuntimeError(error_msg) from e
 
-    # dsql-lint exits 0 (clean), 1 (errors), 3 (fixed with warnings) — all produce valid JSON
     if result.returncode == 2:
-        # Exit code 2 = usage error
-        raise Exception(f'dsql-lint usage error: {result.stderr}')
+        error_msg = f'dsql-lint usage error: {result.stderr}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        raise RuntimeError(error_msg)
+
+    if result.returncode not in _DSQL_LINT_VALID_RETURNCODES:
+        error_msg = (
+            f'dsql-lint exited with unexpected returncode={result.returncode}. '
+            f'stderr: {result.stderr}'
+        )
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        raise RuntimeError(error_msg)
 
     if not result.stdout.strip():
-        raise Exception(f'dsql-lint produced no output. stderr: {result.stderr}')
+        error_msg = f'dsql-lint produced no output. stderr: {result.stderr}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        raise RuntimeError(error_msg)
 
     try:
         output = json.loads(result.stdout)
     except json.JSONDecodeError as e:
-        raise Exception(f'dsql-lint returned invalid JSON: {e}. Output: {result.stdout[:200]}')
+        logger.error(
+            f'dsql-lint returned invalid JSON: {e}. '
+            f'stdout: {result.stdout!r} stderr: {result.stderr!r}'
+        )
+        error_msg = f'dsql-lint returned invalid JSON: {e}'
+        await ctx.error(error_msg)
+        raise RuntimeError(error_msg) from e
 
-    # Extract the relevant data from the dsql-lint JSON schema
-    files = output.get('files', [])
+    files = output.get('files') or []
     if not files:
-        return {
-            'diagnostics': [],
-            'fixed_sql': None,
-            'summary': output.get('summary', {'errors': 0, 'warnings': 0, 'fixed': 0}),
-        }
+        error_msg = f'dsql-lint returned no file results. output: {result.stdout[:200]}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        raise RuntimeError(error_msg)
 
     file_result = files[0]
-    response = {
+    return {
         'diagnostics': file_result.get('diagnostics', []),
-        'fixed_sql': file_result.get('fixed_sql'),
+        'fixed_sql': file_result.get('fixed_sql') if fix else None,
         'summary': output.get('summary', {'errors': 0, 'warnings': 0, 'fixed': 0}),
     }
-
-    return response
 
 
 async def _proxy_to_knowledge_server(
