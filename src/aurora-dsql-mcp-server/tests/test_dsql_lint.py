@@ -45,7 +45,7 @@ class TestDsqlLint:
     @pytest.mark.asyncio
     async def test_empty_sql_returns_empty_diagnostics(self, ctx, mocker):
         """Empty SQL input returns empty diagnostics without calling the binary."""
-        mock_run = mocker.patch('subprocess.run')
+        mock_run = mocker.patch('awslabs.aurora_dsql_mcp_server.server.subprocess.run')
         result = await dsql_lint('', ctx=ctx, fix=False)
         assert result['diagnostics'] == []
         assert result['fixed_sql'] is None
@@ -55,7 +55,7 @@ class TestDsqlLint:
     @pytest.mark.asyncio
     async def test_whitespace_only_returns_empty_diagnostics(self, ctx, mocker):
         """Whitespace-only SQL returns empty diagnostics without calling the binary."""
-        mock_run = mocker.patch('subprocess.run')
+        mock_run = mocker.patch('awslabs.aurora_dsql_mcp_server.server.subprocess.run')
         result = await dsql_lint('   \n\t  ', ctx=ctx, fix=False)
         assert result['diagnostics'] == []
         assert result['fixed_sql'] is None
@@ -64,7 +64,9 @@ class TestDsqlLint:
     @pytest.mark.asyncio
     async def test_binary_not_found_raises_runtime_error(self, ctx, mocker):
         """Raises RuntimeError when dsql-lint binary is not on PATH."""
-        mocker.patch('shutil.which', return_value=None)
+        mocker.patch(
+            'awslabs.aurora_dsql_mcp_server.server.shutil.which', return_value=None
+        )
 
         with pytest.raises(RuntimeError, match=r'^dsql-lint binary not found on PATH\.'):
             await dsql_lint('CREATE TABLE t (id INT);', ctx=ctx, fix=False)
@@ -73,13 +75,13 @@ class TestDsqlLint:
     @pytest.mark.asyncio
     async def test_lint_clean_sql(self, ctx, mocker):
         """Clean SQL returns empty diagnostics."""
-        mock_run = mocker.patch('subprocess.run')
+        mock_run = mocker.patch('awslabs.aurora_dsql_mcp_server.server.subprocess.run')
         mock_run.return_value = MagicMock(
             returncode=0,
             stdout=_clean_output(),
             stderr='',
         )
-        mocker.patch('shutil.which', return_value='/usr/bin/dsql-lint')
+        mocker.patch('awslabs.aurora_dsql_mcp_server.server.shutil.which', return_value='/usr/bin/dsql-lint')
 
         result = await dsql_lint(
             'CREATE TABLE t (id INT PRIMARY KEY);', ctx=ctx, fix=False
@@ -115,9 +117,9 @@ class TestDsqlLint:
             'summary': {'errors': 0, 'warnings': 1, 'fixed': 0},
         })
 
-        mock_run = mocker.patch('subprocess.run')
+        mock_run = mocker.patch('awslabs.aurora_dsql_mcp_server.server.subprocess.run')
         mock_run.return_value = MagicMock(returncode=1, stdout=mock_output, stderr='')
-        mocker.patch('shutil.which', return_value='/usr/bin/dsql-lint')
+        mocker.patch('awslabs.aurora_dsql_mcp_server.server.shutil.which', return_value='/usr/bin/dsql-lint')
 
         result = await dsql_lint(
             'CREATE TABLE t (id SERIAL PRIMARY KEY);', ctx=ctx, fix=False
@@ -168,9 +170,9 @@ class TestDsqlLint:
             'summary': {'errors': 0, 'warnings': 1, 'fixed': 1},
         })
 
-        mock_run = mocker.patch('subprocess.run')
+        mock_run = mocker.patch('awslabs.aurora_dsql_mcp_server.server.subprocess.run')
         mock_run.return_value = MagicMock(returncode=3, stdout=mock_output, stderr='')
-        mocker.patch('shutil.which', return_value='/usr/bin/dsql-lint')
+        mocker.patch('awslabs.aurora_dsql_mcp_server.server.shutil.which', return_value='/usr/bin/dsql-lint')
 
         result = await dsql_lint(
             'CREATE TABLE t (id SERIAL, data JSON);', ctx=ctx, fix=True
@@ -191,9 +193,9 @@ class TestDsqlLint:
             }],
             'summary': {'errors': 0, 'warnings': 0, 'fixed': 0},
         })
-        mock_run = mocker.patch('subprocess.run')
+        mock_run = mocker.patch('awslabs.aurora_dsql_mcp_server.server.subprocess.run')
         mock_run.return_value = MagicMock(returncode=0, stdout=mock_output, stderr='')
-        mocker.patch('shutil.which', return_value='/usr/bin/dsql-lint')
+        mocker.patch('awslabs.aurora_dsql_mcp_server.server.shutil.which', return_value='/usr/bin/dsql-lint')
 
         result = await dsql_lint('SELECT 1;', ctx=ctx, fix=False)
 
@@ -202,9 +204,9 @@ class TestDsqlLint:
     @pytest.mark.asyncio
     async def test_command_and_stdin_payload(self, ctx, mocker):
         """Verify argv flags and that sql is piped via stdin (input=sql)."""
-        mock_run = mocker.patch('subprocess.run')
+        mock_run = mocker.patch('awslabs.aurora_dsql_mcp_server.server.subprocess.run')
         mock_run.return_value = MagicMock(returncode=0, stdout=_clean_output(), stderr='')
-        mocker.patch('shutil.which', return_value='/usr/bin/dsql-lint')
+        mocker.patch('awslabs.aurora_dsql_mcp_server.server.shutil.which', return_value='/usr/bin/dsql-lint')
 
         sql = 'SELECT 1;'
         await dsql_lint(sql, ctx=ctx, fix=True)
@@ -219,9 +221,9 @@ class TestDsqlLint:
     @pytest.mark.asyncio
     async def test_no_fix_flag_when_fix_false(self, ctx, mocker):
         """Verify --fix flag is NOT included when fix=False."""
-        mock_run = mocker.patch('subprocess.run')
+        mock_run = mocker.patch('awslabs.aurora_dsql_mcp_server.server.subprocess.run')
         mock_run.return_value = MagicMock(returncode=0, stdout=_clean_output(), stderr='')
-        mocker.patch('shutil.which', return_value='/usr/bin/dsql-lint')
+        mocker.patch('awslabs.aurora_dsql_mcp_server.server.shutil.which', return_value='/usr/bin/dsql-lint')
 
         await dsql_lint('SELECT 1;', ctx=ctx, fix=False)
 
@@ -231,11 +233,11 @@ class TestDsqlLint:
     @pytest.mark.asyncio
     async def test_usage_error_raises_runtime_error(self, ctx, mocker):
         """Exit code 2 (usage error) raises RuntimeError and surfaces stderr."""
-        mock_run = mocker.patch('subprocess.run')
+        mock_run = mocker.patch('awslabs.aurora_dsql_mcp_server.server.subprocess.run')
         mock_run.return_value = MagicMock(
             returncode=2, stdout='', stderr='error: missing required argument',
         )
-        mocker.patch('shutil.which', return_value='/usr/bin/dsql-lint')
+        mocker.patch('awslabs.aurora_dsql_mcp_server.server.shutil.which', return_value='/usr/bin/dsql-lint')
 
         with pytest.raises(RuntimeError, match=r'^dsql-lint usage error:.*missing required'):
             await dsql_lint('SELECT 1;', ctx=ctx, fix=False)
@@ -244,38 +246,55 @@ class TestDsqlLint:
     @pytest.mark.asyncio
     async def test_unexpected_returncode_raises_runtime_error(self, ctx, mocker):
         """Return codes outside {0,1,3} (e.g. 139 segfault) raise even with valid JSON."""
-        mock_run = mocker.patch('subprocess.run')
+        mock_run = mocker.patch('awslabs.aurora_dsql_mcp_server.server.subprocess.run')
         mock_run.return_value = MagicMock(
             returncode=139, stdout=_clean_output(), stderr='segfault',
         )
-        mocker.patch('shutil.which', return_value='/usr/bin/dsql-lint')
+        mocker.patch('awslabs.aurora_dsql_mcp_server.server.shutil.which', return_value='/usr/bin/dsql-lint')
 
         with pytest.raises(RuntimeError, match=r'unexpected returncode=139'):
             await dsql_lint('SELECT 1;', ctx=ctx, fix=False)
+        ctx.error.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_timeout_raises_runtime_error(self, ctx, mocker):
         """Timeout raises RuntimeError anchored on the exact message."""
-        mock_run = mocker.patch('subprocess.run')
+        mock_run = mocker.patch('awslabs.aurora_dsql_mcp_server.server.subprocess.run')
         mock_run.side_effect = subprocess.TimeoutExpired(cmd='dsql-lint', timeout=30)
-        mocker.patch('shutil.which', return_value='/usr/bin/dsql-lint')
+        mocker.patch('awslabs.aurora_dsql_mcp_server.server.shutil.which', return_value='/usr/bin/dsql-lint')
 
         with pytest.raises(RuntimeError, match=r'^dsql-lint timed out after 30 seconds$'):
             await dsql_lint('SELECT 1;', ctx=ctx, fix=False)
         ctx.error.assert_awaited_once()
 
     @pytest.mark.asyncio
+    async def test_os_error_raises_runtime_error(self, ctx, mocker):
+        """OSError at exec time (e.g. PermissionError) raises RuntimeError chained from e."""
+        mock_run = mocker.patch('awslabs.aurora_dsql_mcp_server.server.subprocess.run')
+        mock_run.side_effect = PermissionError('Permission denied')
+        mocker.patch(
+            'awslabs.aurora_dsql_mcp_server.server.shutil.which',
+            return_value='/usr/bin/dsql-lint',
+        )
+
+        with pytest.raises(RuntimeError, match=r'failed to execute:.*Permission denied') as exc_info:
+            await dsql_lint('SELECT 1;', ctx=ctx, fix=False)
+        assert isinstance(exc_info.value.__cause__, PermissionError)
+        ctx.error.assert_awaited_once()
+
+    @pytest.mark.asyncio
     async def test_invalid_json_raises_runtime_error(self, ctx, mocker):
         """Invalid JSON output raises RuntimeError chained from JSONDecodeError."""
-        mock_run = mocker.patch('subprocess.run')
+        mock_run = mocker.patch('awslabs.aurora_dsql_mcp_server.server.subprocess.run')
         mock_run.return_value = MagicMock(
             returncode=0, stdout='not valid json{{{', stderr='',
         )
-        mocker.patch('shutil.which', return_value='/usr/bin/dsql-lint')
+        mocker.patch('awslabs.aurora_dsql_mcp_server.server.shutil.which', return_value='/usr/bin/dsql-lint')
 
         with pytest.raises(RuntimeError, match=r'returned invalid JSON') as exc_info:
             await dsql_lint('SELECT 1;', ctx=ctx, fix=False)
         assert isinstance(exc_info.value.__cause__, json.JSONDecodeError)
+        ctx.error.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_empty_files_array_raises_runtime_error(self, ctx, mocker):
@@ -284,19 +303,21 @@ class TestDsqlLint:
             'schema_version': 1, 'files': [],
             'summary': {'errors': 0, 'warnings': 0, 'fixed': 0},
         })
-        mock_run = mocker.patch('subprocess.run')
+        mock_run = mocker.patch('awslabs.aurora_dsql_mcp_server.server.subprocess.run')
         mock_run.return_value = MagicMock(returncode=0, stdout=mock_output, stderr='')
-        mocker.patch('shutil.which', return_value='/usr/bin/dsql-lint')
+        mocker.patch('awslabs.aurora_dsql_mcp_server.server.shutil.which', return_value='/usr/bin/dsql-lint')
 
         with pytest.raises(RuntimeError, match=r'no file results'):
             await dsql_lint('SELECT 1;', ctx=ctx, fix=False)
+        ctx.error.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_empty_stdout_raises_runtime_error(self, ctx, mocker):
         """Empty stdout from dsql-lint raises RuntimeError."""
-        mock_run = mocker.patch('subprocess.run')
+        mock_run = mocker.patch('awslabs.aurora_dsql_mcp_server.server.subprocess.run')
         mock_run.return_value = MagicMock(returncode=0, stdout='', stderr='some error')
-        mocker.patch('shutil.which', return_value='/usr/bin/dsql-lint')
+        mocker.patch('awslabs.aurora_dsql_mcp_server.server.shutil.which', return_value='/usr/bin/dsql-lint')
 
         with pytest.raises(RuntimeError, match=r'produced no output'):
             await dsql_lint('SELECT 1;', ctx=ctx, fix=False)
+        ctx.error.assert_awaited_once()

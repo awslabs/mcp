@@ -524,8 +524,10 @@ async def dsql_recommend(
     return await _proxy_to_knowledge_server('dsql_recommend', {'url': url}, ctx)
 
 
-MAX_LINT_SQL_BYTES = 1_000_000
+MAX_LINT_SQL_CHARS = 1_000_000
 DSQL_LINT_TIMEOUT_SECONDS = 30
+# dsql-lint exit codes: 0=clean, 1=diagnostics, 2=usage-error (handled separately),
+# 3=fixes-applied-with-warnings. Anything else signals a crash or protocol violation.
 _DSQL_LINT_VALID_RETURNCODES = {0, 1, 3}
 
 
@@ -554,7 +556,7 @@ async def dsql_lint(
         str,
         Field(
             description='SQL string to validate for DSQL compatibility',
-            max_length=MAX_LINT_SQL_BYTES,
+            max_length=MAX_LINT_SQL_CHARS,
         ),
     ],
     ctx: Context,
@@ -573,7 +575,8 @@ async def dsql_lint(
         fix: When true, attempt to auto-fix issues and return corrected SQL
 
     Returns:
-        Dictionary with diagnostics array, fixed_sql (only when fix=True), and summary.
+        Dictionary with diagnostics array, fixed_sql, and summary. `fixed_sql` is
+        always None when fix=False regardless of upstream output.
         Each diagnostic contains: rule, line, message, suggestion, fix_result.
     """
     logger.info(f'dsql_lint: fix={fix}, sql_length={len(sql)}')
@@ -613,6 +616,11 @@ async def dsql_lint(
         )
     except subprocess.TimeoutExpired as e:
         error_msg = f'dsql-lint timed out after {DSQL_LINT_TIMEOUT_SECONDS} seconds'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        raise RuntimeError(error_msg) from e
+    except OSError as e:
+        error_msg = f'dsql-lint failed to execute: {e}'
         logger.error(error_msg)
         await ctx.error(error_msg)
         raise RuntimeError(error_msg) from e
