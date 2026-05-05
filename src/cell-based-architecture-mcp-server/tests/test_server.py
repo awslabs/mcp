@@ -261,6 +261,47 @@ class TestErrorPathsAndMain:
         data = json.loads(result)
         assert 'error' in data
 
+    @pytest.mark.asyncio
+    async def test_analyze_cell_design_handles_internal_error(self, mocker):
+        """analyze_cell_design returns a string on unexpected internal errors."""
+        # Force .lower() on the description to blow up.
+        bad = mocker.MagicMock()
+        bad.lower.side_effect = RuntimeError('boom')
+        result = await analyze_cell_design(architecture_description=bad)
+        assert isinstance(result, str)
+        assert 'Error analyzing cell design' in result
+
+    @pytest.mark.asyncio
+    async def test_validate_architecture_handles_internal_error(self, mocker):
+        """validate_architecture returns a string on unexpected internal errors."""
+        bad = mocker.MagicMock()
+        bad.lower.side_effect = RuntimeError('boom')
+        result = await validate_architecture(design_document=bad)
+        assert isinstance(result, str)
+        assert 'Error validating architecture' in result
+
+    @pytest.mark.asyncio
+    async def test_implementation_patterns_handles_internal_error(self, mocker):
+        """implementation_patterns resource still returns valid JSON on error."""
+        mocker.patch(
+            'awslabs.cell_based_architecture_mcp_server.server.json.dumps',
+            side_effect=[RuntimeError('boom'), '{"error": "Error loading patterns: boom"}'],
+        )
+        result = await implementation_patterns()
+        data = json.loads(result)
+        assert 'error' in data
+
+    @pytest.mark.asyncio
+    async def test_best_practices_handles_internal_error(self, mocker):
+        """best_practices resource still returns valid JSON on error."""
+        mocker.patch(
+            'awslabs.cell_based_architecture_mcp_server.server.json.dumps',
+            side_effect=[RuntimeError('boom'), '{"error": "Error loading best practices: boom"}'],
+        )
+        result = await best_practices()
+        data = json.loads(result)
+        assert 'error' in data
+
     def test_main_runs_mcp_and_defaults_region(self, mocker):
         """main() starts the MCP server and defaults AWS_REGION when unset."""
         from awslabs.cell_based_architecture_mcp_server import server as server_mod
