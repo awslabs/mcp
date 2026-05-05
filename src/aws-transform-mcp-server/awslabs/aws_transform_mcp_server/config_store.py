@@ -317,7 +317,7 @@ class ConfigStore:
                     self.persist_config()
                     return True
                 except Exception as exc:
-                    logger.warning('Bearer token refresh failed at startup: %s', exc)
+                    logger.warning('Token refresh failed at startup: %s', exc)
                     return False
 
             return False

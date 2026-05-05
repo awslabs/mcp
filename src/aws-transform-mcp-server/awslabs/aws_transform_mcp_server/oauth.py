@@ -16,6 +16,7 @@
 
 import base64
 import hashlib
+import os
 import platform
 import secrets
 import subprocess
@@ -64,15 +65,7 @@ def _open_browser(url: str) -> None:
         if system == 'Darwin':
             subprocess.Popen(['open', url], **popen_kwargs)
         elif system == 'Windows':
-            # Must use a shell command string with the URL quoted. The list form
-            # ['cmd', '/c', 'start', '', url] gets reassembled into a single
-            # command line by CreateProcess, and cmd.exe then interprets '&' in
-            # the URL as a command separator — truncating query parameters.
-            subprocess.Popen(  # nosec B602 - url is built from OIDC endpoint, not user input
-                f'cmd /c start "" "{url}"',
-                shell=True,
-                **popen_kwargs,
-            )
+            os.startfile(url)  # type: ignore[attr-defined]  # Windows-only API
         else:
             subprocess.Popen(['xdg-open', url], **popen_kwargs)
     except Exception:
