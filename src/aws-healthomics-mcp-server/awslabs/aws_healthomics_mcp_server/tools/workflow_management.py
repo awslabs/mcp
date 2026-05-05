@@ -16,6 +16,20 @@
 
 from awslabs.aws_healthomics_mcp_server.consts import (
     DEFAULT_MAX_RESULTS,
+    ERROR_INVALID_ACCELERATOR,
+    ERROR_INVALID_ENGINE,
+    ERROR_INVALID_EXPORT_TYPE,
+    ERROR_INVALID_STORAGE_TYPE,
+    ERROR_INVALID_WORKFLOW_TYPE,
+    ERROR_STATIC_STORAGE_REQUIRES_CAPACITY,
+    STORAGE_TYPES,
+)
+from awslabs.aws_healthomics_mcp_server.models.core import (
+    AcceleratorType,
+    ExportType,
+    GetWorkflowType,
+    StorageType,
+    WorkflowEngine,
 )
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
     get_omics_client,
@@ -24,6 +38,7 @@ from awslabs.aws_healthomics_mcp_server.utils.error_utils import (
     handle_tool_error,
 )
 from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+    parse_tags,
     validate_container_registry_params,
     validate_definition_sources,
     validate_path_to_main,
@@ -160,6 +175,31 @@ async def create_workflow(
         None,
         description='Path to README markdown file within the repository (only valid with definition_repository)',
     ),
+    engine: Optional[str] = Field(
+        None,
+        description="Workflow engine type (WDL, NEXTFLOW, CWL, WDL_LENIENT). WDL_LENIENT allows for some WDL directives that don't strictly meet the WDL spec and can be useful when migrating legacy workflows designed to run on Cromwell",
+    ),
+    storage_type: Optional[str] = Field(
+        None,
+        description='Storage type for workflow runs (STATIC or DYNAMIC)',
+    ),
+    storage_capacity: Optional[int] = Field(
+        None,
+        description='Default static storage capacity in GiB for workflow runs (required when storage_type is STATIC)',
+        ge=1024,
+    ),
+    tags: Optional[Any] = Field(
+        None,
+        description='Tags to apply to the workflow as a dict or JSON string, e.g. {"key": "value"}',
+    ),
+    accelerators: Optional[str] = Field(
+        None,
+        description='Computational accelerator type (GPU). Currently unused by the HealthOmics service. Reserved for future support.',
+    ),
+    workflow_bucket_owner_id: Optional[str] = Field(
+        None,
+        description='Expected AWS account ID of the S3 bucket owner for definition URI validation',
+    ),
     definition_zip_base64: Optional[str] = Field(
         None,
         description='[Deprecated: use definition_source] Base64-encoded workflow definition ZIP file.',
@@ -191,6 +231,16 @@ async def create_workflow(
         definition_repository: Git repository configuration with connection_arn, full_repository_id, source_reference, and optional exclude_file_patterns
         parameter_template_path: Path to parameter template JSON file within the repository (only valid with definition_repository)
         readme_path: Path to README markdown file within the repository (only valid with definition_repository)
+        engine: Workflow engine type. WDL_LENIENT allows for some WDL directives
+            that don't strictly meet the WDL spec and can be useful when migrating
+            legacy workflows designed to run on Cromwell.
+        storage_type: Storage type for workflow runs (STATIC or DYNAMIC)
+        storage_capacity: Default static storage capacity in GiB (required when
+            storage_type is STATIC). Minumum of 1024.
+        tags: Tags to apply to the workflow as a dict or JSON string
+        accelerators: Computational accelerator type. Currently unused by the
+            HealthOmics service. Reserved for future support.
+        workflow_bucket_owner_id: Expected AWS account ID of the S3 bucket owner
         definition_zip_base64: **Deprecated** — use definition_source instead.
             Base64-encoded workflow definition ZIP file.
         aws_profile: Optional AWS profile name override
@@ -200,6 +250,24 @@ async def create_workflow(
         Dictionary containing the created workflow information or error dict
     """
     try:
+        # Handle Field objects for optional parameters (FastMCP compatibility)
+        if hasattr(engine, 'default') and not isinstance(engine, (str, type(None))):
+            engine = getattr(engine, 'default', None)
+        if hasattr(storage_type, 'default') and not isinstance(storage_type, (str, type(None))):
+            storage_type = getattr(storage_type, 'default', None)
+        if hasattr(storage_capacity, 'default') and not isinstance(
+            storage_capacity, (int, type(None))
+        ):
+            storage_capacity = getattr(storage_capacity, 'default', None)
+        if hasattr(tags, 'default') and not isinstance(tags, (dict, str, type(None))):
+            tags = getattr(tags, 'default', None)
+        if hasattr(accelerators, 'default') and not isinstance(accelerators, (str, type(None))):
+            accelerators = getattr(accelerators, 'default', None)
+        if hasattr(workflow_bucket_owner_id, 'default') and not isinstance(
+            workflow_bucket_owner_id, (str, type(None))
+        ):
+            workflow_bucket_owner_id = getattr(workflow_bucket_owner_id, 'default', None)
+
         # Validate definition sources and container registry parameters
         (
             definition_zip,
@@ -225,6 +293,51 @@ async def create_workflow(
 
         # Validate and process README input
         readme_markdown, readme_uri = await validate_readme_input(ctx, readme)
+
+        # Validate engine parameter
+        if engine is not None:
+            try:
+                WorkflowEngine(engine)
+            except ValueError:
+                error_message = ERROR_INVALID_ENGINE.format(
+                    ', '.join(e.value for e in WorkflowEngine)
+                )
+                logger.error(error_message)
+                await ctx.error(error_message)
+                raise ValueError(error_message)
+
+        # Validate storage_type parameter
+        if storage_type is not None:
+            try:
+                StorageType(storage_type)
+            except ValueError:
+                error_message = ERROR_INVALID_STORAGE_TYPE.format(', '.join(STORAGE_TYPES))
+                logger.error(error_message)
+                await ctx.error(error_message)
+                raise ValueError(error_message)
+            if storage_type == 'STATIC':
+                if not storage_capacity:
+                    error_message = ERROR_STATIC_STORAGE_REQUIRES_CAPACITY
+                    logger.error(error_message)
+                    await ctx.error(error_message)
+                    raise ValueError(error_message)
+
+        # Validate tags parameter
+        validated_tags = None
+        if tags is not None:
+            validated_tags = parse_tags(tags)
+
+        # Validate accelerators parameter
+        if accelerators is not None:
+            try:
+                AcceleratorType(accelerators)
+            except ValueError:
+                error_message = ERROR_INVALID_ACCELERATOR.format(
+                    ', '.join(e.value for e in AcceleratorType)
+                )
+                logger.error(error_message)
+                await ctx.error(error_message)
+                raise ValueError(error_message)
 
         client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
@@ -268,6 +381,24 @@ async def create_workflow(
         if readme_uri is not None:
             params['readmeUri'] = readme_uri
 
+        # Add new parameters
+        if engine is not None:
+            params['engine'] = engine
+
+        if storage_type is not None:
+            params['storageType'] = storage_type
+            if storage_type == 'STATIC':
+                params['storageCapacity'] = storage_capacity
+
+        if validated_tags is not None:
+            params['tags'] = validated_tags
+
+        if accelerators is not None:
+            params['accelerators'] = accelerators
+
+        if workflow_bucket_owner_id is not None:
+            params['workflowBucketOwnerId'] = workflow_bucket_owner_id
+
         response = client.create_workflow(**params)
 
         return {
@@ -276,6 +407,8 @@ async def create_workflow(
             'status': response.get('status'),
             'name': name,
             'description': description,
+            'tags': response.get('tags'),
+            'uuid': response.get('uuid'),
         }
     except Exception as e:
         return await handle_tool_error(ctx, e, 'Error creating workflow')
@@ -291,6 +424,18 @@ async def get_workflow(
         False,
         description='Whether to include a presigned URL for downloading the workflow definition ZIP file',
     ),
+    workflow_type: Optional[str] = Field(
+        None,
+        description='Workflow type filter (PRIVATE or READY2RUN). Use READY2RUN to access AWS-provided workflows',
+    ),
+    workflow_owner_id: Optional[str] = Field(
+        None,
+        description='AWS account ID of the workflow owner, used for accessing shared workflows',
+    ),
+    export: Optional[list] = Field(
+        None,
+        description='List of export types (DEFINITION, README) specifying what presigned URLs to include. Takes precedence over export_definition when provided',
+    ),
     aws_profile: Optional[str] = Field(
         None,
         description='AWS profile name for this operation. Overrides the default credential chain.',
@@ -305,22 +450,71 @@ async def get_workflow(
     Args:
         ctx: MCP context for error reporting
         workflow_id: ID of the workflow to retrieve
-        export_definition: Whether to include a presigned URL for downloading the workflow definition ZIP file
+        export_definition: Whether to include a presigned URL for downloading the
+            workflow definition ZIP file
+        workflow_type: Workflow type filter (PRIVATE or READY2RUN)
+        workflow_owner_id: AWS account ID of the workflow owner
+        export: List of export types (DEFINITION, README) for presigned URLs.
+            Takes precedence over export_definition when provided.
         aws_profile: Optional AWS profile name override
         aws_region: Optional AWS region override
 
     Returns:
-        Dictionary containing workflow details. When export_definition=True, includes a 'definition'
-        field with a presigned URL for downloading the workflow definition ZIP file.
+        Dictionary containing workflow details. When export or export_definition is set,
+        includes presigned URLs for downloading the requested workflow artifacts.
     """
-    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
-
-    params: dict[str, Any] = {'id': workflow_id}
-
-    if export_definition:
-        params['export'] = ['DEFINITION']
-
     try:
+        # Handle Field objects for optional parameters (FastMCP compatibility)
+        if hasattr(workflow_type, 'default') and not isinstance(workflow_type, (str, type(None))):
+            workflow_type = getattr(workflow_type, 'default', None)
+        if hasattr(workflow_owner_id, 'default') and not isinstance(
+            workflow_owner_id, (str, type(None))
+        ):
+            workflow_owner_id = getattr(workflow_owner_id, 'default', None)
+        if hasattr(export, 'default') and not isinstance(export, (list, type(None))):
+            export = getattr(export, 'default', None)
+
+        # Validate workflow_type parameter
+        if workflow_type is not None:
+            try:
+                GetWorkflowType(workflow_type)
+            except ValueError:
+                error_message = ERROR_INVALID_WORKFLOW_TYPE.format(
+                    ', '.join(e.value for e in GetWorkflowType)
+                )
+                logger.error(error_message)
+                await ctx.error(error_message)
+                raise ValueError(error_message)
+
+        # Validate export list parameter
+        if export is not None:
+            for item in export:
+                try:
+                    ExportType(item)
+                except ValueError:
+                    error_message = ERROR_INVALID_EXPORT_TYPE.format(
+                        ', '.join(e.value for e in ExportType)
+                    )
+                    logger.error(error_message)
+                    await ctx.error(error_message)
+                    raise ValueError(error_message)
+
+        client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
+
+        params: dict[str, Any] = {'id': workflow_id}
+
+        # Determine export list: explicit export takes precedence over export_definition
+        if export is not None:
+            params['export'] = export
+        elif export_definition:
+            params['export'] = ['DEFINITION']
+
+        if workflow_type is not None:
+            params['type'] = workflow_type
+
+        if workflow_owner_id is not None:
+            params['workflowOwnerId'] = workflow_owner_id
+
         response = client.get_workflow(**params)
 
         result = {
@@ -348,6 +542,42 @@ async def get_workflow(
 
         if 'containerRegistryMap' in response:
             result['containerRegistryMap'] = response['containerRegistryMap']
+
+        if 'engine' in response:
+            result['engine'] = response['engine']
+
+        if 'main' in response:
+            result['main'] = response['main']
+
+        if 'digest' in response:
+            result['digest'] = response['digest']
+
+        if 'storageCapacity' in response:
+            result['storageCapacity'] = response['storageCapacity']
+
+        if 'storageType' in response:
+            result['storageType'] = response['storageType']
+
+        if 'tags' in response:
+            result['tags'] = response['tags']
+
+        if 'metadata' in response:
+            result['metadata'] = dict(response['metadata'])
+
+        if 'accelerators' in response:
+            result['accelerators'] = response['accelerators']
+
+        if 'uuid' in response:
+            result['uuid'] = response['uuid']
+
+        if 'readme' in response:
+            result['readme'] = response['readme']
+
+        if 'definitionRepositoryDetails' in response:
+            result['definitionRepositoryDetails'] = response['definitionRepositoryDetails']
+
+        if 'readmePath' in response:
+            result['readmePath'] = response['readmePath']
 
         return result
     except Exception as e:
@@ -419,6 +649,22 @@ async def create_workflow_version(
         None,
         description='Path to README markdown file within the repository (only valid with definition_repository)',
     ),
+    engine: Optional[str] = Field(
+        None,
+        description="Workflow engine type (WDL, NEXTFLOW, CWL, WDL_LENIENT). WDL_LENIENT allows for some WDL directives that don't strictly meet the WDL spec and can be useful when migrating legacy workflows designed to run on Cromwell",
+    ),
+    tags: Optional[Any] = Field(
+        None,
+        description='Tags to apply to the workflow version as a dict or JSON string, e.g. {"key": "value"}',
+    ),
+    accelerators: Optional[str] = Field(
+        None,
+        description='Computational accelerator type (GPU). Currently unused by the HealthOmics service. Reserved for future support.',
+    ),
+    workflow_bucket_owner_id: Optional[str] = Field(
+        None,
+        description='Expected AWS account ID of the S3 bucket owner for definition URI validation',
+    ),
     definition_zip_base64: Optional[str] = Field(
         None,
         description='[Deprecated: use definition_source] Base64-encoded workflow definition ZIP file.',
@@ -453,6 +699,13 @@ async def create_workflow_version(
         definition_repository: Git repository configuration with connection_arn, full_repository_id, source_reference, and optional exclude_file_patterns
         parameter_template_path: Path to parameter template JSON file within the repository (only valid with definition_repository)
         readme_path: Path to README markdown file within the repository (only valid with definition_repository)
+        engine: Workflow engine type. WDL_LENIENT allows for some WDL directives
+            that don't strictly meet the WDL spec and can be useful when migrating
+            legacy workflows designed to run on Cromwell.
+        tags: Tags to apply to the workflow version as a dict or JSON string
+        accelerators: Computational accelerator type. Currently unused by the
+            HealthOmics service. Reserved for future support.
+        workflow_bucket_owner_id: Expected AWS account ID of the S3 bucket owner
         definition_zip_base64: **Deprecated** — use definition_source instead.
             Base64-encoded workflow definition ZIP file.
         aws_profile: Optional AWS profile name override
@@ -462,6 +715,24 @@ async def create_workflow_version(
         Dictionary containing the created workflow version information
     """
     try:
+        # Handle Field objects for optional parameters (FastMCP compatibility)
+        if hasattr(engine, 'default') and not isinstance(engine, (str, type(None))):
+            engine = getattr(engine, 'default', None)
+        if hasattr(storage_type, 'default') and not isinstance(storage_type, (str, type(None))):
+            storage_type = getattr(storage_type, 'default', None)
+        if hasattr(storage_capacity, 'default') and not isinstance(
+            storage_capacity, (int, type(None))
+        ):
+            storage_capacity = getattr(storage_capacity, 'default', None)
+        if hasattr(tags, 'default') and not isinstance(tags, (dict, str, type(None))):
+            tags = getattr(tags, 'default', None)
+        if hasattr(accelerators, 'default') and not isinstance(accelerators, (str, type(None))):
+            accelerators = getattr(accelerators, 'default', None)
+        if hasattr(workflow_bucket_owner_id, 'default') and not isinstance(
+            workflow_bucket_owner_id, (str, type(None))
+        ):
+            workflow_bucket_owner_id = getattr(workflow_bucket_owner_id, 'default', None)
+
         # Validate definition sources and container registry parameters
         (
             definition_zip,
@@ -485,10 +756,47 @@ async def create_workflow_version(
             ctx, definition_repository, parameter_template_path, readme_path
         )
 
-        # Validate storage requirements
-        if storage_type == 'STATIC':
-            if not storage_capacity:
-                error_message = 'Storage capacity is required when storage type is STATIC'
+        # Validate engine parameter
+        if engine is not None:
+            try:
+                WorkflowEngine(engine)
+            except ValueError:
+                error_message = ERROR_INVALID_ENGINE.format(
+                    ', '.join(e.value for e in WorkflowEngine)
+                )
+                logger.error(error_message)
+                await ctx.error(error_message)
+                raise ValueError(error_message)
+
+        # Validate storage_type parameter
+        if storage_type is not None:
+            try:
+                StorageType(storage_type)
+            except ValueError:
+                error_message = ERROR_INVALID_STORAGE_TYPE.format(', '.join(STORAGE_TYPES))
+                logger.error(error_message)
+                await ctx.error(error_message)
+                raise ValueError(error_message)
+            if storage_type == 'STATIC':
+                if not storage_capacity:
+                    error_message = ERROR_STATIC_STORAGE_REQUIRES_CAPACITY
+                    logger.error(error_message)
+                    await ctx.error(error_message)
+                    raise ValueError(error_message)
+
+        # Validate tags parameter
+        validated_tags = None
+        if tags is not None:
+            validated_tags = parse_tags(tags)
+
+        # Validate accelerators parameter
+        if accelerators is not None:
+            try:
+                AcceleratorType(accelerators)
+            except ValueError:
+                error_message = ERROR_INVALID_ACCELERATOR.format(
+                    ', '.join(e.value for e in AcceleratorType)
+                )
                 logger.error(error_message)
                 await ctx.error(error_message)
                 raise ValueError(error_message)
@@ -501,8 +809,10 @@ async def create_workflow_version(
         params: Dict[str, Any] = {
             'workflowId': workflow_id,
             'versionName': version_name,
-            'storageType': storage_type,
         }
+
+        if storage_type is not None:
+            params['storageType'] = storage_type
 
         # Add definition source (either ZIP, S3 URI, or repository)
         if definition_zip is not None:
@@ -543,6 +853,19 @@ async def create_workflow_version(
         if readme_uri is not None:
             params['readmeUri'] = readme_uri
 
+        # Add new parameters
+        if engine is not None:
+            params['engine'] = engine
+
+        if validated_tags is not None:
+            params['tags'] = validated_tags
+
+        if accelerators is not None:
+            params['accelerators'] = accelerators
+
+        if workflow_bucket_owner_id is not None:
+            params['workflowBucketOwnerId'] = workflow_bucket_owner_id
+
         response = client.create_workflow_version(**params)
 
         return {
@@ -552,6 +875,8 @@ async def create_workflow_version(
             'name': response.get('name'),
             'versionName': version_name,
             'description': description,
+            'tags': response.get('tags'),
+            'uuid': response.get('uuid'),
         }
     except Exception as e:
         return await handle_tool_error(ctx, e, 'Error creating workflow version')
@@ -620,6 +945,7 @@ async def list_workflow_versions(
                     'versionName': version.get('versionName'),
                     'status': version.get('status'),
                     'type': version.get('type'),
+                    'description': version.get('description'),
                     'creationTime': (
                         creation_time
                         if isinstance(creation_time, str)

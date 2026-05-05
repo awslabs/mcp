@@ -16,7 +16,15 @@
 
 import base64
 import botocore.exceptions
+import json
 import pytest
+from awslabs.aws_healthomics_mcp_server.models.core import (
+    AcceleratorType,
+    ExportType,
+    GetWorkflowType,
+    StorageType,
+    WorkflowEngine,
+)
 from awslabs.aws_healthomics_mcp_server.tools.workflow_management import (
     create_workflow,
     create_workflow_version,
@@ -24,7 +32,10 @@ from awslabs.aws_healthomics_mcp_server.tools.workflow_management import (
     list_workflow_versions,
     list_workflows,
 )
+from awslabs.aws_healthomics_mcp_server.utils.validation_utils import parse_tags
 from datetime import datetime, timezone
+from hypothesis import assume, given, settings
+from hypothesis import strategies as st
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -3292,3 +3303,2129 @@ async def test_create_workflow_version_with_repository_path_params():
 
     assert result['id'] == 'wfl-12345'
     assert result['versionName'] == 'v2.0'
+
+
+# --- Property-Based Tests ---
+
+
+class TestEnumValidationRejectsInvalidValues:
+    """Property: Enum validation rejects invalid values.
+
+    For each enum (WorkflowEngine, StorageType, AcceleratorType, GetWorkflowType, ExportType),
+    generate strings not in the enum's valid set and verify construction raises ValueError.
+
+    Validates: Requirements CreateWorkflow Engine Parameter, CreateWorkflow Storage Parameters,
+    CreateWorkflow Accelerators Parameter, GetWorkflow Type Parameter,
+    GetWorkflow Enhanced Export Parameter, CreateWorkflowVersion Engine Parameter,
+    CreateWorkflowVersion Accelerators Parameter
+    """
+
+    @given(
+        value=st.text(
+            min_size=1,
+            alphabet=st.characters(exclude_categories=('Cs',), exclude_characters='\r'),
+        )
+    )
+    @settings(max_examples=100)
+    def test_workflow_engine_rejects_invalid_values(self, value: str):
+        """Property: Enum validation rejects invalid values - WorkflowEngine.
+
+        Validates: Requirements CreateWorkflow Engine Parameter,
+        CreateWorkflowVersion Engine Parameter
+        """
+        valid_values = {e.value for e in WorkflowEngine}
+        assume(value not in valid_values)
+        with pytest.raises(ValueError):
+            WorkflowEngine(value)
+
+    @given(
+        value=st.text(
+            min_size=1,
+            alphabet=st.characters(exclude_categories=('Cs',), exclude_characters='\r'),
+        )
+    )
+    @settings(max_examples=100)
+    def test_storage_type_rejects_invalid_values(self, value: str):
+        """Property: Enum validation rejects invalid values - StorageType.
+
+        Validates: Requirements CreateWorkflow Storage Parameters
+        """
+        valid_values = {e.value for e in StorageType}
+        assume(value not in valid_values)
+        with pytest.raises(ValueError):
+            StorageType(value)
+
+    @given(
+        value=st.text(
+            min_size=1,
+            alphabet=st.characters(exclude_categories=('Cs',), exclude_characters='\r'),
+        )
+    )
+    @settings(max_examples=100)
+    def test_accelerator_type_rejects_invalid_values(self, value: str):
+        """Property: Enum validation rejects invalid values - AcceleratorType.
+
+        Validates: Requirements CreateWorkflow Accelerators Parameter,
+        CreateWorkflowVersion Accelerators Parameter
+        """
+        valid_values = {e.value for e in AcceleratorType}
+        assume(value not in valid_values)
+        with pytest.raises(ValueError):
+            AcceleratorType(value)
+
+    @given(
+        value=st.text(
+            min_size=1,
+            alphabet=st.characters(exclude_categories=('Cs',), exclude_characters='\r'),
+        )
+    )
+    @settings(max_examples=100)
+    def test_get_workflow_type_rejects_invalid_values(self, value: str):
+        """Property: Enum validation rejects invalid values - GetWorkflowType.
+
+        Validates: Requirements GetWorkflow Type Parameter
+        """
+        valid_values = {e.value for e in GetWorkflowType}
+        assume(value not in valid_values)
+        with pytest.raises(ValueError):
+            GetWorkflowType(value)
+
+    @given(
+        value=st.text(
+            min_size=1,
+            alphabet=st.characters(exclude_categories=('Cs',), exclude_characters='\r'),
+        )
+    )
+    @settings(max_examples=100)
+    def test_export_type_rejects_invalid_values(self, value: str):
+        """Property: Enum validation rejects invalid values - ExportType.
+
+        Validates: Requirements GetWorkflow Enhanced Export Parameter
+        """
+        valid_values = {e.value for e in ExportType}
+        assume(value not in valid_values)
+        with pytest.raises(ValueError):
+            ExportType(value)
+
+
+class TestTagParsingRoundTrip:
+    """Property: Tag parsing round-trip.
+
+    For any valid tag dictionary (with string keys and string values), serializing it to a
+    JSON string and then passing it through parse_tags should produce a dictionary equal to
+    the original. Additionally, passing the original dict directly through parse_tags should
+    return it unchanged.
+
+    Validates: Requirements CreateWorkflow Tags Parameter, CreateWorkflowVersion Tags Parameter
+    """
+
+    @given(
+        tags=st.dictionaries(
+            keys=st.text(
+                min_size=0,
+                alphabet=st.characters(exclude_categories=('Cs',), exclude_characters='\r'),
+            ),
+            values=st.text(
+                min_size=0,
+                alphabet=st.characters(exclude_categories=('Cs',), exclude_characters='\r'),
+            ),
+        )
+    )
+    @settings(max_examples=100)
+    def test_json_string_round_trip(self, tags: dict):
+        """Property: Tag parsing round-trip - JSON string serialization.
+
+        Serialize a tag dict to JSON, pass through parse_tags, verify equals original.
+
+        Validates: Requirements CreateWorkflow Tags Parameter,
+        CreateWorkflowVersion Tags Parameter
+        """
+        json_str = json.dumps(tags)
+        result = parse_tags(json_str)
+        assert result == tags
+
+    @given(
+        tags=st.dictionaries(
+            keys=st.text(
+                min_size=0,
+                alphabet=st.characters(exclude_categories=('Cs',), exclude_characters='\r'),
+            ),
+            values=st.text(
+                min_size=0,
+                alphabet=st.characters(exclude_categories=('Cs',), exclude_characters='\r'),
+            ),
+        )
+    )
+    @settings(max_examples=100)
+    def test_dict_passthrough(self, tags: dict):
+        """Property: Tag parsing round-trip - dict passthrough.
+
+        Pass a tag dict directly through parse_tags, verify returns unchanged.
+
+        Validates: Requirements CreateWorkflow Tags Parameter,
+        CreateWorkflowVersion Tags Parameter
+        """
+        result = parse_tags(tags)
+        assert result == tags
+
+
+class TestTagParsingRejectsInvalidJSON:
+    """Property: Tag parsing rejects invalid JSON.
+
+    For any string that is not a valid JSON object, parse_tags should raise ValueError.
+    This includes non-JSON strings, and valid JSON that isn't an object (arrays, numbers,
+    strings, booleans, null).
+
+    Validates: Requirements CreateWorkflow Tags Parameter, CreateWorkflowVersion Tags Parameter
+    """
+
+    @given(
+        value=st.text(
+            min_size=1,
+            alphabet=st.characters(exclude_categories=('Cs',), exclude_characters='\r'),
+        )
+    )
+    @settings(max_examples=100)
+    def test_rejects_non_json_strings(self, value: str):
+        """Property: Tag parsing rejects invalid JSON - non-JSON strings.
+
+        Generate arbitrary strings and filter to those that are not valid JSON objects.
+
+        Validates: Requirements CreateWorkflow Tags Parameter,
+        CreateWorkflowVersion Tags Parameter
+        """
+        # Filter out strings that happen to be valid JSON objects
+        try:
+            parsed = json.loads(value)
+            assume(not isinstance(parsed, dict))
+        except json.JSONDecodeError:
+            pass  # Not valid JSON at all — should be rejected
+
+        with pytest.raises(ValueError):
+            parse_tags(value)
+
+    @given(
+        value=st.one_of(
+            # JSON arrays
+            st.lists(st.text(min_size=0, max_size=5), max_size=3).map(json.dumps),
+            # JSON numbers
+            st.integers().map(json.dumps),
+            st.floats(allow_nan=False, allow_infinity=False).map(json.dumps),
+            # JSON strings (double-quoted)
+            st.text(min_size=0, max_size=10).map(json.dumps),
+            # JSON booleans and null
+            st.sampled_from(['true', 'false', 'null']),
+        )
+    )
+    @settings(max_examples=100)
+    def test_rejects_valid_json_non_objects(self, value: str):
+        """Property: Tag parsing rejects invalid JSON - valid JSON non-objects.
+
+        Generate valid JSON values that are not objects (arrays, numbers, strings,
+        booleans, null) and verify parse_tags raises ValueError.
+
+        Validates: Requirements CreateWorkflow Tags Parameter,
+        CreateWorkflowVersion Tags Parameter
+        """
+        with pytest.raises(ValueError):
+            parse_tags(value)
+
+
+# =============================================================================
+# Unit tests for create_workflow new parameters
+# Validates: Requirements CreateWorkflow Engine Parameter, CreateWorkflow Storage Parameters,
+# CreateWorkflow Tags Parameter, CreateWorkflow Accelerators Parameter,
+# CreateWorkflow Workflow Bucket Owner ID Parameter, CreateWorkflow Response Fields
+# =============================================================================
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_engine_wdl():
+    """Test create_workflow forwards WDL engine to boto3.
+
+    Validates: Requirement CreateWorkflow Engine Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+            engine='WDL',
+        )
+
+    call_kwargs = mock_client.create_workflow.call_args.kwargs
+    assert call_kwargs['engine'] == 'WDL'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_engine_nextflow():
+    """Test create_workflow forwards NEXTFLOW engine to boto3.
+
+    Validates: Requirement CreateWorkflow Engine Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+            engine='NEXTFLOW',
+        )
+
+    call_kwargs = mock_client.create_workflow.call_args.kwargs
+    assert call_kwargs['engine'] == 'NEXTFLOW'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_engine_cwl():
+    """Test create_workflow forwards CWL engine to boto3.
+
+    Validates: Requirement CreateWorkflow Engine Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+            engine='CWL',
+        )
+
+    call_kwargs = mock_client.create_workflow.call_args.kwargs
+    assert call_kwargs['engine'] == 'CWL'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_engine_wdl_lenient():
+    """Test create_workflow forwards WDL_LENIENT engine to boto3.
+
+    Validates: Requirement CreateWorkflow Engine Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+            engine='WDL_LENIENT',
+        )
+
+    call_kwargs = mock_client.create_workflow.call_args.kwargs
+    assert call_kwargs['engine'] == 'WDL_LENIENT'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_engine_omitted_when_not_provided():
+    """Test create_workflow omits engine from API call when not provided.
+
+    Validates: Requirement CreateWorkflow Engine Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+        )
+
+    call_kwargs = mock_client.create_workflow.call_args.kwargs
+    assert 'engine' not in call_kwargs
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_invalid_engine_error():
+    """Test create_workflow returns error for invalid engine value.
+
+    Validates: Requirement CreateWorkflow Engine Parameter
+    """
+    mock_ctx = AsyncMock()
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    result = await create_workflow(
+        mock_ctx,
+        name='test-workflow',
+        definition_zip_base64=definition_zip_base64,
+        engine='INVALID_ENGINE',
+    )
+
+    assert 'error' in result
+    assert 'Error creating workflow' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_static_storage_with_capacity():
+    """Test create_workflow forwards STATIC storage type with capacity to boto3.
+
+    Validates: Requirement CreateWorkflow Storage Parameters
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='STATIC',
+            storage_capacity=100,
+        )
+
+    call_kwargs = mock_client.create_workflow.call_args.kwargs
+    assert call_kwargs['storageType'] == 'STATIC'
+    assert call_kwargs['storageCapacity'] == 100
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_dynamic_storage_without_capacity():
+    """Test create_workflow forwards DYNAMIC storage type and omits capacity.
+
+    Validates: Requirement CreateWorkflow Storage Parameters
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='DYNAMIC',
+        )
+
+    call_kwargs = mock_client.create_workflow.call_args.kwargs
+    assert call_kwargs['storageType'] == 'DYNAMIC'
+    assert 'storageCapacity' not in call_kwargs
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_static_storage_without_capacity_error():
+    """Test create_workflow returns error when STATIC storage has no capacity.
+
+    Validates: Requirement CreateWorkflow Storage Parameters
+    """
+    mock_ctx = AsyncMock()
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    result = await create_workflow(
+        mock_ctx,
+        name='test-workflow',
+        definition_zip_base64=definition_zip_base64,
+        storage_type='STATIC',
+        storage_capacity=None,
+    )
+
+    assert 'error' in result
+    assert 'Error creating workflow' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_invalid_storage_type_error():
+    """Test create_workflow returns error for invalid storage_type value.
+
+    Validates: Requirement CreateWorkflow Storage Parameters
+    """
+    mock_ctx = AsyncMock()
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    result = await create_workflow(
+        mock_ctx,
+        name='test-workflow',
+        definition_zip_base64=definition_zip_base64,
+        storage_type='INVALID_STORAGE',
+    )
+
+    assert 'error' in result
+    assert 'Error creating workflow' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_tags_dict_forwarded():
+    """Test create_workflow forwards dict tags to boto3.
+
+    Validates: Requirement CreateWorkflow Tags Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+    tags = {'project': 'genomics', 'team': 'research'}
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+            tags=tags,
+        )
+
+    call_kwargs = mock_client.create_workflow.call_args.kwargs
+    assert call_kwargs['tags'] == {'project': 'genomics', 'team': 'research'}
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_tags_json_string_forwarded():
+    """Test create_workflow parses and forwards JSON string tags to boto3.
+
+    Validates: Requirement CreateWorkflow Tags Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+    tags_json = json.dumps({'project': 'genomics', 'team': 'research'})
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+            tags=tags_json,
+        )
+
+    call_kwargs = mock_client.create_workflow.call_args.kwargs
+    assert call_kwargs['tags'] == {'project': 'genomics', 'team': 'research'}
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_tags_omitted_when_not_provided():
+    """Test create_workflow omits tags from API call when not provided.
+
+    Validates: Requirement CreateWorkflow Tags Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+        )
+
+    call_kwargs = mock_client.create_workflow.call_args.kwargs
+    assert 'tags' not in call_kwargs
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_gpu_accelerator_forwarded():
+    """Test create_workflow forwards GPU accelerator to boto3.
+
+    Validates: Requirement CreateWorkflow Accelerators Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+            accelerators='GPU',
+        )
+
+    call_kwargs = mock_client.create_workflow.call_args.kwargs
+    assert call_kwargs['accelerators'] == 'GPU'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_accelerator_omitted_when_not_provided():
+    """Test create_workflow omits accelerators from API call when not provided.
+
+    Validates: Requirement CreateWorkflow Accelerators Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+        )
+
+    call_kwargs = mock_client.create_workflow.call_args.kwargs
+    assert 'accelerators' not in call_kwargs
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_invalid_accelerator_error():
+    """Test create_workflow returns error for invalid accelerator value.
+
+    Validates: Requirement CreateWorkflow Accelerators Parameter
+    """
+    mock_ctx = AsyncMock()
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    result = await create_workflow(
+        mock_ctx,
+        name='test-workflow',
+        definition_zip_base64=definition_zip_base64,
+        accelerators='TPU',
+    )
+
+    assert 'error' in result
+    assert 'Error creating workflow' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_bucket_owner_id_forwarded():
+    """Test create_workflow forwards workflow_bucket_owner_id to boto3.
+
+    Validates: Requirement CreateWorkflow Workflow Bucket Owner ID Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+            workflow_bucket_owner_id='123456789012',
+        )
+
+    call_kwargs = mock_client.create_workflow.call_args.kwargs
+    assert call_kwargs['workflowBucketOwnerId'] == '123456789012'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_bucket_owner_id_omitted_when_not_provided():
+    """Test create_workflow omits workflowBucketOwnerId from API call when not provided.
+
+    Validates: Requirement CreateWorkflow Workflow Bucket Owner ID Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+        )
+
+    call_kwargs = mock_client.create_workflow.call_args.kwargs
+    assert 'workflowBucketOwnerId' not in call_kwargs
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_response_tags_and_uuid():
+    """Test create_workflow includes tags and uuid in response when present.
+
+    Validates: Requirement CreateWorkflow Response Fields
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+        'tags': {'project': 'genomics'},
+        'uuid': 'abc-def-123-456',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+        )
+
+    assert result['tags'] == {'project': 'genomics'}
+    assert result['uuid'] == 'abc-def-123-456'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_response_tags_and_uuid_absent():
+    """Test create_workflow result has None for tags and uuid when not in response.
+
+    Validates: Requirement CreateWorkflow Response Fields
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+        )
+
+    assert result.get('tags') is None
+    assert result.get('uuid') is None
+
+
+# =============================================================================
+# Property-Based Test: GetWorkflow response field completeness
+# Validates: Requirement GetWorkflow Additional Response Fields
+# =============================================================================
+
+
+class TestGetWorkflowResponseFieldCompleteness:
+    """Property: GetWorkflow response field completeness.
+
+    For any subset of optional response fields present in the boto3 response,
+    the get_workflow tool's result dictionary should contain all of those fields
+    with their original values.
+
+    Validates: Requirement GetWorkflow Additional Response Fields
+    """
+
+    # The optional response fields to test and their sample values
+    OPTIONAL_FIELDS = {
+        'engine': 'WDL',
+        'main': 'main.wdl',
+        'digest': 'sha256:abc123def456',
+        'storageCapacity': 100,
+        'storageType': 'DYNAMIC',
+        'tags': {'project': 'genomics', 'env': 'dev'},
+        'metadata': {'key1': 'value1', 'key2': 'value2'},
+        'accelerators': 'GPU',
+        'uuid': 'abc-def-123-456',
+        'readme': '# My Workflow\nThis is a readme.',
+        'definitionRepositoryDetails': {
+            'connectionArn': 'arn:aws:codestar-connections:us-east-1:123456789012:connection/abc',
+            'fullRepositoryId': 'my-org/my-repo',
+            'sourceReference': {'type': 'BRANCH', 'value': 'main'},
+            'providerType': 'GITHUB',
+            'providerEndpoint': 'https://github.com',
+        },
+        'readmePath': 'docs/README.md',
+    }
+
+    OPTIONAL_FIELD_NAMES = sorted(OPTIONAL_FIELDS.keys())
+
+    @given(
+        selected_fields=st.lists(
+            st.sampled_from(OPTIONAL_FIELD_NAMES),
+            unique=True,
+            min_size=0,
+            max_size=12,
+        )
+    )
+    @settings(max_examples=100)
+    @pytest.mark.asyncio
+    async def test_all_present_optional_fields_appear_in_result(self, selected_fields: list):
+        """Property: GetWorkflow response field completeness.
+
+        Generate random subsets of optional response fields, mock the boto3 response,
+        and verify all present fields appear in the get_workflow result with their
+        original values.
+
+        Validates: Requirement GetWorkflow Additional Response Fields
+        """
+        creation_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+
+        # Build mock boto3 response with base required fields plus selected optional fields
+        mock_response = {
+            'id': 'wfl-12345',
+            'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+            'name': 'test-workflow',
+            'status': 'ACTIVE',
+            'type': 'PRIVATE',
+            'creationTime': creation_time,
+        }
+
+        for field_name in selected_fields:
+            mock_response[field_name] = self.OPTIONAL_FIELDS[field_name]
+
+        mock_ctx = AsyncMock()
+        mock_client = MagicMock()
+        mock_client.get_workflow.return_value = mock_response
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+            return_value=mock_client,
+        ):
+            result = await get_workflow(
+                ctx=mock_ctx, workflow_id='wfl-12345', export_definition=False
+            )
+
+        # Verify all selected optional fields appear in the result with original values
+        for field_name in selected_fields:
+            expected_value = self.OPTIONAL_FIELDS[field_name]
+            assert field_name in result, (
+                f'Field {field_name!r} was in boto3 response but missing from get_workflow result'
+            )
+            assert result[field_name] == expected_value, (
+                f'Field {field_name!r}: expected {expected_value!r}, got {result[field_name]!r}'
+            )
+
+
+# =============================================================================
+# Unit tests for get_workflow new parameters and response fields
+# Validates: Requirements GetWorkflow Type Parameter, GetWorkflow Owner ID Parameter,
+# GetWorkflow Enhanced Export Parameter, GetWorkflow Additional Response Fields
+# =============================================================================
+
+
+def _make_get_workflow_base_response(**overrides):
+    """Helper to create a base get_workflow mock response with optional overrides."""
+    creation_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+    response = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'name': 'test-workflow',
+        'status': 'ACTIVE',
+        'type': 'PRIVATE',
+        'creationTime': creation_time,
+    }
+    response.update(overrides)
+    return response
+
+
+# --- workflow_type parameter tests ---
+
+
+@pytest.mark.asyncio
+async def test_get_workflow_private_type_forwarded():
+    """Test get_workflow forwards PRIVATE workflow_type to boto3.
+
+    Validates: Requirement GetWorkflow Type Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.get_workflow.return_value = _make_get_workflow_base_response()
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await get_workflow(
+            ctx=mock_ctx,
+            workflow_id='wfl-12345',
+            export_definition=False,
+            workflow_type='PRIVATE',
+        )
+
+    call_kwargs = mock_client.get_workflow.call_args.kwargs
+    assert call_kwargs['type'] == 'PRIVATE'
+
+
+@pytest.mark.asyncio
+async def test_get_workflow_ready2run_type_forwarded():
+    """Test get_workflow forwards READY2RUN workflow_type to boto3.
+
+    Validates: Requirement GetWorkflow Type Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.get_workflow.return_value = _make_get_workflow_base_response()
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await get_workflow(
+            ctx=mock_ctx,
+            workflow_id='wfl-12345',
+            export_definition=False,
+            workflow_type='READY2RUN',
+        )
+
+    call_kwargs = mock_client.get_workflow.call_args.kwargs
+    assert call_kwargs['type'] == 'READY2RUN'
+
+
+@pytest.mark.asyncio
+async def test_get_workflow_invalid_type_error():
+    """Test get_workflow returns error for invalid workflow_type value.
+
+    Validates: Requirement GetWorkflow Type Parameter
+    """
+    mock_ctx = AsyncMock()
+
+    result = await get_workflow(
+        ctx=mock_ctx,
+        workflow_id='wfl-12345',
+        export_definition=False,
+        workflow_type='INVALID_TYPE',
+    )
+
+    assert 'error' in result
+    assert 'Error getting workflow' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_get_workflow_type_omitted_when_not_provided():
+    """Test get_workflow omits type from API call when workflow_type not provided.
+
+    Validates: Requirement GetWorkflow Type Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.get_workflow.return_value = _make_get_workflow_base_response()
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await get_workflow(
+            ctx=mock_ctx,
+            workflow_id='wfl-12345',
+            export_definition=False,
+        )
+
+    call_kwargs = mock_client.get_workflow.call_args.kwargs
+    assert 'type' not in call_kwargs
+
+
+# --- workflow_owner_id parameter tests ---
+
+
+@pytest.mark.asyncio
+async def test_get_workflow_owner_id_forwarded():
+    """Test get_workflow forwards workflow_owner_id to boto3.
+
+    Validates: Requirement GetWorkflow Owner ID Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.get_workflow.return_value = _make_get_workflow_base_response()
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await get_workflow(
+            ctx=mock_ctx,
+            workflow_id='wfl-12345',
+            export_definition=False,
+            workflow_owner_id='987654321098',
+        )
+
+    call_kwargs = mock_client.get_workflow.call_args.kwargs
+    assert call_kwargs['workflowOwnerId'] == '987654321098'
+
+
+@pytest.mark.asyncio
+async def test_get_workflow_owner_id_omitted_when_not_provided():
+    """Test get_workflow omits workflowOwnerId from API call when not provided.
+
+    Validates: Requirement GetWorkflow Owner ID Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.get_workflow.return_value = _make_get_workflow_base_response()
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await get_workflow(
+            ctx=mock_ctx,
+            workflow_id='wfl-12345',
+            export_definition=False,
+        )
+
+    call_kwargs = mock_client.get_workflow.call_args.kwargs
+    assert 'workflowOwnerId' not in call_kwargs
+
+
+# --- export parameter tests ---
+
+
+@pytest.mark.asyncio
+async def test_get_workflow_export_definition_only():
+    """Test get_workflow forwards export list with DEFINITION to boto3.
+
+    Validates: Requirement GetWorkflow Enhanced Export Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.get_workflow.return_value = _make_get_workflow_base_response()
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await get_workflow(
+            ctx=mock_ctx,
+            workflow_id='wfl-12345',
+            export_definition=False,
+            export=['DEFINITION'],
+        )
+
+    call_kwargs = mock_client.get_workflow.call_args.kwargs
+    assert call_kwargs['export'] == ['DEFINITION']
+
+
+@pytest.mark.asyncio
+async def test_get_workflow_export_readme_only():
+    """Test get_workflow forwards export list with README to boto3.
+
+    Validates: Requirement GetWorkflow Enhanced Export Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.get_workflow.return_value = _make_get_workflow_base_response()
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await get_workflow(
+            ctx=mock_ctx,
+            workflow_id='wfl-12345',
+            export_definition=False,
+            export=['README'],
+        )
+
+    call_kwargs = mock_client.get_workflow.call_args.kwargs
+    assert call_kwargs['export'] == ['README']
+
+
+@pytest.mark.asyncio
+async def test_get_workflow_export_definition_and_readme():
+    """Test get_workflow forwards export list with both DEFINITION and README to boto3.
+
+    Validates: Requirement GetWorkflow Enhanced Export Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.get_workflow.return_value = _make_get_workflow_base_response()
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await get_workflow(
+            ctx=mock_ctx,
+            workflow_id='wfl-12345',
+            export_definition=False,
+            export=['DEFINITION', 'README'],
+        )
+
+    call_kwargs = mock_client.get_workflow.call_args.kwargs
+    assert call_kwargs['export'] == ['DEFINITION', 'README']
+
+
+@pytest.mark.asyncio
+async def test_get_workflow_export_backward_compat_export_definition_true():
+    """Test get_workflow backward compatibility: export_definition=True treated as export=['DEFINITION'].
+
+    Validates: Requirement GetWorkflow Enhanced Export Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.get_workflow.return_value = _make_get_workflow_base_response()
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await get_workflow(
+            ctx=mock_ctx,
+            workflow_id='wfl-12345',
+            export_definition=True,
+        )
+
+    call_kwargs = mock_client.get_workflow.call_args.kwargs
+    assert call_kwargs['export'] == ['DEFINITION']
+
+
+@pytest.mark.asyncio
+async def test_get_workflow_export_neither_provided():
+    """Test get_workflow omits export from API call when neither export nor export_definition provided.
+
+    Validates: Requirement GetWorkflow Enhanced Export Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.get_workflow.return_value = _make_get_workflow_base_response()
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await get_workflow(
+            ctx=mock_ctx,
+            workflow_id='wfl-12345',
+            export_definition=False,
+        )
+
+    call_kwargs = mock_client.get_workflow.call_args.kwargs
+    assert 'export' not in call_kwargs
+
+
+@pytest.mark.asyncio
+async def test_get_workflow_export_invalid_type_error():
+    """Test get_workflow returns error for invalid export type value.
+
+    Validates: Requirement GetWorkflow Enhanced Export Parameter
+    """
+    mock_ctx = AsyncMock()
+
+    result = await get_workflow(
+        ctx=mock_ctx,
+        workflow_id='wfl-12345',
+        export_definition=False,
+        export=['INVALID_EXPORT'],
+    )
+
+    assert 'error' in result
+    assert 'Error getting workflow' in result['error']
+
+
+# --- New response field tests ---
+
+
+@pytest.mark.asyncio
+async def test_get_workflow_response_engine():
+    """Test get_workflow includes engine in result when present in boto3 response.
+
+    Validates: Requirement GetWorkflow Additional Response Fields
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.get_workflow.return_value = _make_get_workflow_base_response(engine='WDL')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await get_workflow(ctx=mock_ctx, workflow_id='wfl-12345', export_definition=False)
+
+    assert result['engine'] == 'WDL'
+
+
+@pytest.mark.asyncio
+async def test_get_workflow_response_main():
+    """Test get_workflow includes main in result when present in boto3 response.
+
+    Validates: Requirement GetWorkflow Additional Response Fields
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.get_workflow.return_value = _make_get_workflow_base_response(main='main.wdl')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await get_workflow(ctx=mock_ctx, workflow_id='wfl-12345', export_definition=False)
+
+    assert result['main'] == 'main.wdl'
+
+
+@pytest.mark.asyncio
+async def test_get_workflow_response_digest():
+    """Test get_workflow includes digest in result when present in boto3 response.
+
+    Validates: Requirement GetWorkflow Additional Response Fields
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.get_workflow.return_value = _make_get_workflow_base_response(
+        digest='sha256:abc123'
+    )
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await get_workflow(ctx=mock_ctx, workflow_id='wfl-12345', export_definition=False)
+
+    assert result['digest'] == 'sha256:abc123'
+
+
+@pytest.mark.asyncio
+async def test_get_workflow_response_storage_capacity():
+    """Test get_workflow includes storageCapacity in result when present in boto3 response.
+
+    Validates: Requirement GetWorkflow Additional Response Fields
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.get_workflow.return_value = _make_get_workflow_base_response(storageCapacity=100)
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await get_workflow(ctx=mock_ctx, workflow_id='wfl-12345', export_definition=False)
+
+    assert result['storageCapacity'] == 100
+
+
+@pytest.mark.asyncio
+async def test_get_workflow_response_storage_type():
+    """Test get_workflow includes storageType in result when present in boto3 response.
+
+    Validates: Requirement GetWorkflow Additional Response Fields
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.get_workflow.return_value = _make_get_workflow_base_response(storageType='DYNAMIC')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await get_workflow(ctx=mock_ctx, workflow_id='wfl-12345', export_definition=False)
+
+    assert result['storageType'] == 'DYNAMIC'
+
+
+@pytest.mark.asyncio
+async def test_get_workflow_response_tags():
+    """Test get_workflow includes tags in result when present in boto3 response.
+
+    Validates: Requirement GetWorkflow Additional Response Fields
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.get_workflow.return_value = _make_get_workflow_base_response(
+        tags={'project': 'genomics', 'env': 'prod'}
+    )
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await get_workflow(ctx=mock_ctx, workflow_id='wfl-12345', export_definition=False)
+
+    assert result['tags'] == {'project': 'genomics', 'env': 'prod'}
+
+
+@pytest.mark.asyncio
+async def test_get_workflow_response_metadata():
+    """Test get_workflow includes metadata as dict in result when present in boto3 response.
+
+    Validates: Requirement GetWorkflow Additional Response Fields
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.get_workflow.return_value = _make_get_workflow_base_response(
+        metadata={'key1': 'value1', 'key2': 'value2'}
+    )
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await get_workflow(ctx=mock_ctx, workflow_id='wfl-12345', export_definition=False)
+
+    assert result['metadata'] == {'key1': 'value1', 'key2': 'value2'}
+    assert isinstance(result['metadata'], dict)
+
+
+@pytest.mark.asyncio
+async def test_get_workflow_response_accelerators():
+    """Test get_workflow includes accelerators in result when present in boto3 response.
+
+    Validates: Requirement GetWorkflow Additional Response Fields
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.get_workflow.return_value = _make_get_workflow_base_response(accelerators='GPU')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await get_workflow(ctx=mock_ctx, workflow_id='wfl-12345', export_definition=False)
+
+    assert result['accelerators'] == 'GPU'
+
+
+@pytest.mark.asyncio
+async def test_get_workflow_response_uuid():
+    """Test get_workflow includes uuid in result when present in boto3 response.
+
+    Validates: Requirement GetWorkflow Additional Response Fields
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.get_workflow.return_value = _make_get_workflow_base_response(
+        uuid='abc-def-123-456'
+    )
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await get_workflow(ctx=mock_ctx, workflow_id='wfl-12345', export_definition=False)
+
+    assert result['uuid'] == 'abc-def-123-456'
+
+
+@pytest.mark.asyncio
+async def test_get_workflow_response_readme():
+    """Test get_workflow includes readme in result when present in boto3 response.
+
+    Validates: Requirement GetWorkflow Additional Response Fields
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.get_workflow.return_value = _make_get_workflow_base_response(
+        readme='# My Workflow\nThis is a readme.'
+    )
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await get_workflow(ctx=mock_ctx, workflow_id='wfl-12345', export_definition=False)
+
+    assert result['readme'] == '# My Workflow\nThis is a readme.'
+
+
+@pytest.mark.asyncio
+async def test_get_workflow_response_definition_repository_details():
+    """Test get_workflow includes definitionRepositoryDetails in result when present.
+
+    Validates: Requirement GetWorkflow Additional Response Fields
+    """
+    repo_details = {
+        'connectionArn': 'arn:aws:codestar-connections:us-east-1:123456789012:connection/abc',
+        'fullRepositoryId': 'my-org/my-repo',
+        'sourceReference': {'type': 'BRANCH', 'value': 'main'},
+        'providerType': 'GITHUB',
+        'providerEndpoint': 'https://github.com',
+    }
+
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.get_workflow.return_value = _make_get_workflow_base_response(
+        definitionRepositoryDetails=repo_details
+    )
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await get_workflow(ctx=mock_ctx, workflow_id='wfl-12345', export_definition=False)
+
+    assert result['definitionRepositoryDetails'] == repo_details
+    assert result['definitionRepositoryDetails']['connectionArn'] == repo_details['connectionArn']
+    assert result['definitionRepositoryDetails']['fullRepositoryId'] == 'my-org/my-repo'
+    assert result['definitionRepositoryDetails']['sourceReference'] == {
+        'type': 'BRANCH',
+        'value': 'main',
+    }
+
+
+@pytest.mark.asyncio
+async def test_get_workflow_response_readme_path():
+    """Test get_workflow includes readmePath in result when present in boto3 response.
+
+    Validates: Requirement GetWorkflow Additional Response Fields
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.get_workflow.return_value = _make_get_workflow_base_response(
+        readmePath='docs/README.md'
+    )
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await get_workflow(ctx=mock_ctx, workflow_id='wfl-12345', export_definition=False)
+
+    assert result['readmePath'] == 'docs/README.md'
+
+
+# =============================================================================
+# Unit tests for create_workflow_version new parameters and response fields
+# Validates: Requirements CreateWorkflowVersion Engine Parameter,
+# CreateWorkflowVersion Tags Parameter, CreateWorkflowVersion Accelerators Parameter,
+# CreateWorkflowVersion Workflow Bucket Owner ID Parameter,
+# CreateWorkflowVersion Response Fields
+# =============================================================================
+
+
+# --- engine parameter tests ---
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_engine_wdl():
+    """Test create_workflow_version forwards WDL engine to boto3.
+
+    Validates: Requirement CreateWorkflowVersion Engine Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow_version.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='DYNAMIC',
+            engine='WDL',
+        )
+
+    call_kwargs = mock_client.create_workflow_version.call_args.kwargs
+    assert call_kwargs['engine'] == 'WDL'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_engine_nextflow():
+    """Test create_workflow_version forwards NEXTFLOW engine to boto3.
+
+    Validates: Requirement CreateWorkflowVersion Engine Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow_version.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='DYNAMIC',
+            engine='NEXTFLOW',
+        )
+
+    call_kwargs = mock_client.create_workflow_version.call_args.kwargs
+    assert call_kwargs['engine'] == 'NEXTFLOW'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_engine_cwl():
+    """Test create_workflow_version forwards CWL engine to boto3.
+
+    Validates: Requirement CreateWorkflowVersion Engine Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow_version.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='DYNAMIC',
+            engine='CWL',
+        )
+
+    call_kwargs = mock_client.create_workflow_version.call_args.kwargs
+    assert call_kwargs['engine'] == 'CWL'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_engine_wdl_lenient():
+    """Test create_workflow_version forwards WDL_LENIENT engine to boto3.
+
+    Validates: Requirement CreateWorkflowVersion Engine Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow_version.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='DYNAMIC',
+            engine='WDL_LENIENT',
+        )
+
+    call_kwargs = mock_client.create_workflow_version.call_args.kwargs
+    assert call_kwargs['engine'] == 'WDL_LENIENT'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_engine_omitted_when_not_provided():
+    """Test create_workflow_version omits engine from API call when not provided.
+
+    Validates: Requirement CreateWorkflowVersion Engine Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow_version.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='DYNAMIC',
+        )
+
+    call_kwargs = mock_client.create_workflow_version.call_args.kwargs
+    assert 'engine' not in call_kwargs
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_invalid_engine_error():
+    """Test create_workflow_version returns error for invalid engine value.
+
+    Validates: Requirement CreateWorkflowVersion Engine Parameter
+    """
+    mock_ctx = AsyncMock()
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
+
+    result = await create_workflow_version(
+        mock_ctx,
+        workflow_id='wfl-12345',
+        version_name='v2',
+        definition_zip_base64=definition_zip_base64,
+        storage_type='DYNAMIC',
+        engine='INVALID_ENGINE',
+    )
+
+    assert 'error' in result
+    assert 'Error creating workflow version' in result['error']
+
+
+# --- tags parameter tests ---
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_tags_dict_forwarded():
+    """Test create_workflow_version forwards dict tags to boto3.
+
+    Validates: Requirement CreateWorkflowVersion Tags Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow_version.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
+    tags = {'project': 'genomics', 'team': 'research'}
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='DYNAMIC',
+            tags=tags,
+        )
+
+    call_kwargs = mock_client.create_workflow_version.call_args.kwargs
+    assert call_kwargs['tags'] == {'project': 'genomics', 'team': 'research'}
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_tags_json_string_forwarded():
+    """Test create_workflow_version parses and forwards JSON string tags to boto3.
+
+    Validates: Requirement CreateWorkflowVersion Tags Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow_version.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
+    tags_json = json.dumps({'project': 'genomics', 'team': 'research'})
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='DYNAMIC',
+            tags=tags_json,
+        )
+
+    call_kwargs = mock_client.create_workflow_version.call_args.kwargs
+    assert call_kwargs['tags'] == {'project': 'genomics', 'team': 'research'}
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_tags_omitted_when_not_provided():
+    """Test create_workflow_version omits tags from API call when not provided.
+
+    Validates: Requirement CreateWorkflowVersion Tags Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow_version.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='DYNAMIC',
+        )
+
+    call_kwargs = mock_client.create_workflow_version.call_args.kwargs
+    assert 'tags' not in call_kwargs
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_invalid_tags_error():
+    """Test create_workflow_version returns error for invalid tags JSON string.
+
+    Validates: Requirement CreateWorkflowVersion Tags Parameter
+    """
+    mock_ctx = AsyncMock()
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
+
+    result = await create_workflow_version(
+        mock_ctx,
+        workflow_id='wfl-12345',
+        version_name='v2',
+        definition_zip_base64=definition_zip_base64,
+        storage_type='DYNAMIC',
+        tags='not valid json{{{',
+    )
+
+    assert 'error' in result
+    assert 'Error creating workflow version' in result['error']
+
+
+# --- accelerators parameter tests ---
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_gpu_accelerator_forwarded():
+    """Test create_workflow_version forwards GPU accelerator to boto3.
+
+    Validates: Requirement CreateWorkflowVersion Accelerators Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow_version.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='DYNAMIC',
+            accelerators='GPU',
+        )
+
+    call_kwargs = mock_client.create_workflow_version.call_args.kwargs
+    assert call_kwargs['accelerators'] == 'GPU'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_accelerator_omitted_when_not_provided():
+    """Test create_workflow_version omits accelerators from API call when not provided.
+
+    Validates: Requirement CreateWorkflowVersion Accelerators Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow_version.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='DYNAMIC',
+        )
+
+    call_kwargs = mock_client.create_workflow_version.call_args.kwargs
+    assert 'accelerators' not in call_kwargs
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_invalid_accelerator_error():
+    """Test create_workflow_version returns error for invalid accelerator value.
+
+    Validates: Requirement CreateWorkflowVersion Accelerators Parameter
+    """
+    mock_ctx = AsyncMock()
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
+
+    result = await create_workflow_version(
+        mock_ctx,
+        workflow_id='wfl-12345',
+        version_name='v2',
+        definition_zip_base64=definition_zip_base64,
+        storage_type='DYNAMIC',
+        accelerators='TPU',
+    )
+
+    assert 'error' in result
+    assert 'Error creating workflow version' in result['error']
+
+
+# --- workflow_bucket_owner_id parameter tests ---
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_bucket_owner_id_forwarded():
+    """Test create_workflow_version forwards workflow_bucket_owner_id to boto3.
+
+    Validates: Requirement CreateWorkflowVersion Workflow Bucket Owner ID Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow_version.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='DYNAMIC',
+            workflow_bucket_owner_id='123456789012',
+        )
+
+    call_kwargs = mock_client.create_workflow_version.call_args.kwargs
+    assert call_kwargs['workflowBucketOwnerId'] == '123456789012'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_bucket_owner_id_omitted_when_not_provided():
+    """Test create_workflow_version omits workflowBucketOwnerId from API call when not provided.
+
+    Validates: Requirement CreateWorkflowVersion Workflow Bucket Owner ID Parameter
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow_version.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='DYNAMIC',
+        )
+
+    call_kwargs = mock_client.create_workflow_version.call_args.kwargs
+    assert 'workflowBucketOwnerId' not in call_kwargs
+
+
+# --- response fields tests ---
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_response_tags_and_uuid():
+    """Test create_workflow_version includes tags and uuid in response when present.
+
+    Validates: Requirement CreateWorkflowVersion Response Fields
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow_version.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+        'name': 'test-workflow',
+        'tags': {'project': 'genomics'},
+        'uuid': 'abc-def-123-456',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='DYNAMIC',
+        )
+
+    assert result['tags'] == {'project': 'genomics'}
+    assert result['uuid'] == 'abc-def-123-456'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_response_tags_and_uuid_absent():
+    """Test create_workflow_version result has None for tags and uuid when not in response.
+
+    Validates: Requirement CreateWorkflowVersion Response Fields
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow_version.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='DYNAMIC',
+        )
+
+    assert result.get('tags') is None
+    assert result.get('uuid') is None
+
+
+# --- invalid storage_type error test ---
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_invalid_storage_type_error():
+    """Test create_workflow_version returns error for invalid storage_type value.
+
+    Validates: Requirement CreateWorkflowVersion Engine Parameter
+    """
+    mock_ctx = AsyncMock()
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
+
+    result = await create_workflow_version(
+        mock_ctx,
+        workflow_id='wfl-12345',
+        version_name='v2',
+        definition_zip_base64=definition_zip_base64,
+        storage_type='INVALID_STORAGE',
+    )
+
+    assert 'error' in result
+    assert 'Error creating workflow version' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_list_workflow_versions_description_field():
+    """Test description appears in version entries when present in boto3 response.
+
+    Validates: Requirement ListWorkflowVersions Description Response Field
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.list_workflow_versions.return_value = {
+        'items': [
+            {
+                'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/abc123/1.0',
+                'id': 'abc123',
+                'status': 'ACTIVE',
+                'type': 'WDL',
+                'name': 'Test Workflow',
+                'versionName': '1.0',
+                'description': 'First version of the workflow',
+                'creationTime': '2023-01-01T00:00:00Z',
+            },
+            {
+                'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/abc123/2.0',
+                'id': 'abc123',
+                'status': 'ACTIVE',
+                'type': 'WDL',
+                'name': 'Test Workflow',
+                'versionName': '2.0',
+                'description': 'Updated version with improvements',
+                'creationTime': '2023-02-01T00:00:00Z',
+            },
+            {
+                'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/abc123/3.0',
+                'id': 'abc123',
+                'status': 'ACTIVE',
+                'type': 'WDL',
+                'name': 'Test Workflow',
+                'versionName': '3.0',
+                'creationTime': '2023-03-01T00:00:00Z',
+            },
+        ],
+    }
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await list_workflow_versions(mock_ctx, workflow_id='abc123', max_results=10)
+
+    assert 'versions' in result
+    assert len(result['versions']) == 3
+
+    # Version with description present
+    assert result['versions'][0]['description'] == 'First version of the workflow'
+    assert result['versions'][1]['description'] == 'Updated version with improvements'
+
+    # Version without description in boto3 response returns None
+    assert result['versions'][2]['description'] is None

@@ -1,6 +1,6 @@
 # AWS Knowledge MCP Server
 
-A fully managed remote MCP server that provides up-to-date documentation, code samples, agent Standard Operating Procedures (SOPs), knowledge about the regional availability of AWS APIs and CloudFormation resources, and other official AWS content.
+A fully managed remote MCP server that provides up-to-date documentation, code samples, agent skills, knowledge about the regional availability of AWS APIs and CloudFormation resources, and other official AWS content.
 
 This MCP server is in general availability.
 
@@ -15,7 +15,7 @@ This MCP server is in general availability.
 - Full-stack development guidance including Amplify framework documentation, patterns, and best practices
 - Access the latest CDK and CloudFormation documentation, best practices, and high-quality examples to facilitate a better infrastructure-as-code development experience
 - Strands Agents SDK documentation — search and read the full Strands Agents docs (User Guide, API reference, examples, and more)
-- Access to SOPs - step-by-step, tested guidance for common AWS tasks and workflows for AI agents
+- Access to agent skills - domain-specific expertise that transforms AI agents into specialists, providing workflows, decision frameworks, best practices, and reference materials for AWS domains
 
 ### AWS Knowledge capabilities
 
@@ -26,16 +26,16 @@ This MCP server is in general availability.
 - **Full-stack development**: Learn how to build complete applications using AWS Amplify with frontend and backend integration guidance
 - **Infrastructure as code development**: Access the latest CDK and CloudFormation guidance, best practices, and code examples to model your infrastructure in code
 - **Strands Agents SDK**: Search and read the complete Strands Agents documentation including User Guide, API reference (Python & TypeScript), examples, community contributions, and blog posts to build AI agents with the Strands Agents SDK
-- **Well-defined SOPs**: step-wise guidance for AI agents on actionable AWS tasks and workflows such as deployment, troubleshooting, security, infrastructure setup, and more
+- **Agent skills**: domain-specific expertise packages that transform AI agents into specialists for particular AWS domains, providing workflows, decision frameworks, best practices, and step-by-step procedures for complex tasks like deployment, troubleshooting, security, and optimization
 
 ### Tools
 
-1. `search_documentation`: Search across all AWS documentation, agent SOPs and Strands Agents SDK docs with optional topic-based filtering for more targeted result
+1. `search_documentation`: Search across all AWS documentation, agent skills, and Strands Agents SDK docs with optional topic-based filtering for more targeted results
 2. `read_documentation`: Retrieve and convert AWS documentation and Strands Agents (strandsagents.com) pages to markdown
 3. `recommend`: Get content recommendations for AWS documentation pages
 4. `list_regions`: Retrieve a list of all AWS regions, including their identifiers and names
 5. `get_regional_availability`: Retrieve AWS regional availability information for Services, Features, SDK service APIs and CloudFormation resources
-6. `retrieve_agent_sops`: Retrieve the complete workflow for a specific Agent SOP.
+6. `retrieve_skill`: Retrieve an AWS agent skill that provides domain-specific expertise, workflows, and step-by-step procedures for AWS tasks
 
 ### Current knowledge sources
 
@@ -51,7 +51,7 @@ This MCP server is in general availability.
 - CDK documentation, CLI guides, constructs, and patterns
 - CloudFormation templates and references
 - Strands Agents SDK documentation (User Guide, API reference, examples, community, blog posts)
-- Agent SOPs for common AWS tasks
+- Agent skills for AWS task domains
 
 ### Learn about AWS with natural language
 
@@ -102,7 +102,7 @@ If the client you are using does not support HTTP transport for MCP or if it enc
 
 |   IDE   |                                                                                                                                                   Install                                                                                                                                                   |
 | :-----: | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
-| Kiro | [![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=aws-knowledge-mcp&config=%7B%22url%22%3A%22https%3A//knowledge-mcp.global.api.aws%22%7D) |
+|  Kiro   |                                                           [![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=aws-knowledge-mcp&config=%7B%22url%22%3A%22https%3A//knowledge-mcp.global.api.aws%22%7D)                                                           |
 | Cursor  |                                                [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=aws-knowledge-mcp&config=eyJ1cmwiOiJodHRwczovL2tub3dsZWRnZS1tY3AuZ2xvYmFsLmFwaS5hd3MifQ==)                                                 |
 | VS Code | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://vscode.dev/redirect/mcp/install?name=aws-knowledge-mcp&config=%7B%22type%22%3A%22http%22%2C%22url%22%3A%22https%3A%2F%2Fknowledge-mcp.global.api.aws%22%7D) |
 
@@ -158,9 +158,9 @@ Yes. The Knowledge MCP server provides comprehensive documentation, templates, a
 
 Yes. The Knowledge MCP server offers guidance for configuring and managing AWS services directly through the AWS Management Console. Whether you're exploring service capabilities, setting up resources visually, or learning how services work, the server provides the resources needed to effectively manage your AWS applications and infrastructure.
 
-#### 7. Can I use AWS Knowledge MCP Server to find agent-friendly guidance on complex, actionable AWS workflows?
+#### 7. Can I use AWS Knowledge MCP Server to retrieve agent skills?
 
-Yes. The Knowledge MCP server is now empowered by a list of high-quality SOPs that provide AI agents step-by-step guidance on complex, error-prone workflows. Such workflows include deployment, troubleshooting, security, infrastructure setup, and more. Leveraging agent SOPs would not only augment the quality of agent responses, but also significantly boost AI efficiency in terms of time and token usage.
+Yes. The Knowledge MCP server provides access to agent skills — domain-specific expertise packages that transform AI agents into specialists for particular AWS domains. Skills provide workflows, best practices, decision frameworks, and step-by-step procedures for complex tasks. You can discover available skills by searching with the `agent_skills` topic in `search_documentation`, then load the full skill using the `retrieve_skill` tool with the exact `skill_name` from the search results. Skills may also include reference files (architecture docs, schemas, examples) that can be retrieved using the optional `file` parameter.
 
 #### 8. Can I use AWS Knowledge MCP Server for building AI agents with the Strands Agents SDK?
 

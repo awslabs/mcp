@@ -82,8 +82,20 @@ RUN_STATUSES = [
     RUN_STATUS_CANCELLED,
 ]
 
+# Workflow engine types
+WORKFLOW_ENGINES = ['WDL', 'NEXTFLOW', 'CWL', 'WDL_LENIENT']
+
+# Accelerator types
+ACCELERATOR_TYPE_GPU = 'GPU'
+ACCELERATOR_TYPES = [ACCELERATOR_TYPE_GPU]
+
+# Workflow types for GetWorkflow
+GET_WORKFLOW_TYPES = ['PRIVATE', 'READY2RUN']
+
 # Export types
 EXPORT_TYPE_DEFINITION = 'DEFINITION'
+EXPORT_TYPE_README = 'README'
+EXPORT_TYPES = [EXPORT_TYPE_DEFINITION, EXPORT_TYPE_README]
 
 # Agent identification
 AGENT_ENV = 'AGENT'
@@ -189,6 +201,10 @@ S3_STORAGE_CLASS_GLACIER_IR = 'GLACIER_IR'
 
 # Error messages
 
+ERROR_INVALID_ENGINE = 'Invalid engine. Must be one of: {}'
+ERROR_INVALID_ACCELERATOR = 'Invalid accelerator. Must be one of: {}'
+ERROR_INVALID_WORKFLOW_TYPE = 'Invalid workflow type. Must be one of: {}'
+ERROR_INVALID_EXPORT_TYPE = 'Invalid export type. Must be one of: {}'
 ERROR_INVALID_STORAGE_TYPE = 'Invalid storage type. Must be one of: {}'
 ERROR_INVALID_CACHE_BEHAVIOR = 'Invalid cache behavior. Must be one of: {}'
 ERROR_INVALID_RUN_STATUS = 'Invalid run status. Must be one of: {}'
