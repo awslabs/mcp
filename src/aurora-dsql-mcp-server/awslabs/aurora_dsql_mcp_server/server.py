@@ -20,6 +20,8 @@ import httpx
 import json
 import psycopg
 import psycopg.rows
+import shutil
+import subprocess
 import sys
 from awslabs.aurora_dsql_mcp_server import __version__
 from awslabs.aurora_dsql_mcp_server.consts import (
@@ -104,6 +106,11 @@ mcp = FastMCP(
 
     ### dsql_recommend
     Get recommendations for DSQL best practices.
+
+    ### dsql_lint
+    Validate SQL for Aurora DSQL compatibility. Returns diagnostics with rule violations,
+    suggestions, and optionally auto-fixed DSQL-compatible SQL. Use before executing any
+    externally-sourced SQL (ORM migrations, pg_dump output, hand-written DDL).
     """,
     dependencies=[
         'loguru',
@@ -514,6 +521,119 @@ async def dsql_recommend(
         Recommendations from the remote knowledge server
     """
     return await _proxy_to_knowledge_server('dsql_recommend', {'url': url}, ctx)
+
+
+@mcp.tool(
+    name='dsql_lint',
+    description="""Validate SQL for Aurora DSQL compatibility and optionally auto-fix issues.
+
+Parses SQL and reports compatibility errors (unsupported syntax) with suggested fixes.
+Use fix=True to generate DSQL-compatible SQL automatically.
+
+## When to Use
+- Before executing any externally-sourced SQL (ORM migrations, pg_dump, hand-written DDL)
+- When migrating schemas from PostgreSQL, MySQL, or other databases to DSQL
+- To validate CREATE TABLE, ALTER TABLE, CREATE INDEX, and other DDL statements
+- To check transaction structure (DSQL requires one DDL per transaction)
+
+## Fix Behavior
+When fix=True:
+- FIXED: Safe mechanical transformation applied
+- WARNING: Fix applied but may require application code changes
+- ERROR (unfixable): Cannot be auto-fixed, requires manual intervention
+
+## Example
+Input: "CREATE TABLE t (id SERIAL PRIMARY KEY, data JSON);"
+Output with fix=True returns diagnostics with suggestions and fixed_sql with DSQL-compatible SQL.
+""",
+)
+async def dsql_lint(
+    sql: Annotated[str, Field(description='SQL string to validate for DSQL compatibility')],
+    fix: Annotated[
+        bool,
+        Field(
+            description='When true, returns DSQL-compatible fixed SQL in addition to diagnostics',
+            default=False,
+        ),
+    ] = False,
+) -> dict:
+    """Validate SQL for Aurora DSQL compatibility and optionally auto-fix issues.
+
+    Args:
+        sql: SQL string to validate
+        fix: When true, attempt to auto-fix issues and return corrected SQL
+
+    Returns:
+        Dictionary with diagnostics array and optionally fixed_sql string.
+        Each diagnostic contains: rule, line, message, suggestion, fix_result.
+    """
+    logger.info(f'dsql_lint: fix={fix}, sql_length={len(sql)}')
+
+    if not sql or not sql.strip():
+        return {
+            'diagnostics': [],
+            'fixed_sql': None,
+            'summary': {'errors': 0, 'warnings': 0, 'fixed': 0},
+        }
+
+    dsql_lint_bin = shutil.which('dsql-lint')
+    if not dsql_lint_bin:
+        error_msg = (
+            'dsql-lint binary not found on PATH. '
+            'It should be installed automatically as a dependency of this MCP server. '
+            'Try: pip install dsql-lint'
+        )
+        logger.error(error_msg)
+        raise Exception(error_msg)
+
+    cmd = [dsql_lint_bin, '--format', 'json']
+    if fix:
+        cmd.append('--fix')
+    cmd.append('-')
+
+    try:
+        result = subprocess.run(
+            cmd,
+            input=sql,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        raise Exception('dsql-lint timed out after 30 seconds')
+    except FileNotFoundError:
+        raise Exception('dsql-lint binary not found. Try: pip install dsql-lint')
+
+    # dsql-lint exits 0 (clean), 1 (errors), 3 (fixed with warnings) — all produce valid JSON
+    if result.returncode == 2:
+        # Exit code 2 = usage error
+        raise Exception(f'dsql-lint usage error: {result.stderr}')
+
+    if not result.stdout.strip():
+        raise Exception(f'dsql-lint produced no output. stderr: {result.stderr}')
+
+    try:
+        output = json.loads(result.stdout)
+    except json.JSONDecodeError as e:
+        raise Exception(f'dsql-lint returned invalid JSON: {e}. Output: {result.stdout[:200]}')
+
+    # Extract the relevant data from the dsql-lint JSON schema
+    files = output.get('files', [])
+    if not files:
+        return {
+            'diagnostics': [],
+            'fixed_sql': None,
+            'summary': output.get('summary', {'errors': 0, 'warnings': 0, 'fixed': 0}),
+        }
+
+    file_result = files[0]
+    response = {
+        'diagnostics': file_result.get('diagnostics', []),
+        'fixed_sql': file_result.get('fixed_sql'),
+        'summary': output.get('summary', {'errors': 0, 'warnings': 0, 'fixed': 0}),
+    }
+
+    return response
 
 
 async def _proxy_to_knowledge_server(
