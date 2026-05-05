@@ -242,7 +242,9 @@ class HealthLakeClient:
             self.healthlake_client = self.session.client(
                 'healthlake',
                 region_name=region_name,
-                config=Config(user_agent_extra=f'awslabs/mcp/healthlake-mcp-server/{__version__}'),
+                config=Config(
+                    user_agent_extra=f'md/awslabs#mcp#healthlake-mcp-server#{__version__}'
+                ),
             )
             self.region = region_name or self.session.region_name or 'us-east-1'
 
