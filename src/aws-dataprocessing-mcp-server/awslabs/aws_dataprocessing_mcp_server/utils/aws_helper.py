@@ -41,14 +41,40 @@ class AwsHelper:
     """
 
     @staticmethod
-    def get_aws_region() -> str:
-        """Get the AWS region from the environment if set."""
-        aws_region = os.environ.get(
-            'AWS_REGION',
-        )
-        if not aws_region:
-            return 'us-east-1'
-        return aws_region
+    def get_or_default_aws_region() -> str:
+        """Get the AWS region from environment, AWS config, or default.
+
+        This method follows the standard AWS SDK credential/config resolution chain:
+        1. AWS_REGION environment variable (explicit override)
+        2. AWS_DEFAULT_REGION environment variable (legacy override)
+        3. boto3.Session().region_name (reads ~/.aws/config, instance metadata, etc.)
+        4. 'us-east-1' as last resort fallback
+
+        Returns:
+            The AWS region as a string
+        """
+        # Check AWS_REGION environment variable first
+        aws_region = os.environ.get('AWS_REGION')
+        if aws_region:
+            return aws_region
+
+        # Check AWS_DEFAULT_REGION environment variable
+        aws_region = os.environ.get('AWS_DEFAULT_REGION')
+        if aws_region:
+            return aws_region
+
+        # Use boto3 Session to read from AWS config files and other sources
+        try:
+            session = boto3.Session()
+            aws_region = session.region_name
+            if aws_region:
+                return aws_region
+        except Exception:
+            # If boto3 Session fails, continue to fallback
+            pass
+
+        # Last resort fallback
+        return 'us-east-1'
 
     @staticmethod
     def get_aws_profile() -> Optional[str]:
@@ -135,7 +161,9 @@ class AwsHelper:
             A boto3 client for the specified service
         """
         # Get region from parameter or environment if set
-        region: Optional[str] = region_name if region_name is not None else cls.get_aws_region()
+        region: Optional[str] = (
+            region_name if region_name is not None else cls.get_or_default_aws_region()
+        )
 
         # Get profile from environment if set
         profile = cls.get_aws_profile()
@@ -218,7 +246,7 @@ class AwsHelper:
         """
         try:
             response = athena_client.list_tags_for_resource(
-                ResourceARN=f'arn:aws:athena:{AwsHelper.get_aws_region()}:{AwsHelper.get_aws_account_id()}:workgroup/{workgroup_name}'
+                ResourceARN=f'arn:aws:athena:{AwsHelper.get_or_default_aws_region()}:{AwsHelper.get_aws_account_id()}:workgroup/{workgroup_name}'
             )
             return response.get('Tags', [])
         except ClientError:
@@ -398,7 +426,7 @@ class AwsHelper:
 
             # Construct the ARN for the data catalog
             account_id = cls.get_aws_account_id()
-            region = cls.get_aws_region()
+            region = cls.get_or_default_aws_region()
             data_catalog_arn = (
                 f'arn:{cls.get_aws_partition()}:athena:{region}:{account_id}:datacatalog/{name}'
             )

@@ -22,7 +22,7 @@ Which approach would you prefer?"
 
 ### If User Selects Database Analysis
 
-"Great! The `source_db_analyzer` tool supports MySQL, PostgreSQL, and SQL Server. It can work in two modes:
+"Great! The `source_db_analyzer` tool supports MySQL, PostgreSQL, SQL Server, and Oracle. It can work in two modes:
 1. **Self-Service Mode**: I generate SQL queries, you run them, then provide results
 2. **Managed Mode** (MySQL only): Two connection options available:
    - **RDS Data API-based access**: Serverless connection using Aurora cluster ARN (requires `aws_cluster_arn`)

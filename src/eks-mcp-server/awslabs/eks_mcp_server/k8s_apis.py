@@ -89,6 +89,28 @@ class K8sApis:
             logger.error('kubernetes package not installed')
             raise
 
+    @classmethod
+    def from_api_client(cls, api_client):
+        """Create a K8sApis instance from a pre-configured kubernetes ApiClient.
+
+        This is used for kubeconfig-based authentication where the kubernetes
+        library handles all authentication (OIDC, exec plugins, certificates, etc.).
+
+        Args:
+            api_client: A pre-configured kubernetes.client.ApiClient instance.
+
+        Returns:
+            K8sApis instance with the provided ApiClient.
+        """
+        from kubernetes import dynamic
+
+        instance = cls.__new__(cls)
+        instance._ca_cert_file_path = None
+        instance.api_client = api_client
+        instance.api_client.user_agent = f'awslabs/mcp/eks-mcp-server/{__version__}'
+        instance.dynamic_client = dynamic.DynamicClient(api_client)
+        return instance
+
     def _configure_proxy_settings(self, config):
         """Configure proxy settings for Kubernetes client from environment variables."""
         # Get proxy URL (HTTPS proxy takes precedence over HTTP proxy)

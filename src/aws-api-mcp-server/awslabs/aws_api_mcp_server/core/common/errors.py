@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import dataclasses
+import functools
 from .command_metadata import CommandMetadata
 from argparse import FileType
 from collections.abc import Callable, Iterable, Set
@@ -566,12 +567,11 @@ class FilePathValidationError(CommandValidationError):
     are known, consider using FileParameterError instead for more detailed context.
     """
 
-    _message = 'Invalid file path {file_path!r}: {reason}'
+    _message = 'Invalid file path: {reason}'
 
-    def __init__(self, file_path: str, reason: str):
+    def __init__(self, reason: str):
         """Initialize FilePathValidationError with file path and reason."""
-        message = self._message.format(file_path=file_path, reason=reason)
-        self._file_path = file_path
+        message = self._message.format(reason=reason)
         self._reason = reason
         super().__init__(message)
 
@@ -580,7 +580,6 @@ class FilePathValidationError(CommandValidationError):
         return Failure(
             reason=str(self),
             context={
-                'file_path': self._file_path,
                 'reason': self._reason,
             },
         )
@@ -589,27 +588,26 @@ class FilePathValidationError(CommandValidationError):
 class LocalFileAccessDisabledError(FilePathValidationError):
     """Thrown when local file system access is disabled (no_access mode)."""
 
-    _message = 'Cannot accept file path {file_path!r}: {reason}'
+    _message = 'Cannot accept file path: {reason}'
 
-    def __init__(self, file_path: str):
+    def __init__(self):
         """Initialize LocalFileAccessDisabledError with file path."""
         reason = 'local file access is disabled'
-        super().__init__(file_path, reason)
+        super().__init__(reason)
 
 
 class FileParameterError(CommandValidationError):
     """Thrown when file parameters have validation issues (streaming files, relative paths, etc.)."""
 
-    _message = 'Invalid file parameter {file_path!r} for service {service!r} and operation {operation!r}: {reason}.'
+    _message = (
+        'Invalid file parameter for service {service!r} and operation {operation!r}: {reason}.'
+    )
 
-    def __init__(self, service: str, operation: str, file_path: str, reason: str):
+    def __init__(self, service: str, operation: str, reason: str):
         """Initialize FileParameterError with service, operation, file path, and reason."""
-        message = self._message.format(
-            service=service, operation=operation, file_path=file_path, reason=reason
-        )
+        message = self._message.format(service=service, operation=operation, reason=reason)
         self._service = service
         self._operation = operation
-        self._file_path = file_path
         self._reason = reason
         super().__init__(message)
 
@@ -620,7 +618,6 @@ class FileParameterError(CommandValidationError):
             context={
                 'service': self._service,
                 'operation': self._operation,
-                'file_path': self._file_path,
                 'reason': self._reason,
             },
         )
@@ -679,3 +676,57 @@ class AwsRegionResolutionError(AwsApiMcpError):
             f'Reason: {reason}'
         )
         super().__init__(message)
+
+
+class SanitizedException(Exception):
+    """A safe exception wrapper that sanitizes error messages.
+
+    - Wraps any exception and stores the original internally
+    - Uses a static mapping from exception types to safe messages
+    """
+
+    _DEFAULT_MESSAGE = 'A {exception_name} occurred.'
+
+    _SAFE_MESSAGES: dict[type[BaseException], str] = {
+        ValueError: 'An invalid value was provided.',
+        FileNotFoundError: 'The requested file was not found.',
+        FileExistsError: 'The file already exists.',
+        IsADirectoryError: 'The path is a directory, not a file.',
+        NotADirectoryError: 'The path is not a directory.',
+        PermissionError: 'Permission denied.',
+        OSError: 'An OS error occurred.',
+    }
+
+    def __init__(self, original: BaseException) -> None:
+        """Initialize SanitizedException with the original exception."""
+        self._original = original
+        safe_message = self._resolve_message(original)
+        super().__init__(safe_message)
+
+    @property
+    def original(self) -> BaseException:
+        """Return the original wrapped exception."""
+        return self._original
+
+    @classmethod
+    def _resolve_message(cls, exc: BaseException) -> str:
+        """Walk the exception's MRO to find the most specific safe message."""
+        for exception_class in type(exc).__mro__:
+            if exception_class in cls._SAFE_MESSAGES:
+                return cls._SAFE_MESSAGES[exception_class]
+        return cls._DEFAULT_MESSAGE.format(exception_name=type(exc).__name__)
+
+
+def sanitized_exceptions(func):
+    """Decorator that catches and sanitizes all OSErrors."""
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except AwsApiMcpError:
+            raise
+        except Exception as exc:
+            raise SanitizedException(exc)
+
+    return wrapper
