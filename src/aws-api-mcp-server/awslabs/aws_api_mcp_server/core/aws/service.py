@@ -14,6 +14,7 @@
 
 import contextlib
 import re
+import sys
 from ..aws.regions import get_active_regions
 from ..aws.services import get_awscli_driver
 from ..common.config import AWS_API_MCP_PROFILE_NAME, DEFAULT_REGION
@@ -40,13 +41,142 @@ from ..security.policy import PolicyDecision, SecurityPolicy
 from .driver import interpret_command as _interpret_command
 from awslabs.aws_api_mcp_server.core.common.command import IRCommand
 from awslabs.aws_api_mcp_server.core.common.helpers import as_json, operation_timer
+from contextvars import ContextVar
 from fastmcp import Context
 from fastmcp.server.elicitation import AcceptedElicitation
 from io import StringIO
 from loguru import logger
 from mcp.shared.exceptions import McpError
 from mcp.types import METHOD_NOT_FOUND
-from typing import Any
+from typing import Any, Optional
+
+
+# ---------------------------------------------------------------------------
+# Thread-safe awscli output capture
+#
+# The awscli CLIDriver writes output through two independent sinks:
+#   1. Formatters (JSON/Text/Table) via awscli.compat.get_stdout_text_writer()
+#   2. Customizations (S3, etc.) via awscli.customizations.utils.uni_print()
+#   3. Error handling via awscli.compat.get_stderr_text_writer() and
+#      awscli.clidriver.get_stderr_text_writer (local binding)
+#
+# We monkey-patch these to check a ContextVar. When a capture buffer is active,
+# output goes there; otherwise it falls through to the original implementation.
+# This is thread-safe unlike contextlib.redirect_stdout which swaps sys.stdout.
+# ---------------------------------------------------------------------------
+
+_capture_stdout: ContextVar[Optional[StringIO]] = ContextVar(
+    '_awscli_capture_stdout', default=None
+)
+_capture_stderr: ContextVar[Optional[StringIO]] = ContextVar(
+    '_awscli_capture_stderr', default=None
+)
+_awscli_patched = False
+
+
+def _install_awscli_output_patch() -> None:
+    """Monkey-patch awscli output sinks to use ContextVar-based capture. Idempotent."""
+    global _awscli_patched
+    if _awscli_patched:
+        return
+
+    import awscli.clidriver
+    import awscli.compat
+    import awscli.customizations.cloudformation.deploy
+    import awscli.customizations.codeartifact.login
+    import awscli.customizations.eks.get_token
+    import awscli.customizations.eks.update_kubeconfig
+    import awscli.customizations.emrcontainers.update_role_trust_policy
+    import awscli.customizations.globalargs
+    import awscli.customizations.logs.startlivetail
+    import awscli.customizations.paginate
+    import awscli.customizations.rds
+    import awscli.customizations.s3.results
+    import awscli.customizations.s3.subcommands
+    import awscli.customizations.s3.syncstrategy.caseconflict
+    import awscli.customizations.scalarparse
+    import awscli.customizations.utils
+
+    # --- Save originals ---
+    original_get_stdout = awscli.compat.get_stdout_text_writer
+    original_get_stderr = awscli.compat.get_stderr_text_writer
+    original_uni_print = awscli.customizations.utils.uni_print
+
+    # --- Patched functions ---
+    def patched_get_stdout_text_writer():
+        buf = _capture_stdout.get()
+        return buf if buf is not None else original_get_stdout()
+
+    def patched_get_stderr_text_writer():
+        buf = _capture_stderr.get()
+        return buf if buf is not None else original_get_stderr()
+
+    def patched_uni_print(statement, out_file=None):
+        stdout_buf = _capture_stdout.get()
+        stderr_buf = _capture_stderr.get()
+        if stdout_buf is not None:
+            if out_file is None or out_file is sys.stdout:
+                stdout_buf.write(statement)
+                stdout_buf.flush()
+            elif out_file is sys.stderr and stderr_buf is not None:
+                stderr_buf.write(statement)
+                stderr_buf.flush()
+            else:
+                original_uni_print(statement, out_file)
+        else:
+            original_uni_print(statement, out_file)
+
+    # --- Apply patches ---
+    awscli.compat.get_stdout_text_writer = patched_get_stdout_text_writer
+    awscli.compat.get_stderr_text_writer = patched_get_stderr_text_writer
+
+    # Modules with local binding of get_stdout_text_writer
+    awscli.customizations.cloudformation.deploy.get_stdout_text_writer = (
+        patched_get_stdout_text_writer
+    )
+    awscli.customizations.logs.startlivetail.get_stdout_text_writer = (
+        patched_get_stdout_text_writer
+    )
+
+    # Modules with local binding of get_stderr_text_writer
+    awscli.clidriver.get_stderr_text_writer = patched_get_stderr_text_writer
+
+    # uni_print on canonical module
+    awscli.customizations.utils.uni_print = patched_uni_print
+
+    # Modules with local binding of uni_print
+    awscli.customizations.s3.subcommands.uni_print = patched_uni_print
+    awscli.customizations.s3.results.uni_print = patched_uni_print
+    awscli.customizations.s3.syncstrategy.caseconflict.uni_print = patched_uni_print
+    awscli.customizations.cloudformation.deploy.uni_print = patched_uni_print
+    awscli.customizations.rds.uni_print = patched_uni_print
+    awscli.customizations.globalargs.uni_print = patched_uni_print
+    awscli.customizations.eks.get_token.uni_print = patched_uni_print
+    awscli.customizations.eks.update_kubeconfig.uni_print = patched_uni_print
+    awscli.customizations.emrcontainers.update_role_trust_policy.uni_print = patched_uni_print
+    awscli.customizations.paginate.uni_print = patched_uni_print
+    awscli.customizations.scalarparse.uni_print = patched_uni_print
+    awscli.customizations.codeartifact.login.uni_print = patched_uni_print
+
+    _awscli_patched = True
+
+
+@contextlib.contextmanager
+def _capture_awscli_output():
+    """Context manager for thread-safe awscli output capture.
+
+    Uses ContextVars so concurrent threads/tasks each get independent buffers.
+    """
+    _install_awscli_output_patch()
+    stdout_buf = StringIO()
+    stderr_buf = StringIO()
+    stdout_token = _capture_stdout.set(stdout_buf)
+    stderr_token = _capture_stderr.set(stderr_buf)
+    try:
+        yield stdout_buf, stderr_buf
+    finally:
+        _capture_stdout.reset(stdout_token)
+        _capture_stderr.reset(stderr_token)
 
 
 async def request_consent(cli_command: str, ctx: Context):
@@ -151,7 +281,11 @@ def execute_awscli_customization(
     credentials: Credentials | None = None,
     default_region_override: str | None = None,
 ) -> AwsCliAliasResponse:
-    """Execute the given AWS CLI command."""
+    """Execute the given AWS CLI command.
+
+    Uses ContextVar-based output capture instead of contextlib.redirect_stdout
+    which is not thread-safe.
+    """
     args = split_cli_command(cli_command)[1:]
 
     # Identify if a profile was passed in already and insert the defined one otherwise
@@ -159,13 +293,7 @@ def execute_awscli_customization(
         args.extend(['--profile', AWS_API_MCP_PROFILE_NAME])
 
     try:
-        stdout_capture = StringIO()
-        stderr_capture = StringIO()
-
-        with (
-            contextlib.redirect_stdout(stdout_capture),
-            contextlib.redirect_stderr(stderr_capture),
-        ):
+        with _capture_awscli_output() as (stdout_buf, stderr_buf):
             with operation_timer(
                 ir_command.service_name,
                 ir_command.operation_name,
@@ -174,8 +302,8 @@ def execute_awscli_customization(
                 driver = get_awscli_driver(credentials)
                 driver.main(args)
 
-        stdout_output = stdout_capture.getvalue()
-        stderr_output = stderr_capture.getvalue()
+        stdout_output = stdout_buf.getvalue()
+        stderr_output = stderr_buf.getvalue()
 
         if not stdout_output and stderr_output:
             raise Exception(stderr_output)
