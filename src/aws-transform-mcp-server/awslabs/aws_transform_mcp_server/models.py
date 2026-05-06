@@ -22,7 +22,6 @@ class ConnectionConfig(BaseModel):
     """FES (Front End Service) authentication configuration."""
 
     auth_mode: Literal['cookie', 'bearer']
-    stage: str
     region: str
     fes_endpoint: str
     origin: str

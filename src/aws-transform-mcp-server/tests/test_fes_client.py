@@ -103,7 +103,6 @@ class TestCallFes:
     def _make_cookie_config(self) -> ConnectionConfig:
         return ConnectionConfig(
             auth_mode='cookie',
-            stage='prod',
             region='us-west-2',
             fes_endpoint='https://fes.example.com',
             origin='https://origin.example.com',
@@ -121,7 +120,6 @@ class TestCallFes:
     ) -> ConnectionConfig:
         return ConnectionConfig(
             auth_mode='bearer',
-            stage='prod',
             region='us-west-2',
             fes_endpoint='https://fes.example.com',
             origin='https://origin.example.com',
@@ -448,7 +446,6 @@ class TestCallFesWithPydanticBody:
         mock_create.return_value = MagicMock()
         config = ConnectionConfig(
             auth_mode='bearer',
-            stage='prod',
             region='us-east-1',
             fes_endpoint='https://fes.example.com',
             origin='https://origin.example.com',
@@ -483,7 +480,6 @@ class TestEnsureFreshTokenMissingFields:
 
         config = ConnectionConfig(
             auth_mode='bearer',
-            stage='prod',
             region='us-east-1',
             fes_endpoint='https://fes.example.com',
             origin='https://origin.example.com',
@@ -505,7 +501,6 @@ class TestEnsureFreshTokenMissingFields:
 
         config = ConnectionConfig(
             auth_mode='bearer',
-            stage='prod',
             region='us-east-1',
             fes_endpoint='https://fes.example.com',
             origin='https://origin.example.com',

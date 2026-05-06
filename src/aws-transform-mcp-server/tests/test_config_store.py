@@ -51,21 +51,17 @@ def _reset_state():
 class TestDeriveFesEndpoint:
     """Tests for derive_fes_endpoint."""
 
-    def test_prod(self):
-        url = derive_fes_endpoint('prod', 'us-east-1')
+    def test_us_east_1(self):
+        url = derive_fes_endpoint('us-east-1')
         assert url == 'https://api.transform.us-east-1.on.aws/'
 
-    def test_gamma(self):
-        url = derive_fes_endpoint('gamma', 'us-west-2')
-        assert url == 'https://api.transform-gamma.us-west-2.on.aws/'
+    def test_us_west_2(self):
+        url = derive_fes_endpoint('us-west-2')
+        assert url == 'https://api.transform.us-west-2.on.aws/'
 
-    def test_other_stage(self):
-        url = derive_fes_endpoint('alpha-intg', 'eu-west-1')
-        assert url == 'https://api.transform-alpha-intg.eu-west-1.on.aws/'
-
-    def test_invalid_stage(self):
-        with pytest.raises(ValueError, match='Invalid stage'):
-            derive_fes_endpoint('beta', 'eu-west-1')
+    def test_eu_west_1(self):
+        url = derive_fes_endpoint('eu-west-1')
+        assert url == 'https://api.transform.eu-west-1.on.aws/'
 
 
 # ── derive_tcp_endpoint ─────────────────────────────────────────────────
@@ -74,21 +70,13 @@ class TestDeriveFesEndpoint:
 class TestDeriveTcpEndpoint:
     """Tests for derive_tcp_endpoint."""
 
-    def test_prod(self):
-        url = derive_tcp_endpoint('prod', 'us-east-1')
+    def test_us_east_1(self):
+        url = derive_tcp_endpoint('us-east-1')
         assert url == 'https://transform.us-east-1.api.aws'
 
-    def test_gamma_with_airport_code(self):
-        url = derive_tcp_endpoint('gamma', 'us-east-1')
-        assert url == 'https://iad.gamma.transform-cp.elastic-gumby.ai.aws.dev'
-
-    def test_gamma_pdx(self):
-        url = derive_tcp_endpoint('gamma', 'us-west-2')
-        assert url == 'https://pdx.gamma.transform-cp.elastic-gumby.ai.aws.dev'
-
-    def test_unknown_region_non_prod(self):
-        with pytest.raises(ValueError, match='Unknown region'):
-            derive_tcp_endpoint('gamma', 'mars-north-1')
+    def test_us_west_2(self):
+        url = derive_tcp_endpoint('us-west-2')
+        assert url == 'https://transform.us-west-2.api.aws'
 
 
 # ── extract_region_from_origin ──────────────────────────────────────────
@@ -108,7 +96,7 @@ class TestExtractRegionFromOrigin:
             == 'us-east-1'
         )
 
-    def test_gamma_url(self):
+    def test_legacy_suffixed_url(self):
         assert (
             extract_region_from_origin('https://abc123.transform-gamma.us-west-2.on.aws')
             == 'us-west-2'
@@ -143,7 +131,6 @@ class TestBuildCookieConfig:
         cfg = build_cookie_config(
             origin='https://example.com/',
             session_cookie='abc123',
-            stage='prod',
             region='us-east-1',
         )
         assert cfg.session_cookie == 'aws-transform-session=abc123'
@@ -154,7 +141,6 @@ class TestBuildCookieConfig:
         cfg = build_cookie_config(
             origin='https://example.com',
             session_cookie='aws-transform-session=abc123',
-            stage='gamma',
             region='us-west-2',
         )
         assert cfg.session_cookie == 'aws-transform-session=abc123'
@@ -163,7 +149,6 @@ class TestBuildCookieConfig:
         cfg = build_cookie_config(
             origin='https://example.com/',
             session_cookie='tok',
-            stage='prod',
             region='us-east-1',
         )
         assert cfg.origin == 'https://example.com'
@@ -172,10 +157,9 @@ class TestBuildCookieConfig:
         cfg = build_cookie_config(
             origin='https://example.com',
             session_cookie='tok',
-            stage='prod',
             region='eu-west-1',
         )
-        assert cfg.fes_endpoint == derive_fes_endpoint('prod', 'eu-west-1')
+        assert cfg.fes_endpoint == derive_fes_endpoint('eu-west-1')
 
 
 # ── build_bearer_config ─────────────────────────────────────────────────
@@ -191,7 +175,6 @@ class TestBuildBearerConfig:
             token_expiry=9999999999,
             origin='https://example.com/',
             start_url='https://my-sso.awsapps.com/start',
-            stage='prod',
             region='us-east-1',
             idc_region='us-east-1',
             oidc_client_id='cid',
@@ -208,7 +191,7 @@ class TestBuildBearerConfig:
         assert cfg.oidc_client_id == 'cid'
         assert cfg.oidc_client_secret == 'csec'  # pragma: allowlist secret
         assert cfg.oidc_client_secret_expires_at == 9999999999
-        assert cfg.fes_endpoint == derive_fes_endpoint('prod', 'us-east-1')
+        assert cfg.fes_endpoint == derive_fes_endpoint('us-east-1')
 
 
 # ── State management ────────────────────────────────────────────────────
@@ -225,7 +208,6 @@ class TestStateManagement:
         cfg = build_cookie_config(
             origin='https://example.com',
             session_cookie='tok',
-            stage='prod',
             region='us-east-1',
         )
         set_config(cfg)
@@ -252,7 +234,6 @@ class TestPersistence:
             cfg = build_cookie_config(
                 origin='https://example.com',
                 session_cookie='abc',
-                stage='prod',
                 region='us-east-1',
             )
             set_config(cfg)
@@ -283,7 +264,6 @@ class TestPersistence:
         cfg = build_cookie_config(
             origin='https://example.com',
             session_cookie='abc',
-            stage='prod',
             region='us-east-1',
         )
         config_file.write_text(json.dumps(cfg.model_dump(), indent=2))
@@ -313,7 +293,6 @@ class TestPersistence:
         cfg = build_cookie_config(
             origin='https://example.com',
             session_cookie='expired-cookie',
-            stage='prod',
             region='us-east-1',
         )
         config_file.write_text(json.dumps(cfg.model_dump(), indent=2))
@@ -352,7 +331,6 @@ class TestPersistence:
             token_expiry=1000,  # long expired
             origin='https://example.com',
             start_url='https://sso.example.com/start',
-            stage='prod',
             region='us-east-1',
             idc_region='us-east-1',
             oidc_client_id='cid',
@@ -404,7 +382,6 @@ class TestPersistence:
             token_expiry=1000,
             origin='https://example.com',
             start_url='https://sso.example.com/start',
-            stage='prod',
             region='us-east-1',
             idc_region='us-east-1',
         )
@@ -428,7 +405,6 @@ class TestPersistence:
             token_expiry=1000,
             origin='https://example.com',
             start_url='https://sso.example.com/start',
-            stage='prod',
             region='us-east-1',
             idc_region='us-east-1',
             oidc_client_id='cid',
@@ -456,7 +432,6 @@ class TestPersistence:
             token_expiry=int(time.time()) + 3600,  # expires in 1 hour
             origin='https://example.com',
             start_url='https://sso.example.com/start',
-            stage='prod',
             region='us-east-1',
             idc_region='us-east-1',
             oidc_client_id='cid',
@@ -569,7 +544,6 @@ class TestPersistence:
             token_expiry=1000,
             origin='https://example.com',
             start_url='https://sso.example.com/start',
-            stage='prod',
             region='us-east-1',
             idc_region='us-east-1',
             oidc_client_id='cid',

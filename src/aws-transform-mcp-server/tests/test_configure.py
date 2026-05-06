@@ -54,7 +54,6 @@ class TestConfigureCookie:
         result = await handler.configure(
             mock_context,
             authMode='cookie',
-            stage='prod',
             sessionCookie='my-session-value',
             origin='https://abc123.transform.us-east-1.on.aws',
         )
@@ -114,13 +113,8 @@ class TestConfigureSSO:
         'awslabs.aws_transform_mcp_server.tools.configure.run_oauth_flow',
         new_callable=AsyncMock,
     )
-    @patch(
-        'awslabs.aws_transform_mcp_server.tools.configure.get_scope',
-        return_value='transform:read_write',
-    )
     async def test_sso_single_profile(
         self,
-        mock_scope,
         mock_oauth,
         mock_discover,
         mock_fes_bearer,
@@ -150,7 +144,6 @@ class TestConfigureSSO:
             mock_context,
             authMode='sso',
             startUrl='https://d-xxx.awsapps.com/start',
-            stage='prod',
             idcRegion='us-east-1',
         )
 
@@ -170,13 +163,7 @@ class TestConfigureSSO:
         'awslabs.aws_transform_mcp_server.tools.configure.run_oauth_flow',
         new_callable=AsyncMock,
     )
-    @patch(
-        'awslabs.aws_transform_mcp_server.tools.configure.get_scope',
-        return_value='transform:read_write',
-    )
-    async def test_sso_no_profiles(
-        self, mock_scope, mock_oauth, mock_discover, handler, mock_context
-    ):
+    async def test_sso_no_profiles(self, mock_oauth, mock_discover, handler, mock_context):
         mock_oauth.return_value = OAuthTokens(
             access_token='tok-1',
             refresh_token='ref-1',
@@ -190,7 +177,6 @@ class TestConfigureSSO:
         result = await handler.configure(
             mock_context,
             authMode='sso',
-            stage='prod',
             idcRegion='us-east-1',
             startUrl='https://d-xxx.awsapps.com/start',
         )
@@ -208,12 +194,8 @@ class TestConfigureSSO:
         'awslabs.aws_transform_mcp_server.tools.configure.run_oauth_flow',
         new_callable=AsyncMock,
     )
-    @patch(
-        'awslabs.aws_transform_mcp_server.tools.configure.get_scope',
-        return_value='transform:read_write',
-    )
     async def test_sso_multiple_profiles_no_selection(
-        self, mock_scope, mock_oauth, mock_discover, handler, mock_context
+        self, mock_oauth, mock_discover, handler, mock_context
     ):
         mock_oauth.return_value = OAuthTokens(
             access_token='tok-1',
@@ -239,7 +221,6 @@ class TestConfigureSSO:
         result = await handler.configure(
             mock_context,
             authMode='sso',
-            stage='prod',
             idcRegion='us-east-1',
             startUrl='https://d-xxx.awsapps.com/start',
             profileName=None,
@@ -265,13 +246,8 @@ class TestConfigureSSO:
         'awslabs.aws_transform_mcp_server.tools.configure.run_oauth_flow',
         new_callable=AsyncMock,
     )
-    @patch(
-        'awslabs.aws_transform_mcp_server.tools.configure.get_scope',
-        return_value='transform:read_write',
-    )
     async def test_sso_multiple_profiles_with_selection(
         self,
-        mock_scope,
         mock_oauth,
         mock_discover,
         mock_fes_bearer,
@@ -305,7 +281,6 @@ class TestConfigureSSO:
         result = await handler.configure(
             mock_context,
             authMode='sso',
-            stage='prod',
             idcRegion='us-east-1',
             startUrl='https://d-xxx.awsapps.com/start',
             profileName='beta',
@@ -327,13 +302,7 @@ class TestConfigureSSO:
         'awslabs.aws_transform_mcp_server.tools.configure.run_oauth_flow',
         new_callable=AsyncMock,
     )
-    @patch(
-        'awslabs.aws_transform_mcp_server.tools.configure.get_scope',
-        return_value='transform:read_write',
-    )
-    async def test_sso_profile_not_found(
-        self, mock_scope, mock_oauth, mock_discover, handler, mock_context
-    ):
+    async def test_sso_profile_not_found(self, mock_oauth, mock_discover, handler, mock_context):
         mock_oauth.return_value = OAuthTokens(
             access_token='tok-1',
             refresh_token='ref-1',
@@ -358,7 +327,6 @@ class TestConfigureSSO:
         result = await handler.configure(
             mock_context,
             authMode='sso',
-            stage='prod',
             idcRegion='us-east-1',
             startUrl='https://d-xxx.awsapps.com/start',
             profileName='nonexistent',
@@ -519,7 +487,6 @@ class TestGetStatus:
     ):
         mock_get_config.return_value = ConnectionConfig(
             auth_mode='cookie',
-            stage='prod',
             region='us-east-1',
             fes_endpoint='https://api.transform.us-east-1.on.aws/',
             origin='https://app.example.com',
@@ -572,7 +539,6 @@ class TestGetStatus:
         mock_boto3.Session.return_value.get_credentials.return_value = None
         mock_get_config.return_value = ConnectionConfig(
             auth_mode='cookie',
-            stage='prod',
             region='us-east-1',
             fes_endpoint='https://api.transform.us-east-1.on.aws/',
             origin='https://app.example.com',
@@ -610,7 +576,6 @@ class TestGetStatus:
         mock_boto3.Session.return_value.get_credentials.return_value = None
         mock_get_config.return_value = ConnectionConfig(
             auth_mode='cookie',
-            stage='prod',
             region='us-east-1',
             fes_endpoint='https://api.transform.us-east-1.on.aws/',
             origin='https://app.example.com',
@@ -628,32 +593,6 @@ class TestGetStatus:
     @pytest.mark.asyncio
     @patch('awslabs.aws_transform_mcp_server.aws_helper.boto3')
     @patch('awslabs.aws_transform_mcp_server.tools.configure.is_configured', return_value=False)
-    async def test_sigv4_bad_region(self, mock_configured, mock_boto3, handler, mock_context):
-        """ValueError from derive_tcp_endpoint shows as region error, not credential error."""
-        from awslabs.aws_transform_mcp_server.aws_helper import AwsHelper
-
-        AwsHelper.clear_cache()
-        mock_session = mock_boto3.Session.return_value
-        mock_session.get_credentials.return_value = True
-        mock_session.region_name = 'mars-north-1'
-        mock_sts = MagicMock()
-        mock_sts.get_caller_identity.return_value = {
-            'Account': '123456789012',
-            'Arn': 'arn:aws:sts::123456789012:assumed-role/test/session',
-        }
-        mock_session.client.return_value = mock_sts
-
-        with patch.dict('os.environ', {'ATX_STAGE': 'gamma', 'AWS_REGION': 'mars-north-1'}):
-            result = await handler.get_status(mock_context)
-
-        AwsHelper.clear_cache()
-        parsed = json.loads(result['content'][0]['text'])
-        assert parsed['sigv4']['configured'] is False
-        assert 'Region configuration error' in parsed['sigv4']['message']
-
-    @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.aws_helper.boto3')
-    @patch('awslabs.aws_transform_mcp_server.tools.configure.is_configured', return_value=False)
     async def test_sigv4_sts_failure(self, mock_configured, mock_boto3, handler, mock_context):
         """STS API error shows as credential validation failure."""
         from awslabs.aws_transform_mcp_server.aws_helper import AwsHelper
@@ -666,7 +605,7 @@ class TestGetStatus:
         mock_sts.get_caller_identity.side_effect = Exception('ExpiredToken')
         mock_session.client.return_value = mock_sts
 
-        with patch.dict('os.environ', {'ATX_STAGE': 'prod', 'AWS_REGION': 'us-east-1'}):
+        with patch.dict('os.environ', {'AWS_REGION': 'us-east-1'}):
             result = await handler.get_status(mock_context)
 
         AwsHelper.clear_cache()
@@ -690,7 +629,6 @@ class TestConfigureCookieException:
         result = await handler.configure(
             mock_context,
             authMode='cookie',
-            stage='prod',
             sessionCookie='my-session-value',
             origin='https://abc123.transform.us-east-1.on.aws',
         )
@@ -710,18 +648,13 @@ class TestConfigureSSOException:
         'awslabs.aws_transform_mcp_server.tools.configure.run_oauth_flow',
         new_callable=AsyncMock,
     )
-    @patch(
-        'awslabs.aws_transform_mcp_server.tools.configure.get_scope',
-        return_value='transform:read_write',
-    )
-    async def test_sso_flow_exception(self, mock_scope, mock_oauth, handler, mock_context):
+    async def test_sso_flow_exception(self, mock_oauth, handler, mock_context):
         """Exception in SSO flow returns failure_result with hint."""
         mock_oauth.side_effect = TimeoutError('Authentication timed out')
 
         result = await handler.configure(
             mock_context,
             authMode='sso',
-            stage='prod',
             idcRegion='us-east-1',
             startUrl='https://d-xxx.awsapps.com/start',
         )
@@ -778,7 +711,6 @@ class TestGetStatusBearerAuth:
         future_expiry = int(time.time()) + 1800
         mock_get_config.return_value = ConnectionConfig(
             auth_mode='bearer',
-            stage='prod',
             region='us-east-1',
             fes_endpoint='https://api.transform.us-east-1.on.aws/',
             origin='https://app.example.com',
@@ -820,7 +752,6 @@ class TestGetStatusBearerAuth:
         """Bearer auth with expired token shows EXPIRED."""
         mock_get_config.return_value = ConnectionConfig(
             auth_mode='bearer',
-            stage='prod',
             region='us-east-1',
             fes_endpoint='https://api.transform.us-east-1.on.aws/',
             origin='https://app.example.com',
@@ -864,7 +795,6 @@ class TestGetStatusGenericException:
         mock_boto3.Session.return_value.get_credentials.return_value = None
         mock_get_config.return_value = ConnectionConfig(
             auth_mode='cookie',
-            stage='prod',
             region='us-east-1',
             fes_endpoint='https://api.transform.us-east-1.on.aws/',
             origin='https://app.example.com',
@@ -891,8 +821,8 @@ class TestDiscoverProfiles:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.configure.FES_REGIONS_BY_STAGE',
-        {'prod': ['us-east-1', 'eu-central-1']},
+        'awslabs.aws_transform_mcp_server.tools.configure.FES_REGIONS',
+        ['us-east-1', 'eu-central-1'],
     )
     async def test_discovers_across_regions(self, mock_fes_bearer):
         from awslabs.aws_transform_mcp_server.tools.configure import _discover_profiles
@@ -916,7 +846,7 @@ class TestDiscoverProfiles:
             },
         ]
 
-        result = await _discover_profiles('prod', 'tok-1')
+        result = await _discover_profiles('tok-1')
 
         assert len(result) == 2
         assert result[0]['profileName'] == 'alpha'
@@ -931,8 +861,8 @@ class TestDiscoverProfiles:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.configure.FES_REGIONS_BY_STAGE',
-        {'prod': ['us-east-1', 'eu-central-1']},
+        'awslabs.aws_transform_mcp_server.tools.configure.FES_REGIONS',
+        ['us-east-1', 'eu-central-1'],
     )
     async def test_handles_region_failure(self, mock_fes_bearer):
         from awslabs.aws_transform_mcp_server.tools.configure import _discover_profiles
@@ -949,7 +879,7 @@ class TestDiscoverProfiles:
             },
         ]
 
-        result = await _discover_profiles('prod', 'tok-1')
+        result = await _discover_profiles('tok-1')
 
         assert len(result) == 1
         assert result[0]['profileName'] == 'beta'
@@ -961,15 +891,15 @@ class TestDiscoverProfiles:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.configure.FES_REGIONS_BY_STAGE',
-        {'prod': ['us-east-1']},
+        'awslabs.aws_transform_mcp_server.tools.configure.FES_REGIONS',
+        ['us-east-1'],
     )
     async def test_non_dict_response(self, mock_fes_bearer):
         from awslabs.aws_transform_mcp_server.tools.configure import _discover_profiles
 
         mock_fes_bearer.return_value = 'not-a-dict'
 
-        result = await _discover_profiles('prod', 'tok-1')
+        result = await _discover_profiles('tok-1')
 
         assert result == []
 
@@ -979,15 +909,15 @@ class TestDiscoverProfiles:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.configure.FES_REGIONS_BY_STAGE',
-        {'prod': ['us-east-1', 'eu-central-1']},
+        'awslabs.aws_transform_mcp_server.tools.configure.FES_REGIONS',
+        ['us-east-1', 'eu-central-1'],
     )
     async def test_empty_profiles(self, mock_fes_bearer):
         from awslabs.aws_transform_mcp_server.tools.configure import _discover_profiles
 
         mock_fes_bearer.return_value = {'profiles': []}
 
-        result = await _discover_profiles('prod', 'tok-1')
+        result = await _discover_profiles('tok-1')
 
         assert result == []
 
@@ -1154,7 +1084,6 @@ class TestSwitchProfile:
     async def test_cookie_mode_rejected(self, mock_get_config, handler, mock_context):
         mock_get_config.return_value = ConnectionConfig(
             auth_mode='cookie',
-            stage='prod',
             region='us-east-1',
             fes_endpoint='https://api.transform.us-east-1.on.aws/',
             origin='https://app.example.com',
@@ -1172,7 +1101,6 @@ class TestSwitchProfile:
     async def test_token_expired(self, mock_get_config, handler, mock_context):
         mock_get_config.return_value = ConnectionConfig(
             auth_mode='bearer',
-            stage='prod',
             region='us-east-1',
             fes_endpoint='https://api.transform.us-east-1.on.aws/',
             origin='https://app.example.com',
@@ -1198,7 +1126,6 @@ class TestSwitchProfile:
 
         mock_get_config.return_value = ConnectionConfig(
             auth_mode='bearer',
-            stage='prod',
             region='us-east-1',
             fes_endpoint='https://api.transform.us-east-1.on.aws/',
             origin='https://app.example.com',
@@ -1229,7 +1156,6 @@ class TestSwitchProfile:
 
         mock_get_config.return_value = ConnectionConfig(
             auth_mode='bearer',
-            stage='prod',
             region='us-east-1',
             fes_endpoint='https://api.transform.us-east-1.on.aws/',
             origin='https://app.example.com',
@@ -1300,7 +1226,6 @@ class TestSwitchProfile:
 
         config = ConnectionConfig(
             auth_mode='bearer',
-            stage='prod',
             region='us-east-1',
             fes_endpoint='https://api.transform.us-east-1.on.aws/',
             origin='https://app.example.com',
@@ -1359,7 +1284,6 @@ class TestSwitchProfile:
 
         mock_get_config.return_value = ConnectionConfig(
             auth_mode='bearer',
-            stage='prod',
             region='us-east-1',
             fes_endpoint='https://api.transform.us-east-1.on.aws/',
             origin='https://app.example.com',
@@ -1432,7 +1356,6 @@ class TestGetStatusProfileName:
 
         mock_get_config.return_value = ConnectionConfig(
             auth_mode='bearer',
-            stage='prod',
             region='us-east-1',
             fes_endpoint='https://api.transform.us-east-1.on.aws/',
             origin='https://app.example.com',

@@ -19,7 +19,6 @@ works without the Brazil-only ElasticGumbyFrontEndServicePythonClient package.
 """
 
 import asyncio
-import os
 import time
 from awslabs.aws_transform_mcp_server import config_store, oauth
 from awslabs.aws_transform_mcp_server._service_model import create_session
@@ -276,10 +275,9 @@ async def call_fes(
     config = config_store.get_config()
     if config is None:
         if config_store.is_sigv4_fes_available():
-            stage = os.environ.get('ATX_STAGE', 'prod')
             session = AwsHelper.create_session()
             region = AwsHelper.resolve_region(session)
-            endpoint = config_store.derive_fes_endpoint(stage, region)
+            endpoint = config_store.derive_fes_endpoint(region)
             try:
                 return await call_fes_direct_sigv4(
                     endpoint,

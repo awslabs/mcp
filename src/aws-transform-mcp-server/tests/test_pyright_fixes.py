@@ -143,12 +143,11 @@ class TestGetStatusConfigAccess:
     )
     @patch('awslabs.aws_transform_mcp_server.tools.configure.is_configured', return_value=True)
     async def test_get_status_cookie_config_attributes(self, _, mock_fes_cookie, handler, ctx):
-        """Verify get_status correctly accesses auth_mode, stage, region, origin on cookie config."""
+        """Verify get_status correctly accesses auth_mode, region, origin on cookie config."""
         from awslabs.aws_transform_mcp_server.models import ConnectionConfig
 
         config = ConnectionConfig(
             auth_mode='cookie',
-            stage='prod',
             region='us-east-1',
             fes_endpoint='https://api.transform.us-east-1.on.aws/',
             origin='https://example.transform.us-east-1.on.aws',
@@ -173,7 +172,6 @@ class TestGetStatusConfigAccess:
         parsed = json.loads(result['content'][0]['text'])
         assert parsed['fes']['configured'] is True
         assert parsed['fes']['authMode'] == 'cookie'
-        assert parsed['fes']['stage'] == 'prod'
         assert parsed['fes']['region'] == 'us-east-1'
 
     @pytest.mark.asyncio
@@ -198,7 +196,7 @@ class TestGetStatusConfigAccess:
                 'awslabs.aws_transform_mcp_server.aws_helper.boto3.Session',
                 return_value=mock_session,
             ),
-            patch.dict('os.environ', {'ATX_STAGE': 'prod', 'AWS_REGION': 'us-east-1'}),
+            patch.dict('os.environ', {'AWS_REGION': 'us-east-1'}),
         ):
             result = await handler.get_status(ctx)
 
@@ -206,7 +204,6 @@ class TestGetStatusConfigAccess:
         assert parsed['sigv4']['configured'] is True
         assert parsed['sigv4']['accountId'] == '123456789012'
         assert parsed['sigv4']['arn'] == 'arn:aws:sts::123456789012:assumed-role/test/session'
-        assert parsed['sigv4']['stage'] == 'prod'
         assert parsed['sigv4']['region'] == 'us-east-1'
         assert parsed['sigv4']['tcpEndpoint'] == 'https://transform.us-east-1.api.aws'
 

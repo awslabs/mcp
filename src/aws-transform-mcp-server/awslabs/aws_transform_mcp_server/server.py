@@ -174,9 +174,8 @@ async def _probe_sigv4_fes() -> None:
         set_sigv4_fes_available(False)
         return
 
-    stage = os.environ.get('ATX_STAGE', 'prod')
     region = AwsHelper.resolve_region(session)
-    endpoint = derive_fes_endpoint(stage, region)
+    endpoint = derive_fes_endpoint(region)
 
     try:
         await call_fes_direct_sigv4(

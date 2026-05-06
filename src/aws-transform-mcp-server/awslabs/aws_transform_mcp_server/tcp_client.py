@@ -20,7 +20,6 @@ boto3 handles credential refresh automatically.
 
 import httpx
 import json
-import os
 from awslabs.aws_transform_mcp_server.aws_helper import AwsHelper
 from awslabs.aws_transform_mcp_server.config_store import derive_tcp_endpoint
 from awslabs.aws_transform_mcp_server.consts import (
@@ -59,18 +58,16 @@ class TcpConfig(NamedTuple):
 def _resolve_tcp_config() -> TcpConfig:
     """Resolve TCP endpoint and credentials from environment and boto3.
 
-    Reads ATX_STAGE from env (default 'prod'). Region resolution:
-    AWS_REGION env → profile region → 'us-east-1'. Credentials come
-    from boto3's standard chain (AWS_PROFILE, env vars,
+    Region resolution: AWS_REGION env → profile region → 'us-east-1'.
+    Credentials come from boto3's standard chain (AWS_PROFILE, env vars,
     ~/.aws/credentials, instance profile).
 
     Raises:
         RuntimeError: If no AWS credentials are available.
     """
-    stage = os.environ.get('ATX_STAGE', 'prod')
     session = AwsHelper.create_session()
     region = AwsHelper.resolve_region(session)
-    endpoint = derive_tcp_endpoint(stage, region)
+    endpoint = derive_tcp_endpoint(region)
     credentials = session.get_credentials()
     if credentials is None:
         raise RuntimeError(

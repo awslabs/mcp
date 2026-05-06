@@ -224,7 +224,6 @@ class TestProbeSigv4Fes:
             patch(f'{_SERVER_MOD}.set_sigv4_fes_available') as mock_set,
             patch(f'{_SERVER_MOD}.derive_fes_endpoint', return_value='https://ep/'),
             patch(f'{_SERVER_MOD}.call_fes_direct_sigv4', new_callable=AsyncMock) as mock_call,
-            patch.dict('os.environ', {'ATX_STAGE': 'prod'}),
         ):
             mock_helper.create_session.return_value = mock_session
             mock_helper.resolve_region.return_value = 'us-east-1'
@@ -251,7 +250,6 @@ class TestProbeSigv4Fes:
                 new_callable=AsyncMock,
                 side_effect=Exception('connection refused'),
             ),
-            patch.dict('os.environ', {'ATX_STAGE': 'prod'}),
         ):
             mock_helper.create_session.return_value = mock_session
             mock_helper.resolve_region.return_value = 'us-east-1'
@@ -264,23 +262,10 @@ class TestProbeSigv4Fes:
 
 
 class TestDeriveFesEndpointValidation:
-    """Tests for stage validation in derive_fes_endpoint."""
+    """Tests for derive_fes_endpoint."""
 
-    def test_valid_stages(self):
+    def test_returns_correct_url(self):
         from awslabs.aws_transform_mcp_server.config_store import derive_fes_endpoint
 
-        assert 'prod' not in derive_fes_endpoint('prod', 'us-east-1').split('transform-')
-        assert 'gamma' in derive_fes_endpoint('gamma', 'us-east-1')
-        assert 'alpha-intg' in derive_fes_endpoint('alpha-intg', 'us-west-2')
-
-    def test_invalid_stage_raises(self):
-        from awslabs.aws_transform_mcp_server.config_store import derive_fes_endpoint
-
-        with pytest.raises(ValueError, match='Invalid stage'):
-            derive_fes_endpoint('prod.evil.com/', 'us-east-1')
-
-    def test_empty_stage_raises(self):
-        from awslabs.aws_transform_mcp_server.config_store import derive_fes_endpoint
-
-        with pytest.raises(ValueError, match='Invalid stage'):
-            derive_fes_endpoint('', 'us-east-1')
+        assert derive_fes_endpoint('us-east-1') == 'https://api.transform.us-east-1.on.aws/'
+        assert derive_fes_endpoint('us-west-2') == 'https://api.transform.us-west-2.on.aws/'

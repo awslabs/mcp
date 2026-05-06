@@ -293,15 +293,9 @@ To verify your credentials are working, ask your AI assistant: **"Check my AWS T
 
 ## Configuration
 
-### Stage Endpoints
-
-| Stage | Regions | Tenant URL Format |
-|-------|---------|-------------------|
-| Prod | All standard AWS regions | `https://<tenant-id>.transform.<region>.on.aws` |
-
 ### Persisted Configuration
 
-Authentication state is saved to `~/.aws-transform-mcp/config.json` and auto-loaded on restart. This includes auth mode, tokens, tenant URL, stage, and region.
+Authentication state is saved to `~/.aws-transform-mcp/config.json` and auto-loaded on restart. This includes auth mode, tokens, tenant URL, and region.
 
 ### Environment Variables
 
@@ -311,7 +305,6 @@ Set these in your MCP client config `env` block:
 |----------|----------|---------|-------------|
 | `AWS_PROFILE` | No | `default` profile | AWS profile from `~/.aws/credentials` to use for Control Plane tools (e.g., `accept_connector`). If you have multiple AWS profiles, set this to the one with access to your Transform account. If not set, boto3 uses the `[default]` profile, then falls back to environment variables (`AWS_ACCESS_KEY_ID`), then instance metadata. See [boto3 credential chain](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html#configuring-credentials) for the full resolution order. |
 | `AWS_REGION` | No | Profile region, then `us-east-1` | AWS region for Control Plane API calls. If not set, uses the region from your AWS profile (`~/.aws/config`), then falls back to `us-east-1`. |
-| `ATX_STAGE` | No | `prod` | Environment stage (`prod` or `gamma`). Controls which Transform Control Plane endpoint the server connects to. Gamma only supports `us-east-1` and `us-west-2`. |
 | `FASTMCP_LOG_LEVEL` | No | `INFO` | Log level for the MCP server (`DEBUG`, `INFO`, `WARNING`, `ERROR`). |
 
 ## HITL Task Response System

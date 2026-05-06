@@ -14,7 +14,7 @@
 
 """Constants for aws-transform-mcp-server."""
 
-from typing import Dict, List, Set
+from typing import List, Set
 
 
 # ── FES (Front End Service) targets ──────────────────────────────────────
@@ -47,44 +47,21 @@ TOKEN_REFRESH_BUFFER_SECS: int = 300  # refresh if < 5 min left
 # ── Persisted config path ────────────────────────────────────────────────
 CONFIG_PATH: str = '~/.aws-transform-mcp/config.json'
 
-# ── OAuth scopes per stage ───────────────────────────────────────────────
-STAGE_SCOPES: Dict[str, str] = {
-    'gamma': 'transform_test:read_write',
-    'prod': 'transform:read_write',
-}
+# ── OAuth scope ──────────────────────────────────────────────────────────
+OAUTH_SCOPE: str = 'transform:read_write'
 
-# ── FES deployed regions per stage (for profile discovery fan-out) ───────
-FES_REGIONS_BY_STAGE: Dict[str, List[str]] = {
-    'gamma': ['us-east-1', 'us-west-2'],
-    'prod': [
-        'us-east-1',
-        'eu-central-1',
-        'ap-southeast-2',
-        'ap-northeast-1',
-        'eu-west-2',
-        'ap-northeast-2',
-        'sa-east-1',
-        'ap-south-1',
-        'ca-central-1',
-    ],
-}
+# ── FES deployed regions (for profile discovery fan-out) ─────────────────
+FES_REGIONS: List[str] = [
+    'us-east-1',
+    'eu-central-1',
+    'ap-southeast-2',
+    'ap-northeast-1',
+    'eu-west-2',
+    'ap-northeast-2',
+    'sa-east-1',
+    'ap-south-1',
+    'ca-central-1',
+]
 
 # ── Fan-out timeout for profile discovery (seconds per region) ──────────
 PROFILE_DISCOVERY_TIMEOUT_SECONDS: float = 5.0
-
-# ── Region to airport-code mapping (used for non-prod TCP endpoints) ─────
-REGION_AIRPORT_CODES: Dict[str, str] = {
-    'us-east-1': 'iad',
-    'us-east-2': 'cmh',
-    'us-west-1': 'sfo',
-    'us-west-2': 'pdx',
-    'eu-west-1': 'dub',
-    'eu-west-2': 'lhr',
-    'eu-central-1': 'fra',
-    'ap-northeast-1': 'nrt',
-    'ap-southeast-1': 'sin',
-    'ap-southeast-2': 'syd',
-    'ap-south-1': 'bom',
-    'sa-east-1': 'gru',
-    'ca-central-1': 'yul',
-}

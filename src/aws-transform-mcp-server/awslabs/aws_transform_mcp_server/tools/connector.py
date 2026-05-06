@@ -14,7 +14,6 @@
 
 """Connector tool handlers for AWS Transform MCP server."""
 
-import os
 import uuid
 from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.aws_helper import AwsHelper
@@ -39,8 +38,7 @@ from awslabs.aws_transform_mcp_server.tool_utils import (
 )
 from mcp.server.fastmcp import Context
 from pydantic import Field
-from typing import Annotated, Any, Dict, Optional
-from urllib.parse import urlencode
+from typing import Annotated, Any, Optional
 
 
 _NOT_CONFIGURED_CODE = 'NOT_CONFIGURED'
@@ -50,26 +48,12 @@ _NOT_CONFIGURED_ACTION = 'Call "configure" first.'
 
 def _build_verification_link(
     connector_id: str,
-    stage: str,
     region: str,
-    source_account: Optional[str] = None,
-    workspace_id: Optional[str] = None,
 ) -> str:
     """Build a console verification link for a connector."""
-    if stage == 'prod':
-        return (
-            f'https://{region}.console.aws.amazon.com/transform/connector/'
-            f'{connector_id}/configure?region={region}'
-        )
-    # Gamma and other non-prod stages
-    params: Dict[str, str] = {'region': region}
-    if source_account:
-        params['sourceAccount'] = source_account
-    if workspace_id:
-        params['workspaceId'] = workspace_id
     return (
-        f'https://{region}.awsc-integ.aws.amazon.com/transform/connector/'
-        f'{connector_id}/configure?{urlencode(params)}'
+        f'https://{region}.console.aws.amazon.com/transform/connector/'
+        f'{connector_id}/configure?region={region}'
     )
 
 
@@ -158,17 +142,12 @@ class ConnectorHandler:
 
             config = get_config()
             if config is not None:
-                stage = config.stage
                 region = config.region
             else:
-                stage = os.environ.get('ATX_STAGE', 'prod')
                 region = AwsHelper.resolve_region(AwsHelper.create_session())
             verification_link = _build_verification_link(
                 connector_id,
-                stage,
                 region,
-                awsAccountId,
-                workspaceId,
             )
 
             data = {

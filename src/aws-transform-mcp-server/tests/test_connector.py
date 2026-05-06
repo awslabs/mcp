@@ -101,38 +101,14 @@ class TestAcceptConnector:
 class TestBuildVerificationLink:
     """Tests for _build_verification_link."""
 
-    def test_prod_stage(self):
+    def test_prod_link(self):
         from awslabs.aws_transform_mcp_server.tools.connector import _build_verification_link
 
-        link = _build_verification_link('c-1', 'prod', 'us-east-1')
+        link = _build_verification_link('c-1', 'us-east-1')
         assert link == (
             'https://us-east-1.console.aws.amazon.com/transform/connector/'
             'c-1/configure?region=us-east-1'
         )
-
-    def test_gamma_stage_with_all_params(self):
-        from awslabs.aws_transform_mcp_server.tools.connector import _build_verification_link
-
-        link = _build_verification_link(
-            'c-2',
-            'gamma',
-            'us-west-2',
-            source_account='123456789012',
-            workspace_id='ws-1',
-        )
-        assert link.startswith('https://us-west-2.awsc-integ.aws.amazon.com/')
-        assert 'sourceAccount=123456789012' in link
-        assert 'workspaceId=ws-1' in link
-        assert 'region=us-west-2' in link
-
-    def test_gamma_stage_without_optional_params(self):
-        from awslabs.aws_transform_mcp_server.tools.connector import _build_verification_link
-
-        link = _build_verification_link('c-3', 'gamma', 'eu-west-1')
-        assert link.startswith('https://eu-west-1.awsc-integ.aws.amazon.com/')
-        assert 'region=eu-west-1' in link
-        assert 'sourceAccount' not in link
-        assert 'workspaceId' not in link
 
 
 class TestCreateConnector:
@@ -159,7 +135,6 @@ class TestCreateConnector:
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_happy_path(self, _, mock_fes, mock_config, handler, ctx):
         mock_cfg = MagicMock()
-        mock_cfg.stage = 'prod'
         mock_cfg.region = 'us-east-1'
         mock_config.return_value = mock_cfg
 
@@ -239,7 +214,6 @@ class TestCreateConnector:
         self, _, mock_fes, mock_config, handler, ctx
     ):
         mock_cfg = MagicMock()
-        mock_cfg.stage = 'prod'
         mock_cfg.region = 'us-east-1'
         mock_config.return_value = mock_cfg
 

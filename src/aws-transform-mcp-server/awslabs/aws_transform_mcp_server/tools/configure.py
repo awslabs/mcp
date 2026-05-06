@@ -32,7 +32,8 @@ from awslabs.aws_transform_mcp_server.config_store import (
     set_config,
 )
 from awslabs.aws_transform_mcp_server.consts import (
-    FES_REGIONS_BY_STAGE,
+    FES_REGIONS,
+    OAUTH_SCOPE,
     PROFILE_DISCOVERY_TIMEOUT_SECONDS,
 )
 from awslabs.aws_transform_mcp_server.fes_client import (
@@ -40,7 +41,7 @@ from awslabs.aws_transform_mcp_server.fes_client import (
     call_fes_direct_cookie,
 )
 from awslabs.aws_transform_mcp_server.http_utils import HttpError
-from awslabs.aws_transform_mcp_server.oauth import get_scope, run_oauth_flow
+from awslabs.aws_transform_mcp_server.oauth import run_oauth_flow
 from awslabs.aws_transform_mcp_server.tool_utils import (
     error_result,
     failure_result,
@@ -54,21 +55,19 @@ from typing import Annotated, Any, Dict, List, Optional
 
 
 async def _discover_profiles(
-    stage: str,
     access_token: str,
 ) -> List[Dict[str, Any]]:
-    """Fan out ListAvailableProfiles across all FES regions for the stage.
+    """Fan out ListAvailableProfiles across all FES regions.
 
     Each region gets a 5-second timeout. Profiles are tagged with ``_region``
     (extracted from applicationUrl) so the caller knows which FES to use.
 
     Returns all discovered profiles, or an empty list if none found.
     """
-    regions = FES_REGIONS_BY_STAGE.get(stage, FES_REGIONS_BY_STAGE['prod'])
 
     async def _call_region(region: str) -> List[Dict[str, Any]]:
         try:
-            endpoint = derive_fes_endpoint(stage, region)
+            endpoint = derive_fes_endpoint(region)
             result = await asyncio.wait_for(
                 call_fes_direct_bearer(endpoint, access_token, 'ListAvailableProfiles'),
                 timeout=PROFILE_DISCOVERY_TIMEOUT_SECONDS,
@@ -79,7 +78,7 @@ async def _discover_profiles(
             logger.debug('Profile discovery failed for {}: {}', region, exc)
             return []
 
-    results = await asyncio.gather(*[_call_region(r) for r in regions])
+    results = await asyncio.gather(*[_call_region(r) for r in FES_REGIONS])
     all_profiles: List[Dict[str, Any]] = []
     for region_profiles in results:
         all_profiles.extend(region_profiles)
@@ -218,12 +217,6 @@ class ConfigureHandler:
                 ),
             ),
         ],
-        stage: Annotated[
-            str,
-            Field(
-                description='Environment stage (default: prod).',
-            ),
-        ] = 'prod',
         # ── Cookie mode parameters ─────────────────────────────────────
         origin: Annotated[
             Optional[str],
@@ -299,7 +292,7 @@ class ConfigureHandler:
                     'VALIDATION_ERROR',
                     'origin is required for cookie auth mode.',
                     'Provide your Transform application URL '
-                    '(e.g., https://xxx.transform-gamma.us-east-1.on.aws).',
+                    '(e.g., https://xxx.transform.us-east-1.on.aws).',
                 )
 
             cookie_region = extract_region_from_origin(origin)
@@ -310,7 +303,7 @@ class ConfigureHandler:
                     'Expected format: https://{{id}}.transform.{{region}}.on.aws',
                 )
 
-            config = build_cookie_config(origin, sessionCookie, stage, cookie_region)
+            config = build_cookie_config(origin, sessionCookie, cookie_region)
 
             try:
                 result = await call_fes_direct_cookie(
@@ -330,7 +323,6 @@ class ConfigureHandler:
                 {
                     'message': 'Connected to AWS Transform (cookie auth)',
                     'authMode': 'cookie',
-                    'stage': config.stage,
                     'region': config.region,
                     'origin': config.origin,
                     'session': result,
@@ -351,14 +343,14 @@ class ConfigureHandler:
                 'Provide the AWS region where your IAM Identity Center is configured.',
             )
 
-        scope = get_scope(stage)
-
         try:
             # Step 1: Run full OAuth flow
-            tokens = await run_oauth_flow(start_url=startUrl, idc_region=idcRegion, scope=scope)
+            tokens = await run_oauth_flow(
+                start_url=startUrl, idc_region=idcRegion, scope=OAUTH_SCOPE
+            )
 
             # Step 2: Fan out ListAvailableProfiles across all regions
-            profiles = await _discover_profiles(stage, tokens.access_token)
+            profiles = await _discover_profiles(tokens.access_token)
 
             if len(profiles) == 0:
                 return error_result(
@@ -378,7 +370,7 @@ class ConfigureHandler:
             )
 
             # Step 4: Verify session with selected profile
-            service_fes_endpoint = derive_fes_endpoint(stage, service_region)
+            service_fes_endpoint = derive_fes_endpoint(service_region)
             session = await call_fes_direct_bearer(
                 service_fes_endpoint, tokens.access_token, 'VerifySession', {}, resolved_origin
             )
@@ -390,7 +382,6 @@ class ConfigureHandler:
                 token_expiry=int(time.time()) + tokens.expires_in,
                 origin=resolved_origin,
                 start_url=startUrl,
-                stage=stage,
                 region=service_region,
                 oidc_client_id=tokens.client_id,
                 oidc_client_secret=tokens.client_secret,
@@ -410,7 +401,6 @@ class ConfigureHandler:
             {
                 'message': 'Connected to AWS Transform (bearer auth)',
                 'authMode': 'bearer',
-                'stage': config.stage,
                 'region': config.region,
                 'origin': config.origin,
                 'profile': selected.get('profileName'),
@@ -441,10 +431,8 @@ class ConfigureHandler:
                 'Run configure with authMode "sso" to re-authenticate.',
             )
 
-        stage = config.stage
-
         # Fan out to discover all profiles
-        profiles = await _discover_profiles(stage, config.bearer_token)
+        profiles = await _discover_profiles(config.bearer_token)
 
         if len(profiles) == 0:
             return error_result(
@@ -464,7 +452,7 @@ class ConfigureHandler:
         )
 
         # Verify session with selected profile
-        service_fes_endpoint = derive_fes_endpoint(stage, service_region)
+        service_fes_endpoint = derive_fes_endpoint(service_region)
         try:
             session = await call_fes_direct_bearer(
                 service_fes_endpoint, config.bearer_token, 'VerifySession', {}, resolved_origin
@@ -532,7 +520,6 @@ class ConfigureHandler:
                 info: dict = {
                     'configured': True,
                     'authMode': config.auth_mode,
-                    'stage': config.stage,
                     'region': config.region,
                     'origin': config.origin,
                     'session': result,
@@ -564,7 +551,6 @@ class ConfigureHandler:
                             'if the problem persists.'
                         ),
                         'authMode': config.auth_mode,
-                        'stage': config.stage,
                         'region': config.region,
                     }
             except Exception as error:
@@ -579,7 +565,6 @@ class ConfigureHandler:
                         'if the problem persists.'
                     ),
                     'authMode': config.auth_mode,
-                    'stage': config.stage,
                     'region': config.region,
                 }
 
@@ -588,7 +573,6 @@ class ConfigureHandler:
             from awslabs.aws_transform_mcp_server.aws_helper import AwsHelper
             from awslabs.aws_transform_mcp_server.config_store import derive_tcp_endpoint
 
-            stage = os.environ.get('ATX_STAGE', 'prod')
             session = AwsHelper.create_session()
             region = AwsHelper.resolve_region(session)
             profile = os.environ.get('AWS_PROFILE')
@@ -605,14 +589,13 @@ class ConfigureHandler:
             else:
                 sts_client = AwsHelper.create_boto3_client('sts', region_name=region)
                 identity = sts_client.get_caller_identity()
-                tcp_endpoint = derive_tcp_endpoint(stage, region)
+                tcp_endpoint = derive_tcp_endpoint(region)
                 source = f'AWS_PROFILE={profile}' if profile else 'default credential chain'
                 status['sigv4'] = {
                     'configured': True,
                     'source': f'auto-detected from {source}',
                     'accountId': identity.get('Account'),
                     'arn': identity.get('Arn'),
-                    'stage': stage,
                     'region': region,
                     'tcpEndpoint': tcp_endpoint,
                 }

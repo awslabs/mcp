@@ -21,15 +21,11 @@ import stat
 import tempfile
 import time
 from awslabs.aws_transform_mcp_server import oauth
-from awslabs.aws_transform_mcp_server.consts import REGION_AIRPORT_CODES
 from awslabs.aws_transform_mcp_server.models import ConnectionConfig
 from loguru import logger
 
 
-_VALID_STAGES = frozenset({'prod', 'gamma', 'alpha-intg'})
-
-# Matches: https://{tenantId}.transform.{region}.on.aws (prod)
-#       or: https://{tenantId}.transform-{stage}.{region}.on.aws (non-prod)
+# Matches: https://{tenantId}.transform.{region}.on.aws
 _ORIGIN_REGION_PATTERN = re.compile(
     r'https://[a-z0-9-]+\.transform(?:-[a-z-]+)?\.([a-z]+-[a-z]+-\d+)\.on\.aws$'
 )
@@ -38,8 +34,7 @@ _ORIGIN_REGION_PATTERN = re.compile(
 def extract_region_from_origin(origin: str) -> str | None:
     """Extract the AWS region from a Transform application URL.
 
-    Handles both prod (``https://{id}.transform.{region}.on.aws``) and
-    non-prod (``https://{id}.transform-{stage}.{region}.on.aws``) patterns.
+    Handles the ``https://{id}.transform.{region}.on.aws`` pattern.
 
     Args:
         origin: The application URL / origin string.
@@ -51,52 +46,33 @@ def extract_region_from_origin(origin: str) -> str | None:
     return match.group(1) if match else None
 
 
-def derive_fes_endpoint(stage: str, region: str) -> str:
-    """Derive the FES (Front End Service) endpoint for a given stage and region.
+def derive_fes_endpoint(region: str) -> str:
+    """Derive the FES (Front End Service) endpoint for a given region.
 
     Args:
-        stage: Deployment stage (e.g. 'prod', 'gamma').
         region: AWS region (e.g. 'us-east-1').
 
     Returns:
         The FES endpoint URL.
-
-    Raises:
-        ValueError: If the stage is not a known value.
     """
-    if stage not in _VALID_STAGES:
-        raise ValueError(f'Invalid stage: {stage!r}. Must be one of: {sorted(_VALID_STAGES)}')
-    if stage == 'prod':
-        return f'https://api.transform.{region}.on.aws/'
-    return f'https://api.transform-{stage}.{region}.on.aws/'
+    return f'https://api.transform.{region}.on.aws/'
 
 
-def derive_tcp_endpoint(stage: str, region: str) -> str:
-    """Derive the TCP (Transform Control Plane) endpoint for a given stage and region.
+def derive_tcp_endpoint(region: str) -> str:
+    """Derive the TCP (Transform Control Plane) endpoint for a given region.
 
     Args:
-        stage: Deployment stage (e.g. 'prod', 'gamma').
         region: AWS region (e.g. 'us-east-1').
 
     Returns:
         The TCP endpoint URL.
-
-    Raises:
-        ValueError: If the region is not supported for non-prod stages.
     """
-    if stage == 'prod':
-        return f'https://transform.{region}.api.aws'
-    airport_code = REGION_AIRPORT_CODES.get(region)
-    if not airport_code:
-        supported = ', '.join(sorted(REGION_AIRPORT_CODES.keys()))
-        raise ValueError(f'Unknown region "{region}". Supported: {supported}')
-    return f'https://{airport_code}.{stage}.transform-cp.elastic-gumby.ai.aws.dev'
+    return f'https://transform.{region}.api.aws'
 
 
 def build_cookie_config(
     origin: str,
     session_cookie: str,
-    stage: str,
     region: str,
 ) -> ConnectionConfig:
     """Build a ConnectionConfig for cookie-based authentication.
@@ -105,7 +81,6 @@ def build_cookie_config(
         origin: The origin URL (trailing slash is stripped).
         session_cookie: The session cookie value. If it does not start with
             ``aws-transform-session=``, the prefix is prepended automatically.
-        stage: Deployment stage.
         region: AWS region.
 
     Returns:
@@ -116,9 +91,8 @@ def build_cookie_config(
         cookie = f'aws-transform-session={cookie}'
     return ConnectionConfig(
         auth_mode='cookie',
-        stage=stage,
         region=region,
-        fes_endpoint=derive_fes_endpoint(stage, region),
+        fes_endpoint=derive_fes_endpoint(region),
         origin=origin.rstrip('/'),
         session_cookie=cookie,
     )
@@ -130,7 +104,6 @@ def build_bearer_config(
     token_expiry: int | None,
     origin: str,
     start_url: str,
-    stage: str,
     region: str,
     idc_region: str,
     oidc_client_id: str | None = None,
@@ -145,7 +118,6 @@ def build_bearer_config(
         token_expiry: Unix timestamp (seconds) when the access token expires.
         origin: The origin URL (trailing slash is stripped).
         start_url: The IAM Identity Center start URL.
-        stage: Deployment stage.
         region: AWS region for the Transform service (FES endpoint).
         idc_region: AWS region for the IAM Identity Center instance (for token refresh).
         oidc_client_id: The OIDC client ID from RegisterClient.
@@ -157,9 +129,8 @@ def build_bearer_config(
     """
     return ConnectionConfig(
         auth_mode='bearer',
-        stage=stage,
         region=region,
-        fes_endpoint=derive_fes_endpoint(stage, region),
+        fes_endpoint=derive_fes_endpoint(region),
         origin=origin.rstrip('/'),
         bearer_token=bearer_token,
         refresh_token=refresh_token,

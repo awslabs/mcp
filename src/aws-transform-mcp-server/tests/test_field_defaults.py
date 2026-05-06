@@ -86,7 +86,7 @@ class TestArtifactFieldDefaults:
 
 
 # ── configure.py: configure ─────────────────────────────────────────────
-# HIGH-RISK defaults: stage='prod', region='us-east-1'
+# HIGH-RISK defaults: region='us-east-1'
 # MEDIUM-RISK defaults: sessionCookie=None, origin=None, startUrl=None, profileName=None
 
 
@@ -102,7 +102,7 @@ class TestConfigureFieldDefaults:
     async def test_cookie_with_only_required_params(
         self, mock_build, mock_set, mock_persist, mock_fes
     ):
-        """Omit stage and region — should default to 'prod' and 'us-east-1'."""
+        """Omit region — should default to 'us-east-1'."""
         from awslabs.aws_transform_mcp_server.tools.configure import ConfigureHandler
 
         handler = ConfigureHandler(_mcp())
@@ -112,7 +112,6 @@ class TestConfigureFieldDefaults:
         mock_config.fes_endpoint = 'https://fes.example.com'
         mock_config.origin = 'https://abc123.transform.us-east-1.on.aws'
         mock_config.session_cookie = 'cookie-val'
-        mock_config.stage = 'prod'
         mock_config.region = 'us-east-1'
         mock_build.return_value = mock_config
         mock_fes.return_value = {'userId': 'u-1'}
@@ -126,9 +125,9 @@ class TestConfigureFieldDefaults:
         parsed = _parse(result)
         assert parsed['success'] is True, f'Expected success, got: {parsed}'
 
-        # Verify stage='prod' and region='us-east-1' were passed (not FieldInfo)
+        # Verify region='us-east-1' was passed (not FieldInfo)
         mock_build.assert_called_once_with(
-            'https://abc123.transform.us-east-1.on.aws', 'cookie-val', 'prod', 'us-east-1'
+            'https://abc123.transform.us-east-1.on.aws', 'cookie-val', 'us-east-1'
         )
 
     @pytest.mark.asyncio
@@ -354,7 +353,6 @@ class TestConnectorFieldDefaults:
             {'connectorId': 'c-1', 'status': 'PENDING'},
         ]
         mock_cfg = MagicMock()
-        mock_cfg.stage = 'prod'
         mock_cfg.region = 'us-east-1'
         mock_config.return_value = mock_cfg
 

@@ -23,26 +23,11 @@ import subprocess
 import sys
 import threading
 from awslabs.aws_transform_mcp_server.aws_helper import AwsHelper
-from awslabs.aws_transform_mcp_server.consts import STAGE_SCOPES
 from awslabs.aws_transform_mcp_server.models import OAuthTokens, RefreshedTokens
 from html import escape
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Optional, Tuple
 from urllib.parse import parse_qs, urlencode, urlparse
-
-
-def get_scope(stage: str) -> str:
-    """Return the OAuth scope for the given stage.
-
-    Unknown stages fall back to gamma.
-
-    Args:
-        stage: Deployment stage (e.g. 'prod', 'gamma').
-
-    Returns:
-        The scope string.
-    """
-    return STAGE_SCOPES.get(stage, STAGE_SCOPES['gamma'])
 
 
 def _open_browser(url: str) -> None:

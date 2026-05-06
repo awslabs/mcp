@@ -22,28 +22,10 @@ import urllib.request
 from awslabs.aws_transform_mcp_server.models import RefreshedTokens
 from awslabs.aws_transform_mcp_server.oauth import (
     _generate_pkce,
-    get_scope,
     refresh_access_token,
     run_oauth_flow,
 )
 from unittest.mock import MagicMock, patch
-
-
-# ── get_scope ────────────────────────────────────────────────────────────
-
-
-class TestGetScope:
-    """Tests for get_scope."""
-
-    def test_prod(self):
-        assert get_scope('prod') == 'transform:read_write'
-
-    def test_gamma(self):
-        assert get_scope('gamma') == 'transform_test:read_write'
-
-    def test_unknown_falls_back_to_gamma(self):
-        assert get_scope('beta') == 'transform_test:read_write'
-        assert get_scope('') == 'transform_test:read_write'
 
 
 # ── PKCE generation ─────────────────────────────────────────────────────
