@@ -82,6 +82,9 @@ def register_all_providers() -> None:
     from awslabs.openapi_mcp_server.auth.api_key_auth import ApiKeyAuthProvider
     from awslabs.openapi_mcp_server.auth.basic_auth import BasicAuthProvider
     from awslabs.openapi_mcp_server.auth.bearer_auth import BearerAuthProvider
+    from awslabs.openapi_mcp_server.auth.oauth_client_credentials_auth import (
+        OAuthClientCredentialsAuthProvider,
+    )
 
     # Register the standard providers
     register_auth_provider('bearer', BearerAuthProvider)
@@ -93,6 +96,9 @@ def register_all_providers() -> None:
     register_auth_provider('api_key', ApiKeyAuthProvider)
     logger.info('Registered Api_Key authentication provider')
 
+    register_auth_provider('oauth_client_credentials', OAuthClientCredentialsAuthProvider)
+    logger.info('Registered OAuth client credentials authentication provider')
+
     # Only register Cognito if it's available
     try:
         from awslabs.openapi_mcp_server.auth.cognito_auth import CognitoAuthProvider
@@ -101,13 +107,6 @@ def register_all_providers() -> None:
         logger.info('Registered Cognito authentication provider')
     except ImportError:
         logger.debug('Cognito authentication provider not available')
-
-    from awslabs.openapi_mcp_server.auth.oauth_client_credentials_auth import (
-        OAuthClientCredentialsAuthProvider,
-    )
-
-    register_auth_provider('oauth_client_credentials', OAuthClientCredentialsAuthProvider)
-    logger.info('Registered OAuth client credentials authentication provider')
 
 
 # Don't register providers automatically when this module is imported

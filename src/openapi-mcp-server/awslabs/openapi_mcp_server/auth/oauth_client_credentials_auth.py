@@ -13,6 +13,9 @@
 # limitations under the License.
 """Generic OAuth 2.0 client credentials authentication provider."""
 
+import base64
+import httpx
+import json
 import threading
 import time
 from awslabs.openapi_mcp_server import logger
@@ -102,9 +105,6 @@ class OAuthClientCredentialsAuthProvider(BearerAuthProvider):
             InvalidCredentialsError: When the server rejects the credentials.
 
         """
-        import base64
-        import httpx
-
         auth_header = base64.b64encode(
             f'{self._oauth_client_id}:{self._oauth_client_secret}'.encode('utf-8')
         ).decode('utf-8')
@@ -150,9 +150,6 @@ class OAuthClientCredentialsAuthProvider(BearerAuthProvider):
     def _extract_token_expiry(self, token: str) -> float:
         """Extract expiry timestamp from a JWT, defaulting to 1 hour from now."""
         try:
-            import base64
-            import json
-
             parts = token.split('.')
             if len(parts) != 3:
                 raise ValueError('Not a three-part JWT')
