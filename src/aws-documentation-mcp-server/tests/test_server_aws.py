@@ -870,7 +870,7 @@ class TestRecommend:
             assert '?path=' in called_url
             assert '&session=' in called_url
             assert called_url.startswith(
-                'https://contentrecs-api.docs.aws.amazon.com/v1/recommendations?path=https://docs.aws.amazon.com/test&session='
+                'https://api.contentrecs.docs.aws.com/v1/recommendations?path=https://docs.aws.amazon.com/test&session='
             )
 
     @pytest.mark.asyncio
