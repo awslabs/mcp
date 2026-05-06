@@ -534,7 +534,7 @@ def create_operation_prompt(
                 # Add resource reference message
                 messages.append(
                     Message(
-                        resource=resource,
+                        resource,
                         role='user',
                     )
                 )
