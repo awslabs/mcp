@@ -133,8 +133,25 @@ if [[ -n "$AI_MODEL" ]]; then
 fi
 export PGAPPNAME
 
-# Connect with psql
+# Sanitize --command input: reject multiple statements and comment injection.
+# psql -c runs a single command; semicolons would allow statement chaining.
+# This is a defense-in-depth measure — callers should also validate inputs.
+# Limitations: does not handle escaped quotes (\' or ''), dollar-quoted strings
+# ($$...$$), or all edge cases. Use MCP tools for complex queries instead.
 if [[ -n "$COMMAND" ]]; then
+  # Reject multiple statements (semicolons outside single-quoted string literals)
+  # Strip single-quoted strings first, then check for semicolons in the remainder
+  stripped=$(echo "$COMMAND" | sed "s/'[^']*'//g")
+  if echo "$stripped" | grep -q ';'; then
+    echo "Error: Multiple SQL statements are not allowed. Remove semicolons from the command." >&2
+    exit 1
+  fi
+  # Reject SQL comment sequences that could hide injected code
+  if echo "$stripped" | grep -qE -- '--|\\/\\*'; then
+    echo "Error: SQL comments (-- or /*) are not allowed in commands." >&2
+    exit 1
+  fi
+
   # Execute command and exit
   PGPASSWORD="$TOKEN" psql \
     -h "$ENDPOINT" \

@@ -131,9 +131,13 @@ dmypy.json
 # IDE files
 .vscode/
 .idea/
+.kiro/
 *.swp
 *.swo
 
 # OS files
 .DS_Store
 Thumbs.db
+
+# Local-only test/QA artefacts (not shipped with the package)
+TEST_REPORT.md
