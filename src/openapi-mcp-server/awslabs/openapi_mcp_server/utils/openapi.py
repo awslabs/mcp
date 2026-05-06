@@ -103,7 +103,9 @@ def load_openapi_spec(
         # Use retry logic for network resilience
         for attempt in range(3):
             try:
-                response = httpx.get(url, timeout=10.0, headers=headers or {})
+                response = httpx.get(
+                    url, timeout=10.0, headers=headers or {}, follow_redirects=False
+                )
                 response.raise_for_status()
 
                 if PRANCE_AVAILABLE:
