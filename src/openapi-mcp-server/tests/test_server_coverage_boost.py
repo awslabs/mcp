@@ -41,8 +41,8 @@ class TestServerCoverageBoost:
             auth_type='bearer',
         )
 
-        # Mock FastMCPOpenAPI to avoid the validation error
-        with patch('awslabs.openapi_mcp_server.server.FastMCPOpenAPI') as mock_fastmcp_openapi:
+        # Mock FastMCP to avoid the validation error
+        with patch('awslabs.openapi_mcp_server.server.FastMCP') as mock_fastmcp_openapi:
             mock_openapi_server = MagicMock()
             mock_fastmcp_openapi.return_value = mock_openapi_server
 

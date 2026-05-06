@@ -143,7 +143,7 @@ def test_user_agent_without_telemetry():
 
 
 @patch('awslabs.aws_api_mcp_server.core.common.config.get_context')
-@patch('awslabs.aws_api_mcp_server.core.common.config.OPT_IN_TELEMETRY', False)
+@patch('awslabs.aws_api_mcp_server.core.common.config.OPT_IN_TELEMETRY', True)
 def test_user_agent_with_context(mock_get_context):
     """Test user agent when context is present."""
     # Create mock context with fastmcp name and client params
