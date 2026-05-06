@@ -133,11 +133,14 @@ class OAuthClientCredentialsAuthProvider(BearerAuthProvider):
 
         token_data = response.json()
         access_token = token_data.get('access_token')
-        expires_in = token_data.get('expires_in', 3600)
+        expires_in = token_data.get('expires_in')
 
         if access_token:
-            self._token_expires_at = time.time() + expires_in
-            logger.info(f'OAuth token obtained (expires in {expires_in}s)')
+            if expires_in:
+                self._token_expires_at = time.time() + expires_in
+            else:
+                self._token_expires_at = self._extract_token_expiry(access_token)
+            logger.info(f'OAuth token obtained (expires in {expires_in or "unknown"}s)')
             return access_token
 
         logger.error('No access_token in token endpoint response')
@@ -173,16 +176,23 @@ class OAuthClientCredentialsAuthProvider(BearerAuthProvider):
         """Refresh the token when it is expired or about to expire."""
         with self._token_lock:
             if self._is_token_expired_or_expiring_soon():
-                self._do_refresh_token()
+                self._refresh_token()
 
-    def _do_refresh_token(self) -> None:
+    def _refresh_token(self) -> None:
         """Fetch a fresh token and update internal state."""
         try:
             new_token = self._fetch_oauth_token()
-            if new_token and new_token != self._token:
+            if new_token is None:
+                raise ExpiredTokenError(
+                    'OAuth token refresh returned no token',
+                    {'help': 'Check that the token endpoint is returning a valid access_token'},
+                )
+            if new_token != self._token:
                 self._token = new_token
                 logger.info('OAuth token refreshed')
                 self._initialize_auth()
+        except ExpiredTokenError:
+            raise
         except Exception as e:
             logger.error(f'Failed to refresh OAuth token: {e}')
             raise ExpiredTokenError('OAuth token refresh failed', {'error': str(e)})

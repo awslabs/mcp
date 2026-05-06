@@ -183,38 +183,47 @@ class TestOAuthClientCredentialsAuth:
         assert provider._is_token_expired_or_expiring_soon() is False
 
     # ------------------------------------------------------------------
-    # _do_refresh_token
+    # _refresh_token
     # ------------------------------------------------------------------
 
-    def test_do_refresh_token_success(self):
-        """Test that _do_refresh_token updates _token and re-initialises auth."""
+    def test_refresh_token_success(self):
+        """Test that _refresh_token updates _token and re-initialises auth."""
         provider = self._make_provider()
         provider._token = 'old_token'
 
         with patch.object(provider, '_fetch_oauth_token', return_value='new_token'):
             with patch.object(provider, '_initialize_auth') as mock_init:
-                provider._do_refresh_token()
+                provider._refresh_token()
                 assert provider._token == 'new_token'
                 mock_init.assert_called_once()
 
-    def test_do_refresh_token_same_token_skips_init(self):
+    def test_refresh_token_same_token_skips_init(self):
         """If _fetch_oauth_token returns the same token, _initialize_auth is not called."""
         provider = self._make_provider()
         provider._token = 'same_token'
 
         with patch.object(provider, '_fetch_oauth_token', return_value='same_token'):
             with patch.object(provider, '_initialize_auth') as mock_init:
-                provider._do_refresh_token()
+                provider._refresh_token()
                 mock_init.assert_not_called()
 
-    def test_do_refresh_token_raises_expired_token_error_on_failure(self):
+    def test_refresh_token_raises_expired_token_error_on_none(self):
+        """Test that a None return from _fetch_oauth_token raises ExpiredTokenError."""
+        provider = self._make_provider()
+        provider._token = 'old_token'
+
+        with patch.object(provider, '_fetch_oauth_token', return_value=None):
+            with pytest.raises(ExpiredTokenError):
+                provider._refresh_token()
+
+    def test_refresh_token_raises_expired_token_error_on_failure(self):
         """Test that a failing refresh raises ExpiredTokenError."""
         provider = self._make_provider()
         provider._token = 'old_token'
 
         with patch.object(provider, '_fetch_oauth_token', side_effect=Exception('timeout')):
             with pytest.raises(ExpiredTokenError):
-                provider._do_refresh_token()
+                provider._refresh_token()
 
     # ------------------------------------------------------------------
     # _validate_config
