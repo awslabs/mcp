@@ -170,6 +170,11 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
                     'cognito',
                     'Cognito authentication requires client ID, username, and password. Please provide them using --auth-cognito-client-id, --auth-cognito-username, and --auth-cognito-password command line arguments or corresponding environment variables.',
                 )
+            elif config.auth_type == 'oauth_client_credentials':
+                handle_auth_error(
+                    'oauth_client_credentials',
+                    'OAuth client credentials authentication requires a token endpoint, client ID, and client secret. Please provide them using --auth-oauth-token-endpoint, --auth-oauth-client-id, and --auth-oauth-client-secret command line arguments or AUTH_OAUTH_TOKEN_ENDPOINT, AUTH_OAUTH_CLIENT_ID, and AUTH_OAUTH_CLIENT_SECRET environment variables.',
+                )
             else:
                 logger.warning(
                     'Continuing with incomplete authentication configuration. This may cause API requests to fail.'
@@ -524,7 +529,7 @@ def main():
     # Authentication configuration
     parser.add_argument(
         '--auth-type',
-        choices=['none', 'basic', 'bearer', 'api_key', 'cognito'],
+        choices=['none', 'basic', 'bearer', 'api_key', 'cognito', 'oauth_client_credentials'],
         help='Authentication type to use (default: none)',
     )
 

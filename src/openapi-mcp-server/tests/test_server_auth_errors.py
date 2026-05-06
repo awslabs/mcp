@@ -113,6 +113,29 @@ class TestServerAuthErrors:
 
     @patch('sys.exit')
     @patch('awslabs.openapi_mcp_server.auth.get_auth_provider')
+    def test_oauth_client_credentials_auth_not_configured(self, mock_get_auth, mock_exit):
+        """Test handling of OAuth client credentials auth not configured."""
+        mock_auth = MagicMock()
+        mock_auth.provider_name = 'oauth_client_credentials'
+        mock_auth.is_configured.return_value = False
+        mock_get_auth.return_value = mock_auth
+
+        config = Config(
+            api_name='test',
+            api_base_url='https://api.example.com',
+            api_spec_url='https://api.example.com/spec.json',
+            auth_type='oauth_client_credentials',
+            auth_oauth_client_id='',
+            auth_oauth_client_secret='',
+            auth_oauth_token_endpoint='',
+        )
+
+        create_mcp_server(config)
+
+        mock_exit.assert_called_once_with(1)
+
+    @patch('sys.exit')
+    @patch('awslabs.openapi_mcp_server.auth.get_auth_provider')
     def test_unknown_auth_not_configured(self, mock_get_auth, mock_exit):
         """Test handling of unknown auth type not configured."""
         # Create a mock auth provider that is not configured
