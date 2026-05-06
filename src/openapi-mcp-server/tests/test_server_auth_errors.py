@@ -1,5 +1,6 @@
 """Tests for authentication error handling in server.py."""
 
+import pytest
 from awslabs.openapi_mcp_server.api.config import Config
 from awslabs.openapi_mcp_server.server import create_mcp_server
 from unittest.mock import MagicMock, patch
@@ -8,7 +9,7 @@ from unittest.mock import MagicMock, patch
 class TestServerAuthErrors:
     """Tests for authentication error handling in server.py."""
 
-    @patch('sys.exit')
+    @patch('sys.exit', side_effect=SystemExit(1))
     @patch('awslabs.openapi_mcp_server.auth.get_auth_provider')
     def test_bearer_auth_not_configured(self, mock_get_auth, mock_exit):
         """Test handling of bearer auth not configured."""
@@ -28,12 +29,13 @@ class TestServerAuthErrors:
         )
 
         # Call create_mcp_server, which should handle the auth error
-        create_mcp_server(config)
+        with pytest.raises(SystemExit):
+            create_mcp_server(config)
 
         # Verify sys.exit was called
         mock_exit.assert_called_once_with(1)
 
-    @patch('sys.exit')
+    @patch('sys.exit', side_effect=SystemExit(1))
     @patch('awslabs.openapi_mcp_server.auth.get_auth_provider')
     def test_basic_auth_not_configured(self, mock_get_auth, mock_exit):
         """Test handling of basic auth not configured."""
@@ -54,12 +56,13 @@ class TestServerAuthErrors:
         )
 
         # Call create_mcp_server, which should handle the auth error
-        create_mcp_server(config)
+        with pytest.raises(SystemExit):
+            create_mcp_server(config)
 
         # Verify sys.exit was called
         mock_exit.assert_called_once_with(1)
 
-    @patch('sys.exit')
+    @patch('sys.exit', side_effect=SystemExit(1))
     @patch('awslabs.openapi_mcp_server.auth.get_auth_provider')
     def test_api_key_auth_not_configured(self, mock_get_auth, mock_exit):
         """Test handling of API key auth not configured."""
@@ -79,12 +82,13 @@ class TestServerAuthErrors:
         )
 
         # Call create_mcp_server, which should handle the auth error
-        create_mcp_server(config)
+        with pytest.raises(SystemExit):
+            create_mcp_server(config)
 
         # Verify sys.exit was called
         mock_exit.assert_called_once_with(1)
 
-    @patch('sys.exit')
+    @patch('sys.exit', side_effect=SystemExit(1))
     @patch('awslabs.openapi_mcp_server.auth.get_auth_provider')
     def test_cognito_auth_not_configured(self, mock_get_auth, mock_exit):
         """Test handling of Cognito auth not configured."""
@@ -106,12 +110,13 @@ class TestServerAuthErrors:
         )
 
         # Call create_mcp_server, which should handle the auth error
-        create_mcp_server(config)
+        with pytest.raises(SystemExit):
+            create_mcp_server(config)
 
         # Verify sys.exit was called
         mock_exit.assert_called_once_with(1)
 
-    @patch('sys.exit')
+    @patch('sys.exit', side_effect=SystemExit(1))
     @patch('awslabs.openapi_mcp_server.auth.get_auth_provider')
     def test_unknown_auth_not_configured(self, mock_get_auth, mock_exit):
         """Test handling of unknown auth type not configured."""
@@ -130,7 +135,8 @@ class TestServerAuthErrors:
         )
 
         # Call create_mcp_server, which should handle the auth error
-        create_mcp_server(config)
+        with pytest.raises(SystemExit):
+            create_mcp_server(config)
 
         # Verify sys.exit was called
         mock_exit.assert_called_once_with(1)
