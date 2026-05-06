@@ -517,15 +517,24 @@ def create_operation_prompt(
                 # Create resource URI
                 resource_uri = f'api://{api_name_val}{path_val}'
 
+                if op_type == 'resource':
+                    resource = EmbeddedResource(
+                        type='resource',
+                        resource=TextResourceContents(
+                            uri=resource_uri, mimeType=mime_type, text=''
+                        ),
+                    )
+                elif op_type == 'resource_template':
+                    resource = {
+                        'type': 'resource_template',
+                        'uri': resource_uri,
+                        'mimeType': mime_type,
+                    }
+
                 # Add resource reference message
                 messages.append(
                     Message(
-                        EmbeddedResource(
-                            type='resource',
-                            resource=TextResourceContents(
-                                uri=resource_uri, mimeType=mime_type, text=''
-                            ),
-                        ),
+                        resource=resource,
                         role='user',
                     )
                 )
