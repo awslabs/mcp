@@ -10,6 +10,7 @@ from awslabs.cloudwatch_applicationsignals_mcp_server.service_tools import (
 )
 from awslabs.cloudwatch_applicationsignals_mcp_server.slo_tools import get_slo
 from awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools import (
+    _compose_spans_query,
     check_transaction_search_enabled,
     get_trace_summaries_paginated,
     list_slis,
@@ -1676,6 +1677,127 @@ async def test_search_transaction_spans_user_data_format_filter_preserved(mock_a
         # But the AWS-OTEL-TRACE-V1 filter is NOT injected — user's @data_format filter wins.
         assert 'AWS-OTEL-TRACE-V1' not in call_args['queryString']
         assert 'AWS-VENDED-LOG-V1' in call_args['queryString']
+
+
+def test_compose_spans_query_never_ends_with_pipe():
+    """Guard against regressions of the empty-query trailing-pipe bug."""
+    # Valid inputs: final query must not end with '|' or '| '.
+    for q in ('fields @timestamp', '   fields @timestamp   ', 'filter x = "y"'):
+        for lg in ('', 'my-lg'):
+            out = _compose_spans_query(q, lg)
+            assert not out.rstrip().endswith('|'), f'trailing pipe for q={q!r} lg={lg!r}: {out!r}'
+    # Empty / whitespace-only queries: helper must not emit trailing pipes even
+    # though the tool entry point rejects these before reaching the helper.
+    for q in ('', '   '):
+        out = _compose_spans_query(q, '')
+        assert not out.rstrip().endswith('|'), f'trailing pipe for empty q={q!r}: {out!r}'
+
+
+@pytest.mark.asyncio
+async def test_search_transaction_spans_empty_query_string_rejected(mock_aws_clients):
+    """Empty query_string returns an Invalid Input error without calling StartQuery."""
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+
+        result = await search_transaction_spans(
+            log_group_name='',
+            start_time='2024-01-01T00:00:00+00:00',
+            end_time='2024-01-01T01:00:00+00:00',
+            query_string='',
+            limit=None,
+            max_timeout=30,
+        )
+
+        assert result['status'] == 'Invalid Input'
+        assert 'query_string' in result['message']
+        mock_aws_clients['logs_client'].start_query.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_search_transaction_spans_whitespace_query_string_rejected(mock_aws_clients):
+    """Whitespace-only query_string also returns Invalid Input (not a bare SOURCE that would error in CWL)."""
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+
+        result = await search_transaction_spans(
+            log_group_name='',
+            start_time='2024-01-01T00:00:00+00:00',
+            end_time='2024-01-01T01:00:00+00:00',
+            query_string='   \n\t  ',
+            limit=None,
+            max_timeout=30,
+        )
+
+        assert result['status'] == 'Invalid Input'
+        mock_aws_clients['logs_client'].start_query.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_search_transaction_spans_log_group_name_ignored_surfaced_in_response(
+    mock_aws_clients,
+):
+    """When log_group_name is dropped because of a user SOURCE clause, the response says so."""
+    user_query = (
+        'SOURCE logGroups(namePrefix: ["my/spans"]) '
+        '| filterIndex @data_format = "AWS-OTEL-TRACE-V1" '
+        '| fields @timestamp'
+    )
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+        mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
+        mock_aws_clients['logs_client'].get_query_results.return_value = {
+            'queryId': 'test-query-id',
+            'status': 'Complete',
+            'statistics': {'recordsMatched': 0},
+            'results': [],
+        }
+
+        result = await search_transaction_spans(
+            log_group_name='ignored-log-group',
+            start_time='2024-01-01T00:00:00+00:00',
+            end_time='2024-01-01T01:00:00+00:00',
+            query_string=user_query,
+            limit=None,
+            max_timeout=30,
+        )
+
+        assert result['log_group_name_ignored'] is True
+        assert 'SOURCE' in result['log_group_name_ignored_reason']
+
+
+@pytest.mark.asyncio
+async def test_search_transaction_spans_log_group_name_ignored_absent_in_normal_response(
+    mock_aws_clients,
+):
+    """The ignored flag must NOT leak into responses where log_group_name was actually used."""
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+        mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
+        mock_aws_clients['logs_client'].get_query_results.return_value = {
+            'queryId': 'test-query-id',
+            'status': 'Complete',
+            'statistics': {'recordsMatched': 0},
+            'results': [],
+        }
+
+        result = await search_transaction_spans(
+            log_group_name='my-lg',
+            start_time='2024-01-01T00:00:00+00:00',
+            end_time='2024-01-01T01:00:00+00:00',
+            query_string='fields @timestamp',
+            limit=None,
+            max_timeout=30,
+        )
+
+        assert 'log_group_name_ignored' not in result
 
 
 @pytest.mark.asyncio

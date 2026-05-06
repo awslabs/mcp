@@ -45,23 +45,29 @@ def _compose_spans_query(user_query: str, log_group_name: str) -> str:
     - If the user already started the query with a SOURCE command, the query is
       returned untouched (the user has taken control of log-group scoping).
     - If the user already references @data_format anywhere, the filterIndex clause
-      is not prepended (the user has taken control of the format filter).
+      is not prepended (the user has taken control of the format filter). Note the
+      `@data_format` check is a substring/regex match, so a stray occurrence inside
+      a quoted string literal would also suppress injection — low-probability but
+      worth knowing.
     - Otherwise, the SOURCE clause is prepended only when no explicit log group
       was supplied — when one is supplied, StartQuery's logGroupNames parameter
       scopes the query, so SOURCE is omitted.
+
+    Callers must ensure `user_query` is non-empty; empty queries produce invalid
+    CWL syntax and are rejected upstream at the tool entry point.
     """
     if _user_query_has_source_clause(user_query):
         return user_query
 
-    prefix_parts = []
+    parts = []
     if not log_group_name:
-        prefix_parts.append('SOURCE logGroups()')
+        parts.append('SOURCE logGroups()')
     if not _DATA_FORMAT_PATTERN.search(user_query):
-        prefix_parts.append(f'filterIndex @data_format = "{OTEL_TRACE_DATA_FORMAT}"')
+        parts.append(f'filterIndex @data_format = "{OTEL_TRACE_DATA_FORMAT}"')
+    if user_query.strip():
+        parts.append(user_query)
 
-    if not prefix_parts:
-        return user_query
-    return ' | '.join(prefix_parts) + ' | ' + user_query
+    return ' | '.join(parts)
 
 
 def get_trace_summaries_paginated(
@@ -178,28 +184,22 @@ async def search_transaction_spans(
 ) -> Dict:
     """Executes a CloudWatch Logs Insights query for transaction search (100% sampled trace data).
 
-    The tool targets OpenTelemetry trace spans that AWS has ingested as
-    `@data_format = "AWS-OTEL-TRACE-V1"` (e.g., Transaction Search destinations,
-    spans fanned out via subscription filters). Spans written without that tag
-    (e.g., raw OTLP to a custom log group) will not match — pass an explicit
-    `log_group_name` and your own query in that case.
+    Targets OpenTelemetry trace spans that AWS ingests with
+    `@data_format = "AWS-OTEL-TRACE-V1"` (Transaction Search destinations,
+    subscription-filter fanouts). Spans written without that tag (e.g., raw OTLP
+    to a custom log group) will not match — pass an explicit `log_group_name`
+    and your own query for those.
 
-    Unless overridden, the tool prepends `filterIndex @data_format = "AWS-OTEL-TRACE-V1"`
-    to the user's query. `@data_format` is a CloudWatch Logs default field index, so in
-    cross-log-group mode this prunes non-matching log groups before scanning; in single
-    log group mode it just drops non-matching records within that log group.
-
-    Log group selection:
-    - If `log_group_name` is omitted, the tool prepends `SOURCE logGroups()` so the
-      query runs across all log groups in the account (up to the CloudWatch Logs
-      Insights cap, currently 10,000).
-    - If `log_group_name` is provided, the query is scoped to that single log group
-      via the `logGroupNames` API parameter.
-    - If the user's query already begins with a `SOURCE` clause, the tool leaves the
-      query untouched and does not set `logGroupNames` (the user's `SOURCE` wins —
-      CloudWatch rejects sending both).
-    - If the user's query already references `@data_format`, the tool does not add a
-      second filter.
+    Injection rules (all applied to `query_string` before it is sent to CloudWatch):
+    - No `log_group_name` → prepend `SOURCE logGroups()` so the query runs across
+      the whole account (up to the CWL Insights cap, currently 10,000 log groups).
+    - Explicit `log_group_name` → scoped via the `logGroupNames` API parameter; no
+      `SOURCE` prepended.
+    - User query starts with `SOURCE` → left untouched; `log_group_name` is
+      ignored (CloudWatch rejects both together) and flagged in the response.
+    - User query already references `@data_format` → no second filter added.
+    - Otherwise → prepend `filterIndex @data_format = "AWS-OTEL-TRACE-V1"`. The
+      index lets CWL prune non-matching log groups cheaply in cross-log-group mode.
 
     The volume of returned logs can easily overwhelm the agent context window. Always
     include a limit in the query (| limit 50) or via the limit parameter.
@@ -225,12 +225,26 @@ async def search_transaction_spans(
             - statistics: Query performance statistics
             - messages: Any informational messages about the query
             - transaction_search_status: Information about transaction search availability
+            - log_group_name_ignored (only when true): set when log_group_name was
+              supplied but dropped because query_string already contained a SOURCE
+              clause. Accompanied by log_group_name_ignored_reason.
     """
     start_time_perf = timer()
     logger.info(
         f'Starting search_transactions - log_group: {log_group_name}, start: {start_time}, end: {end_time}'
     )
     logger.debug(f'Query string: {query_string}')
+
+    if not query_string or not query_string.strip():
+        logger.warning('search_transaction_spans called with empty query_string')
+        return {
+            'status': 'Invalid Input',
+            'message': (
+                'query_string is required and must not be empty. Provide a CloudWatch '
+                'Logs Insights query (e.g., "fields @timestamp, attributes.aws.local.service '
+                '| limit 20").'
+            ),
+        }
 
     # Check if transaction search is enabled
     is_enabled, destination, status = check_transaction_search_enabled()
@@ -269,9 +283,11 @@ async def search_transaction_spans(
         }
         # StartQuery rejects logGroupNames when queryString already contains a
         # SOURCE clause, so let the user's SOURCE win in that case.
+        log_group_name_ignored = False
         if log_group_name and not _user_query_has_source_clause(query_string):
             kwargs['logGroupNames'] = [log_group_name]
         elif log_group_name:
+            log_group_name_ignored = True
             logger.warning(
                 'log_group_name is ignored because query_string already specifies a SOURCE clause'
             )
@@ -366,7 +382,7 @@ async def search_transaction_spans(
                         f'Code-level attributes detected - attributes: {", ".join(sorted(detected_attributes))}'
                     )
 
-                return {
+                result: Dict = {
                     'queryId': query_id,
                     'status': status,
                     'statistics': response.get('statistics', {}),
@@ -379,17 +395,29 @@ async def search_transaction_spans(
                     },
                     'code_level_attributes_status': code_level_status,
                 }
+                if log_group_name_ignored:
+                    result['log_group_name_ignored'] = True
+                    result['log_group_name_ignored_reason'] = (
+                        'The query_string contained a SOURCE clause, so CloudWatch Logs '
+                        "Insights does not accept a separate logGroupNames parameter. The user's "
+                        'SOURCE scope was used instead. Remove log_group_name or the SOURCE '
+                        'clause to eliminate this ambiguity.'
+                    )
+                return result
 
             await asyncio.sleep(1)
 
         elapsed_time = timer() - start_time_perf
         msg = f'Query {query_id} did not complete within {max_timeout} seconds. Use get_query_results with the returned queryId to try again to retrieve query results.'
         logger.warning(f'Query timeout after {elapsed_time:.3f}s: {msg}')
-        return {
+        timeout_result: Dict = {
             'queryId': query_id,
             'status': 'Polling Timeout',
             'message': msg,
         }
+        if log_group_name_ignored:
+            timeout_result['log_group_name_ignored'] = True
+        return timeout_result
 
     except Exception as e:
         logger.error(f'Error in search_transactions: {str(e)}', exc_info=True)
