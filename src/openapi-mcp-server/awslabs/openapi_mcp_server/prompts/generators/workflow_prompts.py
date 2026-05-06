@@ -15,8 +15,7 @@
 
 from awslabs.openapi_mcp_server import logger
 from awslabs.openapi_mcp_server.prompts.models import PromptArgument
-from fastmcp.prompts.base import Message
-from fastmcp.prompts.prompt import Prompt
+from fastmcp.prompts.prompt import Message, Prompt
 from typing import Any, Dict, List
 
 
