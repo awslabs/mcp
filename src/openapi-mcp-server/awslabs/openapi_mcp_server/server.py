@@ -119,26 +119,6 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
         auth_cookies = auth_provider.get_auth_cookies()
         httpx_auth = auth_provider.get_httpx_auth()
 
-        logger.debug(
-            f'Loading OpenAPI spec from URL: {config.api_spec_url} or path: {config.api_spec_path}'
-        )
-        # Fetch headers right before first use so the token is as fresh as possible
-        auth_headers = auth_provider.get_auth_headers()
-        openapi_spec = load_openapi_spec(
-            url=config.api_spec_url,
-            path=config.api_spec_path,
-            headers=auth_headers,
-        )
-
-        # Validate the OpenAPI spec
-        if not validate_openapi_spec(openapi_spec):
-            logger.warning('OpenAPI specification validation failed, but continuing anyway')
-
-        # Create a client for the API
-        if not config.api_base_url:
-            logger.error('No API base URL provided')
-            raise ValueError('API base URL must be provided')
-
         # Helper function to handle authentication configuration errors
         def handle_auth_error(auth_type, error_message):
             """Handle authentication configuration errors.
@@ -181,6 +161,26 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
                 logger.warning(
                     'Continuing with incomplete authentication configuration. This may cause API requests to fail.'
                 )
+
+        logger.debug(
+            f'Loading OpenAPI spec from URL: {config.api_spec_url} or path: {config.api_spec_path}'
+        )
+        # Fetch headers right before first use so the token is as fresh as possible
+        auth_headers = auth_provider.get_auth_headers()
+        openapi_spec = load_openapi_spec(
+            url=config.api_spec_url,
+            path=config.api_spec_path,
+            headers=auth_headers,
+        )
+
+        # Validate the OpenAPI spec
+        if not validate_openapi_spec(openapi_spec):
+            logger.warning('OpenAPI specification validation failed, but continuing anyway')
+
+        # Create a client for the API
+        if not config.api_base_url:
+            logger.error('No API base URL provided')
+            raise ValueError('API base URL must be provided')
 
         # Log authentication info
         if config.auth_type != 'none':
