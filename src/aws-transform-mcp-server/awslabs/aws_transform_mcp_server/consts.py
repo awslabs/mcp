@@ -30,7 +30,6 @@ HEADER_CLIENT_APP_ID = 'x-amzn-atx-clientAppId'
 CLIENT_APP_ID = 'atx-mcp'
 
 # ── FES SigV4 ───────────────────────────────────────────────────────────
-SIGV4_FES_ENABLED: bool = False
 FES_SERVICE = 'elasticgumbyfrontendservice'
 FES_SIGV4_PROBE_TIMEOUT_SECONDS: float = 6.0
 

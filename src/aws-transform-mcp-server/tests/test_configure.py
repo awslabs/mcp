@@ -611,7 +611,7 @@ class TestGetStatus:
         AwsHelper.clear_cache()
         parsed = json.loads(result['content'][0]['text'])
         assert parsed['sigv4']['configured'] is False
-        assert 'credential validation failed' in parsed['sigv4']['message'].lower()
+        assert 'aws credentials not available' in parsed['sigv4']['message'].lower()
 
 
 class TestConfigureCookieException:

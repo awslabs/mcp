@@ -415,13 +415,39 @@ class ConfigureHandler:
         profile (e.g., different region or team workspace). Re-uses the existing bearer
         token to discover and select a new profile.
 
-        Requires an active bearer (SSO) connection. Does not work with cookie auth.
+        Requires an active bearer (SSO) connection. Does not work with SigV4 or cookie auth.
         """
         config = get_config()
-        if config is None or config.auth_mode != 'bearer' or not config.bearer_token:
+
+        # SigV4 profile switching is not supported because:
+        # 1. SigV4 call_fes() derives its FES endpoint from AWS_REGION — switching
+        #    profiles in a different region has no effect on subsequent calls.
+        # 2. VerifySession without an Origin header only confirms IAM creds, not
+        #    profile access.
+        # 3. There is no persistence mechanism for a "selected profile" in SigV4
+        #    mode — the switch would be immediately forgotten.
+        # Users should set AWS_REGION to match their desired profile's region.
+        if config is None:
+            if is_sigv4_fes_available():
+                return error_result(
+                    'SIGV4_NO_SWITCH',
+                    'Profile switching is not available in SigV4 mode. SigV4 routes '
+                    'to the Transform profile in your configured AWS region. To use a '
+                    'profile in a different region: (1) set AWS_REGION in your MCP client '
+                    'env block and restart the server, and (2) ensure the target profile '
+                    'has SigV4 access enabled in the AWS Transform console settings page.',
+                )
             return error_result(
                 'NOT_CONFIGURED',
-                'No active SSO session. Run configure with authMode "sso" first.',
+                'No active session. Connect via SSO (configure with authMode "sso") '
+                'or SigV4 (set AWS_PROFILE in MCP client env and restart).',
+            )
+
+        if config.auth_mode != 'bearer' or not config.bearer_token:
+            return error_result(
+                'NOT_CONFIGURED',
+                'Profile switching requires an active SSO session. '
+                'Run configure with authMode "sso" first.',
             )
 
         if config.token_expiry and int(time.time()) >= config.token_expiry:
@@ -488,16 +514,31 @@ class ConfigureHandler:
 
         # ── FES status ──────────────────────────────────────────────────
         if not is_configured():
-            status['fes'] = {
-                'configured': False,
-                'message': 'Not connected. Use configure with authMode "cookie" or "sso".',
-            }
+            if is_sigv4_fes_available():
+                status['fes'] = {
+                    'configured': True,
+                    'authMode': 'sigv4',
+                    'message': 'Connected via SigV4 (auto-detected from AWS credentials).',
+                }
+            else:
+                status['fes'] = {
+                    'configured': False,
+                    'message': 'Not connected to AWS Transform. Options: (1) configure with authMode "sso" '
+                    '(opens browser for IAM Identity Center login), (2) configure with '
+                    'authMode "cookie" (uses existing browser session), or (3) set '
+                    'AWS_PROFILE in the MCP client env block and restart for SigV4 '
+                    'auto-detection.',
+                }
         else:
             config = get_config()
             if config is None:
                 status['fes'] = {
                     'configured': False,
-                    'message': 'Not connected. Use configure with authMode "cookie" or "sso".',
+                    'message': 'Not connected to AWS Transform. Options: (1) configure with authMode "sso" '
+                    '(opens browser for IAM Identity Center login), (2) configure with '
+                    'authMode "cookie" (uses existing browser session), or (3) set '
+                    'AWS_PROFILE in the MCP client env block and restart for SigV4 '
+                    'auto-detection.',
                 }
                 return text_result(status, is_error=False)
             try:
@@ -536,7 +577,9 @@ class ConfigureHandler:
                     status['fes'] = {
                         'configured': False,
                         'message': (
-                            'Session expired or unauthorized. Re-authenticate with configure.'
+                            'SSO session expired. Re-authenticate with configure '
+                            '(authMode "sso"), or set AWS_PROFILE in the MCP client '
+                            'env block and restart for SigV4 auto-detection.'
                         ),
                     }
                 else:
@@ -602,12 +645,20 @@ class ConfigureHandler:
         except ValueError as exc:
             status['sigv4'] = {
                 'configured': False,
-                'message': f'Region configuration error: {exc}',
+                'message': (
+                    f'AWS region not configured: {exc}. '
+                    'Set AWS_REGION in the MCP client env block, or ensure your '
+                    'AWS profile has a region configured in ~/.aws/config.'
+                ),
             }
         except Exception as exc:
             status['sigv4'] = {
                 'configured': False,
-                'message': f'AWS credential validation failed: {exc}',
+                'message': (
+                    f'AWS credentials not available: {exc}. '
+                    'Set AWS_PROFILE in the MCP client env block and ensure '
+                    'credentials are valid (run aws sts get-caller-identity to test).'
+                ),
             }
 
         # ── SigV4 FES status ────────────────────────────────────────────

@@ -97,8 +97,8 @@ class TestCallFesSigv4Fallback:
         mock_sigv4.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_sigv4_fallback_auth_failure_disables(self):
-        """401/403 should set sigv4_fes_available to False."""
+    async def test_sigv4_fallback_auth_failure_does_not_disable(self):
+        """401/403 should NOT disable sigv4_fes — credentials are transient."""
         from awslabs.aws_transform_mcp_server import config_store
         from awslabs.aws_transform_mcp_server.fes_client import call_fes
 
@@ -120,7 +120,7 @@ class TestCallFesSigv4Fallback:
             with pytest.raises(HttpError):
                 await call_fes('ListWorkspaces')
 
-        mock_set.assert_called_once_with(False)
+        mock_set.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_sigv4_fallback_transient_error_does_not_disable(self):
@@ -174,24 +174,38 @@ class TestCallFesSigv4Fallback:
 
         mock_set.assert_not_called()
 
+    @pytest.mark.asyncio
+    async def test_explicit_config_supersedes_sigv4(self):
+        """When SSO/cookie config exists, SigV4 path is never used."""
+        from awslabs.aws_transform_mcp_server import config_store
+        from awslabs.aws_transform_mcp_server.fes_client import call_fes
+
+        mock_config = MagicMock()
+        mock_config.auth_mode = 'bearer'
+        mock_config.bearer_token = 'test-token'
+        mock_config.token_expiry = int(__import__('time').time()) + 3600
+        mock_config.origin = 'https://test.transform.us-east-1.on.aws'
+        mock_config.fes_endpoint = 'https://api.transform.us-east-1.on.aws/'
+        mock_config.region = 'us-east-1'
+
+        with (
+            patch.object(config_store, 'get_config', return_value=mock_config),
+            patch.object(config_store, 'is_sigv4_fes_available', return_value=True),
+            patch(f'{_FES_MOD}.call_fes_direct_sigv4', new_callable=AsyncMock) as mock_sigv4,
+            patch(f'{_FES_MOD}._create_unsigned_client'),
+            patch(f'{_FES_MOD}.asyncio.to_thread', new_callable=AsyncMock) as mock_thread,
+        ):
+            mock_thread.return_value = {'items': []}
+            await call_fes('ListWorkspaces')
+
+        mock_sigv4.assert_not_called()
+
 
 # ── _probe_sigv4_fes ──────────────────────────────────────────────────────
 
 
 class TestProbeSigv4Fes:
     """Tests for the startup SigV4 FES probe."""
-
-    @pytest.mark.asyncio
-    async def test_disabled_by_flag(self):
-        from awslabs.aws_transform_mcp_server.server import _probe_sigv4_fes
-
-        with (
-            patch(f'{_SERVER_MOD}.SIGV4_FES_ENABLED', False),
-            patch(f'{_SERVER_MOD}.set_sigv4_fes_available') as mock_set,
-        ):
-            await _probe_sigv4_fes()
-
-        mock_set.assert_called_once_with(False)
 
     @pytest.mark.asyncio
     async def test_no_credentials(self):
@@ -201,7 +215,6 @@ class TestProbeSigv4Fes:
         mock_session.get_credentials.return_value = None
 
         with (
-            patch(f'{_SERVER_MOD}.SIGV4_FES_ENABLED', True),
             patch(f'{_SERVER_MOD}.AwsHelper') as mock_helper,
             patch(f'{_SERVER_MOD}.set_sigv4_fes_available') as mock_set,
         ):
@@ -219,7 +232,6 @@ class TestProbeSigv4Fes:
         mock_session.region_name = 'us-east-1'
 
         with (
-            patch(f'{_SERVER_MOD}.SIGV4_FES_ENABLED', True),
             patch(f'{_SERVER_MOD}.AwsHelper') as mock_helper,
             patch(f'{_SERVER_MOD}.set_sigv4_fes_available') as mock_set,
             patch(f'{_SERVER_MOD}.derive_fes_endpoint', return_value='https://ep/'),
@@ -241,7 +253,6 @@ class TestProbeSigv4Fes:
         mock_session.region_name = 'us-east-1'
 
         with (
-            patch(f'{_SERVER_MOD}.SIGV4_FES_ENABLED', True),
             patch(f'{_SERVER_MOD}.AwsHelper') as mock_helper,
             patch(f'{_SERVER_MOD}.set_sigv4_fes_available') as mock_set,
             patch(f'{_SERVER_MOD}.derive_fes_endpoint', return_value='https://ep/'),

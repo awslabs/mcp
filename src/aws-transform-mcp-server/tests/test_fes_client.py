@@ -285,15 +285,19 @@ class TestCreateClients:
         assert call_kwargs[1]['endpoint_url'] == 'https://fes.example.com'
         assert client == mock_session.client.return_value
 
-    @patch(f'{_MOD}.create_session')
-    def test_create_sigv4_client(self, mock_create_session):
+    @patch(f'{_MOD}.boto3')
+    @patch(f'{_MOD}.botocore.session')
+    def test_create_sigv4_client(self, mock_bc_session, mock_boto3):
         from awslabs.aws_transform_mcp_server.fes_client import _create_sigv4_client
 
+        mock_core = MagicMock()
+        mock_bc_session.get_session.return_value = mock_core
         mock_session = MagicMock()
-        mock_create_session.return_value = mock_session
+        mock_boto3.Session.return_value = mock_session
 
         client = _create_sigv4_client('https://fes.example.com', region='eu-central-1')
 
+        mock_core.set_config_variable.assert_any_call('region', 'eu-central-1')
         mock_session.client.assert_called_once()
         call_kwargs = mock_session.client.call_args
         assert call_kwargs[0][0] == 'elasticgumbyfrontendservice'

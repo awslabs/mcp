@@ -54,7 +54,13 @@ def _open_browser(url: str) -> None:
         else:
             subprocess.Popen(['xdg-open', url], **popen_kwargs)
     except Exception:
-        print(f'Could not open browser. Please open this URL manually:\n{url}', file=sys.stderr)
+        # The URL must be shown so the user can complete OAuth login manually.
+        # It contains only the authorize endpoint + PKCE challenge (public values),
+        # not tokens or secrets.
+        print(  # codeql[py/clear-text-logging-sensitive-data]
+            f'Could not open browser. Please open this URL manually:\n{url}',
+            file=sys.stderr,
+        )
 
 
 def _generate_pkce() -> Tuple[str, str]:
@@ -223,7 +229,10 @@ async def run_oauth_flow(
     )
 
     print('Opening browser for authentication...', file=sys.stderr)
-    print(f'If the browser does not open, visit:\n{authorize_url}', file=sys.stderr)
+    print(  # codeql[py/clear-text-logging-sensitive-data]
+        f'If the browser does not open, visit:\n{authorize_url}',
+        file=sys.stderr,
+    )
     _open_browser(authorize_url)
 
     # Step 5: Wait for callback

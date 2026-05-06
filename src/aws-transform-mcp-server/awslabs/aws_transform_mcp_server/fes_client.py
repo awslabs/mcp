@@ -19,6 +19,9 @@ works without the Brazil-only ElasticGumbyFrontEndServicePythonClient package.
 """
 
 import asyncio
+import boto3
+import botocore.session
+import os
 import time
 from awslabs.aws_transform_mcp_server import config_store, oauth
 from awslabs.aws_transform_mcp_server._service_model import create_session
@@ -77,8 +80,22 @@ def _create_sigv4_client(
     max_retries: int = MAX_RETRIES,
     timeout: float = TIMEOUT_SECONDS,
 ):
-    """Create a boto3 FES client with SigV4 signing from default credentials."""
-    session = create_session()
+    """Create a boto3 FES client with SigV4 signing from default credentials.
+
+    Creates a fresh botocore session with the user's profile and region so that
+    credential providers (e.g., LoginProvider) can resolve internal clients.
+    """
+    from awslabs.aws_transform_mcp_server._service_model import _MODEL_DIR
+
+    profile = (os.environ.get('AWS_PROFILE') or '').strip() or None
+    core = botocore.session.get_session()
+    core.set_config_variable('profile', profile)
+    core.set_config_variable('region', region)
+    loader = core.get_component('data_loader')
+    if _MODEL_DIR not in loader.search_paths:
+        loader.search_paths.insert(0, _MODEL_DIR)
+
+    session = boto3.Session(botocore_session=core)
     return session.client(
         'elasticgumbyfrontendservice',
         region_name=region,
@@ -278,17 +295,12 @@ async def call_fes(
             session = AwsHelper.create_session()
             region = AwsHelper.resolve_region(session)
             endpoint = config_store.derive_fes_endpoint(region)
-            try:
-                return await call_fes_direct_sigv4(
-                    endpoint,
-                    operation,
-                    body,
-                    region=region,
-                )
-            except HttpError as exc:
-                if exc.status_code in (401, 403):
-                    config_store.set_sigv4_fes_available(False)
-                raise
+            return await call_fes_direct_sigv4(
+                endpoint,
+                operation,
+                body,
+                region=region,
+            )
         raise RuntimeError('Not configured. Call configure first.')
 
     # Token refresh (bearer mode only)
@@ -313,6 +325,10 @@ async def _ensure_fresh_token(config: 'ConnectionConfig') -> 'ConnectionConfig':
         or not config.oidc_client_secret
         or not config.idc_region
     ):
+        if config.token_expiry and int(time.time()) >= config.token_expiry:
+            raise RuntimeError(
+                'SSO session expired. Run configure with authMode "sso" to re-authenticate.'
+            )
         return config
 
     now = int(time.time())

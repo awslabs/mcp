@@ -288,7 +288,7 @@ class ConfigStore:
                     self.persist_config()
                     return True
                 except Exception as exc:
-                    logger.warning('Token refresh failed at startup: %s', exc)
+                    logger.warning('Auth refresh failed at startup: {}', exc)
                     return False
 
             return False
@@ -311,7 +311,7 @@ class ConfigStore:
                     max_retries=STARTUP_MAX_RETRIES,
                 )
             except Exception as exc:
-                logger.warning('Cookie session validation failed at startup: %s', exc)
+                logger.warning('Cookie session validation failed at startup: {}', exc)
                 return False
 
         self._config = config
