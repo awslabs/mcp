@@ -1428,3 +1428,20 @@ async def test_call_aws_eks_update_kubeconfig_validates_kubeconfig_path(_mock_ap
     assert result[0].response is None
     assert result[0].error is not None
     assert 'is outside the allowed working directory' in result[0].error
+
+
+@patch(
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.FILE_ACCESS_MODE',
+    FileAccessMode.NO_ACCESS,
+)
+def test_validated_write_kubeconfig_raises_when_no_access():
+    """Test that _validated_write_kubeconfig raises when file access is disabled."""
+    from awslabs.aws_api_mcp_server.core.common.awscli_patch import _validated_write_kubeconfig
+    from awslabs.aws_api_mcp_server.core.common.errors import LocalFileAccessDisabledError
+
+    mock_self = MagicMock()
+    mock_config = MagicMock()
+    mock_config.path = '/home/user/.kube/config'
+
+    with pytest.raises(LocalFileAccessDisabledError):
+        _validated_write_kubeconfig(mock_self, mock_config)
