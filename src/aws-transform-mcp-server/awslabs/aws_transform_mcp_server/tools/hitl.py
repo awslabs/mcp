@@ -42,6 +42,7 @@ from awslabs.aws_transform_mcp_server.upload_helper import (
     upload_file_artifact,
     upload_json_artifact,
 )
+from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import BeforeValidator, Field
 from typing import Annotated, Any, Dict, Optional
@@ -68,6 +69,10 @@ def _coerce_to_json_string(value: Any) -> Any:
 JsonContent = Annotated[Optional[str], BeforeValidator(_coerce_to_json_string)]
 
 
+# Max artifact size (bytes) to return inline. Larger artifacts are skipped.
+_ARTIFACT_INLINE_MAX_BYTES = 100_000  # 100 KB
+
+
 async def download_agent_artifact(
     workspace_id: str,
     job_id: str,
@@ -75,7 +80,10 @@ async def download_agent_artifact(
 ) -> Dict[str, Any]:
     """Download the agent artifact content as a parsed JSON object.
 
-    Returns a dict with optional keys: content, rawText, warning.
+    Returns a dict with optional keys: content, rawText, warning, sizeBytes.
+    For artifacts exceeding the inline size threshold, the content is NOT
+    downloaded — only size metadata is returned so the caller can prompt the
+    user to download via get_resource(resource="artifact", savePath=...).
     """
     try:
         url_result = await call_fes(
@@ -86,19 +94,48 @@ async def download_agent_artifact(
                 artifactId=artifact_id,
             ),
         )
-        async with httpx.AsyncClient() as client:
-            s3_response = await client.get(url_result['s3PreSignedUrl'], follow_redirects=True)
-            if s3_response.status_code >= 400:
-                return {
-                    'warning': (
-                        f'Agent artifact download failed (HTTP {s3_response.status_code}). '
-                        'Field validation skipped.'
-                    )
-                }
-            text = s3_response.text
-            try:
-                import json
+        s3_url = url_result['s3PreSignedUrl']
 
+        async with httpx.AsyncClient() as client:
+            # Stream GET to check Content-Length before reading body
+            async with client.stream('GET', s3_url, follow_redirects=True) as resp:
+                if resp.status_code >= 400:
+                    return {
+                        'warning': (
+                            f'Agent artifact download failed (HTTP {resp.status_code}). '
+                            'Field validation skipped.'
+                        )
+                    }
+
+                content_length = (
+                    int(resp.headers['content-length'])
+                    if 'content-length' in resp.headers
+                    else None
+                )
+                logger.info(
+                    f'Agent artifact stream: status={resp.status_code}, '
+                    f'content-length={content_length}'
+                )
+
+                if content_length is not None and content_length > _ARTIFACT_INLINE_MAX_BYTES:
+                    size_mb = content_length / (1024 * 1024)
+                    return {
+                        'sizeBytes': content_length,
+                        'warning': (
+                            f'Agent artifact is large ({size_mb:.1f} MB). '
+                            'Content not included inline to avoid context overflow. '
+                            'Ask the user for a local file path to save the artifact, '
+                            'then call get_resource with resource="artifact", '
+                            f'workspaceId="{workspace_id}", jobId="{job_id}", '
+                            f'artifactId="{artifact_id}", and savePath set to '
+                            'the path they provide.'
+                        ),
+                    }
+
+                # Small artifact — read inline
+                text = (await resp.aread()).decode()
+
+            try:
                 return {'content': json.loads(text), 'rawText': text}
             except (ValueError, TypeError):
                 return {
@@ -246,6 +283,7 @@ class HitlHandler:
                         jobId=jobId,
                         taskId=taskId,
                         action=action,
+                        idempotencyToken=str(uuid.uuid4()),
                     ),
                 )
             else:

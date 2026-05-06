@@ -100,6 +100,15 @@ class ArtifactHandler:
                 description='Optional plan step ID',
             ),
         ] = None,
+        connectorId: Annotated[
+            Optional[str],
+            Field(
+                description=(
+                    'Optional connector ID. When provided, uploads directly to the '
+                    "connector's S3 bucket instead of the managed artifact store."
+                ),
+            ),
+        ] = None,
     ) -> Dict[str, Any]:
         """Upload a file or raw content as an artifact.
 
@@ -141,6 +150,7 @@ class ArtifactHandler:
                         fileType=fileType,
                     ),
                 ),
+                connectorId=connectorId if connectorId else None,
                 planStepId=planStepId if planStepId else None,
                 fileMetadata=(
                     FileMetadata(path=resolved_file_name) if resolved_file_name else None
@@ -169,6 +179,17 @@ class ArtifactHandler:
                         'Failed to upload artifact content to storage.',
                         'Retry the upload.',
                     )
+
+            # Skip CompleteArtifactUpload when using connector-based upload
+            # (file goes directly to connector S3 bucket, not managed artifact store)
+            if connectorId:
+                return success_result(
+                    {
+                        'uploaded': True,
+                        'fileName': resolved_file_name,
+                        'connectorId': connectorId,
+                    }
+                )
 
             await call_fes(
                 'CompleteArtifactUpload',

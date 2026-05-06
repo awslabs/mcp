@@ -460,15 +460,18 @@ class TestDownloadAgentArtifact:
 
         mock_fes.return_value = {'s3PreSignedUrl': 'https://s3.example.com/artifact.json'}
 
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.text = '{"key": "value"}'
+        mock_stream = MagicMock()
+        mock_stream.status_code = 200
+        mock_stream.headers = {'content-length': '16'}
+        mock_stream.aread = AsyncMock(return_value=b'{"key": "value"}')
+        mock_stream.__aenter__ = AsyncMock(return_value=mock_stream)
+        mock_stream.__aexit__ = AsyncMock(return_value=False)
 
         with patch('awslabs.aws_transform_mcp_server.tools.hitl.httpx.AsyncClient') as mock_client:
             mock_client.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
             mock_client.return_value.__aexit__ = AsyncMock(return_value=False)
             instance = mock_client.return_value.__aenter__.return_value
-            instance.get = AsyncMock(return_value=mock_response)
+            instance.stream = MagicMock(return_value=mock_stream)
 
             result = await download_agent_artifact('ws-1', 'job-1', 'art-1')
 
@@ -486,15 +489,18 @@ class TestDownloadAgentArtifact:
 
         mock_fes.return_value = {'s3PreSignedUrl': 'https://s3.example.com/artifact.txt'}
 
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.text = 'not valid json <<<'
+        mock_stream = MagicMock()
+        mock_stream.status_code = 200
+        mock_stream.headers = {'content-length': '18'}
+        mock_stream.aread = AsyncMock(return_value=b'not valid json <<<')
+        mock_stream.__aenter__ = AsyncMock(return_value=mock_stream)
+        mock_stream.__aexit__ = AsyncMock(return_value=False)
 
         with patch('awslabs.aws_transform_mcp_server.tools.hitl.httpx.AsyncClient') as mock_client:
             mock_client.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
             mock_client.return_value.__aexit__ = AsyncMock(return_value=False)
             instance = mock_client.return_value.__aenter__.return_value
-            instance.get = AsyncMock(return_value=mock_response)
+            instance.stream = MagicMock(return_value=mock_stream)
 
             result = await download_agent_artifact('ws-1', 'job-1', 'art-1')
 
@@ -512,14 +518,16 @@ class TestDownloadAgentArtifact:
 
         mock_fes.return_value = {'s3PreSignedUrl': 'https://s3.example.com/artifact.json'}
 
-        mock_response = MagicMock()
-        mock_response.status_code = 403
+        mock_stream = MagicMock()
+        mock_stream.status_code = 403
+        mock_stream.__aenter__ = AsyncMock(return_value=mock_stream)
+        mock_stream.__aexit__ = AsyncMock(return_value=False)
 
         with patch('awslabs.aws_transform_mcp_server.tools.hitl.httpx.AsyncClient') as mock_client:
             mock_client.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
             mock_client.return_value.__aexit__ = AsyncMock(return_value=False)
             instance = mock_client.return_value.__aenter__.return_value
-            instance.get = AsyncMock(return_value=mock_response)
+            instance.stream = MagicMock(return_value=mock_stream)
 
             result = await download_agent_artifact('ws-1', 'job-1', 'art-1')
 
@@ -540,6 +548,35 @@ class TestDownloadAgentArtifact:
 
         assert 'warning' in result
         assert 'network failure' in result['warning']
+
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        new_callable=AsyncMock,
+    )
+    async def test_large_artifact_not_downloaded(self, mock_fes):
+        """Large artifact returns size warning without downloading content."""
+        from awslabs.aws_transform_mcp_server.tools.hitl import download_agent_artifact
+
+        mock_fes.return_value = {'s3PreSignedUrl': 'https://s3.example.com/artifact.json'}
+
+        mock_stream = MagicMock()
+        mock_stream.status_code = 200
+        mock_stream.headers = {'content-length': '200000'}  # 200 KB > threshold
+        mock_stream.__aenter__ = AsyncMock(return_value=mock_stream)
+        mock_stream.__aexit__ = AsyncMock(return_value=False)
+
+        with patch('awslabs.aws_transform_mcp_server.tools.hitl.httpx.AsyncClient') as mock_client:
+            mock_client.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
+            mock_client.return_value.__aexit__ = AsyncMock(return_value=False)
+            instance = mock_client.return_value.__aenter__.return_value
+            instance.stream = MagicMock(return_value=mock_stream)
+
+            result = await download_agent_artifact('ws-1', 'job-1', 'art-1')
+
+        assert result['sizeBytes'] == 200000
+        assert 'large' in result['warning']
+        assert 'Ask the user' in result['warning']
+        assert 'content' not in result
 
 
 class TestSendForApprovalToolApproval:

@@ -3567,10 +3567,10 @@ OUTPUT_SCHEMA_META: Dict[str, OutputSchemaMeta] = {
                 },
                 'connectorType': {
                     'type': 'string',
-                    'description': 'The connector type (auto-filled from agent artifact if not provided).',
+                    'description': 'The connector type. Use get_resource(resource="connector") to look it up.',
                 },
             },
-            'required': ['connectorId'],
+            'required': ['connectorId', 'connectorType'],
             'additionalProperties': True,
         },
     ),

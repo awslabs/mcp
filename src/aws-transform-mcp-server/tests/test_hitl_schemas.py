@@ -72,7 +72,7 @@ class TestEnrichTask:
 
         assert result['_responseTemplate'] == {
             'connectorId': '<connector-id>',
-            'connectorType': '<auto-filled from agent artifact>',
+            'connectorType': '<connector-type>',
         }
         assert (
             'connectorId' in result['_responseHint'].lower()
@@ -218,17 +218,29 @@ class TestFormatAndValidate:
         from awslabs.aws_transform_mcp_server.hitl_schemas import format_and_validate
 
         result = format_and_validate('CreateOrSelectConnectors', '"conn-abc123"')
-        assert result.ok is True
-        parsed = json.loads(result.content)
-        assert parsed == {'connectorId': 'conn-abc123'}
+        assert result.ok is False
+        assert 'connectorType' in result.error
 
     def test_create_or_select_connectors_object(self):
         from awslabs.aws_transform_mcp_server.hitl_schemas import format_and_validate
 
         result = format_and_validate('CreateOrSelectConnectors', '{"connectorId": "conn-abc123"}')
+        assert result.ok is False
+        assert 'connectorType' in result.error
+
+    def test_create_or_select_connectors_with_type(self):
+        from awslabs.aws_transform_mcp_server.hitl_schemas import format_and_validate
+
+        result = format_and_validate(
+            'CreateOrSelectConnectors',
+            '{"connectorId": "conn-abc123", "connectorType": "vmware_migration|infra_provisioning|2"}',
+        )
         assert result.ok is True
         parsed = json.loads(result.content)
-        assert parsed == {'connectorId': 'conn-abc123'}
+        assert parsed == {
+            'connectorId': 'conn-abc123',
+            'connectorType': 'vmware_migration|infra_provisioning|2',
+        }
 
     def test_display_only_auto_submit(self):
         from awslabs.aws_transform_mcp_server.hitl_schemas import format_and_validate

@@ -355,7 +355,6 @@ class GetResourceHandler:
                         except ImportError:
                             pass
 
-                # Override hints for TOOL_APPROVAL tasks
                 if task_data.get('category') == 'TOOL_APPROVAL':
                     enriched_task['_responseHint'] = (
                         'TOOL_APPROVAL task — agent is requesting permission to execute a tool. '

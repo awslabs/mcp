@@ -143,21 +143,26 @@ def _preprocess_auto_form(inp: Any, agent_artifact: Any = None) -> Any:
 
 
 def _preprocess_general_connector(inp: Any, agent_artifact: Any = None) -> Any:
-    """Normalize bare connector ID string to {connectorId, connectorType}."""
+    """Normalize bare connector ID string to {connectorId}."""
     if isinstance(inp, str):
         inp = {'connectorId': inp}
-    if isinstance(inp, dict) and 'connectorType' not in inp and agent_artifact:
-        # Extract connectorType from agent artifact's connectors array
-        props = (
-            agent_artifact.get('properties', agent_artifact)
-            if isinstance(agent_artifact, dict)
-            else {}
+    return inp
+
+
+def _preprocess_create_or_select_connectors(inp: Any, agent_artifact: Any = None) -> Any:
+    """Normalize bare connector ID string to {connectorId, connectorType}.
+
+    Raises ValueError if connectorType is missing — the LLM must provide it
+    by inspecting the connector via get_resource(resource="connector").
+    """
+    if isinstance(inp, str):
+        inp = {'connectorId': inp}
+    if isinstance(inp, dict) and 'connectorType' not in inp:
+        raise ValueError(
+            'connectorType is required. Use get_resource with resource="connector" '
+            "and the connectorId to look up the connector's connectorType, "
+            'then include it in your response as {"connectorId": "...", "connectorType": "..."}.'
         )
-        connectors = props.get('connectors', []) if isinstance(props, dict) else []
-        if connectors and isinstance(connectors, list) and isinstance(connectors[0], dict):
-            ct = connectors[0].get('connectorType', '')
-            if ct:
-                inp = {**inp, 'connectorType': ct}
     return inp
 
 
@@ -315,18 +320,18 @@ CUSTOMIZATIONS: Dict[str, ComponentCustomization] = {
     ),
     'GeneralConnector': ComponentCustomization(
         template={'connectorId': '<connector-id>'},
-        hint='Provide the connector ID. You can send just a string or {"connectorId": "..."}.',
+        hint='Provide the connector ID.',
         merge_with_artifact=False,
         preprocess=_preprocess_general_connector,
     ),
     'CreateOrSelectConnectors': ComponentCustomization(
         template={
             'connectorId': '<connector-id>',
-            'connectorType': '<auto-filled from agent artifact>',
+            'connectorType': '<connector-type>',
         },
-        hint='Provide the connector ID. connectorType is auto-filled from the agent artifact. You can send just a string or {"connectorId": "..."}.',
+        hint='Provide both connectorId and connectorType. Use get_resource(resource="connector") to look up the connectorType for your connector.',
         merge_with_artifact=False,
-        preprocess=_preprocess_general_connector,
+        preprocess=_preprocess_create_or_select_connectors,
     ),
     'MarkdownRendererComponent': ComponentCustomization(
         template={},
@@ -1004,7 +1009,10 @@ def format_and_validate(
 
     # Preprocess
     if custom and custom.preprocess:
-        normalized = custom.preprocess(to_preprocess, agent_artifact)
+        try:
+            normalized = custom.preprocess(to_preprocess, agent_artifact)
+        except ValueError as e:
+            return FormatResult(ok=False, error=str(e))
     else:
         normalized = to_preprocess
 

@@ -335,3 +335,62 @@ class TestUploadArtifactEdgeCases:
         )
         parsed = _parse(result)
         assert parsed['success'] is False
+
+
+class TestUploadArtifactConnector:
+    """Tests for upload_artifact with connectorId (connector-based upload)."""
+
+    @pytest.fixture
+    def handler(self):
+        from awslabs.aws_transform_mcp_server.tools.artifact import ArtifactHandler
+
+        mcp = MagicMock()
+        mcp.tool = MagicMock(side_effect=lambda **kwargs: lambda fn: fn)
+        return ArtifactHandler(mcp)
+
+    @pytest.fixture
+    def ctx(self):
+        return AsyncMock()
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aws_transform_mcp_server.tools.artifact.httpx.AsyncClient')
+    @patch('awslabs.aws_transform_mcp_server.tools.artifact.call_fes', new_callable=AsyncMock)
+    @patch('awslabs.aws_transform_mcp_server.tools.artifact.is_fes_available', return_value=True)
+    async def test_connector_upload_skips_complete(self, _, mock_fes, mock_httpx, handler, ctx):
+        """Connector upload skips CompleteArtifactUpload and returns different shape."""
+        mock_fes.return_value = {
+            's3PreSignedUrl': 'https://bucket.s3.amazonaws.com/path/file.json',
+            'requestHeaders': {'Host': ['bucket.s3.amazonaws.com']},
+        }
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_client = AsyncMock()
+        mock_client.put = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_httpx.return_value = mock_client
+
+        result = await handler.upload_artifact(
+            ctx,
+            workspaceId='ws-1',
+            jobId='job-1',
+            content='{"data": true}',
+            encoding='utf-8',
+            categoryType='CUSTOMER_INPUT',
+            fileType='JSON',
+            fileName='test.json',
+            planStepId=None,
+            connectorId='conn-123',
+        )
+        parsed = _parse(result)
+
+        assert parsed['success'] is True
+        assert parsed['data']['uploaded'] is True
+        assert parsed['data']['fileName'] == 'test.json'
+        assert parsed['data']['connectorId'] == 'conn-123'
+        assert 'artifactId' not in parsed['data']
+
+        # Verify CompleteArtifactUpload was NOT called (only 1 FES call: CreateArtifactUploadUrl)
+        assert mock_fes.call_count == 1
+        assert mock_fes.call_args_list[0][0][0] == 'CreateArtifactUploadUrl'
