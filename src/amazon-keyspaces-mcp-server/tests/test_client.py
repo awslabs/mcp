@@ -33,6 +33,9 @@ class TestUnifiedCassandraClient(unittest.TestCase):
             cassandra_username='',
             cassandra_password='',
             cassandra_local_datacenter='datacenter1',
+            cassandra_protocol_version=4,
+            use_ssl=False,
+            ssl_cert_path='',
             keyspaces_endpoint='',
             keyspaces_region='',
         )
@@ -45,6 +48,9 @@ class TestUnifiedCassandraClient(unittest.TestCase):
             cassandra_username='',
             cassandra_password='',
             cassandra_local_datacenter='',
+            cassandra_protocol_version=4,
+            use_ssl=False,
+            ssl_cert_path='',
             keyspaces_endpoint='cassandra.us-west-2.amazonaws.com',
             keyspaces_region='us-west-2',
         )
