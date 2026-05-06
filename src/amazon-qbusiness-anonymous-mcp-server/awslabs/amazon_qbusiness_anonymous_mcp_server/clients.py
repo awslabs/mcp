@@ -82,7 +82,7 @@ def make_query(client: QBusinessClient, query: str) -> ChatSyncOutputTypeDef:
         resp = client.chat_sync(
             applicationId=app_id,
             userMessage=query,
-            clientToken=str(secrets.SystemRandom().randint(0, 10000)),
+            clientToken=secrets.token_hex(16),
         )
         return resp
     except ClientError as e:
