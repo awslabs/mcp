@@ -185,3 +185,23 @@ def test_initialize_aws_clients_with_mcp_source():
                     user_agent
                     == f'awslabs.cloudwatch-applicationsignals-mcp-server/{__version__}/test-caller'
                 )
+
+
+def test_initialize_aws_clients_logs_rum_endpoint_override():
+    """MCP_RUM_ENDPOINT must trigger the RUM endpoint-override log path."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients import (
+        _initialize_aws_clients,
+    )
+
+    with patch.dict(
+        os.environ,
+        {'MCP_RUM_ENDPOINT': 'https://rum.test.local', 'AWS_REGION': 'us-east-1'},
+    ):
+        with patch('awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.Config'):
+            with patch(
+                'awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.logger'
+            ) as mock_logger:
+                with patch('boto3.client'):
+                    _initialize_aws_clients()
+                    msgs = [args[0] for args, _ in mock_logger.debug.call_args_list if args]
+                    assert any('RUM endpoint override' in m for m in msgs)

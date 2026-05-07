@@ -27,7 +27,7 @@
 # Step names (ordered):
 #   precommit, bandit, uv-sync, verify-names, pytest, pyright,
 #   ruff-format, ruff-check, uv-build, secrets-scanner, semgrep,
-#   license-header
+#   license-header, codecov-project, codecov-patch
 
 set -u
 set -o pipefail
@@ -41,13 +41,33 @@ REPO_ROOT="$(cd -- "$PKG_DIR/../.." &>/dev/null && pwd)"
 # doesn't try to pack the symlinks inside it into an sdist.
 TOOL_VENV="${REPO_ROOT}/.venv-ci-tools-${PKG}"
 
+# Codecov gate targets. Mirrors .github/codecov.yml: project status uses
+# threshold: 1.0 (1.0 percentage-point drop tolerated). No patch: block in
+# codecov.yml, so codecov defaults patch target to "auto" (== base project
+# coverage) — we reproduce that here.
+#
+# Note: the remote codecov/project check is repo-wide (aggregates XMLs
+# across every package). This local gate is package-scoped — it compares
+# THIS package's combined line+branch coverage against CODECOV_BASE.
+# To refresh the base after meaningful drift on main:
+#   git checkout origin/main -- .
+#   scripts/ci-check.sh --only pytest
+#   scripts/ci-check.sh --only codecov-project  # read reported %, update below
+# The metric sums (lines-covered + branches-covered) / (lines-valid +
+# branches-valid) — this tracks slightly looser than codecov's per-line
+# weighted metric but within ~1pp; a local pass is not a remote guarantee
+# but a local fail always predicts a remote fail.
+CODECOV_BASE="${CODECOV_BASE:-94.5}"
+CODECOV_THRESHOLD="${CODECOV_THRESHOLD:-1.0}"
+CODECOV_BASE_BRANCH="${CODECOV_BASE_BRANCH:-origin/main}"
+
 RED=$'\033[0;31m'
 GRN=$'\033[0;32m'
 YLW=$'\033[0;33m'
 BLU=$'\033[0;34m'
 RST=$'\033[0m'
 
-ALL_STEPS=(precommit bandit uv-sync verify-names pytest pyright ruff-format ruff-check uv-build secrets-scanner semgrep license-header)
+ALL_STEPS=(precommit bandit uv-sync verify-names pytest pyright ruff-format ruff-check uv-build secrets-scanner semgrep license-header codecov-project codecov-patch)
 ONLY=""
 SKIP=""
 FAIL_FAST=1
@@ -363,6 +383,200 @@ print(f'license headers OK ({checked} files checked)')
 PY
 }
 
+step_codecov_project() {
+  # Local mirror of the codecov/project gate. Reads the cobertura XML that
+  # step_pytest produced and compares overall line coverage against
+  # CODECOV_BASE with CODECOV_THRESHOLD percentage-point tolerance. Mirrors
+  # .github/codecov.yml `coverage.status.project.default.threshold: 1.0`.
+  require python3
+  local xml="$PKG_DIR/${PKG}-coverage.xml"
+  [[ -f "$xml" ]] || die "missing coverage xml at $xml — run step pytest first"
+
+  python3 - "$xml" "$CODECOV_BASE" "$CODECOV_THRESHOLD" <<'PY'
+import sys
+import xml.etree.ElementTree as ET
+
+xml_path, base_s, threshold_s = sys.argv[1], sys.argv[2], sys.argv[3]
+base = float(base_s)
+threshold = float(threshold_s)
+tree = ET.parse(xml_path)
+root = tree.getroot()
+
+# Use line-rate + branch-rate weighted by respective totals to approximate
+# codecov's combined line+branch metric, matching the pre-push signal with
+# what codecov/project actually enforces.
+lv = int(root.attrib.get('lines-valid', '0'))
+lc = int(root.attrib.get('lines-covered', '0'))
+bv = int(root.attrib.get('branches-valid', '0'))
+bc = int(root.attrib.get('branches-covered', '0'))
+
+total = lv + bv
+covered = lc + bc
+pct = 100.0 * covered / total if total else 0.0
+floor = base - threshold
+
+print(f'project coverage: {pct:.2f}%  (lines {lc}/{lv}, branches {bc}/{bv})')
+print(f'base:             {base:.2f}%')
+print(f'threshold:        {threshold:.2f}pp  => floor {floor:.2f}%')
+
+if pct + 1e-9 < floor:
+    print(f'FAIL: project coverage {pct:.2f}% below floor {floor:.2f}%', file=sys.stderr)
+    sys.exit(1)
+print('OK: project coverage within threshold')
+PY
+}
+
+step_codecov_patch() {
+  # Local mirror of the codecov/patch gate. Computes coverage of lines
+  # changed vs $CODECOV_BASE_BRANCH (origin/main by default) and compares
+  # against CODECOV_BASE with CODECOV_THRESHOLD tolerance, matching
+  # codecov's default patch target of "auto" (== project target) when
+  # no patch: block is present in .github/codecov.yml.
+  require python3
+  require git
+  local xml="$PKG_DIR/${PKG}-coverage.xml"
+  [[ -f "$xml" ]] || die "missing coverage xml at $xml — run step pytest first"
+
+  # Ensure the base ref is reachable for git diff. If not fetched, surface
+  # a clear error rather than a confusing empty diff.
+  if ! git -C "$REPO_ROOT" rev-parse --verify -q "$CODECOV_BASE_BRANCH" >/dev/null; then
+    die "base ref '$CODECOV_BASE_BRANCH' not found — run: git fetch origin main"
+  fi
+
+  # Capture the unified=0 diff of the package dir. u=0 removes all context
+  # so only true changed lines land in the python parser below.
+  local diff_tmp rc
+  diff_tmp="$(mktemp -t codecov-patch-diff.XXXXXX)"
+  git -C "$REPO_ROOT" diff --unified=0 "$CODECOV_BASE_BRANCH"...HEAD -- "src/$PKG" > "$diff_tmp"
+
+  python3 - "$xml" "$diff_tmp" "src/$PKG" "$CODECOV_BASE" "$CODECOV_THRESHOLD" <<'PY'
+import os
+import re
+import sys
+import xml.etree.ElementTree as ET
+
+xml_path, diff_path, pkg_rel, base_s, threshold_s = sys.argv[1:6]
+base = float(base_s)
+threshold = float(threshold_s)
+
+# --- 1. Parse diff: collect {file_relpath: set(changed_line_numbers)} ---
+file_re = re.compile(r'^\+\+\+ b/(.+)$')
+hunk_re = re.compile(r'^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@')
+changed: dict[str, set[int]] = {}
+current_file = None
+current_newline = 0
+remaining = 0
+with open(diff_path) as f:
+    for line in f:
+        m = file_re.match(line)
+        if m:
+            current_file = m.group(1)
+            if current_file != '/dev/null' and current_file not in changed:
+                changed[current_file] = set()
+            continue
+        m = hunk_re.match(line)
+        if m:
+            current_newline = int(m.group(1))
+            remaining = int(m.group(2)) if m.group(2) is not None else 1
+            continue
+        if remaining > 0 and line.startswith('+') and not line.startswith('+++'):
+            if current_file and current_file != '/dev/null':
+                changed[current_file].add(current_newline)
+            current_newline += 1
+            remaining -= 1
+        elif remaining > 0 and not line.startswith('-') and not line.startswith('\\'):
+            # context line under u=0 shouldn't happen; ignore defensively
+            current_newline += 1
+            remaining -= 1
+
+# Restrict to .py under pkg_rel/awslabs/; tests aren't measured in
+# coverage.run.source. Strip the full "src/<pkg>/awslabs/" prefix since
+# pyproject.toml has source = ["awslabs"] which stores coverage paths
+# relative to awslabs/ (so the XML keys look like
+# "cloudwatch_applicationsignals_mcp_server/rum_tools.py").
+PKG_SRC_PREFIX = f'{pkg_rel}/awslabs/'
+patch_files = {
+    f[len(PKG_SRC_PREFIX):]: lines for f, lines in changed.items()
+    if f.startswith(PKG_SRC_PREFIX) and f.endswith('.py') and lines
+}
+
+if not patch_files:
+    print('no patch lines under coverage source — nothing to gate')
+    sys.exit(0)
+
+# --- 2. Parse coverage xml into per-file {line: (covered_units, total_units)}
+#        where a plain line is (hit, 1) and a branch line is
+#        (covered_conditions, total_conditions). Mirrors how codecov weights
+#        partial branches when computing patch coverage.
+tree = ET.parse(xml_path)
+root = tree.getroot()
+
+# condition-coverage looks like "50% (1/2)"; pull the "(x/y)" pair out.
+_COND_RE = re.compile(r'\((\d+)/(\d+)\)')
+
+cov_lines: dict[str, dict[int, tuple[int, int]]] = {}
+for cls in root.iter('class'):
+    fn = cls.attrib.get('filename', '')
+    per: dict[int, tuple[int, int]] = {}
+    for ln in cls.iter('line'):
+        try:
+            num = int(ln.attrib['number'])
+            hits = int(ln.attrib.get('hits', '0'))
+        except (KeyError, ValueError):
+            continue
+        if ln.attrib.get('branch') == 'true':
+            m = _COND_RE.search(ln.attrib.get('condition-coverage', ''))
+            if m:
+                per[num] = (int(m.group(1)), int(m.group(2)))
+                continue
+        per[num] = (1 if hits > 0 else 0, 1)
+    cov_lines[fn] = per
+
+# --- 3. Intersect and compute ---
+total = 0
+covered = 0
+per_file_report = []
+for f, lines in sorted(patch_files.items()):
+    hits_map = cov_lines.get(f)
+    if hits_map is None:
+        # File may not be in coverage source (e.g. __init__.py excluded
+        # from ruff.lint but still compiled — or a new file not yet
+        # picked up by coverage.run.source).
+        continue
+    exec_lines = [ln for ln in lines if ln in hits_map]
+    if not exec_lines:
+        continue
+    f_total = sum(hits_map[ln][1] for ln in exec_lines)
+    f_covered = sum(hits_map[ln][0] for ln in exec_lines)
+    total += f_total
+    covered += f_covered
+    per_file_report.append((f, f_covered, f_total))
+
+if total == 0:
+    print('no executable patch lines under coverage — nothing to gate')
+    sys.exit(0)
+
+pct = 100.0 * covered / total
+floor = base - threshold
+
+for f, c, t in per_file_report:
+    file_pct = 100.0 * c / t
+    print(f'  {f}: {file_pct:6.2f}%  ({c}/{t})')
+
+print(f'patch coverage:   {pct:.2f}%  (lines {covered}/{total})')
+print(f'base:             {base:.2f}%')
+print(f'threshold:        {threshold:.2f}pp  => floor {floor:.2f}%')
+
+if pct + 1e-9 < floor:
+    print(f'FAIL: patch coverage {pct:.2f}% below floor {floor:.2f}%', file=sys.stderr)
+    sys.exit(1)
+print('OK: patch coverage within threshold')
+PY
+  rc=$?
+  rm -f "$diff_tmp"
+  return $rc
+}
+
 main() {
   info "package : $PKG"
   info "pkg_dir : $PKG_DIR"
@@ -384,6 +598,8 @@ main() {
   run_step secrets-scanner step_secrets_scanner
   run_step semgrep         step_semgrep
   run_step license-header  step_license_header
+  run_step codecov-project step_codecov_project
+  run_step codecov-patch   step_codecov_patch
 
   print_summary
 

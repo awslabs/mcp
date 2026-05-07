@@ -1686,3 +1686,490 @@ def test_parse_time_naive_datetime_is_normalized_to_utc():
     offset = dt.utcoffset()
     assert offset is not None
     assert offset.total_seconds() == 0
+
+
+# --- Service-error branches for simple RUM get/list actions ---
+
+
+@pytest.mark.asyncio
+async def test_list_tags_service_error(mock_aws_clients):
+    """list_tags_for_resource failure surfaces service_error."""
+    mock_aws_clients['rum_client'].list_tags_for_resource.side_effect = Exception('boom')
+    result = json.loads(
+        await rum(action='list_tags', resource_arn='arn:aws:rum:us-east-1:123:appmonitor/t')
+    )
+    assert result.get('error_type') == 'service_error'
+
+
+@pytest.mark.asyncio
+async def test_get_policy_service_error(mock_aws_clients):
+    """get_resource_policy failure surfaces service_error."""
+    mock_aws_clients['rum_client'].get_resource_policy.side_effect = Exception('denied')
+    result = json.loads(await rum(action='get_policy', app_monitor_name='test'))
+    assert result.get('error_type') == 'service_error'
+
+
+@pytest.mark.asyncio
+async def test_check_data_access_service_error(mock_aws_clients):
+    """Non-ResourceNotFound errors on get_app_monitor return service_error."""
+
+    # check_rum_data_access does `except rum_client.exceptions.ResourceNotFoundException`
+    # first. On a MagicMock the `.exceptions.*` attribute is itself a MagicMock
+    # (not a class), so unless we install a real exception class there, the
+    # `except` itself raises TypeError and bubbles up through the dispatcher's
+    # bad_request branch rather than the handler's service_error branch.
+    class _RNF(Exception):
+        pass
+
+    mock_aws_clients['rum_client'].exceptions.ResourceNotFoundException = _RNF
+    mock_aws_clients['rum_client'].get_app_monitor.side_effect = Exception('unexpected')
+    result = json.loads(await rum(action='check_data_access', app_monitor_name='test'))
+    assert result.get('error_type') == 'service_error'
+
+
+@pytest.mark.asyncio
+async def test_query_service_error(mock_aws_clients):
+    """Logs Insights StartQuery failure surfaces service_error from query action."""
+    mock_aws_clients['rum_client'].get_app_monitor.return_value = _app_monitor_response()
+    mock_aws_clients['logs_client'].start_query.side_effect = Exception('quota')
+    result = json.loads(
+        await rum(
+            action='query',
+            app_monitor_name='test',
+            query_string='fields @timestamp',
+            start_time=START,
+            end_time=END,
+        )
+    )
+    assert result.get('error_type') == 'service_error'
+
+
+# --- Dispatcher bad-kwarg TypeError branch (lines 180-181) ---
+
+
+@pytest.mark.asyncio
+async def test_dispatcher_extra_kwarg_returns_bad_request(mock_aws_clients):
+    """Passing an action-irrelevant kwarg triggers the TypeError guard, not a 500."""
+    # list_tags only accepts resource_arn; supplying app_monitor_name raises
+    # TypeError inside the dispatcher's try/except.
+    mock_aws_clients['rum_client'].list_tags_for_resource.return_value = {'Tags': {}}
+    result = json.loads(
+        await rum(
+            action='list_tags',
+            resource_arn='arn:aws:rum:us-east-1:123:appmonitor/t',
+            app_monitor_name='test',  # extraneous for list_tags
+        )
+    )
+    assert result.get('error_type') == 'bad_request'
+
+
+# --- Mobile platform dispatch partial branches (crashes 'ios' only path) ---
+
+
+@pytest.mark.asyncio
+async def test_crashes_ios_only_skips_android_query(mock_aws_clients):
+    """platform='ios' must dispatch only the iOS queries, not the Android ones."""
+    mock_aws_clients['rum_client'].get_app_monitor.return_value = _app_monitor_response(
+        platform='iOS'
+    )
+    mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'qid'}
+    mock_aws_clients['logs_client'].get_query_results.return_value = _logs_result(rows=[])
+    result = json.loads(
+        await rum(
+            action='crashes',
+            app_monitor_name='test',
+            start_time=START,
+            end_time=END,
+            platform='ios',
+        )
+    )
+    assert 'ios_crashes' in result
+    assert 'ios_hangs' in result
+    assert 'android' not in result
+    assert 'android_anrs' not in result
+
+
+@pytest.mark.asyncio
+async def test_crashes_android_only_skips_ios_query(mock_aws_clients):
+    """platform='android' must dispatch only the Android queries."""
+    mock_aws_clients['rum_client'].get_app_monitor.return_value = _app_monitor_response(
+        platform='Android'
+    )
+    mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'qid'}
+    mock_aws_clients['logs_client'].get_query_results.return_value = _logs_result(rows=[])
+    result = json.loads(
+        await rum(
+            action='crashes',
+            app_monitor_name='test',
+            start_time=START,
+            end_time=END,
+            platform='android',
+        )
+    )
+    assert 'android' in result
+    assert 'android_anrs' in result
+    assert 'ios_crashes' not in result
+
+
+@pytest.mark.asyncio
+async def test_app_launches_ios_only(mock_aws_clients):
+    """platform='ios' for app_launches dispatches only the iOS task."""
+    mock_aws_clients['rum_client'].get_app_monitor.return_value = _app_monitor_response(
+        platform='iOS'
+    )
+    mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'qid'}
+    mock_aws_clients['logs_client'].get_query_results.return_value = _logs_result(rows=[])
+    result = json.loads(
+        await rum(
+            action='app_launches',
+            app_monitor_name='test',
+            start_time=START,
+            end_time=END,
+            platform='ios',
+        )
+    )
+    assert 'ios' in result
+    assert 'android' not in result
+
+
+@pytest.mark.asyncio
+async def test_crashes_all_on_web_monitor_returns_web_guidance(mock_aws_clients):
+    """platform='all' on a web monitor returns a message rather than running queries."""
+    mock_aws_clients['rum_client'].get_app_monitor.return_value = _app_monitor_response(
+        platform='Web'
+    )
+    result = json.loads(
+        await rum(
+            action='crashes',
+            app_monitor_name='test',
+            start_time=START,
+            end_time=END,
+            platform='all',
+        )
+    )
+    assert 'message' in result
+    assert result.get('monitor_platform') == 'web'
+
+
+@pytest.mark.asyncio
+async def test_app_launches_all_on_web_monitor_returns_web_guidance(mock_aws_clients):
+    """platform='all' on a web monitor for app_launches returns the web-guidance message."""
+    mock_aws_clients['rum_client'].get_app_monitor.return_value = _app_monitor_response(
+        platform='Web'
+    )
+    result = json.loads(
+        await rum(
+            action='app_launches',
+            app_monitor_name='test',
+            start_time=START,
+            end_time=END,
+            platform='all',
+        )
+    )
+    assert 'message' in result
+    assert result.get('monitor_platform') == 'web'
+
+
+# --- correlate bad max_traces (TypeError/ValueError branch 1329-1330) ---
+
+
+@pytest.mark.asyncio
+async def test_correlate_invalid_max_traces_is_bad_request(mock_aws_clients):
+    """Non-integer max_traces must return bad_request, not crash."""
+    _setup_logs_mocks(mock_aws_clients)
+    result = json.loads(
+        await rum(
+            action='correlate',
+            app_monitor_name='test',
+            page_url='/home',
+            start_time=START,
+            end_time=END,
+            max_traces='not-a-number',  # type: ignore[arg-type]
+        )
+    )
+    assert result.get('error_type') == 'bad_request'
+
+
+# --- correlate malformed segment document (ValueError path in json.loads) ---
+
+
+@pytest.mark.asyncio
+async def test_correlate_malformed_segment_is_skipped(mock_aws_clients):
+    """A malformed segment Document must be logged and skipped, not abort the run."""
+    _setup_logs_mocks(mock_aws_clients)
+    mock_aws_clients['logs_client'].get_query_results.return_value = _logs_result(
+        rows=[[{'field': 'event_details.trace_id', 'value': 'T1'}]]
+    )
+    mock_aws_clients['xray_client'].batch_get_traces.return_value = {
+        'Traces': [
+            {
+                'Id': 'T1',
+                'Segments': [
+                    {'Document': 'not-json'},  # triggers ValueError
+                    {'Document': json.dumps({'name': 'svc', 'start_time': 1.0, 'end_time': 2.0})},
+                ],
+            }
+        ]
+    }
+    result = json.loads(
+        await rum(
+            action='correlate',
+            app_monitor_name='test',
+            page_url='/home',
+            start_time=START,
+            end_time=END,
+        )
+    )
+    assert 'svc' in result['backend_services']
+
+
+# --- correlate segment missing start_time/end_time (line 1413 partial branch) ---
+
+
+@pytest.mark.asyncio
+async def test_correlate_segment_missing_times_is_skipped(mock_aws_clients):
+    """Segments without start_time or end_time must be skipped, not counted."""
+    _setup_logs_mocks(mock_aws_clients)
+    mock_aws_clients['logs_client'].get_query_results.return_value = _logs_result(
+        rows=[[{'field': 'event_details.trace_id', 'value': 'T1'}]]
+    )
+    mock_aws_clients['xray_client'].batch_get_traces.return_value = {
+        'Traces': [
+            {
+                'Id': 'T1',
+                'Segments': [
+                    {'Document': json.dumps({'name': 'svc', 'start_time': 1.0})},  # no end
+                    {
+                        'Document': json.dumps(
+                            {
+                                'name': 'svc',
+                                'start_time': 1.0,
+                                'end_time': 2.0,
+                                'error': True,
+                            }
+                        )
+                    },
+                ],
+            }
+        ]
+    }
+    result = json.loads(
+        await rum(
+            action='correlate',
+            app_monitor_name='test',
+            page_url='/home',
+            start_time=START,
+            end_time=END,
+        )
+    )
+    # only one call counted (the complete segment)
+    assert result['backend_services']['svc']['calls'] == 1
+    assert result['backend_services']['svc']['errors'] == 1
+
+
+# --- analyze: anomaly pagination error branch (line 1258-1260) ---
+
+
+@pytest.mark.asyncio
+async def test_analyze_anomaly_listing_error_is_swallowed(mock_aws_clients):
+    """If list_anomalies fails for a detector, analyze must continue cleanly."""
+    _setup_logs_mocks(mock_aws_clients)
+    mock_aws_clients['logs_client'].list_log_anomaly_detectors.return_value = {
+        'anomalyDetectors': [
+            {
+                'detectorName': 'd1',
+                'anomalyDetectorStatus': 'ACTIVE',
+                'anomalyDetectorArn': 'arn:aws:logs:us-east-1:123:anomaly-detector:d1',
+            }
+        ]
+    }
+    mock_aws_clients['logs_client'].list_anomalies.side_effect = Exception('denied')
+    result = json.loads(
+        await rum(
+            action='analyze',
+            app_monitor_name='test',
+            start_time=START,
+            end_time=END,
+        )
+    )
+    # Detector is listed but anomalies list is empty due to swallowed error.
+    assert result['anomaly_detection']['anomalies'] == []
+    assert any(d['name'] == 'd1' for d in result['anomaly_detection']['detectors'])
+
+
+# --- analyze: _fetch_anomaly_detectors error branch (line 1241-1242) ---
+
+
+@pytest.mark.asyncio
+async def test_analyze_detector_listing_error_is_surfaced(mock_aws_clients):
+    """If list_log_anomaly_detectors fails, analyze must expose an anomaly_detection.error."""
+    _setup_logs_mocks(mock_aws_clients)
+    mock_aws_clients['logs_client'].list_log_anomaly_detectors.side_effect = Exception('denied')
+    result = json.loads(
+        await rum(
+            action='analyze',
+            app_monitor_name='test',
+            start_time=START,
+            end_time=END,
+        )
+    )
+    assert 'error' in result['anomaly_detection']
+
+
+# --- metrics: malformed MetricDataResults payload (line 1536 branch) ---
+
+
+@pytest.mark.asyncio
+async def test_metrics_status_ranks_choose_worst(mock_aws_clients):
+    """Subsequent pages with a worse StatusCode must bump the entry status."""
+    mock_aws_clients['rum_client'].get_app_monitor.return_value = _app_monitor_response()
+    # Two pages: first 'Complete', second 'PartialData' — PartialData must win.
+    mock_aws_clients['cloudwatch_client'].get_metric_data.side_effect = [
+        {
+            'MetricDataResults': [
+                {
+                    'Id': 'm0',
+                    'Label': 'PageLoadTime',
+                    'Timestamps': [],
+                    'Values': [],
+                    'StatusCode': 'Complete',
+                }
+            ],
+            'NextToken': 'tok',
+        },
+        {
+            'MetricDataResults': [
+                {
+                    'Id': 'm0',
+                    'Label': 'PageLoadTime',
+                    'Timestamps': [],
+                    'Values': [],
+                    'StatusCode': 'PartialData',
+                }
+            ]
+        },
+    ]
+    result = json.loads(
+        await rum(
+            action='metrics',
+            app_monitor_name='test',
+            metric_names='["PageLoadTime"]',
+            start_time=START,
+            end_time=END,
+        )
+    )
+    assert result['metrics']['PageLoadTime']['status'] == 'PartialData'
+
+
+# --- slo_health: list_service_level_objectives raises (line 1592-1593) ---
+
+
+@pytest.mark.asyncio
+async def test_slo_health_list_failure_returns_no_slo_with_message(mock_aws_clients):
+    """If listing SLOs raises, return NO_SLO with a message rather than crashing."""
+    mock_aws_clients['applicationsignals_client'].get_paginator.side_effect = Exception('denied')
+    result = json.loads(
+        await rum(
+            action='slo_health',
+            app_monitor_name='test',
+            start_time=START,
+            end_time=END,
+        )
+    )
+    assert result['status'] == 'NO_SLO'
+    assert 'Could not list SLOs' in result.get('message', '')
+
+
+# --- _extract_slo_metric_name helper (lines 1707-1721) ---
+
+
+def test_extract_slo_metric_name_from_good_count_metric():
+    """GoodCountMetric path returns the metric name."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.rum_tools import (
+        _extract_slo_metric_name,
+    )
+
+    slo = {
+        'RequestBasedSli': {
+            'RequestBasedSliMetric': {
+                'MonitoredRequestCountMetric': {
+                    'GoodCountMetric': [
+                        {
+                            'Id': 'good_1',
+                            'MetricStat': {'Metric': {'MetricName': 'Success'}},
+                        }
+                    ]
+                }
+            }
+        }
+    }
+    assert _extract_slo_metric_name(slo) == 'Success'
+
+
+def test_extract_slo_metric_name_from_bad_count_metric():
+    """BadCountMetric path (fault_*) also returns a metric name."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.rum_tools import (
+        _extract_slo_metric_name,
+    )
+
+    slo = {
+        'RequestBasedSli': {
+            'RequestBasedSliMetric': {
+                'MonitoredRequestCountMetric': {
+                    'BadCountMetric': [
+                        {
+                            'Id': 'fault_1',
+                            'MetricStat': {'Metric': {'MetricName': 'Fault'}},
+                        }
+                    ]
+                }
+            }
+        }
+    }
+    assert _extract_slo_metric_name(slo) == 'Fault'
+
+
+def test_extract_slo_metric_name_from_sli_metric_fallback():
+    """Falls back to Sli.SliMetric.MetricDataQueries when request-based paths empty."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.rum_tools import (
+        _extract_slo_metric_name,
+    )
+
+    slo = {
+        'Sli': {
+            'SliMetric': {
+                'MetricDataQueries': [{'MetricStat': {'Metric': {'MetricName': 'Latency'}}}]
+            }
+        }
+    }
+    assert _extract_slo_metric_name(slo) == 'Latency'
+
+
+def test_extract_slo_metric_name_unknown_when_no_paths_match():
+    """Empty SLO returns the sentinel 'unknown' rather than raising."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.rum_tools import (
+        _extract_slo_metric_name,
+    )
+
+    assert _extract_slo_metric_name({}) == 'unknown'
+
+
+def test_extract_slo_metric_name_skips_non_list_count_metrics():
+    """GoodCountMetric that isn't a list must be skipped (not crash) and fall through."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.rum_tools import (
+        _extract_slo_metric_name,
+    )
+
+    slo = {
+        'RequestBasedSli': {
+            'RequestBasedSliMetric': {
+                'MonitoredRequestCountMetric': {'GoodCountMetric': 'not-a-list'}
+            }
+        },
+        'Sli': {
+            'SliMetric': {
+                'MetricDataQueries': [{'MetricStat': {'Metric': {'MetricName': 'Fallback'}}}]
+            }
+        },
+    }
+    assert _extract_slo_metric_name(slo) == 'Fallback'
