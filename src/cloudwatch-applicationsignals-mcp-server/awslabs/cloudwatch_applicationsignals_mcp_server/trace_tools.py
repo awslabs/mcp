@@ -188,35 +188,28 @@ async def search_transaction_spans(
         default=30, description='Maximum time in seconds to wait for query completion'
     ),
 ) -> Dict:
-    """Executes a CloudWatch Logs Insights query for transaction search (100% sampled trace data).
+    """Executes a CloudWatch Logs Insights query against trace span records stored in CloudWatch Logs with the OpenTelemetry semantic-convention schema (@data_format = "AWS-OTEL-TRACE-V1").
 
-    Targets OpenTelemetry trace spans that AWS ingests with
-    `@data_format = "AWS-OTEL-TRACE-V1"`. Transaction Search writes spans to the
-    reserved `aws/spans` log group with this tag; subscription-filter fanouts to
-    other log groups preserve it. Records without the tag (e.g., app-authored
-    span-shaped JSON written via `PutLogEvents`, or subscription filters that
-    strip/rewrite the field) will not match — pass an explicit `log_group_name`
-    and your own query for those.
+    Scope: only log records tagged `@data_format = "AWS-OTEL-TRACE-V1"` will match,
+    so span records must follow the OpenTelemetry semantic-convention schema (e.g.
+    `attributes.aws.local.service`, `attributes.aws.remote.operation`). If your spans
+    are stored in some other shape or log group, pass an explicit `log_group_name`
+    and include your own filter in `query_string`.
 
-    Injection rules (all applied to `query_string` before it is sent to CloudWatch):
-    - No `log_group_name` → prepend `SOURCE logGroups()` so the query runs across
-      the whole account (up to the CWL Insights cap, currently 10,000 log groups).
-    - Explicit `log_group_name` → scoped via the `logGroupNames` API parameter; no
-      `SOURCE` prepended.
-    - User query starts with `SOURCE` → left untouched; `log_group_name` is
-      ignored (CloudWatch rejects both together) and flagged in the response.
-    - User query already references `@data_format` → no second filter added.
-    - Otherwise → prepend `filterIndex @data_format = "AWS-OTEL-TRACE-V1"`. The
-      index lets CWL prune non-matching log groups cheaply in cross-log-group mode.
+    The tool adds the `@data_format = "AWS-OTEL-TRACE-V1"` filter automatically, so
+    you do not need to include it in `query_string`. You can override by providing
+    your own `@data_format` reference, or take control of log-group scoping by
+    starting `query_string` with a `SOURCE logGroups(...)` clause. Don't combine
+    `log_group_name` with a user-supplied `SOURCE` — `log_group_name` is dropped
+    and `log_group_name_ignored: True` appears in the response.
 
     The volume of returned logs can easily overwhelm the agent context window. Always
     include a limit in the query (| limit 50) or via the limit parameter.
 
     Usage:
-    OpenTelemetry Spans contain many attributes for all monitored services and provide
-    100% sampled data vs X-Ray's 5% sampling, giving more accurate results.
-    User can write CloudWatch Logs Insights queries to group, list attribute with sum, avg.
-    If source code is not accessible, consider querying with code-level attributes.
+    Write CloudWatch Logs Insights queries over OpenTelemetry span attributes
+    (filter, stats, sort, limit, etc.). If source code is not accessible, consider
+    querying with code-level attributes.
     ⚠️ Use CORRECT attribute names: attributes.code.file.path, attributes.code.function.name, attributes.code.line.number
 
     ```
@@ -402,7 +395,6 @@ async def search_transaction_spans(
                         'enabled': True,
                         'destination': 'CloudWatchLogs',
                         'status': 'ACTIVE',
-                        'message': '✅ Using 100% sampled trace data from Transaction Search',
                     },
                     'code_level_attributes_status': code_level_status,
                 }
