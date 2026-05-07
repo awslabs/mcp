@@ -1548,7 +1548,7 @@ async def test_check_data_access_cookies_disabled(mock_aws_clients):
 
 @pytest.mark.asyncio
 async def test_sessions_unknown_platform_bails(mock_aws_clients):
-    """sessions on unknown-platform monitor must return the guard, not run a query."""
+    """Sessions on unknown-platform monitor must return the guard, not run a query."""
     _setup_unknown_platform_mocks(mock_aws_clients)
     result = json.loads(
         await rum(action='sessions', app_monitor_name='test', start_time=START, end_time=END)
