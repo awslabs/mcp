@@ -32,6 +32,12 @@ OTEL_TRACE_DATA_FORMAT = 'AWS-OTEL-TRACE-V1'
 # Match @data_format only as a whole token, not as a prefix of e.g. @data_format_version.
 _DATA_FORMAT_PATTERN = re.compile(r'@data_format\b', re.IGNORECASE)
 
+_LOG_GROUP_IGNORED_REASON = (
+    'The query_string contained a SOURCE clause, so CloudWatch Logs Insights does '
+    "not accept a separate logGroupNames parameter. The user's SOURCE scope was used "
+    'instead. Remove log_group_name or the SOURCE clause to eliminate this ambiguity.'
+)
+
 
 def _user_query_has_source_clause(user_query: str) -> bool:
     """Return True if the user's query begins with a SOURCE command token."""
@@ -185,9 +191,11 @@ async def search_transaction_spans(
     """Executes a CloudWatch Logs Insights query for transaction search (100% sampled trace data).
 
     Targets OpenTelemetry trace spans that AWS ingests with
-    `@data_format = "AWS-OTEL-TRACE-V1"` (Transaction Search destinations,
-    subscription-filter fanouts). Spans written without that tag (e.g., raw OTLP
-    to a custom log group) will not match — pass an explicit `log_group_name`
+    `@data_format = "AWS-OTEL-TRACE-V1"`. Transaction Search writes spans to the
+    reserved `aws/spans` log group with this tag; subscription-filter fanouts to
+    other log groups preserve it. Records without the tag (e.g., app-authored
+    span-shaped JSON written via `PutLogEvents`, or subscription filters that
+    strip/rewrite the field) will not match — pass an explicit `log_group_name`
     and your own query for those.
 
     Injection rules (all applied to `query_string` before it is sent to CloudWatch):
@@ -220,7 +228,10 @@ async def search_transaction_spans(
     Returns:
     --------
         A dictionary containing the final query results, including:
-            - status: The current status of the query (e.g., Scheduled, Running, Complete, Failed, etc.)
+            - status: one of 'Scheduled', 'Running', 'Complete', 'Failed', 'Cancelled',
+              'Polling Timeout', 'Transaction Search Not Available', 'Invalid Input'.
+              'Invalid Input' is returned synchronously when query_string is empty or
+              whitespace-only.
             - results: A list of the actual query results if the status is Complete.
             - statistics: Query performance statistics
             - messages: Any informational messages about the query
@@ -397,12 +408,7 @@ async def search_transaction_spans(
                 }
                 if log_group_name_ignored:
                     result['log_group_name_ignored'] = True
-                    result['log_group_name_ignored_reason'] = (
-                        'The query_string contained a SOURCE clause, so CloudWatch Logs '
-                        "Insights does not accept a separate logGroupNames parameter. The user's "
-                        'SOURCE scope was used instead. Remove log_group_name or the SOURCE '
-                        'clause to eliminate this ambiguity.'
-                    )
+                    result['log_group_name_ignored_reason'] = _LOG_GROUP_IGNORED_REASON
                 return result
 
             await asyncio.sleep(1)
@@ -417,6 +423,7 @@ async def search_transaction_spans(
         }
         if log_group_name_ignored:
             timeout_result['log_group_name_ignored'] = True
+            timeout_result['log_group_name_ignored_reason'] = _LOG_GROUP_IGNORED_REASON
         return timeout_result
 
     except Exception as e:
