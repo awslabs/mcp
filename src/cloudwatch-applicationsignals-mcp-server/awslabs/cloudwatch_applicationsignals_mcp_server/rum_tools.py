@@ -177,7 +177,7 @@ async def rum(
     kwargs = {k: v for k, v in _all_kwargs.items() if v is not None}
     try:
         return await handler(**kwargs)
-    except TypeError as e:
+    except (TypeError, ValueError) as e:
         return json.dumps(
             {
                 'error': f"Invalid parameters for action '{action}': {e}",
@@ -1225,11 +1225,11 @@ async def analyze_rum_log_group(
     """Analyze a RUM log group for anomalies and common patterns."""
     try:
         log_group, _platform = await _get_rum_app_info(app_monitor_name)
+        st = _parse_time(start_time)
+        et = _parse_time(end_time)
     except ValueError as e:
         return json.dumps({'error': str(e), 'error_type': 'bad_request'})
 
-    st = _parse_time(start_time)
-    et = _parse_time(end_time)
     log_group_arn = _log_group_arn(log_group)
 
     anomaly_info: dict[str, Any] = {'detectors': [], 'anomalies': []}

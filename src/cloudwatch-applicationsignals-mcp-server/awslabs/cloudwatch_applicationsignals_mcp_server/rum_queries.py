@@ -96,7 +96,7 @@ HEALTH_SESSION_ERRORS = """fields user_details.sessionId
 def errors_query(page_url: str | None = None, group_by: str | None = None) -> str:
     """Build error analysis query."""
     extra_filter = _optional_filter('metadata.pageId', page_url)
-    gb = _group_by_clause(group_by)
+    gb = '' if (group_by and group_by.lower() == 'page') else _group_by_clause(group_by)
     return f"""fields @timestamp, event_type, metadata.pageId, metadata.browserName, metadata.countryCode,
   event_details.type, event_details.message, event_details.filename,
   event_details.request.url, event_details.response.status
