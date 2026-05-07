@@ -44,10 +44,7 @@ def _escape(value: str) -> str:
     grammar paths, which would allow injection of a new pipeline stage.
     """
     return (
-        value.replace('\\', '\\\\')
-        .replace('"', '\\"')
-        .replace('\n', '\\n')
-        .replace('\r', '\\r')
+        value.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r')
     )
 
 
@@ -95,6 +92,7 @@ HEALTH_SESSION_ERRORS = """fields user_details.sessionId
 
 # --- Errors ---
 
+
 def errors_query(page_url: str | None = None, group_by: str | None = None) -> str:
     """Build error analysis query."""
     extra_filter = _optional_filter('metadata.pageId', page_url)
@@ -109,6 +107,7 @@ def errors_query(page_url: str | None = None, group_by: str | None = None) -> st
 
 
 # --- Performance ---
+
 
 def performance_navigation_query(page_url: str | None = None) -> str:
     """Build page load performance query."""
@@ -241,7 +240,6 @@ MOBILE_APP_LAUNCHES_IOS = """fields @timestamp, name, attributes.start.type, dur
   count(*) as launches
   by attributes.start.type
 | sort attributes.start.type"""
-
 
 
 # --- Time series ---
@@ -393,6 +391,7 @@ PAGE_FLOWS_QUERY = """fields metadata.pageId, metadata.parentPageId
 | limit 50"""
 
 # --- Correlation ---
+
 
 def trace_ids_for_page_query(page_url: str, limit: int = 100) -> str:
     """Find X-Ray trace IDs from slow pages.

@@ -36,14 +36,14 @@ from .utils import remove_null_values
 from datetime import datetime, timezone
 from functools import lru_cache
 from loguru import logger
-from typing import Optional
+from typing import Any, Callable, Optional
 
 
 # ---------------------------------------------------------------------------
 # Dispatcher – the single public MCP tool
 # ---------------------------------------------------------------------------
 
-_ACTION_MAP: dict[str, callable] = {}  # populated after function definitions
+_ACTION_MAP: dict[str, Callable] = {}  # populated after function definitions
 
 # Cap for arbitrary `query` action to bound LLM context blow-up.
 _QUERY_ACTION_MAX_RESULTS_CAP = 200
@@ -146,25 +146,44 @@ async def rum(
     """
     handler = _ACTION_MAP.get(action)
     if not handler:
-        return json.dumps({
-            'error': f"Unknown action '{action}'.",
-            'error_type': 'bad_request',
-            'available_actions': sorted(_ACTION_MAP.keys()),
-        })
+        return json.dumps(
+            {
+                'error': f"Unknown action '{action}'.",
+                'error_type': 'bad_request',
+                'available_actions': sorted(_ACTION_MAP.keys()),
+            }
+        )
     # Build kwargs from non-None values (excluding 'action')
-    kwargs = {k: v for k, v in dict(
-        app_monitor_name=app_monitor_name, resource_arn=resource_arn,
-        query_string=query_string, start_time=start_time, end_time=end_time,
-        max_results=max_results, page_url=page_url, group_by=group_by,
-        platform=platform, max_traces=max_traces, metric_names=metric_names,
-        statistic=statistic, period=period, session_id=session_id,
-        metric=metric, bucket=bucket, compare_previous=compare_previous,
-        limit=limit,
-    ).items() if v is not None}
+    _all_kwargs = {
+        'app_monitor_name': app_monitor_name,
+        'resource_arn': resource_arn,
+        'query_string': query_string,
+        'start_time': start_time,
+        'end_time': end_time,
+        'max_results': max_results,
+        'page_url': page_url,
+        'group_by': group_by,
+        'platform': platform,
+        'max_traces': max_traces,
+        'metric_names': metric_names,
+        'statistic': statistic,
+        'period': period,
+        'session_id': session_id,
+        'metric': metric,
+        'bucket': bucket,
+        'compare_previous': compare_previous,
+        'limit': limit,
+    }
+    kwargs = {k: v for k, v in _all_kwargs.items() if v is not None}
     try:
         return await handler(**kwargs)
     except TypeError as e:
-        return json.dumps({'error': f"Invalid parameters for action '{action}': {e}", 'error_type': 'bad_request'})
+        return json.dumps(
+            {
+                'error': f"Invalid parameters for action '{action}': {e}",
+                'error_type': 'bad_request',
+            }
+        )
 
 
 # --- Internal helpers ---
@@ -188,7 +207,9 @@ def _get_partition() -> str:
 
 def _log_group_arn(log_group_name: str) -> str:
     """Compose a CloudWatch Logs log group ARN from its name."""
-    return f'arn:{_get_partition()}:logs:{AWS_REGION}:{_get_account_id()}:log-group:{log_group_name}'
+    return (
+        f'arn:{_get_partition()}:logs:{AWS_REGION}:{_get_account_id()}:log-group:{log_group_name}'
+    )
 
 
 def _clear_module_caches() -> None:
@@ -275,7 +296,9 @@ def _detect_platform_from_logs(log_group: str) -> str:
                 continue
             if 'resource' in msg or 'scope' in msg:
                 mobile_hits += 1
-            elif isinstance(msg.get('event_type'), str) and msg['event_type'].startswith('com.amazon.rum.'):
+            elif isinstance(msg.get('event_type'), str) and msg['event_type'].startswith(
+                'com.amazon.rum.'
+            ):
                 web_hits += 1
         if mobile_hits > web_hits:
             return 'mobile'
@@ -293,10 +316,10 @@ async def _get_rum_app_info(app_monitor_name: str) -> tuple[str, str]:
 
 
 _UNKNOWN_PLATFORM_HINT = (
-    "Platform could not be determined: GetAppMonitor did not return a Platform "
-    "and the log group has no parseable events in the last 24h. "
-    "For a new monitor, wait for events to arrive; otherwise verify the monitor "
-    "is instrumented and CwLogEnabled=true."
+    'Platform could not be determined: GetAppMonitor did not return a Platform '
+    'and the log group has no parseable events in the last 24h. '
+    'For a new monitor, wait for events to arrive; otherwise verify the monitor '
+    'is instrumented and CwLogEnabled=true.'
 )
 
 
@@ -311,13 +334,15 @@ def _unknown_platform_response(app_monitor_name: str) -> str:
     Emits both ``platform`` and ``monitor_platform`` keyed to 'unknown' so
     callers can read either key without branching on action type.
     """
-    return json.dumps({
-        'app_monitor': app_monitor_name,
-        'platform': 'unknown',
-        'monitor_platform': 'unknown',
-        'error': _UNKNOWN_PLATFORM_HINT,
-        'error_type': 'bad_request',
-    })
+    return json.dumps(
+        {
+            'app_monitor': app_monitor_name,
+            'platform': 'unknown',
+            'monitor_platform': 'unknown',
+            'error': _UNKNOWN_PLATFORM_HINT,
+            'error_type': 'bad_request',
+        }
+    )
 
 
 def _run_logs_insights_query_sync(
@@ -351,7 +376,7 @@ def _run_logs_insights_query_sync(
             break
         time.sleep(poll_interval)
 
-    if timed_out:
+    if timed_out or result is None:
         # Free the concurrency slot — otherwise the query keeps running server-side.
         try:
             logs_client.stop_query(queryId=query_id)
@@ -361,7 +386,7 @@ def _run_logs_insights_query_sync(
 
     rows = []
     for row in result.get('results', []):
-        rows.append({f['field']: f['value'] for f in row})
+        rows.append({f.get('field', ''): f.get('value', '') for f in row})
 
     return {
         'status': result['status'],
@@ -386,8 +411,13 @@ async def _run_logs_insights_query(
     """
     return await asyncio.to_thread(
         _run_logs_insights_query_sync,
-        log_group, query_string, start_time, end_time,
-        max_results, poll_interval, max_poll_seconds,
+        log_group,
+        query_string,
+        start_time,
+        end_time,
+        max_results,
+        poll_interval,
+        max_poll_seconds,
     )
 
 
@@ -400,10 +430,10 @@ def _parse_time(time_str: str) -> datetime:
 
 
 def _platform_mismatch(requested: str, monitor_platform: str) -> Optional[str]:
-    """Return an error message if caller's requested platform is incompatible
-    with the monitor's actual platform; else None.
+    """Return an error message if the requested platform is incompatible with the monitor.
 
     ``requested`` is 'ios'/'android'/'all' and ``monitor_platform`` is 'web'/'mobile'.
+    Returns ``None`` when the platforms are compatible.
     """
     if requested == 'all':
         return None
@@ -427,7 +457,9 @@ async def check_rum_data_access(app_monitor_name: str) -> str:
     try:
         resp = await asyncio.to_thread(rum_client.get_app_monitor, Name=app_monitor_name)
     except rum_client.exceptions.ResourceNotFoundException:
-        return json.dumps({'error': f"App monitor '{app_monitor_name}' not found.", 'error_type': 'bad_request'})
+        return json.dumps(
+            {'error': f"App monitor '{app_monitor_name}' not found.", 'error_type': 'bad_request'}
+        )
     except Exception as e:
         return json.dumps({'error': str(e), 'error_type': 'service_error'})
 
@@ -450,58 +482,70 @@ async def check_rum_data_access(app_monitor_name: str) -> str:
         capabilities.append('CW Logs Insights queries (errors, performance, sessions, page views)')
         capabilities.append(f'Log group: {cw_log_group}')
     else:
-        findings.append({
-            'severity': 'HIGH',
-            'issue': 'CloudWatch Logs not enabled',
-            'impact': 'Cannot use Logs Insights analytics tools (errors, performance, sessions)',
-            'fix': 'Enable CW Logs via the AWS console or CLI: aws rum update-app-monitor --name <name> --cw-log-enabled. Recommended retention: 30 days.',
-        })
+        findings.append(
+            {
+                'severity': 'HIGH',
+                'issue': 'CloudWatch Logs not enabled',
+                'impact': 'Cannot use Logs Insights analytics tools (errors, performance, sessions)',
+                'fix': 'Enable CW Logs via the AWS console or CLI: aws rum update-app-monitor --name <name> --cw-log-enabled. Recommended retention: 30 days.',
+            }
+        )
 
     if xray_enabled:
         capabilities.append('X-Ray trace correlation (frontend-to-backend)')
     else:
-        findings.append({
-            'severity': 'MEDIUM',
-            'issue': 'X-Ray tracing not enabled',
-            'impact': 'Cannot correlate frontend errors to backend services',
-            'fix': "Enable X-Ray in app monitor config and add 'http' to telemetries.",
-        })
+        findings.append(
+            {
+                'severity': 'MEDIUM',
+                'issue': 'X-Ray tracing not enabled',
+                'impact': 'Cannot correlate frontend errors to backend services',
+                'fix': "Enable X-Ray in app monitor config and add 'http' to telemetries.",
+            }
+        )
 
     expected = {'errors', 'performance', 'http'}
     enabled = {t.lower() for t in telemetries}
     missing = expected - enabled
     if missing:
-        findings.append({
-            'severity': 'MEDIUM',
-            'issue': f"Missing telemetry categories: {', '.join(sorted(missing))}",
-            'impact': f"No data collection for: {', '.join(sorted(missing))}",
-            'fix': f"Add {sorted(missing)} to telemetries list.",
-        })
+        findings.append(
+            {
+                'severity': 'MEDIUM',
+                'issue': f'Missing telemetry categories: {", ".join(sorted(missing))}',
+                'impact': f'No data collection for: {", ".join(sorted(missing))}',
+                'fix': f'Add {sorted(missing)} to telemetries list.',
+            }
+        )
     else:
-        capabilities.append(f"Telemetries: {', '.join(sorted(enabled))}")
+        capabilities.append(f'Telemetries: {", ".join(sorted(enabled))}')
 
     if sample_rate == 0:
-        findings.append({
-            'severity': 'HIGH',
-            'issue': 'Session sample rate is 0%',
-            'impact': 'No sessions are being recorded',
-            'fix': 'Set sessionSampleRate to a value > 0 (e.g., 1.0 for 100%).',
-        })
+        findings.append(
+            {
+                'severity': 'HIGH',
+                'issue': 'Session sample rate is 0%',
+                'impact': 'No sessions are being recorded',
+                'fix': 'Set sessionSampleRate to a value > 0 (e.g., 1.0 for 100%).',
+            }
+        )
     elif sample_rate < 0.1:
-        findings.append({
-            'severity': 'LOW',
-            'issue': f'Low session sample rate: {sample_rate * 100:.0f}%',
-            'impact': 'Limited data for analytics — results may not be representative',
-            'fix': 'Consider increasing sample rate for better coverage.',
-        })
+        findings.append(
+            {
+                'severity': 'LOW',
+                'issue': f'Low session sample rate: {sample_rate * 100:.0f}%',
+                'impact': 'Limited data for analytics — results may not be representative',
+                'fix': 'Consider increasing sample rate for better coverage.',
+            }
+        )
 
     if not allow_cookies:
-        findings.append({
-            'severity': 'LOW',
-            'issue': 'Cookies disabled (allowCookies=false)',
-            'impact': 'No session tracking — sessions cannot span page reloads, no return visitor counts',
-            'fix': 'Set allowCookies=true for session tracking.',
-        })
+        findings.append(
+            {
+                'severity': 'LOW',
+                'issue': 'Cookies disabled (allowCookies=false)',
+                'impact': 'No session tracking — sessions cannot span page reloads, no return visitor counts',
+                'fix': 'Set allowCookies=true for session tracking.',
+            }
+        )
 
     capabilities.append('CloudWatch Metrics (AWS/RUM namespace) — always available')
 
@@ -525,6 +569,7 @@ async def check_rum_data_access(app_monitor_name: str) -> str:
 
 async def list_rum_app_monitors(max_results: int = 25) -> str:
     """List all CloudWatch RUM app monitors in the account."""
+
     def _list() -> list:
         out = []
         paginator = rum_client.get_paginator('list_app_monitors')
@@ -594,10 +639,12 @@ async def query_rum_events(
     try:
         capped = max(1, min(int(max_results), _QUERY_ACTION_MAX_RESULTS_CAP))
     except (TypeError, ValueError):
-        return json.dumps({
-            'error': f"Invalid max_results '{max_results}'; expected integer.",
-            'error_type': 'bad_request',
-        })
+        return json.dumps(
+            {
+                'error': f"Invalid max_results '{max_results}'; expected integer.",
+                'error_type': 'bad_request',
+            }
+        )
     try:
         result = await _run_logs_insights_query(
             log_group=log_group,
@@ -606,13 +653,16 @@ async def query_rum_events(
             end_time=_parse_time(end_time),
             max_results=capped,
         )
-        return json.dumps({
-            'app_monitor': app_monitor_name,
-            'log_group': log_group,
-            'query': query_string,
-            'max_results_cap': _QUERY_ACTION_MAX_RESULTS_CAP,
-            **result,
-        }, default=str)
+        return json.dumps(
+            {
+                'app_monitor': app_monitor_name,
+                'log_group': log_group,
+                'query': query_string,
+                'max_results_cap': _QUERY_ACTION_MAX_RESULTS_CAP,
+                **result,
+            },
+            default=str,
+        )
     except Exception as e:
         return json.dumps({'error': str(e), 'error_type': 'service_error'})
 
@@ -671,7 +721,9 @@ async def audit_rum_health(
 
         async def _run_prev(q):
             try:
-                return await _run_logs_insights_query(log_group, q, prev_st, prev_et, max_results=10)
+                return await _run_logs_insights_query(
+                    log_group, q, prev_st, prev_et, max_results=10
+                )
             except Exception as e:
                 return {'status': 'Failed', 'error': str(e), 'results': []}
 
@@ -701,12 +753,17 @@ async def get_rum_errors(
         return _unknown_platform_response(app_monitor_name)
 
     query = rum_queries.errors_query(page_url=page_url, group_by=group_by)
-    result = await _run_logs_insights_query(log_group, query, _parse_time(start_time), _parse_time(end_time))
-    return json.dumps({
-        'app_monitor': app_monitor_name,
-        'query': query,
-        **result,
-    }, default=str)
+    result = await _run_logs_insights_query(
+        log_group, query, _parse_time(start_time), _parse_time(end_time)
+    )
+    return json.dumps(
+        {
+            'app_monitor': app_monitor_name,
+            'query': query,
+            **result,
+        },
+        default=str,
+    )
 
 
 async def get_rum_performance(
@@ -728,8 +785,12 @@ async def get_rum_performance(
     et = _parse_time(end_time)
 
     nav_result, vitals_result = await asyncio.gather(
-        _run_logs_insights_query(log_group, rum_queries.performance_navigation_query(page_url), st, et),
-        _run_logs_insights_query(log_group, rum_queries.performance_web_vitals_query(page_url), st, et),
+        _run_logs_insights_query(
+            log_group, rum_queries.performance_navigation_query(page_url), st, et
+        ),
+        _run_logs_insights_query(
+            log_group, rum_queries.performance_web_vitals_query(page_url), st, et
+        ),
     )
 
     # Classify Web Vitals into good/needs-improvement/poor per web.dev thresholds.
@@ -757,11 +818,14 @@ async def get_rum_performance(
             except (ValueError, TypeError):
                 pass
 
-    return json.dumps({
-        'app_monitor': app_monitor_name,
-        'navigation_timings': nav_result,
-        'web_vitals': vitals_result,
-    }, default=str)
+    return json.dumps(
+        {
+            'app_monitor': app_monitor_name,
+            'navigation_timings': nav_result,
+            'web_vitals': vitals_result,
+        },
+        default=str,
+    )
 
 
 async def get_rum_sessions(
@@ -782,7 +846,9 @@ async def get_rum_sessions(
     et = _parse_time(end_time)
     query = rum_queries.SESSIONS_QUERY if platform == 'web' else rum_queries.MOBILE_SESSIONS_QUERY
     result = await _run_logs_insights_query(log_group, query, st, et)
-    return json.dumps({'app_monitor': app_monitor_name, 'platform': platform, **result}, default=str)
+    return json.dumps(
+        {'app_monitor': app_monitor_name, 'platform': platform, **result}, default=str
+    )
 
 
 async def get_rum_page_views(
@@ -832,17 +898,34 @@ async def get_rum_timeseries(
         query_map = {
             'errors': rum_queries.errors_timeseries_query(bucket, page_url),
             'performance': rum_queries.performance_timeseries_query(bucket, page_url),
-            'sessions': (rum_queries.sessions_timeseries_query(bucket) if platform == 'web'
-                         else rum_queries.mobile_sessions_timeseries_query(bucket)),
+            'sessions': (
+                rum_queries.sessions_timeseries_query(bucket)
+                if platform == 'web'
+                else rum_queries.mobile_sessions_timeseries_query(bucket)
+            ),
         }
     except ValueError as e:
         return json.dumps({'error': str(e), 'error_type': 'bad_request'})
     query = query_map.get(metric)
     if not query:
-        return json.dumps({'error': f"Unknown metric '{metric}'. Use: errors, performance, sessions.", 'error_type': 'bad_request'})
+        return json.dumps(
+            {
+                'error': f"Unknown metric '{metric}'. Use: errors, performance, sessions.",
+                'error_type': 'bad_request',
+            }
+        )
 
     result = await _run_logs_insights_query(log_group, query, st, et)
-    return json.dumps({'app_monitor': app_monitor_name, 'metric': metric, 'bucket': bucket, 'platform': platform, **result}, default=str)
+    return json.dumps(
+        {
+            'app_monitor': app_monitor_name,
+            'metric': metric,
+            'bucket': bucket,
+            'platform': platform,
+            **result,
+        },
+        default=str,
+    )
 
 
 async def get_rum_locations(
@@ -867,11 +950,14 @@ async def get_rum_locations(
         _run_logs_insights_query(log_group, rum_queries.geo_performance_query(page_url), st, et),
     )
 
-    return json.dumps({
-        'app_monitor': app_monitor_name,
-        'sessions_by_country': sessions_result,
-        'performance_by_country': perf_result,
-    }, default=str)
+    return json.dumps(
+        {
+            'app_monitor': app_monitor_name,
+            'sessions_by_country': sessions_result,
+            'performance_by_country': perf_result,
+        },
+        default=str,
+    )
 
 
 async def get_rum_http_requests(
@@ -890,8 +976,10 @@ async def get_rum_http_requests(
         return _unknown_platform_response(app_monitor_name)
 
     result = await _run_logs_insights_query(
-        log_group, rum_queries.http_requests_query(page_url),
-        _parse_time(start_time), _parse_time(end_time),
+        log_group,
+        rum_queries.http_requests_query(page_url),
+        _parse_time(start_time),
+        _parse_time(end_time),
     )
     return json.dumps({'app_monitor': app_monitor_name, **result}, default=str)
 
@@ -915,20 +1003,28 @@ async def get_rum_session_detail(
     try:
         capped_limit = max(1, min(int(limit), _SESSION_DETAIL_MAX_LIMIT))
     except (TypeError, ValueError):
-        return json.dumps({'error': f"Invalid limit '{limit}'; expected integer.", 'error_type': 'bad_request'})
+        return json.dumps(
+            {'error': f"Invalid limit '{limit}'; expected integer.", 'error_type': 'bad_request'}
+        )
     st = _parse_time(start_time)
     et = _parse_time(end_time)
-    query = (rum_queries.session_detail_query(session_id, limit=capped_limit) if platform == 'web'
-             else rum_queries.mobile_session_detail_query(session_id, limit=capped_limit))
+    query = (
+        rum_queries.session_detail_query(session_id, limit=capped_limit)
+        if platform == 'web'
+        else rum_queries.mobile_session_detail_query(session_id, limit=capped_limit)
+    )
     result = await _run_logs_insights_query(log_group, query, st, et)
-    return json.dumps({
-        'app_monitor': app_monitor_name,
-        'session_id': session_id,
-        'platform': platform,
-        'limit': capped_limit,
-        'limit_cap': _SESSION_DETAIL_MAX_LIMIT,
-        **result,
-    }, default=str)
+    return json.dumps(
+        {
+            'app_monitor': app_monitor_name,
+            'session_id': session_id,
+            'platform': platform,
+            'limit': capped_limit,
+            'limit_cap': _SESSION_DETAIL_MAX_LIMIT,
+            **result,
+        },
+        default=str,
+    )
 
 
 async def get_rum_resources(
@@ -947,8 +1043,10 @@ async def get_rum_resources(
         return _unknown_platform_response(app_monitor_name)
 
     result = await _run_logs_insights_query(
-        log_group, rum_queries.resource_requests_query(page_url),
-        _parse_time(start_time), _parse_time(end_time),
+        log_group,
+        rum_queries.resource_requests_query(page_url),
+        _parse_time(start_time),
+        _parse_time(end_time),
     )
     return json.dumps({'app_monitor': app_monitor_name, **result}, default=str)
 
@@ -968,8 +1066,10 @@ async def get_rum_page_flows(
         return _unknown_platform_response(app_monitor_name)
 
     result = await _run_logs_insights_query(
-        log_group, rum_queries.PAGE_FLOWS_QUERY,
-        _parse_time(start_time), _parse_time(end_time),
+        log_group,
+        rum_queries.PAGE_FLOWS_QUERY,
+        _parse_time(start_time),
+        _parse_time(end_time),
     )
     return json.dumps({'app_monitor': app_monitor_name, **result}, default=str)
 
@@ -989,10 +1089,12 @@ async def get_rum_crashes(
     Returns an error if called on a web app monitor with a mobile-only platform filter.
     """
     if platform not in ('ios', 'android', 'all'):
-        return json.dumps({
-            'error': f"Invalid platform '{platform}'. Use 'ios', 'android', or 'all'.",
-            'error_type': 'bad_request',
-        })
+        return json.dumps(
+            {
+                'error': f"Invalid platform '{platform}'. Use 'ios', 'android', or 'all'.",
+                'error_type': 'bad_request',
+            }
+        )
 
     try:
         log_group, monitor_platform = await _get_rum_app_info(app_monitor_name)
@@ -1001,38 +1103,53 @@ async def get_rum_crashes(
 
     mismatch = _platform_mismatch(platform, monitor_platform)
     if mismatch:
-        return json.dumps({'error': mismatch, 'error_type': 'bad_request', 'monitor_platform': monitor_platform})
+        return json.dumps(
+            {'error': mismatch, 'error_type': 'bad_request', 'monitor_platform': monitor_platform}
+        )
 
     if monitor_platform == 'unknown':
         return _unknown_platform_response(app_monitor_name)
 
     if platform == 'all' and monitor_platform == 'web':
-        return json.dumps({
-            'app_monitor': app_monitor_name,
-            'monitor_platform': 'web',
-            'message': 'Crash queries apply to mobile app monitors only.',
-        })
+        return json.dumps(
+            {
+                'app_monitor': app_monitor_name,
+                'monitor_platform': 'web',
+                'message': 'Crash queries apply to mobile app monitors only.',
+            }
+        )
 
     st = _parse_time(start_time)
     et = _parse_time(end_time)
     tasks = {}
 
     if platform in ('ios', 'all'):
-        tasks['ios_crashes'] = _run_logs_insights_query(log_group, rum_queries.MOBILE_CRASHES_IOS, st, et)
-        tasks['ios_hangs'] = _run_logs_insights_query(log_group, rum_queries.MOBILE_HANGS_IOS, st, et)
+        tasks['ios_crashes'] = _run_logs_insights_query(
+            log_group, rum_queries.MOBILE_CRASHES_IOS, st, et
+        )
+        tasks['ios_hangs'] = _run_logs_insights_query(
+            log_group, rum_queries.MOBILE_HANGS_IOS, st, et
+        )
     if platform in ('android', 'all'):
-        tasks['android'] = _run_logs_insights_query(log_group, rum_queries.MOBILE_CRASHES_ANDROID, st, et)
-        tasks['android_anrs'] = _run_logs_insights_query(log_group, rum_queries.MOBILE_ANRS_ANDROID, st, et)
+        tasks['android'] = _run_logs_insights_query(
+            log_group, rum_queries.MOBILE_CRASHES_ANDROID, st, et
+        )
+        tasks['android_anrs'] = _run_logs_insights_query(
+            log_group, rum_queries.MOBILE_ANRS_ANDROID, st, et
+        )
 
     names = list(tasks.keys())
     vals = await asyncio.gather(*(tasks[n] for n in names))
     results = dict(zip(names, vals))
 
-    return json.dumps({
-        'app_monitor': app_monitor_name,
-        'note': 'Field paths validated against ADOT Android SDK and aws-otel-swift SDK.',
-        **results,
-    }, default=str)
+    return json.dumps(
+        {
+            'app_monitor': app_monitor_name,
+            'note': 'Field paths validated against ADOT Android SDK and aws-otel-swift SDK.',
+            **results,
+        },
+        default=str,
+    )
 
 
 async def get_rum_app_launches(
@@ -1043,10 +1160,12 @@ async def get_rum_app_launches(
 ) -> str:
     """Get mobile app launch performance (cold/warm/pre-warm)."""
     if platform not in ('ios', 'android', 'all'):
-        return json.dumps({
-            'error': f"Invalid platform '{platform}'. Use 'ios', 'android', or 'all'.",
-            'error_type': 'bad_request',
-        })
+        return json.dumps(
+            {
+                'error': f"Invalid platform '{platform}'. Use 'ios', 'android', or 'all'.",
+                'error_type': 'bad_request',
+            }
+        )
 
     try:
         log_group, monitor_platform = await _get_rum_app_info(app_monitor_name)
@@ -1055,36 +1174,47 @@ async def get_rum_app_launches(
 
     mismatch = _platform_mismatch(platform, monitor_platform)
     if mismatch:
-        return json.dumps({'error': mismatch, 'error_type': 'bad_request', 'monitor_platform': monitor_platform})
+        return json.dumps(
+            {'error': mismatch, 'error_type': 'bad_request', 'monitor_platform': monitor_platform}
+        )
 
     if monitor_platform == 'unknown':
         return _unknown_platform_response(app_monitor_name)
 
     if platform == 'all' and monitor_platform == 'web':
-        return json.dumps({
-            'app_monitor': app_monitor_name,
-            'monitor_platform': 'web',
-            'message': 'App launch queries apply to mobile app monitors only.',
-        })
+        return json.dumps(
+            {
+                'app_monitor': app_monitor_name,
+                'monitor_platform': 'web',
+                'message': 'App launch queries apply to mobile app monitors only.',
+            }
+        )
 
     st = _parse_time(start_time)
     et = _parse_time(end_time)
     tasks = {}
 
     if platform in ('ios', 'all'):
-        tasks['ios'] = _run_logs_insights_query(log_group, rum_queries.MOBILE_APP_LAUNCHES_IOS, st, et)
+        tasks['ios'] = _run_logs_insights_query(
+            log_group, rum_queries.MOBILE_APP_LAUNCHES_IOS, st, et
+        )
     if platform in ('android', 'all'):
-        tasks['android'] = _run_logs_insights_query(log_group, rum_queries.MOBILE_APP_LAUNCHES_ANDROID, st, et)
+        tasks['android'] = _run_logs_insights_query(
+            log_group, rum_queries.MOBILE_APP_LAUNCHES_ANDROID, st, et
+        )
 
     names = list(tasks.keys())
     vals = await asyncio.gather(*(tasks[n] for n in names))
     results = dict(zip(names, vals))
 
-    return json.dumps({
-        'app_monitor': app_monitor_name,
-        'note': 'Field paths validated against ADOT Android SDK and aws-otel-swift SDK.',
-        **results,
-    }, default=str)
+    return json.dumps(
+        {
+            'app_monitor': app_monitor_name,
+            'note': 'Field paths validated against ADOT Android SDK and aws-otel-swift SDK.',
+            **results,
+        },
+        default=str,
+    )
 
 
 async def analyze_rum_log_group(
@@ -1102,7 +1232,7 @@ async def analyze_rum_log_group(
     et = _parse_time(end_time)
     log_group_arn = _log_group_arn(log_group)
 
-    anomaly_info = {'detectors': [], 'anomalies': []}
+    anomaly_info: dict[str, Any] = {'detectors': [], 'anomalies': []}
 
     def _fetch_anomaly_detectors() -> tuple[list, Optional[str]]:
         try:
@@ -1116,10 +1246,10 @@ async def analyze_rum_log_group(
             out: list = []
             token: Optional[str] = None
             for _ in range(_ANOMALY_PAGE_CAP):
-                kwargs = {'anomalyDetectorArn': arn}
                 if token:
-                    kwargs['nextToken'] = token
-                resp = logs_client.list_anomalies(**kwargs)
+                    resp = logs_client.list_anomalies(anomalyDetectorArn=arn, nextToken=token)
+                else:
+                    resp = logs_client.list_anomalies(anomalyDetectorArn=arn)
                 out.extend(resp.get('anomalies', []))
                 token = resp.get('nextToken')
                 if not token:
@@ -1137,7 +1267,9 @@ async def analyze_rum_log_group(
             {'name': d.get('detectorName'), 'status': d.get('anomalyDetectorStatus')}
             for d in detectors
         ]
-        detector_arns = [d.get('anomalyDetectorArn') for d in detectors if d.get('anomalyDetectorArn')]
+        detector_arns = [
+            d.get('anomalyDetectorArn') for d in detectors if d.get('anomalyDetectorArn')
+        ]
         anomaly_results = await asyncio.gather(
             *(asyncio.to_thread(_list_anomalies_for, arn) for arn in detector_arns)
         )
@@ -1159,12 +1291,15 @@ async def analyze_rum_log_group(
         _run_logs_insights_query(log_group, rum_queries.ERROR_PATTERNS_QUERY, st, et),
     )
 
-    return json.dumps({
-        'app_monitor': app_monitor_name,
-        'anomaly_detection': anomaly_info,
-        'top_patterns': top_patterns,
-        'error_patterns': error_patterns,
-    }, default=str)
+    return json.dumps(
+        {
+            'app_monitor': app_monitor_name,
+            'anomaly_detection': anomaly_info,
+            'top_patterns': top_patterns,
+            'error_patterns': error_patterns,
+        },
+        default=str,
+    )
 
 
 # --- Wave 6: Correlation + Metrics ---
@@ -1192,10 +1327,12 @@ async def correlate_rum_to_backend(
     try:
         capped_traces = max(1, min(int(max_traces), _CORRELATE_MAX_TRACES_CAP))
     except (TypeError, ValueError):
-        return json.dumps({
-            'error': f"Invalid max_traces '{max_traces}'; expected integer.",
-            'error_type': 'bad_request',
-        })
+        return json.dumps(
+            {
+                'error': f"Invalid max_traces '{max_traces}'; expected integer.",
+                'error_type': 'bad_request',
+            }
+        )
 
     # capped_traces is already clamped to _CORRELATE_MAX_TRACES_CAP above, so
     # raw_limit is bounded at 100 * 5 = 500 scanned rows.
@@ -1213,20 +1350,23 @@ async def correlate_rum_to_backend(
     trace_ids = list(dict.fromkeys(raw_trace_ids))[:capped_traces]
 
     if not trace_ids:
-        return json.dumps({
-            'app_monitor': app_monitor_name,
-            'page_url': page_url,
-            'trace_ids': [],
-            'trace_count': 0,
-            'max_traces': capped_traces,
-            'max_traces_cap': _CORRELATE_MAX_TRACES_CAP,
-            'backend_services': {},
-            'message': 'No X-Ray trace events found. Ensure X-Ray is enabled and http telemetry is active.',
-            'logs_query_result': logs_result,
-        }, default=str)
+        return json.dumps(
+            {
+                'app_monitor': app_monitor_name,
+                'page_url': page_url,
+                'trace_ids': [],
+                'trace_count': 0,
+                'max_traces': capped_traces,
+                'max_traces_cap': _CORRELATE_MAX_TRACES_CAP,
+                'backend_services': {},
+                'message': 'No X-Ray trace events found. Ensure X-Ray is enabled and http telemetry is active.',
+                'logs_query_result': logs_result,
+            },
+            default=str,
+        )
 
     # BatchGetTraces accepts max 5 IDs per call — fan out in parallel.
-    batches = [trace_ids[i:i + 5] for i in range(0, len(trace_ids), 5)]
+    batches = [trace_ids[i : i + 5] for i in range(0, len(trace_ids), 5)]
 
     def _get_batch(batch):
         try:
@@ -1243,18 +1383,21 @@ async def correlate_rum_to_backend(
     # Keep the response shape identical to the success and no-traces branches so
     # callers can iterate uniformly across the three outcomes.
     if batch_errors and not traces:
-        return json.dumps({
-            'app_monitor': app_monitor_name,
-            'page_url': page_url,
-            'trace_ids': trace_ids,
-            'trace_count': 0,
-            'max_traces': capped_traces,
-            'max_traces_cap': _CORRELATE_MAX_TRACES_CAP,
-            'backend_services': {},
-            'error': f'All X-Ray batch_get_traces calls failed: {batch_errors[0]}',
-            'error_type': 'service_error',
-            'batch_error_count': len(batch_errors),
-        }, default=str)
+        return json.dumps(
+            {
+                'app_monitor': app_monitor_name,
+                'page_url': page_url,
+                'trace_ids': trace_ids,
+                'trace_count': 0,
+                'max_traces': capped_traces,
+                'max_traces_cap': _CORRELATE_MAX_TRACES_CAP,
+                'backend_services': {},
+                'error': f'All X-Ray batch_get_traces calls failed: {batch_errors[0]}',
+                'error_type': 'service_error',
+                'batch_error_count': len(batch_errors),
+            },
+            default=str,
+        )
 
     services = {}
     for trace in traces:
@@ -1312,28 +1455,34 @@ async def get_rum_metrics(
     except (ValueError, TypeError) as e:
         return json.dumps({'error': str(e), 'error_type': 'bad_request'})
 
-    if not isinstance(names, list) or not names or not all(
-        isinstance(n, str) and n for n in names
+    if (
+        not isinstance(names, list)
+        or not names
+        or not all(isinstance(n, str) and n for n in names)
     ):
-        return json.dumps({
-            'error': "metric_names must be a non-empty JSON array of strings, e.g. '[\"JsErrorCount\"]'.",
-            'error_type': 'bad_request',
-        })
+        return json.dumps(
+            {
+                'error': 'metric_names must be a non-empty JSON array of strings, e.g. \'["JsErrorCount"]\'.',
+                'error_type': 'bad_request',
+            }
+        )
 
     queries = []
     for i, name in enumerate(names):
-        queries.append({
-            'Id': f'm{i}',
-            'MetricStat': {
-                'Metric': {
-                    'Namespace': 'AWS/RUM',
-                    'MetricName': name,
-                    'Dimensions': [{'Name': 'application_name', 'Value': app_monitor_name}],
+        queries.append(
+            {
+                'Id': f'm{i}',
+                'MetricStat': {
+                    'Metric': {
+                        'Namespace': 'AWS/RUM',
+                        'MetricName': name,
+                        'Dimensions': [{'Name': 'application_name', 'Value': app_monitor_name}],
+                    },
+                    'Period': period,
+                    'Stat': statistic,
                 },
-                'Period': period,
-                'Stat': statistic,
-            },
-        })
+            }
+        )
 
     # Service call — throttling, permissions, etc. Paginate on NextToken so
     # long windows at short periods don't silently truncate to the first page.
@@ -1372,12 +1521,15 @@ async def get_rum_metrics(
             for mr in page.get('MetricDataResults', []):
                 idx = int(mr['Id'][1:])
                 metric_name = names[idx]
-                entry = results.setdefault(metric_name, {
-                    'timestamps': [],
-                    'values': [],
-                    'statistic': statistic,
-                    'status': mr.get('StatusCode', 'Unknown'),
-                })
+                entry = results.setdefault(
+                    metric_name,
+                    {
+                        'timestamps': [],
+                        'values': [],
+                        'statistic': statistic,
+                        'status': mr.get('StatusCode', 'Unknown'),
+                    },
+                )
                 entry['timestamps'].extend(t.isoformat() for t in mr.get('Timestamps', []))
                 entry['values'].extend(mr.get('Values', []))
                 page_status = mr.get('StatusCode', entry['status'])
@@ -1391,12 +1543,15 @@ async def get_rum_metrics(
             f'get_metric_data truncated at {_METRIC_DATA_PAGE_CAP} pages '
             f'for {app_monitor_name}; narrow the window or increase period.'
         )
-    return json.dumps({
-        'app_monitor': app_monitor_name,
-        'metrics': results,
-        'truncated': truncated,
-        'page_cap': _METRIC_DATA_PAGE_CAP,
-    }, default=str)
+    return json.dumps(
+        {
+            'app_monitor': app_monitor_name,
+            'metrics': results,
+            'truncated': truncated,
+            'page_cap': _METRIC_DATA_PAGE_CAP,
+        },
+        default=str,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1435,21 +1590,29 @@ async def get_rum_slo_health(
     try:
         slos = await asyncio.to_thread(_list_slos)
     except Exception as e:
-        return json.dumps({
-            'app_monitor': app_monitor_name,
-            'status': 'NO_SLO',
-            'total': 0, 'healthy': 0, 'breaching': 0,
-            'breaching_slos': [],
-            'message': f'Could not list SLOs: {e}',
-        })
+        return json.dumps(
+            {
+                'app_monitor': app_monitor_name,
+                'status': 'NO_SLO',
+                'total': 0,
+                'healthy': 0,
+                'breaching': 0,
+                'breaching_slos': [],
+                'message': f'Could not list SLOs: {e}',
+            }
+        )
 
     if not slos:
-        return json.dumps({
-            'app_monitor': app_monitor_name,
-            'status': 'NO_SLO',
-            'total': 0, 'healthy': 0, 'breaching': 0,
-            'breaching_slos': [],
-        })
+        return json.dumps(
+            {
+                'app_monitor': app_monitor_name,
+                'status': 'NO_SLO',
+                'total': 0,
+                'healthy': 0,
+                'breaching': 0,
+                'breaching_slos': [],
+            }
+        )
 
     async def _check_slo(slo: dict) -> dict:
         slo_name = slo.get('Name', '')
@@ -1460,7 +1623,8 @@ async def get_rum_slo_health(
         slo_id = slo_arn or slo_name
         try:
             resp = await asyncio.to_thread(
-                applicationsignals_client.get_service_level_objective, Id=slo_id,
+                applicationsignals_client.get_service_level_objective,
+                Id=slo_id,
             )
             slo_detail = resp.get('Slo', {})
             goal = slo_detail.get('Goal', {})
@@ -1468,7 +1632,8 @@ async def get_rum_slo_health(
 
             budget_resp = await asyncio.to_thread(
                 applicationsignals_client.batch_get_service_level_objective_budget_report,
-                Timestamp=et, SloIds=[slo_id],
+                Timestamp=et,
+                SloIds=[slo_id],
             )
             reports = budget_resp.get('Reports', [])
             if reports:
@@ -1478,27 +1643,33 @@ async def get_rum_slo_health(
                     return {'kind': 'healthy'}
                 if budget_status == 'BREACHED':
                     metric_name = _extract_slo_metric_name(slo_detail)
-                    return {'kind': 'breaching', 'entry': {
-                        'slo_name': slo_name,
-                        'slo_arn': slo_arn,
-                        'budget_status': budget_status,
-                        'attainment': report.get('Attainment'),
-                        'goal': attainment,
-                        'metric': metric_name,
-                    }}
+                    return {
+                        'kind': 'breaching',
+                        'entry': {
+                            'slo_name': slo_name,
+                            'slo_arn': slo_arn,
+                            'budget_status': budget_status,
+                            'attainment': report.get('Attainment'),
+                            'goal': attainment,
+                            'metric': metric_name,
+                        },
+                    }
                 return {'kind': 'insufficient'}
             return {'kind': 'insufficient'}
         except Exception as e:
             logger.warning(f'Failed to check SLO {slo_id}: {e}')
-            return {'kind': 'error', 'entry': {
-                'slo_name': slo_name,
-                'slo_arn': slo_arn,
-                'budget_status': None,
-                'attainment': None,
-                'goal': None,
-                'metric': None,
-                'error': str(e),
-            }}
+            return {
+                'kind': 'error',
+                'entry': {
+                    'slo_name': slo_name,
+                    'slo_arn': slo_arn,
+                    'budget_status': None,
+                    'attainment': None,
+                    'goal': None,
+                    'metric': None,
+                    'error': str(e),
+                },
+            }
 
     outcomes = await asyncio.gather(*(_check_slo(s) for s in slos))
     breaching = [o['entry'] for o in outcomes if o['kind'] == 'breaching']
@@ -1516,21 +1687,24 @@ async def get_rum_slo_health(
     else:
         status = 'OK'
 
-    return json.dumps({
-        'app_monitor': app_monitor_name,
-        'status': status,
-        'total': total,
-        'healthy': healthy,
-        'breaching': len(breaching),
-        'insufficient_data': insufficient,
-        'errored': len(errored),
-        'breaching_slos': breaching,
-        'errored_slos': errored,
-        'slo_names': [s.get('Name') for s in slos],
-    }, default=str)
+    return json.dumps(
+        {
+            'app_monitor': app_monitor_name,
+            'status': status,
+            'total': total,
+            'healthy': healthy,
+            'breaching': len(breaching),
+            'insufficient_data': insufficient,
+            'errored': len(errored),
+            'breaching_slos': breaching,
+            'errored_slos': errored,
+            'slo_names': [s.get('Name') for s in slos],
+        },
+        default=str,
+    )
 
 
-def _extract_slo_metric_name(slo_detail: dict) -> str:
+def _extract_slo_metric_name(slo_detail: Any) -> str:
     """Extract the RUM metric name from an SLO config."""
     req_sli = slo_detail.get('RequestBasedSli', {}).get('RequestBasedSliMetric', {})
     count_metric = req_sli.get('MonitoredRequestCountMetric', {})
@@ -1547,28 +1721,30 @@ def _extract_slo_metric_name(slo_detail: dict) -> str:
     return 'unknown'
 
 
-_ACTION_MAP.update({
-    'check_data_access': check_rum_data_access,
-    'list_monitors': list_rum_app_monitors,
-    'get_monitor': get_rum_app_monitor,
-    'list_tags': list_rum_tags,
-    'get_policy': get_rum_resource_policy,
-    'query': query_rum_events,
-    'health': audit_rum_health,
-    'errors': get_rum_errors,
-    'performance': get_rum_performance,
-    'sessions': get_rum_sessions,
-    'session_detail': get_rum_session_detail,
-    'page_views': get_rum_page_views,
-    'timeseries': get_rum_timeseries,
-    'locations': get_rum_locations,
-    'http_requests': get_rum_http_requests,
-    'resources': get_rum_resources,
-    'page_flows': get_rum_page_flows,
-    'crashes': get_rum_crashes,
-    'app_launches': get_rum_app_launches,
-    'analyze': analyze_rum_log_group,
-    'correlate': correlate_rum_to_backend,
-    'metrics': get_rum_metrics,
-    'slo_health': get_rum_slo_health,
-})
+_ACTION_MAP.update(
+    {
+        'check_data_access': check_rum_data_access,
+        'list_monitors': list_rum_app_monitors,
+        'get_monitor': get_rum_app_monitor,
+        'list_tags': list_rum_tags,
+        'get_policy': get_rum_resource_policy,
+        'query': query_rum_events,
+        'health': audit_rum_health,
+        'errors': get_rum_errors,
+        'performance': get_rum_performance,
+        'sessions': get_rum_sessions,
+        'session_detail': get_rum_session_detail,
+        'page_views': get_rum_page_views,
+        'timeseries': get_rum_timeseries,
+        'locations': get_rum_locations,
+        'http_requests': get_rum_http_requests,
+        'resources': get_rum_resources,
+        'page_flows': get_rum_page_flows,
+        'crashes': get_rum_crashes,
+        'app_launches': get_rum_app_launches,
+        'analyze': analyze_rum_log_group,
+        'correlate': correlate_rum_to_backend,
+        'metrics': get_rum_metrics,
+        'slo_health': get_rum_slo_health,
+    }
+)

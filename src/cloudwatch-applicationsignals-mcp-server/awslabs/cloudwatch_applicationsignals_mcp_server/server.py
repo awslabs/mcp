@@ -58,6 +58,7 @@ from .group_tools import (
     list_group_services,
     list_grouping_attribute_definitions,
 )
+from .rum_tools import rum
 from .service_audit_utils import normalize_service_targets, validate_and_enrich_service_targets
 from .service_tools import (
     get_service_detail,
@@ -67,7 +68,6 @@ from .service_tools import (
 )
 from .slo_tools import get_slo, list_slos
 from .trace_tools import list_slis, query_sampled_traces, search_transaction_spans
-from .rum_tools import rum
 from .utils import parse_timestamp
 from datetime import datetime, timedelta, timezone
 from loguru import logger

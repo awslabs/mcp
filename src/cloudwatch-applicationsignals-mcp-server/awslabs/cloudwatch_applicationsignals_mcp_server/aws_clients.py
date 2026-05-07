@@ -96,9 +96,7 @@ def _initialize_aws_clients():
         synthetics = boto3.client(
             'synthetics', region_name=AWS_REGION, config=config, endpoint_url=synthetics_endpoint
         )
-        rum = boto3.client(
-            'rum', region_name=AWS_REGION, config=config, endpoint_url=rum_endpoint
-        )
+        rum = boto3.client('rum', region_name=AWS_REGION, config=config, endpoint_url=rum_endpoint)
         s3 = boto3.client('s3', region_name=AWS_REGION, config=config)
         iam = boto3.client('iam', region_name=AWS_REGION, config=config)
         lambda_client = boto3.client('lambda', region_name=AWS_REGION, config=config)
