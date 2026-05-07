@@ -47,6 +47,32 @@ Recommended flow before opening a PR:
 
 Both `/revise` and `/auto-revise` commit but never push — you push manually once you're satisfied.
 
+### Running CI checks locally before you push
+
+Some packages ship a local mirror of the CI workflows so you can catch what
+CI would catch without waiting for GitHub Actions. Today this lives in
+`src/cloudwatch-applicationsignals-mcp-server/` and covers the same steps
+as `.github/workflows/python.yml`, `pre-commit.yml`, `scanners.yml`,
+`semgrep.yml`, and `check-license-header.yml`.
+
+From repo root:
+
+```bash
+./poe           # list available tasks
+./poe ci        # full run — everything CI runs
+./poe ci-fast   # core correctness gates only (~25s)
+./poe test      # pytest with coverage
+./poe lint      # ruff-format, ruff-check, pyright
+./poe scan      # bandit, detect-secrets, semgrep, license-header
+./poe ci --only pytest,ruff-check     # arbitrary ci-check.sh args pass through
+```
+
+The underlying driver is `scripts/ci-check.sh` in the package — run it
+directly with `--list`, `--only`, `--skip`, or `--no-fail-fast` for
+finer control. First-time setup provisions a hash-pinned tool venv
+for `detect-secrets` and `semgrep` (cached afterwards); requires `uv`,
+`python3`, and `jq` on `PATH`.
+
 ### Special `./README.md` considerations for new MCP servers
 
 When adding a new MCP server, you must update the README.md to include your server in the appropriate categories under "Available MCP Servers". Add it to both the "Browse by What You're Building" and "Browse by How You're Working" sections with a brief description that clearly explains its purpose. Include a link to the server's directory using the pattern `src/your-server-name/`. Ensure your server's description is consistent with the style of existing entries.

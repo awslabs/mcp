@@ -51,7 +51,15 @@ dev = [
     "pytest-asyncio>=0.21.1",
     "pytest-cov>=4.1.0",
     "bandit>=1.8.6",
+    "poethepoet>=0.29.0",
 ]
+
+[tool.poe.tasks]
+ci = { cmd = "scripts/ci-check.sh", help = "Run full local CI mirror (pass extra args after --)" }
+ci-fast = { cmd = "scripts/ci-check.sh --skip precommit,semgrep,secrets-scanner", help = "Core correctness gates only (~25s)" }
+test = { cmd = "scripts/ci-check.sh --only pytest", help = "Pytest with coverage" }
+lint = { cmd = "scripts/ci-check.sh --only ruff-format,ruff-check,pyright", help = "Formatters + type checker" }
+scan = { cmd = "scripts/ci-check.sh --only bandit,secrets-scanner,semgrep,license-header", help = "Security + license scanners" }
 
 [build-system]
 requires = ["hatchling"]

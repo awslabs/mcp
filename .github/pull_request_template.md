@@ -18,6 +18,7 @@ If your change doesn't seem to apply, please leave them unchecked.
 * [ ] I have reviewed the [contributing guidelines](https://github.com/awslabs/mcp/blob/main/CONTRIBUTING.md)
 * [ ] I have performed a self-review of this change
 * [ ] I ran `/auto-revise` (or `/review` + `/revise`) locally and addressed any actionable findings — see [Reviewing your changes before opening a PR](https://github.com/awslabs/mcp/blob/main/CONTRIBUTING.md#reviewing-your-changes-before-opening-a-pr)
+* [ ] I ran `./poe ci` locally (or the package's equivalent CI-mirror script) and all steps pass — see [Running CI checks locally before you push](https://github.com/awslabs/mcp/blob/main/CONTRIBUTING.md#running-ci-checks-locally-before-you-push)
 * [ ] Changes have been tested
 * [ ] Changes are documented
 

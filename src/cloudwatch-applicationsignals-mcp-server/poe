@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Convenience wrapper so `./poe <task>` works from the repo root without
+# having to cd into the package. Forwards to uv run poe scoped to this
+# package's pyproject.toml.
+#
+# Tasks are declared under [tool.poe.tasks] in
+# src/cloudwatch-applicationsignals-mcp-server/pyproject.toml.
+# Run `./poe` (no args) from repo root to list them.
+
+set -euo pipefail
+
+SOURCE="${BASH_SOURCE[0]}"
+while [[ -L "$SOURCE" ]]; do
+  target="$(readlink "$SOURCE")"
+  if [[ "$target" = /* ]]; then
+    SOURCE="$target"
+  else
+    SOURCE="$(cd -- "$(dirname -- "$SOURCE")" &>/dev/null && pwd)/$target"
+  fi
+done
+SCRIPT_DIR="$(cd -- "$(dirname -- "$SOURCE")" &>/dev/null && pwd)"
+exec uv --directory "$SCRIPT_DIR" run poe "$@"

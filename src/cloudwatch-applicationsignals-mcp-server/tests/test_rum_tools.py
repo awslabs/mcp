@@ -1683,4 +1683,6 @@ def test_parse_time_naive_datetime_is_normalized_to_utc():
 
     dt = _parse_time('2026-03-01T00:00:00')  # no 'Z', no offset
     assert dt.tzinfo is not None
-    assert dt.utcoffset().total_seconds() == 0
+    offset = dt.utcoffset()
+    assert offset is not None
+    assert offset.total_seconds() == 0
