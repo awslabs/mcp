@@ -1,0 +1,106 @@
+[project]
+name = "awslabs.aws-calculator-mcp-server"
+version = "0.1.0"
+description = "An AWS Labs Model Context Protocol (MCP) server that automates AWS Pricing Calculator via Playwright to generate shareable estimate links for all 159 AWS services"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+license-files = ["LICENSE", "NOTICE"]
+authors = [
+    {name = "Amazon Web Services"},
+    {name = "AWSLabs MCP", email = "203918161+awslabs-mcp@users.noreply.github.com"},
+]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "mcp[cli]>=1.6.0",
+    "playwright>=1.40.0",
+    "pydantic>=2.10.0",
+    "loguru>=0.7.3",
+    "httpx>=0.27.0",
+]
+
+[project.scripts]
+"awslabs.aws-calculator-mcp-server" = "awslabs.aws_calculator_mcp_server.server:main"
+
+[project.urls]
+Homepage = "https://awslabs.github.io/mcp/"
+Documentation = "https://awslabs.github.io/mcp/servers/aws-calculator-mcp-server/"
+Source = "https://github.com/awslabs/mcp.git"
+"Bug Tracker" = "https://github.com/awslabs/mcp/issues"
+Changelog = "https://github.com/awslabs/mcp/blob/main/src/aws-calculator-mcp-server/CHANGELOG.md"
+
+[dependency-groups]
+dev = [
+    "commitizen>=4.2.2",
+    "pre-commit>=4.1.0",
+    "ruff>=0.9.7",
+    "pyright>=1.1.398",
+    "pytest>=8.0.0",
+    "pytest-bdd>=8.1.0",
+    "pytest-cov>=4.1.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.ruff]
+line-length = 99
+exclude = [
+    ".venv",
+    "**/__pycache__",
+    "**/node_modules",
+]
+force-exclude = true
+
+[tool.ruff.lint]
+exclude = ["__init__.py"]
+select = ["C", "D", "E", "F", "I", "W"]
+ignore = ["C901", "E501", "E741", "D100", "D106"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+
+[tool.hatch.build.targets.wheel]
+packages = ["awslabs"]
+
+[tool.pytest.ini_options]
+addopts = "-p no:anyio --cov=awslabs.aws_calculator_mcp_server --cov-report=term-missing"
+testpaths = ["tests"]
+filterwarnings = [
+    "ignore::pytest.PytestUnknownMarkWarning",
+    "ignore::DeprecationWarning",
+]
+markers = [
+    "compute: Compute services",
+    "database: Database services",
+    "storage: Storage services",
+    "networking: Networking services",
+    "messaging: Messaging services",
+    "analytics: Analytics services",
+    "ml: Machine Learning services",
+    "security: Security services",
+    "devops: DevOps services",
+    "media: Media services",
+    "iot: IoT services",
+    "other: Other services",
+]
+
+[tool.coverage.run]
+source = ["awslabs"]
