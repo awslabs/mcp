@@ -4562,3 +4562,490 @@ Feature: AWS Pricing Calculator - Service Configuration Certification
     And I click Save and add service
     Then the service "AWS Audit Manager" should be added successfully
     And a shareable estimate URL should be generated
+
+  # ============================================================
+  # COMPLETE FIELD COVERAGE SCENARIOS
+  # (Services with fields not covered by scenarios above)
+  # ============================================================
+
+  @networking @route53 @full-coverage
+  Scenario: Configure Amazon Route 53 - full health checks and routing
+    Given I search for "Amazon Route 53"
+    And I click Configure
+    When I set the region to "US East (N. Virginia)"
+    And I fill "Hosted Zones" with "10"
+    And I fill "Additional Records in Hosted Zones" with "500"
+    And I fill "Traffic Flow" with "5"
+    And I fill "Standard queries" with "50000000"
+    And I fill "Latency based routing queries" with "10000000"
+    And I fill "Geo DNS queries" with "5000000"
+    And I fill "IP-based routing queries" with "2000000"
+    And I fill "IP (CIDR) blocks" with "50"
+    And I fill "Basic Checks Within AWS" with "10"
+    And I fill "Basic Checks Outside of AWS" with "5"
+    And I fill "HTTPS Checks Within AWS" with "10"
+    And I fill "HTTPS Checks Outside of AWS" with "5"
+    And I fill "String Matching Checks Within AWS" with "5"
+    And I fill "String Matching Checks Outside of AWS" with "3"
+    And I fill "Fast Interval Checks Within AWS" with "5"
+    And I fill "Fast Interval Checks Outside of AWS" with "3"
+    And I fill "Latency Measurement Checks Within AWS" with "5"
+    And I fill "Latency Measurement Checks Outside of AWS" with "3"
+    And I fill "Number of Elastic Network Interfaces" with "10"
+    And I fill "Recursive average DNS queries" with "5000000"
+    And I fill "Number of domains stored" with "100"
+    And I fill "DNS queries" with "10000000"
+    And I fill "Number of VPCs associated to the rule group" with "5"
+    And I fill "Number of hours the rule group is associated for" with "730"
+    And I click Save and add service
+    Then the service "Amazon Route 53" should be added successfully
+    And a shareable estimate URL should be generated
+
+  @security @guardduty @full-coverage
+  Scenario: Configure Amazon GuardDuty - complete runtime and malware protection
+    Given I search for "Amazon GuardDuty"
+    And I click Configure
+    When I set the region to "US East (N. Virginia)"
+    And I fill "AWS CloudTrail Management Event Analysis" with "50"
+    And I fill "EC2 VPC Flow Log Analysis" with "1000"
+    And I fill "EC2 DNS Query Log Analysis" with "500"
+    And I fill "AWS CloudTrail S3 Data Event Analysis" with "100"
+    And I fill "Amazon EKS Audit Logs Analysis" with "50"
+    And I fill "EBS Volume Data Scan Analysis" with "200"
+    And I fill "Total Size of S3 Objects scanned per month" with "500"
+    And I fill "Number of PUT requests monitored per month" with "5000000"
+    And I fill "Enter the amount of data scanned from EBS snapshots per month" with "200"
+    And I fill "Enter the amount of data scanned from EC2 AMI per month" with "100"
+    And I fill "Enter the amount of data scanned from S3 Recovery Point per month" with "100"
+    And I fill "RDS provisioned instance vCPU" with "64"
+    And I fill "Aurora Serverless v2 instances ACUs" with "32"
+    And I fill "Lambda VPC Flow Log Analysis" with "200"
+    And I fill "Amazon EKS Runtime Monitoring Analysis" with "100"
+    And I fill "Amazon ECS Runtime Monitoring Analysis" with "100"
+    And I fill "Amazon EC2 Runtime Monitoring Analysis" with "100"
+    And I click Save and add service
+    Then the service "Amazon GuardDuty" should be added successfully
+    And a shareable estimate URL should be generated
+
+  @analytics @kinesis-video @full-coverage
+  Scenario: Configure Amazon Kinesis Video Streams - full streaming with WebRTC
+    Given I search for "Amazon Kinesis Video Streams"
+    And I click Configure
+    When I set the region to "US East (N. Virginia)"
+    And I fill "Number of devices" with "50"
+    And I fill "Average bitrate" with "5"
+    And I fill "Duration of video streamed to Amazon Kinesis Video Streams (per device)" with "12"
+    And I fill "Duration of video playback over HLS or MPEG-DASH (per camera)" with "4"
+    And I fill "Duration of video consumed by other applications (per camera)" with "2"
+    And I fill "Average length of each WebRTC session (for live view)" with "30"
+    And I fill "TURN Usage Enter the percentage" with "20"
+    And I fill "Average retention for video" with "7"
+    And I fill "Images extracted per camera (1080p resolution stream or lower)" with "1000"
+    And I fill "Images extracted per camera (greater than 1080p resolution stream)" with "500"
+    And I click Save and add service
+    Then the service "Amazon Kinesis Video Streams" should be added successfully
+    And a shareable estimate URL should be generated
+
+  @messaging @ses @full-coverage
+  Scenario: Configure Amazon Simple Email Service (SES) - enterprise with dedicated IPs
+    Given I search for "Amazon Simple Email Service (SES)"
+    And I click Configure
+    When I set the region to "US East (N. Virginia)"
+    And I fill "Number of Open Ingress Endpoint(s)" with "3"
+    And I fill "Number of Emails processed by Mail Manager" with "5000000"
+    And I fill "Email messages sent from EC2" with "2000000"
+    And I fill "Attachment data sent from EC2" with "500"
+    And I fill "Email messages sent from email client" with "500000"
+    And I fill "Attachment data sent from email client" with "100"
+    And I fill "Email messages received" with "3000000"
+    And I fill "Average size of email processed by Mail Manager" with "50"
+    And I fill "Email message sent via dedicated IPs (managed)" with "1000000"
+    And I fill "Number of dedicated IP(standard) addresses" with "3"
+    And I fill "Gigabytes Inserted & Indexed" with "100"
+    And I fill "Gigabytes Already Stored" with "500"
+    And I click Save and add service
+    Then the service "Amazon Simple Email Service (SES)" should be added successfully
+    And a shareable estimate URL should be generated
+
+  @devops @cloudtrail @full-coverage
+  Scenario: Configure AWS CloudTrail - full logging with insights and network activity
+    Given I search for "AWS CloudTrail"
+    And I click Configure
+    When I set the region to "US East (N. Virginia)"
+    And I fill "Number of management events" with "10000000"
+    And I fill "Management event trails" with "2"
+    And I fill "Read management events" with "5000000"
+    And I fill "Read management trails" with "1"
+    And I fill "S3 operations" with "1000000"
+    And I fill "S3 trails" with "1"
+    And I fill "Lambda data events" with "500000"
+    And I fill "Lambda trails" with "1"
+    And I fill "Number of network activity events" with "2000000"
+    And I fill "Network activity event trails" with "1"
+    And I fill "Total number of management API calls (both read and write) to be analyzed for unusual activity" with "10000000"
+    And I fill "Number of trails and/or event data stores where Insights events are enabled" with "2"
+    And I fill "Data ingested - CloudTrail" with "500"
+    And I fill "Data ingested - 7 year retention" with "100"
+    And I fill "Data scanned using queries" with "200"
+    And I click Save and add service
+    Then the service "AWS CloudTrail" should be added successfully
+    And a shareable estimate URL should be generated
+
+  @security @inspector @full-coverage
+  Scenario: Configure Amazon Inspector - full scanning with code analysis
+    Given I search for "Amazon Inspector"
+    And I click Configure
+    When I set the region to "US East (N. Virginia)"
+    And I fill "Average* No. of EC2 instances scanned per month" with "100"
+    And I fill "Total number of newly pushed container images per month" with "500"
+    And I fill "Total number of automated rescans per image per month" with "4"
+    And I fill "Average number of Lambda functions scanned in a month" with "200"
+    And I fill "Total number of repositories" with "50"
+    And I fill "Number of SAST periodic scans per repository per month" with "4"
+    And I fill "Number of SCA periodc scans per repository per month" with "4"
+    And I fill "Number of IaC periodic scans per repository per month" with "4"
+    And I fill "Total Number of on-demand scans (across each scan-type including SAST, SCA and IaC) per repository per month" with "10"
+    And I fill "Total number of change-based scans (across each scan-type including SAST, SCA, IaC) per repository per month (including pull request/merge request or push) Enter a number" with "20"
+    And I click Save and add service
+    Then the service "Amazon Inspector" should be added successfully
+    And a shareable estimate URL should be generated
+
+  @compute @lambda @full-coverage
+  Scenario: Configure AWS Lambda - with SnapStart cold-starts
+    Given I search for "AWS Lambda"
+    And I click Configure
+    When I set the region to "US East (N. Virginia)"
+    And I fill "Number of requests" with "5000000"
+    And I fill "Duration of each request (in ms)" with "100"
+    And I fill "Amount of memory allocated" with "2048"
+    And I fill "Amount of ephemeral storage allocated" with "1024"
+    And I fill "Concurrency" with "50"
+    And I fill "Duration of each provisioned request (in ms)" with "80"
+    And I fill "Number of cold-starts (i.e. SnapStart restores)" with "10000"
+    And I click Save and add service
+    Then the service "AWS Lambda" should be added successfully
+    And a shareable estimate URL should be generated
+
+  @ml @lookout-vision @full-coverage
+  Scenario: Configure Amazon Lookout for Vision - full production deployment
+    Given I search for "Amazon Lookout for Vision"
+    And I click Configure
+    When I set the region to "US East (N. Virginia)"
+    And I fill "Number of plants" with "3"
+    And I fill "Number of production lines per plant" with "5"
+    And I fill "Number of inspection points per production line" with "4"
+    And I fill "Number of cameras per inspection point" with "2"
+    And I fill "Time to train initial model (hours)" with "10"
+    And I fill "Average number of model retrains per model per month" with "2"
+    And I fill "Number of inference units" with "5"
+    And I fill "Number of production shifts per day" with "3"
+    And I fill "Production hours per shift" with "8"
+    And I fill "Production days per month" with "22"
+    And I click Save and add service
+    Then the service "Amazon Lookout for Vision" should be added successfully
+    And a shareable estimate URL should be generated
+
+  @devops @prometheus @full-coverage
+  Scenario: Configure Amazon Managed Service for Prometheus - full observability
+    Given I search for "Amazon Managed Service for Prometheus"
+    And I click Configure
+    When I set the region to "US East (N. Virginia)"
+    And I fill "Average active time series" with "100000"
+    And I fill "Avg Collection Interval (in seconds)" with "15"
+    And I fill "Retention Period (in days)" with "90"
+    And I fill "Average Number of Dashboard users per day" with "20"
+    And I fill "Number of Prometheus rules" with "200"
+    And I fill "Average rule execution interval (in seconds)" with "60"
+    And I fill "Average number of queries per day per dashboard user" with "50"
+    And I fill "Average samples per query for Monitoring queries" with "10000"
+    And I fill "Average samples per query for Alerting queries" with "5000"
+    And I fill "Number of collectors" with "10"
+    And I fill "Number of Samples collected" with "50000000"
+    And I click Save and add service
+    Then the service "Amazon Managed Service for Prometheus" should be added successfully
+    And a shareable estimate URL should be generated
+
+  @other @workspaces-apps @full-coverage
+  Scenario: Configure Amazon WorkSpaces Applications - elastic fleet full config
+    Given I search for "Amazon WorkSpaces Applications"
+    And I click Configure
+    When I set the region to "US East (N. Virginia)"
+    And I fill "Number of users per month" with "100"
+    And I fill "Number of working hours per day" with "8"
+    And I fill "Instance Disk Volume size" with "50"
+    And I fill "Days in week" with "5"
+    And I fill "Peak duration (hours) per day" with "4"
+    And I fill "Average off-peak concurrent users per hour" with "20"
+    And I fill "Average peak concurrent users per hour" with "60"
+    And I fill "Days in weekend" with "2"
+    And I click Save and add service
+    Then the service "Amazon WorkSpaces Applications" should be added successfully
+    And a shareable estimate URL should be generated
+
+  @media @mediaconnect @full-coverage
+  Scenario: Configure AWS Elemental MediaConnect - full flow with outputs
+    Given I search for "AWS Elemental MediaConnect"
+    And I click Configure
+    When I set the region to "US East (N. Virginia)"
+    And I fill "Number of running flows" with "5"
+    And I fill "Flow utilization" with "80"
+    And I fill "Number of outputs per flow" with "3"
+    And I fill "Bitrate (Mbit per second)" with "20"
+    And I fill "Running flow utilization" with "80"
+    And I fill "Number of running outputs" with "10"
+    And I fill "Running output utilization" with "70"
+    And I fill "Enter Amount" with "100"
+    And I click Save and add service
+    Then the service "AWS Elemental MediaConnect" should be added successfully
+    And a shareable estimate URL should be generated
+
+  @iot @iot-sitewise @full-coverage
+  Scenario: Configure AWS IoT SiteWise - enterprise industrial with egress
+    Given I search for "AWS IoT SiteWise"
+    And I click Configure
+    When I set the region to "US East (N. Virginia)"
+    And I fill "Number of daily measurements" with "1000000"
+    And I fill "Number of tags or sensors" with "5000"
+    And I fill "Cloud data availablity" with "90"
+    And I fill "Buffer period" with "30"
+    And I fill "Number of messages in response to egress API calls" with "500000"
+    And I fill "Total computations of metrics and transforms" with "10000000"
+    And I fill "Volume of data (GB)" with "500"
+    And I fill "Count of monthly active users" with "50"
+    And I fill "Cost of Egress from IoT Sitewise Pricing Tool" with "100"
+    And I click Save and add service
+    Then the service "AWS IoT SiteWise" should be added successfully
+    And a shareable estimate URL should be generated
+
+  @analytics @finspace @full-coverage
+  Scenario: Configure Amazon FinSpace Dataset Browser - all cluster sizes
+    Given I search for "Amazon FinSpace Dataset Browser"
+    And I click Configure
+    When I set the region to "US East (N. Virginia)"
+    And I fill "Number of users" with "20"
+    And I fill "Size of data to be stored" with "500"
+    And I fill "Total time spent: Small cluster (across all users)" with "200"
+    And I fill "Total time spent: Medium cluster (across all users)" with "100"
+    And I fill "Total time spent: Large cluster (across all users)" with "50"
+    And I fill "Total time spent: X-Large cluster (across all users)" with "20"
+    And I fill "Total time spent: XX-Large cluster (across all users)" with "10"
+    And I click Save and add service
+    Then the service "Amazon FinSpace Dataset Browser" should be added successfully
+    And a shareable estimate URL should be generated
+
+  @ml @fraud-detector @full-coverage
+  Scenario: Configure Amazon Fraud Detector - all model types
+    Given I search for "Amazon Fraud Detector"
+    And I click Configure
+    When I set the region to "US East (N. Virginia)"
+    And I fill "Event data processed and stored" with "100"
+    And I fill "Number of model versions" with "5"
+    And I fill "Training time per model version in hours" with "10"
+    And I fill "Number of active model versions" with "3"
+    And I fill "Number of monthly predictions with Online Fraud Insights (OFI) model type" with "1000000"
+    And I fill "Number of monthly predictions with Transaction Fraud Insights (TFI) model type" with "500000"
+    And I fill "Number of monthly predictions with rules only (no ML model)" with "2000000"
+    And I click Save and add service
+    Then the service "Amazon Fraud Detector" should be added successfully
+    And a shareable estimate URL should be generated
+
+  @messaging @sns @full-coverage
+  Scenario: Configure Amazon Simple Notification Service (SNS) - with data scanning and Firehose
+    Given I search for "Amazon Simple Notification Service (SNS)"
+    And I click Configure
+    When I set the region to "US East (N. Virginia)"
+    And I fill "Requests" with "10000000"
+    And I fill "HTTP/HTTPS Notifications" with "5000000"
+    And I fill "EMAIL/EMAIL-JSON Notifications" with "100000"
+    And I fill "SQS Notifications" with "5000000"
+    And I fill "Amazon Web Services Lambda" with "2000000"
+    And I fill "Amazon Kinesis Data Firehose" with "1000000"
+    And I fill "Mobile Push Notifications" with "500000"
+    And I fill "Enter Amount" with "50"
+    And I fill "Publish and Delivery Message Scanning" with "5000000"
+    And I fill "The amount of outbound payload data scanned per month" with "100"
+    And I click Save and add service
+    Then the service "Amazon Simple Notification Service (SNS)" should be added successfully
+    And a shareable estimate URL should be generated
+
+  @media @mediapackage @full-coverage
+  Scenario: Configure AWS Elemental MediaPackage - with VOD and cache ratio
+    Given I search for "AWS Elemental MediaPackage"
+    And I click Configure
+    When I set the region to "US East (N. Virginia)"
+    And I fill "Number of inputs per channel" with "2"
+    And I fill "Total duration of live streams per month" with "720"
+    And I fill "Ingest bitrate per input (Mbit per second)" with "10"
+    And I fill "Average Number of viewers per hour" with "1000"
+    And I fill "Average bitrate per viewer (Mbit per second)" with "5"
+    And I fill "Cache/hit ratio Enter cache/hit ratio as a pecentage" with "80"
+    And I fill "Hours of VOD content watched" with "5000"
+    And I fill "Average bitrate (Mbit per second)" with "8"
+    And I click Save and add service
+    Then the service "AWS Elemental MediaPackage" should be added successfully
+    And a shareable estimate URL should be generated
+
+  @networking @firewall-manager @full-coverage
+  Scenario: Configure AWS Firewall Manager - with WAF and security groups
+    Given I search for "AWS Firewall Manager"
+    And I click Configure
+    When I set the region to "US East (N. Virginia)"
+    And I fill "Number of protection policy" with "5"
+    And I fill "Number of aws account" with "10"
+    And I fill "Number of Configuration items recorded" with "50000"
+    And I fill "Number of Config rule evaluations" with "100000"
+    And I fill "Number of AWS Network Firewall endpoints" with "4"
+    And I fill "Usage per endpoint" with "730"
+    And I fill "Data processed per month" with "500"
+    And I fill "Number of Web Access Control Lists (Web ACLs) utilized" with "5"
+    And I fill "Number of Rules added per Web ACL" with "20"
+    And I fill "Number of domains stored" with "1000"
+    And I fill "DNS queries" with "10000000"
+    And I fill "Elastic Load Balancing (ELB) Usage" with "200"
+    And I fill "Elastic IP Usage" with "50"
+    And I fill "Number of Security groups" with "100"
+    And I click Save and add service
+    Then the service "AWS Firewall Manager" should be added successfully
+    And a shareable estimate URL should be generated
+
+  @messaging @eventbridge @full-coverage
+  Scenario: Configure Amazon EventBridge - with opt-in data events and same-account delivery
+    Given I search for "Amazon EventBridge"
+    And I click Configure
+    When I set the region to "US East (N. Virginia)"
+    And I fill "Size of the payload" with "10"
+    And I fill "Number of AWS management events" with "5000000"
+    And I fill "Number of AWS opt-in data events" with "2000000"
+    And I fill "Number of custom events" with "10000000"
+    And I fill "Number of partner events" with "1000000"
+    And I fill "Number of events delivered to another event bus" with "500000"
+    And I fill "Number of events delivered to a service in the same account" with "8000000"
+    And I fill "Number of events delivered to a service in a different account" with "2000000"
+    And I fill "Number of invocations" with "5000000"
+    And I fill "Number of events" with "10000000"
+    And I fill "Number of replayed events" with "1000000"
+    And I fill "Number of requests" with "5000000"
+    And I click Save and add service
+    Then the service "Amazon EventBridge" should be added successfully
+    And a shareable estimate URL should be generated
+
+  @messaging @msk @full-coverage
+  Scenario: Configure Amazon Managed Streaming for Apache Kafka (MSK) - with private connectivity
+    Given I search for "Amazon Managed Streaming for Apache Kafka (MSK)"
+    And I click Configure
+    When I set the region to "US East (N. Virginia)"
+    And I fill "Number of Kafka broker nodes" with "6"
+    And I select "kafka.m5.large" via autosuggest for "Select an instance"
+    And I fill "Storage per Broker" with "500"
+    And I fill "Desired Provisioned Storage Throughput (MiBps)" with "250"
+    And I fill "Number of authentication schemes configured for private connectivity" with "2"
+    And I fill "Data processed for private connectivity" with "1000"
+    And I fill "Enter Amount" with "200"
+    And I click Save and add service
+    Then the service "Amazon Managed Streaming for Apache Kafka (MSK)" should be added successfully
+    And a shareable estimate URL should be generated
+
+  @analytics @iot-analytics @full-coverage
+  Scenario: Configure AWS IoT Analytics - with advanced queries
+    Given I search for "AWS IoT Analytics"
+    And I click Configure
+    When I set the region to "US East (N. Virginia)"
+    And I fill "Number of IoT devices (monthly)" with "1000"
+    And I fill "Data generation by each device" with "100"
+    And I fill "Number of data pipelines (monthly)" with "10"
+    And I fill "Data queried per month" with "500"
+    And I fill "Number of queries (monthly)" with "1000"
+    And I fill "Data scanned per query" with "10"
+    And I fill "Average ACU execution time" with "30"
+    And I click Save and add service
+    Then the service "AWS IoT Analytics" should be added successfully
+    And a shareable estimate URL should be generated
+
+  @security @private-ca @full-coverage
+  Scenario: Configure AWS Private Certificate Authority - with OCSP
+    Given I search for "AWS Private Certificate Authority"
+    And I click Configure
+    When I set the region to "US East (N. Virginia)"
+    And I fill "Number of Private CAs" with "3"
+    And I fill "Number of general purpose mode private certificates issued" with "10000"
+    And I fill "Number of certificates used with ACM-integrated services" with "5000"
+    And I fill "Number of short lived certificate mode private certificates issued" with "50000"
+    And I fill "Number of OCSP responses per Month" with "1000000"
+    And I fill "Number of OCSP Queries per hour" with "5000"
+    And I click Save and add service
+    Then the service "AWS Private Certificate Authority" should be added successfully
+    And a shareable estimate URL should be generated
+
+  @networking @cloudfront @full-coverage
+  Scenario: Configure Amazon CloudFront - with all plan tiers
+    Given I search for "Amazon CloudFront"
+    And I click Configure
+    When I set the region to "US East (N. Virginia)"
+    And I fill "Free Plan" with "0"
+    And I fill "Pro Plan" with "2"
+    And I fill "Business Plan" with "1"
+    And I fill "Premium Plan" with "1"
+    And I click Save and add service
+    Then the service "Amazon CloudFront" should be added successfully
+    And a shareable estimate URL should be generated
+
+  @devops @cloudwatch @full-coverage
+  Scenario: Configure Amazon CloudWatch - with Database Insights and ACUs
+    Given I search for "Amazon CloudWatch"
+    And I click Configure
+    When I set the region to "US East (N. Virginia)"
+    And I fill "Number of Metrics (includes detailed and custom metrics)" with "500"
+    And I fill "GetMetricData: Number of metrics requested" with "100000"
+    And I fill "GetMetricWidgetImage: Number of metrics requested" with "10000"
+    And I fill "Number of other API requests" with "500000"
+    And I fill "Number of vCPUs monitored by Database Insights" with "32"
+    And I fill "Number of Aurora Capacity Units (ACUs) monitored by Database Insights" with "16"
+    And I click Save and add service
+    Then the service "Amazon CloudWatch" should be added successfully
+    And a shareable estimate URL should be generated
+
+  @storage @ebs @full-coverage
+  Scenario: Configure Amazon Elastic Block Store (EBS) - with snapshot API
+    Given I search for "Amazon Elastic Block Store (EBS)"
+    And I click Configure
+    When I set the region to "US East (N. Virginia)"
+    And I fill "Number of volumes" with "10"
+    And I fill "Average duration of volume" with "730"
+    And I fill "Storage amount per volume" with "500"
+    And I fill "Amount changed per snapshot" with "10"
+    And I fill "Number of snapshots to restore" with "5"
+    And I fill "Number of GetSnapshotBlock API requests" with "100000"
+    And I click Save and add service
+    Then the service "Amazon Elastic Block Store (EBS)" should be added successfully
+    And a shareable estimate URL should be generated
+
+  @ml @healthlake @full-coverage
+  Scenario: Configure Amazon Healthlake - with REST-Hook notifications
+    Given I search for "Amazon Healthlake"
+    And I click Configure
+    When I set the region to "US East (N. Virginia)"
+    And I fill "Additional Data Storage" with "500"
+    And I fill "Total Number Of Queries per Month" with "100000"
+    And I fill "Number Of NLP Characters" with "50000000"
+    And I fill "Exported Data per GB" with "100"
+    And I fill "Number of notifications to Amazon EventBridge" with "50000"
+    And I fill "Number of notifications to REST-Hook" with "50000"
+    And I click Save and add service
+    Then the service "Amazon Healthlake" should be added successfully
+    And a shareable estimate URL should be generated
+
+  @ml @rekognition @full-coverage
+  Scenario: Configure Amazon Rekognition - with Image Properties API
+    Given I search for "Amazon Rekognition"
+    And I click Configure
+    When I set the region to "US East (N. Virginia)"
+    And I fill "Number of images processed with labels API calls per month" with "1000000"
+    And I fill "Number of images processed with content moderation API calls per month" with "500000"
+    And I fill "Number of images processed with detect text API calls per month" with "200000"
+    And I fill "Number of images processed with celebrity API calls per month" with "100000"
+    And I fill "Number of images processed with PPE detection API calls per month" with "300000"
+    And I fill "Number of images processed with Image Properties API calls per month" with "200000"
+    And I fill "Number of DetectFaces API calls per month" with "500000"
+    And I click Save and add service
+    Then the service "Amazon Rekognition" should be added successfully
+    And a shareable estimate URL should be generated
