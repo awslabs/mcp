@@ -1,8 +1,8 @@
-"""Tests for rum_tools.py — all calls go through the unified rum() dispatcher."""
+"""Tests for rum_tools.py — all calls go through the unified query_rum_events() dispatcher."""
 
 import json
 import pytest
-from awslabs.cloudwatch_applicationsignals_mcp_server.rum_tools import rum
+from awslabs.cloudwatch_applicationsignals_mcp_server.rum_tools import query_rum_events
 from unittest.mock import MagicMock, patch
 
 
@@ -113,7 +113,7 @@ def mock_aws_clients():
 @pytest.mark.asyncio
 async def test_unknown_action():
     """Unknown action."""
-    result = json.loads(await rum(action='bogus'))
+    result = json.loads(await query_rum_events(action='bogus'))
     assert 'error' in result
     assert 'available_actions' in result
 
@@ -127,7 +127,9 @@ async def test_check_data_access_all_good(mock_aws_clients):
     mock_aws_clients['rum_client'].get_app_monitor.return_value = _app_monitor_response(
         cw_log_enabled=True, enable_xray=True, allow_cookies=True
     )
-    result = json.loads(await rum(action='check_data_access', app_monitor_name='test'))
+    result = json.loads(
+        await query_rum_events(action='check_data_access', app_monitor_name='test')
+    )
     assert result['state'] == 'ACTIVE'
     assert len(result['findings']) == 0
 
@@ -138,7 +140,9 @@ async def test_check_data_access_cw_log_disabled(mock_aws_clients):
     mock_aws_clients['rum_client'].get_app_monitor.return_value = _app_monitor_response(
         cw_log_enabled=False
     )
-    result = json.loads(await rum(action='check_data_access', app_monitor_name='test'))
+    result = json.loads(
+        await query_rum_events(action='check_data_access', app_monitor_name='test')
+    )
     assert any(f['severity'] == 'HIGH' for f in result['findings'])
 
 
@@ -148,7 +152,9 @@ async def test_check_data_access_xray_disabled(mock_aws_clients):
     mock_aws_clients['rum_client'].get_app_monitor.return_value = _app_monitor_response(
         enable_xray=False
     )
-    result = json.loads(await rum(action='check_data_access', app_monitor_name='test'))
+    result = json.loads(
+        await query_rum_events(action='check_data_access', app_monitor_name='test')
+    )
     xray_finding = [f for f in result['findings'] if 'X-Ray' in f['issue']]
     assert len(xray_finding) == 1
     assert xray_finding[0]['severity'] == 'MEDIUM'
@@ -161,7 +167,9 @@ async def test_check_data_access_not_found(mock_aws_clients):
     exc = type('ResourceNotFoundException', (Exception,), {})
     mock_aws_clients['rum_client'].exceptions.ResourceNotFoundException = exc
     mock_aws_clients['rum_client'].get_app_monitor.side_effect = exc('not found')
-    result = json.loads(await rum(action='check_data_access', app_monitor_name='missing'))
+    result = json.loads(
+        await query_rum_events(action='check_data_access', app_monitor_name='missing')
+    )
     assert 'error' in result
 
 
@@ -177,7 +185,7 @@ async def test_list_monitors(mock_aws_clients):
         }
     ]
     mock_aws_clients['rum_client'].get_paginator.return_value = paginator
-    result = json.loads(await rum(action='list_monitors'))
+    result = json.loads(await query_rum_events(action='list_monitors'))
     assert result['count'] == 1
 
 
@@ -185,7 +193,7 @@ async def test_list_monitors(mock_aws_clients):
 async def test_get_monitor(mock_aws_clients):
     """Get monitor."""
     mock_aws_clients['rum_client'].get_app_monitor.return_value = _app_monitor_response()
-    result = json.loads(await rum(action='get_monitor', app_monitor_name='test'))
+    result = json.loads(await query_rum_events(action='get_monitor', app_monitor_name='test'))
     assert result['Name'] == 'test'
 
 
@@ -193,7 +201,7 @@ async def test_get_monitor(mock_aws_clients):
 async def test_get_monitor_error(mock_aws_clients):
     """Get monitor error."""
     mock_aws_clients['rum_client'].get_app_monitor.side_effect = Exception('boom')
-    result = json.loads(await rum(action='get_monitor', app_monitor_name='test'))
+    result = json.loads(await query_rum_events(action='get_monitor', app_monitor_name='test'))
     assert 'error' in result
 
 
@@ -202,7 +210,9 @@ async def test_list_tags(mock_aws_clients):
     """List tags."""
     mock_aws_clients['rum_client'].list_tags_for_resource.return_value = {'Tags': {'env': 'prod'}}
     result = json.loads(
-        await rum(action='list_tags', resource_arn='arn:aws:rum:us-east-1:123:appmonitor/test')
+        await query_rum_events(
+            action='list_tags', resource_arn='arn:aws:rum:us-east-1:123:appmonitor/test'
+        )
     )
     assert result['tags'] == {'env': 'prod'}
 
@@ -213,7 +223,7 @@ async def test_get_policy(mock_aws_clients):
     mock_aws_clients['rum_client'].get_resource_policy.return_value = {
         'PolicyDocument': '{"Version":"2012-10-17"}'
     }
-    result = json.loads(await rum(action='get_policy', app_monitor_name='test'))
+    result = json.loads(await query_rum_events(action='get_policy', app_monitor_name='test'))
     assert result['policy']['Version'] == '2012-10-17'
 
 
@@ -231,7 +241,7 @@ async def test_query(mock_aws_clients):
     """Query."""
     _setup_logs_mocks(mock_aws_clients)
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='query',
             app_monitor_name='test',
             query_string='fields @timestamp',
@@ -250,7 +260,7 @@ async def test_query_cw_log_disabled(mock_aws_clients):
         cw_log_enabled=False
     )
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='query',
             app_monitor_name='test',
             query_string='fields @timestamp',
@@ -266,7 +276,9 @@ async def test_health(mock_aws_clients):
     """Health."""
     _setup_logs_mocks(mock_aws_clients)
     result = json.loads(
-        await rum(action='health', app_monitor_name='test', start_time=START, end_time=END)
+        await query_rum_events(
+            action='health', app_monitor_name='test', start_time=START, end_time=END
+        )
     )
     assert 'error_breakdown' in result
     assert 'slowest_pages' in result
@@ -279,7 +291,7 @@ async def test_health_compare_previous(mock_aws_clients):
     """Health compare previous."""
     _setup_logs_mocks(mock_aws_clients)
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='health',
             app_monitor_name='test',
             start_time=START,
@@ -297,7 +309,9 @@ async def test_errors(mock_aws_clients):
     """Errors."""
     _setup_logs_mocks(mock_aws_clients)
     result = json.loads(
-        await rum(action='errors', app_monitor_name='test', start_time=START, end_time=END)
+        await query_rum_events(
+            action='errors', app_monitor_name='test', start_time=START, end_time=END
+        )
     )
     assert result['status'] == 'Complete'
 
@@ -307,7 +321,7 @@ async def test_errors_with_filters(mock_aws_clients):
     """Errors with filters."""
     _setup_logs_mocks(mock_aws_clients)
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='errors',
             app_monitor_name='test',
             start_time=START,
@@ -324,7 +338,9 @@ async def test_performance(mock_aws_clients):
     """Performance."""
     _setup_logs_mocks(mock_aws_clients)
     result = json.loads(
-        await rum(action='performance', app_monitor_name='test', start_time=START, end_time=END)
+        await query_rum_events(
+            action='performance', app_monitor_name='test', start_time=START, end_time=END
+        )
     )
     assert 'navigation_timings' in result
     assert 'web_vitals' in result
@@ -374,7 +390,9 @@ async def test_performance_vitals_bucketing(mock_aws_clients):
 
     mock_aws_clients['logs_client'].get_query_results.side_effect = mock_get_results
     result = json.loads(
-        await rum(action='performance', app_monitor_name='test', start_time=START, end_time=END)
+        await query_rum_events(
+            action='performance', app_monitor_name='test', start_time=START, end_time=END
+        )
     )
     vitals = result['web_vitals']['results']
     cls_row = [r for r in vitals if 'cumulative_layout_shift' in r.get('event_type', '')][0]
@@ -388,7 +406,9 @@ async def test_sessions(mock_aws_clients):
     """Sessions."""
     _setup_logs_mocks(mock_aws_clients)
     result = json.loads(
-        await rum(action='sessions', app_monitor_name='test', start_time=START, end_time=END)
+        await query_rum_events(
+            action='sessions', app_monitor_name='test', start_time=START, end_time=END
+        )
     )
     assert result['status'] == 'Complete'
 
@@ -398,7 +418,9 @@ async def test_page_views(mock_aws_clients):
     """Page views."""
     _setup_logs_mocks(mock_aws_clients)
     result = json.loads(
-        await rum(action='page_views', app_monitor_name='test', start_time=START, end_time=END)
+        await query_rum_events(
+            action='page_views', app_monitor_name='test', start_time=START, end_time=END
+        )
     )
     assert result['status'] == 'Complete'
 
@@ -415,7 +437,7 @@ async def test_crashes_android(mock_aws_clients):
     """Crashes android."""
     _setup_mobile_logs_mocks(mock_aws_clients)
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='crashes',
             app_monitor_name='test',
             start_time=START,
@@ -432,7 +454,7 @@ async def test_crashes_all(mock_aws_clients):
     """Crashes all."""
     _setup_mobile_logs_mocks(mock_aws_clients)
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='crashes',
             app_monitor_name='test',
             start_time=START,
@@ -451,7 +473,7 @@ async def test_crashes_platform_mismatch(mock_aws_clients):
     """A web monitor called with platform='android' should error cleanly."""
     _setup_logs_mocks(mock_aws_clients)  # web monitor
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='crashes',
             app_monitor_name='test',
             start_time=START,
@@ -468,7 +490,9 @@ async def test_app_launches(mock_aws_clients):
     """App launches."""
     _setup_mobile_logs_mocks(mock_aws_clients)
     result = json.loads(
-        await rum(action='app_launches', app_monitor_name='test', start_time=START, end_time=END)
+        await query_rum_events(
+            action='app_launches', app_monitor_name='test', start_time=START, end_time=END
+        )
     )
     assert 'android' in result
     assert 'ios' in result
@@ -482,7 +506,9 @@ async def test_analyze(mock_aws_clients):
         'anomalyDetectors': []
     }
     result = json.loads(
-        await rum(action='analyze', app_monitor_name='test', start_time=START, end_time=END)
+        await query_rum_events(
+            action='analyze', app_monitor_name='test', start_time=START, end_time=END
+        )
     )
     assert 'anomaly_detection' in result
     assert 'top_patterns' in result
@@ -497,7 +523,7 @@ async def test_timeseries_errors(mock_aws_clients):
     """Timeseries errors."""
     _setup_logs_mocks(mock_aws_clients)
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='timeseries',
             app_monitor_name='test',
             start_time=START,
@@ -514,7 +540,7 @@ async def test_timeseries_unknown_metric(mock_aws_clients):
     """Timeseries unknown metric."""
     _setup_logs_mocks(mock_aws_clients)
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='timeseries',
             app_monitor_name='test',
             start_time=START,
@@ -530,7 +556,9 @@ async def test_locations(mock_aws_clients):
     """Locations."""
     _setup_logs_mocks(mock_aws_clients)
     result = json.loads(
-        await rum(action='locations', app_monitor_name='test', start_time=START, end_time=END)
+        await query_rum_events(
+            action='locations', app_monitor_name='test', start_time=START, end_time=END
+        )
     )
     assert 'sessions_by_country' in result
     assert 'performance_by_country' in result
@@ -541,7 +569,9 @@ async def test_http_requests(mock_aws_clients):
     """Http requests."""
     _setup_logs_mocks(mock_aws_clients)
     result = json.loads(
-        await rum(action='http_requests', app_monitor_name='test', start_time=START, end_time=END)
+        await query_rum_events(
+            action='http_requests', app_monitor_name='test', start_time=START, end_time=END
+        )
     )
     assert result['status'] == 'Complete'
 
@@ -551,7 +581,7 @@ async def test_session_detail(mock_aws_clients):
     """Session detail."""
     _setup_logs_mocks(mock_aws_clients)
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='session_detail',
             app_monitor_name='test',
             session_id='abc-123',
@@ -568,7 +598,9 @@ async def test_resources(mock_aws_clients):
     """Resources."""
     _setup_logs_mocks(mock_aws_clients)
     result = json.loads(
-        await rum(action='resources', app_monitor_name='test', start_time=START, end_time=END)
+        await query_rum_events(
+            action='resources', app_monitor_name='test', start_time=START, end_time=END
+        )
     )
     assert result['status'] == 'Complete'
 
@@ -578,7 +610,9 @@ async def test_page_flows(mock_aws_clients):
     """Page flows."""
     _setup_logs_mocks(mock_aws_clients)
     result = json.loads(
-        await rum(action='page_flows', app_monitor_name='test', start_time=START, end_time=END)
+        await query_rum_events(
+            action='page_flows', app_monitor_name='test', start_time=START, end_time=END
+        )
     )
     assert result['status'] == 'Complete'
 
@@ -616,7 +650,7 @@ async def test_correlate_with_traces(mock_aws_clients):
         ]
     }
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='correlate',
             app_monitor_name='test',
             page_url='/checkout',
@@ -634,7 +668,7 @@ async def test_correlate_no_traces(mock_aws_clients):
     _setup_logs_mocks(mock_aws_clients)
     mock_aws_clients['logs_client'].get_query_results.return_value = _logs_result(rows=[])
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='correlate',
             app_monitor_name='test',
             page_url='/checkout',
@@ -658,7 +692,7 @@ async def test_metrics(mock_aws_clients):
         ]
     }
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='metrics',
             app_monitor_name='test',
             metric_names='["JsErrorCount"]',
@@ -674,7 +708,7 @@ async def test_metrics_error(mock_aws_clients):
     """Metrics error."""
     mock_aws_clients['cloudwatch_client'].get_metric_data.side_effect = Exception('throttled')
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='metrics',
             app_monitor_name='test',
             metric_names='["JsErrorCount"]',
@@ -695,7 +729,9 @@ async def test_slo_health_no_slos(mock_aws_clients):
     paginator.paginate.return_value = [{'SloSummaries': []}]
     mock_aws_clients['applicationsignals_client'].get_paginator.return_value = paginator
     result = json.loads(
-        await rum(action='slo_health', app_monitor_name='test', start_time=START, end_time=END)
+        await query_rum_events(
+            action='slo_health', app_monitor_name='test', start_time=START, end_time=END
+        )
     )
     assert result['status'] == 'NO_SLO'
     assert result['total'] == 0
@@ -716,7 +752,9 @@ async def test_slo_health_ok(mock_aws_clients):
         'Reports': [{'BudgetStatus': 'OK', 'Attainment': 99.95}]
     }
     result = json.loads(
-        await rum(action='slo_health', app_monitor_name='test', start_time=START, end_time=END)
+        await query_rum_events(
+            action='slo_health', app_monitor_name='test', start_time=START, end_time=END
+        )
     )
     assert result['status'] == 'OK'
     assert result['healthy'] == 1
@@ -752,7 +790,9 @@ async def test_slo_health_breached(mock_aws_clients):
         'Reports': [{'BudgetStatus': 'BREACHED', 'Attainment': 98.5}]
     }
     result = json.loads(
-        await rum(action='slo_health', app_monitor_name='test', start_time=START, end_time=END)
+        await query_rum_events(
+            action='slo_health', app_monitor_name='test', start_time=START, end_time=END
+        )
     )
     assert result['status'] == 'BREACHED'
     assert result['breaching'] == 1
@@ -777,7 +817,7 @@ async def test_crashes_unknown_platform_guard(mock_aws_clients):
     """platform='all' against an unknown-platform monitor returns the guard, not 4 queries."""
     _setup_unknown_platform_mocks(mock_aws_clients)
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='crashes',
             app_monitor_name='test',
             start_time=START,
@@ -795,7 +835,7 @@ async def test_app_launches_unknown_platform_guard(mock_aws_clients):
     """App launches unknown platform guard."""
     _setup_unknown_platform_mocks(mock_aws_clients)
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='app_launches',
             app_monitor_name='test',
             start_time=START,
@@ -813,7 +853,7 @@ async def test_session_detail_limit_capped(mock_aws_clients):
     """Session detail limit capped."""
     _setup_logs_mocks(mock_aws_clients)
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='session_detail',
             app_monitor_name='test',
             session_id='abc',
@@ -831,7 +871,7 @@ async def test_session_detail_limit_invalid(mock_aws_clients):
     """Session detail limit invalid."""
     _setup_logs_mocks(mock_aws_clients)
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='session_detail',
             app_monitor_name='test',
             session_id='abc',
@@ -848,7 +888,7 @@ async def test_timeseries_bad_bucket_shape(mock_aws_clients):
     """Timeseries bad bucket shape."""
     _setup_logs_mocks(mock_aws_clients)
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='timeseries',
             app_monitor_name='test',
             start_time=START,
@@ -869,7 +909,7 @@ async def test_metrics_malformed_response(mock_aws_clients):
         ]
     }
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='metrics',
             app_monitor_name='test',
             metric_names='["JsErrorCount"]',
@@ -897,7 +937,7 @@ async def test_metrics_malformed_response(mock_aws_clients):
 async def test_metrics_names_validation_rejects_non_list(mock_aws_clients, bad_names):
     """Metrics names validation rejects non list."""
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='metrics',
             app_monitor_name='test',
             metric_names=bad_names,
@@ -916,7 +956,7 @@ async def test_crashes_unknown_platform_takes_precedence_over_mismatch(mock_aws_
     mock_aws_clients['rum_client'].get_app_monitor.return_value = resp
     mock_aws_clients['logs_client'].filter_log_events.return_value = {'events': []}
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='crashes',
             app_monitor_name='test',
             start_time=START,
@@ -942,7 +982,7 @@ async def test_correlate_dedupes_and_oversamples(mock_aws_clients):
     mock_aws_clients['logs_client'].get_query_results.return_value = _logs_result(dupe_rows)
     mock_aws_clients['xray_client'].batch_get_traces.return_value = {'Traces': []}
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='correlate',
             app_monitor_name='test',
             page_url='/home',
@@ -970,7 +1010,9 @@ async def test_slo_health_all_errored_returns_error_status(mock_aws_clients):
     appsig.get_paginator.return_value = paginator
     appsig.get_service_level_objective.side_effect = Exception('AccessDenied')
     result = json.loads(
-        await rum(action='slo_health', app_monitor_name='test', start_time=START, end_time=END)
+        await query_rum_events(
+            action='slo_health', app_monitor_name='test', start_time=START, end_time=END
+        )
     )
     assert result['status'] == 'ERROR'
     assert result['errored'] == 2
@@ -1002,7 +1044,9 @@ async def test_web_schema_tools_guard_unknown_platform(mock_aws_clients, action,
     """Web-schema tools return the unknown-platform hint on mobile/OTel log groups."""
     _setup_unknown_platform_mocks(mock_aws_clients)
     result = json.loads(
-        await rum(action=action, app_monitor_name='test', start_time=START, end_time=END, **extra)
+        await query_rum_events(
+            action=action, app_monitor_name='test', start_time=START, end_time=END, **extra
+        )
     )
     assert result.get('platform') == 'unknown'
     assert 'error' in result
@@ -1027,7 +1071,9 @@ async def test_analyze_paginates_list_anomalies(mock_aws_clients):
         {'anomalies': [{'firstSeen': 0}], 'nextToken': 'tok2'},
         {'anomalies': [{'firstSeen': 0}]},  # terminal page
     ]
-    await rum(action='analyze', app_monitor_name='test', start_time=START, end_time=END)
+    await query_rum_events(
+        action='analyze', app_monitor_name='test', start_time=START, end_time=END
+    )
     assert mock_aws_clients['logs_client'].list_anomalies.call_count == 3
 
 
@@ -1058,7 +1104,9 @@ async def test_analyze_surfaces_anomaly_truncation(mock_aws_clients):
         'nextToken': 'more',
     }
     result = json.loads(
-        await rum(action='analyze', app_monitor_name='test', start_time=START, end_time=END)
+        await query_rum_events(
+            action='analyze', app_monitor_name='test', start_time=START, end_time=END
+        )
     )
     assert result['anomaly_detection']['truncated'] is True
     assert result['anomaly_detection']['page_cap'] == _ANOMALY_PAGE_CAP
@@ -1073,7 +1121,9 @@ async def test_analyze_reports_truncated_false_when_no_detectors(mock_aws_client
         'anomalyDetectors': []
     }
     result = json.loads(
-        await rum(action='analyze', app_monitor_name='test', start_time=START, end_time=END)
+        await query_rum_events(
+            action='analyze', app_monitor_name='test', start_time=START, end_time=END
+        )
     )
     assert result['anomaly_detection']['truncated'] is False
 
@@ -1097,7 +1147,7 @@ async def test_correlate_all_xray_batches_fail(mock_aws_clients):
     )
     mock_aws_clients['xray_client'].batch_get_traces.side_effect = Exception('AccessDenied')
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='correlate',
             app_monitor_name='test',
             page_url='/home',
@@ -1144,7 +1194,7 @@ async def test_correlate_partial_xray_batch_failure(mock_aws_clients):
 
     mock_aws_clients['xray_client'].batch_get_traces.side_effect = _fake_batch
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='correlate',
             app_monitor_name='test',
             page_url='/home',
@@ -1164,7 +1214,7 @@ async def test_crashes_rejects_invalid_platform(mock_aws_clients, bad_platform):
     """Invalid platform strings must return bad_request, not a silent empty response."""
     _setup_mobile_logs_mocks(mock_aws_clients)
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='crashes',
             app_monitor_name='test',
             start_time=START,
@@ -1182,7 +1232,7 @@ async def test_app_launches_rejects_invalid_platform(mock_aws_clients, bad_platf
     """App launches rejects invalid platform."""
     _setup_mobile_logs_mocks(mock_aws_clients)
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='app_launches',
             app_monitor_name='test',
             start_time=START,
@@ -1199,7 +1249,9 @@ async def test_unknown_platform_response_carries_error_type(mock_aws_clients):
     """The unknown-platform guard must emit error_type so LLM retry logic can branch."""
     _setup_unknown_platform_mocks(mock_aws_clients)
     result = json.loads(
-        await rum(action='errors', app_monitor_name='test', start_time=START, end_time=END)
+        await query_rum_events(
+            action='errors', app_monitor_name='test', start_time=START, end_time=END
+        )
     )
     assert result.get('error_type') == 'bad_request'
     assert result.get('platform') == 'unknown'
@@ -1387,7 +1439,7 @@ async def test_metrics_follows_next_token(mock_aws_clients):
         },
     ]
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='metrics',
             app_monitor_name='test',
             metric_names='["JsErrorCount"]',
@@ -1419,7 +1471,7 @@ async def test_metrics_truncates_at_page_cap(mock_aws_clients):
         'NextToken': 'more',
     }
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='metrics',
             app_monitor_name='test',
             metric_names='["JsErrorCount"]',
@@ -1475,7 +1527,7 @@ async def test_action_returns_bad_request_when_cw_logs_disabled(
         cw_log_enabled=False
     )
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action=action,
             app_monitor_name='test',
             start_time=START,
@@ -1498,7 +1550,9 @@ async def test_check_data_access_missing_telemetries(mock_aws_clients):
     mock_aws_clients['rum_client'].get_app_monitor.return_value = _app_monitor_response(
         telemetries=['errors', 'performance']  # 'http' missing
     )
-    result = json.loads(await rum(action='check_data_access', app_monitor_name='test'))
+    result = json.loads(
+        await query_rum_events(action='check_data_access', app_monitor_name='test')
+    )
     missing = [f for f in result['findings'] if 'Missing telemetry' in f['issue']]
     assert len(missing) == 1
     assert 'http' in missing[0]['issue']
@@ -1511,7 +1565,9 @@ async def test_check_data_access_zero_sample_rate(mock_aws_clients):
     mock_aws_clients['rum_client'].get_app_monitor.return_value = _app_monitor_response(
         sample_rate=0
     )
-    result = json.loads(await rum(action='check_data_access', app_monitor_name='test'))
+    result = json.loads(
+        await query_rum_events(action='check_data_access', app_monitor_name='test')
+    )
     sr_findings = [f for f in result['findings'] if 'sample rate is 0' in f['issue']]
     assert len(sr_findings) == 1
     assert sr_findings[0]['severity'] == 'HIGH'
@@ -1523,7 +1579,9 @@ async def test_check_data_access_low_sample_rate(mock_aws_clients):
     mock_aws_clients['rum_client'].get_app_monitor.return_value = _app_monitor_response(
         sample_rate=0.05
     )
-    result = json.loads(await rum(action='check_data_access', app_monitor_name='test'))
+    result = json.loads(
+        await query_rum_events(action='check_data_access', app_monitor_name='test')
+    )
     sr_findings = [f for f in result['findings'] if 'Low session sample rate' in f['issue']]
     assert len(sr_findings) == 1
     assert sr_findings[0]['severity'] == 'LOW'
@@ -1537,7 +1595,9 @@ async def test_check_data_access_cookies_disabled(mock_aws_clients):
     mock_aws_clients['rum_client'].get_app_monitor.return_value = _app_monitor_response(
         allow_cookies=False
     )
-    result = json.loads(await rum(action='check_data_access', app_monitor_name='test'))
+    result = json.loads(
+        await query_rum_events(action='check_data_access', app_monitor_name='test')
+    )
     cookie_findings = [f for f in result['findings'] if 'Cookies disabled' in f['issue']]
     assert len(cookie_findings) == 1
     assert cookie_findings[0]['severity'] == 'LOW'
@@ -1551,7 +1611,9 @@ async def test_sessions_unknown_platform_bails(mock_aws_clients):
     """Sessions on unknown-platform monitor must return the guard, not run a query."""
     _setup_unknown_platform_mocks(mock_aws_clients)
     result = json.loads(
-        await rum(action='sessions', app_monitor_name='test', start_time=START, end_time=END)
+        await query_rum_events(
+            action='sessions', app_monitor_name='test', start_time=START, end_time=END
+        )
     )
     assert result.get('platform') == 'unknown'
     assert 'error' in result
@@ -1565,7 +1627,7 @@ async def test_session_detail_unknown_platform_bails(mock_aws_clients):
     """session_detail on unknown-platform monitor must return the guard, not run a query."""
     _setup_unknown_platform_mocks(mock_aws_clients)
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='session_detail',
             app_monitor_name='test',
             session_id='sid-1',
@@ -1616,7 +1678,9 @@ async def test_performance_vitals_needs_improvement_and_malformed_p90(mock_aws_c
 
     mock_aws_clients['logs_client'].get_query_results.side_effect = mock_get_results
     result = json.loads(
-        await rum(action='performance', app_monitor_name='test', start_time=START, end_time=END)
+        await query_rum_events(
+            action='performance', app_monitor_name='test', start_time=START, end_time=END
+        )
     )
     vitals = result['web_vitals']['results']
     lcp = [r for r in vitals if 'largest_contentful_paint' in r.get('event_type', '')][0]
@@ -1696,7 +1760,9 @@ async def test_list_tags_service_error(mock_aws_clients):
     """list_tags_for_resource failure surfaces service_error."""
     mock_aws_clients['rum_client'].list_tags_for_resource.side_effect = Exception('boom')
     result = json.loads(
-        await rum(action='list_tags', resource_arn='arn:aws:rum:us-east-1:123:appmonitor/t')
+        await query_rum_events(
+            action='list_tags', resource_arn='arn:aws:rum:us-east-1:123:appmonitor/t'
+        )
     )
     assert result.get('error_type') == 'service_error'
 
@@ -1705,7 +1771,7 @@ async def test_list_tags_service_error(mock_aws_clients):
 async def test_get_policy_service_error(mock_aws_clients):
     """get_resource_policy failure surfaces service_error."""
     mock_aws_clients['rum_client'].get_resource_policy.side_effect = Exception('denied')
-    result = json.loads(await rum(action='get_policy', app_monitor_name='test'))
+    result = json.loads(await query_rum_events(action='get_policy', app_monitor_name='test'))
     assert result.get('error_type') == 'service_error'
 
 
@@ -1723,7 +1789,9 @@ async def test_check_data_access_service_error(mock_aws_clients):
 
     mock_aws_clients['rum_client'].exceptions.ResourceNotFoundException = _RNF
     mock_aws_clients['rum_client'].get_app_monitor.side_effect = Exception('unexpected')
-    result = json.loads(await rum(action='check_data_access', app_monitor_name='test'))
+    result = json.loads(
+        await query_rum_events(action='check_data_access', app_monitor_name='test')
+    )
     assert result.get('error_type') == 'service_error'
 
 
@@ -1733,7 +1801,7 @@ async def test_query_service_error(mock_aws_clients):
     mock_aws_clients['rum_client'].get_app_monitor.return_value = _app_monitor_response()
     mock_aws_clients['logs_client'].start_query.side_effect = Exception('quota')
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='query',
             app_monitor_name='test',
             query_string='fields @timestamp',
@@ -1754,7 +1822,7 @@ async def test_dispatcher_extra_kwarg_returns_bad_request(mock_aws_clients):
     # TypeError inside the dispatcher's try/except.
     mock_aws_clients['rum_client'].list_tags_for_resource.return_value = {'Tags': {}}
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='list_tags',
             resource_arn='arn:aws:rum:us-east-1:123:appmonitor/t',
             app_monitor_name='test',  # extraneous for list_tags
@@ -1775,7 +1843,7 @@ async def test_crashes_ios_only_skips_android_query(mock_aws_clients):
     mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'qid'}
     mock_aws_clients['logs_client'].get_query_results.return_value = _logs_result(rows=[])
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='crashes',
             app_monitor_name='test',
             start_time=START,
@@ -1798,7 +1866,7 @@ async def test_crashes_android_only_skips_ios_query(mock_aws_clients):
     mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'qid'}
     mock_aws_clients['logs_client'].get_query_results.return_value = _logs_result(rows=[])
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='crashes',
             app_monitor_name='test',
             start_time=START,
@@ -1820,7 +1888,7 @@ async def test_app_launches_ios_only(mock_aws_clients):
     mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'qid'}
     mock_aws_clients['logs_client'].get_query_results.return_value = _logs_result(rows=[])
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='app_launches',
             app_monitor_name='test',
             start_time=START,
@@ -1839,7 +1907,7 @@ async def test_crashes_all_on_web_monitor_returns_web_guidance(mock_aws_clients)
         platform='Web'
     )
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='crashes',
             app_monitor_name='test',
             start_time=START,
@@ -1858,7 +1926,7 @@ async def test_app_launches_all_on_web_monitor_returns_web_guidance(mock_aws_cli
         platform='Web'
     )
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='app_launches',
             app_monitor_name='test',
             start_time=START,
@@ -1878,7 +1946,7 @@ async def test_correlate_invalid_max_traces_is_bad_request(mock_aws_clients):
     """Non-integer max_traces must return bad_request, not crash."""
     _setup_logs_mocks(mock_aws_clients)
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='correlate',
             app_monitor_name='test',
             page_url='/home',
@@ -1912,7 +1980,7 @@ async def test_correlate_malformed_segment_is_skipped(mock_aws_clients):
         ]
     }
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='correlate',
             app_monitor_name='test',
             page_url='/home',
@@ -1954,7 +2022,7 @@ async def test_correlate_segment_missing_times_is_skipped(mock_aws_clients):
         ]
     }
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='correlate',
             app_monitor_name='test',
             page_url='/home',
@@ -1985,7 +2053,7 @@ async def test_analyze_anomaly_listing_error_is_swallowed(mock_aws_clients):
     }
     mock_aws_clients['logs_client'].list_anomalies.side_effect = Exception('denied')
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='analyze',
             app_monitor_name='test',
             start_time=START,
@@ -2006,7 +2074,7 @@ async def test_analyze_detector_listing_error_is_surfaced(mock_aws_clients):
     _setup_logs_mocks(mock_aws_clients)
     mock_aws_clients['logs_client'].list_log_anomaly_detectors.side_effect = Exception('denied')
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='analyze',
             app_monitor_name='test',
             start_time=START,
@@ -2050,7 +2118,7 @@ async def test_metrics_status_ranks_choose_worst(mock_aws_clients):
         },
     ]
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='metrics',
             app_monitor_name='test',
             metric_names='["PageLoadTime"]',
@@ -2069,7 +2137,7 @@ async def test_slo_health_list_failure_returns_no_slo_with_message(mock_aws_clie
     """If listing SLOs raises, return NO_SLO with a message rather than crashing."""
     mock_aws_clients['applicationsignals_client'].get_paginator.side_effect = Exception('denied')
     result = json.loads(
-        await rum(
+        await query_rum_events(
             action='slo_health',
             app_monitor_name='test',
             start_time=START,

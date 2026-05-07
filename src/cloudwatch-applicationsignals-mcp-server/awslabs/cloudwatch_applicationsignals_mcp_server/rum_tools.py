@@ -14,9 +14,9 @@
 
 """CloudWatch Application Signals MCP Server - RUM tools.
 
-All RUM functionality is exposed through a single ``rum`` tool that takes an
-``action`` parameter to select the operation.  The individual ``_*`` async
-helpers are kept as private implementation details.
+All RUM functionality is exposed through a single ``query_rum_events`` tool
+that takes an ``action`` parameter to select the operation.  The individual
+``_*`` async helpers are kept as private implementation details.
 """
 
 import asyncio
@@ -77,7 +77,7 @@ _PLATFORM_DETECT_WINDOW_MS = 24 * 60 * 60 * 1000
 _PLATFORM_DETECT_SAMPLE_LIMIT = 10
 
 
-async def rum(
+async def query_rum_events(
     action: str,
     app_monitor_name: Optional[str] = None,
     resource_arn: Optional[str] = None,
@@ -613,7 +613,7 @@ async def get_rum_resource_policy(app_monitor_name: str) -> str:
 # --- Wave 3: Custom Logs Insights query engine ---
 
 
-async def query_rum_events(
+async def run_rum_query(
     app_monitor_name: str,
     query_string: str,
     start_time: str,
@@ -1728,7 +1728,7 @@ _ACTION_MAP.update(
         'get_monitor': get_rum_app_monitor,
         'list_tags': list_rum_tags,
         'get_policy': get_rum_resource_policy,
-        'query': query_rum_events,
+        'query': run_rum_query,
         'health': audit_rum_health,
         'errors': get_rum_errors,
         'performance': get_rum_performance,

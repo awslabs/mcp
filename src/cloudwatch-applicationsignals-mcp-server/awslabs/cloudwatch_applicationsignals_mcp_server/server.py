@@ -58,7 +58,7 @@ from .group_tools import (
     list_group_services,
     list_grouping_attribute_definitions,
 )
-from .rum_tools import rum
+from .rum_tools import query_rum_events
 from .service_audit_utils import normalize_service_targets, validate_and_enrich_service_targets
 from .service_tools import (
     get_service_detail,
@@ -1707,7 +1707,7 @@ mcp.tool()(get_group_changes)
 mcp.tool()(list_grouping_attribute_definitions)
 
 # RUM tools
-mcp.tool()(rum)
+mcp.tool()(query_rum_events)
 
 
 def main():

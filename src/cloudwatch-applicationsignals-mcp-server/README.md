@@ -388,10 +388,10 @@ Monitor real user experience across web and mobile applications using CloudWatch
 
 > **Prerequisite:** Most RUM analytics actions require CloudWatch Logs to be enabled on the app monitor (`CwLogEnabled=true`). Use `check_data_access` to verify your setup.
 
-All RUM functionality is exposed through a single **`rum`** tool with an `action` parameter:
+All RUM functionality is exposed through a single **`query_rum_events`** tool with an `action` parameter:
 
 ```
-rum(action="<action_name>", app_monitor_name="my-app", ...)
+query_rum_events(action="<action_name>", app_monitor_name="my-app", ...)
 ```
 
 #### Actions Reference
@@ -919,19 +919,19 @@ User: "Are my users experiencing issues on the checkout page?"
 Assistant: I'll check your RUM data for user-facing issues on the checkout page.
 
 [Step 1: Verify the app monitor is configured correctly]
-rum(action="check_data_access", app_monitor_name="my-web-app")
+query_rum_events(action="check_data_access", app_monitor_name="my-web-app")
 → CW Logs enabled, X-Ray enabled, all telemetries active. Full analytics available.
 
 [Step 2: Quick health check]
-rum(action="health", app_monitor_name="my-web-app", start_time="2026-03-18T00:00:00Z", end_time="2026-03-19T00:00:00Z")
+query_rum_events(action="health", app_monitor_name="my-web-app", start_time="2026-03-18T00:00:00Z", end_time="2026-03-19T00:00:00Z")
 → Error rate is 3x higher than normal, concentrated on /checkout page, mostly Chrome users in Germany.
 
 [Step 3: Get error details]
-rum(action="errors", app_monitor_name="my-web-app", start_time="...", end_time="...", page_url="/checkout")
+query_rum_events(action="errors", app_monitor_name="my-web-app", start_time="...", end_time="...", page_url="/checkout")
 → Top error: "TypeError: Cannot read property 'total' of undefined" — 847 occurrences.
 
 [Step 4: Is it frontend or backend?]
-rum(action="correlate", app_monitor_name="my-web-app", page_url="/checkout", start_time="...", end_time="...")
+query_rum_events(action="correlate", app_monitor_name="my-web-app", page_url="/checkout", start_time="...", end_time="...")
 → Backend payment-service is returning 500 errors with avg 5.2s response time. Root cause is in the backend.
 ```
 
