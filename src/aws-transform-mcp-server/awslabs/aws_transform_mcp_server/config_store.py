@@ -49,17 +49,28 @@ def extract_region_from_origin(origin: str) -> str | None:
 def derive_fes_endpoint(region: str) -> str:
     """Derive the FES (Front End Service) endpoint for a given region.
 
+    If the ``ATX_FES_ENDPOINT`` environment variable is set, it is used instead.
+    The value may contain ``{region}`` which will be interpolated with the
+    provided region.
+
     Args:
         region: AWS region (e.g. 'us-east-1').
 
     Returns:
         The FES endpoint URL.
     """
+    override = os.environ.get('ATX_FES_ENDPOINT')
+    if override:
+        return override.replace('{region}', region) if '{region}' in override else override
     return f'https://api.transform.{region}.on.aws/'
 
 
 def derive_tcp_endpoint(region: str) -> str:
     """Derive the TCP (Transform Control Plane) endpoint for a given region.
+
+    If the ``ATX_TCP_ENDPOINT`` environment variable is set, it is used instead.
+    The value may contain ``{region}`` which will be interpolated with the
+    provided region.
 
     Args:
         region: AWS region (e.g. 'us-east-1').
@@ -67,6 +78,9 @@ def derive_tcp_endpoint(region: str) -> str:
     Returns:
         The TCP endpoint URL.
     """
+    override = os.environ.get('ATX_TCP_ENDPOINT')
+    if override:
+        return override.replace('{region}', region) if '{region}' in override else override
     return f'https://transform.{region}.api.aws'
 
 
@@ -321,6 +335,8 @@ class ConfigStore:
 _default_store = ConfigStore()
 
 _sigv4_fes_available: bool | None = None
+_sigv4_region: str | None = None
+_sigv4_regions: list[str] | None = None
 
 
 def set_sigv4_fes_available(available: bool) -> None:
@@ -332,6 +348,28 @@ def set_sigv4_fes_available(available: bool) -> None:
 def is_sigv4_fes_available() -> bool:
     """Return True if SigV4 FES auth was probed and succeeded."""
     return _sigv4_fes_available is True
+
+
+def set_sigv4_region(region: str) -> None:
+    """Store the selected SigV4 region."""
+    global _sigv4_region
+    _sigv4_region = region
+
+
+def get_sigv4_region() -> str | None:
+    """Return the stored SigV4 region, or None if not selected."""
+    return _sigv4_region
+
+
+def set_sigv4_regions(regions: list[str]) -> None:
+    """Store discovered SigV4 regions for deferred selection."""
+    global _sigv4_regions
+    _sigv4_regions = regions
+
+
+def get_sigv4_regions() -> list[str] | None:
+    """Return discovered SigV4 regions, or None if not discovered."""
+    return _sigv4_regions
 
 
 def is_fes_available() -> bool:

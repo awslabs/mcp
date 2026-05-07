@@ -50,6 +50,14 @@ if TYPE_CHECKING:
 FESOperation = str
 
 
+class ProfileSelectionRequired(Exception):
+    """Raised when SigV4 FES has multiple regions and none is selected."""
+
+    def __init__(self, regions: list) -> None:  # noqa: D107
+        self.regions = regions
+        super().__init__('Multiple regions available. Please choose one.')
+
+
 # ── boto3 client helpers ────────────────────────────────────────────────
 
 
@@ -292,8 +300,11 @@ async def call_fes(
     config = config_store.get_config()
     if config is None:
         if config_store.is_sigv4_fes_available():
-            session = AwsHelper.create_session()
-            region = AwsHelper.resolve_region(session)
+            region = config_store.get_sigv4_region()
+            logger.info('call_fes SigV4 path: region={}', region)
+            if region is None:
+                regions = config_store.get_sigv4_regions()
+                raise ProfileSelectionRequired(regions or [])
             endpoint = config_store.derive_fes_endpoint(region)
             return await call_fes_direct_sigv4(
                 endpoint,
@@ -307,7 +318,8 @@ async def call_fes(
     if config.auth_mode == 'bearer':
         config = await _ensure_fresh_token(config)
 
-    client = _create_unsigned_client(config.fes_endpoint, config.region or 'us-east-1')
+    endpoint = config_store.derive_fes_endpoint(config.region or 'us-east-1')
+    client = _create_unsigned_client(endpoint, config.region or 'us-east-1')
     if config.auth_mode == 'cookie':
         _inject_cookie_auth(client, config.origin, config.session_cookie or '')
     else:

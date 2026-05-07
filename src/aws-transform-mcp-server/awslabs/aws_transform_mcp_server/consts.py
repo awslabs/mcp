@@ -31,7 +31,6 @@ CLIENT_APP_ID = 'atx-mcp'
 
 # ── FES SigV4 ───────────────────────────────────────────────────────────
 FES_SERVICE = 'elasticgumbyfrontendservice'
-FES_SIGV4_PROBE_TIMEOUT_SECONDS: float = 6.0
 
 # ── HTTP retry / timeout ─────────────────────────────────────────────────
 TIMEOUT_SECONDS: float = 60.0

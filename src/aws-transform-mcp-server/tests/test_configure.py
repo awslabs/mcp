@@ -1393,3 +1393,91 @@ class TestCookieInvalidOrigin:
         parsed = json.loads(result['content'][0]['text'])
         assert parsed['success'] is False
         assert parsed['error']['code'] == 'INVALID_APPLICATION_URL'
+
+
+# ── switch_profile: SigV4 region parameter ─────────────────────────────
+
+
+class TestSwitchProfileSigv4Region:
+    @pytest.mark.asyncio
+    @patch('awslabs.aws_transform_mcp_server.tools.configure.get_config', return_value=None)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.configure.is_sigv4_fes_available',
+        return_value=True,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.configure.get_sigv4_regions',
+        return_value=['us-east-1', 'eu-central-1'],
+    )
+    @patch('awslabs.aws_transform_mcp_server.tools.configure.get_sigv4_region', return_value=None)
+    @patch('awslabs.aws_transform_mcp_server.tools.configure.set_sigv4_region')
+    async def test_select_valid_region(
+        self,
+        mock_set,
+        mock_get_region,
+        mock_get_regions,
+        mock_available,
+        mock_get_config,
+        handler,
+        mock_context,
+    ):
+        result = await handler.switch_profile(mock_context, region='us-east-1')
+
+        parsed = json.loads(result['content'][0]['text'])
+        assert parsed['success'] is True
+        assert parsed['data']['region'] == 'us-east-1'
+        mock_set.assert_called_once_with('us-east-1')
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aws_transform_mcp_server.tools.configure.get_config', return_value=None)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.configure.is_sigv4_fes_available',
+        return_value=True,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.configure.get_sigv4_regions',
+        return_value=['us-east-1', 'eu-central-1'],
+    )
+    @patch('awslabs.aws_transform_mcp_server.tools.configure.get_sigv4_region', return_value=None)
+    async def test_select_invalid_region(
+        self,
+        mock_get_region,
+        mock_get_regions,
+        mock_available,
+        mock_get_config,
+        handler,
+        mock_context,
+    ):
+        result = await handler.switch_profile(mock_context, region='ap-southeast-2')
+
+        parsed = json.loads(result['content'][0]['text'])
+        assert parsed['success'] is False
+        assert parsed['error']['code'] == 'INVALID_REGION'
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aws_transform_mcp_server.tools.configure.get_config', return_value=None)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.configure.is_sigv4_fes_available',
+        return_value=True,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.configure.get_sigv4_regions',
+        return_value=['us-east-1', 'eu-central-1'],
+    )
+    @patch('awslabs.aws_transform_mcp_server.tools.configure.get_sigv4_region', return_value=None)
+    async def test_no_region_returns_list(
+        self,
+        mock_get_region,
+        mock_get_regions,
+        mock_available,
+        mock_get_config,
+        handler,
+        mock_context,
+    ):
+        mock_context.elicit = AsyncMock(side_effect=Exception('elicitation not supported'))
+        result = await handler.switch_profile(mock_context, region=None)
+
+        parsed = json.loads(result['content'][0]['text'])
+        assert parsed['success'] is False
+        assert parsed['error']['code'] == 'REGION_SELECTION_REQUIRED'
+        assert len(parsed['availableRegions']) == 2

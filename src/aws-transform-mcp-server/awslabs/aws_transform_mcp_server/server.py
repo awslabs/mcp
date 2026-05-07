@@ -24,12 +24,16 @@ import os
 import sys
 from awslabs.aws_transform_mcp_server.aws_helper import AwsHelper
 from awslabs.aws_transform_mcp_server.config_store import (
+    clear_config,
     derive_fes_endpoint,
     load_persisted_config,
     set_sigv4_fes_available,
+    set_sigv4_region,
+    set_sigv4_regions,
 )
 from awslabs.aws_transform_mcp_server.consts import (
-    FES_SIGV4_PROBE_TIMEOUT_SECONDS,
+    FES_REGIONS,
+    PROFILE_DISCOVERY_TIMEOUT_SECONDS,
 )
 from awslabs.aws_transform_mcp_server.fes_client import call_fes_direct_sigv4
 from awslabs.aws_transform_mcp_server.tools.adaptive_poll import AdaptivePollHandler
@@ -161,15 +165,22 @@ async def _startup() -> None:
     """Load persisted config and probe SigV4 FES if needed."""
     loaded = await load_persisted_config()
     if not loaded:
+        clear_config()
         await _probe_sigv4_fes()
 
 
 async def _probe_sigv4_fes() -> None:
-    """Probe whether SigV4 auth works for FES at startup.
+    """Probe SigV4 FES auth by fanning out ListWorkspaces across all regions.
 
-    Attempts a ListWorkspaces call with SigV4 signing. If it succeeds,
-    FES tools can work without explicit cookie/SSO configure.
+    If exactly one region succeeds, auto-selects it (zero-config).
+    If multiple regions succeed, stores them for deferred user selection.
+    If no regions succeed, disables SigV4 FES.
     """
+    logger.info(
+        'SigV4 FES probe starting (build: region-discovery), AWS_PROFILE={}, AWS_REGION={}',
+        os.environ.get('AWS_PROFILE'),
+        os.environ.get('AWS_REGION'),
+    )
     session = AwsHelper.create_session()
     try:
         credentials = session.get_credentials()
@@ -182,22 +193,58 @@ async def _probe_sigv4_fes() -> None:
         set_sigv4_fes_available(False)
         return
 
-    region = AwsHelper.resolve_region(session)
-    endpoint = derive_fes_endpoint(region)
+    logger.info('SigV4 FES probe: credentials found, starting region discovery')
+    regions = await _discover_sigv4_regions()
 
-    try:
-        await call_fes_direct_sigv4(
-            endpoint,
-            'ListWorkspaces',
-            {},
-            timeout_seconds=FES_SIGV4_PROBE_TIMEOUT_SECONDS,
-            max_retries=0,
-        )
-        set_sigv4_fes_available(True)
-        logger.info('SigV4 FES probe succeeded — FES tools available without configure')
-    except Exception as exc:
+    if len(regions) == 0:
         set_sigv4_fes_available(False)
-        logger.info('SigV4 FES probe failed ({}), configure required for FES tools', exc)
+        logger.info('SigV4 FES probe: no regions available, configure required')
+        return
+
+    if len(regions) == 1:
+        set_sigv4_region(regions[0])
+        set_sigv4_fes_available(True)
+        logger.info('SigV4 FES probe succeeded — auto-selected region {}', regions[0])
+    else:
+        set_sigv4_regions(regions)
+        set_sigv4_fes_available(True)
+        logger.info(
+            'SigV4 FES probe succeeded — {} regions available, selection required: {}',
+            len(regions),
+            regions,
+        )
+
+
+async def _discover_sigv4_regions() -> list[str]:
+    """Fan out ListWorkspaces via SigV4 across all FES regions.
+
+    Returns list of region strings where the call succeeded (account has
+    a SigV4-enabled profile in that region).
+    """
+
+    async def _call_region(region: str) -> str | None:
+        try:
+            endpoint = derive_fes_endpoint(region)
+            logger.info('SigV4 region discovery: calling {} for region {}', endpoint, region)
+            await asyncio.wait_for(
+                call_fes_direct_sigv4(
+                    endpoint,
+                    'ListWorkspaces',
+                    {},
+                    timeout_seconds=PROFILE_DISCOVERY_TIMEOUT_SECONDS,
+                    max_retries=0,
+                    region=region,
+                ),
+                timeout=PROFILE_DISCOVERY_TIMEOUT_SECONDS + 2,
+            )
+            logger.info('SigV4 region discovery: {} succeeded', region)
+            return region
+        except Exception as exc:
+            logger.info('SigV4 region discovery failed for {}: {}', region, exc)
+            return None
+
+    results = await asyncio.gather(*[_call_region(r) for r in FES_REGIONS])
+    return [r for r in results if r is not None]
 
 
 def main() -> None:
@@ -208,6 +255,8 @@ def main() -> None:
     log_dir = Path.home() / '.aws-transform-mcp'
     log_dir.mkdir(parents=True, exist_ok=True)
     logger.add(log_dir / 'server.log', rotation='10 MB', retention='7 days', level='INFO')
+
+    logger.info('AWS Transform MCP server starting (build: sigv4-profile-discovery)')
 
     parser = argparse.ArgumentParser(
         description='AWS Transform MCP server — manage workspaces, jobs, connectors, and tasks.',
