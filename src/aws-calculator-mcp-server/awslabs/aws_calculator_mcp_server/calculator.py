@@ -568,21 +568,25 @@ class AWSCalculatorAutomation:
         await page.wait_for_timeout(2000)
 
     async def _get_current_cost(self) -> str:
-        """Read the current service monthly cost from the configure page footer."""
+        """Read the current service monthly cost from the configure page footer.
+
+        Polls for up to 5 seconds waiting for the cost to recalculate.
+        """
         page = self._page
-        try:
-            text = await page.locator("body").text_content()
-            # Try multiple cost patterns shown during configuration
-            for pattern in [
-                r"Total Monthly cost:\s*([\d,]+\.?\d*)\s*USD",
-                r"Estimated monthly cost\s*([\d,]+\.?\d*)\s*USD",
-                r"monthly cost:?\s*\$?([\d,]+\.?\d*)\s*USD",
-            ]:
-                match = re.search(pattern, text, re.IGNORECASE)
-                if match and float(match.group(1).replace(",", "")) > 0:
-                    return match.group(1)
-        except:
-            pass
+        for attempt in range(5):
+            try:
+                text = await page.locator("body").text_content()
+                for pattern in [
+                    r"Total Monthly cost:\s*([\d,]+\.?\d*)\s*USD",
+                    r"Estimated monthly cost\s*([\d,]+\.?\d*)\s*USD",
+                    r"monthly cost:?\s*\$?([\d,]+\.?\d*)\s*USD",
+                ]:
+                    match = re.search(pattern, text, re.IGNORECASE)
+                    if match and float(match.group(1).replace(",", "")) > 0:
+                        return match.group(1)
+            except:
+                pass
+            await page.wait_for_timeout(1000)
         return "0.00"
 
     async def create_estimate(self, services: list[dict]) -> dict:
@@ -791,22 +795,26 @@ class AWSCalculatorAutomation:
         return "Could not generate share link"
 
     async def _get_total_cost(self) -> str:
-        """Get total monthly cost from estimate page."""
+        """Get total monthly cost from estimate page.
+
+        Polls the page until a non-zero cost appears or timeout (15s).
+        """
         page = self._page
-        try:
-            await page.wait_for_timeout(2000)
-            text = await page.locator("body").text_content()
-            # Try multiple patterns
-            for pattern in [
-                r"Total monthly cost:?\s*([\d,]+\.?\d*)\s*USD",
-                r"Monthly cost\s*([\d,]+\.?\d*)\s*USD",
-                r"monthly\s*([\d,]+\.?\d*)\s*USD/month",
-            ]:
-                match = re.search(pattern, text, re.IGNORECASE)
-                if match:
-                    return f"${match.group(1)} USD/month"
-        except:
-            pass
+        for attempt in range(15):
+            try:
+                text = await page.locator("body").text_content()
+                for pattern in [
+                    r"Total monthly cost:?\s*([\d,]+\.?\d*)\s*USD",
+                    r"Monthly cost\s*([\d,]+\.?\d*)\s*USD",
+                ]:
+                    match = re.search(pattern, text, re.IGNORECASE)
+                    if match:
+                        value = match.group(1)
+                        if float(value.replace(",", "")) > 0:
+                            return f"${value} USD/month"
+            except:
+                pass
+            await page.wait_for_timeout(1000)
         return "Unknown"
 
     async def update_estimate(
@@ -889,7 +897,7 @@ class AWSCalculatorAutomation:
                 if radio_value:
                     await self._click_radio(str(radio_value))
 
-                # Fill fields
+                # Fill fields (same logic as create_estimate)
                 for field_label, value in config.items():
                     if field_label.endswith("_unit"):
                         await self._set_unit_for_field(field_label[:-5], str(value))
@@ -897,6 +905,33 @@ class AWSCalculatorAutomation:
                         await self._change_dropdown_by_current_text(field_label[8:], str(value))
                     elif field_label.startswith("_select_cloudscape:"):
                         await self._select_cloudscape_dropdown(field_label[19:], str(value))
+                    elif field_label.startswith("_nth_dropdown:"):
+                        parts = field_label[14:].split(":", 1)
+                        idx = int(parts[0]) - 1
+                        match_text = parts[1] if len(parts) > 1 else ""
+                        btns = page.locator(f'main button:has-text("{match_text}")')
+                        if await btns.count() > idx:
+                            await btns.nth(idx).click(force=True)
+                            await page.wait_for_timeout(600)
+                            opt = page.get_by_role("option", name=str(value), exact=True)
+                            if await opt.count() > 0:
+                                await opt.first.click()
+                            else:
+                                opt = page.locator(f'[role="option"]:has-text("{value}")')
+                                if await opt.count() > 0:
+                                    await opt.first.click()
+                                else:
+                                    await page.keyboard.press("Escape")
+                            await page.wait_for_timeout(500)
+                    elif field_label.startswith("_nth_input:"):
+                        parts = field_label[11:].split(":", 1)
+                        idx = int(parts[0]) - 1
+                        aria_pattern = parts[1] if len(parts) > 1 else "Enter Amount"
+                        inputs = page.locator(f'input[aria-label*="{aria_pattern}"]')
+                        if await inputs.count() > idx:
+                            await inputs.nth(idx).fill("")
+                            await inputs.nth(idx).fill(str(value))
+                            await page.wait_for_timeout(300)
                     elif field_label.startswith("_autosuggest:"):
                         await self._fill_autosuggest(field_label[13:], str(value))
                     elif field_label == "_radio":
@@ -907,6 +942,10 @@ class AWSCalculatorAutomation:
                             filled = await self._fill_text_field(field_label, str(value))
                         if not filled:
                             filled = await self._select_cloudscape_dropdown(field_label, str(value))
+
+                # Blur to trigger recalculation before reading cost
+                await page.keyboard.press("Tab")
+                await page.wait_for_timeout(2000)
 
                 cost = await self._get_current_cost()
                 await self._save_service()
