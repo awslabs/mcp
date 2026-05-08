@@ -41,10 +41,23 @@ def _get_calculator() -> AWSCalculatorAutomation:
     return _calculator
 
 
+def _save_result_json(result: dict, output_file: str):
+    """Save estimate result to a JSON file."""
+    import json
+    from datetime import datetime, timezone
+    output = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        **result,
+    }
+    with open(output_file, "w") as f:
+        json.dump(output, f, indent=2, ensure_ascii=False)
+
+
 @mcp.tool()
 async def create_estimate(
     ctx: Context,
     services: list[dict[str, Any]],
+    output_file: str = "",
 ) -> dict[str, Any]:
     """Create an AWS Pricing Calculator estimate and return a shareable link.
 
@@ -107,6 +120,9 @@ async def create_estimate(
     try:
         result = await calculator.create_estimate(services)
         await ctx.info(f"Estimate created: {result.get('estimate_url', 'N/A')}")
+        if output_file:
+            _save_result_json(result, output_file)
+            await ctx.info(f"Result saved: {output_file}")
         return result
     except Exception as e:
         logger.error(f"Failed: {e}")
@@ -121,6 +137,7 @@ async def update_estimate(
     estimate_url: str,
     add_services: list[dict[str, Any]] = None,
     remove_services: list[str] = None,
+    output_file: str = "",
 ) -> dict[str, Any]:
     """Update an existing AWS Calculator estimate by adding or removing services.
 
@@ -132,6 +149,7 @@ async def update_estimate(
             (e.g., "https://calculator.aws/#/estimate?id=abc123")
         add_services: Optional list of services to add (same format as create_estimate)
         remove_services: Optional list of service names to remove from the estimate
+        output_file: Optional path to save the result as JSON. Empty string disables.
 
     Returns:
         Dict with new estimate_url, monthly_cost, and service details.
@@ -140,7 +158,8 @@ async def update_estimate(
         update_estimate(
             estimate_url="https://calculator.aws/#/estimate?id=abc123",
             add_services=[{"service_name": "AWS Data Transfer", "config": {"Enter Amount": "800"}}],
-            remove_services=["AWS Shield"]
+            remove_services=["AWS Shield"],
+            output_file="/tmp/estimate-result.json"
         )
     """
     await ctx.info(f"Updating estimate: {estimate_url}")
@@ -153,6 +172,9 @@ async def update_estimate(
             remove_services=remove_services or [],
         )
         await ctx.info(f"Estimate updated: {result.get('estimate_url', 'N/A')}")
+        if output_file:
+            _save_result_json(result, output_file)
+            await ctx.info(f"Result saved: {output_file}")
         return result
     except Exception as e:
         logger.error(f"Failed to update: {e}")
