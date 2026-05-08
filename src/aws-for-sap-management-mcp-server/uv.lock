@@ -54,7 +54,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-aws-for-sap-management-mcp-server"
-version = "0.0.1"
+version = "0.0.2"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },
