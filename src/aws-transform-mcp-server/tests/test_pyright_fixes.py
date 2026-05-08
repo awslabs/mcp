@@ -170,9 +170,9 @@ class TestGetStatusConfigAccess:
             result = await handler.get_status(ctx)
 
         parsed = json.loads(result['content'][0]['text'])
-        assert parsed['fes']['configured'] is True
-        assert parsed['fes']['authMode'] == 'cookie'
-        assert parsed['fes']['region'] == 'us-east-1'
+        assert parsed['connection']['configured'] is True
+        assert parsed['connection']['authMode'] == 'cookie'
+        assert parsed['connection']['region'] == 'us-east-1'
 
     @pytest.mark.asyncio
     async def test_get_status_sigv4_config_attributes(self, handler, ctx):

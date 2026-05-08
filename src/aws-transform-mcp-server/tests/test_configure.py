@@ -464,7 +464,7 @@ class TestGetStatus:
         result = await handler.get_status(mock_context)
 
         parsed = json.loads(result['content'][0]['text'])
-        assert parsed['fes']['configured'] is False
+        assert parsed['connection']['configured'] is False
         assert parsed['sigv4']['configured'] is False
         assert result['isError'] is False
 
@@ -510,8 +510,8 @@ class TestGetStatus:
 
         AwsHelper.clear_cache()
         parsed = json.loads(result['content'][0]['text'])
-        assert parsed['fes']['configured'] is True
-        assert parsed['fes']['authMode'] == 'cookie'
+        assert parsed['connection']['configured'] is True
+        assert parsed['connection']['authMode'] == 'cookie'
         assert parsed['sigv4']['configured'] is True
         assert parsed['sigv4']['accountId'] == '123456789012'
         assert parsed['sigv4']['arn'] == 'arn:aws:sts::123456789012:assumed-role/test/session'
@@ -549,10 +549,10 @@ class TestGetStatus:
         result = await handler.get_status(mock_context)
 
         parsed = json.loads(result['content'][0]['text'])
-        assert parsed['fes']['configured'] is False
+        assert parsed['connection']['configured'] is False
         assert (
-            'expired' in parsed['fes']['message'].lower()
-            or 'unauthorized' in parsed['fes']['message'].lower()
+            'expired' in parsed['connection']['message'].lower()
+            or 'unauthorized' in parsed['connection']['message'].lower()
         )
         mock_clear.assert_called_once()
 
@@ -586,8 +586,8 @@ class TestGetStatus:
         result = await handler.get_status(mock_context)
 
         parsed = json.loads(result['content'][0]['text'])
-        assert parsed['fes']['configured'] is True
-        assert parsed['fes']['error']['code'] == 'SESSION_CHECK_FAILED'
+        assert parsed['connection']['configured'] is True
+        assert parsed['connection']['error']['code'] == 'SESSION_CHECK_FAILED'
         assert result['isError'] is True
 
     @pytest.mark.asyncio
@@ -681,7 +681,7 @@ class TestGetStatusConfigNone:
         result = await handler.get_status(mock_context)
 
         parsed = json.loads(result['content'][0]['text'])
-        assert parsed['fes']['configured'] is False
+        assert parsed['connection']['configured'] is False
         assert result['isError'] is False
 
 
@@ -727,10 +727,10 @@ class TestGetStatusBearerAuth:
 
         AwsHelper.clear_cache()
         parsed = json.loads(result['content'][0]['text'])
-        assert parsed['fes']['configured'] is True
-        assert parsed['fes']['authMode'] == 'bearer'
-        assert 'tokenExpiresIn' in parsed['fes']
-        assert parsed['fes']['tokenExpiresIn'].endswith('s')
+        assert parsed['connection']['configured'] is True
+        assert parsed['connection']['authMode'] == 'bearer'
+        assert 'tokenExpiresIn' in parsed['connection']
+        assert parsed['connection']['tokenExpiresIn'].endswith('s')
 
     @pytest.mark.asyncio
     @patch('awslabs.aws_transform_mcp_server.aws_helper.boto3')
@@ -768,7 +768,7 @@ class TestGetStatusBearerAuth:
 
         AwsHelper.clear_cache()
         parsed = json.loads(result['content'][0]['text'])
-        assert parsed['fes']['tokenExpiresIn'] == 'EXPIRED'
+        assert parsed['connection']['tokenExpiresIn'] == 'EXPIRED'
 
 
 class TestGetStatusGenericException:
@@ -805,9 +805,9 @@ class TestGetStatusGenericException:
         result = await handler.get_status(mock_context)
 
         parsed = json.loads(result['content'][0]['text'])
-        assert parsed['fes']['configured'] is True
-        assert parsed['fes']['error']['code'] == 'SESSION_CHECK_FAILED'
-        assert 'DNS resolution failed' in parsed['fes']['error']['message']
+        assert parsed['connection']['configured'] is True
+        assert parsed['connection']['error']['code'] == 'SESSION_CHECK_FAILED'
+        assert 'DNS resolution failed' in parsed['connection']['error']['message']
         assert result['isError'] is True
 
 
@@ -1373,8 +1373,8 @@ class TestGetStatusProfileName:
 
         AwsHelper.clear_cache()
         parsed = json.loads(result['content'][0]['text'])
-        assert parsed['fes']['configured'] is True
-        assert parsed['fes']['profile'] == 'my-profile'
+        assert parsed['connection']['configured'] is True
+        assert parsed['connection']['profile'] == 'my-profile'
 
 
 # ── configure: cookie invalid origin format ────────────────────────────

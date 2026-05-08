@@ -25,7 +25,7 @@ import os
 import time
 from awslabs.aws_transform_mcp_server import config_store, oauth
 from awslabs.aws_transform_mcp_server._service_model import create_session
-from awslabs.aws_transform_mcp_server.aws_helper import AwsHelper
+from awslabs.aws_transform_mcp_server.aws_helper import USER_AGENT, AwsHelper
 from awslabs.aws_transform_mcp_server.consts import (
     CLIENT_APP_ID,
     FES_TARGET_BEARER,
@@ -75,6 +75,7 @@ def _create_unsigned_client(
         endpoint_url=endpoint,
         config=BotoConfig(
             signature_version=UNSIGNED,
+            user_agent_extra=USER_AGENT,
             retries={'mode': 'adaptive', 'max_attempts': max_retries + 1},
             connect_timeout=timeout,
             read_timeout=timeout,
@@ -109,6 +110,7 @@ def _create_sigv4_client(
         region_name=region,
         endpoint_url=endpoint,
         config=BotoConfig(
+            user_agent_extra=USER_AGENT,
             retries={'mode': 'adaptive', 'max_attempts': max_retries + 1},
             connect_timeout=timeout,
             read_timeout=timeout,

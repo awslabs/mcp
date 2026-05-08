@@ -90,6 +90,7 @@ class TestAcceptConnector:
         with patch(f'{_MOD}.AwsHelper') as mock_helper:
             mock_helper.create_session.return_value = mock_session
             mock_helper.resolve_region.return_value = 'us-east-1'
+            mock_helper.create_boto3_client.return_value = mock_sts
             result = await handler.accept_connector(
                 ctx, workspaceId='ws-1', connectorId='c-1', roleArn='arn:aws:iam::123:role/r'
             )

@@ -212,7 +212,7 @@ class ConnectorHandler:
 
         try:
             region = AwsHelper.resolve_region(session)
-            sts_client = session.client('sts', region_name=region)
+            sts_client = AwsHelper.create_boto3_client('sts', region_name=region)
             account_id = sts_client.get_caller_identity()['Account']
 
             await call_tcp(

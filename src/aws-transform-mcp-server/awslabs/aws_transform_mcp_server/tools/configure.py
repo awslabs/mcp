@@ -599,13 +599,13 @@ class ConfigureHandler:
         # ── FES status ──────────────────────────────────────────────────
         if not is_configured():
             if is_sigv4_fes_available():
-                status['fes'] = {
+                status['connection'] = {
                     'configured': True,
                     'authMode': 'sigv4',
                     'message': 'Connected via AWS credentials (auto-detected).',
                 }
             else:
-                status['fes'] = {
+                status['connection'] = {
                     'configured': False,
                     'message': 'Not connected to AWS Transform. Options: (1) configure with authMode "sso" '
                     '(opens browser for IAM Identity Center login), (2) configure with '
@@ -616,7 +616,7 @@ class ConfigureHandler:
         else:
             config = get_config()
             if config is None:
-                status['fes'] = {
+                status['connection'] = {
                     'configured': False,
                     'message': 'Not connected to AWS Transform. Options: (1) configure with authMode "sso" '
                     '(opens browser for IAM Identity Center login), (2) configure with '
@@ -655,11 +655,11 @@ class ConfigureHandler:
                 if config.auth_mode == 'bearer' and config.token_expiry:
                     remaining = config.token_expiry - int(time.time())
                     info['tokenExpiresIn'] = f'{remaining}s' if remaining > 0 else 'EXPIRED'
-                status['fes'] = info
+                status['connection'] = info
             except HttpError as error:
                 if error.status_code in (401, 403):
                     clear_config()
-                    status['fes'] = {
+                    status['connection'] = {
                         'configured': False,
                         'message': (
                             'SSO session expired. Re-authenticate with configure '
@@ -668,7 +668,7 @@ class ConfigureHandler:
                         ),
                     }
                 else:
-                    status['fes'] = {
+                    status['connection'] = {
                         'configured': True,
                         'error': {
                             'code': 'SESSION_CHECK_FAILED',
@@ -682,7 +682,7 @@ class ConfigureHandler:
                         'region': config.region,
                     }
             except Exception as error:
-                status['fes'] = {
+                status['connection'] = {
                     'configured': True,
                     'error': {
                         'code': 'SESSION_CHECK_FAILED',
@@ -747,7 +747,7 @@ class ConfigureHandler:
             }
 
         # ── AWS credential API status ──────────────────────────────────
-        status['sigv4Fes'] = {
+        status['sigv4AwsTransformAPI'] = {
             'available': is_sigv4_fes_available(),
             'message': (
                 'AWS credential auth enabled — all API tools work without configure.'
@@ -756,6 +756,6 @@ class ConfigureHandler:
             ),
         }
 
-        fes_status = status.get('fes', {})
+        fes_status = status.get('connection', {})
         has_error = 'error' in fes_status
         return text_result(status, is_error=has_error)
