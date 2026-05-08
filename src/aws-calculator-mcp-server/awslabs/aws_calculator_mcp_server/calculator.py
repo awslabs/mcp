@@ -63,6 +63,73 @@ class AWSCalculatorAutomation:
         """Close the browser and release all resources."""
         await self._browser_manager.close()
 
+    # --- Compatibility properties for BDD step definitions ---
+
+    @property
+    def _page(self):
+        """Access the Playwright page (used by BDD steps)."""
+        return self._browser_manager.page
+
+    @property
+    def _browser(self):
+        """Access the browser instance (used by BDD steps)."""
+        return self._browser_manager._browser
+
+    async def _dismiss_cookies(self):
+        """Dismiss cookie banner (used by BDD steps)."""
+        nav = NavigationHelper(self._browser_manager.page)
+        await nav.dismiss_cookies()
+
+    async def _expand_all_sections(self):
+        """Expand collapsed sections (used by BDD steps)."""
+        nav = NavigationHelper(self._browser_manager.page)
+        await nav.expand_all_sections()
+
+    async def _select_region(self, region_name: str):
+        """Select region (used by BDD steps)."""
+        selector = RegionSelector(self._browser_manager.page)
+        return await selector.select_region(region_name)
+
+    async def _fill_number_field(self, label: str, value: str):
+        """Fill number field (used by BDD steps)."""
+        from .fields.input_handler import NumberFieldHandler
+        handler = NumberFieldHandler(self._browser_manager.page)
+        return await handler.handle(label, value)
+
+    async def _fill_text_field(self, label: str, value: str):
+        """Fill text field (used by BDD steps)."""
+        from .fields.input_handler import TextFieldHandler
+        handler = TextFieldHandler(self._browser_manager.page)
+        return await handler.handle(label, value)
+
+    async def _select_cloudscape_dropdown(self, label: str, value: str):
+        """Select cloudscape dropdown (used by BDD steps)."""
+        from .fields.dropdown_handler import CloudscapeDropdownHandler
+        handler = CloudscapeDropdownHandler(self._browser_manager.page)
+        return await handler.handle(label, value)
+
+    async def _fill_autosuggest(self, placeholder: str, value: str):
+        """Fill autosuggest (used by BDD steps)."""
+        from .fields.autosuggest_handler import AutosuggestHandler
+        handler = AutosuggestHandler(self._browser_manager.page)
+        return await handler.handle(placeholder, value)
+
+    async def _click_radio(self, label: str):
+        """Click radio button (used by BDD steps)."""
+        from .fields.radio_handler import RadioHandler
+        handler = RadioHandler(self._browser_manager.page)
+        return await handler.handle("_radio", label)
+
+    async def _save_service(self):
+        """Save service (used by BDD steps)."""
+        manager = EstimateManager(self._browser_manager.page)
+        await manager.save_service()
+
+    async def _get_share_link(self):
+        """Get share link (used by BDD steps)."""
+        manager = EstimateManager(self._browser_manager.page)
+        return await manager.get_share_link()
+
     async def _configure_service(
         self,
         service_name: str,
