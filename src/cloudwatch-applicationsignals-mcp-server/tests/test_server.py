@@ -1801,6 +1801,42 @@ async def test_search_transaction_spans_log_group_name_ignored_absent_in_normal_
 
 
 @pytest.mark.asyncio
+async def test_search_transaction_spans_log_group_name_ignored_surfaced_on_timeout(
+    mock_aws_clients,
+):
+    """On Polling Timeout, the ignored flag and reason are still surfaced in the response."""
+    user_query = 'SOURCE logGroups(namePrefix: ["my/spans"]) | fields @timestamp'
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        with patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.timer'
+        ) as mock_timer:
+            with patch('asyncio.sleep', new_callable=AsyncMock):
+                mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+                mock_aws_clients['logs_client'].start_query.return_value = {
+                    'queryId': 'test-query-id'
+                }
+                mock_aws_clients['logs_client'].get_query_results.return_value = {
+                    'status': 'Running'
+                }
+                mock_timer.side_effect = [0, 0, 0, 31, 31]
+
+                result = await search_transaction_spans(
+                    log_group_name='ignored-log-group',
+                    start_time='2024-01-01T00:00:00+00:00',
+                    end_time='2024-01-01T01:00:00+00:00',
+                    query_string=user_query,
+                    limit=None,
+                    max_timeout=30,
+                )
+
+                assert result['status'] == 'Polling Timeout'
+                assert result['log_group_name_ignored'] is True
+                assert 'SOURCE' in result['log_group_name_ignored_reason']
+
+
+@pytest.mark.asyncio
 async def test_search_transaction_spans_injection_not_confused_by_data_format_prefix(
     mock_aws_clients,
 ):
