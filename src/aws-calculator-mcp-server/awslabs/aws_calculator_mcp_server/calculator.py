@@ -568,16 +568,22 @@ class AWSCalculatorAutomation:
         await page.wait_for_timeout(2000)
 
     async def _get_current_cost(self) -> str:
-        """Read the current total monthly cost from the footer."""
+        """Read the current service monthly cost from the configure page footer."""
         page = self._page
         try:
             text = await page.locator("body").text_content()
-            match = re.search(r"Total Monthly cost:\s*([\d,]+\.?\d*)\s*USD", text)
-            if match:
-                return match.group(1)
+            # Try multiple cost patterns shown during configuration
+            for pattern in [
+                r"Total Monthly cost:\s*([\d,]+\.?\d*)\s*USD",
+                r"Estimated monthly cost\s*([\d,]+\.?\d*)\s*USD",
+                r"monthly cost:?\s*\$?([\d,]+\.?\d*)\s*USD",
+            ]:
+                match = re.search(pattern, text, re.IGNORECASE)
+                if match and float(match.group(1).replace(",", "")) > 0:
+                    return match.group(1)
         except:
             pass
-        return "0"
+        return "0.00"
 
     async def create_estimate(self, services: list[dict]) -> dict:
         """Create an estimate with the given services and return the share link.
@@ -724,6 +730,11 @@ class AWSCalculatorAutomation:
 
         # Get share link
         share_url = await self._get_share_link()
+
+        # Navigate to saved URL to get accurate total (includes all tiers/recalculation)
+        if share_url and "calculator.aws" in share_url:
+            await page.goto(share_url, wait_until="networkidle")
+            await page.wait_for_timeout(5000)
         final_cost = await self._get_total_cost()
 
         return {
@@ -783,10 +794,17 @@ class AWSCalculatorAutomation:
         """Get total monthly cost from estimate page."""
         page = self._page
         try:
+            await page.wait_for_timeout(2000)
             text = await page.locator("body").text_content()
-            match = re.search(r"Monthly cost\s*([\d,]+\.?\d*)\s*USD", text)
-            if match:
-                return f"${match.group(1)} USD/month"
+            # Try multiple patterns
+            for pattern in [
+                r"Total monthly cost:?\s*([\d,]+\.?\d*)\s*USD",
+                r"Monthly cost\s*([\d,]+\.?\d*)\s*USD",
+                r"monthly\s*([\d,]+\.?\d*)\s*USD/month",
+            ]:
+                match = re.search(pattern, text, re.IGNORECASE)
+                if match:
+                    return f"${match.group(1)} USD/month"
         except:
             pass
         return "Unknown"
@@ -900,6 +918,11 @@ class AWSCalculatorAutomation:
 
         # 5. Generate new share link
         share_url = await self._get_share_link()
+
+        # 6. Navigate to the saved URL to get accurate total
+        if share_url and "calculator.aws" in share_url:
+            await page.goto(share_url, wait_until="networkidle")
+            await page.wait_for_timeout(5000)
         final_cost = await self._get_total_cost()
 
         return {
