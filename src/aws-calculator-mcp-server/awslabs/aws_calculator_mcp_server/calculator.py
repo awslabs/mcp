@@ -61,44 +61,89 @@ class AWSCalculatorAutomation:
             await self._playwright.stop()
             self._playwright = None
 
-    async def _select_region(self, region_name: str = "South America (Sao Paulo)"):
-        """Select region from the 'Choose a Region' Cloudscape dropdown."""
+    async def _select_region(self, region_name: str = "US East (N. Virginia)"):
+        """Select region from the Cloudscape dropdown on the configure page.
+
+        Identifies the region dropdown by finding a button near the 'Region' label,
+        then searches for the target region by keyword.
+
+        Args:
+            region_name: Full region display name, e.g. "South America (Sao Paulo)",
+                        "US East (N. Virginia)", "EU (Ireland)", "Asia Pacific (Tokyo)"
+        """
         page = self._page
-        # Extract a short keyword to search for in the region list
         region_keyword = region_name.split("(")[-1].rstrip(")").strip() if "(" in region_name else region_name
 
         try:
-            all_btns = page.locator('main button[aria-haspopup]')
-            count = await all_btns.count()
-            for i in range(count):
-                text = (await all_btns.nth(i).text_content()).strip()
-                if any(r in text for r in ["Ohio", "Virginia", "Oregon", "N. California",
-                                           "Ireland", "Frankfurt", "Tokyo", "US East",
-                                           "US West", "Europe", "Asia Pacific",
-                                           "South America", "Sao Paulo", "Mumbai",
-                                           "Singapore", "Sydney", "Canada", "London"]):
-                    await all_btns.nth(i).click(force=True)
-                    await page.wait_for_timeout(800)
+            # Strategy 1: Find region dropdown via the "Region" label button
+            region_btn = page.locator('button:has-text("Region")')
+            if await region_btn.count() > 0:
+                # The actual dropdown is the NEXT button[aria-haspopup] sibling
+                # Find it via JS traversal from the Region label
+                btn_found = await page.evaluate("""
+                    () => {
+                        const btns = document.querySelectorAll('main button[aria-haspopup]');
+                        for (let i = 0; i < btns.length; i++) {
+                            if (btns[i].textContent.trim() === 'Region' && btns[i+1]) {
+                                btns[i+1].setAttribute('data-region-btn', 'true');
+                                return true;
+                            }
+                        }
+                        // Fallback: find any button near a "Region" label
+                        const labels = document.querySelectorAll('label, [class*="label"]');
+                        for (const lbl of labels) {
+                            if (lbl.textContent.trim() === 'Region') {
+                                const container = lbl.closest('[class*="form-field"], [class*="FormField"]')
+                                    || lbl.parentElement?.parentElement;
+                                if (container) {
+                                    const btn = container.querySelector('button[aria-haspopup]');
+                                    if (btn) {
+                                        btn.setAttribute('data-region-btn', 'true');
+                                        return true;
+                                    }
+                                }
+                            }
+                        }
+                        return false;
+                    }
+                """)
 
-                    option = page.locator(f'[role="option"]:has-text("{region_keyword}")')
-                    if await option.count() > 0:
-                        await option.first.click()
-                        await page.wait_for_timeout(1000)
-                        logger.info(f"  Region set to {region_name}")
-                        return True
+                if btn_found:
+                    dropdown = page.locator('[data-region-btn="true"]')
+                    await dropdown.click(force=True)
+                    await page.wait_for_timeout(800)
+                    await page.evaluate("document.querySelector('[data-region-btn]')?.removeAttribute('data-region-btn')")
+                else:
+                    # Strategy 2: Click the second button[aria-haspopup] in main
+                    # (first is typically "Region" label, second is the value)
+                    all_btns = page.locator('main button[aria-haspopup]')
+                    if await all_btns.count() >= 2:
+                        await all_btns.nth(1).click(force=True)
+                        await page.wait_for_timeout(800)
                     else:
-                        listbox = page.locator('[role="listbox"]')
-                        if await listbox.count() > 0:
-                            await page.keyboard.type(region_keyword)
-                            await page.wait_for_timeout(500)
-                            option = page.locator(f'[role="option"]:has-text("{region_keyword}")')
-                            if await option.count() > 0:
-                                await option.first.click()
-                                await page.wait_for_timeout(1000)
-                                logger.info(f"  Region set to {region_name}")
-                                return True
-                        await page.keyboard.press("Escape")
-                    break
+                        return False
+            else:
+                return False
+
+            # Now find and click the target region option
+            option = page.locator(f'[role="option"]:has-text("{region_keyword}")')
+            if await option.count() > 0:
+                await option.first.click()
+                await page.wait_for_timeout(1000)
+                logger.info(f"  Region set to {region_name}")
+                return True
+
+            # Type to filter if not immediately visible
+            await page.keyboard.type(region_keyword)
+            await page.wait_for_timeout(500)
+            option = page.locator(f'[role="option"]:has-text("{region_keyword}")')
+            if await option.count() > 0:
+                await option.first.click()
+                await page.wait_for_timeout(1000)
+                logger.info(f"  Region set to {region_name}")
+                return True
+
+            await page.keyboard.press("Escape")
         except Exception as e:
             logger.warning(f"Region selection failed: {e}")
         return False
@@ -558,7 +603,7 @@ class AWSCalculatorAutomation:
         for svc in services:
             service_name = svc["service_name"]
             config = svc.get("config", {})
-            region = svc.get("region", "South America (Sao Paulo)")
+            region = svc.get("region", "US East (N. Virginia)")
 
             logger.info(f"Adding: {service_name}")
 
@@ -644,11 +689,8 @@ class AWSCalculatorAutomation:
                 "monthly_cost": cost,
             })
 
-        # Get share link (use first service description or config name as title)
-        estimate_name = ""
-        if services and "description" in services[0]:
-            estimate_name = "PAR/MEC - Proposta Tecnica e Comercial AWS"
-        share_url = await self._get_share_link(estimate_name)
+        # Get share link
+        share_url = await self._get_share_link()
         final_cost = await self._get_total_cost()
 
         return {
@@ -779,7 +821,7 @@ class AWSCalculatorAutomation:
             for svc in add_services:
                 service_name = svc["service_name"]
                 config = svc.get("config", {})
-                region = svc.get("region", "South America (Sao Paulo)")
+                region = svc.get("region", "US East (N. Virginia)")
 
                 logger.info(f"  Adding: {service_name}")
 

@@ -5049,3 +5049,124 @@ Feature: AWS Pricing Calculator - Service Configuration Certification
     And I click Save and add service
     Then the service "Amazon Rekognition" should be added successfully
     And a shareable estimate URL should be generated
+
+  # ============================================================
+  # REGION SELECTION SCENARIOS
+  # Validates that any AWS region can be selected
+  # ============================================================
+
+  @region @multi-region
+  Scenario Outline: Configure service in <region> region
+    Given I search for "Amazon Simple Queue Service (SQS)"
+    And I click Configure
+    When I set the region to "<region>"
+    And I fill "Standard queue requests" with "1"
+    And I click Save and add service
+    Then the service "Amazon Simple Queue Service (SQS)" should be added successfully
+    And a shareable estimate URL should be generated
+
+    Examples: AWS Regions
+      | region                          |
+      | US East (N. Virginia)           |
+      | US East (Ohio)                  |
+      | US West (Oregon)                |
+      | US West (N. California)         |
+      | EU (Ireland)                    |
+      | EU (Frankfurt)                  |
+      | EU (London)                     |
+      | EU (Paris)                      |
+      | EU (Stockholm)                  |
+      | Asia Pacific (Tokyo)            |
+      | Asia Pacific (Seoul)            |
+      | Asia Pacific (Singapore)        |
+      | Asia Pacific (Sydney)           |
+      | Asia Pacific (Mumbai)           |
+      | South America (Sao Paulo)       |
+      | Canada (Central)                |
+      | Middle East (Bahrain)           |
+      | Africa (Cape Town)              |
+
+  # ============================================================
+  # UPDATE ESTIMATE SCENARIOS
+  # Validates loading and modifying existing estimates
+  # ============================================================
+
+  @update @estimate-management
+  Scenario: Update existing estimate - add a service
+    Given I have an existing estimate URL
+    When I click Update estimate
+    And I add "AWS Lambda" with config:
+      | field                              | value   |
+      | Number of requests                 | 1000000 |
+      | Duration of each request (in ms)   | 200     |
+      | Amount of memory allocated         | 512     |
+    And I click Save and add service
+    Then a new shareable estimate URL should be generated
+    And the new estimate should contain the original services plus the new one
+
+  @update @estimate-management
+  Scenario: Update existing estimate - remove a service
+    Given I have an existing estimate URL
+    When I click Update estimate
+    And I remove service "AWS Shield"
+    Then a new shareable estimate URL should be generated
+    And the new estimate should not contain "AWS Shield"
+
+  # ============================================================
+  # DATA TRANSFER SCENARIOS
+  # Validates outbound data transfer pricing
+  # ============================================================
+
+  @networking @data-transfer @outbound
+  Scenario: Configure AWS Data Transfer - outbound to Internet
+    Given I search for "AWS Data Transfer"
+    And I click Configure
+    When I set the region to "US East (N. Virginia)"
+    And I select "Internet" from the "Data transfer to" dropdown
+    And I set the transfer unit to "GB per month"
+    And I fill the outbound amount with "500"
+    And I click Save and add service
+    Then the service "AWS Data Transfer" should be added successfully
+    And the monthly cost should be approximately "$22.50"
+    And a shareable estimate URL should be generated
+
+  @networking @data-transfer @cross-region
+  Scenario: Configure AWS Data Transfer - cross region
+    Given I search for "AWS Data Transfer"
+    And I click Configure
+    When I set the region to "US East (N. Virginia)"
+    And I select "All other regions" from the "Data transfer to" dropdown
+    And I set the transfer unit to "GB per month"
+    And I fill the outbound amount with "1000"
+    And I click Save and add service
+    Then the service "AWS Data Transfer" should be added successfully
+    And a shareable estimate URL should be generated
+
+  # ============================================================
+  # PRICING VALIDATION SCENARIOS
+  # Cross-validates calculator output against AWS Pricing API
+  # ============================================================
+
+  @pricing @validation @exact-match
+  Scenario Outline: Pricing validation - <service_description>
+    Given I search for "<service_name>"
+    And I click Configure
+    When I set the region to "US East (N. Virginia)"
+    And I configure the service with:
+      | field         | value         |
+      | <field1>      | <value1>      |
+      | <field2>      | <value2>      |
+      | <field3>      | <value3>      |
+    And I click Save and add service
+    Then the service "<service_name>" should be added successfully
+    And the monthly cost should match the Pricing API within "$0.01"
+    And a shareable estimate URL should be generated
+
+    Examples: Services with exact pricing validation
+      | service_description          | service_name                         | field1                   | value1 | field2                   | value2 | field3         | value3 |
+      | SQS 1M standard requests     | Amazon Simple Queue Service (SQS)    | Standard queue requests  | 1      |                          |        |                |        |
+      | KMS 30 keys 2M requests      | AWS Key Management Service           | Number of customer managed Customer Master Keys (CMK) | 30 | Number of symmetric requests | 2000000 |      |        |
+      | Secrets 20 secrets 10K API   | AWS Secrets Manager                  | Number of secrets        | 20     | Average duration of each secret | 30 | Number of API calls | 10000 |
+      | ECR 30 GB storage            | Amazon Elastic Container Registry    | Amount of data stored    | 30     |                          |        |                |        |
+      | Route53 1 zone 1M queries    | Amazon Route 53                      | Hosted Zones             | 1      | Standard queries         | 1      |                |        |
+      | Shield Advanced subscription | AWS Shield                           |                          |        |                          |        |                |        |
