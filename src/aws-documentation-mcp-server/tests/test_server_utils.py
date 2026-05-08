@@ -539,3 +539,62 @@ class TestSearchResultCache:
 
         test_query_id = get_query_id_from_cache('testurl4')
         assert test_query_id is None
+
+
+class TestSearchTableImpl:
+    """Tests for search_table_impl URL construction and tracking params."""
+
+    @pytest.mark.asyncio
+    async def test_url_includes_tracking_params(self):
+        """Test that search_table_impl appends tool, query, and section params to URL."""
+        from awslabs.aws_documentation_mcp_server.server_utils import search_table_impl
+
+        url = 'https://docs.aws.amazon.com/general/latest/gr/bedrock.html'
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = '<html><body><h2>Test Section</h2><table><thead><tr><th>Name</th><th>Value</th></tr></thead><tbody><tr><td>foo</td><td>bar</td></tr></tbody></table></body></html>'
+
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client_class.return_value = mock_client
+
+            await search_table_impl(ctx, url, 'Test Section', 'foo', 20, 'test-uuid')
+
+            called_url = mock_client.get.call_args[0][0]
+            assert 'session=test-uuid' in called_url
+            assert 'tool=search_table' in called_url
+            assert 'query=foo' in called_url
+            assert 'section=Test%20Section' in called_url
+
+    @pytest.mark.asyncio
+    async def test_url_without_section_title(self):
+        """Test that section param is omitted when section_title is None."""
+        from awslabs.aws_documentation_mcp_server.server_utils import search_table_impl
+
+        url = 'https://docs.aws.amazon.com/general/latest/gr/bedrock.html'
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = '<html><body><table><thead><tr><th>Name</th></tr></thead><tbody><tr><td>foo</td></tr></tbody></table></body></html>'
+
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client_class.return_value = mock_client
+
+            await search_table_impl(ctx, url, None, 'foo', 20, 'test-uuid')
+
+            called_url = mock_client.get.call_args[0][0]
+            assert 'tool=search_table' in called_url
+            assert 'query=foo' in called_url
+            assert 'section=' not in called_url
