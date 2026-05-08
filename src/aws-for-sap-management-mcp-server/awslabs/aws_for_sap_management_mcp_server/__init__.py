@@ -14,5 +14,5 @@
 
 """awslabs.aws-for-sap-management-mcp-server"""
 
-__version__ = '0.0.2'
+__version__ = '0.0.3'
 MCP_SERVER_VERSION = __version__
