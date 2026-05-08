@@ -1,6 +1,6 @@
 ---
 name: distributed sql
-description: "Build with Aurora DSQL — manage schemas, execute queries, handle migrations, diagnose query plans, and develop applications with a serverless, distributed SQL database. Covers IAM auth, multi-tenant patterns, MySQL-to-DSQL migration, DDL operations, and query plan explainability. Triggers on phrases like: DSQL, Aurora DSQL, create DSQL table, DSQL schema, migrate to DSQL, distributed SQL database, serverless PostgreSQL-compatible database, DSQL query plan, DSQL EXPLAIN ANALYZE, why is my DSQL query slow."
+description: "Build with Aurora DSQL — manage schemas, execute queries, handle migrations, diagnose query plans, and develop applications with a serverless, distributed SQL database. Covers IAM auth, multi-tenant patterns, MySQL-to-DSQL migration, DDL operations, and query plan explainability. Triggers on phrases like: DSQL, Aurora DSQL, create DSQL table, DSQL schema, migrate to DSQL, distributed SQL database, serverless PostgreSQL-compatible database, DSQL query plan, DSQL EXPLAIN ANALYZE, why is my DSQL query slow, DSQL query performance, DSQL full scan, DSQL DPU, DSQL query cost, DSQL latency, optimize this query, this query is slow, explain this plan, query performance, high DPU, make this faster, why is this doing a full scan."
 ---
 
 # Amazon Aurora DSQL Skill
@@ -254,7 +254,42 @@ MUST load [mysql-migrations/type-mapping.md](references/mysql-migrations/type-ma
 
 ### Workflow 8: Query Plan Explainability
 
-Explains why the DSQL optimizer chose a particular plan. Triggered by slow queries, high DPU, unexpected Full Scans, or plans the user doesn't understand. **REQUIRES a structured Markdown diagnostic report is the deliverable** beyond conversation — run the workflow end-to-end before answering. Use the `aurora-dsql` MCP when connected; fall back to raw `psql` with a generated IAM token (see the fallback block below) otherwise.
+Explains why the DSQL optimizer chose a particular plan. **REQUIRES a structured Markdown diagnostic report as the deliverable** — run the workflow end-to-end before answering. Use the `aurora-dsql` MCP when connected; fall back to raw `psql` with a generated IAM token (see the fallback block below) otherwise.
+
+#### Trigger Criteria
+
+Enter this workflow if **ANY** of these signals are present:
+
+| Signal | Examples |
+|--------|----------|
+| User provides SQL + mentions performance/speed/cost | "this query takes 8 seconds", "too slow", "optimize this", "make this faster" |
+| User mentions DPU cost or resource consumption | "high DPU", "query cost is too high", "read DPU seems excessive" |
+| User asks about a plan choice or scan type | "why is it doing a full scan?", "why not use the index?" |
+| User pastes EXPLAIN / EXPLAIN ANALYZE output | Raw plan text in the message |
+| User references a Query ID and asks about performance | "query abc-123 is slow" |
+| User says "reassess" / "re-run" / "I added the index" | Phase 5 re-entry for an existing report |
+
+#### Context Disambiguation
+
+Before entering the workflow, confirm the query targets DSQL:
+
+| Condition | Action |
+|-----------|--------|
+| Only `aurora-dsql` MCP is connected (no other database MCPs) | Proceed — DSQL is the only target |
+| User explicitly mentions DSQL, Aurora DSQL, or a known DSQL cluster | Proceed |
+| Conversation already has prior DSQL interaction (earlier queries, schema ops) | Proceed |
+| Multiple database MCPs are connected and no DSQL signal in the message | Ask the user which database they mean before proceeding |
+| No database MCP is connected | Inform the user that the `aurora-dsql` MCP is required and offer the psql fallback |
+
+#### Routing (sub-path selection)
+
+| Condition | Path |
+|-----------|------|
+| User provides SQL but no plan output | Full workflow: Phase 0 → 1 → 2 → 3 → 4 |
+| User pastes plan output + asks to fix/optimize | Full workflow: Phase 0 → 1 (re-capture fresh plan) → 2 → 3 → 4 |
+| User pastes plan output + asks what it means (educational) | Full workflow: Phase 0 → 1 (re-capture fresh plan) → 2 → 3 → 4. The report is the explanation — do not produce a shorter conversational answer instead |
+| Execution time >30s detected at Phase 1 | Phase 3 skips experiments per guc-experiments.md |
+| User says "reassess" or equivalent | Re-run Phase 1–2, append Addendum to existing report |
 
 **Phase 0 — Load reference material.** Read all four before starting — each has content later phases need verbatim (node-type math, exact catalog SQL, the `>30s` skip protocol, required report elements):
 
