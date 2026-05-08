@@ -207,27 +207,27 @@ class AWSCalculatorAutomation:
         return False
 
     async def _expand_all_sections(self):
-        """Expand all collapsed/accordion sections on the page."""
+        """Expand all collapsed/accordion sections on the page (iterates for nested)."""
         page = self._page
-        try:
-            await page.evaluate("""
-                () => {
-                    // Click all expandable section headers
-                    document.querySelectorAll(
-                        '[class*="expandable"] button, ' +
-                        '[class*="collaps"] button, ' +
-                        'button[aria-expanded="false"], ' +
-                        '[class*="accordion"] button'
-                    ).forEach(btn => {
-                        if (btn.getAttribute('aria-expanded') === 'false') {
+        for _ in range(3):
+            try:
+                expanded_count = await page.evaluate("""
+                    () => {
+                        let count = 0;
+                        document.querySelectorAll(
+                            'button[aria-expanded="false"]'
+                        ).forEach(btn => {
                             btn.click();
-                        }
-                    });
-                }
-            """)
-            await page.wait_for_timeout(500)
-        except:
-            pass
+                            count++;
+                        });
+                        return count;
+                    }
+                """)
+                await page.wait_for_timeout(600)
+                if expanded_count == 0:
+                    break
+            except:
+                break
 
     async def _fill_number_field(self, label_contains: str, value: str) -> bool:
         """Fill a numeric input field identified by aria-label or nearby label text."""
@@ -255,10 +255,12 @@ class AWSCalculatorAutomation:
                 except:
                     pass
 
-                # Try expanding sections
+                # Try expanding sections (iterate to catch nested collapsed)
                 await self._expand_all_sections()
                 await page.wait_for_timeout(500)
                 try:
+                    await inp.first.scroll_into_view_if_needed(timeout=3000)
+                    await page.wait_for_timeout(200)
                     await inp.first.fill(value, timeout=3000)
                     await page.wait_for_timeout(300)
                     return True
@@ -424,23 +426,44 @@ class AWSCalculatorAutomation:
 
         Useful for Unit dropdowns that all share the same label.
         E.g., change the dropdown showing "minutes" to "hours".
+        Uses exact text match to avoid false positives (e.g., "1" matching "10").
         """
         page = self._page
         try:
             all_btns = page.locator('main button[aria-haspopup]')
             count = await all_btns.count()
             for i in range(count):
-                text = await all_btns.nth(i).text_content()
-                if text and current_text in text.strip():
+                text = (await all_btns.nth(i).text_content() or "").strip()
+                # Exact match: the button text must be exactly the current_text
+                # or the current_text must be a complete word boundary match
+                if text == current_text or (
+                    current_text in text and
+                    len(current_text) > 2 and
+                    not any(c.isdigit() for c in current_text and len(current_text) == 1)
+                ):
+                    await all_btns.nth(i).scroll_into_view_if_needed(timeout=3000)
+                    await page.wait_for_timeout(200)
                     await all_btns.nth(i).click(force=True)
-                    await page.wait_for_timeout(500)
+                    await page.wait_for_timeout(600)
+
+                    # Try exact role-based match first
+                    opt = page.get_by_role("option", name=new_value, exact=True)
+                    if await opt.count() > 0:
+                        await opt.first.click()
+                        await page.wait_for_timeout(500)
+                        logger.debug(f"  Changed dropdown '{current_text}' -> '{new_value}'")
+                        return True
+
+                    # Fallback: has-text match
                     opt = page.locator(f'[role="option"]:has-text("{new_value}")')
                     if await opt.count() > 0:
                         await opt.first.click()
                         await page.wait_for_timeout(500)
+                        logger.debug(f"  Changed dropdown '{current_text}' -> '{new_value}' (has-text)")
                         return True
-                    else:
-                        await page.keyboard.press("Escape")
+
+                    await page.keyboard.press("Escape")
+                    await page.wait_for_timeout(200)
                     break
         except Exception as e:
             logger.debug(f"Could not change dropdown '{current_text}' -> '{new_value}': {e}")
@@ -615,8 +638,11 @@ class AWSCalculatorAutomation:
                 "monthly_cost": cost,
             })
 
-        # Get share link
-        share_url = await self._get_share_link()
+        # Get share link (use first service description or config name as title)
+        estimate_name = ""
+        if services and "description" in services[0]:
+            estimate_name = "PAR/MEC - Proposta Tecnica e Comercial AWS"
+        share_url = await self._get_share_link(estimate_name)
         final_cost = await self._get_total_cost()
 
         return {
@@ -625,12 +651,36 @@ class AWSCalculatorAutomation:
             "services": results,
         }
 
-    async def _get_share_link(self) -> str:
-        """Navigate to My Estimate and share."""
+    async def _rename_estimate(self, name: str):
+        """Rename the estimate on the estimate page."""
+        page = self._page
+        try:
+            edit_link = page.locator('a:has-text("Edit")')
+            if await edit_link.count() > 0:
+                await edit_link.first.click()
+                await page.wait_for_timeout(1000)
+                name_input = page.locator('input[value="My Estimate"]')
+                if await name_input.count() > 0:
+                    await name_input.first.click(click_count=3)
+                    await page.keyboard.type(name)
+                    await page.wait_for_timeout(500)
+                    save_btn = page.locator('button:has-text("Save")')
+                    if await save_btn.count() > 0:
+                        await save_btn.first.click()
+                        await page.wait_for_timeout(1000)
+                        logger.info(f"  Estimate renamed: {name}")
+        except Exception as e:
+            logger.debug(f"Could not rename estimate: {e}")
+
+    async def _get_share_link(self, estimate_name: str = "") -> str:
+        """Navigate to My Estimate, rename if needed, and share."""
         page = self._page
         await page.goto(f"{CALCULATOR_BASE_URL}/#/estimate", wait_until="networkidle")
         await page.wait_for_timeout(3000)
         await self._dismiss_cookies()
+
+        if estimate_name:
+            await self._rename_estimate(estimate_name)
 
         share_btn = page.locator('button:has-text("Share")')
         if await share_btn.count() > 0:
