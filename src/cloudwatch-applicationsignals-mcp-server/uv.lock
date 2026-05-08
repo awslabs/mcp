@@ -59,7 +59,7 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "bandit" },
-    { name = "boto3-stubs", extra = ["application-signals", "cloudwatch", "logs", "rum", "xray"] },
+    { name = "boto3-stubs", extra = ["application-signals", "cloudwatch", "logs", "xray"] },
     { name = "commitizen" },
     { name = "moto" },
     { name = "pre-commit" },
@@ -82,7 +82,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "bandit", specifier = ">=1.8.6" },
-    { name = "boto3-stubs", extras = ["application-signals", "cloudwatch", "logs", "rum", "xray"], specifier = ">=1.42.0" },
+    { name = "boto3-stubs", extras = ["application-signals", "cloudwatch", "logs", "xray"], specifier = ">=1.42.0" },
     { name = "commitizen", specifier = ">=4.4.1" },
     { name = "moto", specifier = ">=5.0.0" },
     { name = "pre-commit", specifier = ">=4.2.0" },
@@ -145,9 +145,6 @@ cloudwatch = [
 ]
 logs = [
     { name = "mypy-boto3-logs" },
-]
-rum = [
-    { name = "mypy-boto3-rum" },
 ]
 xray = [
     { name = "mypy-boto3-xray" },
@@ -824,18 +821,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/8e/b1/4e8094add6ac907ddd5cb850c514e19d969f30e163290301f16d7b8c588a/mypy_boto3_logs-1.42.10.tar.gz", hash = "sha256:3abe41d76fa533fe82254b4e00812372fd8f240dffd7c0ddd4be34503d1f783f", size = 52821, upload-time = "2025-12-15T20:39:40.813Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ff/66/8998dbc452845ab539f0ffa92bd5003f5e8856bd8cc22798d24ae1673c44/mypy_boto3_logs-1.42.10-py3-none-any.whl", hash = "sha256:adbce9eb21b2f982fc7c8d20a4e1522120f117ff07e3cceb6c4ee1bf714ebba7", size = 59966, upload-time = "2025-12-15T20:39:38.206Z" },
-]
-
-[[package]]
-name = "mypy-boto3-rum"
-version = "1.42.3"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "typing-extensions", marker = "python_full_version < '3.12'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/b2/af/11c00976c3f089c98a351df4581b48f9dc1762e58b6e72096cc0146d90ca/mypy_boto3_rum-1.42.3.tar.gz", hash = "sha256:e3f437f54b1461a96e6aea1a2e6e8139e8fe2ab97655b3b5c4a2a8d68ad12242", size = 20073, upload-time = "2025-12-04T21:11:46.468Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/59/cb/6759548800df4cf5b0a3985a8b8a0190e37fb697b82a764d52ae2980c333/mypy_boto3_rum-1.42.3-py3-none-any.whl", hash = "sha256:2b0fa226c99c2785c0279e26671f1851144bae01435c65347b1be86f06263e9a", size = 27384, upload-time = "2025-12-04T21:11:44.434Z" },
 ]
 
 [[package]]
