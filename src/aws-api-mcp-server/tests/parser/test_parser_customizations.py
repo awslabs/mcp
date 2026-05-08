@@ -487,3 +487,12 @@ def test_local_file_uri_validation_failure():
         match=r'Invalid file path: path is outside the allowed working directory .*',
     ):
         parse('aws logs create-log-group --log-group-name file:///etc/hosts')
+
+
+@patch(
+    'awslabs.aws_api_mcp_server.core.parser.parser.FILE_ACCESS_MODE',
+    'true',  # UNRESTRICTED
+)
+def test_codeartifact_login_allowed_in_unrestricted_mode():
+    """Test that codeartifact login is allowed when FILE_ACCESS_MODE is UNRESTRICTED."""
+    assert not is_denied_custom_operation('codeartifact', 'login')

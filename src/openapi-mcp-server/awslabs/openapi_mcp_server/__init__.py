@@ -15,7 +15,7 @@
 OpenAPI MCP Server - A server that dynamically creates MCP tools and resources from OpenAPI specifications.
 """
 
-__version__ = '1.0.0'
+__version__ = '1.0.1'
 
 
 import inspect

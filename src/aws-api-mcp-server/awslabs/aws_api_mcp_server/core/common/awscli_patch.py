@@ -17,8 +17,10 @@
 import awscli.argprocess
 import awscli.customizations.arguments
 import awscli.customizations.ecs.deploy
+import awscli.customizations.eks.update_kubeconfig
 import awscli.paramfile
 from .errors import sanitized_exceptions
+from .file_system_controls import validate_file_path
 
 
 # Patch AWS CLI functions that call os.path.expandvars under the hood when
@@ -32,4 +34,22 @@ awscli.customizations.arguments.resolve_given_outfile_path = sanitized_exception
 awscli.paramfile.get_file = sanitized_exceptions(awscli.paramfile.get_file)
 awscli.customizations.ecs.deploy.ECSDeploy._get_file_contents = sanitized_exceptions(
     awscli.customizations.ecs.deploy.ECSDeploy._get_file_contents
+)
+
+
+# Patch KubeconfigWriter.write_kubeconfig to validate the output path before writing.
+_original_write_kubeconfig = (
+    awscli.customizations.eks.update_kubeconfig.KubeconfigWriter.write_kubeconfig
+)
+
+
+@sanitized_exceptions
+def _validated_write_kubeconfig(self, config):
+    """Validate the kubeconfig path, then delegate to the original writer."""
+    validate_file_path(config.path)
+    return _original_write_kubeconfig(self, config)
+
+
+awscli.customizations.eks.update_kubeconfig.KubeconfigWriter.write_kubeconfig = (
+    _validated_write_kubeconfig
 )

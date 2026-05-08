@@ -14,5 +14,5 @@
 
 """awslabs.cloudwatch-mcp-server"""
 
-__version__ = '0.0.26'
+__version__ = '0.0.27'
 MCP_SERVER_VERSION = __version__

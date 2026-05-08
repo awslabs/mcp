@@ -184,6 +184,37 @@ class TestUserInlinePolicies:
             UserName='test-user', PolicyName='test-policy'
         )
 
+    @patch('awslabs.iam_mcp_server.server.get_iam_client')
+    async def test_get_user_policy_success_with_dict_response(
+        self, mock_get_client, sample_policy_document
+    ):
+        """Test successful retrieval of user inline policy when boto3 returns dict.
+
+        boto3's get_user_policy() auto-parses the PolicyDocument from JSON to a dict.
+        This test verifies the fix for issue #2566 where the dict was passed directly
+        to InlinePolicyResponse which expected a string, causing a Pydantic validation error.
+        """
+        # Setup
+        mock_client = Mock()
+        mock_get_client.return_value = mock_client
+        # boto3 returns PolicyDocument as a dict (auto-parsed)
+        mock_client.get_user_policy.return_value = {
+            'UserName': 'test-user',
+            'PolicyName': 'test-policy',
+            'PolicyDocument': sample_policy_document,  # dict, not string
+        }
+
+        # Execute
+        result = await get_user_policy(user_name='test-user', policy_name='test-policy')
+
+        # Verify
+        assert isinstance(result, InlinePolicyResponse)
+        assert result.policy_name == 'test-policy'
+        assert result.user_name == 'test-user'
+        # The policy_document should be serialized to a JSON string
+        assert isinstance(result.policy_document, str)
+        assert json.loads(result.policy_document) == sample_policy_document
+
     async def test_get_user_policy_validation_errors(self):
         """Test get_user_policy validation errors."""
         # Test missing user name
@@ -338,6 +369,37 @@ class TestRoleInlinePolicies:
         mock_client.get_role_policy.assert_called_once_with(
             RoleName='test-role', PolicyName='test-policy'
         )
+
+    @patch('awslabs.iam_mcp_server.server.get_iam_client')
+    async def test_get_role_policy_success_with_dict_response(
+        self, mock_get_client, sample_policy_document
+    ):
+        """Test successful retrieval of role inline policy when boto3 returns dict.
+
+        boto3's get_role_policy() auto-parses the PolicyDocument from JSON to a dict.
+        This test verifies the fix for issue #2566 where the dict was passed directly
+        to InlinePolicyResponse which expected a string, causing a Pydantic validation error.
+        """
+        # Setup
+        mock_client = Mock()
+        mock_get_client.return_value = mock_client
+        # boto3 returns PolicyDocument as a dict (auto-parsed)
+        mock_client.get_role_policy.return_value = {
+            'RoleName': 'test-role',
+            'PolicyName': 'test-policy',
+            'PolicyDocument': sample_policy_document,  # dict, not string
+        }
+
+        # Execute
+        result = await get_role_policy(role_name='test-role', policy_name='test-policy')
+
+        # Verify
+        assert isinstance(result, InlinePolicyResponse)
+        assert result.policy_name == 'test-policy'
+        assert result.role_name == 'test-role'
+        # The policy_document should be serialized to a JSON string
+        assert isinstance(result.policy_document, str)
+        assert json.loads(result.policy_document) == sample_policy_document
 
     @patch('awslabs.iam_mcp_server.server.get_iam_client')
     async def test_delete_role_policy_success(self, mock_get_client):

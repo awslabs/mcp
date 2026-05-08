@@ -659,42 +659,58 @@ def test_validate_endpoint_non_http_protocols():
 
 
 def test_allowed_custom_operations_when_file_access_disabled_is_subset():
-    """Test that ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED is a subset of ALLOWED_CUSTOM_OPERATIONS.
+    """Test that restricted allowlists are proper subsets of ALLOWED_CUSTOM_OPERATIONS.
 
-    This ensures that all operations allowed when file access is disabled are also in the main
-    allowed operations list. Operations in ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED
-    should be those that can work without local file access.
+    This ensures that all operations allowed in restricted modes are also in the main
+    allowed operations list, and that DISABLED ⊆ WORKDIR ⊆ UNRESTRICTED.
     """
     from awslabs.aws_api_mcp_server.core.parser.parser import (
         ALLOWED_CUSTOM_OPERATIONS,
         ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED,
+        ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_WORKDIR,
     )
 
-    extra_operations = []
+    def _check_subset(subset, superset, subset_name, superset_name):
+        extra = []
+        for service, operations in subset.items():
+            if service not in superset:
+                extra.append(f"Service '{service}' in {subset_name} is not in {superset_name}")
+                continue
+            for op in operations:
+                if op not in superset[service]:
+                    extra.append(
+                        f"Operation '{op}' for service '{service}' in {subset_name} "
+                        f'is not in {superset_name}'
+                    )
+        return extra
 
-    for service, operations in ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED.items():
-        # Check if service exists in ALLOWED_CUSTOM_OPERATIONS
-        if service not in ALLOWED_CUSTOM_OPERATIONS:
-            extra_operations.append(
-                f"Service '{service}' in ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED "
-                f'is not in ALLOWED_CUSTOM_OPERATIONS'
-            )
-            continue
-
-        # Check if all operations for this service are in ALLOWED_CUSTOM_OPERATIONS
-        allowed_ops_set = set(ALLOWED_CUSTOM_OPERATIONS[service])
-        for operation in operations:
-            if operation not in allowed_ops_set:
-                extra_operations.append(
-                    f"Operation '{operation}' for service '{service}' in "
-                    f'ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED is not in ALLOWED_CUSTOM_OPERATIONS'
-                )
-
-    assert not extra_operations, (
-        'ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED must be a subset of ALLOWED_CUSTOM_OPERATIONS.\n'
-        + 'The following operations are in ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED but not in ALLOWED_CUSTOM_OPERATIONS:\n'
-        + '\n'.join(extra_operations)
+    # WORKDIR ⊆ UNRESTRICTED
+    errors = _check_subset(
+        ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_WORKDIR,
+        ALLOWED_CUSTOM_OPERATIONS,
+        'ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_WORKDIR',
+        'ALLOWED_CUSTOM_OPERATIONS',
     )
+    # DISABLED ⊆ WORKDIR
+    errors += _check_subset(
+        ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED,
+        ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_WORKDIR,
+        'ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED',
+        'ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_WORKDIR',
+    )
+
+    assert not errors, (
+        'Restricted allowlists must be proper subsets (DISABLED ⊆ WORKDIR ⊆ UNRESTRICTED).\n'
+        + '\n'.join(errors)
+    )
+
+    # Verify specific denials
+    assert 'codeartifact' not in ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_WORKDIR
+    assert 'codeartifact' not in ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED
+    assert 'update-kubeconfig' not in ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED.get(
+        'eks', []
+    )
+    assert 'get-token' in ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED.get('eks', [])
 
 
 def test_s3_express_one_in_unsupported_region():
