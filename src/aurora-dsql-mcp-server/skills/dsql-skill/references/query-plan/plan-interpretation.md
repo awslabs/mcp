@@ -183,6 +183,63 @@ Detect physically impossible row counts in DSQL plan nodes:
 
 These anomalous values do not affect query correctness — only diagnostic output accuracy.
 
+## Type Coercion and Index Bypass
+
+An index may exist on a column yet not be used when the predicate value's type does not match the column's declared type and no implicit cast exists between the two types.
+
+### Detection Pattern
+
+Flag this condition when **all** of the following are true:
+
+1. An index exists whose leading column matches a WHERE predicate column
+2. The plan uses a Full Scan or Seq Scan on that table instead of an Index Scan
+3. The predicate literal's type differs from the indexed column's declared type
+4. The type pair is **not** in the implicit cast compatibility matrix below
+
+### Why It Happens
+
+DSQL (like PostgreSQL) can only use a B-Tree index when the comparison operator's input types match the index's operator class. When a predicate supplies a value of a different type:
+
+- If an implicit cast exists from the predicate type to the column type, the planner applies it transparently and can still use the index
+- If no implicit cast exists, the planner must apply a per-row cast or comparison function that cannot use the index's ordering — resulting in a full scan
+
+This is particularly surprising to users because the query returns correct results (the cast happens at execution time, row by row) but performance degrades dramatically on large tables.
+
+### Determining Index-Compatible Type Pairs
+
+Rather than relying on a static matrix, query `pg_amop` directly on the cluster to determine which cross-type comparisons the DSQL B-Tree index access method supports. See catalog-queries.md for the exact SQL.
+
+The key insight: DSQL's B-Tree access method (amopmethod `10003`) only supports index scans when a registered operator exists for the specific (left-type, right-type) pair. If no operator is registered for the pair, the index cannot be used — regardless of whether a general-purpose implicit cast exists in `pg_cast`.
+
+In practice, cross-type index support is limited to the integer family (smallint, integer, bigint — all combinations). All other indexed types (text, numeric, uuid, timestamp, date, boolean, etc.) require an exact type match between the predicate and the indexed column for the index to be usable.
+
+### Quantifying Impact
+
+When this pattern is detected:
+
+```
+Full Scan rows processed = actual_rows from Full Scan node
+Index Scan rows (expected) = estimated rows matching the predicate (from pg_stats selectivity)
+Scan amplification = Full Scan rows / Index Scan rows (expected)
+```
+
+### Recommendation Template
+
+When a type coercion bypass is confirmed:
+
+- **Explicit cast in the predicate:** Rewrite `WHERE col = '42'` as `WHERE col = 42::float` (cast the literal to the column type)
+- **Application-layer fix:** Ensure the application passes parameters with the correct type rather than relying on implicit conversion
+- **Do NOT recommend changing the column type** to accommodate mismatched predicates — this masks the real issue and may break other queries
+
+### Evidence Gathering
+
+To confirm this pattern, cross-reference:
+
+1. The column type from `pg_attribute` or `information_schema.columns` (see catalog-queries.md)
+2. The index definition from `pg_indexes`
+3. The predicate literal in the EXPLAIN output (visible in `Filter:` or `Index Cond:` lines)
+4. The implicit cast matrix above
+
 ## Projections and Row Width
 
 Capture Projections lists from Storage Scan and Storage Lookup nodes:
