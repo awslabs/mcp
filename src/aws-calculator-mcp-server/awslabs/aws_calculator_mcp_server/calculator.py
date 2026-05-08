@@ -648,6 +648,39 @@ class AWSCalculatorAutomation:
                     await self._select_cloudscape_dropdown(label, str(value))
                     continue
 
+                # Special: "_nth_dropdown:N:text" means click Nth dropdown matching text, select value
+                if field_label.startswith("_nth_dropdown:"):
+                    parts = field_label[14:].split(":", 1)
+                    idx = int(parts[0]) - 1
+                    match_text = parts[1] if len(parts) > 1 else ""
+                    btns = page.locator(f'main button:has-text("{match_text}")')
+                    if await btns.count() > idx:
+                        await btns.nth(idx).click(force=True)
+                        await page.wait_for_timeout(600)
+                        opt = page.get_by_role("option", name=str(value), exact=True)
+                        if await opt.count() > 0:
+                            await opt.first.click()
+                        else:
+                            opt = page.locator(f'[role="option"]:has-text("{value}")')
+                            if await opt.count() > 0:
+                                await opt.first.click()
+                            else:
+                                await page.keyboard.press("Escape")
+                        await page.wait_for_timeout(500)
+                    continue
+
+                # Special: "_nth_input:N" means fill Nth input matching aria-label pattern
+                if field_label.startswith("_nth_input:"):
+                    parts = field_label[11:].split(":", 1)
+                    idx = int(parts[0]) - 1
+                    aria_pattern = parts[1] if len(parts) > 1 else "Enter Amount"
+                    inputs = page.locator(f'input[aria-label*="{aria_pattern}"]')
+                    if await inputs.count() > idx:
+                        await inputs.nth(idx).fill("")
+                        await inputs.nth(idx).fill(str(value))
+                        await page.wait_for_timeout(300)
+                    continue
+
                 # Special: "_autosuggest:placeholder" means use autosuggest component
                 if field_label.startswith("_autosuggest:"):
                     placeholder = field_label[13:]
