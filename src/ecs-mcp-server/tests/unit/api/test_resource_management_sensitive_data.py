@@ -71,11 +71,16 @@ class TestSanitizeSensitiveResponse:
                         "secrets": [
                             {
                                 "name": "DB_PASSWORD",
-                                "valueFrom": "arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/db-pass",
+                                "valueFrom": (
+                                    "arn:aws:secretsmanager:us-east-1:"
+                                    "123456789012:secret:prod/db-pass"
+                                ),
                             },
                             {
                                 "name": "API_TOKEN",
-                                "valueFrom": "arn:aws:ssm:us-east-1:123456789012:parameter/prod/token",
+                                "valueFrom": (
+                                    "arn:aws:ssm:us-east-1:123456789012:parameter/prod/token"
+                                ),
                             },
                         ],
                     }
@@ -184,7 +189,10 @@ class TestSanitizeSensitiveResponse:
         _sanitize_sensitive_response(response, "DescribeTaskDefinition")
 
         # Original should be unchanged
-        assert response["taskDefinition"]["containerDefinitions"][0]["environment"][0]["value"] == "original"
+        assert (
+            response["taskDefinition"]["containerDefinitions"][0]["environment"][0]["value"]
+            == "original"
+        )
 
 
 class TestEcsApiOperationSensitiveData:
@@ -301,9 +309,7 @@ class TestEcsApiOperationSensitiveData:
     @pytest.mark.anyio
     @patch("awslabs.ecs_mcp_server.utils.config.get_config")
     @patch("awslabs.ecs_mcp_server.api.resource_management.get_aws_client")
-    async def test_non_sensitive_describe_not_affected(
-        self, mock_get_client, mock_get_config
-    ):
+    async def test_non_sensitive_describe_not_affected(self, mock_get_client, mock_get_config):
         """Non-sensitive Describe operations are not affected by ALLOW_SENSITIVE_DATA."""
         mock_get_config.return_value = {"allow-write": False, "allow-sensitive-data": False}
 
