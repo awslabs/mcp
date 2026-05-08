@@ -13,29 +13,16 @@
 # limitations under the License.
 """awslabs AWS China Documentation MCP Server implementation."""
 
-import httpx
 import re
 import uuid
-from awslabs.aws_documentation_mcp_server.server_utils import (
-    DEFAULT_USER_AGENT,
-    read_documentation_impl,
-)
-
-# Import utility functions
-from awslabs.aws_documentation_mcp_server.util import (
-    extract_content_from_html,
-    format_documentation_result,
-    is_html_content,
-)
+from awslabs.mcp_common import Field, LazyServer
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
-from pydantic import AnyUrl, Field
-from typing import Union
 
 
 SESSION_UUID = str(uuid.uuid4())
 
-mcp = FastMCP(
+
+mcp = LazyServer(
     'awslabs.aws-documentation-mcp-server',
     instructions="""
     # AWS China Documentation MCP Server
@@ -65,8 +52,8 @@ mcp = FastMCP(
 
 @mcp.tool()
 async def read_documentation(
-    ctx: Context,
-    url: Union[AnyUrl, str] = Field(description='URL of the AWS China documentation page to read'),
+    ctx,
+    url: str = Field(description='URL of the AWS China documentation page to read'),
     max_length: int = Field(
         default=5000,
         description='Maximum number of characters to return.',
@@ -120,7 +107,8 @@ async def read_documentation(
     Returns:
         Markdown content of the AWS China documentation
     """
-    # Validate that URL is from docs.amazonaws.cn and ends with .html
+    from awslabs.aws_documentation_mcp_server.server_utils import read_documentation_impl
+
     url_str = str(url)
     if not re.match(r'^https?://docs\.amazonaws\.cn/', url_str):
         error_msg = f'Invalid URL: {url_str}. URL must be from the docs.amazonaws.cn domain'
@@ -135,9 +123,7 @@ async def read_documentation(
 
 
 @mcp.tool()
-async def get_available_services(
-    ctx: Context,
-) -> str:
+async def get_available_services(ctx) -> str:
     """Fetch available services from AWS China documentation.
 
     ## Usage
@@ -158,6 +144,14 @@ async def get_available_services(
     Returns:
         Markdown content of the AWS China documentation about available services
     """
+    import httpx
+    from awslabs.aws_documentation_mcp_server.server_utils import get_default_user_agent
+    from awslabs.aws_documentation_mcp_server.util import (
+        extract_content_from_html,
+        format_documentation_result,
+        is_html_content,
+    )
+
     url_str = 'https://docs.amazonaws.cn/en_us/aws/latest/userguide/services.html'
     url_with_session = f'{url_str}?session={SESSION_UUID}'
 
@@ -168,14 +162,16 @@ async def get_available_services(
             response = await client.get(
                 url_with_session,
                 follow_redirects=True,
-                headers={'User-Agent': DEFAULT_USER_AGENT},
+                headers={'User-Agent': get_default_user_agent()},
                 timeout=30,
             )
-            # Fetch the Table of Contents in the Services page, which contains the list of supported services
             toc_response = await client.get(
                 toc_url_with_session,
                 follow_redirects=True,
-                headers={'User-Agent': DEFAULT_USER_AGENT, 'Content-Type': 'application/json'},
+                headers={
+                    'User-Agent': get_default_user_agent(),
+                    'Content-Type': 'application/json',
+                },
                 timeout=30,
             )
         except httpx.HTTPError as e:
@@ -196,16 +192,12 @@ async def get_available_services(
         content_type = response.headers.get('content-type', '')
 
         page_toc_json = toc_response.json()
-        # Expecting a toc JSON object that has a href of 'services.html', which contains all of the AWS Services supported in China
-        # toc_response = { 'contents' : [ { 'title: '', 'href': '', 'contents: [] } ] }
         services_json = [
             toc_item.get('contents', [])
             for toc_item in page_toc_json.get('contents', [])
             if toc_item.get('href') == 'services.html'
         ]
 
-        # If toc_response does not have `href: services.html`, and services_json is empty, raise an error so
-        # users can self-solve.
         if len(services_json) == 0:
             error_msg = (
                 f'Failed fetching list of available AWS Services, please go to {url_str} directly'
@@ -214,7 +206,6 @@ async def get_available_services(
             await ctx.error(error_msg)
             return error_msg
 
-        # Filtering out 'Services Unsupported in Amazon Web Services in China'
         formatted_service_titles = ''
         service_doc_links = [
             f'[{service.get("title")}](https://docs.amazonaws.cn/en_us/aws/latest/userguide/{service.get("href")})'
@@ -230,7 +221,6 @@ async def get_available_services(
     else:
         content = page_raw
 
-    # Format the content without truncation
     MAX_DOCUMENTATION_LENGTH = 2**1000
     result = format_documentation_result(
         url_str, content, start_index=0, max_length=MAX_DOCUMENTATION_LENGTH
@@ -241,9 +231,7 @@ async def get_available_services(
 
 def main():
     """Run the MCP server with CLI argument support."""
-    # Log startup information
     logger.info('Starting AWS China Documentation MCP Server')
-
     mcp.run()
 
 

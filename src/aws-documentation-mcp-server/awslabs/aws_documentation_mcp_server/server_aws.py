@@ -13,33 +13,19 @@
 # limitations under the License.
 """awslabs AWS Documentation MCP Server implementation."""
 
-import httpx
 import json
 import re
 import uuid
-
-# Import models
-from awslabs.aws_documentation_mcp_server.models import (
-    RecommendationResult,
-    SearchResponse,
-    SearchResult,
-)
-from awslabs.aws_documentation_mcp_server.server_utils import (
-    DEFAULT_USER_AGENT,
-    add_search_result_cache_item,
-    read_documentation_impl,
-    read_sections_impl,
-)
-
-# Import utility functions
-from awslabs.aws_documentation_mcp_server.util import (
-    add_search_intent_to_search_request,
-    parse_recommendation_results,
-)
+from awslabs.mcp_common import Field, LazyServer
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
-from pydantic import Field
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
+
+
+if TYPE_CHECKING:
+    from awslabs.aws_documentation_mcp_server.models import (
+        RecommendationResult,
+        SearchResponse,
+    )
 
 
 SEARCH_API_URL = 'https://proxy.search.docs.aws.com/search'
@@ -47,7 +33,6 @@ RECOMMENDATIONS_API_URL = 'https://api.contentrecs.docs.aws.com/v1/recommendatio
 SESSION_UUID = str(uuid.uuid4())
 
 
-# Dict for domain modifiers for search if search terms contain any of the terms
 SEARCH_TERM_DOMAIN_MODIFIERS = [
     {
         'terms': ['neuron', 'neuron sdk'],
@@ -57,7 +42,7 @@ SEARCH_TERM_DOMAIN_MODIFIERS = [
 ]
 
 
-mcp = FastMCP(
+mcp = LazyServer(
     'awslabs.aws-documentation-mcp-server',
     instructions="""
     # AWS Documentation MCP Server
@@ -93,7 +78,7 @@ mcp = FastMCP(
 
 @mcp.tool()
 async def read_documentation(
-    ctx: Context,
+    ctx,
     url: str = Field(description='URL of the AWS documentation page to read'),
     max_length: int = Field(
         default=5000,
@@ -148,7 +133,8 @@ async def read_documentation(
     Returns:
         Markdown content of the AWS documentation
     """
-    # Validate that URL is from docs.aws.amazon.com and ends with .html
+    from awslabs.aws_documentation_mcp_server.server_utils import read_documentation_impl
+
     url_str = str(url)
 
     supported_domains_regex = [r'^https?://docs\.aws\.amazon\.com/']
@@ -167,7 +153,7 @@ async def read_documentation(
 
 @mcp.tool()
 async def read_sections(
-    ctx: Context,
+    ctx,
     url: str = Field(description='URL of the AWS documentation page to read'),
     section_titles: List[str] = Field(
         description='List of section titles to extract from the documentation'
@@ -218,7 +204,8 @@ async def read_sections(
     Returns:
         Filtered markdown content containing only the requested sections
     """
-    # Validate that URL is from docs.aws.amazon.com and ends with .html
+    from awslabs.aws_documentation_mcp_server.server_utils import read_sections_impl
+
     url_str = str(url)
 
     supported_domains_regex = [r'^https?://docs\.aws\.amazon\.com/']
@@ -241,7 +228,7 @@ async def read_sections(
 
 @mcp.tool()
 async def search_documentation(
-    ctx: Context,
+    ctx,
     search_phrase: str = Field(description='Search phrase to use'),
     search_intent: str = Field(
         description='For the search_phrase parameter, describe the search intent of the user. CRITICAL: Do not include any PII or customer data, describe only the AWS-related intent for search.',
@@ -261,7 +248,7 @@ async def search_documentation(
         default=None,
         description='Filter results by guide type (e.g., ["User Guide", "API Reference", "Developer Guide"])',
     ),
-) -> SearchResponse:
+) -> 'SearchResponse':
     """Search AWS documentation using the official AWS Documentation Search API.
 
     ## Usage
@@ -306,6 +293,14 @@ async def search_documentation(
     Returns:
         List of search results with URLs, titles, query ID, context snippets, and facets for filtering
     """
+    import httpx
+    from awslabs.aws_documentation_mcp_server.models import SearchResponse, SearchResult
+    from awslabs.aws_documentation_mcp_server.server_utils import (
+        add_search_result_cache_item,
+        get_default_user_agent,
+    )
+    from awslabs.aws_documentation_mcp_server.util import add_search_intent_to_search_request
+
     logger.debug(f'Searching AWS documentation for: {search_phrase}')
 
     request_body = {
@@ -320,7 +315,6 @@ async def search_documentation(
         if any(term in search_phrase.lower() for term in modifier['terms']):
             request_body['contextAttributes'].extend(modifier['domains'])
 
-    # Add product and guide filters if provided
     if product_types:
         for product in product_types:
             request_body['contextAttributes'].append(
@@ -344,7 +338,7 @@ async def search_documentation(
                 json=request_body,
                 headers={
                     'Content-Type': 'application/json',
-                    'User-Agent': DEFAULT_USER_AGENT,
+                    'User-Agent': get_default_user_agent(),
                     'X-MCP-Session-Id': SESSION_UUID,
                 },
                 timeout=30,
@@ -378,7 +372,6 @@ async def search_documentation(
             query_id = data.get('queryId', '')
             raw_facets = data.get('facets', {})
 
-            # Parse facets to rename keys
             facets = {}
             if raw_facets:
                 for key, value in raw_facets.items():
@@ -408,8 +401,6 @@ async def search_documentation(
                 text_suggestion = suggestion['textExcerptSuggestion']
                 context = None
 
-                # Use SEO abstract if available, as it is designed for this task explicitly. If that is not available,
-                # Try using Intelligent Summary Abstract, then fallback to authored summary and finally content body
                 metadata = text_suggestion.get('metadata', {})
                 if 'seo_abstract' in metadata:
                     context = metadata['seo_abstract']
@@ -424,7 +415,6 @@ async def search_documentation(
                 title = text_suggestion.get('title', '')
                 url = text_suggestion.get('link', '')
 
-                # Log metadata for debugging
                 logger.debug(f'Processing result {i + 1}: {title} - {url}')
                 logger.debug(f'Available metadata keys: {list(metadata.keys())}')
 
@@ -475,9 +465,9 @@ async def search_documentation(
 
 @mcp.tool()
 async def recommend(
-    ctx: Context,
+    ctx,
     url: str = Field(description='URL of the AWS documentation page to get recommendations for'),
-) -> List[RecommendationResult]:
+) -> 'List[RecommendationResult]':
     """Get content recommendations for an AWS documentation page.
 
     ## Usage
@@ -523,6 +513,11 @@ async def recommend(
     Returns:
         List of recommended pages with URLs, titles, and context
     """
+    import httpx
+    from awslabs.aws_documentation_mcp_server.models import RecommendationResult
+    from awslabs.aws_documentation_mcp_server.server_utils import get_default_user_agent
+    from awslabs.aws_documentation_mcp_server.util import parse_recommendation_results
+
     url_str = str(url)
     logger.debug(f'Getting recommendations for: {url_str}')
 
@@ -532,7 +527,7 @@ async def recommend(
         try:
             response = await client.get(
                 recommendation_url,
-                headers={'User-Agent': DEFAULT_USER_AGENT},
+                headers={'User-Agent': get_default_user_agent()},
                 timeout=30,
             )
         except httpx.HTTPError as e:

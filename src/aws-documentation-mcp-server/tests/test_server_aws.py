@@ -52,7 +52,7 @@ class TestReadDocumentation:
         with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_response
             with patch(
-                'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html'
+                'awslabs.aws_documentation_mcp_server.util.extract_content_from_html'
             ) as mock_extract:
                 mock_extract.return_value = '# Test\n\nThis is a test.'
 
@@ -80,7 +80,7 @@ class TestReadDocumentation:
         with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_response
             with patch(
-                'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html'
+                'awslabs.aws_documentation_mcp_server.util.extract_content_from_html'
             ) as mock_extract:
                 mock_extract.return_value = '# Test\n\nThis is a test.'
 
@@ -373,7 +373,7 @@ class TestReadSections:
         with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_response
             with patch(
-                'awslabs.aws_documentation_mcp_server.server_utils.is_html_content'
+                'awslabs.aws_documentation_mcp_server.util.is_html_content'
             ) as mock_is_html:
                 mock_is_html.return_value = False
 
@@ -417,7 +417,7 @@ class TestReadSections:
         with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_response
             with patch(
-                'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html'
+                'awslabs.aws_documentation_mcp_server.util.extract_content_from_html'
             ) as mock_extract:
                 # Simulate extract_content_from_html returning an error
                 mock_extract.return_value = '<e>Failed to convert HTML to markdown</e>'
