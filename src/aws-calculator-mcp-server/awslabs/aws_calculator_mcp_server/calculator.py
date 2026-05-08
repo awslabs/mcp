@@ -597,6 +597,12 @@ class AWSCalculatorAutomation:
                     await self._change_dropdown_by_current_text(current_text, str(value))
                     continue
 
+                # Special: "_select_cloudscape:label" means select from a Cloudscape dropdown by label
+                if field_label.startswith("_select_cloudscape:"):
+                    label = field_label[19:]
+                    await self._select_cloudscape_dropdown(label, str(value))
+                    continue
+
                 # Special: "_autosuggest:placeholder" means use autosuggest component
                 if field_label.startswith("_autosuggest:"):
                     placeholder = field_label[13:]
@@ -709,3 +715,122 @@ class AWSCalculatorAutomation:
         except:
             pass
         return "Unknown"
+
+    async def update_estimate(
+        self,
+        estimate_url: str,
+        add_services: list[dict] = None,
+        remove_services: list[str] = None,
+    ) -> dict:
+        """Load an existing estimate, modify it, and return a new share link.
+
+        Args:
+            estimate_url: The shareable calculator.aws URL to load.
+            add_services: Services to add (same format as create_estimate).
+            remove_services: Service names to remove.
+
+        Returns:
+            Dict with new estimate_url, monthly_cost, and services.
+        """
+        await self._ensure_browser()
+        page = self._page
+
+        # 1. Load existing estimate
+        logger.info(f"Loading estimate: {estimate_url}")
+        await page.goto(estimate_url, wait_until="networkidle")
+        await page.wait_for_timeout(5000)
+        await self._dismiss_cookies()
+
+        # 2. Click "Update estimate" to load into local session
+        update_btn = page.locator('button[aria-label="Update estimate button"]')
+        if await update_btn.count() > 0:
+            await update_btn.click()
+            await page.wait_for_timeout(3000)
+            logger.info("  Loaded estimate into session")
+        else:
+            return {"error": "Could not find 'Update estimate' button"}
+
+        # 3. Remove services if requested
+        if remove_services:
+            await page.goto(f"{CALCULATOR_BASE_URL}/#/estimate", wait_until="networkidle")
+            await page.wait_for_timeout(3000)
+            await self._dismiss_cookies()
+
+            for svc_name in remove_services:
+                logger.info(f"  Removing: {svc_name}")
+                # Find the service row and click its delete button
+                delete_btn = page.locator(
+                    f'button[aria-label*="Delete"][aria-label*="{svc_name}"]'
+                )
+                if await delete_btn.count() > 0:
+                    await delete_btn.first.click()
+                    await page.wait_for_timeout(1000)
+                    # Confirm deletion if dialog appears
+                    confirm = page.locator('button:has-text("Delete")')
+                    if await confirm.count() > 1:
+                        await confirm.last.click()
+                        await page.wait_for_timeout(1000)
+                else:
+                    logger.warning(f"  Could not find delete button for: {svc_name}")
+
+        # 4. Add new services if requested
+        results = []
+        if add_services:
+            for svc in add_services:
+                service_name = svc["service_name"]
+                config = svc.get("config", {})
+                region = svc.get("region", "South America (Sao Paulo)")
+
+                logger.info(f"  Adding: {service_name}")
+
+                if not await self._search_and_configure(service_name):
+                    logger.warning(f"  Could not find: {service_name}")
+                    results.append({"service_name": service_name, "status": "not_found"})
+                    continue
+
+                await self._select_region(region)
+                await page.wait_for_timeout(2000)
+
+                # Process radio first
+                radio_value = config.get("_radio")
+                if radio_value:
+                    await self._click_radio(str(radio_value))
+
+                # Fill fields
+                for field_label, value in config.items():
+                    if field_label.endswith("_unit"):
+                        await self._set_unit_for_field(field_label[:-5], str(value))
+                    elif field_label.startswith("_change:"):
+                        await self._change_dropdown_by_current_text(field_label[8:], str(value))
+                    elif field_label.startswith("_select_cloudscape:"):
+                        await self._select_cloudscape_dropdown(field_label[19:], str(value))
+                    elif field_label.startswith("_autosuggest:"):
+                        await self._fill_autosuggest(field_label[13:], str(value))
+                    elif field_label == "_radio":
+                        continue
+                    else:
+                        filled = await self._fill_number_field(field_label, str(value))
+                        if not filled:
+                            filled = await self._fill_text_field(field_label, str(value))
+                        if not filled:
+                            filled = await self._select_cloudscape_dropdown(field_label, str(value))
+
+                cost = await self._get_current_cost()
+                await self._save_service()
+                results.append({
+                    "service_name": service_name,
+                    "status": "added",
+                    "monthly_cost": cost,
+                })
+
+        # 5. Generate new share link
+        share_url = await self._get_share_link()
+        final_cost = await self._get_total_cost()
+
+        return {
+            "estimate_url": share_url,
+            "monthly_cost": final_cost,
+            "services_added": results,
+            "services_removed": remove_services or [],
+            "based_on": estimate_url,
+        }

@@ -116,6 +116,52 @@ async def create_estimate(
 
 
 @mcp.tool()
+async def update_estimate(
+    ctx: Context,
+    estimate_url: str,
+    add_services: list[dict[str, Any]] = None,
+    remove_services: list[str] = None,
+) -> dict[str, Any]:
+    """Update an existing AWS Calculator estimate by adding or removing services.
+
+    Loads the estimate from its shareable URL, applies changes, and returns
+    a new shareable link with the updated configuration.
+
+    Args:
+        estimate_url: Existing calculator.aws estimate URL
+            (e.g., "https://calculator.aws/#/estimate?id=abc123")
+        add_services: Optional list of services to add (same format as create_estimate)
+        remove_services: Optional list of service names to remove from the estimate
+
+    Returns:
+        Dict with new estimate_url, monthly_cost, and service details.
+
+    Example:
+        update_estimate(
+            estimate_url="https://calculator.aws/#/estimate?id=abc123",
+            add_services=[{"service_name": "AWS Data Transfer", "config": {"Enter Amount": "800"}}],
+            remove_services=["AWS Shield"]
+        )
+    """
+    await ctx.info(f"Updating estimate: {estimate_url}")
+
+    calculator = _get_calculator()
+    try:
+        result = await calculator.update_estimate(
+            estimate_url=estimate_url,
+            add_services=add_services or [],
+            remove_services=remove_services or [],
+        )
+        await ctx.info(f"Estimate updated: {result.get('estimate_url', 'N/A')}")
+        return result
+    except Exception as e:
+        logger.error(f"Failed to update: {e}")
+        return {"error": str(e)}
+    finally:
+        await calculator.close()
+
+
+@mcp.tool()
 async def list_service_fields(
     ctx: Context,
     service_name: str = "",
