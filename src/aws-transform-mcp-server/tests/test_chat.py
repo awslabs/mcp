@@ -39,7 +39,7 @@ def _parse(result: dict) -> dict:
 
 
 class TestSendValidation:
-    @patch(f'{_SEND_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_SEND_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_SEND_MOD}.is_fes_available', return_value=True)
     async def test_text_sends_to_fes(self, _mock_configured, mock_fes, ctx):
         """Text param is forwarded to FES SendMessage."""
@@ -64,7 +64,7 @@ class TestSendValidation:
 
 
 class TestSkipPolling:
-    @patch(f'{_SEND_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_SEND_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_SEND_MOD}.is_fes_available', return_value=True)
     async def test_skip_polling(self, _mock_configured, mock_fes, ctx):
         from awslabs.aws_transform_mcp_server.tools.chat.send_message import send_message
@@ -84,9 +84,9 @@ class TestSkipPolling:
 
 class TestPollingFindsResponse:
     @patch(f'{_COMMON_MOD}.asyncio.sleep', new_callable=AsyncMock)
-    @patch(f'{_COMMON_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_COMMON_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_SEND_MOD}.is_fes_available', return_value=True)
-    @patch(f'{_SEND_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_SEND_MOD}.call_transform_api', new_callable=AsyncMock)
     async def test_finds_response_on_second_poll(
         self, mock_send_fes, _mock_configured, mock_poll_fes, mock_sleep, ctx
     ):
@@ -139,9 +139,9 @@ class TestPollingFindsResponse:
 
 class TestPollingTimeout:
     @patch(f'{_COMMON_MOD}.asyncio.sleep', new_callable=AsyncMock)
-    @patch(f'{_COMMON_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_COMMON_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_SEND_MOD}.is_fes_available', return_value=True)
-    @patch(f'{_SEND_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_SEND_MOD}.call_transform_api', new_callable=AsyncMock)
     async def test_timeout_returns_none_response(
         self, mock_send_fes, _mock_configured, mock_poll_fes, mock_sleep, ctx
     ):
@@ -166,9 +166,9 @@ class TestPollingTimeout:
 
 class TestSendTimeoutWithThinking:
     @patch(f'{_COMMON_MOD}.asyncio.sleep', new_callable=AsyncMock)
-    @patch(f'{_COMMON_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_COMMON_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_SEND_MOD}.is_fes_available', return_value=True)
-    @patch(f'{_SEND_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_SEND_MOD}.call_transform_api', new_callable=AsyncMock)
     async def test_timeout_includes_last_thinking_message(
         self, mock_send_fes, _mock_configured, mock_poll_fes, mock_sleep, ctx
     ):
@@ -202,9 +202,9 @@ class TestSendTimeoutWithThinking:
         assert parsed['data']['lastThinkingMessage']['messageId'] == 'msg-think'
 
     @patch(f'{_COMMON_MOD}.asyncio.sleep', new_callable=AsyncMock)
-    @patch(f'{_COMMON_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_COMMON_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_SEND_MOD}.is_fes_available', return_value=True)
-    @patch(f'{_SEND_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_SEND_MOD}.call_transform_api', new_callable=AsyncMock)
     async def test_timeout_no_thinking_message(
         self, mock_send_fes, _mock_configured, mock_poll_fes, mock_sleep, ctx
     ):
@@ -222,9 +222,9 @@ class TestSendTimeoutWithThinking:
         assert 'lastThinkingMessage' not in parsed['data']
 
     @patch(f'{_COMMON_MOD}.asyncio.sleep', new_callable=AsyncMock)
-    @patch(f'{_COMMON_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_COMMON_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_SEND_MOD}.is_fes_available', return_value=True)
-    @patch(f'{_SEND_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_SEND_MOD}.call_transform_api', new_callable=AsyncMock)
     async def test_timeout_keeps_latest_thinking(
         self, mock_send_fes, _mock_configured, mock_poll_fes, mock_sleep, ctx
     ):
@@ -277,7 +277,7 @@ class TestSendTimeoutWithThinking:
 
 
 class TestSendJobId:
-    @patch(f'{_SEND_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_SEND_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_SEND_MOD}.is_fes_available', return_value=True)
     async def test_job_id_in_metadata(self, _mock_configured, mock_fes, ctx):
         """JobId should be included in the metadata sent to FES."""
@@ -289,7 +289,7 @@ class TestSendJobId:
         jobs = call_body['metadata']['resourcesOnScreen']['workspace']['jobs']
         assert jobs == [{'jobId': 'job-1', 'focusState': 'ACTIVE'}]
 
-    @patch(f'{_SEND_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_SEND_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_SEND_MOD}.is_fes_available', return_value=True)
     async def test_no_job_id_omits_jobs(self, _mock_configured, mock_fes, ctx):
         """Without jobId, metadata should not have a jobs key."""
@@ -307,9 +307,9 @@ class TestSendJobId:
 
 class TestSendTimeoutNote:
     @patch(f'{_COMMON_MOD}.asyncio.sleep', new_callable=AsyncMock)
-    @patch(f'{_COMMON_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_COMMON_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_SEND_MOD}.is_fes_available', return_value=True)
-    @patch(f'{_SEND_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_SEND_MOD}.call_transform_api', new_callable=AsyncMock)
     async def test_timeout_note_includes_send_message_call(
         self, mock_send_fes, _mock_configured, mock_poll_fes, mock_sleep, ctx
     ):
@@ -329,9 +329,9 @@ class TestSendTimeoutNote:
         assert 'parentMessageId="msg-abc"' in note
 
     @patch(f'{_COMMON_MOD}.asyncio.sleep', new_callable=AsyncMock)
-    @patch(f'{_COMMON_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_COMMON_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_SEND_MOD}.is_fes_available', return_value=True)
-    @patch(f'{_SEND_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_SEND_MOD}.call_transform_api', new_callable=AsyncMock)
     async def test_timeout_note_omits_job_id_when_absent(
         self, mock_send_fes, _mock_configured, mock_poll_fes, mock_sleep, ctx
     ):
@@ -353,7 +353,7 @@ class TestSendTimeoutNote:
 
 
 class TestSendFesError:
-    @patch(f'{_SEND_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_SEND_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_SEND_MOD}.is_fes_available', return_value=True)
     async def test_fes_exception_returns_failure(self, _mock_configured, mock_fes, ctx):
         """FES exceptions should be caught and returned as failure results."""
@@ -386,9 +386,9 @@ class TestNotConfigured:
 
 class TestSendErrorMessageType:
     @patch(f'{_COMMON_MOD}.asyncio.sleep', new_callable=AsyncMock)
-    @patch(f'{_COMMON_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_COMMON_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_SEND_MOD}.is_fes_available', return_value=True)
-    @patch(f'{_SEND_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_SEND_MOD}.call_transform_api', new_callable=AsyncMock)
     async def test_error_message_returns_assistant_error(
         self, mock_send_fes, _mock_configured, mock_poll_fes, mock_sleep, ctx
     ):
@@ -425,7 +425,7 @@ class TestSendErrorMessageType:
 
 
 class TestSendMessageIdExtraction:
-    @patch(f'{_SEND_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_SEND_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_SEND_MOD}.is_fes_available', return_value=True)
     async def test_missing_message_id_returns_error(self, _mock_configured, mock_fes, ctx):
         """When messageId cannot be extracted, return error_result."""

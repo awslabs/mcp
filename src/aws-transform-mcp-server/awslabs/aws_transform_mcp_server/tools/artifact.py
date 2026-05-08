@@ -24,21 +24,21 @@ import httpx
 import os
 from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.config_store import is_fes_available
-from awslabs.aws_transform_mcp_server.fes_client import call_fes
-from awslabs.aws_transform_mcp_server.fes_models import (
-    ArtifactReference,
-    ArtifactType,
-    CompleteArtifactUploadRequest,
-    ContentDigest,
-    CreateArtifactUploadUrlRequest,
-    FileMetadata,
-)
 from awslabs.aws_transform_mcp_server.file_validation import validate_read_path
 from awslabs.aws_transform_mcp_server.tool_utils import (
     MUTATE,
     error_result,
     failure_result,
     success_result,
+)
+from awslabs.aws_transform_mcp_server.transform_api_client import call_transform_api
+from awslabs.aws_transform_mcp_server.transform_api_models import (
+    ArtifactReference,
+    ArtifactType,
+    CompleteArtifactUploadRequest,
+    ContentDigest,
+    CreateArtifactUploadUrlRequest,
+    FileMetadata,
 )
 from mcp.server.fastmcp import Context
 from pydantic import Field
@@ -157,7 +157,7 @@ class ArtifactHandler:
                 ),
             )
 
-            init_result = await call_fes('CreateArtifactUploadUrl', upload_req)
+            init_result = await call_transform_api('CreateArtifactUploadUrl', upload_req)
 
             # Flatten multi-value headers
             put_headers: Dict[str, str] = {}
@@ -191,7 +191,7 @@ class ArtifactHandler:
                     }
                 )
 
-            await call_fes(
+            await call_transform_api(
                 'CompleteArtifactUpload',
                 CompleteArtifactUploadRequest(
                     workspaceId=workspaceId,

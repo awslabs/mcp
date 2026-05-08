@@ -17,17 +17,17 @@
 import uuid
 from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.config_store import is_fes_available
-from awslabs.aws_transform_mcp_server.fes_client import call_fes
-from awslabs.aws_transform_mcp_server.fes_models import (
-    CreateWorkspaceRequest,
-    DeleteWorkspaceRequest,
-)
 from awslabs.aws_transform_mcp_server.tool_utils import (
     DELETE_IDEMPOTENT,
     MUTATE,
     error_result,
     failure_result,
     success_result,
+)
+from awslabs.aws_transform_mcp_server.transform_api_client import call_transform_api
+from awslabs.aws_transform_mcp_server.transform_api_models import (
+    CreateWorkspaceRequest,
+    DeleteWorkspaceRequest,
 )
 from mcp.server.fastmcp import Context
 from pydantic import Field
@@ -65,7 +65,7 @@ class WorkspaceHandler:
             return error_result(_NOT_CONFIGURED_CODE, _NOT_CONFIGURED_MSG, _NOT_CONFIGURED_ACTION)
 
         try:
-            result = await call_fes(
+            result = await call_transform_api(
                 'CreateWorkspace',
                 CreateWorkspaceRequest(
                     name=name,
@@ -100,7 +100,9 @@ class WorkspaceHandler:
             )
 
         try:
-            result = await call_fes('DeleteWorkspace', DeleteWorkspaceRequest(id=workspaceId))
+            result = await call_transform_api(
+                'DeleteWorkspace', DeleteWorkspaceRequest(id=workspaceId)
+            )
             data = {'deleted': True, 'workspaceId': workspaceId}
             if result and isinstance(result, dict):
                 data.update(result)

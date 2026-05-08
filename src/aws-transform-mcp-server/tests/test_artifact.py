@@ -49,7 +49,7 @@ class TestUploadArtifactFromFile:
 
     @patch('awslabs.aws_transform_mcp_server.tools.artifact.httpx.AsyncClient')
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.artifact.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.artifact.call_transform_api',
         new_callable=AsyncMock,
     )
     @patch(
@@ -110,7 +110,7 @@ class TestUploadArtifactRawContent:
 
     @patch('awslabs.aws_transform_mcp_server.tools.artifact.httpx.AsyncClient')
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.artifact.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.artifact.call_transform_api',
         new_callable=AsyncMock,
     )
     @patch(
@@ -156,7 +156,7 @@ class TestUploadArtifactBase64:
 
     @patch('awslabs.aws_transform_mcp_server.tools.artifact.httpx.AsyncClient')
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.artifact.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.artifact.call_transform_api',
         new_callable=AsyncMock,
     )
     @patch(
@@ -249,7 +249,10 @@ class TestUploadArtifactEdgeCases:
 
     @pytest.mark.asyncio
     @patch('awslabs.aws_transform_mcp_server.tools.artifact.httpx.AsyncClient')
-    @patch('awslabs.aws_transform_mcp_server.tools.artifact.call_fes', new_callable=AsyncMock)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.artifact.call_transform_api',
+        new_callable=AsyncMock,
+    )
     @patch('awslabs.aws_transform_mcp_server.tools.artifact.is_fes_available', return_value=True)
     async def test_s3_upload_failure(self, _, mock_fes, mock_httpx, handler, ctx):
         mock_fes.return_value = {
@@ -280,7 +283,10 @@ class TestUploadArtifactEdgeCases:
 
     @pytest.mark.asyncio
     @patch('awslabs.aws_transform_mcp_server.tools.artifact.httpx.AsyncClient')
-    @patch('awslabs.aws_transform_mcp_server.tools.artifact.call_fes', new_callable=AsyncMock)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.artifact.call_transform_api',
+        new_callable=AsyncMock,
+    )
     @patch('awslabs.aws_transform_mcp_server.tools.artifact.is_fes_available', return_value=True)
     async def test_upload_with_plan_step_id(self, _, mock_fes, mock_httpx, handler, ctx):
         mock_fes.side_effect = [
@@ -316,7 +322,7 @@ class TestUploadArtifactEdgeCases:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.artifact.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.artifact.call_transform_api',
         new_callable=AsyncMock,
         side_effect=Exception('fail'),
     )
@@ -354,7 +360,10 @@ class TestUploadArtifactConnector:
 
     @pytest.mark.asyncio
     @patch('awslabs.aws_transform_mcp_server.tools.artifact.httpx.AsyncClient')
-    @patch('awslabs.aws_transform_mcp_server.tools.artifact.call_fes', new_callable=AsyncMock)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.artifact.call_transform_api',
+        new_callable=AsyncMock,
+    )
     @patch('awslabs.aws_transform_mcp_server.tools.artifact.is_fes_available', return_value=True)
     async def test_connector_upload_skips_complete(self, _, mock_fes, mock_httpx, handler, ctx):
         """Connector upload skips CompleteArtifactUpload and returns different shape."""

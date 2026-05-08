@@ -12,22 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for fes_client: cookie/bearer modes, token refresh, errors (boto3-based)."""
+"""Tests for transform_api_client: cookie/bearer modes, token refresh, errors (boto3-based)."""
 # ruff: noqa: D101, D102, D103
 
 import pytest
 import time
-from awslabs.aws_transform_mcp_server.fes_client import (
-    call_fes,
-    call_fes_direct_bearer,
-    call_fes_direct_cookie,
-)
 from awslabs.aws_transform_mcp_server.http_utils import HttpError
 from awslabs.aws_transform_mcp_server.models import ConnectionConfig, RefreshedTokens
+from awslabs.aws_transform_mcp_server.transform_api_client import (
+    call_fes_direct_bearer,
+    call_fes_direct_cookie,
+    call_transform_api,
+)
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
-_MOD = 'awslabs.aws_transform_mcp_server.fes_client'
+_MOD = 'awslabs.aws_transform_mcp_server.transform_api_client'
 
 
 # ── call_fes_direct_cookie ─────────────────────────────────────────────
@@ -96,7 +96,7 @@ class TestCallFesDirectBearer:
         mock_inject.assert_called_once_with(mock_create.return_value, 'tok', None)
 
 
-# ── call_fes (with config routing and token refresh) ──────────────────
+# ── call_transform_api (with config routing and token refresh) ──────────────────
 
 
 class TestCallFes:
@@ -143,7 +143,7 @@ class TestCallFes:
         with patch(
             'awslabs.aws_transform_mcp_server.config_store.get_config', return_value=config
         ):
-            result = await call_fes('ListWorkspaces')
+            result = await call_transform_api('ListWorkspaces')
 
         assert result == {'data': 'ok'}
         mock_inject.assert_called_once_with(
@@ -161,7 +161,7 @@ class TestCallFes:
         with patch(
             'awslabs.aws_transform_mcp_server.config_store.get_config', return_value=config
         ):
-            result = await call_fes('GetJob', {'jobId': '123'})
+            result = await call_transform_api('GetJob', {'jobId': '123'})
 
         assert result == {'data': 'ok'}
         mock_inject.assert_called_once_with(
@@ -190,7 +190,7 @@ class TestCallFes:
             patch('awslabs.aws_transform_mcp_server.config_store.persist_config') as mock_persist,
             patch('awslabs.aws_transform_mcp_server.oauth.refresh_access_token', mock_refresh),
         ):
-            result = await call_fes('ListJobs')
+            result = await call_transform_api('ListJobs')
 
         assert result == {'data': 'refreshed'}
         mock_refresh.assert_called_once()
@@ -209,7 +209,7 @@ class TestCallFes:
             'awslabs.aws_transform_mcp_server.config_store.get_config', return_value=config
         ):
             with pytest.raises(RuntimeError, match='Client registration expired'):
-                await call_fes('ListJobs')
+                await call_transform_api('ListJobs')
 
     @patch(f'{_MOD}._call_boto3', side_effect=HttpError(400, {'message': 'bad'}, 'HTTP 400: bad'))
     @patch(f'{_MOD}._inject_cookie_auth')
@@ -222,7 +222,7 @@ class TestCallFes:
             'awslabs.aws_transform_mcp_server.config_store.get_config', return_value=config
         ):
             with pytest.raises(HttpError) as exc_info:
-                await call_fes('CreateJob', {'name': 'test'})
+                await call_transform_api('CreateJob', {'name': 'test'})
             assert exc_info.value.status_code == 400
 
     @patch(
@@ -238,7 +238,7 @@ class TestCallFes:
             'awslabs.aws_transform_mcp_server.config_store.get_config', return_value=config
         ):
             with pytest.raises(HttpError) as exc_info:
-                await call_fes('GetWorkspace', {'workspaceId': '123'})
+                await call_transform_api('GetWorkspace', {'workspaceId': '123'})
             assert exc_info.value.status_code == 401
 
 
@@ -271,7 +271,7 @@ class TestFesRetry:
 class TestCreateClients:
     @patch(f'{_MOD}.create_session')
     def test_create_unsigned_client(self, mock_create_session):
-        from awslabs.aws_transform_mcp_server.fes_client import _create_unsigned_client
+        from awslabs.aws_transform_mcp_server.transform_api_client import _create_unsigned_client
 
         mock_session = MagicMock()
         mock_create_session.return_value = mock_session
@@ -288,7 +288,7 @@ class TestCreateClients:
     @patch(f'{_MOD}.boto3')
     @patch(f'{_MOD}.botocore.session')
     def test_create_sigv4_client(self, mock_bc_session, mock_boto3):
-        from awslabs.aws_transform_mcp_server.fes_client import _create_sigv4_client
+        from awslabs.aws_transform_mcp_server.transform_api_client import _create_sigv4_client
 
         mock_core = MagicMock()
         mock_bc_session.get_session.return_value = mock_core
@@ -310,7 +310,7 @@ class TestCreateClients:
 
 class TestInjectAuth:
     def test_inject_cookie_auth_sets_headers(self):
-        from awslabs.aws_transform_mcp_server.fes_client import _inject_cookie_auth
+        from awslabs.aws_transform_mcp_server.transform_api_client import _inject_cookie_auth
 
         mock_client = MagicMock()
         handlers = []
@@ -325,7 +325,7 @@ class TestInjectAuth:
         assert params['headers']['Cookie'] == 'session=abc'
 
     def test_inject_bearer_auth_sets_headers(self):
-        from awslabs.aws_transform_mcp_server.fes_client import _inject_bearer_auth
+        from awslabs.aws_transform_mcp_server.transform_api_client import _inject_bearer_auth
 
         mock_client = MagicMock()
         handlers = []
@@ -343,7 +343,7 @@ class TestInjectAuth:
         assert 'X-Amz-Target' in params['headers']
 
     def test_inject_bearer_auth_skips_origin_for_list_profiles(self):
-        from awslabs.aws_transform_mcp_server.fes_client import _inject_bearer_auth
+        from awslabs.aws_transform_mcp_server.transform_api_client import _inject_bearer_auth
 
         mock_client = MagicMock()
         handlers = []
@@ -364,7 +364,7 @@ class TestInjectAuth:
 
 class TestCallBoto3:
     def test_success_with_metadata(self):
-        from awslabs.aws_transform_mcp_server.fes_client import _call_boto3
+        from awslabs.aws_transform_mcp_server.transform_api_client import _call_boto3
 
         mock_client = MagicMock()
         mock_client.verify_session.return_value = {
@@ -378,15 +378,15 @@ class TestCallBoto3:
         mock_client.verify_session.assert_called_once_with()
 
     def test_unknown_operation_raises(self):
-        from awslabs.aws_transform_mcp_server.fes_client import _call_boto3
+        from awslabs.aws_transform_mcp_server.transform_api_client import _call_boto3
 
         mock_client = MagicMock(spec=[])
 
-        with pytest.raises(ValueError, match='Unknown FES operation'):
+        with pytest.raises(ValueError, match='Unknown operation'):
             _call_boto3(mock_client, 'NonexistentOp', {})
 
     def test_client_error_raises_http_error(self):
-        from awslabs.aws_transform_mcp_server.fes_client import _call_boto3
+        from awslabs.aws_transform_mcp_server.transform_api_client import _call_boto3
         from botocore.exceptions import ClientError
 
         mock_client = MagicMock()
@@ -411,7 +411,7 @@ class TestCallFesDirectSigv4:
     @patch(f'{_MOD}._create_sigv4_client')
     @patch(f'{_MOD}.AwsHelper')
     async def test_resolves_region_when_none(self, mock_helper, mock_create, mock_call):
-        from awslabs.aws_transform_mcp_server.fes_client import call_fes_direct_sigv4
+        from awslabs.aws_transform_mcp_server.transform_api_client import call_fes_direct_sigv4
 
         mock_session = MagicMock()
         mock_helper.create_session.return_value = mock_session
@@ -428,7 +428,7 @@ class TestCallFesDirectSigv4:
     @patch(f'{_MOD}._call_boto3', return_value={'ok': True})
     @patch(f'{_MOD}._create_sigv4_client')
     async def test_uses_provided_region(self, mock_create, mock_call):
-        from awslabs.aws_transform_mcp_server.fes_client import call_fes_direct_sigv4
+        from awslabs.aws_transform_mcp_server.transform_api_client import call_fes_direct_sigv4
 
         mock_create.return_value = MagicMock()
 
@@ -437,7 +437,7 @@ class TestCallFesDirectSigv4:
         assert mock_create.call_args[1]['region'] == 'eu-west-1'
 
 
-# ── call_fes with FESRequest body ─────────────────────────────────────
+# ── call_transform_api with FESRequest body ─────────────────────────────────────
 
 
 class TestCallFesWithPydanticBody:
@@ -445,7 +445,7 @@ class TestCallFesWithPydanticBody:
     @patch(f'{_MOD}._inject_bearer_auth')
     @patch(f'{_MOD}._create_unsigned_client')
     async def test_fes_request_model_serialized(self, mock_create, mock_inject, mock_call):
-        from awslabs.aws_transform_mcp_server.fes_models import FESRequest
+        from awslabs.aws_transform_mcp_server.transform_api_models import FESRequest
 
         mock_create.return_value = MagicMock()
         config = ConnectionConfig(
@@ -468,7 +468,7 @@ class TestCallFesWithPydanticBody:
         with patch(
             'awslabs.aws_transform_mcp_server.config_store.get_config', return_value=config
         ):
-            result = await call_fes('GetJob', req)
+            result = await call_transform_api('GetJob', req)
 
         assert result == {'data': 'ok'}
         call_body = mock_call.call_args[0][2]
@@ -480,7 +480,7 @@ class TestCallFesWithPydanticBody:
 
 class TestEnsureFreshTokenMissingFields:
     async def test_returns_unchanged_when_no_refresh_token(self):
-        from awslabs.aws_transform_mcp_server.fes_client import _ensure_fresh_token
+        from awslabs.aws_transform_mcp_server.transform_api_client import _ensure_fresh_token
 
         config = ConnectionConfig(
             auth_mode='bearer',
@@ -501,7 +501,7 @@ class TestEnsureFreshTokenMissingFields:
         assert result.bearer_token == 'tok-1'
 
     async def test_returns_unchanged_when_no_client_id(self):
-        from awslabs.aws_transform_mcp_server.fes_client import _ensure_fresh_token
+        from awslabs.aws_transform_mcp_server.transform_api_client import _ensure_fresh_token
 
         config = ConnectionConfig(
             auth_mode='bearer',

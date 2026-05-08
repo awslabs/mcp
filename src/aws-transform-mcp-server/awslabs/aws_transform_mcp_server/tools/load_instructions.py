@@ -16,12 +16,6 @@
 
 from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.config_store import is_fes_available
-from awslabs.aws_transform_mcp_server.fes_client import call_fes
-from awslabs.aws_transform_mcp_server.fes_models import (
-    CreateArtifactDownloadUrlRequest,
-    JobFilter,
-    ListArtifactsRequest,
-)
 from awslabs.aws_transform_mcp_server.guidance_nudge import mark_job_checked
 from awslabs.aws_transform_mcp_server.tool_utils import (
     READ_ONLY,
@@ -29,6 +23,12 @@ from awslabs.aws_transform_mcp_server.tool_utils import (
     error_result,
     failure_result,
     success_result,
+)
+from awslabs.aws_transform_mcp_server.transform_api_client import call_transform_api
+from awslabs.aws_transform_mcp_server.transform_api_models import (
+    CreateArtifactDownloadUrlRequest,
+    JobFilter,
+    ListArtifactsRequest,
 )
 from mcp.server.fastmcp import Context
 from pydantic import Field
@@ -78,7 +78,7 @@ class LoadInstructionsHandler:
                     jobFilter=JobFilter(jobId=jobId),
                     nextToken=next_token,
                 )
-                artifacts_result = await call_fes('ListArtifacts', list_req)
+                artifacts_result = await call_transform_api('ListArtifacts', list_req)
                 artifacts = artifacts_result.get('artifacts', [])
                 instruction_artifact = next(
                     (
@@ -103,7 +103,7 @@ class LoadInstructionsHandler:
                     }
                 )
 
-            url_result = await call_fes(
+            url_result = await call_transform_api(
                 'CreateArtifactDownloadUrl',
                 CreateArtifactDownloadUrlRequest(
                     workspaceId=workspaceId,

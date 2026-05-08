@@ -49,7 +49,7 @@ class TestCompleteTaskApprove:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_transform_api',
         new_callable=AsyncMock,
     )
     @patch(
@@ -98,7 +98,7 @@ class TestCompleteTaskApprove:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_transform_api',
         new_callable=AsyncMock,
     )
     @patch(
@@ -141,7 +141,7 @@ class TestCompleteTaskSaveDraft:
     """Tests for complete_task SAVE_DRAFT flow."""
 
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_transform_api',
         new_callable=AsyncMock,
     )
     @patch(
@@ -188,7 +188,7 @@ class TestCompleteTaskSaveDraft:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_transform_api',
         new_callable=AsyncMock,
     )
     @patch(
@@ -240,7 +240,7 @@ class TestCompleteTaskWithFile:
     )
     @patch('awslabs.aws_transform_mcp_server.tools.hitl.os.path.exists', return_value=True)
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_transform_api',
         new_callable=AsyncMock,
     )
     @patch(
@@ -281,7 +281,7 @@ class TestCompleteTaskWithFile:
         mock_file_upload.assert_called_once()
 
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_transform_api',
         new_callable=AsyncMock,
     )
     @patch(
@@ -316,7 +316,7 @@ class TestSendForApproval:
     """Tests for SEND_FOR_APPROVAL action."""
 
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_transform_api',
         new_callable=AsyncMock,
     )
     @patch(
@@ -353,7 +353,7 @@ class TestValidationError:
     """Tests for validation error propagation."""
 
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_transform_api',
         new_callable=AsyncMock,
     )
     @patch(
@@ -451,7 +451,7 @@ class TestDownloadAgentArtifact:
     """Tests for download_agent_artifact standalone function."""
 
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_transform_api',
         new_callable=AsyncMock,
     )
     async def test_success_json(self, mock_fes):
@@ -480,7 +480,7 @@ class TestDownloadAgentArtifact:
         assert 'warning' not in result
 
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_transform_api',
         new_callable=AsyncMock,
     )
     async def test_success_non_json(self, mock_fes):
@@ -509,7 +509,7 @@ class TestDownloadAgentArtifact:
         assert 'not JSON' in result['warning']
 
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_transform_api',
         new_callable=AsyncMock,
     )
     async def test_s3_http_error(self, mock_fes):
@@ -535,7 +535,7 @@ class TestDownloadAgentArtifact:
         assert 'HTTP 403' in result['warning']
 
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_transform_api',
         new_callable=AsyncMock,
     )
     async def test_general_exception(self, mock_fes):
@@ -550,7 +550,7 @@ class TestDownloadAgentArtifact:
         assert 'network failure' in result['warning']
 
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_transform_api',
         new_callable=AsyncMock,
     )
     async def test_large_artifact_not_downloaded(self, mock_fes):
@@ -583,7 +583,7 @@ class TestSendForApprovalToolApproval:
     """Tests for SEND_FOR_APPROVAL with TOOL_APPROVAL category."""
 
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_transform_api',
         new_callable=AsyncMock,
     )
     @patch(
@@ -625,7 +625,7 @@ class TestSendForApprovalCritical:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_transform_api',
         new_callable=AsyncMock,
     )
     @patch(
@@ -680,7 +680,7 @@ class TestAgentArtifactDownloadInCompleteTask:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_transform_api',
         new_callable=AsyncMock,
     )
     @patch(
@@ -734,7 +734,7 @@ class TestCompleteTaskException:
     """Tests for exception handling in complete_task."""
 
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_transform_api',
         new_callable=AsyncMock,
     )
     @patch(
@@ -769,7 +769,7 @@ class TestCompleteTaskToolApproval:
     """Tests for TOOL_APPROVAL tasks handled through complete_task."""
 
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_transform_api',
         new_callable=AsyncMock,
     )
     @patch(
@@ -814,7 +814,7 @@ class TestCompleteTaskToolApproval:
         assert submit_call[0][1].humanArtifact is None
 
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_transform_api',
         new_callable=AsyncMock,
     )
     @patch(
@@ -857,7 +857,7 @@ class TestCompleteTaskToolApproval:
         assert submit_call[0][1].humanArtifact is None
 
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_transform_api',
         new_callable=AsyncMock,
     )
     @patch(
@@ -892,7 +892,7 @@ class TestCompleteTaskToolApproval:
         assert 'SAVE_DRAFT' in parsed['error']['message']
 
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_transform_api',
         new_callable=AsyncMock,
     )
     @patch(
@@ -933,7 +933,7 @@ class TestCompleteTaskToolApproval:
         assert submit_call[0][1].humanArtifact is None
 
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_transform_api',
         new_callable=AsyncMock,
     )
     @patch(
@@ -969,7 +969,7 @@ class TestCompleteTaskToolApproval:
         assert 'SUBMITTED' in parsed['error']['message']
 
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.hitl.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_transform_api',
         new_callable=AsyncMock,
     )
     @patch(

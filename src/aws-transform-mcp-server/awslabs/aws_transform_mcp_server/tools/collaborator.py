@@ -16,17 +16,17 @@
 
 from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.config_store import is_fes_available
-from awslabs.aws_transform_mcp_server.fes_client import call_fes
-from awslabs.aws_transform_mcp_server.fes_models import (
-    DeleteSelfRoleMappingsRequest,
-    DeleteUserRoleMappingsRequest,
-    PutUserRoleMappingsRequest,
-)
 from awslabs.aws_transform_mcp_server.tool_utils import (
     DELETE_IDEMPOTENT,
     error_result,
     failure_result,
     success_result,
+)
+from awslabs.aws_transform_mcp_server.transform_api_client import call_transform_api
+from awslabs.aws_transform_mcp_server.transform_api_models import (
+    DeleteSelfRoleMappingsRequest,
+    DeleteUserRoleMappingsRequest,
+    PutUserRoleMappingsRequest,
 )
 from mcp.server.fastmcp import Context
 from pydantic import Field
@@ -99,7 +99,7 @@ class CollaboratorHandler:
                     return error_result('VALIDATION_ERROR', 'userId is required for action="put".')
                 if not role:
                     return error_result('VALIDATION_ERROR', 'role is required for action="put".')
-                result = await call_fes(
+                result = await call_transform_api(
                     'PutUserRoleMappings',
                     PutUserRoleMappingsRequest(
                         workspaceId=workspaceId,
@@ -120,7 +120,7 @@ class CollaboratorHandler:
                         'Removing a collaborator requires confirm:true.',
                         'Set confirm:true to proceed.',
                     )
-                result = await call_fes(
+                result = await call_transform_api(
                     'DeleteUserRoleMappings',
                     DeleteUserRoleMappingsRequest(workspaceId=workspaceId, userId=userId),
                 )
@@ -142,7 +142,7 @@ class CollaboratorHandler:
                     'Leaving a workspace requires confirm:true.',
                     'Set confirm:true to proceed.',
                 )
-            result = await call_fes(
+            result = await call_transform_api(
                 'DeleteSelfRoleMappings',
                 DeleteSelfRoleMappingsRequest(workspaceId=workspaceId),
             )

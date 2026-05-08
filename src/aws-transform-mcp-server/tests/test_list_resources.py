@@ -69,7 +69,8 @@ class TestWithPagination:
 class TestPaginatedFes:
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
+        'awslabs.aws_transform_mcp_server.tools.list_resources.call_transform_api',
+        new_callable=AsyncMock,
     )
     async def test_basic_call(self, mock_fes):
         mock_fes.return_value = {'items': [1, 2], 'nextToken': 'tok'}
@@ -81,7 +82,8 @@ class TestPaginatedFes:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
+        'awslabs.aws_transform_mcp_server.tools.list_resources.call_transform_api',
+        new_callable=AsyncMock,
     )
     async def test_token_remap(self, mock_fes):
         mock_fes.return_value = {'items': [], 'outputToken': 'xyz'}
@@ -92,7 +94,8 @@ class TestPaginatedFes:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
+        'awslabs.aws_transform_mcp_server.tools.list_resources.call_transform_api',
+        new_callable=AsyncMock,
     )
     async def test_transform(self, mock_fes):
         mock_fes.return_value = {'count': 3}
@@ -104,7 +107,8 @@ class TestPaginatedFes:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
+        'awslabs.aws_transform_mcp_server.tools.list_resources.call_transform_api',
+        new_callable=AsyncMock,
     )
     async def test_non_dict_response(self, mock_fes):
         mock_fes.return_value = [1, 2, 3]
@@ -114,7 +118,8 @@ class TestPaginatedFes:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
+        'awslabs.aws_transform_mcp_server.tools.list_resources.call_transform_api',
+        new_callable=AsyncMock,
     )
     async def test_none_response(self, mock_fes):
         mock_fes.return_value = None
@@ -344,7 +349,8 @@ class TestListResourcesHandler:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
+        'awslabs.aws_transform_mcp_server.tools.list_resources.call_transform_api',
+        new_callable=AsyncMock,
     )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
@@ -391,7 +397,8 @@ class TestListResourcesHandler:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
+        'awslabs.aws_transform_mcp_server.tools.list_resources.call_transform_api',
+        new_callable=AsyncMock,
     )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
@@ -420,7 +427,8 @@ class TestListResourcesHandler:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
+        'awslabs.aws_transform_mcp_server.tools.list_resources.call_transform_api',
+        new_callable=AsyncMock,
     )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
@@ -449,7 +457,8 @@ class TestListResourcesHandler:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
+        'awslabs.aws_transform_mcp_server.tools.list_resources.call_transform_api',
+        new_callable=AsyncMock,
     )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
@@ -479,7 +488,8 @@ class TestListResourcesHandler:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
+        'awslabs.aws_transform_mcp_server.tools.list_resources.call_transform_api',
+        new_callable=AsyncMock,
     )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
@@ -508,7 +518,8 @@ class TestListResourcesHandler:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
+        'awslabs.aws_transform_mcp_server.tools.list_resources.call_transform_api',
+        new_callable=AsyncMock,
     )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
@@ -538,7 +549,8 @@ class TestListResourcesHandler:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
+        'awslabs.aws_transform_mcp_server.tools.list_resources.call_transform_api',
+        new_callable=AsyncMock,
     )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
@@ -580,7 +592,8 @@ class TestListResourcesHandler:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
+        'awslabs.aws_transform_mcp_server.tools.list_resources.call_transform_api',
+        new_callable=AsyncMock,
     )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
@@ -598,7 +611,8 @@ class TestListResourcesHandler:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
+        'awslabs.aws_transform_mcp_server.tools.list_resources.call_transform_api',
+        new_callable=AsyncMock,
     )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
@@ -618,7 +632,8 @@ class TestListResourcesHandler:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
+        'awslabs.aws_transform_mcp_server.tools.list_resources.call_transform_api',
+        new_callable=AsyncMock,
     )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
@@ -647,7 +662,8 @@ class TestListResourcesHandler:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
+        'awslabs.aws_transform_mcp_server.tools.list_resources.call_transform_api',
+        new_callable=AsyncMock,
     )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
@@ -667,7 +683,8 @@ class TestListResourcesHandler:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
+        'awslabs.aws_transform_mcp_server.tools.list_resources.call_transform_api',
+        new_callable=AsyncMock,
     )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
@@ -687,7 +704,8 @@ class TestListResourcesHandler:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
+        'awslabs.aws_transform_mcp_server.tools.list_resources.call_transform_api',
+        new_callable=AsyncMock,
     )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
@@ -840,7 +858,8 @@ class TestListResourcesHandler:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
+        'awslabs.aws_transform_mcp_server.tools.list_resources.call_transform_api',
+        new_callable=AsyncMock,
     )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
@@ -867,7 +886,8 @@ class TestListResourcesHandler:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
+        'awslabs.aws_transform_mcp_server.tools.list_resources.call_transform_api',
+        new_callable=AsyncMock,
     )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
@@ -882,7 +902,8 @@ class TestListResourcesHandler:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
+        'awslabs.aws_transform_mcp_server.tools.list_resources.call_transform_api',
+        new_callable=AsyncMock,
     )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True
@@ -1046,7 +1067,8 @@ class TestListCollaborators:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
+        'awslabs.aws_transform_mcp_server.tools.list_resources.call_transform_api',
+        new_callable=AsyncMock,
     )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.list_resources.paginate_all',
@@ -1099,7 +1121,8 @@ class TestListUsers:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
+        'awslabs.aws_transform_mcp_server.tools.list_resources.call_transform_api',
+        new_callable=AsyncMock,
     )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.list_resources.is_fes_available', return_value=True

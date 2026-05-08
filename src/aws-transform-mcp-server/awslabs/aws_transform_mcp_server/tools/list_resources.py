@@ -12,25 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""List resources tool handler — dispatches to FES/TCP based on resource type."""
+"""List resources tool handler — dispatches to API/control-plane based on resource type."""
 
 import asyncio
 from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.config_store import (
     is_fes_available,
-)
-from awslabs.aws_transform_mcp_server.fes_client import FESOperation, call_fes, paginate_all
-from awslabs.aws_transform_mcp_server.fes_models import (
-    BatchGetMessageRequest,
-    BatchGetUserDetailsRequest,
-    ChatJobMetadata,
-    ListJobPlanStepsRequest,
-    ListMessagesRequest,
-    ListPlanUpdatesRequest,
-    Metadata,
-    ResourcesOnScreen,
-    SearchUsersTypeaheadRequest,
-    WorkspaceMetadata,
 )
 from awslabs.aws_transform_mcp_server.guidance_nudge import job_needs_check
 from awslabs.aws_transform_mcp_server.tool_utils import (
@@ -43,6 +30,23 @@ from awslabs.aws_transform_mcp_server.tool_utils import (
     format_task_summary,
     format_worklog,
     success_result,
+)
+from awslabs.aws_transform_mcp_server.transform_api_client import (
+    FESOperation,
+    call_transform_api,
+    paginate_all,
+)
+from awslabs.aws_transform_mcp_server.transform_api_models import (
+    BatchGetMessageRequest,
+    BatchGetUserDetailsRequest,
+    ChatJobMetadata,
+    ListJobPlanStepsRequest,
+    ListMessagesRequest,
+    ListPlanUpdatesRequest,
+    Metadata,
+    ResourcesOnScreen,
+    SearchUsersTypeaheadRequest,
+    WorkspaceMetadata,
 )
 from enum import Enum
 from loguru import logger
@@ -162,10 +166,10 @@ async def paginated_fes(
     token_remap: Optional[Dict[str, str]] = None,
     transform: Optional[Callable[[Any], Any]] = None,
 ) -> Dict[str, Any]:
-    """Call FES with pagination and optional post-processing.
+    """Call the Transform API with pagination and optional post-processing.
 
     Args:
-        api: FES operation name.
+        api: API operation name.
         body: Request body (mutated in place with pagination fields).
         max_results: Optional max results.
         next_token: Optional pagination token.
@@ -176,7 +180,7 @@ async def paginated_fes(
         MCP-formatted success result.
     """
     with_pagination(body, max_results, next_token)
-    raw = await call_fes(api, body)
+    raw = await call_transform_api(api, body)
 
     if raw is None or not isinstance(raw, dict):
         return success_result(transform(raw) if transform else raw)
@@ -513,7 +517,7 @@ class ListResourcesHandler:
                     maxResults=maxResults,
                     nextToken=nextToken,
                 )
-                list_result = await call_fes('ListMessages', list_req)
+                list_result = await call_transform_api('ListMessages', list_req)
                 message_ids = (
                     list_result.get('messageIds', []) if isinstance(list_result, dict) else []
                 )
@@ -530,7 +534,7 @@ class ListResourcesHandler:
                 all_messages = []
                 for i in range(0, len(message_ids), 100):
                     batch = message_ids[i : i + 100]
-                    batch_result = await call_fes(
+                    batch_result = await call_transform_api(
                         'BatchGetMessage',
                         BatchGetMessageRequest(messageIds=batch, workspaceId=workspaceId),
                     )
@@ -601,8 +605,8 @@ class ListResourcesHandler:
                 )
 
                 results = await asyncio.gather(
-                    call_fes('ListJobPlanSteps', steps_req),
-                    call_fes('ListPlanUpdates', updates_req),
+                    call_transform_api('ListJobPlanSteps', steps_req),
+                    call_transform_api('ListPlanUpdates', updates_req),
                     return_exceptions=True,
                 )
 
@@ -679,7 +683,7 @@ class ListResourcesHandler:
                 items = all_data.get('items', [])
                 details_by_id: Dict[str, Any] = {}
                 if items:
-                    details = await call_fes(
+                    details = await call_transform_api(
                         'BatchGetUserDetails',
                         BatchGetUserDetailsRequest(
                             userIdList=[i['userId'] for i in items if 'userId' in i],
@@ -702,7 +706,7 @@ class ListResourcesHandler:
                         'VALIDATION_ERROR', 'searchTerm is required for listing users.'
                     )
                 return success_result(
-                    await call_fes(
+                    await call_transform_api(
                         'SearchUsersTypeahead',
                         SearchUsersTypeaheadRequest(
                             searchTerm=searchTerm,

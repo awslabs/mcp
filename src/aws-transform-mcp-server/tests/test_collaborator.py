@@ -54,7 +54,7 @@ class TestNotConfigured:
 
 
 class TestPutAction:
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_success(self, _mock_cfg, mock_fes, handler, ctx):
         mock_fes.return_value = {'updated': True}
@@ -90,7 +90,7 @@ class TestPutAction:
 
 
 class TestRemoveAction:
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_success(self, _mock_cfg, mock_fes, handler, ctx):
         mock_fes.return_value = {'detail': 'ok'}
@@ -124,7 +124,7 @@ class TestRemoveAction:
 
 
 class TestLeaveAction:
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_success(self, _mock_cfg, mock_fes, handler, ctx):
         mock_fes.return_value = {'detail': 'left'}
@@ -158,7 +158,7 @@ class TestLeaveAction:
 
 
 class TestExceptionHandling:
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock, side_effect=RuntimeError('boom'))
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock, side_effect=RuntimeError('boom'))
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_returns_failure(self, _mock_cfg, _mock_fes, handler, ctx):
         result = await handler.manage_collaborator(

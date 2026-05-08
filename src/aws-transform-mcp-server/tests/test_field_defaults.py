@@ -44,7 +44,10 @@ def _parse(result: dict) -> dict:
 class TestArtifactFieldDefaults:
     @pytest.mark.asyncio
     @patch('awslabs.aws_transform_mcp_server.tools.artifact.httpx.AsyncClient')
-    @patch('awslabs.aws_transform_mcp_server.tools.artifact.call_fes', new_callable=AsyncMock)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.artifact.call_transform_api',
+        new_callable=AsyncMock,
+    )
     @patch('awslabs.aws_transform_mcp_server.tools.artifact.is_fes_available', return_value=True)
     async def test_upload_with_only_required_params(self, _, mock_fes, mock_httpx):
         """Omit encoding, categoryType, fileType, fileName, planStepId — all should default."""
@@ -169,7 +172,9 @@ class TestHitlFieldDefaults:
         'awslabs.aws_transform_mcp_server.tools.hitl.upload_json_artifact', new_callable=AsyncMock
     )
     @patch('awslabs.aws_transform_mcp_server.tools.hitl.format_and_validate')
-    @patch('awslabs.aws_transform_mcp_server.tools.hitl.call_fes', new_callable=AsyncMock)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_transform_api', new_callable=AsyncMock
+    )
     @patch('awslabs.aws_transform_mcp_server.tools.hitl.is_fes_available', return_value=True)
     @patch('awslabs.aws_transform_mcp_server.tools.hitl.job_needs_check', return_value=None)
     async def test_complete_task_with_only_required_params(
@@ -211,7 +216,9 @@ class TestHitlFieldDefaults:
         'awslabs.aws_transform_mcp_server.tools.hitl.upload_json_artifact', new_callable=AsyncMock
     )
     @patch('awslabs.aws_transform_mcp_server.tools.hitl.format_and_validate')
-    @patch('awslabs.aws_transform_mcp_server.tools.hitl.call_fes', new_callable=AsyncMock)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.hitl.call_transform_api', new_callable=AsyncMock
+    )
     @patch('awslabs.aws_transform_mcp_server.tools.hitl.is_fes_available', return_value=True)
     @patch('awslabs.aws_transform_mcp_server.tools.hitl.job_needs_check', return_value=None)
     async def test_filePath_defaults_to_none_not_truthy(
@@ -249,7 +256,7 @@ class TestHitlFieldDefaults:
 
 class TestJobFieldDefaults:
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.job.call_fes', new_callable=AsyncMock)
+    @patch('awslabs.aws_transform_mcp_server.tools.job.call_transform_api', new_callable=AsyncMock)
     @patch('awslabs.aws_transform_mcp_server.tools.job.is_fes_available', return_value=True)
     async def test_create_job_with_only_required_params(self, _, mock_fes):
         """Omit jobType and orchestratorAgent — should be None, not FieldInfo."""
@@ -286,7 +293,10 @@ class TestJobFieldDefaults:
 
 class TestCollaboratorFieldDefaults:
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.collaborator.call_fes', new_callable=AsyncMock)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.collaborator.call_transform_api',
+        new_callable=AsyncMock,
+    )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.collaborator.is_fes_available', return_value=True
     )
@@ -339,7 +349,10 @@ class TestCollaboratorFieldDefaults:
 class TestConnectorFieldDefaults:
     @pytest.mark.asyncio
     @patch('awslabs.aws_transform_mcp_server.tools.connector.get_config')
-    @patch('awslabs.aws_transform_mcp_server.tools.connector.call_fes', new_callable=AsyncMock)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.connector.call_transform_api',
+        new_callable=AsyncMock,
+    )
     @patch('awslabs.aws_transform_mcp_server.tools.connector.is_fes_available', return_value=True)
     async def test_create_connector_with_only_required_params(self, _, mock_fes, mock_config):
         """Omit description and targetRegions — should be None, not FieldInfo."""
@@ -379,7 +392,10 @@ class TestConnectorFieldDefaults:
 
 class TestWorkspaceFieldDefaults:
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.workspace.call_fes', new_callable=AsyncMock)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.workspace.call_transform_api',
+        new_callable=AsyncMock,
+    )
     @patch('awslabs.aws_transform_mcp_server.tools.workspace.is_fes_available', return_value=True)
     async def test_create_workspace_with_only_required_params(self, _, mock_fes):
         """Omit description — should be None, not FieldInfo."""
@@ -410,7 +426,7 @@ class TestSendMessageFieldDefaults:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.chat.send_message.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.chat.send_message.call_transform_api',
         new_callable=AsyncMock,
     )
     @patch(

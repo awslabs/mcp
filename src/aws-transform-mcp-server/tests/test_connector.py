@@ -70,7 +70,10 @@ class TestAcceptConnector:
         assert parsed['error']['code'] == 'NO_AWS_CREDENTIALS'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.connector.call_fes', new_callable=AsyncMock)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.connector.call_transform_api',
+        new_callable=AsyncMock,
+    )
     @patch(f'{_MOD}.call_tcp', new_callable=AsyncMock)
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_happy_path(self, _, mock_tcp, mock_fes, handler, ctx):
@@ -131,7 +134,10 @@ class TestCreateConnector:
 
     @pytest.mark.asyncio
     @patch(f'{_MOD}.get_config')
-    @patch('awslabs.aws_transform_mcp_server.tools.connector.call_fes', new_callable=AsyncMock)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.connector.call_transform_api',
+        new_callable=AsyncMock,
+    )
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_happy_path(self, _, mock_fes, mock_config, handler, ctx):
         mock_cfg = MagicMock()
@@ -162,7 +168,10 @@ class TestCreateConnector:
     @pytest.mark.asyncio
     @patch(f'{_MOD}.get_config', return_value=None)
     @patch(f'{_MOD}.AwsHelper')
-    @patch('awslabs.aws_transform_mcp_server.tools.connector.call_fes', new_callable=AsyncMock)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.connector.call_transform_api',
+        new_callable=AsyncMock,
+    )
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_happy_path_no_config_fallback(
         self, _, mock_fes, mock_helper, mock_config, handler, ctx
@@ -188,7 +197,7 @@ class TestCreateConnector:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.connector.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.connector.call_transform_api',
         new_callable=AsyncMock,
         side_effect=Exception('API error'),
     )
@@ -208,7 +217,10 @@ class TestCreateConnector:
 
     @pytest.mark.asyncio
     @patch(f'{_MOD}.get_config')
-    @patch('awslabs.aws_transform_mcp_server.tools.connector.call_fes', new_callable=AsyncMock)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.connector.call_transform_api',
+        new_callable=AsyncMock,
+    )
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_optional_description_and_target_regions(
         self, _, mock_fes, mock_config, handler, ctx

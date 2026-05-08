@@ -44,7 +44,7 @@ def _parse(result: dict) -> dict:
     return json.loads(result['content'][0]['text'])
 
 
-# call_fes order in asyncio.gather:
+# call_transform_api order in asyncio.gather:
 #   1. GetJob
 #   2. ListWorklogs
 #   3. _fetch_recent_messages → ListMessages, (BatchGetMessage if IDs found)
@@ -75,7 +75,7 @@ class TestInstructionsRequired:
 
 class TestInProgressJob:
     @patch(f'{_MOD}.paginate_all', new_callable=AsyncMock)
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_MOD}.job_needs_check', return_value=None)
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_returns_snapshot_with_polling_guidance(
@@ -121,7 +121,7 @@ class TestInProgressJob:
 
 class TestCompletedJob:
     @patch(f'{_MOD}.paginate_all', new_callable=AsyncMock)
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_MOD}.job_needs_check', return_value=None)
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_terminal_state_stops_polling(
@@ -153,7 +153,7 @@ class TestCompletedJob:
 
 class TestFailedJob:
     @patch(f'{_MOD}.paginate_all', new_callable=AsyncMock)
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_MOD}.job_needs_check', return_value=None)
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_failed_is_terminal(
@@ -181,7 +181,7 @@ class TestFailedJob:
 
 class TestPendingHitlTasks:
     @patch(f'{_MOD}.paginate_all', new_callable=AsyncMock)
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_MOD}.job_needs_check', return_value=None)
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_pending_tasks_flagged(
@@ -216,7 +216,7 @@ class TestPendingHitlTasks:
 
 class TestGetJobFails:
     @patch(f'{_MOD}.paginate_all', new_callable=AsyncMock)
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_MOD}.job_needs_check', return_value=None)
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_returns_error_when_getjob_fails(
@@ -243,7 +243,7 @@ class TestGetJobFails:
 
 class TestPartialFailures:
     @patch(f'{_MOD}.paginate_all', new_callable=AsyncMock)
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_MOD}.job_needs_check', return_value=None)
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_returns_none_for_failed_sections(
@@ -278,7 +278,7 @@ class TestPartialFailures:
 
 class TestCancellationInProgress:
     @patch(f'{_MOD}.paginate_all', new_callable=AsyncMock)
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_MOD}.job_needs_check', return_value=None)
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_cancellation_in_progress_is_not_terminal(
@@ -311,8 +311,8 @@ _COMMON_MOD = 'awslabs.aws_transform_mcp_server.tools.chat._common'
 
 class TestDefaultSendsMessage:
     @patch(f'{_COMMON_MOD}.asyncio.sleep', new_callable=AsyncMock)
-    @patch(f'{_COMMON_MOD}.call_fes', new_callable=AsyncMock)
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_COMMON_MOD}.call_transform_api', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_MOD}.job_needs_check', return_value=None)
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_returns_assistant_response(
@@ -352,8 +352,8 @@ class TestDefaultSendsMessage:
         assert 'status' in body.text.lower()
 
     @patch(f'{_COMMON_MOD}.asyncio.sleep', new_callable=AsyncMock)
-    @patch(f'{_COMMON_MOD}.call_fes', new_callable=AsyncMock)
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_COMMON_MOD}.call_transform_api', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_MOD}.job_needs_check', return_value=None)
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_worklogs_failure_is_non_fatal(
@@ -388,8 +388,8 @@ class TestDefaultSendsMessage:
 
 class TestDefaultCustomMessage:
     @patch(f'{_COMMON_MOD}.asyncio.sleep', new_callable=AsyncMock)
-    @patch(f'{_COMMON_MOD}.call_fes', new_callable=AsyncMock)
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_COMMON_MOD}.call_transform_api', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_MOD}.job_needs_check', return_value=None)
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_forwards_custom_message(
@@ -426,8 +426,8 @@ class TestDefaultCustomMessage:
 
 class TestDefaultTimeout:
     @patch(f'{_COMMON_MOD}.asyncio.sleep', new_callable=AsyncMock)
-    @patch(f'{_COMMON_MOD}.call_fes', new_callable=AsyncMock)
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_COMMON_MOD}.call_transform_api', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_MOD}.job_needs_check', return_value=None)
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_timeout_returns_guidance(
@@ -450,8 +450,8 @@ class TestDefaultTimeout:
 
 class TestDefaultAssistantError:
     @patch(f'{_COMMON_MOD}.asyncio.sleep', new_callable=AsyncMock)
-    @patch(f'{_COMMON_MOD}.call_fes', new_callable=AsyncMock)
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_COMMON_MOD}.call_transform_api', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_MOD}.job_needs_check', return_value=None)
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_assistant_error_returns_error(
@@ -485,7 +485,7 @@ class TestDefaultAssistantError:
 
 
 class TestDefaultFesException:
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_MOD}.job_needs_check', return_value=None)
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_fes_error_returns_failure(self, _cfg, _nudge, mock_fes, handler, ctx):
@@ -502,7 +502,7 @@ class TestDefaultFesException:
 
 
 class TestDefaultMessageIdExtractionFailed:
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_MOD}.job_needs_check', return_value=None)
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_missing_message_id(self, _cfg, _nudge, mock_fes, handler, ctx):

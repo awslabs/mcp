@@ -23,8 +23,8 @@ from awslabs.aws_transform_mcp_server.config_store import (
     build_bearer_config,
     build_cookie_config,
     clear_config,
-    derive_fes_endpoint,
     derive_tcp_endpoint,
+    derive_transform_api_endpoint,
     extract_region_from_origin,
     get_config,
     is_configured,
@@ -52,15 +52,15 @@ class TestDeriveFesEndpoint:
     """Tests for derive_fes_endpoint."""
 
     def test_us_east_1(self):
-        url = derive_fes_endpoint('us-east-1')
+        url = derive_transform_api_endpoint('us-east-1')
         assert url == 'https://api.transform.us-east-1.on.aws/'
 
     def test_us_west_2(self):
-        url = derive_fes_endpoint('us-west-2')
+        url = derive_transform_api_endpoint('us-west-2')
         assert url == 'https://api.transform.us-west-2.on.aws/'
 
     def test_eu_west_1(self):
-        url = derive_fes_endpoint('eu-west-1')
+        url = derive_transform_api_endpoint('eu-west-1')
         assert url == 'https://api.transform.eu-west-1.on.aws/'
 
 
@@ -159,7 +159,7 @@ class TestBuildCookieConfig:
             session_cookie='tok',
             region='eu-west-1',
         )
-        assert cfg.fes_endpoint == derive_fes_endpoint('eu-west-1')
+        assert cfg.fes_endpoint == derive_transform_api_endpoint('eu-west-1')
 
 
 # ── build_bearer_config ─────────────────────────────────────────────────
@@ -191,7 +191,7 @@ class TestBuildBearerConfig:
         assert cfg.oidc_client_id == 'cid'
         assert cfg.oidc_client_secret == 'csec'  # pragma: allowlist secret
         assert cfg.oidc_client_secret_expires_at == 9999999999
-        assert cfg.fes_endpoint == derive_fes_endpoint('us-east-1')
+        assert cfg.fes_endpoint == derive_transform_api_endpoint('us-east-1')
 
 
 # ── State management ────────────────────────────────────────────────────
@@ -273,7 +273,7 @@ class TestPersistence:
             patch.object(store, '_config_dir', str(tmp_path)),
             patch.object(store, '_config_file', str(config_file)),
             patch(
-                'awslabs.aws_transform_mcp_server.fes_client.call_fes_direct_cookie',
+                'awslabs.aws_transform_mcp_server.transform_api_client.call_fes_direct_cookie',
                 new_callable=AsyncMock,
                 return_value={'userId': 'user-1'},
             ),
@@ -302,7 +302,7 @@ class TestPersistence:
             patch.object(store, '_config_dir', str(tmp_path)),
             patch.object(store, '_config_file', str(config_file)),
             patch(
-                'awslabs.aws_transform_mcp_server.fes_client.call_fes_direct_cookie',
+                'awslabs.aws_transform_mcp_server.transform_api_client.call_fes_direct_cookie',
                 new_callable=AsyncMock,
                 side_effect=Exception('401 Unauthorized'),
             ),

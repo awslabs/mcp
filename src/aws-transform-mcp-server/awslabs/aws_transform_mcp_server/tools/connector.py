@@ -21,13 +21,6 @@ from awslabs.aws_transform_mcp_server.config_store import (
     get_config,
     is_fes_available,
 )
-from awslabs.aws_transform_mcp_server.fes_client import call_fes
-from awslabs.aws_transform_mcp_server.fes_models import (
-    AccountConnectionRequest,
-    AwsAccountConnectionRequest,
-    CreateConnectorRequest,
-    GetConnectorRequest,
-)
 from awslabs.aws_transform_mcp_server.tcp_client import call_tcp
 from awslabs.aws_transform_mcp_server.tool_utils import (
     CREATE,
@@ -35,6 +28,13 @@ from awslabs.aws_transform_mcp_server.tool_utils import (
     error_result,
     failure_result,
     success_result,
+)
+from awslabs.aws_transform_mcp_server.transform_api_client import call_transform_api
+from awslabs.aws_transform_mcp_server.transform_api_models import (
+    AccountConnectionRequest,
+    AwsAccountConnectionRequest,
+    CreateConnectorRequest,
+    GetConnectorRequest,
 )
 from mcp.server.fastmcp import Context
 from pydantic import Field
@@ -128,11 +128,11 @@ class ConnectorHandler:
                 targetRegions=targetRegions,
             )
 
-            create_result = await call_fes('CreateConnector', create_req)
+            create_result = await call_transform_api('CreateConnector', create_req)
 
             connector_id = create_result['connectorId']
 
-            status = await call_fes(
+            status = await call_transform_api(
                 'GetConnector',
                 GetConnectorRequest(
                     workspaceId=workspaceId,
@@ -226,7 +226,7 @@ class ConnectorHandler:
                 },
             )
 
-            status = await call_fes(
+            status = await call_transform_api(
                 'GetConnector',
                 GetConnectorRequest(
                     workspaceId=workspaceId,

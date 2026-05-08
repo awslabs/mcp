@@ -45,7 +45,7 @@ def _parse(result: dict) -> dict:
 
 
 class TestCreateJob:
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_create_start_get(self, _mock_configured, mock_fes, handler, ctx):
         """CreateJob -> StartJob -> poll GetJob -> ListMessages chain."""
@@ -110,7 +110,7 @@ class TestCreateJob:
 
 
 class TestControlJob:
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_start(self, _mock_configured, mock_fes, handler, ctx):
         mock_fes.side_effect = [
@@ -126,7 +126,7 @@ class TestControlJob:
         calls = mock_fes.call_args_list
         assert calls[0][0][0] == 'StartJob'
 
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_stop(self, _mock_configured, mock_fes, handler, ctx):
         mock_fes.side_effect = [
@@ -150,7 +150,7 @@ class TestControlJob:
 
 
 class TestDeleteJob:
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_success(self, _mock_configured, mock_fes, handler, ctx):
         mock_fes.return_value = {'deleted': True}
@@ -195,7 +195,7 @@ class TestCreateJobWithOrchestrator:
         return AsyncMock()
 
     @pytest.mark.asyncio
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_create_job_with_orchestrator(self, _, mock_fes, handler, ctx):
         mock_fes.side_effect = [
@@ -218,7 +218,7 @@ class TestCreateJobWithOrchestrator:
         assert create_body.orchestratorAgent == 'agent-1'
 
     @pytest.mark.asyncio
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock, side_effect=Exception('fail'))
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock, side_effect=Exception('fail'))
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_create_job_fes_error(self, _, mock_fes, handler, ctx):
         result = await handler.create_job(
@@ -246,7 +246,7 @@ class TestControlJobError:
         return AsyncMock()
 
     @pytest.mark.asyncio
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock, side_effect=Exception('fail'))
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock, side_effect=Exception('fail'))
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_control_job_error(self, _, mock_fes, handler, ctx):
         result = await handler.control_job(ctx, workspaceId='ws-1', jobId='j-1', action='stop')
@@ -254,7 +254,7 @@ class TestControlJobError:
         assert parsed['success'] is False
 
     @pytest.mark.asyncio
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock, side_effect=Exception('fail'))
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock, side_effect=Exception('fail'))
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_delete_job_fes_error(self, _, mock_fes, handler, ctx):
         result = await handler.delete_job(ctx, workspaceId='ws-1', jobId='j-1', confirm=True)

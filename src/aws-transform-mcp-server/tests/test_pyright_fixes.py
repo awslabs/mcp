@@ -15,10 +15,10 @@
 """Regression tests for pyright type-safety fixes.
 
 These tests verify:
-1. call_fes / call_tcp raise RuntimeError when config is None
+1. call_transform_api / call_tcp raise RuntimeError when config is None
 2. download_agent_artifact is called with snake_case parameter names
 3. get_status works correctly with Optional attribute access after None guards
-4. paginated_fes passes correct FESOperation type to call_fes
+4. paginated_fes passes correct FESOperation type to call_transform_api
 """
 # ruff: noqa: D101, D102, D103
 
@@ -27,19 +27,19 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
-# ── Category 1: None-config guards in call_fes / call_tcp ────────────
+# ── Category 1: None-config guards in call_transform_api / call_tcp ────────────
 
 
 class TestCallFesNoneConfig:
-    """call_fes must raise RuntimeError when get_config() returns None."""
+    """call_transform_api must raise RuntimeError when get_config() returns None."""
 
     @pytest.mark.asyncio
     async def test_call_fes_raises_on_none_config(self):
-        from awslabs.aws_transform_mcp_server.fes_client import call_fes
+        from awslabs.aws_transform_mcp_server.transform_api_client import call_transform_api
 
         with patch('awslabs.aws_transform_mcp_server.config_store.get_config', return_value=None):
             with pytest.raises(RuntimeError, match='[Nn]ot configured'):
-                await call_fes('ListWorkspaces')
+                await call_transform_api('ListWorkspaces')
 
     @pytest.mark.asyncio
     async def test_call_tcp_raises_on_none_config(self):
@@ -233,7 +233,10 @@ class TestDownloadAgentArtifactParamNames:
         return ctx
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.call_fes', new_callable=AsyncMock)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.call_transform_api',
+        new_callable=AsyncMock,
+    )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
     )
@@ -274,14 +277,15 @@ class TestDownloadAgentArtifactParamNames:
 
 
 class TestPaginatedFesOperationType:
-    """paginated_fes must pass a valid FESOperation literal to call_fes."""
+    """paginated_fes must pass a valid FESOperation literal to call_transform_api."""
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
+        'awslabs.aws_transform_mcp_server.tools.list_resources.call_transform_api',
+        new_callable=AsyncMock,
     )
     async def test_paginated_fes_passes_valid_operation(self, mock_fes):
-        """The api argument to paginated_fes flows through to call_fes as-is."""
+        """The api argument to paginated_fes flows through to call_transform_api as-is."""
         from awslabs.aws_transform_mcp_server.tools.list_resources import paginated_fes
 
         mock_fes.return_value = {'workspaces': []}
@@ -294,10 +298,11 @@ class TestPaginatedFesOperationType:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.list_resources.call_fes', new_callable=AsyncMock
+        'awslabs.aws_transform_mcp_server.tools.list_resources.call_transform_api',
+        new_callable=AsyncMock,
     )
     async def test_paginated_fes_passes_operation_string_directly(self, mock_fes):
-        """Ensure the operation string type matches what call_fes expects."""
+        """Ensure the operation string type matches what call_transform_api expects."""
         from awslabs.aws_transform_mcp_server.tools.list_resources import paginated_fes
 
         mock_fes.return_value = {'jobs': []}

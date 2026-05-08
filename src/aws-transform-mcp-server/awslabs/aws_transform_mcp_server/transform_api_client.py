@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""FES (Front End Service) client — boto3-based with cookie, bearer, or SigV4 auth.
+"""Transform API client — boto3-based with cookie, bearer, or AWS credential auth.
 
 Uses a vendored botocore C2J model so ``boto3.client("elasticgumbyfrontendservice")``
-works without the Brazil-only ElasticGumbyFrontEndServicePythonClient package.
+works without the internal SDK package.
 """
 
 import asyncio
@@ -34,8 +34,8 @@ from awslabs.aws_transform_mcp_server.consts import (
     TIMEOUT_SECONDS,
     TOKEN_REFRESH_BUFFER_SECS,
 )
-from awslabs.aws_transform_mcp_server.fes_models import FESRequest
 from awslabs.aws_transform_mcp_server.http_utils import HttpError
+from awslabs.aws_transform_mcp_server.transform_api_models import FESRequest
 from botocore import UNSIGNED, xform_name
 from botocore.config import Config as BotoConfig
 from botocore.exceptions import ClientError
@@ -145,7 +145,7 @@ def _call_boto3(client, operation: str, body: Dict[str, Any]) -> Any:
     method_name = xform_name(operation)
     method = getattr(client, method_name, None)
     if method is None:
-        raise ValueError(f'Unknown FES operation: {operation}')
+        raise ValueError(f'Unknown operation: {operation}')
     try:
         result = method(**body)
     except ClientError as exc:
@@ -249,7 +249,7 @@ async def paginate_all(
         req = {**body}
         if next_token:
             req['nextToken'] = next_token
-        result = await call_fes(operation, req)
+        result = await call_transform_api(operation, req)
         if not isinstance(result, dict):
             logger.warning(
                 'paginate_all(%s): non-dict response on page with %d items collected: %s',
@@ -281,7 +281,7 @@ async def paginate_all(
 # ── Main entry point ───────────────────────────────────────────────────
 
 
-async def call_fes(
+async def call_transform_api(
     operation: FESOperation,
     body: Union[FESRequest, Mapping[str, Any], None] = None,
 ) -> Any:
@@ -305,7 +305,7 @@ async def call_fes(
             if region is None:
                 regions = config_store.get_sigv4_regions()
                 raise ProfileSelectionRequired(regions or [])
-            endpoint = config_store.derive_fes_endpoint(region)
+            endpoint = config_store.derive_transform_api_endpoint(region)
             return await call_fes_direct_sigv4(
                 endpoint,
                 operation,
@@ -318,7 +318,7 @@ async def call_fes(
     if config.auth_mode == 'bearer':
         config = await _ensure_fresh_token(config)
 
-    endpoint = config_store.derive_fes_endpoint(config.region or 'us-east-1')
+    endpoint = config_store.derive_transform_api_endpoint(config.region or 'us-east-1')
     client = _create_unsigned_client(endpoint, config.region or 'us-east-1')
     if config.auth_mode == 'cookie':
         _inject_cookie_auth(client, config.origin, config.session_cookie or '')

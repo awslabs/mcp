@@ -61,7 +61,10 @@ class TestGetResourceHandler:
     # ── session ────────────────────────────────────────────────────────
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.call_fes', new_callable=AsyncMock)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.call_transform_api',
+        new_callable=AsyncMock,
+    )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
     )
@@ -74,7 +77,10 @@ class TestGetResourceHandler:
         assert result['isError'] is False
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.call_fes', new_callable=AsyncMock)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.call_transform_api',
+        new_callable=AsyncMock,
+    )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
     )
@@ -98,7 +104,10 @@ class TestGetResourceHandler:
         assert parsed['error']['code'] == 'VALIDATION_ERROR'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.call_fes', new_callable=AsyncMock)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.call_transform_api',
+        new_callable=AsyncMock,
+    )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
     )
@@ -136,7 +145,10 @@ class TestGetResourceHandler:
         assert parsed['error']['code'] == 'VALIDATION_ERROR'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.call_fes', new_callable=AsyncMock)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.call_transform_api',
+        new_callable=AsyncMock,
+    )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
     )
@@ -172,7 +184,10 @@ class TestGetResourceHandler:
         assert parsed['error']['code'] == 'VALIDATION_ERROR'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.call_fes', new_callable=AsyncMock)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.call_transform_api',
+        new_callable=AsyncMock,
+    )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
     )
@@ -226,7 +241,10 @@ class TestGetResourceHandler:
         assert parsed['error']['code'] == 'VALIDATION_ERROR'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.call_fes', new_callable=AsyncMock)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.call_transform_api',
+        new_callable=AsyncMock,
+    )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
     )
@@ -285,7 +303,10 @@ class TestGetResourceHandler:
         'awslabs.aws_transform_mcp_server.tools.get_resource.download_s3_content',
         new_callable=AsyncMock,
     )
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.call_fes', new_callable=AsyncMock)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.call_transform_api',
+        new_callable=AsyncMock,
+    )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
     )
@@ -346,7 +367,10 @@ class TestGetResourceHandler:
         'awslabs.aws_transform_mcp_server.tools.get_resource.download_s3_content',
         new_callable=AsyncMock,
     )
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.call_fes', new_callable=AsyncMock)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.call_transform_api',
+        new_callable=AsyncMock,
+    )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
     )
@@ -394,7 +418,10 @@ class TestGetResourceHandler:
         assert parsed['error']['code'] == 'VALIDATION_ERROR'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.call_fes', new_callable=AsyncMock)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.call_transform_api',
+        new_callable=AsyncMock,
+    )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
     )
@@ -437,7 +464,10 @@ class TestGetResourceHandler:
         assert parsed['error']['code'] == 'VALIDATION_ERROR'
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.call_fes', new_callable=AsyncMock)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.call_transform_api',
+        new_callable=AsyncMock,
+    )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
     )
@@ -457,7 +487,10 @@ class TestGetResourceHandler:
         assert 'planUpdates' in parsed['data']
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.call_fes', new_callable=AsyncMock)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.call_transform_api',
+        new_callable=AsyncMock,
+    )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
     )
@@ -472,7 +505,10 @@ class TestGetResourceHandler:
     # ── exception handling ─────────────────────────────────────────────
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_transform_mcp_server.tools.get_resource.call_fes', new_callable=AsyncMock)
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.get_resource.call_transform_api',
+        new_callable=AsyncMock,
+    )
     @patch(
         'awslabs.aws_transform_mcp_server.tools.get_resource.is_fes_available', return_value=True
     )
@@ -499,7 +535,7 @@ class TestGetResourceTaskWithArtifact:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.get_resource.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.get_resource.call_transform_api',
         new_callable=AsyncMock,
     )
     @patch(
@@ -543,7 +579,7 @@ class TestGetResourceTaskWithArtifact:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.get_resource.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.get_resource.call_transform_api',
         new_callable=AsyncMock,
     )
     @patch(
@@ -584,7 +620,7 @@ class TestGetResourceTaskWithArtifact:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.get_resource.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.get_resource.call_transform_api',
         new_callable=AsyncMock,
     )
     @patch(
@@ -625,7 +661,7 @@ class TestGetResourceTaskWithArtifact:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.get_resource.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.get_resource.call_transform_api',
         new_callable=AsyncMock,
     )
     @patch(
@@ -673,7 +709,7 @@ class TestGetResourceTaskWithArtifact:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.get_resource.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.get_resource.call_transform_api',
         new_callable=AsyncMock,
     )
     @patch(
@@ -723,7 +759,7 @@ class TestGetResourceTaskWithArtifact:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.get_resource.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.get_resource.call_transform_api',
         new_callable=AsyncMock,
     )
     @patch(
@@ -785,7 +821,7 @@ class TestGetResourceMessagesParsing:
 
     @pytest.mark.asyncio
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.get_resource.call_fes',
+        'awslabs.aws_transform_mcp_server.tools.get_resource.call_transform_api',
         new_callable=AsyncMock,
     )
     @patch(

@@ -45,7 +45,7 @@ def _parse(result: dict) -> dict:
 
 
 class TestCreateWorkspace:
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_success(self, _mock_configured, mock_fes, handler, ctx):
         mock_fes.return_value = {
@@ -77,7 +77,7 @@ class TestCreateWorkspace:
 
 
 class TestDeleteWorkspace:
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_success(self, _mock_configured, mock_fes, handler, ctx):
         mock_fes.return_value = {'status': 'DELETED'}
@@ -131,7 +131,7 @@ class TestWorkspaceErrors:
         return AsyncMock()
 
     @pytest.mark.asyncio
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock, side_effect=Exception('fail'))
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock, side_effect=Exception('fail'))
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_create_workspace_fes_error(self, _, mock_fes, handler, ctx):
         result = await handler.create_workspace(ctx, name='test')
@@ -139,7 +139,7 @@ class TestWorkspaceErrors:
         assert parsed['success'] is False
 
     @pytest.mark.asyncio
-    @patch(f'{_MOD}.call_fes', new_callable=AsyncMock, side_effect=Exception('fail'))
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock, side_effect=Exception('fail'))
     @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_delete_workspace_fes_error(self, _, mock_fes, handler, ctx):
         result = await handler.delete_workspace(ctx, workspaceId='ws-1', confirm=True)

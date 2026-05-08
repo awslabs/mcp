@@ -18,8 +18,17 @@ import asyncio
 import json
 from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.config_store import is_fes_available
-from awslabs.aws_transform_mcp_server.fes_client import call_fes
-from awslabs.aws_transform_mcp_server.fes_models import (
+from awslabs.aws_transform_mcp_server.guidance_nudge import job_needs_check
+from awslabs.aws_transform_mcp_server.tool_utils import (
+    READ_ONLY,
+    download_s3_content,
+    error_result,
+    failure_result,
+    format_job_response,
+    success_result,
+)
+from awslabs.aws_transform_mcp_server.transform_api_client import call_transform_api
+from awslabs.aws_transform_mcp_server.transform_api_models import (
     BatchGetMessageRequest,
     CreateArtifactDownloadUrlRequest,
     CreateAssetDownloadUrlRequest,
@@ -29,15 +38,6 @@ from awslabs.aws_transform_mcp_server.fes_models import (
     GetWorkspaceRequest,
     ListJobPlanStepsRequest,
     ListPlanUpdatesRequest,
-)
-from awslabs.aws_transform_mcp_server.guidance_nudge import job_needs_check
-from awslabs.aws_transform_mcp_server.tool_utils import (
-    READ_ONLY,
-    download_s3_content,
-    error_result,
-    failure_result,
-    format_job_response,
-    success_result,
 )
 from enum import Enum
 from loguru import logger
@@ -79,14 +79,14 @@ class GetResourceType(str, Enum):
 
 
 async def get_session() -> Dict[str, Any]:
-    """Verify the current FES session.
+    """Verify the current API session.
 
     Returns:
         A dict with ``success: True`` and session data, or ``success: False``
         with an error object.
     """
     try:
-        session = await call_fes('VerifySession')
+        session = await call_transform_api('VerifySession')
         return {'success': True, 'data': {'session': session}}
     except Exception as error:
         msg = str(error)
@@ -220,7 +220,7 @@ class GetResourceHandler:
                         'VALIDATION_ERROR', 'workspaceId is required for getting a workspace.'
                     )
                 return success_result(
-                    await call_fes('GetWorkspace', GetWorkspaceRequest(id=workspaceId))
+                    await call_transform_api('GetWorkspace', GetWorkspaceRequest(id=workspaceId))
                 )
 
             # ── job ────────────────────────────────────────────────────────
@@ -234,7 +234,7 @@ class GetResourceHandler:
 
                 return success_result(
                     format_job_response(
-                        await call_fes(
+                        await call_transform_api(
                             'GetJob',
                             GetJobRequest(workspaceId=workspaceId, jobId=jobId),
                         )
@@ -252,7 +252,7 @@ class GetResourceHandler:
                         'VALIDATION_ERROR', 'connectorId is required for getting a connector.'
                     )
                 return success_result(
-                    await call_fes(
+                    await call_transform_api(
                         'GetConnector',
                         GetConnectorRequest(workspaceId=workspaceId, connectorId=connectorId),
                     )
@@ -273,7 +273,7 @@ class GetResourceHandler:
                         'VALIDATION_ERROR', 'taskId is required for getting a task.'
                     )
 
-                task_result = await call_fes(
+                task_result = await call_transform_api(
                     'GetHitlTask',
                     GetHitlTaskRequest(workspaceId=workspaceId, jobId=jobId, taskId=taskId),
                 )
@@ -392,7 +392,7 @@ class GetResourceHandler:
                         'artifactId is required for downloading an artifact.',
                     )
 
-                url_result = await call_fes(
+                url_result = await call_transform_api(
                     'CreateArtifactDownloadUrl',
                     CreateArtifactDownloadUrlRequest(
                         workspaceId=workspaceId,
@@ -432,7 +432,7 @@ class GetResourceHandler:
                         'VALIDATION_ERROR', 'assetKey is required for downloading an asset.'
                     )
 
-                url_result = await call_fes(
+                url_result = await call_transform_api(
                     'CreateAssetDownloadUrl',
                     CreateAssetDownloadUrlRequest(
                         workspaceId=workspaceId,
@@ -474,7 +474,7 @@ class GetResourceHandler:
                         'messageIds is required for getting messages (array of up to 100 IDs).',
                     )
                 return success_result(
-                    await call_fes(
+                    await call_transform_api(
                         'BatchGetMessage',
                         BatchGetMessageRequest(
                             messageIds=resolved_ids,
@@ -495,11 +495,11 @@ class GetResourceHandler:
                     )
 
                 results = await asyncio.gather(
-                    call_fes(
+                    call_transform_api(
                         'ListJobPlanSteps',
                         ListJobPlanStepsRequest(workspaceId=workspaceId, jobId=jobId),
                     ),
-                    call_fes(
+                    call_transform_api(
                         'ListPlanUpdates',
                         ListPlanUpdatesRequest(
                             workspaceId=workspaceId,

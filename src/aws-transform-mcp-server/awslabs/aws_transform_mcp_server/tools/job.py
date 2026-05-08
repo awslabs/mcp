@@ -18,8 +18,17 @@ import asyncio
 import uuid
 from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.config_store import is_fes_available
-from awslabs.aws_transform_mcp_server.fes_client import call_fes
-from awslabs.aws_transform_mcp_server.fes_models import (
+from awslabs.aws_transform_mcp_server.tool_utils import (
+    CREATE,
+    DELETE_IDEMPOTENT,
+    MUTATE,
+    error_result,
+    failure_result,
+    format_job_response,
+    success_result,
+)
+from awslabs.aws_transform_mcp_server.transform_api_client import call_transform_api
+from awslabs.aws_transform_mcp_server.transform_api_models import (
     BatchGetMessageRequest,
     ChatJobMetadata,
     CreateJobRequest,
@@ -31,15 +40,6 @@ from awslabs.aws_transform_mcp_server.fes_models import (
     StartJobRequest,
     StopJobRequest,
     WorkspaceMetadata,
-)
-from awslabs.aws_transform_mcp_server.tool_utils import (
-    CREATE,
-    DELETE_IDEMPOTENT,
-    MUTATE,
-    error_result,
-    failure_result,
-    format_job_response,
-    success_result,
 )
 from loguru import logger
 from mcp.server.fastmcp import Context
@@ -110,9 +110,9 @@ class JobHandler:
                 orchestratorAgent=orchestratorAgent,
             )
 
-            result = await call_fes('CreateJob', create_req)
+            result = await call_transform_api('CreateJob', create_req)
             job_id = result['jobId'] if isinstance(result, dict) else result
-            await call_fes(
+            await call_transform_api(
                 'StartJob',
                 StartJobRequest(workspaceId=workspaceId, jobId=job_id),
             )
@@ -137,7 +137,7 @@ class JobHandler:
         status: dict = {}
         current = ''
         while elapsed < _POLL_MAX_WAIT:
-            status = await call_fes(
+            status = await call_transform_api(
                 'GetJob',
                 GetJobRequest(workspaceId=workspace_id, jobId=job_id),
             )
@@ -166,7 +166,7 @@ class JobHandler:
                     ),
                 ),
             )
-            list_result = await call_fes(
+            list_result = await call_transform_api(
                 'ListMessages',
                 ListMessagesRequest(metadata=metadata, maxResults=10),
             )
@@ -175,7 +175,7 @@ class JobHandler:
             )
             if not message_ids:
                 return []
-            batch_result = await call_fes(
+            batch_result = await call_transform_api(
                 'BatchGetMessage',
                 BatchGetMessageRequest(messageIds=message_ids[:10], workspaceId=workspace_id),
             )
@@ -207,16 +207,16 @@ class JobHandler:
 
         try:
             if action == 'start':
-                await call_fes(
+                await call_transform_api(
                     'StartJob',
                     StartJobRequest(workspaceId=workspaceId, jobId=jobId),
                 )
             else:
-                await call_fes(
+                await call_transform_api(
                     'StopJob',
                     StopJobRequest(workspaceId=workspaceId, jobId=jobId),
                 )
-            status = await call_fes(
+            status = await call_transform_api(
                 'GetJob',
                 GetJobRequest(workspaceId=workspaceId, jobId=jobId),
             )
@@ -243,7 +243,7 @@ class JobHandler:
             )
 
         try:
-            data = await call_fes(
+            data = await call_transform_api(
                 'DeleteJob',
                 DeleteJobRequest(workspaceId=workspaceId, jobId=jobId),
             )

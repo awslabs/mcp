@@ -19,19 +19,6 @@ import time
 import uuid
 from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.config_store import is_fes_available
-from awslabs.aws_transform_mcp_server.fes_client import call_fes, paginate_all
-from awslabs.aws_transform_mcp_server.fes_models import (
-    BatchGetMessageRequest,
-    ChatJobMetadata,
-    GetJobRequest,
-    ListJobPlanStepsRequest,
-    ListMessagesRequest,
-    ListWorklogsRequest,
-    Metadata,
-    ResourcesOnScreen,
-    SendMessageRequest,
-    WorkspaceMetadata,
-)
 from awslabs.aws_transform_mcp_server.guidance_nudge import job_needs_check
 from awslabs.aws_transform_mcp_server.tool_utils import (
     READ_ONLY,
@@ -44,6 +31,19 @@ from awslabs.aws_transform_mcp_server.tools.chat._common import (
     build_timeout_data,
     format_response,
     poll_for_response,
+)
+from awslabs.aws_transform_mcp_server.transform_api_client import call_transform_api, paginate_all
+from awslabs.aws_transform_mcp_server.transform_api_models import (
+    BatchGetMessageRequest,
+    ChatJobMetadata,
+    GetJobRequest,
+    ListJobPlanStepsRequest,
+    ListMessagesRequest,
+    ListWorklogsRequest,
+    Metadata,
+    ResourcesOnScreen,
+    SendMessageRequest,
+    WorkspaceMetadata,
 )
 from loguru import logger
 from mcp.server.fastmcp import Context
@@ -156,8 +156,8 @@ class JobStatusHandler:
             )
 
             send_result, worklogs_result = await asyncio.gather(
-                call_fes('SendMessage', body),
-                call_fes(
+                call_transform_api('SendMessage', body),
+                call_transform_api(
                     'ListWorklogs',
                     ListWorklogsRequest(
                         workspaceId=workspaceId,
@@ -227,11 +227,11 @@ class JobStatusHandler:
         """Fetch the full data snapshot (original get_job_status behavior)."""
         try:
             results = await asyncio.gather(
-                call_fes(
+                call_transform_api(
                     'GetJob',
                     GetJobRequest(workspaceId=workspaceId, jobId=jobId),
                 ),
-                call_fes(
+                call_transform_api(
                     'ListWorklogs',
                     ListWorklogsRequest(workspaceId=workspaceId, jobId=jobId),
                 ),
@@ -304,7 +304,7 @@ async def _fetch_recent_messages(
             ),
         ),
     )
-    list_result = await call_fes(
+    list_result = await call_transform_api(
         'ListMessages',
         ListMessagesRequest(metadata=metadata, maxResults=50),
     )
@@ -314,7 +314,7 @@ async def _fetch_recent_messages(
     if not message_ids:
         return {'messages': []}
 
-    batch_result = await call_fes(
+    batch_result = await call_transform_api(
         'BatchGetMessage',
         BatchGetMessageRequest(messageIds=message_ids[:100], workspaceId=workspace_id),
     )
@@ -327,7 +327,7 @@ async def _fetch_plan(
     job_id: str,
 ) -> Optional[Dict[str, Any]]:
     """Fetch plan steps for the job."""
-    result = await call_fes(
+    result = await call_transform_api(
         'ListJobPlanSteps',
         ListJobPlanStepsRequest(workspaceId=workspace_id, jobId=job_id),
     )

@@ -36,7 +36,7 @@ shape.
 # ruff: noqa: D101, D102, D103
 
 import pytest
-from awslabs.aws_transform_mcp_server import fes_models
+from awslabs.aws_transform_mcp_server import transform_api_models as fes_models
 from awslabs.aws_transform_mcp_server._service_model import create_session
 from botocore import UNSIGNED
 from botocore.config import Config as BotoConfig

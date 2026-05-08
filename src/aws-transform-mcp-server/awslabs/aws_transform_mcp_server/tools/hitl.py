@@ -19,15 +19,6 @@ import os
 import uuid
 from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.config_store import is_fes_available
-from awslabs.aws_transform_mcp_server.fes_client import call_fes
-from awslabs.aws_transform_mcp_server.fes_models import (
-    CreateArtifactDownloadUrlRequest,
-    GetHitlTaskRequest,
-    HitlTaskArtifact,
-    SubmitCriticalHitlTaskRequest,
-    SubmitStandardHitlTaskRequest,
-    UpdateHitlTaskRequest,
-)
 from awslabs.aws_transform_mcp_server.file_validation import validate_read_path
 from awslabs.aws_transform_mcp_server.guidance_nudge import job_needs_check
 from awslabs.aws_transform_mcp_server.hitl_schemas import format_and_validate
@@ -36,6 +27,15 @@ from awslabs.aws_transform_mcp_server.tool_utils import (
     error_result,
     failure_result,
     success_result,
+)
+from awslabs.aws_transform_mcp_server.transform_api_client import call_transform_api
+from awslabs.aws_transform_mcp_server.transform_api_models import (
+    CreateArtifactDownloadUrlRequest,
+    GetHitlTaskRequest,
+    HitlTaskArtifact,
+    SubmitCriticalHitlTaskRequest,
+    SubmitStandardHitlTaskRequest,
+    UpdateHitlTaskRequest,
 )
 from awslabs.aws_transform_mcp_server.upload_helper import (
     infer_file_type,
@@ -86,7 +86,7 @@ async def download_agent_artifact(
     user to download via get_resource(resource="artifact", savePath=...).
     """
     try:
-        url_result = await call_fes(
+        url_result = await call_transform_api(
             'CreateArtifactDownloadUrl',
             CreateArtifactDownloadUrlRequest(
                 workspaceId=workspace_id,
@@ -225,7 +225,7 @@ class HitlHandler:
 
         try:
             # ── Step 1: Fetch the task ──────────────────────────────────
-            task_result = await call_fes(
+            task_result = await call_transform_api(
                 'GetHitlTask',
                 GetHitlTaskRequest(
                     workspaceId=workspaceId,
@@ -276,7 +276,7 @@ class HitlHandler:
                         f'Task {taskId} is in status "{task_status}", not AWAITING_APPROVAL.',
                         'Only TOOL_APPROVAL tasks in AWAITING_APPROVAL status can be approved or denied.',
                     )
-                await call_fes(
+                await call_transform_api(
                     'SubmitCriticalHitlTask',
                     SubmitCriticalHitlTaskRequest(
                         workspaceId=workspaceId,
@@ -347,10 +347,10 @@ class HitlHandler:
                             else None
                         ),
                     )
-                    await call_fes('UpdateHitlTask', update_req)
+                    await call_transform_api('UpdateHitlTask', update_req)
 
                 elif action == 'SEND_FOR_APPROVAL':
-                    await call_fes(
+                    await call_transform_api(
                         'UpdateHitlTask',
                         UpdateHitlTaskRequest(
                             workspaceId=workspaceId,
@@ -364,7 +364,7 @@ class HitlHandler:
                 else:
                     # APPROVE or REJECT
                     if severity == 'CRITICAL':
-                        await call_fes(
+                        await call_transform_api(
                             'SubmitCriticalHitlTask',
                             SubmitCriticalHitlTaskRequest(
                                 workspaceId=workspaceId,
@@ -376,7 +376,7 @@ class HitlHandler:
                             ),
                         )
                     else:
-                        await call_fes(
+                        await call_transform_api(
                             'SubmitStandardHitlTask',
                             SubmitStandardHitlTaskRequest(
                                 workspaceId=workspaceId,
@@ -388,7 +388,7 @@ class HitlHandler:
                             ),
                         )
 
-            updated_result = await call_fes(
+            updated_result = await call_transform_api(
                 'GetHitlTask',
                 GetHitlTaskRequest(
                     workspaceId=workspaceId,

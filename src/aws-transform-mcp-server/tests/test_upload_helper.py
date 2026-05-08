@@ -27,7 +27,7 @@ class TestUploadJsonArtifact:
 
     @patch('awslabs.aws_transform_mcp_server.upload_helper.httpx.AsyncClient')
     @patch(
-        'awslabs.aws_transform_mcp_server.upload_helper.call_fes',
+        'awslabs.aws_transform_mcp_server.upload_helper.call_transform_api',
         new_callable=AsyncMock,
     )
     async def test_success(self, mock_fes, mock_httpx_cls):
@@ -78,7 +78,7 @@ class TestUploadJsonArtifact:
 
     @patch('awslabs.aws_transform_mcp_server.upload_helper.httpx.AsyncClient')
     @patch(
-        'awslabs.aws_transform_mcp_server.upload_helper.call_fes',
+        'awslabs.aws_transform_mcp_server.upload_helper.call_transform_api',
         new_callable=AsyncMock,
     )
     async def test_s3_failure_raises(self, mock_fes, mock_httpx_cls):
@@ -178,7 +178,7 @@ class TestUploadFileArtifact:
 
     @patch('awslabs.aws_transform_mcp_server.upload_helper.httpx.AsyncClient')
     @patch(
-        'awslabs.aws_transform_mcp_server.upload_helper.call_fes',
+        'awslabs.aws_transform_mcp_server.upload_helper.call_transform_api',
         new_callable=AsyncMock,
     )
     @patch('awslabs.aws_transform_mcp_server.upload_helper.validate_read_path')
@@ -239,7 +239,7 @@ class TestUploadFileArtifact:
 
     @patch('awslabs.aws_transform_mcp_server.upload_helper.httpx.AsyncClient')
     @patch(
-        'awslabs.aws_transform_mcp_server.upload_helper.call_fes',
+        'awslabs.aws_transform_mcp_server.upload_helper.call_transform_api',
         new_callable=AsyncMock,
     )
     @patch('awslabs.aws_transform_mcp_server.upload_helper.validate_read_path')
@@ -269,7 +269,7 @@ class TestUploadFileArtifact:
 
     @patch('awslabs.aws_transform_mcp_server.upload_helper.httpx.AsyncClient')
     @patch(
-        'awslabs.aws_transform_mcp_server.upload_helper.call_fes',
+        'awslabs.aws_transform_mcp_server.upload_helper.call_transform_api',
         new_callable=AsyncMock,
     )
     @patch('awslabs.aws_transform_mcp_server.upload_helper.validate_read_path')
