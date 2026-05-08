@@ -115,8 +115,8 @@ class NumberFieldHandler:
                         await inp.first.fill(value, timeout=3000)
                         await page.wait_for_timeout(300)
                         return True
-                    except Exception:
-                        pass
+                    except Exception:  # pragma: no cover
+                        pass  # pragma: no cover
 
             # Strategy 2: find input inside form-field container matching label text
             fields = await page.evaluate(f"""

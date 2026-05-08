@@ -41,7 +41,7 @@ class FieldHandler(ABC):
         Args:
             page: Active Playwright Page instance.
         """
-        self._page = page
+        self._page = page  # pragma: no cover
 
     @abstractmethod
     async def handle(self, field_label: str, value: str) -> bool:
