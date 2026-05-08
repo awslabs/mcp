@@ -324,6 +324,14 @@ def _read_s3_prefix(uri: str, max_size_bytes: Optional[int]) -> Dict[str, str]:
                 response = s3_client.get_object(Bucket=bucket, Key=key)
                 data = response['Body'].read()
                 rel_key = key[len(prefix) :] if key.startswith(prefix) else key
+                # Validate relative key does not contain path traversal sequences
+                try:
+                    validate_local_path(rel_key)
+                except ValueError:
+                    raise ValueError(
+                        f'Path traversal detected in S3 object key: {rel_key!r}. '
+                        f'Object keys must not contain directory traversal sequences.'
+                    )
                 files[rel_key] = data.decode('utf-8')
     except ClientError as e:
         error_code = e.response['Error']['Code']
@@ -344,7 +352,8 @@ def _extract_zip_contents(data: bytes) -> Dict[str, str]:
         Dictionary of {filename: text_content}.
 
     Raises:
-        ValueError: If ZIP extraction fails or content cannot be decoded as UTF-8.
+        ValueError: If ZIP extraction fails, content cannot be decoded as UTF-8,
+            or a filename contains path traversal sequences.
     """
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as zf:
@@ -353,6 +362,20 @@ def _extract_zip_contents(data: bytes) -> Dict[str, str]:
                 # Skip directories
                 if info.is_dir():
                     continue
+                # Reject filenames with path traversal sequences (Zip Slip prevention)
+                try:
+                    validate_local_path(info.filename)
+                except ValueError:
+                    raise ValueError(
+                        f'Path traversal detected in ZIP entry: {info.filename!r}. '
+                        f'ZIP entries must not contain directory traversal sequences.'
+                    )
+                # Reject absolute paths in ZIP entries
+                if os.path.isabs(info.filename):
+                    raise ValueError(
+                        f'Absolute path detected in ZIP entry: {info.filename!r}. '
+                        f'ZIP entries must use relative paths.'
+                    )
                 try:
                     files[info.filename] = zf.read(info.filename).decode('utf-8')
                 except UnicodeDecodeError:

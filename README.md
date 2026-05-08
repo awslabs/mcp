@@ -7,6 +7,9 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
 [![Codecov](https://img.shields.io/codecov/c/github/awslabs/mcp)](https://app.codecov.io/gh/awslabs/mcp)
 [![OSSF-Scorecard Score](https://img.shields.io/ossf-scorecard/github.com/awslabs/mcp)](https://scorecard.dev/viewer/?uri=github.com/awslabs/mcp)
 
+> [!TIP]
+> The [Agent Toolkit for AWS](https://aws.amazon.com/about-aws/whats-new/2026/05/agent-toolkit/) is now live! The Agent Toolkit for AWS is the successor to the MCP servers, plugins, and skills available on AWS Labs, and was informed by feedback from customers like you. If you're building production software using coding agents or building agents for your own customers, we recommend Agent Toolkit for AWS. It includes IAM condition keys to distinguish agent actions from human ones, CloudWatch and CloudTrail visibility, and skills that have been evaluated for accuracy and effectiveness. This repo continues to work and accept contributions. Over time, the most useful projects here will move into Agent Toolkit for AWS.
+
 ## Table of Contents
 
 - [Open source MCP servers for AWS](#open-source-mcp-servers-for-aws)

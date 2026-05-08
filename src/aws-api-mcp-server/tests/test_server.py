@@ -1394,3 +1394,54 @@ async def test_call_aws_ecs_deploy_error_sanitization():
     assert result[0].response is None
     assert result[0].error is not None
     assert SECRET_VALUE not in result[0].error
+
+
+@patch(
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.FILE_ACCESS_MODE',
+    FileAccessMode.WORKDIR,
+)
+@patch(
+    'awslabs.aws_api_mcp_server.core.parser.parser.FILE_ACCESS_MODE',
+    FileAccessMode.WORKDIR,
+)
+@patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
+@patch(
+    'botocore.client.BaseClient._make_api_call',
+    return_value={
+        'cluster': {
+            'name': 'abc',
+            'status': 'ACTIVE',
+            'arn': 'arn:aws:eks:us-east-1:123456789012:cluster/abc',
+            'endpoint': 'https://ABC.gr7.us-east-1.eks.amazonaws.com',
+            'certificateAuthority': {'data': 'dGVzdA=='},
+        }
+    },
+)
+async def test_call_aws_eks_update_kubeconfig_validates_kubeconfig_path(_mock_api):
+    """Test that eks update-kubeconfig validates the kubeconfig path via the awscli_patch."""
+    cli_command = 'aws eks update-kubeconfig --name abc --region us-east-1'
+
+    result = await call_aws(cli_command, DummyCtx())
+
+    assert len(result) == 1
+    assert result[0].cli_command == cli_command
+    assert result[0].response is None
+    assert result[0].error is not None
+    assert 'is outside the allowed working directory' in result[0].error
+
+
+@patch(
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.FILE_ACCESS_MODE',
+    FileAccessMode.NO_ACCESS,
+)
+def test_validated_write_kubeconfig_raises_when_no_access():
+    """Test that _validated_write_kubeconfig raises when file access is disabled."""
+    from awslabs.aws_api_mcp_server.core.common.awscli_patch import _validated_write_kubeconfig
+    from awslabs.aws_api_mcp_server.core.common.errors import LocalFileAccessDisabledError
+
+    mock_self = MagicMock()
+    mock_config = MagicMock()
+    mock_config.path = '/home/user/.kube/config'
+
+    with pytest.raises(LocalFileAccessDisabledError):
+        _validated_write_kubeconfig(mock_self, mock_config)
