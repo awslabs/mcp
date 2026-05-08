@@ -47,6 +47,7 @@ dev = [
     "pytest>=8.0.0",
     "pytest-bdd>=8.1.0",
     "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.23.0",
 ]
 
 [build-system]
