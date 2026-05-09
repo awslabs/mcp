@@ -37,8 +37,8 @@ async def test_recommend_live():
     ctx = MockContext()
 
     with patch(
-        'awslabs.aws_documentation_mcp_server.server_aws.DEFAULT_USER_AGENT',
-        TEST_USER_AGENT,
+        'awslabs.aws_documentation_mcp_server.server_utils.get_default_user_agent',
+        return_value=TEST_USER_AGENT,
     ):
         # Call the recommend function
         results = await recommend(ctx, url=url)
