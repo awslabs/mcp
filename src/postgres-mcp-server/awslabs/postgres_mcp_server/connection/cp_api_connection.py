@@ -54,8 +54,14 @@ def internal_get_cluster_valid_endpoints(
         region: AWS region (used to fetch member instance endpoints).
 
     Returns:
-        List of (host, port) tuples. Never None; may be empty if the
-        cluster has no advertised endpoints.
+        Non-empty list of (host, port) tuples.
+
+    Raises:
+        ValueError: If no valid endpoints could be resolved. A real Aurora
+            cluster always has at least a writer endpoint with a port, so
+            an empty result indicates malformed cluster properties or a
+            transient API state; we treat it as an error rather than
+            silently accepting any caller-supplied endpoint.
     """
     endpoints: List[Tuple[str, int]] = []
 
@@ -102,6 +108,20 @@ def internal_get_cluster_valid_endpoints(
                     f"Failed to fetch endpoint for member instance '{instance_id}': "
                     f'{e.response["Error"]["Code"]} - {e.response["Error"]["Message"]}'
                 )
+
+    if not endpoints:
+        # A real Aurora cluster always advertises at least a writer endpoint
+        # with a valid port. An empty result here means either the cluster
+        # properties dict was malformed (missing/invalid Port, missing
+        # Endpoint) or every describe_db_instances call failed. Treat as an
+        # error so the caller doesn't build a connection string from caller
+        # input.
+        raise ValueError(
+            f'Cluster has no valid connection endpoints. '
+            f'Endpoint={cluster_properties.get("Endpoint")!r}, '
+            f'ReaderEndpoint={cluster_properties.get("ReaderEndpoint")!r}, '
+            f'Port={cluster_properties.get("Port")!r}'
+        )
 
     return endpoints
 
