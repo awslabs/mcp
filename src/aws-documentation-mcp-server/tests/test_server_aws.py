@@ -966,8 +966,11 @@ class TestSearchTable:
 
         with pytest.raises(ValueError, match='URL must be from list of supported domains'):
             await search_table(
-                ctx, url='https://example.com/page.html',
-                section_title='Test', query='foo', max_rows=20
+                ctx,
+                url='https://example.com/page.html',
+                section_title='Test',
+                query='foo',
+                max_rows=20,
             )
 
     @pytest.mark.asyncio
@@ -977,8 +980,11 @@ class TestSearchTable:
 
         with pytest.raises(ValueError, match='URL must end with .html'):
             await search_table(
-                ctx, url='https://docs.aws.amazon.com/test.json',
-                section_title='Test', query='foo', max_rows=20
+                ctx,
+                url='https://docs.aws.amazon.com/test.json',
+                section_title='Test',
+                query='foo',
+                max_rows=20,
             )
 
     @pytest.mark.asyncio
@@ -988,8 +994,11 @@ class TestSearchTable:
 
         with pytest.raises(ValueError, match='query parameter cannot be empty'):
             await search_table(
-                ctx, url='https://docs.aws.amazon.com/test.html',
-                section_title='Test', query='', max_rows=20
+                ctx,
+                url='https://docs.aws.amazon.com/test.html',
+                section_title='Test',
+                query='',
+                max_rows=20,
             )
 
     @pytest.mark.asyncio

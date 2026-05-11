@@ -13,7 +13,11 @@
 # limitations under the License.
 import httpx
 import os
-from awslabs.aws_documentation_mcp_server.models import SearchResponse, SearchTableResponse, TableResult
+from awslabs.aws_documentation_mcp_server.models import (
+    SearchResponse,
+    SearchTableResponse,
+    TableResult,
+)
 from awslabs.aws_documentation_mcp_server.util import (
     extract_content_from_html,
     extract_sections_from_html,
@@ -232,13 +236,14 @@ async def search_table_impl(
     """The implementation of the search_table tool."""
     from awslabs.aws_documentation_mcp_server.table_utils import (
         filter_table_rows,
-        format_search_table_response,
         parse_html_tables,
     )
 
     logger.debug(f'Searching tables in section "{section_title}" of {url_str} for "{query}"')
 
-    url_with_session = f'{url_str}?session={session_uuid}&tool=search_table&query={quote(query, safe="")}'
+    url_with_session = (
+        f'{url_str}?session={session_uuid}&tool=search_table&query={quote(query, safe="")}'
+    )
     if section_title:
         url_with_session += f'&section={quote(section_title, safe="")}'
 
@@ -275,16 +280,24 @@ async def search_table_impl(
 
     if table_data is None:
         return SearchTableResponse(
-            url=url_str, section_title=section_title or '', query=query,
-            tables_searched=0, tables_with_matches=0, results=[],
+            url=url_str,
+            section_title=section_title or '',
+            query=query,
+            tables_searched=0,
+            tables_with_matches=0,
+            results=[],
             hint='No tables found on this page.',
         )
 
     if 'error' in table_data:
         sections_list = ', '.join(f'"{s}"' for s in table_data.get('available_sections', []))
         return SearchTableResponse(
-            url=url_str, section_title=section_title or '', query=query,
-            tables_searched=0, tables_with_matches=0, results=[],
+            url=url_str,
+            section_title=section_title or '',
+            query=query,
+            tables_searched=0,
+            tables_with_matches=0,
+            results=[],
             hint=f'{table_data["error"]}. Available sections: {sections_list}',
         )
 
@@ -302,14 +315,16 @@ async def search_table_impl(
     for t in tables_list:
         matches = filter_table_rows(t['rows'], query)
         if matches:
-            results_per_table.append(TableResult(
-                table_heading=t.get('table_heading'),
-                columns=t['columns'],
-                total_rows=len(t['rows']),
-                matched_rows=len(matches),
-                showing=min(len(matches), max_rows),
-                rows=matches[:max_rows],
-            ))
+            results_per_table.append(
+                TableResult(
+                    table_heading=t.get('table_heading'),
+                    columns=t['columns'],
+                    total_rows=len(t['rows']),
+                    matched_rows=len(matches),
+                    showing=min(len(matches), max_rows),
+                    rows=matches[:max_rows],
+                )
+            )
 
     hint = None
     if not results_per_table:

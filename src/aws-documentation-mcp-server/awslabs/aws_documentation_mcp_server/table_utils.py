@@ -217,10 +217,7 @@ def _extract_table_data(table: Tag) -> Optional[dict]:
     current_group = None
 
     for row in parsed_rows:
-        is_group_start = bool(
-            row.get('_rowspan_cols') - (set(active_rowspans.keys()) if False else set())
-        )
-        # Simpler: a new group starts when the parent column values change
+        # A new group starts when the parent column values change
         parent_values = tuple(row.get(h, '') for h in parent_headers)
 
         if current_group is None or current_group['_key'] != parent_values:

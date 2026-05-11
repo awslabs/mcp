@@ -291,12 +291,16 @@ class TestFormatSearchTableResponse:
         assert len(data['rows']) == 5
         assert data['matched_rows'] == 50
 
-
     def test_zero_match_includes_hint(self):
         """Zero matches includes a hint field."""
         result = format_search_table_response(
-            url='u', section_title='s', query='nothing',
-            columns=['A'], matches=[], total_rows=100, max_rows=20,
+            url='u',
+            section_title='s',
+            query='nothing',
+            columns=['A'],
+            matches=[],
+            total_rows=100,
+            max_rows=20,
         )
         data = json.loads(result)
         assert data['matched_rows'] == 0
