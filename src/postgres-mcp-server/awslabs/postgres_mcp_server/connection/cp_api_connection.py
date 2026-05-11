@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 DEFAULT_POSTGRES_PORT = 5432
 
+
 def internal_create_rds_client(region: str):
     """Create an RDS client with custom user agent configuration."""
     return boto3.client('rds', region_name=region, config=Config(user_agent_extra=__user_agent__))
@@ -85,7 +86,9 @@ def internal_get_cluster_valid_endpoints(
             endpoints.append((custom_endpoint, cluster_port))
 
     members = cluster_properties.get('DBClusterMembers', []) or []
-    instance_ids = [m.get('DBInstanceIdentifier') for m in members if m.get('DBInstanceIdentifier')]
+    instance_ids = [
+        m.get('DBInstanceIdentifier') for m in members if m.get('DBInstanceIdentifier')
+    ]
     if instance_ids:
         rds_client = internal_create_rds_client(region=region)
         for instance_id in instance_ids:
