@@ -3,8 +3,8 @@
 Implements Strategy pattern for filling number and text input fields.
 """
 
-from playwright.async_api import Page
 from loguru import logger
+from playwright.async_api import Page
 
 
 class NumberFieldHandler:
@@ -119,23 +119,23 @@ class NumberFieldHandler:
                         pass  # pragma: no cover
 
             # Strategy 2: find input inside form-field container matching label text
-            fields = await page.evaluate(f"""
-                () => {{
+            fields = await page.evaluate("""
+                (fieldLabel) => {
                     const labels = document.querySelectorAll('label, [class*="label"]');
-                    for (const label of labels) {{
-                        if (label.textContent.includes("{field_label}")) {{
+                    for (const label of labels) {
+                        if (label.textContent.includes(fieldLabel)) {
                             const container = label.closest('[class*="form-field"], [class*="FormField"], [class*="awsui_child"]');
-                            if (container) {{
+                            if (container) {
                                 const input = container.querySelector('input[type="number"], input[type="text"]');
-                                if (input) {{
+                                if (input) {
                                     return input.id || null;
-                                }}
-                            }}
-                        }}
-                    }}
+                                }
+                            }
+                        }
+                    }
                     return null;
-                }}
-            """)
+                }
+            """, field_label)
             if fields:
                 inp = page.locator(f"#{fields}")
                 await inp.scroll_into_view_if_needed(timeout=5000)
@@ -175,21 +175,21 @@ class TextFieldHandler:
         """
         page = self._page
         try:
-            fields = await page.evaluate(f"""
-                () => {{
+            fields = await page.evaluate("""
+                (fieldLabel) => {
                     const labels = document.querySelectorAll('label, [class*="label"]');
-                    for (const label of labels) {{
-                        if (label.textContent.includes("{field_label}")) {{
+                    for (const label of labels) {
+                        if (label.textContent.includes(fieldLabel)) {
                             const container = label.closest('[class*="form-field"], [class*="FormField"], [class*="awsui_child"]');
-                            if (container) {{
+                            if (container) {
                                 const input = container.querySelector('input');
                                 if (input) return input.id || null;
-                            }}
-                        }}
-                    }}
+                            }
+                        }
+                    }
                     return null;
-                }}
-            """)
+                }
+            """, field_label)
             if fields:
                 inp = page.locator(f"#{fields}")
                 await inp.fill("")

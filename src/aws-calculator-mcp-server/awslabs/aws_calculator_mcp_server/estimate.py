@@ -4,8 +4,8 @@ Handles the estimate page interactions: saving a service, sharing an estimate,
 and renaming.
 """
 
-from playwright.async_api import Page
 from loguru import logger
+from playwright.async_api import Page
 
 CALCULATOR_BASE_URL = "https://calculator.aws"
 
@@ -29,7 +29,8 @@ class EstimateManager:
         """Click 'Save and add service' button on the configure page."""
         page = self._page
         save_btn = page.get_by_role("button", name="Save and add service")
-        await save_btn.click(force=True, timeout=10000)
+        await save_btn.scroll_into_view_if_needed(timeout=5000)
+        await save_btn.click(timeout=10000)
         await page.wait_for_timeout(2000)
 
     async def rename_estimate(self, name: str) -> None:

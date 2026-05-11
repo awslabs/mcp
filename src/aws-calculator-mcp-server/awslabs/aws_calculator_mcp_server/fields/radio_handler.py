@@ -3,8 +3,8 @@
 Handles clicking radio buttons/tiles by their label text.
 """
 
-from playwright.async_api import Page
 from loguru import logger
+from playwright.async_api import Page
 
 
 class RadioHandler:

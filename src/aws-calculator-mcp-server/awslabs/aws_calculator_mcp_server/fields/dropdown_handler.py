@@ -4,8 +4,8 @@ Implements Strategy pattern for native selects, Cloudscape dropdowns,
 and change-by-current-text dropdowns.
 """
 
-from playwright.async_api import Page
 from loguru import logger
+from playwright.async_api import Page
 
 
 class DropdownHandler:
@@ -81,32 +81,32 @@ class CloudscapeDropdownHandler:
         logger.debug(f"  Trying cloudscape dropdown: '{field_label}' = '{value}'")
         try:
             # Find the button ID by walking up from the label
-            btn_id = await page.evaluate(f"""
-                () => {{
+            btn_id = await page.evaluate("""
+                (fieldLabel) => {
                     const labels = document.querySelectorAll('label');
-                    for (const label of labels) {{
-                        if (!label.textContent.trim().includes("{field_label}")) continue;
+                    for (const label of labels) {
+                        if (!label.textContent.trim().includes(fieldLabel)) continue;
                         // Strategy A: button shares same base ID as label
                         const labelId = label.id;
                         const btnId = labelId.replace('-label', '');
                         const btn = document.getElementById(btnId);
-                        if (btn && btn.tagName === 'BUTTON' && btn.getAttribute('aria-haspopup')) {{
+                        if (btn && btn.tagName === 'BUTTON' && btn.getAttribute('aria-haspopup')) {
                             return btnId;
-                        }}
+                        }
                         // Strategy B: walk up and find button[aria-haspopup]
                         let el = label;
-                        for (let i = 0; i < 8; i++) {{
+                        for (let i = 0; i < 8; i++) {
                             el = el.parentElement;
                             if (!el) break;
                             const found = el.querySelector('button[aria-haspopup]');
-                            if (found && found.id) {{
+                            if (found && found.id) {
                                 return found.id;
-                            }}
-                        }}
-                    }}
+                            }
+                        }
+                    }
                     return null;
-                }}
-            """)
+                }
+            """, field_label)
 
             if not btn_id:
                 return False
@@ -176,16 +176,8 @@ class ChangeDropdownHandler:
             count = await all_btns.count()
             for i in range(count):
                 text = (await all_btns.nth(i).text_content() or "").strip()
-                # Exact match: the button text must be exactly the current_text
-                # or the current_text must be a complete word boundary match
                 if text == current_text or (
-                    current_text in text
-                    and len(current_text) > 2
-                    and not any(
-                        c.isdigit()
-                        for c in current_text
-                        and len(current_text) == 1
-                    )
+                    current_text in text and len(current_text) > 2
                 ):
                     await all_btns.nth(i).scroll_into_view_if_needed(timeout=3000)
                     await page.wait_for_timeout(200)

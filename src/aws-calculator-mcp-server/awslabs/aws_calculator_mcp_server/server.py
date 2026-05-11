@@ -14,14 +14,13 @@
 """MCP Server for AWS Pricing Calculator automation."""
 
 import sys
-from typing import Any, Optional
+from typing import Any
 
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 
 from awslabs.aws_calculator_mcp_server.calculator import AWSCalculatorAutomation
 from awslabs.aws_calculator_mcp_server.service_fields import SERVICE_FIELDS
-
 
 logger.remove()
 logger.add(sys.stderr, level="INFO")
@@ -31,14 +30,8 @@ mcp = FastMCP(
     instructions="Automates AWS Pricing Calculator (calculator.aws) using Playwright to generate shareable estimate links with accurate pricing for all 159 AWS services.",
 )
 
-_calculator: Optional[AWSCalculatorAutomation] = None
-
-
-def _get_calculator() -> AWSCalculatorAutomation:
-    global _calculator
-    if _calculator is None:
-        _calculator = AWSCalculatorAutomation(headless=True)
-    return _calculator
+def _new_calculator() -> AWSCalculatorAutomation:
+    return AWSCalculatorAutomation(headless=True)
 
 
 def _save_result_json(result: dict, output_file: str):
@@ -65,11 +58,13 @@ async def create_estimate(
     configurations and generate a public shareable link.
 
     Args:
+        ctx: MCP context for logging progress.
         services: List of service configurations. Each service dict should have:
             - service_name (str): Exact name as in calculator (use list_service_fields to discover)
             - region (str): Region display name (default: "South America (Sao Paulo)")
             - config (dict): Field configurations using the EXACT field labels from
               the calculator UI. Use the field names from list_service_fields.
+        output_file: Optional path to save the result as JSON. Empty string disables.
 
     All 159 AWS services are supported. Use list_service_fields() for full details.
 
@@ -116,7 +111,7 @@ async def create_estimate(
     """
     await ctx.info(f"Creating estimate with {len(services)} service(s)...")
 
-    calculator = _get_calculator()
+    calculator = _new_calculator()
     try:
         result = await calculator.create_estimate(services)
         await ctx.info(f"Estimate created: {result.get('estimate_url', 'N/A')}")
@@ -125,8 +120,8 @@ async def create_estimate(
             await ctx.info(f"Result saved: {output_file}")
         return result
     except Exception as e:
-        logger.error(f"Failed: {e}")
-        return {"error": str(e)}
+        logger.exception("Failed to create estimate")
+        return {"error": str(e), "type": type(e).__name__}
     finally:
         await calculator.close()
 
@@ -145,6 +140,7 @@ async def update_estimate(
     a new shareable link with the updated configuration.
 
     Args:
+        ctx: MCP context for logging progress.
         estimate_url: Existing calculator.aws estimate URL
             (e.g., "https://calculator.aws/#/estimate?id=abc123")
         add_services: Optional list of services to add (same format as create_estimate)
@@ -164,7 +160,7 @@ async def update_estimate(
     """
     await ctx.info(f"Updating estimate: {estimate_url}")
 
-    calculator = _get_calculator()
+    calculator = _new_calculator()
     try:
         result = await calculator.update_estimate(
             estimate_url=estimate_url,
@@ -177,8 +173,8 @@ async def update_estimate(
             await ctx.info(f"Result saved: {output_file}")
         return result
     except Exception as e:
-        logger.error(f"Failed to update: {e}")
-        return {"error": str(e)}
+        logger.exception("Failed to update estimate")
+        return {"error": str(e), "type": type(e).__name__}
     finally:
         await calculator.close()
 
@@ -191,6 +187,7 @@ async def list_service_fields(
     """List available calculator services and their configurable fields.
 
     Args:
+        ctx: MCP context.
         service_name: Optional - filter to a specific service name.
                      Leave empty to list all available services.
 

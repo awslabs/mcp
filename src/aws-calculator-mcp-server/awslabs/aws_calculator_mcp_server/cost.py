@@ -50,9 +50,18 @@ class CostReader:
         page = self._page
         for attempt in range(max_attempts):
             try:
-                text = await page.locator("body").text_content()
+                text = None
+                # Target footer/summary area first for performance
+                footer = page.locator('footer, [class*="footer"], [class*="summary"], [class*="cost"]')
+                if await footer.count() > 0:
+                    text = await footer.first.text_content()
+                # Fall back to full body if footer had no cost match
+                if not text or not any(
+                    re.search(p, text, re.IGNORECASE) for p in self.SERVICE_COST_PATTERNS
+                ):
+                    text = await page.locator("body").text_content()
                 for pattern in self.SERVICE_COST_PATTERNS:
-                    match = re.search(pattern, text, re.IGNORECASE)
+                    match = re.search(pattern, text or "", re.IGNORECASE)
                     if match and float(match.group(1).replace(",", "")) > 0:
                         return match.group(1)
             except Exception:

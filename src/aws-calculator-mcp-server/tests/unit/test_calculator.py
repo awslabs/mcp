@@ -18,6 +18,7 @@ def automation():
     mock_page = MagicMock()
     mock_page.goto = AsyncMock()
     mock_page.wait_for_timeout = AsyncMock()
+    mock_page.wait_for_load_state = AsyncMock()
     mock_page.url = "https://calculator.aws/#/addService/test"
 
     # Description input for triggering recalculation

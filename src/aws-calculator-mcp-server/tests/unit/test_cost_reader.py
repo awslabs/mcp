@@ -16,12 +16,31 @@ def cost_reader(mock_page):
     return CostReader(mock_page)
 
 
+def _make_body_locator(text_content_value):
+    """Helper to create a mock locator with count and text_content for cost tests."""
+    locator = MagicMock()
+    locator.count = AsyncMock(return_value=0)
+    locator.text_content = AsyncMock(return_value=text_content_value)
+    locator.first = MagicMock()
+    locator.first.text_content = AsyncMock(return_value=text_content_value)
+    return locator
+
+
+def _make_body_locator_side_effect(side_effects):
+    """Helper to create a mock locator with side_effect text_content."""
+    locator = MagicMock()
+    locator.count = AsyncMock(return_value=0)
+    locator.text_content = AsyncMock(side_effect=side_effects)
+    locator.first = MagicMock()
+    locator.first.text_content = AsyncMock(side_effect=side_effects)
+    return locator
+
+
 @pytest.mark.asyncio
 async def test_get_current_cost_finds_total_monthly_cost(mock_page):
     """Should parse 'Total Monthly cost: 12.50 USD' pattern."""
-    body_locator = MagicMock()
-    body_locator.text_content = AsyncMock(
-        return_value="Some text Total Monthly cost: 12.50 USD more text"
+    body_locator = _make_body_locator(
+        "Some text Total Monthly cost: 12.50 USD more text"
     )
     mock_page.locator = MagicMock(return_value=body_locator)
 
@@ -33,10 +52,7 @@ async def test_get_current_cost_finds_total_monthly_cost(mock_page):
 @pytest.mark.asyncio
 async def test_get_current_cost_finds_estimated_monthly(mock_page):
     """Should parse 'Estimated monthly cost 250.00 USD' pattern."""
-    body_locator = MagicMock()
-    body_locator.text_content = AsyncMock(
-        return_value="Estimated monthly cost 250.00 USD"
-    )
+    body_locator = _make_body_locator("Estimated monthly cost 250.00 USD")
     mock_page.locator = MagicMock(return_value=body_locator)
 
     reader = CostReader(mock_page)
@@ -47,10 +63,7 @@ async def test_get_current_cost_finds_estimated_monthly(mock_page):
 @pytest.mark.asyncio
 async def test_get_current_cost_finds_dollar_sign_pattern(mock_page):
     """Should parse 'monthly cost: $1,234.56 USD' pattern."""
-    body_locator = MagicMock()
-    body_locator.text_content = AsyncMock(
-        return_value="monthly cost: $1,234.56 USD"
-    )
+    body_locator = _make_body_locator("monthly cost: $1,234.56 USD")
     mock_page.locator = MagicMock(return_value=body_locator)
 
     reader = CostReader(mock_page)
@@ -61,8 +74,7 @@ async def test_get_current_cost_finds_dollar_sign_pattern(mock_page):
 @pytest.mark.asyncio
 async def test_get_current_cost_returns_zero_when_no_match(mock_page):
     """Should return '0.00' when no cost pattern matches."""
-    body_locator = MagicMock()
-    body_locator.text_content = AsyncMock(return_value="No cost info here")
+    body_locator = _make_body_locator("No cost info here")
     mock_page.locator = MagicMock(return_value=body_locator)
 
     reader = CostReader(mock_page)
@@ -73,14 +85,12 @@ async def test_get_current_cost_returns_zero_when_no_match(mock_page):
 @pytest.mark.asyncio
 async def test_get_current_cost_skips_zero_values(mock_page):
     """Should skip matches where cost is 0.00 and continue polling."""
-    body_locator = MagicMock()
-    # First call: 0.00, second call: actual cost
-    body_locator.text_content = AsyncMock(
-        side_effect=[
-            "Total Monthly cost: 0.00 USD",
-            "Total Monthly cost: 45.67 USD",
-        ]
-    )
+    body_locator = _make_body_locator_side_effect([
+        "Total Monthly cost: 0.00 USD",
+        "Total Monthly cost: 0.00 USD",
+        "Total Monthly cost: 45.67 USD",
+        "Total Monthly cost: 45.67 USD",
+    ])
     mock_page.locator = MagicMock(return_value=body_locator)
 
     reader = CostReader(mock_page)
@@ -91,10 +101,12 @@ async def test_get_current_cost_skips_zero_values(mock_page):
 @pytest.mark.asyncio
 async def test_get_current_cost_handles_exception(mock_page):
     """Should handle exceptions gracefully and continue polling."""
-    body_locator = MagicMock()
-    body_locator.text_content = AsyncMock(
-        side_effect=[Exception("network error"), "Total Monthly cost: 99.99 USD"]
-    )
+    body_locator = _make_body_locator_side_effect([
+        Exception("network error"),
+        Exception("network error"),
+        "Total Monthly cost: 99.99 USD",
+        "Total Monthly cost: 99.99 USD",
+    ])
     mock_page.locator = MagicMock(return_value=body_locator)
 
     reader = CostReader(mock_page)

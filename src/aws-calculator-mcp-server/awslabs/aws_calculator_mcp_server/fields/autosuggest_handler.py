@@ -3,8 +3,8 @@
 Handles Cloudscape Autosuggest components (e.g., instance type search).
 """
 
-from playwright.async_api import Page
 from loguru import logger
+from playwright.async_api import Page
 
 
 class AutosuggestHandler:

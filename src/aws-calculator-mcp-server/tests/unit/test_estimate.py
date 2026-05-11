@@ -14,9 +14,10 @@ class TestSaveService:
 
     @pytest.mark.asyncio
     async def test_clicks_save_button(self, mock_page):
-        """Should click the 'Save and add service' button."""
+        """Should scroll into view and click the 'Save and add service' button."""
         save_btn = MagicMock()
         save_btn.click = AsyncMock()
+        save_btn.scroll_into_view_if_needed = AsyncMock()
         mock_page.get_by_role = MagicMock(return_value=save_btn)
         mock_page.wait_for_timeout = AsyncMock()
 
@@ -26,7 +27,8 @@ class TestSaveService:
         mock_page.get_by_role.assert_called_once_with(
             "button", name="Save and add service"
         )
-        save_btn.click.assert_called_once_with(force=True, timeout=10000)
+        save_btn.scroll_into_view_if_needed.assert_called_once_with(timeout=5000)
+        save_btn.click.assert_called_once_with(timeout=10000)
         mock_page.wait_for_timeout.assert_called_once_with(2000)
 
 

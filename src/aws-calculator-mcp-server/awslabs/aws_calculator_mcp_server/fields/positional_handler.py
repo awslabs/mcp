@@ -3,8 +3,8 @@
 Handles fields identified by position (nth dropdown, nth input) and unit dropdowns.
 """
 
-from playwright.async_api import Page
 from loguru import logger
+from playwright.async_api import Page
 
 
 class PositionalDropdownHandler:
@@ -125,33 +125,33 @@ class UnitHandler:
         """
         page = self._page
         try:
-            result = await page.evaluate(f"""
-                () => {{
+            result = await page.evaluate("""
+                (fieldLabel) => {
                     const labels = document.querySelectorAll('label');
-                    for (const label of labels) {{
-                        if (!label.textContent.trim().includes("{field_label}")) continue;
+                    for (const label of labels) {
+                        if (!label.textContent.trim().includes(fieldLabel)) continue;
                         // Go up to the row/container that holds both Value and Unit
                         let container = label;
-                        for (let i = 0; i < 6; i++) {{
+                        for (let i = 0; i < 6; i++) {
                             container = container.parentElement;
                             if (!container) break;
                             // Look for a Unit dropdown sibling
                             const unitLabels = container.querySelectorAll('label');
-                            for (const ul of unitLabels) {{
-                                if (ul.textContent.trim() === 'Unit') {{
+                            for (const ul of unitLabels) {
+                                if (ul.textContent.trim() === 'Unit') {
                                     const unitContainer = ul.parentElement;
                                     const btn = unitContainer?.querySelector('button[aria-haspopup]');
-                                    if (btn) {{
+                                    if (btn) {
                                         btn.setAttribute('data-calc-unit-target', 'true');
                                         return true;
-                                    }}
-                                }}
-                            }}
-                        }}
-                    }}
+                                    }
+                                }
+                            }
+                        }
+                    }
                     return false;
-                }}
-            """)
+                }
+            """, field_label)
 
             if not result:
                 return False

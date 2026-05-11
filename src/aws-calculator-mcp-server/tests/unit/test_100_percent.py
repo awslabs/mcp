@@ -268,9 +268,9 @@ async def test_region_selector_escape_no_option(mock_page):
 async def test_update_estimate_with_output_file():
     """Test update_estimate saves JSON when output_file provided."""
     import tempfile, os, json
-    from awslabs.aws_calculator_mcp_server.server import update_estimate, _get_calculator
+    from awslabs.aws_calculator_mcp_server.server import update_estimate
 
-    with patch("awslabs.aws_calculator_mcp_server.server._get_calculator") as mock_get:
+    with patch("awslabs.aws_calculator_mcp_server.server._new_calculator") as mock_new:
         mock_calc = AsyncMock()
         mock_calc.update_estimate = AsyncMock(return_value={
             "estimate_url": "https://calculator.aws/#/test",
@@ -279,7 +279,7 @@ async def test_update_estimate_with_output_file():
             "services_removed": [],
         })
         mock_calc.close = AsyncMock()
-        mock_get.return_value = mock_calc
+        mock_new.return_value = mock_calc
 
         ctx = AsyncMock()
 

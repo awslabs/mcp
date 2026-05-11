@@ -4,7 +4,6 @@ Handles cookie dismissal, section expansion, and search-and-configure flow.
 """
 
 from playwright.async_api import Page
-from loguru import logger
 
 CALCULATOR_BASE_URL = "https://calculator.aws"
 
@@ -65,13 +64,12 @@ class NavigationHelper:
         """
         page = self._page
         await page.goto(f"{CALCULATOR_BASE_URL}/#/addService", wait_until="networkidle")
-        await page.wait_for_timeout(2000)
         await self.dismiss_cookies()
 
         search = page.locator('input[type="search"]')
         if await search.count() > 0:
             await search.first.fill(service_name)
-            await page.wait_for_timeout(2000)
+            await page.wait_for_timeout(1000)
 
         # Prefer precise aria-label match, fall back to generic
         configure_btn = page.locator(f'button[aria-label*="Configure {service_name}"]')
@@ -79,7 +77,7 @@ class NavigationHelper:
             configure_btn = page.locator('button:has-text("Configure")')
         if await configure_btn.count() > 0:
             await configure_btn.first.click()
-            await page.wait_for_timeout(3000)
+            await page.wait_for_load_state("networkidle")
             await self.dismiss_cookies()
             await self.expand_all_sections()
             return True

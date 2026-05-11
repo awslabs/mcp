@@ -36,7 +36,7 @@ from .browser import BrowserManager
 from .cost import CostReader
 from .estimate import EstimateManager
 from .fields import FieldProcessor
-from .navigation import NavigationHelper, CALCULATOR_BASE_URL
+from .navigation import CALCULATOR_BASE_URL, NavigationHelper
 from .region import RegionSelector
 
 
@@ -160,7 +160,7 @@ class AWSCalculatorAutomation:
         # Select region
         region_selector = RegionSelector(page)
         await region_selector.select_region(region)
-        await page.wait_for_timeout(2000)
+        await page.wait_for_load_state("networkidle")
 
         # Create field processor for this page state
         field_processor = FieldProcessor(page)
@@ -171,7 +171,7 @@ class AWSCalculatorAutomation:
             logger.debug(f"  Page URL before radio: {page.url}")
             body = await page.locator("main").text_content()
             if str(radio_value) in body:
-                logger.debug(f"  Radio text FOUND in page body")
+                logger.debug("  Radio text FOUND in page body")
             else:
                 logger.debug(f"  Radio text NOT in page body. First 200: {body[:200]}")
             await field_processor.process_radio(str(radio_value))
@@ -184,8 +184,8 @@ class AWSCalculatorAutomation:
         desc = page.locator('input[aria-label*="Description" i]')
         if await desc.count() > 0:
             await desc.first.click()
-            await page.wait_for_timeout(500)
-        await page.wait_for_timeout(3000)
+            await page.wait_for_timeout(300)
+        await page.wait_for_timeout(2000)
 
         # Get cost before saving
         cost_reader = CostReader(page)
@@ -218,7 +218,6 @@ class AWSCalculatorAutomation:
 
         logger.info("Navigating to AWS Calculator...")
         await page.goto(f"{CALCULATOR_BASE_URL}/#/addService", wait_until="networkidle")
-        await page.wait_for_timeout(2000)
 
         navigation = NavigationHelper(page)
         await navigation.dismiss_cookies()
@@ -240,7 +239,7 @@ class AWSCalculatorAutomation:
         # Navigate to saved URL to get accurate total (includes all tiers/recalculation)
         if share_url and "calculator.aws" in share_url:
             await page.goto(share_url, wait_until="networkidle")
-            await page.wait_for_timeout(5000)
+            await page.wait_for_timeout(3000)
 
         cost_reader = CostReader(page)
         final_cost = await cost_reader.get_total_cost()
@@ -273,7 +272,7 @@ class AWSCalculatorAutomation:
         # 1. Load existing estimate
         logger.info(f"Loading estimate: {estimate_url}")
         await page.goto(estimate_url, wait_until="networkidle")
-        await page.wait_for_timeout(5000)
+        await page.wait_for_timeout(3000)
 
         navigation = NavigationHelper(page)
         await navigation.dismiss_cookies()
@@ -330,7 +329,7 @@ class AWSCalculatorAutomation:
         # 6. Navigate to the saved URL to get accurate total
         if share_url and "calculator.aws" in share_url:
             await page.goto(share_url, wait_until="networkidle")
-            await page.wait_for_timeout(5000)
+            await page.wait_for_timeout(3000)
 
         cost_reader = CostReader(page)
         final_cost = await cost_reader.get_total_cost()

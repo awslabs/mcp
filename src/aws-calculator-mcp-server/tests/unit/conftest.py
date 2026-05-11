@@ -21,6 +21,7 @@ def mock_page():
     page.evaluate = AsyncMock(return_value=None)
     page.goto = AsyncMock()
     page.wait_for_timeout = AsyncMock()
+    page.wait_for_load_state = AsyncMock()
 
     # Keyboard
     page.keyboard = MagicMock()

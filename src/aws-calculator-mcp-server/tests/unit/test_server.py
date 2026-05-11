@@ -8,40 +8,35 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from awslabs.aws_calculator_mcp_server.server import (
-    _get_calculator,
+    _new_calculator,
     _save_result_json,
     list_service_fields,
 )
 
 
-class TestGetCalculator:
-    """Tests for _get_calculator singleton."""
+class TestNewCalculator:
+    """Tests for _new_calculator factory."""
 
     def test_creates_calculator_instance(self):
-        """Should create AWSCalculatorAutomation when called first time."""
-        import awslabs.aws_calculator_mcp_server.server as server_module
-        server_module._calculator = None  # Reset singleton
-
+        """Should create a new AWSCalculatorAutomation each time."""
         with patch(
             "awslabs.aws_calculator_mcp_server.server.AWSCalculatorAutomation"
         ) as MockCalc:
             MockCalc.return_value = MagicMock()
-            result = _get_calculator()
+            result = _new_calculator()
             MockCalc.assert_called_once_with(headless=True)
             assert result is MockCalc.return_value
 
-        server_module._calculator = None  # Clean up
-
-    def test_returns_existing_calculator(self):
-        """Should return existing calculator on second call."""
-        import awslabs.aws_calculator_mcp_server.server as server_module
-        mock_calc = MagicMock()
-        server_module._calculator = mock_calc
-
-        result = _get_calculator()
-        assert result is mock_calc
-
-        server_module._calculator = None  # Clean up
+    def test_creates_new_instance_each_call(self):
+        """Should return a new instance on every call (no singleton)."""
+        with patch(
+            "awslabs.aws_calculator_mcp_server.server.AWSCalculatorAutomation"
+        ) as MockCalc:
+            MockCalc.side_effect = [MagicMock(), MagicMock()]
+            result1 = _new_calculator()
+            result2 = _new_calculator()
+            assert result1 is not result2
+            assert MockCalc.call_count == 2
 
 
 class TestSaveResultJson:
@@ -111,7 +106,6 @@ class TestCreateEstimateTool:
     async def test_create_estimate_success(self):
         """Should call calculator.create_estimate and return result."""
         from awslabs.aws_calculator_mcp_server.server import create_estimate
-        import awslabs.aws_calculator_mcp_server.server as server_module
 
         mock_calc = MagicMock()
         mock_calc.create_estimate = AsyncMock(
@@ -122,46 +116,47 @@ class TestCreateEstimateTool:
             }
         )
         mock_calc.close = AsyncMock()
-        server_module._calculator = mock_calc
 
         mock_ctx = MagicMock()
         mock_ctx.info = AsyncMock()
 
         services = [{"service_name": "Amazon EC2", "config": {"Number of instances": "1"}}]
-        result = await create_estimate(mock_ctx, services=services)
+        with patch(
+            "awslabs.aws_calculator_mcp_server.server._new_calculator",
+            return_value=mock_calc,
+        ):
+            result = await create_estimate(mock_ctx, services=services)
 
         assert result["estimate_url"] == "https://calculator.aws/#/estimate?id=test"
         mock_calc.close.assert_called_once()
-
-        server_module._calculator = None
 
     @pytest.mark.asyncio
     async def test_create_estimate_handles_exception(self):
         """Should return error dict when exception occurs."""
         from awslabs.aws_calculator_mcp_server.server import create_estimate
-        import awslabs.aws_calculator_mcp_server.server as server_module
 
         mock_calc = MagicMock()
         mock_calc.create_estimate = AsyncMock(side_effect=Exception("Browser crashed"))
         mock_calc.close = AsyncMock()
-        server_module._calculator = mock_calc
 
         mock_ctx = MagicMock()
         mock_ctx.info = AsyncMock()
 
-        result = await create_estimate(mock_ctx, services=[])
+        with patch(
+            "awslabs.aws_calculator_mcp_server.server._new_calculator",
+            return_value=mock_calc,
+        ):
+            result = await create_estimate(mock_ctx, services=[])
 
         assert "error" in result
         assert "Browser crashed" in result["error"]
+        assert result["type"] == "Exception"
         mock_calc.close.assert_called_once()
-
-        server_module._calculator = None
 
     @pytest.mark.asyncio
     async def test_create_estimate_saves_output(self, tmp_path):
         """Should save result JSON when output_file is specified."""
         from awslabs.aws_calculator_mcp_server.server import create_estimate
-        import awslabs.aws_calculator_mcp_server.server as server_module
 
         mock_calc = MagicMock()
         mock_calc.create_estimate = AsyncMock(
@@ -172,20 +167,21 @@ class TestCreateEstimateTool:
             }
         )
         mock_calc.close = AsyncMock()
-        server_module._calculator = mock_calc
 
         mock_ctx = MagicMock()
         mock_ctx.info = AsyncMock()
 
         output_file = str(tmp_path / "output.json")
-        result = await create_estimate(mock_ctx, services=[], output_file=output_file)
+        with patch(
+            "awslabs.aws_calculator_mcp_server.server._new_calculator",
+            return_value=mock_calc,
+        ):
+            result = await create_estimate(mock_ctx, services=[], output_file=output_file)
 
         import json
         with open(output_file) as f:
             saved = json.load(f)
         assert saved["estimate_url"] == "https://calculator.aws/#/estimate?id=save"
-
-        server_module._calculator = None
 
 
 class TestUpdateEstimateTool:
@@ -195,7 +191,6 @@ class TestUpdateEstimateTool:
     async def test_update_estimate_success(self):
         """Should call calculator.update_estimate and return result."""
         from awslabs.aws_calculator_mcp_server.server import update_estimate
-        import awslabs.aws_calculator_mcp_server.server as server_module
 
         mock_calc = MagicMock()
         mock_calc.update_estimate = AsyncMock(
@@ -208,42 +203,44 @@ class TestUpdateEstimateTool:
             }
         )
         mock_calc.close = AsyncMock()
-        server_module._calculator = mock_calc
 
         mock_ctx = MagicMock()
         mock_ctx.info = AsyncMock()
 
-        result = await update_estimate(
-            mock_ctx,
-            estimate_url="https://calculator.aws/#/estimate?id=old",
-            remove_services=["AWS Shield"],
-        )
+        with patch(
+            "awslabs.aws_calculator_mcp_server.server._new_calculator",
+            return_value=mock_calc,
+        ):
+            result = await update_estimate(
+                mock_ctx,
+                estimate_url="https://calculator.aws/#/estimate?id=old",
+                remove_services=["AWS Shield"],
+            )
 
         assert result["estimate_url"] == "https://calculator.aws/#/estimate?id=updated"
         mock_calc.close.assert_called_once()
-
-        server_module._calculator = None
 
     @pytest.mark.asyncio
     async def test_update_estimate_handles_exception(self):
         """Should return error dict on exception."""
         from awslabs.aws_calculator_mcp_server.server import update_estimate
-        import awslabs.aws_calculator_mcp_server.server as server_module
 
         mock_calc = MagicMock()
         mock_calc.update_estimate = AsyncMock(side_effect=Exception("Network timeout"))
         mock_calc.close = AsyncMock()
-        server_module._calculator = mock_calc
 
         mock_ctx = MagicMock()
         mock_ctx.info = AsyncMock()
 
-        result = await update_estimate(
-            mock_ctx, estimate_url="https://calculator.aws/#/estimate?id=fail"
-        )
+        with patch(
+            "awslabs.aws_calculator_mcp_server.server._new_calculator",
+            return_value=mock_calc,
+        ):
+            result = await update_estimate(
+                mock_ctx, estimate_url="https://calculator.aws/#/estimate?id=fail"
+            )
 
         assert "error" in result
         assert "Network timeout" in result["error"]
+        assert result["type"] == "Exception"
         mock_calc.close.assert_called_once()
-
-        server_module._calculator = None

@@ -3,8 +3,8 @@
 Handles the Cloudscape region dropdown on service configuration pages.
 """
 
-from playwright.async_api import Page
 from loguru import logger
+from playwright.async_api import Page
 
 
 class RegionSelector:
