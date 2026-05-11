@@ -76,6 +76,15 @@ class AuthConflict(Exception):
 # ── boto3 client helpers ────────────────────────────────────────────────
 
 
+def _register_client_app_id(client):
+    """Register event handler to inject clientAppId on every request."""
+
+    def add_client_app_id(params, **kwargs):
+        params['headers'][HEADER_CLIENT_APP_ID] = CLIENT_APP_ID
+
+    client.meta.events.register('before-call.elasticgumbyfrontend.*', add_client_app_id)
+
+
 def _create_unsigned_client(
     endpoint: str,
     region: str = 'us-east-1',
@@ -84,7 +93,7 @@ def _create_unsigned_client(
 ):
     """Create a boto3 FES client with UNSIGNED config (no SigV4)."""
     session = create_session()
-    return session.client(
+    client = session.client(
         'elasticgumbyfrontendservice',
         region_name=region,
         endpoint_url=endpoint,
@@ -96,6 +105,8 @@ def _create_unsigned_client(
             read_timeout=timeout,
         ),
     )
+    _register_client_app_id(client)
+    return client
 
 
 def _create_sigv4_client(
@@ -120,7 +131,7 @@ def _create_sigv4_client(
         loader.search_paths.insert(0, _MODEL_DIR)
 
     session = boto3.Session(botocore_session=core)
-    return session.client(
+    client = session.client(
         'elasticgumbyfrontendservice',
         region_name=region,
         endpoint_url=endpoint,
@@ -131,6 +142,8 @@ def _create_sigv4_client(
             read_timeout=timeout,
         ),
     )
+    _register_client_app_id(client)
+    return client
 
 
 def _inject_cookie_auth(client, origin: str, cookie: str):
@@ -148,7 +161,6 @@ def _inject_bearer_auth(client, token: str, origin: Optional[str] = None):
 
     def add_headers(params, model, **kwargs):
         params['headers']['Authorization'] = f'Bearer {token}'
-        params['headers'][HEADER_CLIENT_APP_ID] = CLIENT_APP_ID
         params['headers']['Content-Encoding'] = 'amz-1.0'
         params['headers']['X-Amz-Target'] = f'{FES_TARGET_BEARER}.{model.name}'
         if origin and model.name != 'ListAvailableProfiles':
