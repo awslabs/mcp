@@ -133,6 +133,44 @@ class TestCallTransformApiAuthConflict:  # noqa: D101
 
                 assert exc_info.value.status_code == 403
 
+    @pytest.mark.asyncio
+    async def test_credential_check_exception_does_not_mask_403(self):
+        """When AwsHelper.create_session() throws, original 403 is still raised."""
+        mock_config = MagicMock()
+        mock_config.auth_mode = 'bearer'
+        mock_config.bearer_token = 'token'
+        mock_config.origin = 'https://tenant.transform.us-east-1.on.aws'
+        mock_config.region = 'us-east-1'
+        mock_config.token_expiry = 9999999999
+        mock_config.refresh_token = None
+
+        with (
+            patch('awslabs.aws_transform_mcp_server.transform_api_client.config_store') as mock_cs,
+            patch('awslabs.aws_transform_mcp_server.transform_api_client._create_unsigned_client'),
+            patch(
+                'awslabs.aws_transform_mcp_server.transform_api_client._call_boto3',
+                side_effect=HttpError(
+                    403, {'Message': 'Invalid request origin'}, 'HTTP 403: Invalid request origin'
+                ),
+            ),
+        ):
+            mock_cs.get_config.return_value = mock_config
+            mock_cs.is_sigv4_fes_available.return_value = False
+
+            with patch(
+                'awslabs.aws_transform_mcp_server.transform_api_client.AwsHelper'
+            ) as mock_helper:
+                mock_helper.create_session.side_effect = Exception('ProfileNotFound')
+
+                from awslabs.aws_transform_mcp_server.transform_api_client import (
+                    call_transform_api,
+                )
+
+                with pytest.raises(HttpError) as exc_info:
+                    await call_transform_api('ListWorkspaces', {})
+
+                assert exc_info.value.status_code == 403
+
 
 class TestDeletePersistedConfig:  # noqa: D101
     def test_deletes_config_file(self):
