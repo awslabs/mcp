@@ -584,6 +584,32 @@ class OCMClient:
         """Delete a log forwarder."""
         return await self._delete(f'/clusters/{cluster_id}/log_forwarders/{forwarder_id}')
 
+    # --- STS Operator Roles ---
+
+    async def list_sts_operator_roles(self, cluster_id: str) -> dict:
+        """List STS operator IAM roles for a cluster."""
+        return await self._get(f'/clusters/{cluster_id}/sts_operator_roles')
+
+    # --- STS Credential Requests ---
+
+    async def list_sts_credential_requests(self) -> dict:
+        """List STS credential request templates (required operator roles)."""
+        return await self._get('/aws_inquiries/sts_credential_requests')
+
+    # --- STS Policies ---
+
+    async def list_sts_policies(self) -> dict:
+        """List all STS IAM policies (operator, account, backup roles)."""
+        return await self._get('/aws_inquiries/sts_policies')
+
+    # --- Cluster Operators (via metric queries, returns operator health) ---
+    # Already exists as get_cluster_metrics(cluster_id, 'cluster_operators')
+    # Adding a convenience alias:
+
+    async def get_cluster_operators(self, cluster_id: str) -> dict:
+        """Get health status of all cluster operators."""
+        return await self._get(f'/clusters/{cluster_id}/metric_queries/cluster_operators')
+
     # --- AWS Inquiries ---
 
     async def get_available_regions(self, body: dict) -> dict:
