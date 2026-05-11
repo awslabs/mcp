@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""BDD step definitions for ROSA advisor and recommendations scenarios."""
+"""BDD step definitions for ROSA advisor (no API needed)."""
 
 import json
 import pytest
 from awslabs.rosa_mcp_server.rosa_advisor_handler import RosaAdvisorHandler
-from pytest_bdd import given, parsers, scenarios, then, when
+from pytest_bdd import parsers, scenarios, then, when
 from tests.step_defs.conftest import run
+from unittest.mock import MagicMock
 
 
 scenarios('../features/rosa_advisor.feature')
@@ -28,27 +29,36 @@ scenarios('../features/rosa_advisor.feature')
 
 
 @pytest.fixture
-def advisor_handler(mock_mcp):
-    """Create a RosaAdvisorHandler with mocks."""
+def advisor_handler():
+    """Create a RosaAdvisorHandler."""
+    mock_mcp = MagicMock()
+    mock_mcp.tool = MagicMock(return_value=lambda f: f)
     return RosaAdvisorHandler(mock_mcp)
 
 
-# --- Given Steps ---
+@pytest.fixture
+def mock_context():
+    """Create a mock MCP context for advisor calls."""
+    ctx = MagicMock()
+    ctx.request_id = 'test-request-id'
+    return ctx
 
 
-@given('the ROSA advisor is initialized')
-def advisor_initialized(advisor_handler):
-    """The ROSA advisor is initialized."""
-    pass
+@pytest.fixture
+def advisor_response():
+    """Hold advisor response data between steps."""
+    return {'result': None}
 
 
 # --- When Steps ---
 
 
 @when(parsers.parse(
-    'I request instance recommendation for "{workload}" workload with {vcpus:d} vCPUs and {memory:d}GB memory'
+    'I request instance recommendation for "{workload}" with {vcpus:d} vCPUs and {memory:d}GB'
 ))
-def request_instance_recommendation(advisor_handler, mock_context, response_holder, workload, vcpus, memory):
+def request_instance_recommendation(
+    advisor_handler, mock_context, advisor_response, workload, vcpus, memory
+):
     """Request an instance type recommendation."""
     result = run(advisor_handler.rosa_recommend_instance_type(
         mock_context,
@@ -56,80 +66,60 @@ def request_instance_recommendation(advisor_handler, mock_context, response_hold
         vcpus=vcpus,
         memory_gb=memory,
     ))
-    response_holder['result'] = result
+    advisor_response['result'] = result
 
 
-@when('I validate cluster config:')
-def validate_cluster_config_table(advisor_handler, mock_context, response_holder, datatable):
-    """Validate cluster config using data from a table."""
-    params = {}
-    for row in datatable:
-        key = row[0].strip()
-        value = row[1].strip()
-        if key == 'multi_az':
-            params[key] = value.lower() == 'true'
-        elif key == 'replicas':
-            params[key] = int(value)
-        else:
-            params[key] = value
-
-    result = run(advisor_handler.rosa_validate_cluster_config(
-        mock_context,
-        cluster_name=params.get('cluster_name', 'test-cluster'),
-        multi_az=params.get('multi_az', False),
-        replicas=params.get('replicas', 2),
-        machine_type=params.get('machine_type', 'm5.xlarge'),
-        version=params.get('version', '4.14.5'),
-    ))
-    response_holder['result'] = result
-
-
-@when(parsers.parse('I validate cluster config with name "{name}"'))
-def validate_cluster_config_name(advisor_handler, mock_context, response_holder, name):
-    """Validate cluster config with a specific name."""
+@when(parsers.parse(
+    'I validate config name="{name}" multi_az={multi_az} '
+    'replicas={replicas:d} type="{machine_type}" version="{version}"'
+))
+def validate_config(
+    advisor_handler, mock_context, advisor_response, name, multi_az, replicas, machine_type, version
+):
+    """Validate a cluster configuration."""
+    multi_az_bool = multi_az.lower() == 'true'
     result = run(advisor_handler.rosa_validate_cluster_config(
         mock_context,
         cluster_name=name,
-        multi_az=False,
-        replicas=2,
-        machine_type='m5.xlarge',
-        version='4.14.5',
+        multi_az=multi_az_bool,
+        replicas=replicas,
+        machine_type=machine_type,
+        version=version,
     ))
-    response_holder['result'] = result
+    advisor_response['result'] = result
 
 
-@when(parsers.parse('I request recommended config for "{environment}"'))
-def request_recommended_config(advisor_handler, mock_context, response_holder, environment):
+@when(parsers.parse('I request recommended config for "{env}"'))
+def request_recommended_config(advisor_handler, mock_context, advisor_response, env):
     """Request recommended config for an environment."""
     result = run(advisor_handler.rosa_recommend_cluster_config(
         mock_context,
-        environment=environment,
+        environment=env,
     ))
-    response_holder['result'] = result
+    advisor_response['result'] = result
 
 
-@when(parsers.parse('I estimate cost for {replicas:d} {machine_type} nodes in {region}'))
-def estimate_cost(advisor_handler, mock_context, response_holder, replicas, machine_type, region):
+@when(parsers.parse('I estimate cost for {replicas:d} nodes of type "{machine_type}"'))
+def estimate_cost(advisor_handler, mock_context, advisor_response, replicas, machine_type):
     """Estimate cluster cost."""
     result = run(advisor_handler.rosa_estimate_cluster_cost(
         mock_context,
         machine_type=machine_type,
         replicas=replicas,
-        region=region,
+        region='us-east-1',
     ))
-    response_holder['result'] = result
+    advisor_response['result'] = result
 
 
 # --- Then Steps ---
 
 
-@then(parsers.parse('the recommendation should be from the "{family}" family'))
-def recommendation_from_family(response_holder, family):
-    """The recommendation should be from the expected instance family."""
-    data = json.loads(response_holder['result'][0].text)
+@then(parsers.parse('the recommendation should include an instance from the "{family}" family'))
+def recommendation_from_family(advisor_response, family):
+    """Verify the recommendation includes the expected family."""
+    data = json.loads(advisor_response['result'][0].text)
     recommendations = data.get('recommendations', [])
     assert len(recommendations) > 0
-    # Check that at least one recommendation starts with the expected family
     has_family = any(r['instance_type'].startswith(family) for r in recommendations)
     assert has_family, (
         f"Expected recommendation from '{family}' family, "
@@ -137,31 +127,26 @@ def recommendation_from_family(response_holder, family):
     )
 
 
-@then('the validation should pass')
-def validation_passes(response_holder):
-    """The validation passes."""
-    data = json.loads(response_holder['result'][0].text)
+@then("the validation should pass with no errors")
+def validation_passes(advisor_response):
+    """Verify validation passes."""
+    data = json.loads(advisor_response['result'][0].text)
     assert data.get('valid') is True
-
-
-@then('there should be no errors')
-def no_errors(response_holder):
-    """There are no validation errors."""
-    data = json.loads(response_holder['result'][0].text)
     assert len(data.get('errors', [])) == 0
 
 
-@then('the validation should fail')
-def validation_fails(response_holder):
-    """The validation fails."""
-    data = json.loads(response_holder['result'][0].text)
+@then("the validation should fail")
+def validation_fails(advisor_response):
+    """Verify validation fails."""
+    data = json.loads(advisor_response['result'][0].text)
     assert data.get('valid') is False
 
 
-@then(parsers.parse('the error should mention "{text}"'))
-def error_mentions_text(response_holder, text):
-    """The error mentions the expected text."""
-    data = json.loads(response_holder['result'][0].text)
+@then(parsers.parse('the validation should fail with "{text}"'))
+def validation_fails_with_text(advisor_response, text):
+    """Verify validation fails with specific error text."""
+    data = json.loads(advisor_response['result'][0].text)
+    assert data.get('valid') is False
     errors = data.get('errors', [])
     all_errors = ' '.join(errors).lower()
     assert text.lower() in all_errors, (
@@ -169,39 +154,15 @@ def error_mentions_text(response_holder, text):
     )
 
 
-@then(parsers.parse('the config should have multi_az {multi_az}'))
-def config_has_multi_az(response_holder, multi_az):
-    """The config has the expected multi_az value."""
-    data = json.loads(response_holder['result'][0].text)
-    expected = multi_az.lower() == 'true'
-    assert data['recommended_config']['multi_az'] is expected
-
-
-@then(parsers.parse('the config should have replicas {replicas:d}'))
-def config_has_replicas(response_holder, replicas):
-    """The config has the expected number of replicas."""
-    data = json.loads(response_holder['result'][0].text)
+@then(parsers.parse('the config should recommend {replicas:d} replicas'))
+def config_has_replicas(advisor_response, replicas):
+    """Verify the recommended config has expected replicas."""
+    data = json.loads(advisor_response['result'][0].text)
     assert data['recommended_config']['replicas'] == replicas
 
 
-@then('the estimate should include monthly cost')
-def estimate_includes_monthly_cost(response_holder):
-    """The estimate includes a monthly cost."""
-    data = json.loads(response_holder['result'][0].text)
-    assert 'costs' in data
-    assert 'estimated_monthly_total' in data['costs']
-
-
-@then('the estimate should include per-node cost')
-def estimate_includes_per_node_cost(response_holder):
-    """The estimate includes per-node cost."""
-    data = json.loads(response_holder['result'][0].text)
-    assert 'worker_nodes' in data['costs']
-    assert 'hourly_per_node' in data['costs']['worker_nodes']
-
-
-@then('the monthly cost should be greater than 0')
-def monthly_cost_positive(response_holder):
-    """The monthly cost is greater than zero."""
-    data = json.loads(response_holder['result'][0].text)
+@then("the monthly estimate should be greater than 0")
+def monthly_cost_positive(advisor_response):
+    """Verify the monthly cost is greater than zero."""
+    data = json.loads(advisor_response['result'][0].text)
     assert data['costs']['estimated_monthly_total'] > 0

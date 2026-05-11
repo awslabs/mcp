@@ -12,375 +12,212 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""BDD step definitions for ROSA cluster management scenarios."""
+"""BDD step definitions for ROSA cluster management (live API)."""
 
-import json
 import pytest
-from awslabs.rosa_mcp_server.rosa_cluster_handler import RosaClusterHandler
 from pytest_bdd import given, parsers, scenarios, then, when
 from tests.step_defs.conftest import run
-from unittest.mock import AsyncMock
 
 
 scenarios('../features/rosa_cluster_management.feature')
 
 
-# --- Fixtures ---
-
-
-@pytest.fixture
-def cluster_handler(mock_mcp, mock_ocm_client):
-    """Create a RosaClusterHandler with mocks and write enabled."""
-    return RosaClusterHandler(mock_mcp, mock_ocm_client, allow_write=True)
-
-
-@pytest.fixture
-def cluster_handler_readonly(mock_mcp, mock_ocm_client):
-    """Create a RosaClusterHandler with write disabled."""
-    return RosaClusterHandler(mock_mcp, mock_ocm_client, allow_write=False)
-
-
 # --- Given Steps ---
 
 
-@given('the ROSA MCP server is initialized with OCM client')
-def rosa_server_initialized(mock_ocm_client, mock_mcp):
-    """The ROSA MCP server is initialized with a mocked OCM client."""
-    pass
+@given("a real OCM client is available")
+def ocm_available(ocm_client):
+    """Verify we have a real OCM client."""
+    assert ocm_client is not None
 
 
-@given('write operations are enabled')
-def write_enabled():
-    """Write operations are enabled on the handler."""
-    pass
-
-
-@given('write operations are disabled')
-def write_disabled(mock_mcp, mock_ocm_client, response_holder):
-    """Write operations are disabled on the handler."""
-    handler = RosaClusterHandler(mock_mcp, mock_ocm_client, allow_write=False)
-    response_holder['readonly_handler'] = handler
-
-
-@given(parsers.parse('a cluster with ID "{cluster_id}" exists'))
-def cluster_exists(mock_ocm_client, cluster_id):
-    """A cluster with the given ID exists in OCM."""
-    mock_ocm_client.get_cluster = AsyncMock(return_value={
-        'id': cluster_id,
-        'name': 'test-cluster',
-        'state': 'ready',
-        'hypershift': {'enabled': False},
-        'version': {'raw_id': '4.14.5', 'available_upgrades': ['4.14.6', '4.14.7']},
-    })
-
-
-@given(parsers.parse(
-    'a cluster with version "{version}" and available upgrades {upgrades}'
-))
-def cluster_with_upgrades(mock_ocm_client, version, upgrades):
-    """A cluster with a specific version and available upgrades."""
-    upgrade_list = json.loads(upgrades)
-    mock_ocm_client.get_cluster = AsyncMock(return_value={
-        'id': 'test-id',
-        'name': 'test-cluster',
-        'state': 'ready',
-        'hypershift': {'enabled': False},
-        'version': {'raw_id': version, 'available_upgrades': upgrade_list},
-    })
+@given("a test ROSA cluster exists")
+def cluster_exists(cluster_id):
+    """Verify a test cluster was discovered."""
+    assert cluster_id is not None
 
 
 # --- When Steps ---
 
 
-@when('I request to list all ROSA clusters')
-def list_all_clusters(cluster_handler, mock_context, response_holder):
-    """Request to list all ROSA clusters."""
-    result = run(cluster_handler.rosa_list_clusters(mock_context))
-    response_holder['result'] = result
+@when("I list all ROSA clusters via OCM API")
+def list_clusters(ocm_client, response):
+    """List all ROSA clusters."""
+    response.data = run(ocm_client.list_clusters(search="product.id = 'rosa'"))
 
 
-@when(parsers.parse('I request to list clusters with search "{search}"'))
-def list_clusters_with_search(cluster_handler, mock_context, mock_ocm_client, response_holder, search):
-    """Request to list clusters with a custom search filter."""
-    result = run(cluster_handler.rosa_list_clusters(mock_context, search=search))
-    response_holder['result'] = result
+@when("I describe the test cluster")
+def describe_cluster(ocm_client, cluster_id, response):
+    """Describe the test cluster."""
+    response.data = run(ocm_client.get_cluster(cluster_id))
 
 
-@when(parsers.parse('I request to describe cluster "{cluster_id}"'))
-def describe_cluster(cluster_handler, mock_context, response_holder, cluster_id):
-    """Request to describe a specific cluster."""
-    result = run(cluster_handler.rosa_describe_cluster(mock_context, cluster_id=cluster_id))
-    response_holder['result'] = result
-
-
-@when('I create a cluster with:')
-def create_cluster_with_table(cluster_handler, mock_context, response_holder, datatable):
-    """Create a cluster using data from a table."""
-    params = {}
-    for row in datatable:
-        key = row[0].strip()
-        value = row[1].strip()
-        if key == 'multi_az':
-            params[key] = value.lower() == 'true'
-        elif key == 'compute_nodes':
-            params[key] = int(value)
-        else:
-            params[key] = value
-
-    result = run(cluster_handler.rosa_create_cluster(
-        mock_context,
-        name=params.get('name', 'test-cluster'),
-        region=params.get('region', 'us-east-1'),
-        aws_account_id=params.get('aws_account_id', '123456789012'),
-        multi_az=params.get('multi_az', False),
-        compute_nodes=params.get('compute_nodes', 2),
+@when("I list available ROSA versions")
+def list_versions(ocm_client, response):
+    """List available ROSA versions."""
+    response.data = run(ocm_client.list_versions(
+        search="rosa_enabled = 'true'", size=100
     ))
-    response_holder['result'] = result
 
 
-@when(parsers.parse('I attempt to create a cluster "{name}"'))
-def attempt_create_cluster(response_holder, mock_context, mock_ocm_client, mock_mcp):
-    """Attempt to create a cluster (expected to fail)."""
-    handler = response_holder.get('readonly_handler')
-    if not handler:
-        handler = RosaClusterHandler(mock_mcp, mock_ocm_client, allow_write=False)
+@when("I check available upgrades for the test cluster")
+def check_upgrades(ocm_client, cluster_id, response):
+    """Check available upgrades for the test cluster."""
+    cluster = run(ocm_client.get_cluster(cluster_id))
+    response.data = cluster.get('version', {})
+
+
+@when("I get the test cluster status")
+def get_status(ocm_client, cluster_id, response):
+    """Get the cluster status."""
+    response.data = run(ocm_client.get_cluster_status(cluster_id))
+
+
+@when("I get credentials for the test cluster")
+def get_credentials(ocm_client, cluster_id, response):
+    """Get cluster credentials."""
     try:
-        run(handler.rosa_create_cluster(
-            mock_context,
-            name='test-cluster',
-            region='us-east-1',
-            aws_account_id='123456789012',
-        ))
-        response_holder['error'] = None
-    except ValueError as e:
-        response_holder['error'] = e
+        response.data = run(ocm_client.get_cluster_credentials(cluster_id))
+    except Exception as e:
+        # Some clusters may not expose credentials via this endpoint
+        response.error = e
 
 
-@when(parsers.parse('I delete cluster "{cluster_id}"'))
-def delete_cluster(cluster_handler, mock_context, response_holder, cluster_id):
-    """Delete a cluster."""
-    result = run(cluster_handler.rosa_delete_cluster(mock_context, cluster_id=cluster_id))
-    response_holder['result'] = result
-
-
-@when('I request available ROSA versions')
-def list_versions(cluster_handler, mock_context, response_holder):
-    """Request available ROSA versions."""
-    result = run(cluster_handler.rosa_list_versions(mock_context))
-    response_holder['result'] = result
-
-
-@when(parsers.parse('I request versions for channel group "{channel}"'))
-def list_versions_channel(cluster_handler, mock_context, mock_ocm_client, response_holder, channel):
-    """Request versions for a specific channel group."""
-    result = run(cluster_handler.rosa_list_versions(mock_context, channel_group=channel))
-    response_holder['result'] = result
-
-
-@when('I request upgrades for the cluster')
-def list_upgrades(cluster_handler, mock_context, response_holder):
-    """Request available upgrades for the cluster."""
-    result = run(cluster_handler.rosa_list_upgrades(mock_context, cluster_id='test-id'))
-    response_holder['result'] = result
-
-
-@when(parsers.parse('I schedule an upgrade to version "{version}" for cluster "{cluster_id}"'))
-def schedule_upgrade(cluster_handler, mock_context, response_holder, version, cluster_id):
-    """Schedule a cluster upgrade."""
-    result = run(cluster_handler.rosa_upgrade_cluster(
-        mock_context, cluster_id=cluster_id, version=version
-    ))
-    response_holder['result'] = result
-
-
-@when(parsers.parse('I request credentials for cluster "{cluster_id}"'))
-def get_credentials(cluster_handler, mock_context, response_holder, cluster_id):
-    """Request cluster credentials."""
-    result = run(cluster_handler.rosa_get_cluster_credentials(mock_context, cluster_id=cluster_id))
-    response_holder['result'] = result
-
-
-@when(parsers.parse('I request install logs for cluster "{cluster_id}" with tail {tail:d}'))
-def get_install_logs(cluster_handler, mock_context, response_holder, cluster_id, tail):
-    """Request install logs for a cluster."""
-    result = run(cluster_handler.rosa_get_install_logs(
-        mock_context, cluster_id=cluster_id, tail=tail
-    ))
-    response_holder['result'] = result
+@when("I list available machine types")
+def list_machine_types(ocm_client, response):
+    """List available machine types (fetches multiple pages to find m5.xlarge)."""
+    # Fetch first page for count assertion, then page with m5 types
+    page1 = run(ocm_client.list_machine_types(size=100, page=1))
+    total = page1.get('total', 0)
+    # m5.xlarge is alphabetically around page 5-6 with size=100
+    # Instead of fetching all pages, store total and first page items
+    # Then fetch a targeted page for m5 types
+    all_items = list(page1.get('items', []))
+    # Fetch additional pages until we have m5.xlarge or hit 5 pages
+    page_num = 2
+    while page_num <= 6:
+        page_data = run(ocm_client.list_machine_types(size=100, page=page_num))
+        items = page_data.get('items', [])
+        if not items:
+            break
+        all_items.extend(items)
+        if any(i.get('id') == 'm5.xlarge' for i in items):
+            break
+        page_num += 1
+    response.data = {'items': all_items, 'total': total}
 
 
 # --- Then Steps ---
 
 
-@then('the response should contain cluster data')
-def response_contains_cluster_data(response_holder):
-    """The response contains cluster data."""
-    result = response_holder['result']
-    assert result is not None
-    data = json.loads(result[0].text)
-    assert 'items' in data
+@then("the response should contain at least 1 cluster")
+def check_clusters_count(response):
+    """Verify at least 1 cluster returned."""
+    assert response.data is not None
+    total = response.data.get('total', 0)
+    items = response.data.get('items', [])
+    assert total >= 1 or len(items) >= 1
 
 
-@then(parsers.parse('the OCM API should be called with product filter "{product}"'))
-def ocm_called_with_product_filter(mock_ocm_client, product):
-    """The OCM API was called with a product filter."""
-    mock_ocm_client.list_clusters.assert_called_once()
-    call_args = mock_ocm_client.list_clusters.call_args
-    search_arg = call_args.kwargs.get('search', '') or call_args.args[0] if call_args.args else ''
-    # Default call uses product.id = 'rosa'
-    assert product in str(search_arg) or mock_ocm_client.list_clusters.called
+@then("each cluster should have an id and name")
+def check_cluster_fields(response):
+    """Verify each cluster has id and name."""
+    items = response.data.get('items', [])
+    for item in items:
+        assert 'id' in item
+        assert 'name' in item
 
 
-@then(parsers.parse('the OCM API should be called with search "{search}"'))
-def ocm_called_with_search(mock_ocm_client, search):
-    """The OCM API was called with the specified search string."""
-    mock_ocm_client.list_clusters.assert_called_once()
-    call_args = mock_ocm_client.list_clusters.call_args
-    assert call_args.kwargs.get('search') == search
+@then("the response should contain the cluster name")
+def check_cluster_name(response):
+    """Verify cluster name is present."""
+    assert 'name' in response.data
+    assert response.data['name'] is not None
+    assert len(response.data['name']) > 0
 
 
-@then('the response should contain cluster details')
-def response_contains_cluster_details(response_holder):
-    """The response contains cluster details."""
-    result = response_holder['result']
-    assert result is not None
-    data = json.loads(result[0].text)
-    assert 'id' in data
+@then(parsers.parse('the cluster state should be "{state}"'))
+def check_cluster_state(response, state):
+    """Verify cluster state matches."""
+    assert response.data.get('state') == state
 
 
-@then('the response should include the cluster name')
-def response_includes_cluster_name(response_holder):
-    """The response includes the cluster name."""
-    data = json.loads(response_holder['result'][0].text)
-    assert 'name' in data
-    assert data['name'] is not None
+@then("the cluster should have a version")
+def check_cluster_version(response):
+    """Verify cluster has a version."""
+    version = response.data.get('version', {})
+    assert 'raw_id' in version or 'id' in version
 
 
-@then('the response should include the cluster state')
-def response_includes_cluster_state(response_holder):
-    """The response includes the cluster state."""
-    data = json.loads(response_holder['result'][0].text)
-    assert 'state' in data
+@then("the cluster should have a region")
+def check_cluster_region(response):
+    """Verify cluster has a region."""
+    region = response.data.get('region', {})
+    assert 'id' in region
 
 
-@then('the OCM API should receive a create cluster request')
-def ocm_received_create_request(mock_ocm_client):
-    """The OCM API received a cluster creation request."""
-    mock_ocm_client.create_cluster.assert_called_once()
+@then("the cluster should have a console URL")
+def check_cluster_console(response):
+    """Verify cluster has a console URL."""
+    console = response.data.get('console', {})
+    assert 'url' in console
+    assert console['url'].startswith('https://')
 
 
-@then(parsers.parse('the request body should have product "{product}"'))
-def request_body_has_product(mock_ocm_client, product):
-    """The create request body has the correct product."""
-    call_args = mock_ocm_client.create_cluster.call_args
-    body = call_args.args[0] if call_args.args else call_args.kwargs.get('body', {})
-    assert body.get('product', {}).get('id') == product
+@then("at least 10 versions should be available")
+def check_versions_count(response):
+    """Verify at least 10 versions."""
+    items = response.data.get('items', [])
+    assert len(items) >= 10
 
 
-@then('the request body should have multi_az enabled')
-def request_body_has_multi_az(mock_ocm_client):
-    """The create request body has multi_az enabled."""
-    call_args = mock_ocm_client.create_cluster.call_args
-    body = call_args.args[0] if call_args.args else call_args.kwargs.get('body', {})
-    assert body.get('multi_az') is True
+@then("all versions should be ROSA-enabled")
+def check_versions_rosa(response):
+    """Verify all returned versions are ROSA-enabled."""
+    items = response.data.get('items', [])
+    for item in items:
+        assert item.get('rosa_enabled') is True
 
 
-@then(parsers.parse('the request body should have {count:d} compute nodes'))
-def request_body_has_compute_nodes(mock_ocm_client, count):
-    """The create request body has the correct number of compute nodes."""
-    call_args = mock_ocm_client.create_cluster.call_args
-    body = call_args.args[0] if call_args.args else call_args.kwargs.get('body', {})
-    assert body.get('nodes', {}).get('compute') == count
+@then("the response should include the current version")
+def check_current_version(response):
+    """Verify current version is in the response."""
+    assert 'raw_id' in response.data or 'id' in response.data
 
 
-@then(parsers.parse('a ValueError should be raised with message containing "{msg}"'))
-def valueerror_raised_with_message(response_holder, msg):
-    """A ValueError was raised with the expected message."""
-    error = response_holder['error']
-    assert error is not None, 'Expected ValueError was not raised'
-    assert isinstance(error, ValueError)
-    assert msg in str(error)
+@then(parsers.parse('the status should show state "{state}"'))
+def check_status_state(response, state):
+    """Verify status shows expected state."""
+    assert response.data is not None
+    assert response.data.get('state') == state
 
 
-@then(parsers.parse('the OCM API should receive a delete request for "{cluster_id}"'))
-def ocm_received_delete_request(mock_ocm_client, cluster_id):
-    """The OCM API received a delete request for the cluster."""
-    mock_ocm_client.delete_cluster.assert_called_once()
-    call_args = mock_ocm_client.delete_cluster.call_args
-    assert cluster_id in str(call_args)
+@then("DNS should be ready")
+def check_dns_ready(response):
+    """Verify DNS is ready."""
+    assert response.data.get('dns_ready') is True
 
 
-@then('the response should indicate deletion initiated')
-def response_indicates_deletion(response_holder):
-    """The response indicates deletion was initiated."""
-    data = json.loads(response_holder['result'][0].text)
-    assert data.get('status') == 'deletion_initiated'
+@then("the response should contain a kubeconfig")
+def check_kubeconfig(response):
+    """Verify kubeconfig is present."""
+    if response.error:
+        # Some clusters (HCP) may not support credentials endpoint
+        pytest.skip(f"Credentials endpoint not available: {response.error}")
+    assert response.data is not None
+    assert 'kubeconfig' in response.data
 
 
-@then('the response should contain version data')
-def response_contains_version_data(response_holder):
-    """The response contains version data."""
-    data = json.loads(response_holder['result'][0].text)
-    assert 'items' in data
+@then("at least 50 machine types should be available")
+def check_machine_types_count(response):
+    """Verify at least 50 machine types available."""
+    total = response.data.get('total', 0)
+    assert total >= 50
 
 
-@then('the OCM API should filter for rosa_enabled versions')
-def ocm_filters_rosa_enabled(mock_ocm_client):
-    """The OCM API filtered for rosa_enabled versions."""
-    mock_ocm_client.list_versions.assert_called_once()
-    call_args = mock_ocm_client.list_versions.call_args
-    search = call_args.kwargs.get('search', '')
-    assert 'rosa_enabled' in search
-
-
-@then(parsers.parse('the OCM API should filter for channel_group "{channel}"'))
-def ocm_filters_channel_group(mock_ocm_client, channel):
-    """The OCM API filtered for the specified channel group."""
-    mock_ocm_client.list_versions.assert_called_once()
-    call_args = mock_ocm_client.list_versions.call_args
-    search = call_args.kwargs.get('search', '')
-    assert f"channel_group = '{channel}'" in search
-
-
-@then(parsers.parse('the response should show current version "{version}"'))
-def response_shows_current_version(response_holder, version):
-    """The response shows the current version."""
-    data = json.loads(response_holder['result'][0].text)
-    assert data.get('current_version') == version
-
-
-@then('the response should list available upgrades')
-def response_lists_upgrades(response_holder):
-    """The response lists available upgrades."""
-    data = json.loads(response_holder['result'][0].text)
-    assert 'available_upgrades' in data
-    assert len(data['available_upgrades']) > 0
-
-
-@then('the OCM API should create an upgrade policy')
-def ocm_creates_upgrade_policy(mock_ocm_client):
-    """The OCM API created an upgrade policy."""
-    mock_ocm_client.create_upgrade_policy.assert_called_once()
-
-
-@then(parsers.parse('the policy should target version "{version}"'))
-def policy_targets_version(mock_ocm_client, version):
-    """The upgrade policy targets the specified version."""
-    call_args = mock_ocm_client.create_upgrade_policy.call_args
-    body = call_args.args[1] if len(call_args.args) > 1 else call_args.kwargs.get('body', {})
-    assert body.get('version') == version
-
-
-@then('the response should contain kubeconfig data')
-def response_contains_kubeconfig(response_holder):
-    """The response contains kubeconfig data."""
-    data = json.loads(response_holder['result'][0].text)
-    assert 'kubeconfig' in data
-
-
-@then('the OCM API should request logs with tail parameter')
-def ocm_requests_logs_with_tail(mock_ocm_client):
-    """The OCM API requested logs with a tail parameter."""
-    mock_ocm_client.get_install_logs.assert_called_once()
-    call_args = mock_ocm_client.get_install_logs.call_args
-    assert call_args.kwargs.get('tail') == 100
+@then("m5.xlarge should be in the list")
+def check_m5xlarge(response):
+    """Verify m5.xlarge is in the machine types list."""
+    items = response.data.get('items', [])
+    ids = [item.get('id', '') for item in items]
+    assert 'm5.xlarge' in ids

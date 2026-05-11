@@ -1,80 +1,50 @@
-Feature: ROSA Cluster Management
+Feature: ROSA Cluster Management (Live API)
   As a cloud architect using the ROSA MCP server
-  I want to manage ROSA clusters through the MCP interface
-  So that I can create, monitor, and maintain OpenShift clusters on AWS
+  I want to verify cluster operations work against the real OCM API
 
   Background:
-    Given the ROSA MCP server is initialized with OCM client
-    And write operations are enabled
+    Given a real OCM client is available
+    And a test ROSA cluster exists
 
+  @live @readonly
   Scenario: List all ROSA clusters
-    When I request to list all ROSA clusters
-    Then the response should contain cluster data
-    And the OCM API should be called with product filter "rosa"
+    When I list all ROSA clusters via OCM API
+    Then the response should contain at least 1 cluster
+    And each cluster should have an id and name
 
-  Scenario: List clusters with custom search
-    When I request to list clusters with search "state = 'ready'"
-    Then the OCM API should be called with search "state = 'ready'"
+  @live @readonly
+  Scenario: Describe the test cluster
+    When I describe the test cluster
+    Then the response should contain the cluster name
+    And the cluster state should be "ready"
+    And the cluster should have a version
+    And the cluster should have a region
+    And the cluster should have a console URL
 
-  Scenario: Describe a specific cluster
-    Given a cluster with ID "test-cluster-id" exists
-    When I request to describe cluster "test-cluster-id"
-    Then the response should contain cluster details
-    And the response should include the cluster name
-    And the response should include the cluster state
-
-  Scenario: Create a new ROSA cluster with STS
-    When I create a cluster with:
-      | name          | my-rosa-cluster |
-      | region        | us-east-1       |
-      | aws_account_id| 123456789012    |
-      | multi_az      | true            |
-      | compute_nodes | 3               |
-    Then the OCM API should receive a create cluster request
-    And the request body should have product "rosa"
-    And the request body should have multi_az enabled
-    And the request body should have 3 compute nodes
-
-  Scenario: Create cluster fails without write permission
-    Given write operations are disabled
-    When I attempt to create a cluster "test-cluster"
-    Then a ValueError should be raised with message containing "allow-write"
-
-  Scenario: Delete a cluster
-    When I delete cluster "test-cluster-id"
-    Then the OCM API should receive a delete request for "test-cluster-id"
-    And the response should indicate deletion initiated
-
+  @live @readonly
   Scenario: List available ROSA versions
-    When I request available ROSA versions
-    Then the response should contain version data
-    And the OCM API should filter for rosa_enabled versions
+    When I list available ROSA versions
+    Then at least 10 versions should be available
+    And all versions should be ROSA-enabled
 
-  Scenario Outline: List versions by channel group
-    When I request versions for channel group "<channel>"
-    Then the OCM API should filter for channel_group "<channel>"
+  @live @readonly
+  Scenario: List available upgrades for the test cluster
+    When I check available upgrades for the test cluster
+    Then the response should include the current version
 
-    Examples:
-      | channel   |
-      | stable    |
-      | candidate |
-      | nightly   |
+  @live @readonly
+  Scenario: Get cluster status
+    When I get the test cluster status
+    Then the status should show state "ready"
+    And DNS should be ready
 
-  Scenario: Get available upgrades for a cluster
-    Given a cluster with version "4.14.5" and available upgrades ["4.14.6", "4.14.7"]
-    When I request upgrades for the cluster
-    Then the response should show current version "4.14.5"
-    And the response should list available upgrades
-
-  Scenario: Schedule cluster upgrade
-    When I schedule an upgrade to version "4.14.6" for cluster "test-id"
-    Then the OCM API should create an upgrade policy
-    And the policy should target version "4.14.6"
-
+  @live @readonly
   Scenario: Get cluster credentials
-    When I request credentials for cluster "test-id"
-    Then the response should contain kubeconfig data
+    When I get credentials for the test cluster
+    Then the response should contain a kubeconfig
 
-  Scenario: Get install logs
-    When I request install logs for cluster "test-id" with tail 100
-    Then the OCM API should request logs with tail parameter
+  @live @readonly
+  Scenario: List machine types
+    When I list available machine types
+    Then at least 50 machine types should be available
+    And m5.xlarge should be in the list

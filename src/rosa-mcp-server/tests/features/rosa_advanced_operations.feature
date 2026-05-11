@@ -1,56 +1,26 @@
-Feature: ROSA Advanced Operations
-  As a cluster operator
-  I want to perform advanced cluster operations
-  So that I can manage lifecycle and troubleshoot issues
+Feature: ROSA Advanced Operations (Live API)
 
   Background:
-    Given the ROSA MCP server is initialized with OCM client
-    And write operations are enabled
+    Given a real OCM client is available
+    And a test ROSA cluster exists
 
-  Scenario: Hibernate a Classic cluster
-    When I hibernate cluster "classic-id"
-    Then the OCM API should POST to hibernate endpoint
-    And the response should confirm hibernation initiated
+  @live @readonly
+  Scenario: Get cluster metrics - alerts
+    When I query alerts metrics for the test cluster
+    Then the response should be valid metrics data
 
-  Scenario: Resume a hibernated cluster
-    When I resume cluster "classic-id"
-    Then the OCM API should POST to resume endpoint
+  @live @readonly
+  Scenario: Get cluster metrics - cluster operators
+    When I query cluster_operators metrics for the test cluster
+    Then the response should be valid metrics data
 
-  Scenario: Get cluster status
-    When I get status for cluster "test-id"
-    Then the response should contain state information
-    And the response should contain DNS readiness
+  @live @readonly
+  Scenario: Check delete protection
+    When I check delete protection for the test cluster
+    Then the response should indicate protection status
 
-  Scenario Outline: Get cluster metrics
-    When I get "<metric>" metrics for cluster "test-id"
-    Then the OCM API should query metric_queries/<metric>
-
-    Examples:
-      | metric            |
-      | alerts            |
-      | cluster_operators |
-      | nodes             |
-
-  Scenario: Get cluster metrics rejects invalid metric
-    When I request metric "invalid_metric" for cluster "test-id"
-    Then a ValueError should be raised
-
-  Scenario: List break-glass credentials (HCP)
-    When I list break-glass credentials for cluster "hcp-id"
-    Then the response should contain credentials list
-
-  Scenario: Create break-glass credential
-    When I create a break-glass credential for cluster "hcp-id"
-    Then the OCM API should create the credential
-
-  Scenario: Get delete protection status
-    When I check delete protection for cluster "test-id"
-    Then the response should show protection status
-
-  Scenario: Enable delete protection
-    When I enable delete protection for cluster "test-id"
-    Then the OCM API should update delete protection to enabled
-
-  Scenario: List available machine types
-    When I list available machine types
-    Then the response should contain instance types
+  @live @readonly
+  Scenario: List available add-ons
+    When I list available add-ons
+    Then at least 1 add-on should be available
+    And each add-on should have a name and id

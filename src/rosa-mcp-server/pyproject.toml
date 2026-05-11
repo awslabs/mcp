@@ -126,7 +126,10 @@ testpaths = [ "tests"]
 asyncio_mode = "auto"
 markers = [
     "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
-    "asyncio: marks tests that use asyncio"
+    "readonly: marks tests that only read (no mutations)",
+    "write: marks tests that create/modify/delete resources (reversible)",
+    "advisor: marks tests for advisor logic (no API needed)",
+    "asyncio: marks tests that use asyncio",
 ]
 
 [tool.coverage.report]
