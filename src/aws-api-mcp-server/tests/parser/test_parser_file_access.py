@@ -178,6 +178,14 @@ class TestDefaultFileAccessBehavior:
         ):
             parse(command)
 
+    def test_codeartifact_login_rejected_in_workdir_mode(self):
+        """Test that codeartifact login is rejected in WORKDIR mode since it writes to home directory."""
+        with pytest.raises(OperationNotAllowedError) as exc_info:
+            parse('aws codeartifact login --tool pip --domain my-domain --repository my-repo')
+
+        assert 'codeartifact' in str(exc_info.value).lower()
+        assert 'login' in str(exc_info.value).lower()
+
 
 @patch(
     'awslabs.aws_api_mcp_server.core.parser.parser.FILE_ACCESS_MODE',
