@@ -21,6 +21,7 @@ from botocore.exceptions import ClientError
 from loguru import logger
 from typing import Any, Dict, List, Optional, Tuple
 
+DEFAULT_POSTGRES_PORT = 5432
 
 def internal_create_rds_client(region: str):
     """Create an RDS client with custom user agent configuration."""
@@ -62,7 +63,7 @@ def internal_get_cluster_valid_endpoints(
     try:
         cluster_port = int(cluster_port_raw) if cluster_port_raw is not None else 0
     except (TypeError, ValueError):
-        cluster_port = 0
+        cluster_port = DEFAULT_POSTGRES_PORT
 
     writer_endpoint = cluster_properties.get('Endpoint')
     if writer_endpoint and cluster_port:

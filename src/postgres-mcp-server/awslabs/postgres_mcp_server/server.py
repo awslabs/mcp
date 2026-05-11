@@ -27,6 +27,7 @@ from awslabs.postgres_mcp_server.connection.cp_api_connection import (
     internal_get_cluster_valid_endpoints,
     internal_get_instance_properties,
     setup_aurora_iam_policy_for_current_user,
+    DEFAULT_POSTGRES_PORT
 )
 from awslabs.postgres_mcp_server.connection.db_connection_map import (
     ConnectionMethod,
@@ -671,7 +672,7 @@ def internal_create_connection(
         try:
             cluster_port = int(cluster_properties.get('Port') or 0)
         except (TypeError, ValueError):
-            cluster_port = 0
+            cluster_port = DEFAULT_POSTGRES_PORT
 
         if not db_endpoint:
             # No endpoint supplied: default to the cluster's writer endpoint/port
@@ -723,7 +724,7 @@ def internal_create_connection(
         try:
             resolved_port = int(instance_endpoint.get('Port') or 0)
         except (TypeError, ValueError):
-            resolved_port = 0
+            resolved_port = DEFAULT_POSTGRES_PORT
         if resolved_host:
             db_endpoint = resolved_host
         if resolved_port:
