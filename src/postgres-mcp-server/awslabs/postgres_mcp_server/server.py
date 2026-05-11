@@ -21,13 +21,13 @@ import sys
 import threading
 from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection
 from awslabs.postgres_mcp_server.connection.cp_api_connection import (
+    DEFAULT_POSTGRES_PORT,
     internal_create_express_cluster,
     internal_create_serverless_cluster,
     internal_get_cluster_properties,
     internal_get_cluster_valid_endpoints,
     internal_get_instance_properties,
     setup_aurora_iam_policy_for_current_user,
-    DEFAULT_POSTGRES_PORT
 )
 from awslabs.postgres_mcp_server.connection.db_connection_map import (
     ConnectionMethod,
