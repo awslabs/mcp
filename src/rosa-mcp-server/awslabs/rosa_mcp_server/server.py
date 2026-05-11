@@ -34,10 +34,16 @@ from awslabs.rosa_mcp_server.cloudwatch_handler import CloudWatchHandler
 from awslabs.rosa_mcp_server.iam_handler import IAMHandler
 from awslabs.rosa_mcp_server.k8s_handler import K8sHandler
 from awslabs.rosa_mcp_server.ocm_client import OCMClient
+from awslabs.rosa_mcp_server.rosa_addon_handler import RosaAddonHandler
+from awslabs.rosa_mcp_server.rosa_advanced_handler import RosaAdvancedHandler
+from awslabs.rosa_mcp_server.rosa_advisor_handler import RosaAdvisorHandler
 from awslabs.rosa_mcp_server.rosa_auth_handler import RosaAuthHandler
+from awslabs.rosa_mcp_server.rosa_autoscaler_handler import RosaAutoscalerHandler
 from awslabs.rosa_mcp_server.rosa_cluster_handler import RosaClusterHandler
+from awslabs.rosa_mcp_server.rosa_config_handler import RosaConfigHandler
 from awslabs.rosa_mcp_server.rosa_machinepool_handler import RosaMachinePoolHandler
 from awslabs.rosa_mcp_server.rosa_networking_handler import RosaNetworkingHandler
+from awslabs.rosa_mcp_server.rosa_user_handler import RosaUserHandler
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
 
@@ -202,9 +208,15 @@ def main():
         RosaAuthHandler(mcp, ocm_client, allow_write)
         RosaMachinePoolHandler(mcp, ocm_client, allow_write)
         RosaNetworkingHandler(mcp, ocm_client, allow_write)
+        RosaAutoscalerHandler(mcp, ocm_client, allow_write)
+        RosaAddonHandler(mcp, ocm_client, allow_write)
+        RosaUserHandler(mcp, ocm_client, allow_write)
+        RosaAdvancedHandler(mcp, ocm_client, allow_write)
+        RosaConfigHandler(mcp, ocm_client, allow_write)
         K8sHandler(mcp, ocm_client, allow_write, allow_sensitive_data_access)
 
-    # Register AWS-only handlers (always available)
+    # Register handlers that don't need OCM (always available)
+    RosaAdvisorHandler(mcp)
     CloudWatchHandler(mcp, allow_sensitive_data_access)
     IAMHandler(mcp, allow_sensitive_data_access)
 

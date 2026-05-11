@@ -328,6 +328,262 @@ class OCMClient:
         """Delete an ingress."""
         return await self._delete(f'/clusters/{cluster_id}/ingresses/{ingress_id}')
 
+    # --- Cluster Autoscaler ---
+
+    async def get_autoscaler(self, cluster_id: str) -> dict:
+        """Get the cluster autoscaler configuration."""
+        return await self._get(f'/clusters/{cluster_id}/autoscaler')
+
+    async def create_autoscaler(self, cluster_id: str, body: dict) -> dict:
+        """Create a cluster autoscaler configuration."""
+        return await self._post(f'/clusters/{cluster_id}/autoscaler', body)
+
+    async def update_autoscaler(self, cluster_id: str, body: dict) -> dict:
+        """Update the cluster autoscaler configuration."""
+        return await self._patch(f'/clusters/{cluster_id}/autoscaler', body)
+
+    async def delete_autoscaler(self, cluster_id: str) -> int:
+        """Delete the cluster autoscaler configuration."""
+        return await self._delete(f'/clusters/{cluster_id}/autoscaler')
+
+    # --- Cluster Status & Metrics ---
+
+    async def get_cluster_status(self, cluster_id: str) -> dict:
+        """Get the current status of a cluster."""
+        return await self._get(f'/clusters/{cluster_id}/status')
+
+    async def get_cluster_metrics(self, cluster_id: str, metric: str) -> dict:
+        """Get cluster metrics by metric name.
+
+        Args:
+            cluster_id: The cluster identifier.
+            metric: One of: alerts, cluster_operators, cpu_total_by_node_roles_os,
+                    nodes, socket_total_by_node_roles_os.
+        """
+        return await self._get(f'/clusters/{cluster_id}/metric_queries/{metric}')
+
+    # --- Hibernation (Classic only) ---
+
+    async def hibernate_cluster(self, cluster_id: str) -> int:
+        """Hibernate a classic cluster.
+
+        Sends a POST request with an empty body to initiate cluster hibernation.
+        Only supported for ROSA Classic clusters.
+        """
+        client = await self._ensure_client()
+        headers = await self._headers()
+        resp = await client.post(
+            f'{self._api_url}{API_PATH}/clusters/{cluster_id}/hibernate',
+            headers=headers, json={}
+        )
+        resp.raise_for_status()
+        return resp.status_code
+
+    async def resume_cluster(self, cluster_id: str) -> int:
+        """Resume a hibernated classic cluster.
+
+        Sends a POST request with an empty body to resume a hibernated cluster.
+        Only supported for ROSA Classic clusters.
+        """
+        client = await self._ensure_client()
+        headers = await self._headers()
+        resp = await client.post(
+            f'{self._api_url}{API_PATH}/clusters/{cluster_id}/resume',
+            headers=headers, json={}
+        )
+        resp.raise_for_status()
+        return resp.status_code
+
+    # --- Add-ons ---
+
+    async def list_available_addons(self, page: int = 1, size: int = 100) -> dict:
+        """List all available add-ons in the catalog."""
+        params: dict = {'page': page, 'size': size}
+        return await self._get('/addons', params=params)
+
+    async def list_cluster_addons(self, cluster_id: str) -> dict:
+        """List add-ons installed on a cluster."""
+        return await self._get(f'/clusters/{cluster_id}/addons')
+
+    async def install_addon(self, cluster_id: str, body: dict) -> dict:
+        """Install an add-on on a cluster."""
+        return await self._post(f'/clusters/{cluster_id}/addons', body)
+
+    async def get_addon_installation(self, cluster_id: str, addon_id: str) -> dict:
+        """Get details of an add-on installation on a cluster."""
+        return await self._get(f'/clusters/{cluster_id}/addons/{addon_id}')
+
+    async def uninstall_addon(self, cluster_id: str, addon_id: str) -> int:
+        """Uninstall an add-on from a cluster."""
+        return await self._delete(f'/clusters/{cluster_id}/addons/{addon_id}')
+
+    # --- Groups & Users ---
+
+    async def list_groups(self, cluster_id: str) -> dict:
+        """List groups for a cluster."""
+        return await self._get(f'/clusters/{cluster_id}/groups')
+
+    async def list_group_users(self, cluster_id: str, group_id: str) -> dict:
+        """List users in a cluster group."""
+        return await self._get(f'/clusters/{cluster_id}/groups/{group_id}/users')
+
+    async def add_user_to_group(self, cluster_id: str, group_id: str, body: dict) -> dict:
+        """Add a user to a cluster group."""
+        return await self._post(f'/clusters/{cluster_id}/groups/{group_id}/users', body)
+
+    async def remove_user_from_group(
+        self, cluster_id: str, group_id: str, user_id: str
+    ) -> int:
+        """Remove a user from a cluster group."""
+        return await self._delete(f'/clusters/{cluster_id}/groups/{group_id}/users/{user_id}')
+
+    # --- Break-Glass Credentials (HCP) ---
+
+    async def list_break_glass_credentials(self, cluster_id: str) -> dict:
+        """List break-glass credentials for an HCP cluster."""
+        return await self._get(f'/clusters/{cluster_id}/break_glass_credentials')
+
+    async def create_break_glass_credential(self, cluster_id: str, body: dict) -> dict:
+        """Create a break-glass credential for an HCP cluster."""
+        return await self._post(f'/clusters/{cluster_id}/break_glass_credentials', body)
+
+    async def get_break_glass_credential(
+        self, cluster_id: str, credential_id: str
+    ) -> dict:
+        """Get a specific break-glass credential."""
+        return await self._get(
+            f'/clusters/{cluster_id}/break_glass_credentials/{credential_id}'
+        )
+
+    # --- Tuning Configs ---
+
+    async def list_tuning_configs(self, cluster_id: str) -> dict:
+        """List tuning configurations for a cluster."""
+        return await self._get(f'/clusters/{cluster_id}/tuning_configs')
+
+    async def create_tuning_config(self, cluster_id: str, body: dict) -> dict:
+        """Create a tuning configuration for a cluster."""
+        return await self._post(f'/clusters/{cluster_id}/tuning_configs', body)
+
+    async def get_tuning_config(self, cluster_id: str, config_id: str) -> dict:
+        """Get a specific tuning configuration."""
+        return await self._get(f'/clusters/{cluster_id}/tuning_configs/{config_id}')
+
+    async def update_tuning_config(
+        self, cluster_id: str, config_id: str, body: dict
+    ) -> dict:
+        """Update a tuning configuration."""
+        return await self._patch(f'/clusters/{cluster_id}/tuning_configs/{config_id}', body)
+
+    async def delete_tuning_config(self, cluster_id: str, config_id: str) -> int:
+        """Delete a tuning configuration."""
+        return await self._delete(f'/clusters/{cluster_id}/tuning_configs/{config_id}')
+
+    # --- Kubelet Config ---
+
+    async def get_kubelet_config(self, cluster_id: str) -> dict:
+        """Get the kubelet configuration for a cluster."""
+        return await self._get(f'/clusters/{cluster_id}/kubelet_config')
+
+    async def create_kubelet_config(self, cluster_id: str, body: dict) -> dict:
+        """Create a kubelet configuration for a cluster."""
+        return await self._post(f'/clusters/{cluster_id}/kubelet_config', body)
+
+    async def update_kubelet_config(self, cluster_id: str, body: dict) -> dict:
+        """Update the kubelet configuration for a cluster."""
+        return await self._patch(f'/clusters/{cluster_id}/kubelet_config', body)
+
+    async def delete_kubelet_config(self, cluster_id: str) -> int:
+        """Delete the kubelet configuration for a cluster."""
+        return await self._delete(f'/clusters/{cluster_id}/kubelet_config')
+
+    # --- External Auth (HCP) ---
+
+    async def list_external_auths(self, cluster_id: str) -> dict:
+        """List external authentication configurations for an HCP cluster."""
+        return await self._get(f'/clusters/{cluster_id}/external_auths')
+
+    async def create_external_auth(self, cluster_id: str, body: dict) -> dict:
+        """Create an external authentication configuration for an HCP cluster."""
+        return await self._post(f'/clusters/{cluster_id}/external_auths', body)
+
+    async def delete_external_auth(self, cluster_id: str, auth_id: str) -> int:
+        """Delete an external authentication configuration."""
+        return await self._delete(f'/clusters/{cluster_id}/external_auths/{auth_id}')
+
+    # --- DNS Domains ---
+
+    async def list_dns_domains(self) -> dict:
+        """List DNS domains."""
+        return await self._get('/dns_domains')
+
+    async def create_dns_domain(self, body: dict) -> dict:
+        """Create a DNS domain."""
+        return await self._post('/dns_domains', body)
+
+    async def delete_dns_domain(self, domain_id: str) -> int:
+        """Delete a DNS domain."""
+        return await self._delete(f'/dns_domains/{domain_id}')
+
+    # --- OIDC Configs ---
+
+    async def list_oidc_configs(self) -> dict:
+        """List OIDC configurations."""
+        return await self._get('/oidc_configs')
+
+    async def create_oidc_config(self, body: dict) -> dict:
+        """Create an OIDC configuration."""
+        return await self._post('/oidc_configs', body)
+
+    async def delete_oidc_config(self, config_id: str) -> int:
+        """Delete an OIDC configuration."""
+        return await self._delete(f'/oidc_configs/{config_id}')
+
+    # --- Network Verification ---
+
+    async def create_network_verification(self, body: dict) -> dict:
+        """Create a network verification request."""
+        return await self._post('/network_verifications', body)
+
+    async def list_network_verifications(self) -> dict:
+        """List network verification results."""
+        return await self._get('/network_verifications')
+
+    # --- Machine Types ---
+
+    async def list_machine_types(self, page: int = 1, size: int = 100) -> dict:
+        """List available machine types."""
+        params: dict = {'page': page, 'size': size}
+        return await self._get('/machine_types', params=params)
+
+    # --- Delete Protection ---
+
+    async def get_delete_protection(self, cluster_id: str) -> dict:
+        """Get the delete protection configuration for a cluster."""
+        return await self._get(f'/clusters/{cluster_id}/delete_protection')
+
+    async def update_delete_protection(self, cluster_id: str, body: dict) -> dict:
+        """Update the delete protection configuration for a cluster."""
+        return await self._patch(f'/clusters/{cluster_id}/delete_protection', body)
+
+    # --- Log Forwarders (HCP) ---
+
+    async def list_log_forwarders(self, cluster_id: str) -> dict:
+        """List log forwarders for an HCP cluster."""
+        return await self._get(f'/clusters/{cluster_id}/log_forwarders')
+
+    async def create_log_forwarder(self, cluster_id: str, body: dict) -> dict:
+        """Create a log forwarder for an HCP cluster."""
+        return await self._post(f'/clusters/{cluster_id}/log_forwarders', body)
+
+    async def get_log_forwarder(self, cluster_id: str, forwarder_id: str) -> dict:
+        """Get a specific log forwarder."""
+        return await self._get(f'/clusters/{cluster_id}/log_forwarders/{forwarder_id}')
+
+    async def delete_log_forwarder(self, cluster_id: str, forwarder_id: str) -> int:
+        """Delete a log forwarder."""
+        return await self._delete(f'/clusters/{cluster_id}/log_forwarders/{forwarder_id}')
+
     # --- AWS Inquiries ---
 
     async def get_available_regions(self, body: dict) -> dict:
