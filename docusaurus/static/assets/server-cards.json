@@ -63,6 +63,29 @@
   ],
   "servers": [
     {
+      "category": "Infrastructure & Deployment",
+      "description": "Manage AWS Transform workspaces, jobs, connectors, HITL tasks, and artifacts for mainframe, VMware, .NET, and custom code transformations.",
+      "icon": "\ud83d\udd04",
+      "id": "aws-transform-mcp-server",
+      "name": "AWS Transform MCP Server",
+      "source_path": "src/aws-transform-mcp-server/",
+      "subcategory": "Migration & Modernization",
+      "tags": [
+        "aws-transform",
+        "migration",
+        "modernization",
+        "mainframe",
+        "vmware",
+        "dotnet",
+        "hitl",
+        "transformation"
+      ],
+      "workflows": [
+        "vibe-coding",
+        "autonomous"
+      ]
+    },
+    {
       "category": "Essential Setup",
       "description": "Secure, auditable AWS operations with API access, documentation, Agent SOPs, and CloudTrail logging.",
       "icon": "\ud83d\udd11",
