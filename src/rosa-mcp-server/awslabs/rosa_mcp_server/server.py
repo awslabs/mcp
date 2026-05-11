@@ -30,7 +30,6 @@ Environment Variables:
 """
 
 import argparse
-import os
 from awslabs.rosa_mcp_server.cloudwatch_handler import CloudWatchHandler
 from awslabs.rosa_mcp_server.iam_handler import IAMHandler
 from awslabs.rosa_mcp_server.k8s_handler import K8sHandler
@@ -184,21 +183,17 @@ def main():
 
     mcp = create_server()
 
-    # Initialize OCM client if token is available
+    # Initialize OCM client (from env var, or ocm config file from `ocm login`)
     ocm_client = None
-    ocm_token = os.environ.get('OCM_TOKEN', '')
-    if ocm_token:
-        try:
-            ocm_client = OCMClient(offline_token=ocm_token)
-            logger.info('OCM client initialized successfully')
-        except Exception as e:
-            logger.warning(f'Failed to initialize OCM client: {e}')
-            ocm_client = None
-    else:
+    try:
+        ocm_client = OCMClient()
+        logger.info('OCM client initialized successfully')
+    except ValueError as e:
         logger.warning(
-            'OCM_TOKEN not set. OCM-based tools (clusters, machine pools, IDPs, '
-            'networking, K8s) will be unavailable. AWS-only tools (IAM, CloudWatch) '
-            'will still function.'
+            f'OCM client unavailable: {e}. '
+            'OCM-based tools (clusters, machine pools, IDPs, networking, K8s) will be disabled. '
+            'AWS-only tools (IAM, CloudWatch) will still function. '
+            'To enable: set OCM_TOKEN env var or run `ocm login --use-device-code`.'
         )
 
     # Register OCM-based handlers (only if OCM client is available)

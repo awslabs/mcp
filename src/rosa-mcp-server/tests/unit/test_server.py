@@ -113,7 +113,7 @@ class TestMain:
 
         main()
 
-        mock_ocm_class.assert_called_once_with(offline_token='test-token')
+        mock_ocm_class.assert_called_once()
 
 
 class TestToolRegistration:
@@ -189,7 +189,10 @@ class TestToolRegistration:
     @patch('awslabs.rosa_mcp_server.server.FastMCP')
     @patch('sys.argv', ['server'])
     @patch.dict('os.environ', {'OCM_TOKEN': ''}, clear=False)
-    def test_aws_only_tools_registered_without_ocm_token(self, mock_fastmcp_class):
+    @patch('awslabs.rosa_mcp_server.ocm_client.OCMClient._load_ocm_config', return_value={})
+    def test_aws_only_tools_registered_without_ocm_token(
+        self, mock_ocm_config, mock_fastmcp_class
+    ):
         """Test that AWS-only tools are registered even without OCM_TOKEN."""
         mock_mcp = MagicMock()
         registered_tools = []

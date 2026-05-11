@@ -35,7 +35,7 @@ OCM_API_URL = 'https://api.openshift.com'
 OCM_SSO_TOKEN_URL = (
     'https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/token'
 )
-OCM_CLIENT_ID = 'cloud-services'
+OCM_CLIENT_ID_DEFAULT = 'cloud-services'
 API_PATH = '/api/clusters_mgmt/v1'
 
 # Token refresh buffer — refresh 60s before expiry
@@ -53,22 +53,62 @@ class OCMClient:
         self,
         offline_token: str | None = None,
         api_url: str | None = None,
+        client_id: str | None = None,
     ) -> None:
         """Initialize the OCM client.
 
         Args:
-            offline_token: Red Hat offline token. Falls back to OCM_TOKEN env var.
+            offline_token: Red Hat offline token. Falls back to OCM_TOKEN env var,
+                          then to ~/.config/ocm/ocm.json or ~/Library/Application Support/ocm/ocm.json.
             api_url: OCM API base URL. Falls back to OCM_API_URL env var or default.
+            client_id: OAuth client ID for token exchange. Falls back to OCM_CLIENT_ID env var,
+                      OCM config file, or 'cloud-services' default.
         """
         self._offline_token = offline_token or os.environ.get('OCM_TOKEN', '')
+        self._client_id = client_id or os.environ.get('OCM_CLIENT_ID', '')
+
+        # Try loading from OCM config file if not provided via env/args
+        if not self._offline_token or not self._client_id:
+            ocm_config = self._load_ocm_config()
+            if not self._offline_token:
+                self._offline_token = ocm_config.get('refresh_token', '')
+            if not self._client_id:
+                self._client_id = ocm_config.get('client_id', '')
+
         if not self._offline_token:
             raise ValueError(
-                'OCM offline token required. Set OCM_TOKEN env var or pass offline_token.'
+                'OCM offline token required. Set OCM_TOKEN env var, pass offline_token, '
+                'or login with: ocm login --use-device-code'
             )
+        if not self._client_id:
+            self._client_id = OCM_CLIENT_ID_DEFAULT
+
         self._api_url = (api_url or os.environ.get('OCM_API_URL', '') or OCM_API_URL).rstrip('/')
         self._access_token: str | None = None
         self._token_expiry: float = 0
         self._http: httpx.AsyncClient | None = None
+
+    @staticmethod
+    def _load_ocm_config() -> dict:
+        """Load OCM config from standard locations."""
+        import json
+        import pathlib
+        import platform
+
+        candidates = []
+        if platform.system() == 'Darwin':
+            candidates.append(
+                pathlib.Path.home() / 'Library' / 'Application Support' / 'ocm' / 'ocm.json'
+            )
+        candidates.append(pathlib.Path.home() / '.config' / 'ocm' / 'ocm.json')
+
+        for path in candidates:
+            if path.exists():
+                try:
+                    return json.loads(path.read_text())
+                except (json.JSONDecodeError, OSError):
+                    continue
+        return {}
 
     async def _ensure_client(self) -> httpx.AsyncClient:
         if self._http is None:
@@ -91,7 +131,7 @@ class OCMClient:
             OCM_SSO_TOKEN_URL,
             data={
                 'grant_type': 'refresh_token',
-                'client_id': OCM_CLIENT_ID,
+                'client_id': self._client_id,
                 'refresh_token': self._offline_token,
             },
         )
@@ -219,6 +259,28 @@ class OCMClient:
     async def delete_machine_pool(self, cluster_id: str, pool_id: str) -> int:
         """Delete a machine pool."""
         return await self._delete(f'/clusters/{cluster_id}/machine_pools/{pool_id}')
+
+    # --- Node Pools (HCP) ---
+
+    async def list_node_pools(self, cluster_id: str) -> dict:
+        """List node pools for an HCP cluster."""
+        return await self._get(f'/clusters/{cluster_id}/node_pools')
+
+    async def get_node_pool(self, cluster_id: str, pool_id: str) -> dict:
+        """Get a specific node pool."""
+        return await self._get(f'/clusters/{cluster_id}/node_pools/{pool_id}')
+
+    async def create_node_pool(self, cluster_id: str, body: dict) -> dict:
+        """Create a node pool on an HCP cluster."""
+        return await self._post(f'/clusters/{cluster_id}/node_pools', body)
+
+    async def update_node_pool(self, cluster_id: str, pool_id: str, body: dict) -> dict:
+        """Update a node pool."""
+        return await self._patch(f'/clusters/{cluster_id}/node_pools/{pool_id}', body)
+
+    async def delete_node_pool(self, cluster_id: str, pool_id: str) -> int:
+        """Delete a node pool."""
+        return await self._delete(f'/clusters/{cluster_id}/node_pools/{pool_id}')
 
     # --- Identity Providers ---
 

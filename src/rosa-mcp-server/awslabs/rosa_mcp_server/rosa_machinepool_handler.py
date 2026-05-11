@@ -22,7 +22,11 @@ from typing import Optional
 
 
 class RosaMachinePoolHandler:
-    """Handler for ROSA machine pool and node pool operations."""
+    """Handler for ROSA machine pool and node pool operations.
+
+    Automatically detects HCP (Hosted Control Plane) vs Classic clusters
+    and uses the correct API endpoint (node_pools vs machine_pools).
+    """
 
     def __init__(self, mcp, ocm_client: OCMClient, allow_write: bool = False):
         """Initialize the handler.
@@ -41,18 +45,28 @@ class RosaMachinePoolHandler:
         self.mcp.tool(name='rosa_update_machinepool')(self.rosa_update_machinepool)
         self.mcp.tool(name='rosa_delete_machinepool')(self.rosa_delete_machinepool)
 
+    async def _is_hcp(self, cluster_id: str) -> bool:
+        """Check if a cluster is HCP (Hosted Control Plane)."""
+        cluster = await self.ocm.get_cluster(cluster_id)
+        return cluster.get('hypershift', {}).get('enabled', False)
+
     async def rosa_list_machinepools(
         self,
         ctx: Context,
         cluster_id: str,
     ) -> list[TextContent]:
-        """List machine pools for a ROSA cluster.
+        """List machine/node pools for a ROSA cluster.
+
+        Automatically uses node_pools for HCP clusters and machine_pools for Classic.
 
         Args:
             ctx: MCP context.
             cluster_id: The OCM cluster ID.
         """
-        data = await self.ocm.list_machine_pools(cluster_id)
+        if await self._is_hcp(cluster_id):
+            data = await self.ocm.list_node_pools(cluster_id)
+        else:
+            data = await self.ocm.list_machine_pools(cluster_id)
         return [TextContent(type='text', text=json.dumps(data, indent=2))]
 
     async def rosa_create_machinepool(
@@ -121,7 +135,11 @@ class RosaMachinePoolHandler:
             body.setdefault('aws', {})
             body['root_volume'] = {'aws': {'size': root_volume_size}}
 
-        data = await self.ocm.create_machine_pool(cluster_id, body)
+        if await self._is_hcp(cluster_id):
+            body['aws_node_pool'] = {'instance_type': body.pop('instance_type')}
+            data = await self.ocm.create_node_pool(cluster_id, body)
+        else:
+            data = await self.ocm.create_machine_pool(cluster_id, body)
         return [TextContent(type='text', text=json.dumps(data, indent=2))]
 
     async def rosa_update_machinepool(
@@ -135,12 +153,14 @@ class RosaMachinePoolHandler:
         labels: Optional[dict[str, str]] = None,
         taints: Optional[list[dict[str, str]]] = None,
     ) -> list[TextContent]:
-        """Update a machine pool's configuration.
+        """Update a machine/node pool's configuration.
+
+        Works for both HCP (node pools) and Classic (machine pools).
 
         Args:
             ctx: MCP context.
             cluster_id: The OCM cluster ID.
-            pool_id: Machine pool ID to update.
+            pool_id: Pool ID to update.
             replicas: New fixed replica count (disables autoscaling).
             min_replicas: New minimum for autoscaling.
             max_replicas: New maximum for autoscaling.
@@ -166,7 +186,10 @@ class RosaMachinePoolHandler:
         if taints is not None:
             body['taints'] = taints
 
-        data = await self.ocm.update_machine_pool(cluster_id, pool_id, body)
+        if await self._is_hcp(cluster_id):
+            data = await self.ocm.update_node_pool(cluster_id, pool_id, body)
+        else:
+            data = await self.ocm.update_machine_pool(cluster_id, pool_id, body)
         return [TextContent(type='text', text=json.dumps(data, indent=2))]
 
     async def rosa_delete_machinepool(
@@ -175,19 +198,24 @@ class RosaMachinePoolHandler:
         cluster_id: str,
         pool_id: str,
     ) -> list[TextContent]:
-        """Delete a machine pool.
+        """Delete a machine/node pool.
+
+        Works for both HCP (node pools) and Classic (machine pools).
 
         Args:
             ctx: MCP context.
             cluster_id: The OCM cluster ID.
-            pool_id: Machine pool ID to delete.
+            pool_id: Pool ID to delete.
         """
         if not self.allow_write:
             raise ValueError(
                 'Write operations disabled. Start the server with --allow-write.'
             )
 
-        status_code = await self.ocm.delete_machine_pool(cluster_id, pool_id)
+        if await self._is_hcp(cluster_id):
+            status_code = await self.ocm.delete_node_pool(cluster_id, pool_id)
+        else:
+            status_code = await self.ocm.delete_machine_pool(cluster_id, pool_id)
         return [TextContent(
             type='text',
             text=json.dumps({'status': 'deleted', 'pool_id': pool_id, 'http_status': status_code}),
