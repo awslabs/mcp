@@ -7,6 +7,7 @@ from awslabs.postgres_mcp_server.connection.cp_api_connection import (
     internal_create_serverless_cluster,
     internal_delete_cluster,
     internal_get_cluster_properties,
+    internal_get_cluster_valid_endpoints,
 )
 from botocore.exceptions import ClientError, WaiterError
 from typing import Dict, List, Optional
@@ -1291,3 +1292,267 @@ class TestInternalDeleteCluster:
 
         mock_rds.delete_db_instance.assert_not_called()
         mock_rds.delete_db_cluster.assert_called_once()
+
+
+# =============================================================================
+# TESTS FOR: internal_get_cluster_valid_endpoints
+# =============================================================================
+
+
+class TestInternalGetClusterValidEndpoints:
+    """Tests for internal_get_cluster_valid_endpoints function.
+
+    Covers cluster-level dict parsing (writer, reader, custom endpoints, port
+    parsing) and the member-instance lookup branch that queries
+    describe_db_instances. Tests that don't exercise the member-instance
+    branch don't need to patch the RDS client because the function only
+    reaches AWS when DBClusterMembers contains an identifier.
+    """
+
+    def test_writer_and_reader_endpoints_included(self):
+        """Writer and reader endpoints are both returned with the cluster port."""
+        cluster_properties = {
+            'Endpoint': 'cluster.writer.rds.amazonaws.com',
+            'ReaderEndpoint': 'cluster.reader.rds.amazonaws.com',
+            'Port': 5432,
+        }
+
+        result = internal_get_cluster_valid_endpoints(cluster_properties, 'us-east-1')
+
+        assert ('cluster.writer.rds.amazonaws.com', 5432) in result
+        assert ('cluster.reader.rds.amazonaws.com', 5432) in result
+        assert len(result) == 2
+
+    def test_custom_endpoints_included(self):
+        """Custom endpoints are included alongside writer/reader."""
+        cluster_properties = {
+            'Endpoint': 'cluster.writer.rds.amazonaws.com',
+            'ReaderEndpoint': 'cluster.reader.rds.amazonaws.com',
+            'CustomEndpoints': [
+                'cluster.custom-a.rds.amazonaws.com',
+                'cluster.custom-b.rds.amazonaws.com',
+            ],
+            'Port': 5432,
+        }
+
+        result = internal_get_cluster_valid_endpoints(cluster_properties, 'us-east-1')
+
+        assert ('cluster.custom-a.rds.amazonaws.com', 5432) in result
+        assert ('cluster.custom-b.rds.amazonaws.com', 5432) in result
+        assert len(result) == 4
+
+    def test_custom_endpoints_none_is_treated_as_empty(self):
+        """Explicit CustomEndpoints=None does not crash and yields no custom entries."""
+        cluster_properties = {
+            'Endpoint': 'cluster.writer.rds.amazonaws.com',
+            'ReaderEndpoint': 'cluster.reader.rds.amazonaws.com',
+            'CustomEndpoints': None,
+            'Port': 5432,
+        }
+
+        result = internal_get_cluster_valid_endpoints(cluster_properties, 'us-east-1')
+
+        assert len(result) == 2
+
+    def test_custom_endpoints_empty_list_yields_no_extras(self):
+        """An empty CustomEndpoints list contributes nothing."""
+        cluster_properties = {
+            'Endpoint': 'cluster.writer.rds.amazonaws.com',
+            'ReaderEndpoint': 'cluster.reader.rds.amazonaws.com',
+            'CustomEndpoints': [],
+            'Port': 5432,
+        }
+
+        result = internal_get_cluster_valid_endpoints(cluster_properties, 'us-east-1')
+
+        assert len(result) == 2
+
+    def test_port_as_string_parses(self):
+        """Port returned as a string (as the RDS API sometimes does) is parsed as int."""
+        cluster_properties = {
+            'Endpoint': 'cluster.writer.rds.amazonaws.com',
+            'Port': '5432',
+        }
+
+        result = internal_get_cluster_valid_endpoints(cluster_properties, 'us-east-1')
+
+        assert ('cluster.writer.rds.amazonaws.com', 5432) in result
+
+    def test_missing_port_raises_value_error(self):
+        """Missing Port suppresses all cluster-level endpoints, yielding an empty list → ValueError."""
+        cluster_properties = {
+            'Endpoint': 'cluster.writer.rds.amazonaws.com',
+            'ReaderEndpoint': 'cluster.reader.rds.amazonaws.com',
+        }
+
+        with pytest.raises(ValueError, match='no valid connection endpoints'):
+            internal_get_cluster_valid_endpoints(cluster_properties, 'us-east-1')
+
+    def test_invalid_port_string_falls_back_to_default(self):
+        """Unparseable Port falls back to DEFAULT_POSTGRES_PORT (5432)."""
+        cluster_properties = {
+            'Endpoint': 'cluster.writer.rds.amazonaws.com',
+            'Port': 'not-a-number',
+        }
+
+        result = internal_get_cluster_valid_endpoints(cluster_properties, 'us-east-1')
+
+        assert ('cluster.writer.rds.amazonaws.com', 5432) in result
+
+    def test_empty_cluster_properties_raises_value_error(self):
+        """Empty cluster properties yield no endpoints and must raise ValueError."""
+        with pytest.raises(ValueError, match='no valid connection endpoints'):
+            internal_get_cluster_valid_endpoints({}, 'us-east-1')
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_members_included_when_describe_succeeds(self, mock_create_client):
+        """Each member instance's endpoint is included in the valid list."""
+        mock_rds = MagicMock()
+        mock_create_client.return_value = mock_rds
+        mock_rds.describe_db_instances.side_effect = [
+            {
+                'DBInstances': [
+                    {
+                        'Endpoint': {
+                            'Address': 'instance-1.abc.us-east-1.rds.amazonaws.com',
+                            'Port': 5432,
+                        }
+                    }
+                ]
+            },
+            {
+                'DBInstances': [
+                    {
+                        'Endpoint': {
+                            'Address': 'instance-2.abc.us-east-1.rds.amazonaws.com',
+                            'Port': 5432,
+                        }
+                    }
+                ]
+            },
+        ]
+        cluster_properties = {
+            'Endpoint': 'cluster.writer.rds.amazonaws.com',
+            'Port': 5432,
+            'DBClusterMembers': [
+                {'DBInstanceIdentifier': 'instance-1'},
+                {'DBInstanceIdentifier': 'instance-2'},
+            ],
+        }
+
+        result = internal_get_cluster_valid_endpoints(cluster_properties, 'us-east-1')
+
+        assert ('instance-1.abc.us-east-1.rds.amazonaws.com', 5432) in result
+        assert ('instance-2.abc.us-east-1.rds.amazonaws.com', 5432) in result
+        assert mock_rds.describe_db_instances.call_count == 2
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_member_clienterror_is_logged_and_skipped(self, mock_create_client):
+        """ClientError on one member does not abort processing of others."""
+        mock_rds = MagicMock()
+        mock_create_client.return_value = mock_rds
+        mock_rds.describe_db_instances.side_effect = [
+            ClientError(
+                {'Error': {'Code': 'AccessDenied', 'Message': 'denied'}},
+                'DescribeDBInstances',
+            ),
+            {
+                'DBInstances': [
+                    {
+                        'Endpoint': {
+                            'Address': 'instance-2.abc.us-east-1.rds.amazonaws.com',
+                            'Port': 5432,
+                        }
+                    }
+                ]
+            },
+        ]
+        cluster_properties = {
+            'Endpoint': 'cluster.writer.rds.amazonaws.com',
+            'Port': 5432,
+            'DBClusterMembers': [
+                {'DBInstanceIdentifier': 'instance-1'},
+                {'DBInstanceIdentifier': 'instance-2'},
+            ],
+        }
+
+        result = internal_get_cluster_valid_endpoints(cluster_properties, 'us-east-1')
+
+        # Writer endpoint is still there, and the second member's endpoint
+        # is present even though the first member's lookup failed.
+        assert ('cluster.writer.rds.amazonaws.com', 5432) in result
+        assert ('instance-2.abc.us-east-1.rds.amazonaws.com', 5432) in result
+        assert mock_rds.describe_db_instances.call_count == 2
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_member_missing_endpoint_fields_skipped(self, mock_create_client):
+        """Member instance responses missing Address or Port are skipped."""
+        mock_rds = MagicMock()
+        mock_create_client.return_value = mock_rds
+        mock_rds.describe_db_instances.side_effect = [
+            # No Endpoint at all
+            {'DBInstances': [{}]},
+            # Endpoint with no Address
+            {'DBInstances': [{'Endpoint': {'Port': 5432}}]},
+            # Endpoint with Address but no Port
+            {
+                'DBInstances': [
+                    {'Endpoint': {'Address': 'instance-3.abc.us-east-1.rds.amazonaws.com'}}
+                ]
+            },
+        ]
+        cluster_properties = {
+            'Endpoint': 'cluster.writer.rds.amazonaws.com',
+            'Port': 5432,
+            'DBClusterMembers': [
+                {'DBInstanceIdentifier': 'instance-1'},
+                {'DBInstanceIdentifier': 'instance-2'},
+                {'DBInstanceIdentifier': 'instance-3'},
+            ],
+        }
+
+        result = internal_get_cluster_valid_endpoints(cluster_properties, 'us-east-1')
+
+        # Writer endpoint is still present, but none of the malformed members
+        # contributed entries.
+        assert result == [('cluster.writer.rds.amazonaws.com', 5432)]
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_member_invalid_port_string_skipped(self, mock_create_client):
+        """A member instance with an unparseable Port string is skipped."""
+        mock_rds = MagicMock()
+        mock_create_client.return_value = mock_rds
+        mock_rds.describe_db_instances.return_value = {
+            'DBInstances': [
+                {
+                    'Endpoint': {
+                        'Address': 'instance-1.abc.us-east-1.rds.amazonaws.com',
+                        'Port': 'not-a-number',
+                    }
+                }
+            ]
+        }
+        cluster_properties = {
+            'Endpoint': 'cluster.writer.rds.amazonaws.com',
+            'Port': 5432,
+            'DBClusterMembers': [{'DBInstanceIdentifier': 'instance-1'}],
+        }
+
+        result = internal_get_cluster_valid_endpoints(cluster_properties, 'us-east-1')
+
+        # Writer endpoint is the only survivor; the member's bad port was rejected.
+        assert result == [('cluster.writer.rds.amazonaws.com', 5432)]
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_members_without_identifier_are_skipped(self, mock_create_client):
+        """DBClusterMembers entries lacking DBInstanceIdentifier trigger no API call."""
+        cluster_properties = {
+            'Endpoint': 'cluster.writer.rds.amazonaws.com',
+            'Port': 5432,
+            'DBClusterMembers': [{}, {'SomeOtherField': 'x'}],
+        }
+
+        result = internal_get_cluster_valid_endpoints(cluster_properties, 'us-east-1')
+
+        assert ('cluster.writer.rds.amazonaws.com', 5432) in result
+        mock_create_client.assert_not_called()
