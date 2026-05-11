@@ -24,6 +24,7 @@ import yaml
 from awslabs.rosa_mcp_server.ocm_client import OCMClient
 from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
+from kubernetes import dynamic
 from mcp.server.fastmcp import Context
 from mcp.types import TextContent
 from typing import Optional
@@ -57,6 +58,9 @@ class K8sHandler:
         self.mcp.tool(name='rosa_get_events')(self.rosa_get_events)
         self.mcp.tool(name='rosa_apply_yaml')(self.rosa_apply_yaml)
         self.mcp.tool(name='rosa_get_nodes')(self.rosa_get_nodes)
+        self.mcp.tool(name='rosa_manage_resource')(self.rosa_manage_resource)
+        self.mcp.tool(name='rosa_list_api_versions')(self.rosa_list_api_versions)
+        self.mcp.tool(name='rosa_generate_app_manifest')(self.rosa_generate_app_manifest)
 
     async def _get_k8s_client(self, cluster_id: str) -> k8s_client.ApiClient:
         """Get a configured kubernetes API client for the given cluster.
@@ -358,3 +362,234 @@ class K8sHandler:
 
         finally:
             await api_client.close() if hasattr(api_client, 'close') else None
+
+    async def rosa_manage_resource(
+        self,
+        ctx: Context,
+        cluster_id: str,
+        operation: str,
+        kind: str,
+        api_version: str,
+        name: str,
+        namespace: Optional[str] = None,
+        body: Optional[dict] = None,
+    ) -> list[TextContent]:
+        """Manage (create/replace/patch/delete) any Kubernetes/OpenShift resource.
+
+        Args:
+            ctx: MCP context.
+            cluster_id: The OCM cluster ID.
+            operation: One of 'create', 'replace', 'patch', 'delete'.
+            kind: Resource kind (e.g., Deployment, Service, Route).
+            api_version: API version (e.g., v1, apps/v1, route.openshift.io/v1).
+            name: Resource name.
+            namespace: Namespace (optional for cluster-scoped resources).
+            body: Resource body dict (required for create/replace/patch).
+        """
+        if not self.allow_write:
+            raise ValueError(
+                'Write operations disabled. Start the server with --allow-write.'
+            )
+
+        valid_ops = ('create', 'replace', 'patch', 'delete')
+        if operation not in valid_ops:
+            raise ValueError(
+                f'Invalid operation "{operation}". Must be one of: {", ".join(valid_ops)}'
+            )
+
+        if operation in ('create', 'replace', 'patch') and not body:
+            raise ValueError(f'body is required for {operation} operation.')
+
+        api_client_instance = await self._get_k8s_client(cluster_id)
+
+        try:
+            dyn_client = dynamic.DynamicClient(api_client_instance)
+            resource = dyn_client.resources.get(api_version=api_version, kind=kind)
+
+            kwargs = {}
+            if namespace:
+                kwargs['namespace'] = namespace
+
+            if operation == 'create':
+                result = resource.create(body=body, **kwargs)
+            elif operation == 'replace':
+                kwargs['name'] = name
+                result = resource.replace(body=body, **kwargs)
+            elif operation == 'patch':
+                kwargs['name'] = name
+                result = resource.patch(body=body, **kwargs)
+            elif operation == 'delete':
+                kwargs['name'] = name
+                result = resource.delete(**kwargs)
+
+            # Convert ResourceInstance to dict
+            data = result.to_dict() if hasattr(result, 'to_dict') else str(result)
+            return [TextContent(
+                type='text',
+                text=json.dumps({
+                    'message': f'{operation} succeeded for {kind}/{name}',
+                    'result': data,
+                }, default=str),
+            )]
+
+        finally:
+            await api_client_instance.close() if hasattr(api_client_instance, 'close') else None
+
+    async def rosa_list_api_versions(
+        self,
+        ctx: Context,
+        cluster_id: str,
+    ) -> list[TextContent]:
+        """List all available API groups and versions in the cluster.
+
+        Args:
+            ctx: MCP context.
+            cluster_id: The OCM cluster ID.
+        """
+        api_client_instance = await self._get_k8s_client(cluster_id)
+
+        try:
+            core_api = k8s_client.CoreApi(api_client_instance)
+            apis_api = k8s_client.ApisApi(api_client_instance)
+
+            # Core API versions (v1)
+            core_versions = core_api.get_api_versions()
+            core_data = api_client_instance.sanitize_for_serialization(core_versions)
+
+            # All API groups
+            api_groups = apis_api.get_api_versions()
+            groups_data = api_client_instance.sanitize_for_serialization(api_groups)
+
+            return [TextContent(
+                type='text',
+                text=json.dumps({
+                    'core_versions': core_data.get('versions', []),
+                    'api_groups': [
+                        {
+                            'name': g.get('name', ''),
+                            'versions': [
+                                v.get('groupVersion', '')
+                                for v in g.get('versions', [])
+                            ],
+                            'preferredVersion': g.get('preferredVersion', {}).get('groupVersion', ''),
+                        }
+                        for g in groups_data.get('groups', [])
+                    ],
+                }, indent=2),
+            )]
+
+        finally:
+            await api_client_instance.close() if hasattr(api_client_instance, 'close') else None
+
+    async def rosa_generate_app_manifest(
+        self,
+        ctx: Context,
+        app_name: str,
+        image_uri: str,
+        port: int = 8080,
+        replicas: int = 1,
+        namespace: str = 'default',
+        expose: bool = True,
+    ) -> list[TextContent]:
+        """Generate a Kubernetes/OpenShift manifest for deploying an application.
+
+        Generates a Deployment, Service, and optionally an OpenShift Route.
+        Returns the full YAML manifest as text (does not apply it).
+
+        Args:
+            ctx: MCP context.
+            app_name: Application name (used for resource names and labels).
+            image_uri: Container image URI.
+            port: Container port (default 8080).
+            replicas: Number of replicas (default 1).
+            namespace: Target namespace (default 'default').
+            expose: Whether to create an OpenShift Route to expose the service (default True).
+        """
+        labels = {'app': app_name}
+
+        # Deployment
+        deployment = {
+            'apiVersion': 'apps/v1',
+            'kind': 'Deployment',
+            'metadata': {
+                'name': app_name,
+                'namespace': namespace,
+                'labels': labels,
+            },
+            'spec': {
+                'replicas': replicas,
+                'selector': {'matchLabels': labels},
+                'template': {
+                    'metadata': {'labels': labels},
+                    'spec': {
+                        'containers': [
+                            {
+                                'name': app_name,
+                                'image': image_uri,
+                                'ports': [{'containerPort': port}],
+                                'resources': {
+                                    'requests': {'cpu': '100m', 'memory': '128Mi'},
+                                    'limits': {'cpu': '500m', 'memory': '512Mi'},
+                                },
+                            }
+                        ],
+                    },
+                },
+            },
+        }
+
+        # Service
+        service = {
+            'apiVersion': 'v1',
+            'kind': 'Service',
+            'metadata': {
+                'name': app_name,
+                'namespace': namespace,
+                'labels': labels,
+            },
+            'spec': {
+                'type': 'ClusterIP',
+                'selector': labels,
+                'ports': [
+                    {
+                        'port': port,
+                        'targetPort': port,
+                        'protocol': 'TCP',
+                        'name': 'http',
+                    }
+                ],
+            },
+        }
+
+        documents = [deployment, service]
+
+        # OpenShift Route (not Ingress)
+        if expose:
+            route = {
+                'apiVersion': 'route.openshift.io/v1',
+                'kind': 'Route',
+                'metadata': {
+                    'name': app_name,
+                    'namespace': namespace,
+                    'labels': labels,
+                },
+                'spec': {
+                    'to': {
+                        'kind': 'Service',
+                        'name': app_name,
+                        'weight': 100,
+                    },
+                    'port': {'targetPort': 'http'},
+                    'tls': {'termination': 'edge'},
+                    'wildcardPolicy': 'None',
+                },
+            }
+            documents.append(route)
+
+        # Serialize to YAML multi-document
+        manifest = '---\n'.join(yaml.dump(doc, default_flow_style=False) for doc in documents)
+
+        return [TextContent(
+            type='text',
+            text=manifest,
+        )]

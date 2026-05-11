@@ -28,20 +28,29 @@ from typing import Optional
 class IAMHandler:
     """Handler for IAM roles, OIDC providers, and service quota verification for ROSA."""
 
-    def __init__(self, mcp, allow_sensitive_data_access: bool = False):
+    def __init__(
+        self,
+        mcp,
+        allow_sensitive_data_access: bool = False,
+        allow_write: bool = False,
+    ):
         """Initialize the IAM handler.
 
         Args:
             mcp: The FastMCP server instance.
             allow_sensitive_data_access: Whether sensitive data access is permitted.
+            allow_write: Whether write operations are permitted.
         """
         self.mcp = mcp
         self.allow_sensitive_data_access = allow_sensitive_data_access
+        self.allow_write = allow_write
 
         self.mcp.tool(name='rosa_get_account_roles')(self.rosa_get_account_roles)
         self.mcp.tool(name='rosa_get_operator_roles')(self.rosa_get_operator_roles)
         self.mcp.tool(name='rosa_list_oidc_providers')(self.rosa_list_oidc_providers)
         self.mcp.tool(name='rosa_verify_quota')(self.rosa_verify_quota)
+        self.mcp.tool(name='rosa_get_policies_for_role')(self.rosa_get_policies_for_role)
+        self.mcp.tool(name='rosa_add_inline_policy')(self.rosa_add_inline_policy)
 
     async def rosa_get_account_roles(
         self,
@@ -323,4 +332,102 @@ class IAMHandler:
             return [TextContent(
                 type='text',
                 text=f'Error verifying quotas: {str(e)}',
+            )]
+
+    async def rosa_get_policies_for_role(
+        self,
+        ctx: Context,
+        role_name: str,
+        region: Optional[str] = None,
+    ) -> list[TextContent]:
+        """List all policies (managed and inline) attached to an IAM role.
+
+        Args:
+            ctx: MCP context.
+            role_name: The IAM role name.
+            region: AWS region. If omitted, uses default from environment.
+        """
+        try:
+            kwargs = {}
+            if region:
+                kwargs['region_name'] = region
+
+            iam_client = boto3.client('iam', **kwargs)
+
+            # Get managed policies
+            managed_paginator = iam_client.get_paginator('list_attached_role_policies')
+            managed_policies = []
+            for page in managed_paginator.paginate(RoleName=role_name):
+                managed_policies.extend(page.get('AttachedPolicies', []))
+
+            # Get inline policy names
+            inline_paginator = iam_client.get_paginator('list_role_policies')
+            inline_policies = []
+            for page in inline_paginator.paginate(RoleName=role_name):
+                inline_policies.extend(page.get('PolicyNames', []))
+
+            return [TextContent(
+                type='text',
+                text=json.dumps({
+                    'role_name': role_name,
+                    'managed_policies': managed_policies,
+                    'inline_policies': inline_policies,
+                    'total_managed': len(managed_policies),
+                    'total_inline': len(inline_policies),
+                }, default=str),
+            )]
+
+        except Exception as e:
+            return [TextContent(
+                type='text',
+                text=f'Error listing policies for role {role_name}: {str(e)}',
+            )]
+
+    async def rosa_add_inline_policy(
+        self,
+        ctx: Context,
+        role_name: str,
+        policy_name: str,
+        policy_document: dict,
+        region: Optional[str] = None,
+    ) -> list[TextContent]:
+        """Add an inline IAM policy to a role.
+
+        Args:
+            ctx: MCP context.
+            role_name: The IAM role name to attach the policy to.
+            policy_name: Name for the inline policy.
+            policy_document: The policy document as a dict.
+            region: AWS region. If omitted, uses default from environment.
+        """
+        if not self.allow_write:
+            raise ValueError(
+                'Write operations disabled. Start the server with --allow-write.'
+            )
+
+        try:
+            kwargs = {}
+            if region:
+                kwargs['region_name'] = region
+
+            iam_client = boto3.client('iam', **kwargs)
+            iam_client.put_role_policy(
+                RoleName=role_name,
+                PolicyName=policy_name,
+                PolicyDocument=json.dumps(policy_document),
+            )
+
+            return [TextContent(
+                type='text',
+                text=json.dumps({
+                    'message': f'Inline policy "{policy_name}" added to role "{role_name}" successfully.',
+                    'role_name': role_name,
+                    'policy_name': policy_name,
+                }),
+            )]
+
+        except Exception as e:
+            return [TextContent(
+                type='text',
+                text=f'Error adding inline policy to role {role_name}: {str(e)}',
             )]
