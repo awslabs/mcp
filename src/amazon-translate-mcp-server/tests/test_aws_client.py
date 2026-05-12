@@ -123,7 +123,14 @@ class TestAWSClientManager:
         manager = AWSClientManager(region_name='us-east-1')
 
         expected_user_agent = f'awslabs/mcp/amazon-translate-mcp-server/{MCP_SERVER_VERSION}'
-        assert manager._config.user_agent_extra == expected_user_agent
+        # botocore 1.43+ transforms user_agent_extra: replaces '/' with '#' and prepends 'md/'
+        expected_user_agent_transformed = (
+            f'md/awslabs#mcp#amazon-translate-mcp-server/{MCP_SERVER_VERSION}'
+        )
+        assert manager._config.user_agent_extra in (
+            expected_user_agent,
+            expected_user_agent_transformed,
+        )
 
     def test_init_with_environment_variables(self, mock_session, mock_sts_client, clean_env):
         """Test initialization with environment variables."""
