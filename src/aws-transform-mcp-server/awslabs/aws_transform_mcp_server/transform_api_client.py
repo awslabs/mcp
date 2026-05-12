@@ -84,6 +84,11 @@ def _register_client_app_id(client):
 
     client.meta.events.register('before-call.elasticgumbyfrontend.*', add_client_app_id)
 
+    def _log_outgoing_headers(request, **kwargs):
+        logger.info('Outgoing headers: {}', dict(request.headers))
+
+    client.meta.events.register('before-send', _log_outgoing_headers)
+
 
 def _create_unsigned_client(
     endpoint: str,
