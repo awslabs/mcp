@@ -499,7 +499,7 @@ def test_main_readonly_default_no_startup_connection(mocker):
 
     srv.main()
 
-    assert srv.readonly_query is True  # no --allow_write_query
+    assert srv.server_config.readonly_query is True  # no --allow_write_query
     run_spy.assert_called_once()
     close_all_spy.assert_called_once()
 
@@ -518,10 +518,10 @@ def test_main_allow_write_query_flag_sets_write_mode(mocker):
 
     try:
         srv.main()
-        assert srv.readonly_query is False
+        assert srv.server_config.readonly_query is False
     finally:
         # Reset global state for other tests
-        srv.readonly_query = True
+        srv.server_config.readonly_query = True
 
 
 def test_main_with_startup_connection_validates(mocker):

@@ -75,6 +75,19 @@ MUTATING_PATTERN = re.compile(
 
 _BLOCK_COMMENT_RE = re.compile(r'/\*.*?\*/', re.DOTALL)
 _LINE_COMMENT_RE = re.compile(r'--[^\n]*')
+_STRING_LITERAL_RE = re.compile(r"N?'(?:[^']|'')*'")
+
+
+def _strip_sql_comments_and_strings(sql_text: str) -> str:
+    """Remove SQL comments and string literals from SQL text.
+
+    String literals are replaced so that keywords inside quoted strings
+    (e.g. WHERE name = 'INSERT INTO') do not trigger false positives.
+    """
+    result = _BLOCK_COMMENT_RE.sub(' ', sql_text)
+    result = _LINE_COMMENT_RE.sub(' ', result)
+    result = _STRING_LITERAL_RE.sub("''", result)
+    return result
 
 
 def _strip_sql_comments(sql_text: str) -> str:
@@ -197,8 +210,8 @@ def _is_implicit_procedure_call(stripped_sql: str) -> bool:
 
 
 def detect_mutating_keywords(sql_text: str) -> list[str]:
-    """Return a list of mutating keywords found in the SQL (excluding comments)."""
-    stripped = _strip_sql_comments(sql_text)
+    """Return a list of mutating keywords found in the SQL (excluding comments and string literals)."""
+    stripped = _strip_sql_comments_and_strings(sql_text)
     matches = MUTATING_PATTERN.findall(stripped)
     result = list({m.upper() for m in matches})  # Deduplicated and normalized to uppercase
     # SELECT ... INTO creates a new table and is not covered by the keyword pattern above.

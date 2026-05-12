@@ -26,7 +26,7 @@ from typing import List
 class ConnectionMethod(str, Enum):
     """Connection method enumeration."""
 
-    MSSQL_PASSWORD = ''
+    MSSQL_PASSWORD = 'password_auth'  # pragma: allowlist secret
 
 
 class DBConnectionMap:
@@ -109,19 +109,37 @@ class DBConnectionMap:
                 entries.append(entry)
         return json.dumps(entries, indent=2)
 
+    async def close_all_async(self) -> None:
+        """Close all connections and clear the map (async version)."""
+        with self._lock:
+            connections = list(self.map.items())
+            self.map.clear()
+        for key, conn in connections:
+            try:
+                await conn.close()
+            except Exception as e:
+                logger.warning(f'Failed to close connection {key}: {e}')
+
     def close_all(self) -> None:
         """Close all connections and clear the map."""
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
         with self._lock:
-            for key, conn in self.map.items():
+            connections = list(self.map.items())
+            self.map.clear()
+
+        if loop and loop.is_running():
+            for key, conn in connections:
                 try:
-                    try:
-                        loop = asyncio.get_running_loop()
-                    except RuntimeError:
-                        loop = None
-                    if loop and loop.is_running():
-                        loop.create_task(conn.close())
-                    else:
-                        asyncio.run(conn.close())
+                    loop.create_task(conn.close())
                 except Exception as e:
                     logger.warning(f'Failed to close connection {key}: {e}')
-            self.map.clear()
+        else:
+            for key, conn in connections:
+                try:
+                    asyncio.run(conn.close())
+                except Exception as e:
+                    logger.warning(f'Failed to close connection {key}: {e}')

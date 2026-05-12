@@ -46,8 +46,18 @@ db_connection_map = DBConnectionMap()
 client_error_code_key = 'run_query ClientError code'
 write_query_prohibited_key = 'Your MCP tool only allows readonly query. If you want to write, change the MCP configuration per README.md'
 query_injection_risk_key = 'Your query contains risky injection patterns'
-readonly_query = True
-default_secret_arn: Optional[str] = None  # Store secret_arn from startup args
+
+
+class ServerConfig:
+    """Encapsulates server-level configuration state."""
+
+    def __init__(self):
+        """Initialize with safe defaults."""
+        self.readonly_query: bool = True
+        self.default_secret_arn: Optional[str] = None
+
+
+server_config = ServerConfig()
 
 
 class DummyCtx:
@@ -350,7 +360,7 @@ def internal_create_connection(
     secret_arn: Optional[str] = None,
 ) -> Tuple:
     """Create or retrieve a cached database connection."""
-    global db_connection_map, readonly_query, default_secret_arn
+    global db_connection_map, server_config
 
     logger.info(
         f'internal_create_connection: region:{region}, method:{connection_method}, '
@@ -383,9 +393,9 @@ def internal_create_connection(
 
     if not secret_arn:
         # First try to use the default secret_arn from startup args
-        if default_secret_arn:
-            secret_arn = default_secret_arn
-            logger.info(f'Using default secret_arn from startup configuration: {secret_arn}')
+        if server_config.default_secret_arn:
+            secret_arn = server_config.default_secret_arn
+            logger.info('Using default secret_arn from startup configuration')
         else:
             # Fall back to the RDS instance's managed master secret
             rds_client = boto3.client(
@@ -398,13 +408,13 @@ def internal_create_connection(
 
             secret_arn = instance_props.get('MasterUserSecret', {}).get('SecretArn', '')
 
-    logger.info(f'Connection props: secret_arn:{secret_arn}, endpoint:{db_endpoint}, port:{port}')
+    logger.debug(f'Connection props: secret_arn:{secret_arn}, endpoint:{db_endpoint}, port:{port}')
 
     db_connection = PymssqlPoolConnection(
         host=db_endpoint,
         port=port,
         database=database,
-        readonly=readonly_query,
+        readonly=server_config.readonly_query,
         secret_arn=secret_arn or '',
         region=region,
         encryption=encryption,
@@ -529,7 +539,7 @@ def validate_table_name(table_name: str | None) -> bool:
 
 def main():
     """Main entry point for the mssql MCP server."""
-    global db_connection_map, readonly_query, default_secret_arn
+    global db_connection_map, server_config
 
     parser = argparse.ArgumentParser(
         description='An AWS Labs Model Context Protocol (MCP) server for Microsoft SQL Server'
@@ -563,13 +573,12 @@ def main():
         f'database:{args.database}\n'
         f'port:{args.port}\n'
         f'ssl_encryption:{args.ssl_encryption}\n'
-        f'secret_arn:{args.secret_arn}\n'
     )
 
-    readonly_query = not args.allow_write_query
-    default_secret_arn = args.secret_arn  # Store for reuse in subsequent connections
+    server_config.readonly_query = not args.allow_write_query
+    server_config.default_secret_arn = args.secret_arn
 
-    if readonly_query:
+    if server_config.readonly_query:
         readonly_notice = (
             ' This server is in READ-ONLY mode. Only SELECT queries are permitted.'
             ' Do NOT attempt to bypass, circumvent, or override this restriction'

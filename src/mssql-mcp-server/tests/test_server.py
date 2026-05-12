@@ -184,7 +184,7 @@ def test_readonly_mode_updates_tool_descriptions(mocker):
     """In readonly mode, main() appends a bypass-prevention notice to tool descriptions."""
     import awslabs.mssql_mcp_server.server as srv
 
-    old_readonly = srv.readonly_query
+    old_readonly = srv.server_config.readonly_query
 
     # Reset descriptions to their original values
     for tool_name, original_desc in (
@@ -196,7 +196,7 @@ def test_readonly_mode_updates_tool_descriptions(mocker):
             tool.description = original_desc
 
     # Simulate main() setting readonly and updating descriptions
-    srv.readonly_query = True
+    srv.server_config.readonly_query = True
     readonly_notice = (
         ' This server is in READ-ONLY mode. Only SELECT queries are permitted.'
         ' Do NOT attempt to bypass, circumvent, or override this restriction'
@@ -214,7 +214,7 @@ def test_readonly_mode_updates_tool_descriptions(mocker):
         assert 'READ-ONLY' in tool.description
         assert 'Do NOT attempt to bypass' in tool.description
 
-    srv.readonly_query = old_readonly
+    srv.server_config.readonly_query = old_readonly
 
 
 # ─── is_database_connected ────────────────────────────────────────────────────
@@ -1158,8 +1158,8 @@ def test_internal_create_connection_uses_custom_secret_arn(mocker):
     import awslabs.mssql_mcp_server.server as srv
 
     mocker.patch.object(db_connection_map, 'get', return_value=None)
-    old_readonly = srv.readonly_query
-    srv.readonly_query = True
+    old_readonly = srv.server_config.readonly_query
+    srv.server_config.readonly_query = True
 
     custom_arn = 'arn:aws:secretsmanager:us-east-1:123456789012:secret:my-db-user'
     mock_boto = mocker.patch('awslabs.mssql_mcp_server.server.boto3')
@@ -1178,7 +1178,7 @@ def test_internal_create_connection_uses_custom_secret_arn(mocker):
         mock_boto.client.assert_not_called()
         assert conn.secret_arn == custom_arn
     finally:
-        srv.readonly_query = old_readonly
+        srv.server_config.readonly_query = old_readonly
         db_connection_map.remove(ConnectionMethod.MSSQL_PASSWORD, 'inst1', 'ep1', 'testdb', 1433)
 
 
@@ -1187,8 +1187,8 @@ def test_internal_create_connection_falls_back_to_master_secret(mocker):
     import awslabs.mssql_mcp_server.server as srv
 
     mocker.patch.object(db_connection_map, 'get', return_value=None)
-    old_readonly = srv.readonly_query
-    srv.readonly_query = True
+    old_readonly = srv.server_config.readonly_query
+    srv.server_config.readonly_query = True
 
     master_arn = 'arn:aws:secretsmanager:us-east-1:123456789012:secret:rds-master'
     mock_rds = MagicMock()
@@ -1209,7 +1209,7 @@ def test_internal_create_connection_falls_back_to_master_secret(mocker):
         mock_rds.describe_db_instances.assert_called_once()
         assert conn.secret_arn == master_arn
     finally:
-        srv.readonly_query = old_readonly
+        srv.server_config.readonly_query = old_readonly
         db_connection_map.remove(ConnectionMethod.MSSQL_PASSWORD, 'inst1', 'ep1', 'testdb', 1433)
 
 
@@ -1222,15 +1222,15 @@ def test_new_database_connection_uses_startup_secret_not_rds_master(mocker):
     """
     import awslabs.mssql_mcp_server.server as srv
 
-    old_readonly = srv.readonly_query
-    srv.readonly_query = False
+    old_readonly = srv.server_config.readonly_query
+    srv.server_config.readonly_query = False
 
     readonly_arn = 'arn:aws:secretsmanager:us-east-1:123456789012:secret:readonly-user'
     master_arn = 'arn:aws:secretsmanager:us-east-1:123456789012:secret:rds-master'
 
     # Simulate main() storing --secret_arn at startup
-    old_default = srv.default_secret_arn
-    srv.default_secret_arn = readonly_arn
+    old_default = srv.server_config.default_secret_arn
+    srv.server_config.default_secret_arn = readonly_arn
 
     # Mock RDS describe to return a different master secret
     mock_rds = MagicMock()
@@ -1268,7 +1268,7 @@ def test_new_database_connection_uses_startup_secret_not_rds_master(mocker):
         assert testdb_conn.secret_arn == readonly_arn
         assert testdb_conn.secret_arn != master_arn
     finally:
-        srv.readonly_query = old_readonly
-        srv.default_secret_arn = old_default
+        srv.server_config.readonly_query = old_readonly
+        srv.server_config.default_secret_arn = old_default
         db_connection_map.remove(ConnectionMethod.MSSQL_PASSWORD, 'inst1', 'ep1', 'master', 1433)
         db_connection_map.remove(ConnectionMethod.MSSQL_PASSWORD, 'inst1', 'ep1', 'TestDB', 1433)

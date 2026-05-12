@@ -127,18 +127,18 @@ async def test_get_connection_replacement_also_fails(mocker):
 
 @pytest.mark.asyncio
 async def test_check_expiry_recreates_expired_pool(mocker):
-    """An expired pool is closed and re-initialized."""
+    """An expired pool is closed inline and re-initialized."""
     conn = make_pool_conn(pool_expiry_min=1)
     conn._pool = asyncio.Queue(maxsize=10)
     # Force the pool to be older than the expiry window
     conn.created_time = datetime.now() - timedelta(minutes=5)
 
-    close_mock = mocker.patch.object(conn, 'close', new=AsyncMock())
     init_mock = mocker.patch.object(conn, 'initialize_pool', new=AsyncMock())
 
     await conn.check_expiry()
 
-    close_mock.assert_awaited_once()
+    # Pool is closed inline under the writer lock (set to None)
+    assert conn._pool is None
     init_mock.assert_awaited_once()
 
 
@@ -308,12 +308,12 @@ async def test_execute_query_readonly_rollback(mocker):
     await conn.execute_query('SELECT 1 AS x')
 
     raw_conn.rollback.assert_called_once()
-    # Isolation level pragma was also issued
+    # Isolation level is set at connection creation, not per-query
     pragma_issued = any(
         c.args[0] == 'SET TRANSACTION ISOLATION LEVEL READ COMMITTED'
         for c in cursor.execute.call_args_list
     )
-    assert pragma_issued
+    assert not pragma_issued
 
 
 @pytest.mark.asyncio

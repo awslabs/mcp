@@ -77,7 +77,7 @@ class PymssqlPoolConnection(AbstractDBConnection):
                 f'db:{self.database}\n'
             )
 
-            logger.info(f'Retrieving credentials from Secrets Manager: {self.secret_arn}')
+            logger.debug(f'Retrieving credentials from Secrets Manager: {self.secret_arn}')
             self.user, password = self._get_credentials_from_secret(
                 self.secret_arn, self.region, self.is_test
             )
@@ -112,7 +112,7 @@ class PymssqlPoolConnection(AbstractDBConnection):
         """Create a single pymssql connection (synchronous)."""
         import pymssql
 
-        return pymssql.connect(
+        conn = pymssql.connect(
             server=self.host,
             port=str(self.port),
             user=user,
@@ -123,6 +123,11 @@ class PymssqlPoolConnection(AbstractDBConnection):
             login_timeout=15,
             timeout=30,
         )
+        if self.readonly_query:
+            cursor = conn.cursor()
+            cursor.execute('SET TRANSACTION ISOLATION LEVEL READ COMMITTED')
+            cursor.close()
+        return conn
 
     @asynccontextmanager
     async def _get_connection(self):
@@ -130,14 +135,17 @@ class PymssqlPoolConnection(AbstractDBConnection):
         await self.check_expiry()
 
         async with self.rw_lock.reader_lock:
-            if self._pool is None:
+            pool = self._pool
+            if pool is None:
                 raise ValueError('Failed to initialize connection pool')
+            conn = await asyncio.wait_for(pool.get(), timeout=15.0)
 
-        conn = await asyncio.wait_for(self._pool.get(), timeout=15.0)
         try:
             yield conn
             # Return healthy connection to pool
-            await self._pool.put(conn)
+            async with self.rw_lock.reader_lock:
+                if self._pool is not None:
+                    await self._pool.put(conn)
         except Exception:
             # Connection may be broken; try to replace it
             try:
@@ -152,7 +160,14 @@ class PymssqlPoolConnection(AbstractDBConnection):
                 new_conn = await asyncio.to_thread(
                     self._create_raw_connection, fresh_user, fresh_password
                 )
-                await self._pool.put(new_conn)
+                async with self.rw_lock.reader_lock:
+                    if self._pool is not None:
+                        try:
+                            self._pool.put_nowait(new_conn)
+                        except asyncio.QueueFull:
+                            await asyncio.to_thread(new_conn.close)
+                    else:
+                        await asyncio.to_thread(new_conn.close)
             except Exception as replace_err:
                 logger.warning(f'Failed to replace broken connection: {replace_err}')
             raise
@@ -165,13 +180,29 @@ class PymssqlPoolConnection(AbstractDBConnection):
             ):
                 return
 
-        age_seconds = (datetime.now() - self.created_time).total_seconds()
-        logger.warning(
-            f'check_expiry: pool expired or None. '
-            f'age={age_seconds:.1f}s, expiry={self.pool_expiry_min * 60}s, '
-            f'host={self.host}, db={self.database}'
-        )
-        await self.close()
+        async with self.rw_lock.writer_lock:
+            # Double-check under writer lock to avoid multiple concurrent recreations
+            if self._pool and datetime.now() - self.created_time < timedelta(
+                minutes=self.pool_expiry_min
+            ):
+                return
+
+            age_seconds = (datetime.now() - self.created_time).total_seconds()
+            logger.warning(
+                f'check_expiry: pool expired or None. '
+                f'age={age_seconds:.1f}s, expiry={self.pool_expiry_min * 60}s, '
+                f'host={self.host}, db={self.database}'
+            )
+            # Close pool inline (already holding writer lock)
+            if self._pool is not None:
+                while not self._pool.empty():
+                    try:
+                        conn = self._pool.get_nowait()
+                        await asyncio.to_thread(conn.close)
+                    except Exception as e:
+                        logger.warning(f'Error closing connection: {e}')
+                self._pool = None
+
         await self.initialize_pool()
 
     async def execute_query(
@@ -183,8 +214,6 @@ class PymssqlPoolConnection(AbstractDBConnection):
 
                 def _run_sync():
                     cursor = conn.cursor()
-                    if self.readonly_query:
-                        cursor.execute('SET TRANSACTION ISOLATION LEVEL READ COMMITTED')
                     if parameters:
                         if isinstance(parameters, tuple):
                             cursor.execute(sql, parameters)
@@ -263,16 +292,16 @@ class PymssqlPoolConnection(AbstractDBConnection):
             return 'test_user', 'test_password'
 
         try:
-            logger.info(f'Creating Secrets Manager client in region {region}')
+            logger.debug(f'Creating Secrets Manager client in region {region}')
             session = boto3.Session()
             client = session.client(service_name='secretsmanager', region_name=region)
-            logger.info(f'Retrieving secret value for {secret_arn}')
+            logger.debug(f'Retrieving secret value for {secret_arn}')
             get_secret_value_response = client.get_secret_value(SecretId=secret_arn)
-            logger.info('Successfully retrieved secret value')
+            logger.debug('Successfully retrieved secret value')
 
             if 'SecretString' in get_secret_value_response:
                 secret = json.loads(get_secret_value_response['SecretString'])
-                logger.info(f'Secret keys: {", ".join(secret.keys())}')
+                logger.debug(f'Secret keys: {", ".join(secret.keys())}')
                 username = secret.get('username') or secret.get('user') or secret.get('Username')
                 password = secret.get('password') or secret.get('Password')
                 if not username:
@@ -283,7 +312,7 @@ class PymssqlPoolConnection(AbstractDBConnection):
                     raise ValueError(
                         f'Secret does not contain password. Available keys: {", ".join(secret.keys())}'
                     )
-                logger.info(f'Successfully extracted credentials for user: {username}')
+                logger.debug(f'Successfully extracted credentials for user: {username}')
                 return username, password
             else:
                 raise ValueError('Secret does not contain a SecretString')
