@@ -4036,8 +4036,9 @@ OUTPUT_SCHEMA_META: Dict[str, OutputSchemaMeta] = {
         merge_with_artifact=False,
         examples=[
             {
-                'sourceCodeS3Path': 's3://my-bucket/mainframe/source-code/',
-                'smfRecordsS3Path': 's3://my-bucket/mainframe/smf-records/',
+                'legacyCodeS3Path': 's3://my-bucket/mainframe/source-code/',
+                'sourceCodeS3Path': 's3://my-bucket/mainframe/data/',
+                'scrtFileS3Path': 's3://my-bucket/mainframe/scrt-file/',
             }
         ],
         json_schema={
@@ -4048,23 +4049,29 @@ OUTPUT_SCHEMA_META: Dict[str, OutputSchemaMeta] = {
             'type': 'object',
             'examples': [
                 {
-                    'sourceCodeS3Path': 's3://my-bucket/mainframe/source-code/',
-                    'smfRecordsS3Path': 's3://my-bucket/mainframe/smf-records/',
+                    'legacyCodeS3Path': 's3://my-bucket/mainframe/source-code/',
+                    'sourceCodeS3Path': 's3://my-bucket/mainframe/data/',
+                    'scrtFileS3Path': 's3://my-bucket/mainframe/scrt-file/',
                 }
             ],
             'properties': {
-                'sourceCodeS3Path': {
+                'legacyCodeS3Path': {
                     'type': 'string',
                     'description': "S3 URI pointing to the mainframe source code location. Must start with 's3://'.",
                     'pattern': '^s3://',
                 },
-                'smfRecordsS3Path': {
+                'sourceCodeS3Path': {
                     'type': 'string',
-                    'description': "S3 URI pointing to the SMF records location. Must start with 's3://'.",
+                    'description': "S3 URI pointing to the SMF records location (named sourceCodeS3Path for compatibility with SMFConfigureComponent). Must start with 's3://'.",
+                    'pattern': '^s3://',
+                },
+                'scrtFileS3Path': {
+                    'type': 'string',
+                    'description': "S3 URI pointing to the SCRT file location. Must start with 's3://'.",
                     'pattern': '^s3://',
                 },
             },
-            'required': ['sourceCodeS3Path'],
+            'required': ['legacyCodeS3Path'],
             'additionalProperties': True,
         },
     ),

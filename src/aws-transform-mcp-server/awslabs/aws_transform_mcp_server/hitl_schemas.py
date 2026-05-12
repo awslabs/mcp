@@ -528,10 +528,11 @@ CUSTOMIZATIONS: Dict[str, ComponentCustomization] = {
     # ── Mainframe S3 path input components ─────────────────────────
     'MainframeAssessmentConfigurationComponent': ComponentCustomization(
         template={
-            'sourceCodeS3Path': 's3://bucket/source/',
-            'smfRecordsS3Path': 's3://bucket/smf/',
+            'legacyCodeS3Path': 's3://bucket/source-code/',
+            'sourceCodeS3Path': 's3://bucket/smf-records/',
+            'scrtFileS3Path': 's3://bucket/scrt-file/',
         },
-        hint='Provide S3 paths for source code and SMF records. Only include fields you want to change.',
+        hint='Provide S3 paths for source code (required), SMF records (optional), and SCRT file (optional). Only include fields you want to change.',
         merge_with_artifact=True,
     ),
     'MainframeSMFConfigureComponent': ComponentCustomization(
