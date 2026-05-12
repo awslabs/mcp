@@ -157,7 +157,7 @@ The MCP server supports connecting to multiple database endpoints using differen
 
 ### AWS Authentication
 
-The MCP server uses the AWS profile specified in the `AWS_PROFILE` environment variable. If not provided, it defaults to the "default" profile in your AWS configuration file.
+The MCP server needs AWS credential to read database cluster or instance data, and to to create clusters or instances. These are control plane operations that are separate from Postgres operations (i.e. SELECT, CREATE etc). If you choose to use rdsapi connection method, the AWS credential must have the rds-data:ExecuteStatement permission on the Aurora cluster (see https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazonrdsdataapi.html). The MCP uses the AWS profile specified in the `AWS_PROFILE` environment variable. If not provided, it defaults to the "default" profile in your AWS configuration file.
 
 ```json
 "env": {
@@ -166,3 +166,38 @@ The MCP server uses the AWS profile specified in the `AWS_PROFILE` environment v
 ```
 
 Make sure the AWS profile has permissions to access the [RDS data API](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/data-api.html#data-api.access), and the secret from AWS Secrets Manager. The MCP server creates a boto3 session using the specified profile to authenticate with AWS services. Your AWS IAM credentials remain on your local machine and are strictly used for accessing AWS services.
+
+### Postgres Authentication
+
+The MCP server supports IAM and username/password methods for Postgres authentication. You must use AWS secret manager to store the credential and to specify the --secretManagerARN in MCP configuration file.
+
+
+### Security Consideration
+
+The MCP server's allow_write_query is based on keyword blacklist of the following "". It is a best effort and defense in depth mechansim and should be not be treated as a security feature. As a best practice, you should consider create a dedicated readonly Postgres role and use it for the MCP server. The following is an example 
+
+''''sql
+-- Create a read-only role for Postgres MCP server
+CREATE ROLE postgres_mcp_server_readonly WITH LOGIN PASSWORD 'change-me'
+    NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+
+-- Allow connection and schema visibility for public schema
+-- TODO: add additional schema if required
+GRANT CONNECT ON DATABASE mydb TO postgres_mcp_server_readonly;
+GRANT USAGE ON SCHEMA public TO postgres_mcp_server_readonly;
+
+-- Read existing tables and sequences for public schema
+-- TODO: add additional schema if required
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO postgres_mcp_server_readonly;
+GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO postgres_mcp_server_readonly;
+
+-- Read future tables and sequences for public schema
+-- TODO: add additional schema if required
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+    GRANT SELECT ON TABLES TO postgres_mcp_server_readonly;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+    GRANT SELECT ON SEQUENCES TO postgres_mcp_server_readonly;
+
+-- Force read-only transactions
+ALTER ROLE postgres_mcp_server_readonly SET default_transaction_read_only = on;
+''''

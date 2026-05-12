@@ -150,6 +150,30 @@ def create_serverless_cluster_and_wait(
     return endpoint
 
 
+def configure_server_secret_for_cluster(cluster_identifier: str, region: str) -> str:
+    """Point server.configured_secret_arn at the cluster's managed secret.
+
+    The MCP server requires a configured Secrets Manager ARN at startup
+    (via --secret_arn). In this end-to-end test we don't run a CLI; we
+    set the module attribute directly so internal_create_connection can
+    build connections using the cluster's managed secret.
+    """
+    from awslabs.postgres_mcp_server.connection.cp_api_connection import (
+        internal_get_cluster_properties,
+    )
+
+    props = internal_get_cluster_properties(cluster_identifier, region)
+    secret_arn = props.get('MasterUserSecret', {}).get('SecretArn', '')
+    if not secret_arn:
+        raise RuntimeError(
+            f"Cluster '{cluster_identifier}' has no managed secret ARN; "
+            'cannot configure MCP server for e2e test.'
+        )
+    server.configured_secret_arn = secret_arn
+    log_step('configure_server_secret', 'PASS', secret_arn)
+    return secret_arn
+
+
 def wait_for_dns(endpoint: str, max_wait: int = 120, interval: int = 10):
     """Wait until the endpoint DNS resolves."""
     import socket
@@ -522,6 +546,7 @@ async def main_async(args):
             engine_version=args.engine_version,
         )
         clusters_to_delete.append(express_id)
+        configure_server_secret_for_cluster(express_id, args.region)
 
         express_config = ClusterConfig(
             cluster_identifier=express_id,
@@ -544,6 +569,7 @@ async def main_async(args):
             engine_version=args.engine_version,
         )
         clusters_to_delete.append(serverless_id)
+        configure_server_secret_for_cluster(serverless_id, args.region)
 
         # Phase 2a: Endpoint validation (positive + negative). Runs before the
         # main suite so the db_connection_map starts clean for this cluster

@@ -715,6 +715,8 @@ def test_main_with_valid_parameters(monkeypatch, capsys):
             'postgres',
             '--region',
             'us-west-2',
+            '--secret_arn',  # pragma: allowlist secret
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:test-secret',
         ],
     )
     monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
@@ -761,6 +763,8 @@ def test_main_with_invalid_parameters(monkeypatch, capsys):
             'postgres',
             '--region',
             'invalid',
+            '--secret_arn',  # pragma: allowlist secret
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:test-secret',
         ],
     )
     monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
@@ -825,6 +829,8 @@ def test_main_with_psycopg_parameters(monkeypatch, capsys):
             'postgres',
             '--region',
             'us-west-2',
+            '--secret_arn',  # pragma: allowlist secret
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:test-secret',
         ],
     )
     monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)

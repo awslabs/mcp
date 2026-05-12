@@ -22,11 +22,18 @@ MUTATING_KEYWORDS = {
     'DELETE',
     'MERGE',
     'TRUNCATE',
+    'COPY',
+    'LISTEN',
+    'LOCK',
+    'NOTIFY',
+    'REFRESH',
+    'PREPARE',
     # DDL
     'CREATE',
     'DROP',
     'ALTER',
     'RENAME',
+    'IMPORT FOREIGN SCHEMA'
     # Permissions
     'GRANT',
     'REVOKE',
@@ -37,11 +44,14 @@ MUTATING_KEYWORDS = {
     'CREATE EXTENSION',
     'CREATE FUNCTION',
     'INSTALL',
+    'CALL',
+    'EXECUTE',
     # Storage-level
     'CLUSTER',
     'REINDEX',
     'VACUUM',
     'ANALYZE',
+    'SET',
 }
 
 # Compile regex pattern

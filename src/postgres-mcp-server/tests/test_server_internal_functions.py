@@ -30,6 +30,19 @@ from unittest.mock import MagicMock, patch
 class TestInternalCreateConnection:
     """Tests for internal_create_connection function."""
 
+    def setup_method(self, method):
+        """Set configured_secret_arn so non-IAM paths don't reject immediately."""
+        import awslabs.postgres_mcp_server.server as server_module
+
+        self._prev_secret_arn = server_module.configured_secret_arn
+        server_module.configured_secret_arn = 'arn:aws:secretsmanager:us-east-1:123456789012:secret:test-secret'  # pragma: allowlist secret
+
+    def teardown_method(self, method):
+        """Restore the original configured_secret_arn."""
+        import awslabs.postgres_mcp_server.server as server_module
+
+        server_module.configured_secret_arn = self._prev_secret_arn
+
     def test_missing_region_raises_error(self):
         """Test that missing region raises ValueError."""
         with pytest.raises(ValueError, match="region can't be none or empty"):
@@ -148,17 +161,17 @@ class TestInternalCreateConnection:
             patch(
                 'awslabs.postgres_mcp_server.server.internal_get_cluster_properties'
             ) as mock_props,
+            patch('awslabs.postgres_mcp_server.server.get_credentials_from_secret') as mock_creds,
             patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
         ):
             mock_map.get.return_value = None
             mock_props.return_value = {
                 'HttpEndpointEnabled': False,
-                'MasterUsername': 'postgres',
                 'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test',
-                'MasterUserSecret': {'SecretArn': 'arn:secret'},
                 'Endpoint': 'test.endpoint.com',
                 'Port': 5432,
             }
+            mock_creds.return_value = ('iam_username', 'unused_password')
             mock_connection = MagicMock()
             mock_pg_conn.return_value = mock_connection
 
@@ -176,6 +189,10 @@ class TestInternalCreateConnection:
             mock_pg_conn.assert_called_once()
             call_kwargs = mock_pg_conn.call_args[1]
             assert call_kwargs['is_iam_auth'] is True
+            # Username comes from the operator-configured secret, not from
+            # cluster/instance metadata.
+            assert call_kwargs['db_user'] == 'iam_username'
+            mock_creds.assert_called_once()
 
     def test_creates_pgwire_connection_with_secrets(self):
         """Test creating PG Wire connection with Secrets Manager."""
@@ -212,7 +229,9 @@ class TestInternalCreateConnection:
             mock_pg_conn.assert_called_once()
             call_kwargs = mock_pg_conn.call_args[1]
             assert call_kwargs['is_iam_auth'] is False
-            assert call_kwargs['secret_arn'] == 'arn:secret'
+            # The ARN used comes from configured_secret_arn (set by setup_method),
+            # not from the cluster's MasterUserSecret.
+            assert 'test-secret' in call_kwargs['secret_arn']
 
     def test_rpg_instance_without_cluster(self):
         """Test connecting to RDS Postgres instance without cluster."""
@@ -393,17 +412,17 @@ class TestInternalCreateConnection:
             patch(
                 'awslabs.postgres_mcp_server.server.internal_get_cluster_properties'
             ) as mock_props,
+            patch('awslabs.postgres_mcp_server.server.get_credentials_from_secret') as mock_creds,
             patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
         ):
             mock_map.get.return_value = None
+            mock_creds.return_value = ('iam_user', 'unused')
             # Note: writer endpoint intentionally has different capitalization
             # than the caller will supply, proving we don't echo caller input
             # back into the connection string.
             mock_props.return_value = {
                 'HttpEndpointEnabled': False,
-                'MasterUsername': 'postgres',
                 'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test',
-                'MasterUserSecret': {'SecretArn': 'arn:secret'},
                 'Endpoint': 'canonical.endpoint.com',
                 'Port': 5432,
             }
@@ -527,6 +546,99 @@ class TestInternalCreateConnection:
             call_kwargs = mock_pg_conn.call_args[1]
             assert call_kwargs['port'] == DEFAULT_POSTGRES_PORT
 
+    def test_missing_configured_secret_arn_raises(self):
+        """Without configured_secret_arn, internal_create_connection refuses."""
+        import awslabs.postgres_mcp_server.server as server_module
+
+        # Override the fixture-provided ARN for this single test.
+        prev = server_module.configured_secret_arn
+        server_module.configured_secret_arn = ''
+        try:
+            with patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map:
+                mock_map.get.return_value = None
+                with pytest.raises(ValueError, match='Secrets Manager ARN is required'):
+                    internal_create_connection(
+                        region='us-east-1',
+                        database_type=DatabaseType.APG,
+                        connection_method=ConnectionMethod.RDS_API,
+                        cluster_identifier='test-cluster',
+                        db_endpoint='',
+                        port=5432,
+                        database='testdb',
+                    )
+        finally:
+            server_module.configured_secret_arn = prev
+
+    def test_secret_arn_override_takes_precedence(self):
+        """secret_arn_override replaces configured_secret_arn (used by create_cluster_worker)."""
+        override_arn = 'arn:aws:secretsmanager:us-east-1:123456789012:secret:new-cluster-secret'  # pragma: allowlist secret
+        with (
+            patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map,
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_cluster_properties'
+            ) as mock_props,
+            patch('awslabs.postgres_mcp_server.server.RDSDataAPIConnection') as mock_rds_conn,
+        ):
+            mock_map.get.return_value = None
+            mock_props.return_value = {
+                'HttpEndpointEnabled': True,
+                'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test',
+                'Endpoint': 'cluster.endpoint.com',
+                'Port': 5432,
+            }
+            mock_rds_conn.return_value = MagicMock()
+
+            internal_create_connection(
+                region='us-east-1',
+                database_type=DatabaseType.APG,
+                connection_method=ConnectionMethod.RDS_API,
+                cluster_identifier='test-cluster',
+                db_endpoint='',
+                port=0,
+                database='testdb',
+                secret_arn_override=override_arn,
+            )
+
+            call_kwargs = mock_rds_conn.call_args[1]
+            assert call_kwargs['secret_arn'] == override_arn
+
+    def test_secret_arn_never_read_from_cluster_properties(self):
+        """Even if cluster properties include MasterUserSecret.SecretArn, we ignore it."""
+        bogus_cluster_secret = 'arn:aws:secretsmanager:us-east-1:123456789012:secret:CLUSTER-DECIDED'  # pragma: allowlist secret
+        with (
+            patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map,
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_cluster_properties'
+            ) as mock_props,
+            patch('awslabs.postgres_mcp_server.server.RDSDataAPIConnection') as mock_rds_conn,
+        ):
+            mock_map.get.return_value = None
+            mock_props.return_value = {
+                'HttpEndpointEnabled': True,
+                'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test',
+                # This ARN must NOT be used for the connection — the
+                # operator-configured one wins.
+                'MasterUserSecret': {'SecretArn': bogus_cluster_secret},
+                'Endpoint': 'cluster.endpoint.com',
+                'Port': 5432,
+            }
+            mock_rds_conn.return_value = MagicMock()
+
+            internal_create_connection(
+                region='us-east-1',
+                database_type=DatabaseType.APG,
+                connection_method=ConnectionMethod.RDS_API,
+                cluster_identifier='test-cluster',
+                db_endpoint='',
+                port=0,
+                database='testdb',
+            )
+
+            call_kwargs = mock_rds_conn.call_args[1]
+            assert call_kwargs['secret_arn'] != bogus_cluster_secret
+            # The ARN used is the fixture-configured one from setup_method.
+            assert 'test-secret' in call_kwargs['secret_arn']
+
 
 class TestCreateClusterWorker:
     """Tests for create_cluster_worker function."""
@@ -538,14 +650,16 @@ class TestCreateClusterWorker:
                 'awslabs.postgres_mcp_server.server.internal_create_serverless_cluster'
             ) as mock_create,
             patch('awslabs.postgres_mcp_server.server.setup_aurora_iam_policy_for_current_user'),
-            patch('awslabs.postgres_mcp_server.server.internal_create_connection'),
+            patch('awslabs.postgres_mcp_server.server.internal_create_connection') as mock_connect,
             patch('awslabs.postgres_mcp_server.server.async_job_status'),
             patch('awslabs.postgres_mcp_server.server.async_job_status_lock') as mock_lock,
         ):
+            new_cluster_secret = 'arn:aws:secretsmanager:us-east-1:123456789012:secret:NEW-CLUSTER'  # pragma: allowlist secret
             mock_create.return_value = {
                 'MasterUsername': 'postgres',
                 'DbClusterResourceId': 'cluster-123',
                 'Endpoint': 'test.endpoint.com',
+                'MasterUserSecret': {'SecretArn': new_cluster_secret},
             }
             mock_lock.acquire = MagicMock()
             mock_lock.release = MagicMock()
@@ -563,6 +677,11 @@ class TestCreateClusterWorker:
             # Verify job status was updated
             assert mock_lock.acquire.called
             assert mock_lock.release.called
+            # The worker owns the one exception to the "always use
+            # configured secret" rule: it passes the brand-new cluster's
+            # managed secret ARN as an override.
+            connect_kwargs = mock_connect.call_args[1]
+            assert connect_kwargs['secret_arn_override'] == new_cluster_secret
 
     def test_worker_failure_updates_job_status(self):
         """Test that worker updates job status on failure."""

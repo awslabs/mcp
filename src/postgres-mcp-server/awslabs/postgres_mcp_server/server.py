@@ -34,7 +34,10 @@ from awslabs.postgres_mcp_server.connection.db_connection_map import (
     DatabaseType,
     DBConnectionMap,
 )
-from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import PsycopgPoolConnection
+from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import (
+    PsycopgPoolConnection,
+    get_credentials_from_secret,
+)
 from awslabs.postgres_mcp_server.connection.rds_api_connection import RDSDataAPIConnection
 from awslabs.postgres_mcp_server.mutable_sql_detector import (
     check_sql_injection_risk,
@@ -64,6 +67,12 @@ write_query_prohibited_key = 'Your MCP tool only allows readonly query. If you w
 query_comment_prohibited_key = 'The comment in query is prohibited because of injection risk'
 query_injection_risk_key = 'Your query contains risky injection patterns'
 readonly_query = True
+
+# Secrets Manager ARN configured at server startup via --secret_arn. Used by
+# internal_create_connection for RDS_API and PG_WIRE_PROTOCOL connections
+# rather than reading MasterUserSecret.SecretArn from cluster properties.
+# PG_WIRE_IAM_PROTOCOL uses IAM auth tokens and does not need this.
+configured_secret_arn: Optional[str] = None
 
 
 class DummyCtx:
@@ -564,6 +573,12 @@ def create_cluster_worker(
             cluster_region=region,
         )
 
+        # Use the freshly-created cluster's managed secret ARN. This is the
+        # only place in the server that uses a secret other than the
+        # operator-configured one, because the cluster is brand-new and its
+        # managed secret could not have been known at startup.
+        new_cluster_secret_arn = cluster_result.get('MasterUserSecret', {}).get('SecretArn', '')
+
         internal_create_connection(
             region=region,
             database_type=database_type,
@@ -572,6 +587,7 @@ def create_cluster_worker(
             db_endpoint=cluster_result['Endpoint'],
             port=5432,
             database=database,
+            secret_arn_override=new_cluster_secret_arn,
         )
 
         try:
@@ -597,8 +613,16 @@ def internal_create_connection(
     db_endpoint: Annotated[str, Field(description='database endpoint')],
     port: Annotated[int, Field(description='Postgres port')],
     database: Annotated[str, Field(description='database name')] = 'postgres',
+    secret_arn_override: Optional[str] = None,
 ) -> Tuple:
     """Connect to a specific database save the connection internally.
+
+    The Secrets Manager ARN used for authentication (for RDS_API and
+    PG_WIRE_PROTOCOL methods) comes from the operator-configured
+    ``configured_secret_arn`` module variable, which is set from the
+    ``--secret_arn`` CLI argument at startup. The MCP server never reads
+    credentials from cluster/instance properties; the operator controls
+    which secret is used.
 
     Args:
         region: region
@@ -608,9 +632,14 @@ def internal_create_connection(
         db_endpoint: database endpoint
         port: database port
         database: database name
+        secret_arn_override: Only used internally by create_cluster_worker,
+            which creates a brand-new cluster whose managed secret cannot
+            possibly match the operator-configured secret. All other callers
+            should leave this as None so the configured secret is used.
     """
     global db_connection_map
     global readonly_query
+    global configured_secret_arn
 
     logger.info(
         f'Enter internal_create_connection\n'
@@ -652,10 +681,26 @@ def internal_create_connection(
         )
         return (existing_conn, llm_response)
 
+    # Resolve the Secrets Manager ARN for auth before doing anything else.
+    # Every connection method needs the operator-configured ARN (or the
+    # override used by create_cluster_worker for a brand-new cluster):
+    #   - RDS_API / PG_WIRE_PROTOCOL: use the secret for (username, password)
+    #   - PG_WIRE_IAM_PROTOCOL: use the secret for username only; password
+    #     comes from a generated IAM auth token
+    # The ARN is never read from cluster/instance properties; the operator
+    # controls which secret the MCP server is allowed to read. We validate
+    # before the RDS describe_* calls so bad configuration fails fast
+    # without burning a control-plane API call.
+    effective_secret_arn = secret_arn_override or configured_secret_arn or ''
+    if not effective_secret_arn:
+        raise ValueError(
+            'Secrets Manager ARN is required but was not configured. Start the '
+            'MCP server with --secret_arn <arn> or supply secret_arn_override '
+            'when calling internal_create_connection.'
+        )
+
     enable_data_api: bool = False
-    masteruser: str = ''
     cluster_arn: str = ''
-    secret_arn: str = ''
 
     if cluster_identifier:
         # Can be either APG (APG always requires cluster) or RPG multi-AZ cluster deployment case
@@ -664,9 +709,7 @@ def internal_create_connection(
         )
 
         enable_data_api = cluster_properties.get('HttpEndpointEnabled', False)
-        masteruser = cluster_properties.get('MasterUsername', '')
         cluster_arn = cluster_properties.get('DBClusterArn', '')
-        secret_arn = cluster_properties.get('MasterUserSecret', {}).get('SecretArn')
 
         cluster_writer_endpoint = cluster_properties.get('Endpoint', '')
         try:
@@ -717,8 +760,6 @@ def internal_create_connection(
         # We still overwrite db_endpoint/port with the AWS-sourced values so
         # the connection string never comes from the caller-supplied string.
         instance_properties = internal_get_instance_properties(db_endpoint, region)
-        masteruser = instance_properties.get('MasterUsername', '')
-        secret_arn = instance_properties.get('MasterUserSecret', {}).get('SecretArn')
         instance_endpoint = instance_properties.get('Endpoint', {}) or {}
         resolved_host = instance_endpoint.get('Address', '')
         try:
@@ -733,9 +774,8 @@ def internal_create_connection(
     logger.info(
         f'About to create internal DB connections with:'
         f'enable_data_api:{enable_data_api}\n'
-        f'masteruser:{masteruser}\n'
         f'cluster_arn:{cluster_arn}\n'
-        f'secret_arn:{secret_arn}\n'
+        f'effective_secret_arn:{effective_secret_arn}\n'
         f'db_endpoint:{db_endpoint}\n'
         f'port:{port}\n'
         f'region:{region}\n'
@@ -744,13 +784,20 @@ def internal_create_connection(
 
     db_connection = None
     if connection_method == ConnectionMethod.PG_WIRE_IAM_PROTOCOL:
+        # IAM auth uses a generated token as the password, but still needs a
+        # username. Pull the username from the operator-configured secret so
+        # the server never depends on cluster/instance metadata for auth
+        # configuration.
+        iam_username, _ = get_credentials_from_secret(
+            secret_arn=effective_secret_arn, region=region
+        )
         db_connection = PsycopgPoolConnection(
             host=db_endpoint,
             port=port,
             database=database,
             readonly=readonly_query,
             secret_arn='',
-            db_user=masteruser,
+            db_user=iam_username,
             region=region,
             is_iam_auth=True,
         )
@@ -758,7 +805,7 @@ def internal_create_connection(
     elif connection_method == ConnectionMethod.RDS_API:
         db_connection = RDSDataAPIConnection(
             cluster_arn=cluster_arn,
-            secret_arn=str(secret_arn),
+            secret_arn=effective_secret_arn,
             database=database,
             region=region,
             readonly=readonly_query,
@@ -770,7 +817,7 @@ def internal_create_connection(
             port=port,
             database=database,
             readonly=readonly_query,
-            secret_arn=secret_arn,
+            secret_arn=effective_secret_arn,
             db_user='',
             region=region,
             is_iam_auth=False,
@@ -928,6 +975,7 @@ def main():
     """
     global db_connection_map
     global readonly_query
+    global configured_secret_arn
 
     parser = argparse.ArgumentParser(
         description='An AWS Labs Model Context Protocol (MCP) server for postgres'
@@ -946,6 +994,15 @@ def main():
     )
     parser.add_argument('--database', help='Database name')
     parser.add_argument('--port', type=int, default=5432, help='Database port (default: 5432)')
+    parser.add_argument(
+        '--secret_arn',
+        required=True,
+        help=(
+            'Secrets Manager ARN holding the database master credentials. '
+            'Required. Used by RDS_API and PG_WIRE_PROTOCOL connection methods. '
+            'Ignored by PG_WIRE_IAM_PROTOCOL (which uses IAM auth tokens).'
+        ),
+    )
     args = parser.parse_args()
 
     logger.info(
@@ -958,9 +1015,11 @@ def main():
         f'allow_write_query:{args.allow_write_query}\n'
         f'database:{args.database}\n'
         f'port:{args.port}\n'
+        f'secret_arn:{args.secret_arn}\n'
     )
 
     readonly_query = not args.allow_write_query
+    configured_secret_arn = args.secret_arn
 
     try:
         if args.db_type:

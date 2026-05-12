@@ -32,6 +32,75 @@ from psycopg_pool import AsyncConnectionPool
 from typing import Any, Dict, List, Optional, Tuple
 
 
+def get_credentials_from_secret(
+    secret_arn: str, region: str, is_test: bool = False
+) -> Tuple[str, str]:
+    """Fetch database (username, password) from AWS Secrets Manager.
+
+    The secret payload is expected to be JSON with ``username``/``user``/
+    ``Username`` and ``password``/``Password`` fields — the standard shape
+    RDS-managed secrets produce.
+
+    Module-level so callers (e.g. ``server.internal_create_connection``
+    on the IAM-auth path, which only needs the username) can reuse it
+    without instantiating a connection pool.
+
+    Args:
+        secret_arn: Secrets Manager ARN.
+        region: AWS region of the secret.
+        is_test: If True, return deterministic test credentials instead of
+            hitting AWS. Intended for unit tests only.
+
+    Returns:
+        ``(username, password)`` tuple.
+
+    Raises:
+        ValueError: If the secret is missing, malformed, or lacks
+            username/password fields.
+    """
+    if is_test:
+        return 'test_user', 'test_password'
+
+    try:
+        logger.info(f'Creating Secrets Manager client in region {region}')
+        session = boto3.Session()
+        client = session.client(service_name='secretsmanager', region_name=region)
+
+        logger.info(f'Retrieving secret value for {secret_arn}')
+        get_secret_value_response = client.get_secret_value(SecretId=secret_arn)
+        logger.info('Successfully retrieved secret value')
+
+        if 'SecretString' not in get_secret_value_response:
+            logger.error('Secret does not contain a SecretString')
+            raise ValueError('Secret does not contain a SecretString')
+
+        secret = json.loads(get_secret_value_response['SecretString'])
+        logger.info(f'Secret keys: {", ".join(secret.keys())}')
+
+        username = secret.get('username') or secret.get('user') or secret.get('Username')
+        password = secret.get('password') or secret.get('Password')
+
+        if not username:
+            logger.error(
+                f'Username not found in secret. Available keys: {", ".join(secret.keys())}'
+            )
+            raise ValueError(
+                f'Secret does not contain username. Available keys: {", ".join(secret.keys())}'
+            )
+
+        if not password:
+            logger.error('Password not found in secret')
+            raise ValueError(
+                f'Secret does not contain password. Available keys: {", ".join(secret.keys())}'
+            )
+
+        logger.info(f'Successfully extracted credentials for user: {username}')
+        return username, password
+    except Exception as e:
+        logger.exception(f'Failed to retrieve credentials from Secrets Manager: {str(e)}')
+        raise ValueError(f'Failed to retrieve credentials from Secrets Manager: {str(e)}')
+
+
 class PsycopgPoolConnection(AbstractDBConnection):
     """Class that wraps DB connection using psycopg connection pool.
 
@@ -278,52 +347,13 @@ class PsycopgPoolConnection(AbstractDBConnection):
     def _get_credentials_from_secret(
         self, secret_arn: str, region: str, is_test: bool = False
     ) -> Tuple[str, str]:
-        """Get database credentials from AWS Secrets Manager."""
-        if is_test:
-            return 'test_user', 'test_password'
+        """Get database credentials from AWS Secrets Manager.
 
-        try:
-            # Create a Secrets Manager client
-            logger.info(f'Creating Secrets Manager client in region {region}')
-            session = boto3.Session()
-            client = session.client(service_name='secretsmanager', region_name=region)
-
-            # Get the secret value
-            logger.info(f'Retrieving secret value for {secret_arn}')
-            get_secret_value_response = client.get_secret_value(SecretId=secret_arn)
-            logger.info('Successfully retrieved secret value')
-
-            # Parse the secret string
-            if 'SecretString' in get_secret_value_response:
-                secret = json.loads(get_secret_value_response['SecretString'])
-                logger.info(f'Secret keys: {", ".join(secret.keys())}')
-
-                # Extract username and password
-                username = secret.get('username') or secret.get('user') or secret.get('Username')
-                password = secret.get('password') or secret.get('Password')
-
-                if not username:
-                    logger.error(
-                        f'Username not found in secret. Available keys: {", ".join(secret.keys())}'
-                    )
-                    raise ValueError(
-                        f'Secret does not contain username. Available keys: {", ".join(secret.keys())}'
-                    )
-
-                if not password:
-                    logger.error('Password not found in secret')
-                    raise ValueError(
-                        f'Secret does not contain password. Available keys: {", ".join(secret.keys())}'
-                    )
-
-                logger.info(f'Successfully extracted credentials for user: {username}')
-                return username, password
-            else:
-                logger.error('Secret does not contain a SecretString')
-                raise ValueError('Secret does not contain a SecretString')
-        except Exception as e:
-            logger.exception(f'Failed to retrieve credentials from Secrets Manager: {str(e)}')
-            raise ValueError(f'Failed to retrieve credentials from Secrets Manager: {str(e)}')
+        Instance-method wrapper around the module-level
+        :func:`get_credentials_from_secret` helper, kept for backward
+        compatibility with existing tests.
+        """
+        return get_credentials_from_secret(secret_arn, region, is_test)
 
     async def close(self) -> None:
         """Close all connections in the pool."""
