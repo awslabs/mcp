@@ -30,7 +30,6 @@ class HTTPHeaderValidationMiddleware(Middleware):
     ):
         """Validates any incoming request."""
         headers = get_http_headers(include_all=True)
-        logger.info(headers)
 
         if host := headers.get('host'):
             host = host.split(':')[0]  # Strip port if present
