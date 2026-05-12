@@ -297,12 +297,15 @@ def filter_table_rows(rows: list[dict], query: str) -> list[dict]:
     Handles both flat rows (dict of column→value) and nested rows (dict with a 'rows' sub-array).
     For nested rows, searches across parent fields AND all child rows.
 
+    Results are sorted by relevance: rows with more query words in the first column
+    (typically the Name field) rank higher.
+
     Args:
         rows: List of row dicts (flat or nested)
         query: Search term (multiple words are ANDed together)
 
     Returns:
-        List of matching rows
+        List of matching rows, sorted by relevance
     """
     words = query.lower().split()
     if not words:
@@ -323,7 +326,13 @@ def filter_table_rows(rows: list[dict], query: str) -> list[dict]:
 
         if all(word in row_text for word in words):
             matches.append(row)
-    return matches
+
+    # Sort by relevance: count query words in the first column value
+    def relevance(row):
+        first_val = str(list(row.values())[0]).lower()
+        return sum(1 for w in words if w in first_val)
+
+    return sorted(matches, key=relevance, reverse=True)
 
 
 def format_search_table_response(

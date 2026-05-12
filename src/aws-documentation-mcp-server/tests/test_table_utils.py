@@ -250,6 +250,30 @@ class TestFilterTableRows:
         assert len(matches) == 1
         assert matches[0]['Action'] == 'RunInstances'
 
+    def test_relevance_sorting(self):
+        """Results are sorted by how many query words appear in the first column."""
+        rows = [
+            {'Name': 'Cross-region requests per minute for Claude 3 Sonnet', 'Value': '1000'},
+            {'Name': 'On-demand requests per minute for Claude 3 Sonnet', 'Value': '500'},
+            {'Name': 'Batch inference for Claude 3 Sonnet requests', 'Value': '100'},
+        ]
+        # "on-demand" differentiates - row with on-demand in Name should rank first
+        matches = filter_table_rows(rows, 'on-demand Claude 3 Sonnet requests')
+        assert len(matches) == 1  # only on-demand row has all words
+        assert 'On-demand' in matches[0]['Name']
+
+    def test_relevance_sorting_tiebreaker(self):
+        """When scores tie, document order is preserved."""
+        rows = [
+            {'Name': 'Alpha requests per minute', 'Value': '100'},
+            {'Name': 'Beta requests per minute', 'Value': '200'},
+        ]
+        matches = filter_table_rows(rows, 'requests per minute')
+        assert len(matches) == 2
+        # Both score equally, so document order preserved
+        assert matches[0]['Name'] == 'Alpha requests per minute'
+        assert matches[1]['Name'] == 'Beta requests per minute'
+
 
 class TestFormatSearchTableResponse:
     """Tests for format_search_table_response function."""
