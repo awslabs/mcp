@@ -12,6 +12,7 @@ dependencies = [
     "botocore>=1.42.79",
     "pymssql>=2.3.0",
     "aiorwlock>=1.3.0",
+    "python-multipart>=0.0.27",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE"]
@@ -43,7 +44,7 @@ dev = [
     "commitizen>=4.2.2",
     "pre-commit>=4.1.0",
     "ruff>=0.9.7",
-    "pyright>=1.1.398",
+    "pyright>=1.1.409",
     "pytest>=8.0.0",
     "pytest-asyncio>=0.26.0",
     "pytest-cov>=4.1.0",
@@ -59,7 +60,7 @@ build-backend = "hatchling.build"
 override-dependencies = [
   "cryptography>=46.0.7",  # GHSA-p423-j2cm-9vmq (CVE-2026-39892): buffer overflow with non-contiguous buffers
   "pytest>=9.0.3",  # GHSA-6w46-j5rx-g56g: vulnerable tmpdir handling
-  "python-multipart>=0.0.26",  # GHSA-mj87-hwqh-73pj: DoS via large multipart preamble/epilogue
+  "python-multipart>=0.0.27",  # GHSA-pp6c-gr5w-3c5g: DoS via unbounded multipart part headers
 ]
 
 [tool.hatch.metadata]
