@@ -70,6 +70,24 @@ class ServerConfig:
         if self.max_file_size <= 0:
             raise ValueError('max_file_size must be positive')
 
+    def __repr__(self) -> str:
+        """Return a safe string representation that redacts sensitive credential fields."""
+        return (
+            f'ServerConfig('
+            f'aws_profile={self.aws_profile!r}, '
+            f'aws_region={self.aws_region!r}, '
+            f'aws_access_key_id={"***" if self.aws_access_key_id else None}, '
+            f'aws_secret_access_key={"***" if self.aws_secret_access_key else None}, '
+            f'log_level={self.log_level!r}, '
+            f'max_text_length={self.max_text_length}, '
+            f'batch_timeout={self.batch_timeout}, '
+            f'enable_audit_logging={self.enable_audit_logging}, '
+            f'enable_translation_cache={self.enable_translation_cache}, '
+            f'cache_ttl={self.cache_ttl}, '
+            f'max_file_size={self.max_file_size}'
+            f')'
+        )
+
 
 def load_config_from_env() -> ServerConfig:
     """Load configuration from environment variables."""
