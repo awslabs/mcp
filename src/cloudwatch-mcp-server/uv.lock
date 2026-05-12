@@ -51,7 +51,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-cloudwatch-mcp-server"
-version = "0.0.28"
+version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },
@@ -61,6 +61,7 @@ dependencies = [
     { name = "numpy", version = "2.3.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pandas" },
     { name = "pydantic" },
+    { name = "requests" },
     { name = "statsmodels" },
 ]
 
@@ -85,6 +86,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.0.0" },
     { name = "pandas", specifier = ">=2.2.3" },
     { name = "pydantic", specifier = ">=2.10.6" },
+    { name = "requests", specifier = ">=2.31.0" },
     { name = "statsmodels", specifier = ">=0.14.0" },
 ]
 
