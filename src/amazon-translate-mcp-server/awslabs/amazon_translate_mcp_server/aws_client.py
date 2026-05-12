@@ -90,7 +90,7 @@ class AWSClientManager(LoggerMixin):
             max_pool_connections=max_pool_connections,
             connect_timeout=timeout,
             read_timeout=timeout,
-            user_agent_extra=f'awslabs/mcp/amazon-translate-mcp-server/{MCP_SERVER_VERSION}',
+            user_agent_extra=f'md/awslabs#mcp#amazon-translate-mcp-server/{MCP_SERVER_VERSION}',
         )
 
         # Thread-safe client cache
