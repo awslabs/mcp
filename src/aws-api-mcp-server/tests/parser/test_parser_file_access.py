@@ -178,6 +178,14 @@ class TestDefaultFileAccessBehavior:
         ):
             parse(command)
 
+    def test_codeartifact_login_rejected_in_workdir_mode(self):
+        """Test that codeartifact login is rejected in WORKDIR mode since it writes to home directory."""
+        with pytest.raises(OperationNotAllowedError) as exc_info:
+            parse('aws codeartifact login --tool pip --domain my-domain --repository my-repo')
+
+        assert 'codeartifact' in str(exc_info.value).lower()
+        assert 'login' in str(exc_info.value).lower()
+
 
 @patch(
     'awslabs.aws_api_mcp_server.core.parser.parser.FILE_ACCESS_MODE',
@@ -422,6 +430,31 @@ class TestDisabledLocalFileAccess:
         error_message = str(exc_info.value)
         assert expected_service in error_message.lower()
         assert expected_operation in error_message.lower()
+
+
+@patch(
+    'awslabs.aws_api_mcp_server.core.parser.parser.FILE_ACCESS_MODE',
+    FileAccessMode.NO_ACCESS,
+)
+@patch(
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.FILE_ACCESS_MODE',
+    FileAccessMode.NO_ACCESS,
+)
+@pytest.mark.parametrize(
+    'command',
+    [
+        'aws ec2 create-tags --resources i-1234567890abcdef0 --tags Key=yayme,Value@=fileb:///etc/passwd',
+        'aws ec2 create-tags --resources i-1234567890abcdef0 --tags Key=test,Value@=file:///etc/passwd',
+    ],
+)
+def test_shorthand_paramfile_rejected_when_file_access_disabled(command):
+    """Test that shorthand @= syntax with file:// or fileb:// is rejected when file access is disabled.
+
+    The @= syntax in shorthand triggers the _resolve_paramfiles method in awscli.shorthand,
+    which uses LOCAL_PREFIX_MAP to resolve file:// and fileb:// prefixes.
+    """
+    with pytest.raises(LocalFileAccessDisabledError):
+        parse(command)
 
 
 @patch(

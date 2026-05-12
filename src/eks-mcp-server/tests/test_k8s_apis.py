@@ -1432,3 +1432,52 @@ class TestK8sProxySupport:
             # Verify uppercase proxy was used
             mock_config = mock_k8s_modules['config']
             assert mock_config.proxy == 'http://uppercase-proxy.example.com:8080'
+
+
+class TestK8sApisFromApiClient:
+    """Tests for the K8sApis.from_api_client classmethod."""
+
+    def test_from_api_client_creates_instance(self):
+        """Test that from_api_client creates a valid K8sApis instance."""
+        with patch('kubernetes.dynamic.DynamicClient') as mock_dynamic_client_cls:
+            mock_api_client = MagicMock()
+            mock_dynamic_client = MagicMock()
+            mock_dynamic_client_cls.return_value = mock_dynamic_client
+
+            instance = K8sApis.from_api_client(mock_api_client)
+
+            assert instance.api_client is mock_api_client
+            assert instance.dynamic_client is mock_dynamic_client
+            assert instance._ca_cert_file_path is None
+            mock_dynamic_client_cls.assert_called_once_with(mock_api_client)
+
+    def test_from_api_client_sets_user_agent(self):
+        """Test that from_api_client sets the custom user agent."""
+        with patch('kubernetes.dynamic.DynamicClient'):
+            mock_api_client = MagicMock()
+            K8sApis.from_api_client(mock_api_client)
+            assert 'eks-mcp-server' in mock_api_client.user_agent
+
+    def test_from_api_client_no_temp_file_cleanup(self):
+        """Test that __del__ does not fail when _ca_cert_file_path is None."""
+        with patch('kubernetes.dynamic.DynamicClient'):
+            mock_api_client = MagicMock()
+            instance = K8sApis.from_api_client(mock_api_client)
+            # Should not raise any errors
+            instance.__del__()
+
+    def test_from_api_client_operations_work(self):
+        """Test that list_resources works on instance created via from_api_client."""
+        with patch('kubernetes.dynamic.DynamicClient') as mock_dynamic_client_cls:
+            mock_api_client = MagicMock()
+            mock_dynamic_client = MagicMock()
+            mock_dynamic_client_cls.return_value = mock_dynamic_client
+
+            mock_resource = MagicMock()
+            mock_dynamic_client.resources.get.return_value = mock_resource
+            mock_resource.get.return_value = MagicMock()
+
+            instance = K8sApis.from_api_client(mock_api_client)
+
+            instance.list_resources('Pod', 'v1', namespace='default')
+            mock_dynamic_client.resources.get.assert_called_with(api_version='v1', kind='Pod')

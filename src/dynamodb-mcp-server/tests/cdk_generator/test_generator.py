@@ -200,7 +200,7 @@ class TestRunCdkInit:
 
         mock_run.assert_called_once()
         args = mock_run.call_args[0][0]
-        assert args == ['npx', 'cdk', 'init', 'app', '--language', 'typescript']
+        assert args == ['npx', 'cdk@latest', 'init', 'app', '--language', 'typescript']
         assert mock_run.call_args[1]['check'] is True
 
     @patch('awslabs.dynamodb_mcp_server.cdk_generator.generator.subprocess.run')

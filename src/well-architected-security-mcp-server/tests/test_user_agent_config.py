@@ -20,7 +20,7 @@ from awslabs.well_architected_security_mcp_server.util.storage_security import (
 
 def test_user_agent_config_is_properly_configured():
     """Test that USER_AGENT_CONFIG is properly configured with the correct user agent string."""
-    expected_user_agent = f"awslabs/mcp/well-architected-security-mcp-server/{__version__}"
+    expected_user_agent = f"md/awslabs#mcp#well-architected-security-mcp-server#{__version__}"
 
     # Test security_services config
     assert isinstance(USER_AGENT_CONFIG, Config)

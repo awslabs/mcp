@@ -44,6 +44,18 @@ HEALTHOMICS_SUPPORTED_REGIONS = [
 ]
 
 
+# ECR Constants
+HEALTHOMICS_PRINCIPAL = 'omics.amazonaws.com'
+ECR_REQUIRED_REGISTRY_ACTIONS = ['ecr:CreateRepository', 'ecr:BatchImportUpstreamImage']
+ECR_REQUIRED_REPOSITORY_ACTIONS = ['ecr:BatchGetImage', 'ecr:GetDownloadUrlForLayer']
+
+# Default ECR repository prefixes
+DEFAULT_ECR_PREFIXES = {
+    'docker-hub': 'docker-hub',
+    'quay': 'quay',
+    'ecr-public': 'ecr-public',
+}
+
 # Storage types
 STORAGE_TYPE_STATIC = 'STATIC'
 STORAGE_TYPE_DYNAMIC = 'DYNAMIC'
@@ -70,8 +82,23 @@ RUN_STATUSES = [
     RUN_STATUS_CANCELLED,
 ]
 
+# Workflow engine types
+WORKFLOW_ENGINES = ['WDL', 'NEXTFLOW', 'CWL', 'WDL_LENIENT']
+
+# Accelerator types
+ACCELERATOR_TYPE_GPU = 'GPU'
+ACCELERATOR_TYPES = [ACCELERATOR_TYPE_GPU]
+
+# Workflow types for GetWorkflow
+GET_WORKFLOW_TYPES = ['PRIVATE', 'READY2RUN']
+
 # Export types
 EXPORT_TYPE_DEFINITION = 'DEFINITION'
+EXPORT_TYPE_README = 'README'
+EXPORT_TYPES = [EXPORT_TYPE_DEFINITION, EXPORT_TYPE_README]
+
+# Agent identification
+AGENT_ENV = 'AGENT'
 
 # Genomics file search configuration
 GENOMICS_SEARCH_S3_BUCKETS_ENV = 'GENOMICS_SEARCH_S3_BUCKETS'
@@ -174,6 +201,10 @@ S3_STORAGE_CLASS_GLACIER_IR = 'GLACIER_IR'
 
 # Error messages
 
+ERROR_INVALID_ENGINE = 'Invalid engine. Must be one of: {}'
+ERROR_INVALID_ACCELERATOR = 'Invalid accelerator. Must be one of: {}'
+ERROR_INVALID_WORKFLOW_TYPE = 'Invalid workflow type. Must be one of: {}'
+ERROR_INVALID_EXPORT_TYPE = 'Invalid export type. Must be one of: {}'
 ERROR_INVALID_STORAGE_TYPE = 'Invalid storage type. Must be one of: {}'
 ERROR_INVALID_CACHE_BEHAVIOR = 'Invalid cache behavior. Must be one of: {}'
 ERROR_INVALID_RUN_STATUS = 'Invalid run status. Must be one of: {}'
@@ -212,3 +243,116 @@ FASTQ_PAIR_PATTERNS = [
 
 # FASTQ file extensions
 FASTQ_EXTENSIONS = ['fastq', 'fq', 'fastq.gz', 'fq.gz']
+
+# Run group constants
+RUN_GROUP_MAX_NAME_LENGTH = 128
+RUN_GROUP_MAX_RESOURCE_LIMIT = 100000
+RUN_GROUP_ID_MAX_LENGTH = 18
+
+# Content resolution defaults
+CONTENT_RESOLVER_MAX_FILE_SIZE_ENV = 'CONTENT_RESOLVER_MAX_FILE_SIZE_MB'
+DEFAULT_CONTENT_RESOLVER_MAX_FILE_SIZE_MB = 100  # 100 MB default
+
+
+# Batch status constants
+BATCH_STATUS_PENDING = 'PENDING'
+BATCH_STATUS_SUBMITTING = 'SUBMITTING'
+BATCH_STATUS_INPROGRESS = 'INPROGRESS'
+BATCH_STATUS_STOPPING = 'STOPPING'
+BATCH_STATUS_CANCELLED = 'CANCELLED'
+BATCH_STATUS_PROCESSED = 'PROCESSED'
+BATCH_STATUS_FAILED = 'FAILED'
+BATCH_STATUS_RUNS_DELETING = 'RUNS_DELETING'
+BATCH_STATUS_RUNS_DELETED = 'RUNS_DELETED'
+
+BATCH_STATUSES = [
+    BATCH_STATUS_PENDING,
+    BATCH_STATUS_SUBMITTING,
+    BATCH_STATUS_INPROGRESS,
+    BATCH_STATUS_STOPPING,
+    BATCH_STATUS_CANCELLED,
+    BATCH_STATUS_PROCESSED,
+    BATCH_STATUS_FAILED,
+    BATCH_STATUS_RUNS_DELETING,
+    BATCH_STATUS_RUNS_DELETED,
+]
+
+# Cancellable batch statuses
+BATCH_CANCELLABLE_STATUSES = [
+    BATCH_STATUS_PENDING,
+    BATCH_STATUS_SUBMITTING,
+    BATCH_STATUS_INPROGRESS,
+]
+
+# Deletable batch statuses (for DeleteRunBatch)
+BATCH_RUN_DELETABLE_STATUSES = [
+    BATCH_STATUS_PROCESSED,
+    BATCH_STATUS_CANCELLED,
+]
+
+# Terminal batch statuses (for DeleteBatch)
+BATCH_TERMINAL_STATUSES = [
+    BATCH_STATUS_PROCESSED,
+    BATCH_STATUS_FAILED,
+    BATCH_STATUS_CANCELLED,
+    BATCH_STATUS_RUNS_DELETED,
+]
+
+# Submission status constants
+SUBMISSION_STATUS_SUCCESS = 'SUCCESS'
+SUBMISSION_STATUS_FAILED = 'FAILED'
+SUBMISSION_STATUS_CANCEL_SUCCESS = 'CANCEL_SUCCESS'
+SUBMISSION_STATUS_CANCEL_FAILED = 'CANCEL_FAILED'
+SUBMISSION_STATUS_DELETE_SUCCESS = 'DELETE_SUCCESS'
+SUBMISSION_STATUS_DELETE_FAILED = 'DELETE_FAILED'
+
+SUBMISSION_STATUSES = [
+    SUBMISSION_STATUS_SUCCESS,
+    SUBMISSION_STATUS_FAILED,
+    SUBMISSION_STATUS_CANCEL_SUCCESS,
+    SUBMISSION_STATUS_CANCEL_FAILED,
+    SUBMISSION_STATUS_DELETE_SUCCESS,
+    SUBMISSION_STATUS_DELETE_FAILED,
+]
+
+# Error messages for batch operations
+ERROR_INVALID_BATCH_STATUS = 'Invalid batch status. Must be one of: {}'
+ERROR_INVALID_SUBMISSION_STATUS = 'Invalid submission status. Must be one of: {}'
+ERROR_BATCH_NOT_CANCELLABLE = 'Batch cannot be cancelled. Status must be one of: {}'
+ERROR_BATCH_RUNS_NOT_DELETABLE = 'Batch runs cannot be deleted. Status must be one of: {}'
+ERROR_BATCH_NOT_DELETABLE = 'Batch cannot be deleted. Status must be one of: {}'
+ERROR_INVALID_BATCH_RUN_SETTINGS = (
+    'batchRunSettings must contain either inlineSettings or s3UriSettings, but not both'
+)
+
+# Networking modes
+NETWORKING_MODE_RESTRICTED = 'RESTRICTED'
+NETWORKING_MODE_VPC = 'VPC'
+NETWORKING_MODES = [NETWORKING_MODE_RESTRICTED, NETWORKING_MODE_VPC]
+
+# Configuration statuses
+CONFIGURATION_STATUS_CREATING = 'CREATING'
+CONFIGURATION_STATUS_ACTIVE = 'ACTIVE'
+CONFIGURATION_STATUS_DELETING = 'DELETING'
+CONFIGURATION_STATUS_DELETED = 'DELETED'
+CONFIGURATION_STATUSES = [
+    CONFIGURATION_STATUS_CREATING,
+    CONFIGURATION_STATUS_ACTIVE,
+    CONFIGURATION_STATUS_DELETING,
+    CONFIGURATION_STATUS_DELETED,
+]
+
+# Configuration constraints
+CONFIGURATION_NAME_MAX_LENGTH = 50
+RESERVED_CONFIGURATION_NAMES = ['default']
+
+# Error messages for configuration and networking operations
+ERROR_INVALID_NETWORKING_MODE = 'Invalid networking mode. Must be one of: {}'
+ERROR_VPC_MODE_REQUIRES_CONFIGURATION_NAME = (
+    'configuration_name is required when networking_mode is VPC'
+)
+ERROR_CONFIGURATION_NAME_REQUIRES_VPC_MODE = (
+    'configuration_name requires networking_mode to be VPC'
+)
+ERROR_RESERVED_CONFIGURATION_NAME = "Configuration name '{}' is reserved and cannot be used"
+ERROR_CONFIGURATION_NAME_TOO_LONG = 'Configuration name exceeds maximum length of {} characters'

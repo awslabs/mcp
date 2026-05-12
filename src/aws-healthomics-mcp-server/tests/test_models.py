@@ -960,3 +960,168 @@ def test_storage_pagination_request():
 
     with pytest.raises(ValueError, match='max_results cannot exceed 10000'):
         StoragePaginationRequest(max_results=15000)
+
+
+# Tests for DefinitionRepository model validation
+
+
+class TestDefinitionRepositoryModel:
+    """Test cases for DefinitionRepository model validation."""
+
+    def test_definition_repository_valid(self):
+        """Test DefinitionRepository with valid data."""
+        from awslabs.aws_healthomics_mcp_server.models.core import (
+            DefinitionRepository,
+            SourceReference,
+            SourceReferenceType,
+        )
+
+        repo = DefinitionRepository(
+            connection_arn='arn:aws:codeconnections:us-east-1:123456789012:connection/abc-123',
+            full_repository_id='owner/repo',
+            source_reference=SourceReference(type=SourceReferenceType.BRANCH, value='main'),
+        )
+
+        assert (
+            repo.connection_arn
+            == 'arn:aws:codeconnections:us-east-1:123456789012:connection/abc-123'
+        )
+        assert repo.full_repository_id == 'owner/repo'
+        assert repo.source_reference.type.value == 'BRANCH'
+        assert repo.source_reference.value == 'main'
+
+    def test_definition_repository_empty_full_repository_id(self):
+        """Test DefinitionRepository rejects empty full_repository_id."""
+        from awslabs.aws_healthomics_mcp_server.models.core import (
+            DefinitionRepository,
+            SourceReference,
+            SourceReferenceType,
+        )
+
+        with pytest.raises(ValidationError) as exc_info:
+            DefinitionRepository(
+                connection_arn='arn:aws:codeconnections:us-east-1:123456789012:connection/abc-123',
+                full_repository_id='',  # Empty string
+                source_reference=SourceReference(type=SourceReferenceType.BRANCH, value='main'),
+            )
+
+        assert 'full_repository_id cannot be empty' in str(exc_info.value)
+
+    def test_definition_repository_whitespace_full_repository_id(self):
+        """Test DefinitionRepository rejects whitespace-only full_repository_id."""
+        from awslabs.aws_healthomics_mcp_server.models.core import (
+            DefinitionRepository,
+            SourceReference,
+            SourceReferenceType,
+        )
+
+        with pytest.raises(ValidationError) as exc_info:
+            DefinitionRepository(
+                connection_arn='arn:aws:codeconnections:us-east-1:123456789012:connection/abc-123',
+                full_repository_id='   ',  # Whitespace only
+                source_reference=SourceReference(type=SourceReferenceType.BRANCH, value='main'),
+            )
+
+        assert 'full_repository_id cannot be empty' in str(exc_info.value)
+
+    def test_definition_repository_invalid_connection_arn(self):
+        """Test DefinitionRepository rejects invalid connection_arn."""
+        from awslabs.aws_healthomics_mcp_server.models.core import (
+            DefinitionRepository,
+            SourceReference,
+            SourceReferenceType,
+        )
+
+        with pytest.raises(ValidationError) as exc_info:
+            DefinitionRepository(
+                connection_arn='invalid-arn',  # Invalid ARN format
+                full_repository_id='owner/repo',
+                source_reference=SourceReference(type=SourceReferenceType.BRANCH, value='main'),
+            )
+
+        assert 'connection_arn must be a valid AWS CodeConnection ARN' in str(exc_info.value)
+
+    def test_definition_repository_with_exclude_patterns(self):
+        """Test DefinitionRepository with exclude_file_patterns."""
+        from awslabs.aws_healthomics_mcp_server.models.core import (
+            DefinitionRepository,
+            SourceReference,
+            SourceReferenceType,
+        )
+
+        repo = DefinitionRepository(
+            connection_arn='arn:aws:codeconnections:us-east-1:123456789012:connection/abc-123',
+            full_repository_id='owner/repo',
+            source_reference=SourceReference(type=SourceReferenceType.TAG, value='v1.0.0'),
+            exclude_file_patterns=['*.md', 'tests/*', '.github/*'],
+        )
+
+        assert repo.exclude_file_patterns == ['*.md', 'tests/*', '.github/*']
+
+
+class TestSourceReferenceModel:
+    """Test cases for SourceReference model validation."""
+
+    def test_source_reference_valid_branch(self):
+        """Test SourceReference with valid BRANCH type."""
+        from awslabs.aws_healthomics_mcp_server.models.core import (
+            SourceReference,
+            SourceReferenceType,
+        )
+
+        ref = SourceReference(type=SourceReferenceType.BRANCH, value='main')
+        assert ref.type.value == 'BRANCH'
+        assert ref.value == 'main'
+
+    def test_source_reference_valid_tag(self):
+        """Test SourceReference with valid TAG type."""
+        from awslabs.aws_healthomics_mcp_server.models.core import (
+            SourceReference,
+            SourceReferenceType,
+        )
+
+        ref = SourceReference(type=SourceReferenceType.TAG, value='v1.0.0')
+        assert ref.type.value == 'TAG'
+        assert ref.value == 'v1.0.0'
+
+    def test_source_reference_valid_commit_id(self):
+        """Test SourceReference with valid COMMIT_ID type."""
+        from awslabs.aws_healthomics_mcp_server.models.core import (
+            SourceReference,
+            SourceReferenceType,
+        )
+
+        ref = SourceReference(type=SourceReferenceType.COMMIT_ID, value='abc')
+        assert ref.type.value == 'COMMIT_ID'
+        assert ref.value == 'abc'
+
+    def test_source_reference_empty_value(self):
+        """Test SourceReference rejects empty value."""
+        from awslabs.aws_healthomics_mcp_server.models.core import (
+            SourceReference,
+            SourceReferenceType,
+        )
+
+        with pytest.raises(ValidationError) as exc_info:
+            SourceReference(type=SourceReferenceType.BRANCH, value='')
+
+        assert 'source_reference.value cannot be empty' in str(exc_info.value)
+
+    def test_source_reference_whitespace_value(self):
+        """Test SourceReference rejects whitespace-only value."""
+        from awslabs.aws_healthomics_mcp_server.models.core import (
+            SourceReference,
+            SourceReferenceType,
+        )
+
+        with pytest.raises(ValidationError) as exc_info:
+            SourceReference(type=SourceReferenceType.TAG, value='   ')
+
+        assert 'source_reference.value cannot be empty' in str(exc_info.value)
+
+    def test_source_reference_invalid_type(self):
+        """Test SourceReference rejects invalid type."""
+        from awslabs.aws_healthomics_mcp_server.models.core import SourceReference
+
+        with pytest.raises(ValidationError):
+            SourceReference(type='INVALID_TYPE', value='main')  # type: ignore[arg-type]

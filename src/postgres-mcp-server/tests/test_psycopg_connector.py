@@ -959,6 +959,40 @@ class TestPsycopgConnector:
             mock_pool_class.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_initialize_pool_open_failure_sets_pool_to_none(self):
+        """Test that pool is set to None when pool.open() fails."""
+        from psycopg_pool import PoolTimeout
+
+        with (
+            patch(
+                'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.AsyncConnectionPool'
+            ) as mock_pool_class,
+            patch.object(PsycopgPoolConnection, '_get_credentials_from_secret') as mock_get_creds,
+        ):
+            mock_pool = AsyncMock()
+            mock_pool.open.side_effect = PoolTimeout('pool initialization incomplete after 30 sec')
+            mock_pool_class.return_value = mock_pool
+            mock_get_creds.return_value = ('db_user', 'db_password')
+
+            conn = PsycopgPoolConnection(
+                host='localhost',
+                port=5432,
+                database='test_db',
+                readonly=False,
+                secret_arn='arn:secret',
+                db_user='',
+                is_iam_auth=False,
+                region='us-east-1',
+                is_test=True,
+            )
+
+            with pytest.raises(PoolTimeout):
+                await conn.initialize_pool()
+
+            # Pool should be set to None so callers don't use a closed pool
+            assert conn.pool is None
+
+    @pytest.mark.asyncio
     async def test_check_expiry_not_expired(self):
         """Test check_expiry when pool is not expired."""
         with patch('psycopg_pool.AsyncConnectionPool') as mock_pool_class:

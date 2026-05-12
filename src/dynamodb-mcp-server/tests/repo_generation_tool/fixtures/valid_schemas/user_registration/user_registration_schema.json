@@ -1,0 +1,159 @@
+{
+  "cross_table_access_patterns": [
+    {
+      "description": "Create user and email lookup atomically",
+      "entities_involved": [
+        {
+          "action": "Put",
+          "condition": "attribute_not_exists(pk)",
+          "entity": "User",
+          "table": "Users"
+        },
+        {
+          "action": "Put",
+          "condition": "attribute_not_exists(pk)",
+          "entity": "EmailLookup",
+          "table": "EmailLookup"
+        }
+      ],
+      "name": "register_user",
+      "operation": "TransactWrite",
+      "parameters": [
+        {
+          "entity_type": "User",
+          "name": "user",
+          "type": "entity"
+        },
+        {
+          "entity_type": "EmailLookup",
+          "name": "email_lookup",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 100,
+      "return_type": "boolean"
+    },
+    {
+      "description": "Delete user and email lookup atomically",
+      "entities_involved": [
+        {
+          "action": "Delete",
+          "condition": "attribute_exists(pk)",
+          "entity": "User",
+          "table": "Users"
+        },
+        {
+          "action": "Delete",
+          "condition": "attribute_exists(pk)",
+          "entity": "EmailLookup",
+          "table": "EmailLookup"
+        }
+      ],
+      "name": "delete_user_with_email",
+      "operation": "TransactWrite",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        },
+        {
+          "name": "email",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 101,
+      "return_type": "boolean"
+    },
+    {
+      "description": "Get user and email lookup atomically",
+      "entities_involved": [
+        {
+          "action": "Get",
+          "entity": "User",
+          "table": "Users"
+        },
+        {
+          "action": "Get",
+          "entity": "EmailLookup",
+          "table": "EmailLookup"
+        }
+      ],
+      "name": "get_user_and_email",
+      "operation": "TransactGet",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        },
+        {
+          "name": "email",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 102,
+      "return_type": "object"
+    }
+  ],
+  "tables": [
+    {
+      "entities": {
+        "User": {
+          "access_patterns": [],
+          "entity_type": "USER",
+          "fields": [
+            {
+              "name": "user_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "email",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "full_name",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "created_at",
+              "required": true,
+              "type": "string"
+            }
+          ],
+          "pk_template": "USER#{user_id}"
+        }
+      },
+      "table_config": {
+        "partition_key": "pk",
+        "table_name": "Users"
+      }
+    },
+    {
+      "entities": {
+        "EmailLookup": {
+          "access_patterns": [],
+          "entity_type": "EMAIL_LOOKUP",
+          "fields": [
+            {
+              "name": "email",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "user_id",
+              "required": true,
+              "type": "string"
+            }
+          ],
+          "pk_template": "EMAIL#{email}"
+        }
+      },
+      "table_config": {
+        "partition_key": "pk",
+        "table_name": "EmailLookup"
+      }
+    }
+  ]
+}

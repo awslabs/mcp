@@ -76,13 +76,15 @@ async def test_package_workflow_basic():
         ctx=mock_ctx,
         main_file_content=SAMPLE_WDL_WORKFLOW,
         main_file_name='main.wdl',
-        additional_files=None,  # Explicitly pass None for optional parameter
+        additional_files=None,
+        output_path=None,
     )
 
     # Verify result is a base64 string
     assert isinstance(result, str)
 
     # Decode base64 string
+    assert isinstance(result, str)
     zip_data = base64.b64decode(result)
 
     # Read ZIP contents
@@ -112,9 +114,11 @@ async def test_package_workflow_with_additional_files():
         main_file_content=SAMPLE_WDL_WORKFLOW,
         main_file_name='main.wdl',
         additional_files=additional_files,
+        output_path=None,
     )
 
     # Decode base64 string
+    assert isinstance(result, str)
     zip_data = base64.b64decode(result)
 
     # Read ZIP contents
@@ -149,11 +153,13 @@ async def test_package_workflow_default_filename():
     result = await package_workflow(
         ctx=mock_ctx,
         main_file_content=SAMPLE_WDL_WORKFLOW,
-        main_file_name='main.wdl',  # Explicitly provide default value
+        main_file_name='main.wdl',
         additional_files=None,
+        output_path=None,
     )
 
     # Decode base64 string
+    assert isinstance(result, str)
     zip_data = base64.b64decode(result)
 
     # Read ZIP contents
@@ -172,9 +178,11 @@ async def test_package_workflow_cwl_file():
         main_file_content=SAMPLE_CWL_WORKFLOW,
         main_file_name='workflow.cwl',
         additional_files=None,
+        output_path=None,
     )
 
     # Decode base64 string
+    assert isinstance(result, str)
     zip_data = base64.b64decode(result)
 
     # Read ZIP contents
@@ -206,9 +214,11 @@ async def test_package_workflow_with_subdirectories():
         main_file_content=SAMPLE_WDL_WORKFLOW,
         main_file_name='main.wdl',
         additional_files=additional_files,
+        output_path=None,
     )
 
     # Decode base64 string
+    assert isinstance(result, str)
     zip_data = base64.b64decode(result)
 
     # Read ZIP contents
@@ -236,10 +246,12 @@ async def test_package_workflow_empty_additional_files():
         ctx=mock_ctx,
         main_file_content=SAMPLE_WDL_WORKFLOW,
         main_file_name='main.wdl',
-        additional_files={},  # Empty dict instead of None
+        additional_files={},
+        output_path=None,
     )
 
     # Decode base64 string
+    assert isinstance(result, str)
     zip_data = base64.b64decode(result)
 
     # Read ZIP contents
@@ -260,17 +272,17 @@ async def test_package_workflow_error_handling():
     ) as mock_create_zip:
         mock_create_zip.side_effect = Exception('ZIP creation failed')
 
-        with pytest.raises(Exception, match='ZIP creation failed'):
-            await package_workflow(
-                ctx=mock_ctx,
-                main_file_content=SAMPLE_WDL_WORKFLOW,
-                main_file_name='main.wdl',
-                additional_files=None,
-            )
+        result = await package_workflow(
+            ctx=mock_ctx,
+            main_file_content=SAMPLE_WDL_WORKFLOW,
+            main_file_name='main.wdl',
+            additional_files=None,
+            output_path=None,
+        )
 
-        # Verify error was reported to context
-        mock_ctx.error.assert_called_once()
-        assert 'Error packaging workflow' in mock_ctx.error.call_args[0][0]
+        assert isinstance(result, dict)
+        assert 'error' in result
+        assert 'Error packaging workflow' in result['error']
 
 
 @pytest.mark.asyncio
@@ -286,9 +298,11 @@ async def test_package_workflow_large_files():
         main_file_content=large_content,
         main_file_name='large.wdl',
         additional_files=None,
+        output_path=None,
     )
 
     # Decode base64 string
+    assert isinstance(result, str)
     zip_data = base64.b64decode(result)
 
     # Read ZIP contents
@@ -317,9 +331,11 @@ workflow SpecialChars {
         main_file_content=special_content,
         main_file_name='special.wdl',
         additional_files=None,
+        output_path=None,
     )
 
     # Decode base64 string
+    assert isinstance(result, str)
     zip_data = base64.b64decode(result)
 
     # Read ZIP contents

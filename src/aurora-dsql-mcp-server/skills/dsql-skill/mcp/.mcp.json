@@ -2,30 +2,17 @@
   "mcpServers": {
     "aurora-dsql": {
       "args": [
-        "awslabs.aurora-dsql-mcp-server@latest",
-        "--cluster_endpoint",
-        "${CLUSTER}.dsql.${REGION}.on.aws",
-        "--region",
-        "${REGION}",
-        "--database_user",
-        "admin",
-        "--allow-writes"
+        "awslabs.aurora-dsql-mcp-server@latest"
       ],
       "command": "uvx",
+      "disabled": false,
       "env": {
-        "AWS_PROFILE": "${AWS_PROFILE}",
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
     },
-    "aws-core": {
-      "args": [
-        "awslabs.core-mcp-server@latest"
-      ],
-      "command": "uvx",
-      "disabled": true,
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      }
+    "awsknowledge": {
+      "type": "http",
+      "url": "https://knowledge-mcp.global.api.aws"
     }
   }
 }

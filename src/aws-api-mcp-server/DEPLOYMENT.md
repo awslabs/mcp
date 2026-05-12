@@ -76,13 +76,13 @@ AgentCore handles all inbound authentication at the runtime level, which means t
 **How it works**:
 
 1. Your MCP client uses local AWS credentials
-2. AWS MCP Proxy handles SigV4 signing and forwards requests to AgentCore
+2. MCP Proxy for AWS handles SigV4 signing and forwards requests to AgentCore
 3. AgentCore validates the signature and routes to your MCP server
 
 **Requirements**:
 
 * AWS credentials configured locally (`aws configure`)
-* AWS MCP Proxy: https://github.com/aws/mcp-proxy-for-aws
+* MCP Proxy for AWS: https://github.com/aws/mcp-proxy-for-aws
 
 #### MCP Proxy for AWS
 
@@ -475,7 +475,7 @@ Configure your MCP client to use the bearer token with your AgentCore endpoint.
 ## Support and Resources
 
 * **Report Issues on GitHub**: [Create New Issue](https://github.com/awslabs/mcp/issues/new/choose)
-* **AWS MCP Proxy**: https://github.com/aws/mcp-proxy-for-aws
+* **MCP Proxy for AWS**: https://github.com/aws/mcp-proxy-for-aws
 * **AgentCore Documentation**: [Amazon Bedrock AgentCore](https://docs.aws.amazon.com/bedrock-agentcore/)
 * **Bedrock AgentCore Runtime MCP Documentation**: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-mcp.html
 * **MCP Protocol Documentation**: [Model Context Protocol](https://modelcontextprotocol.io/)

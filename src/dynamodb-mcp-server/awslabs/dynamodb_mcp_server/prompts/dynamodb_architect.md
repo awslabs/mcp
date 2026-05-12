@@ -22,7 +22,7 @@ Which approach would you prefer?"
 
 ### If User Selects Database Analysis
 
-"Great! The `source_db_analyzer` tool supports MySQL, PostgreSQL, and SQL Server. It can work in two modes:
+"Great! The `source_db_analyzer` tool supports MySQL, PostgreSQL, SQL Server, and Oracle. It can work in two modes:
 1. **Self-Service Mode**: I generate SQL queries, you run them, then provide results
 2. **Managed Mode** (MySQL only): Two connection options available:
    - **RDS Data API-based access**: Serverless connection using Aurora cluster ARN (requires `aws_cluster_arn`)
@@ -197,8 +197,8 @@ A markdown table which shows 5-10 representative items for the table
 
 - **Purpose**: [what this table stores and why this design was chosen]
 - **Aggregate Boundary**: [what data is grouped together in this table and why]
-- **Partition Key**: [field] - [detailed justification including distribution reasoning, whether it's an identifying relationhip and if so why]
-- **Sort Key**: [field] - [justification including query patterns enabled]
+- **Partition Key**: [field] - [detailed justification including distribution reasoning, whether it's an identifying relationship and if so why. If composite, use string concatenation e.g. clinic_id#patient_id — multi-attribute keys are NOT supported on base tables]
+- **Sort Key**: [field] - [justification including query patterns enabled. If composite, use string concatenation e.g. status#date — multi-attribute keys are NOT supported on base tables]
 - **SK Taxonomy**: [list SK prefixes and their semantics; e.g., `PROFILE`, `ORDER#<id>`, `PAYMENT#<id>`]
 - **Attributes**: [list all key attributes with data types]
 - **Bounded Read Strategy**: [SK prefixes/ranges; typical page size and pagination plan]
@@ -229,10 +229,23 @@ A markdown table which shows 5-10 representative items for the index. You MUST e
 
 ## Access Pattern Mapping
 
-[Show how each pattern maps to table operations and critical implementation notes]
+🔴 **CRITICAL**: You MUST output this section with all access patterns, showing how each maps to DynamoDB operations.
 
-| Pattern | Description | Tables/Indexes | DynamoDB Operations | Implementation Notes |
-| ------- | ----------- | -------------- | ------------------- | -------------------- |
+| Pattern # | Description | Type | Peak RPS | Items Returned | Avg Item Size | Table/GSI Used | DynamoDB Operations | Implementation Notes |
+|-----------|-------------|------|----------|----------------|---------------|----------------|---------------------|----------------------|
+| 1 | Get user profile by user ID | GetItem | 500 | 1 | 2 KB | Users | GetItem(PK=user_id) | Simple PK lookup |
+| 2 | Create new user account | PutItem | 50 | - | 2 KB | Users | PutItem with ConditionExpression | Check email uniqueness |
+| 3 | Query orders by user | Query | 300 | 10 | 5 KB | Orders-ByUser-GSI | Query(PK=user_id) | Paginate with LastEvaluatedKey |
+| 4 | Get order details | GetItem | 200 | 1 | 5 KB | Orders | GetItem(PK=order_id) | Include order items |
+
+**Instructions for User**: Update RPS, items returned, and item size values based on your actual workload. Agent estimates are based on requirements gathering.
+
+**Column Definitions**:
+- **Type**: GetItem, PutItem, UpdateItem, DeleteItem, Query, Scan, BatchGetItem, BatchWriteItem, TransactWriteItems, TransactGetItems
+- **Items Returned**: For Query/Scan operations, average number of items returned per request (use "-" for single-item operations)
+- **Avg Item Size**: Average size per item in KB (used to calculate RCU/WCU consumption)
+- **DynamoDB Operations**: Specific API calls with key conditions
+- **Implementation Notes**: Critical details for implementing the pattern
 
 ## Hot Partition Analysis
 - **MainTable**: Pattern #1 at 500 RPS distributed across ~10K users = 0.05 RPS per partition ✅
@@ -255,14 +268,36 @@ A markdown table which shows 5-10 representative items for the index. You MUST e
 - [ ] Every access pattern solved or alternative provided ✅
 - [ ] Unnecessary GSIs are removed and solved with an identifying relationship ✅
 - [ ] Multi-attribute keys used for GSI instead of composite string keys where applicable ✅
+- [ ] Base table keys use single attributes or composite strings (NOT multi-attribute keys) ✅
 - [ ] All tables and GSIs documented with full justification ✅
 - [ ] Hot partition analysis completed ✅
-- [ ] Cost estimates provided for high-volume operations ✅
 - [ ] Trade-offs explicitly documented and justified ✅
 - [ ] Integration patterns detailed for non-DynamoDB functionality ✅
 - [ ] No Scans used to solve access patterns ✅
 - [ ] Cross-referenced against `dynamodb_requirement.md` for accuracy ✅
+- [ ] Capacity and cost analysis completed using `compute_performances_and_costs` tool ✅
 ```
+
+🔴 **CRITICAL**: After completing the data model design, you MUST call the `compute_performances_and_costs` tool to generate capacity and cost analysis.
+
+**Tool Parameters:**
+
+1. **access_pattern_list** (required): Extract from Access Pattern Mapping table above
+   - Common fields: `operation`, `pattern`, `description`, `table`, `rps`, `item_size_bytes`
+   - For Query/Scan/Batch/Transact operations: add `item_count`
+   - For read operations (GetItem, Query, Scan, BatchGetItem): add `strongly_consistent` (default: false)
+   - For Query/Scan on GSI: add `gsi` (GSI name)
+   - For write operations affecting GSIs: add `gsi_list` (array of GSI names)
+
+2. **table_list** (required): Extract from Table Designs section above
+   - Each table needs: `name`, `item_count`, `item_size_bytes`
+   - Include `gsi_list` array with each GSI's `name`, `item_count`, `item_size_bytes`
+
+3. **workspace_dir** (required): Absolute path to the directory containing `dynamodb_data_model.md`
+
+**Size Hierarchy Rule:** `AccessPattern.item_size_bytes` ≤ `GSI.item_size_bytes` ≤ `Table.item_size_bytes`
+
+**Returns:** `{'status': 'success'|'error', 'message': <summary_or_error>}`
 
 ## Communication Guidelines
 
@@ -509,7 +544,9 @@ Decision: Separate Aggregates (not even same table)
 • Orders table: PK: order_id, with GSI on customer_id
 • Benefits: Independent scaling, clear boundaries
 
-### Multi-Attribute Keys for GSIs
+### Multi-Attribute Keys (GSI-ONLY Feature)
+
+🔴 **CRITICAL**: Multi-attribute keys are a GSI-ONLY feature. Base table KeySchema must have exactly 1 HASH key and at most 1 RANGE key. NEVER use multi-attribute keys on base tables — DynamoDB does not support them. For base tables needing composite keys, use string concatenation (e.g., `clinic_id#patient_id` as a single key attribute).
 
 Multi-attribute keys compose GSI keys from up to 4 attributes each (8 total). They eliminate string concatenation, maintain type safety, and simplify backfilling.
 
@@ -575,20 +612,28 @@ Query(timestamp BETWEEN start AND end AND status = "ERROR")  // FAILS
 
 #### Multi-Attribute vs Composite Strings
 
-🔴 **CRITICAL**: ALWAYS use multi-attribute keys for GSIs. NEVER use composite strings (key1#key2).
+🔴 **CRITICAL**: ALWAYS use multi-attribute keys for GSIs. NEVER use composite strings (key1#key2) for GSIs. NEVER use multi-attribute keys for base tables — they are not supported by DynamoDB.
 
 ```javascript
-// ❌ WRONG: Composite string
+// ❌ WRONG: Composite string in GSI
 SK: status#created_at
 Query: SK begins_with "PREPARING#"
 
-// ✅ CORRECT: Multi-attribute
+// ✅ CORRECT: Multi-attribute in GSI
 SK: status, created_at
 Query: status = "PREPARING" AND created_at > "2026-01-01"
+
+// ❌ WRONG: Multi-attribute key on base table
+Base Table PK: clinic_id, patient_id  // DynamoDB rejects this
+Base Table SK: diagnosis_code, diagnosis_date  // DynamoDB rejects this
+
+// ✅ CORRECT: Composite string on base table
+Base Table PK: clinic_id#patient_id  // Single concatenated attribute
+Base Table SK: diagnosis_code#diagnosis_date  // Single concatenated attribute
 ```
 **When to use each:**
-- **Multi-attribute keys**: ALWAYS for GSIs
-- **Composite strings**: ONLY for base table
+- **Multi-attribute keys**: ALWAYS for GSIs, NEVER for base tables
+- **Composite strings**: ONLY for base tables when you need composite keys
 
 **Why multi-attribute is better:**
 - Type safety (no parsing)

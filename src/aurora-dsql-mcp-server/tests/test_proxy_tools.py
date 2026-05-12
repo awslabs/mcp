@@ -233,3 +233,63 @@ async def test_proxy_uses_configured_server_endpoint(mock_ctx):
     finally:
         # Restore original server
         server_module.knowledge_server = original_server
+
+
+@pytest.mark.asyncio
+async def test_proxy_to_knowledge_server_content_text_response(mock_ctx):
+    """Test proxy request when response has content with text type (no result key)."""
+    with patch('httpx.AsyncClient') as mock_client:
+        mock_response = MagicMock()
+        # Response has 'content' but no 'result' key
+        mock_response.json.return_value = {
+            'content': [{'type': 'text', 'text': '{"parsed": "data"}'}]
+        }
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client.return_value.__aenter__.return_value.post = AsyncMock(
+            return_value=mock_response
+        )
+
+        result = await _proxy_to_knowledge_server('test_method', {'param': 'value'}, mock_ctx)
+
+        assert result == {'parsed': 'data'}
+
+
+@pytest.mark.asyncio
+async def test_proxy_to_knowledge_server_content_non_text_response(mock_ctx):
+    """Test proxy request when response has content but not text type."""
+    with patch('httpx.AsyncClient') as mock_client:
+        mock_response = MagicMock()
+        # Response has 'content' with non-text type
+        mock_response.json.return_value = {
+            'content': [{'type': 'image', 'data': 'base64stuff'}]
+        }
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client.return_value.__aenter__.return_value.post = AsyncMock(
+            return_value=mock_response
+        )
+
+        result = await _proxy_to_knowledge_server('test_method', {'param': 'value'}, mock_ctx)
+
+        assert result == {'content': [{'type': 'image', 'data': 'base64stuff'}]}
+
+
+@pytest.mark.asyncio
+async def test_proxy_to_knowledge_server_empty_content_response(mock_ctx):
+    """Test proxy request when response has empty content list."""
+    with patch('httpx.AsyncClient') as mock_client:
+        mock_response = MagicMock()
+        # Response has empty 'content' and no 'result'
+        mock_response.json.return_value = {
+            'content': []
+        }
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client.return_value.__aenter__.return_value.post = AsyncMock(
+            return_value=mock_response
+        )
+
+        result = await _proxy_to_knowledge_server('test_method', {'param': 'value'}, mock_ctx)
+
+        assert result == {'content': []}

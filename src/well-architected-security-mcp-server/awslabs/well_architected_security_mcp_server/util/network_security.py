@@ -18,15 +18,9 @@ from typing import Any, Dict, List
 
 import boto3
 import botocore.exceptions
-from botocore.config import Config
 from mcp.server.fastmcp import Context
 
-from awslabs.well_architected_security_mcp_server import __version__
-
-# User agent configuration for AWS API calls
-USER_AGENT_CONFIG = Config(
-    user_agent_extra=f"awslabs/mcp/well-architected-security-mcp-server/{__version__}"
-)
+from awslabs.well_architected_security_mcp_server.consts import USER_AGENT_CONFIG
 
 # Acceptable TLS versions for secure data in transit
 ACCEPTABLE_TLS_VERSIONS = ["TLSv1.2", "TLSv1.3"]

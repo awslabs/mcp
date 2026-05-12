@@ -1,5 +1,5 @@
 ---
-title: AWS MCP Servers - Samples
+title: Open Source MCP servers for AWS - Samples
 ---
 
 import ReadmeContent from "../../../samples/README.md";

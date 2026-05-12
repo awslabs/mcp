@@ -22,6 +22,7 @@ import boto3
 import json
 from asyncmy import Pool, create_pool
 from awslabs.mysql_mcp_server.connection.abstract_db_connection import AbstractDBConnection
+from awslabs.mysql_mcp_server.constants import USER_AGENT_CONFIG
 from loguru import logger
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -227,7 +228,9 @@ def _get_credentials_from_secret(secret_arn: str, region: str) -> Tuple[str, str
         # Create a Secrets Manager client
         logger.info(f'Creating Secrets Manager client in region {region}')
         session = boto3.Session()
-        client = session.client(service_name='secretsmanager', region_name=region)
+        client = session.client(
+            service_name='secretsmanager', region_name=region, config=USER_AGENT_CONFIG
+        )
 
         # Get the secret value
         logger.info(f'Retrieving secret value for {secret_arn}')

@@ -62,5 +62,5 @@ class TestAwsHelper:
                 assert config is not None
                 assert (
                     config.user_agent_extra
-                    == f'awslabs/mcp/aws-stepfunctions-tool-mcp-server/{__version__}'
+                    == f'md/awslabs#mcp#stepfunctions-tool-mcp-server#{__version__}'
                 )

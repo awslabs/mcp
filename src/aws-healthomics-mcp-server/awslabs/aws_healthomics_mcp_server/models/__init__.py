@@ -20,6 +20,7 @@ from .core import (
     AnalysisResult,
     CacheBehavior,
     ContainerRegistryMap,
+    DefinitionRepository,
     ExportType,
     ImageMapping,
     LogEvent,
@@ -28,6 +29,8 @@ from .core import (
     RunListResponse,
     RunStatus,
     RunSummary,
+    SourceReference,
+    SourceReferenceType,
     StorageRequest,
     StorageType,
     TaskListResponse,
@@ -37,6 +40,22 @@ from .core import (
     WorkflowType,
 )
 
+# ECR models
+from .ecr import (
+    CloneContainerResponse,
+    ContainerAvailabilityResponse,
+    ContainerImage,
+    ECRRepository,
+    ECRRepositoryListResponse,
+    HealthOmicsAccessStatus,
+    PullThroughCacheListResponse,
+    PullThroughCacheRule,
+    UpstreamRegistry,
+    UPSTREAM_REGISTRY_URLS,
+    ValidationIssue,
+    ValidationResult,
+)
+
 # S3 file models and utilities
 from .s3 import (
     S3File,
@@ -44,6 +63,23 @@ from .s3 import (
     create_s3_file_from_object,
     get_s3_file_associations,
     parse_s3_uri,
+)
+
+# Store management models
+from .store import (
+    ImportJobStatus,
+    ReadSetFileType,
+    ReadSetImportSource,
+    ReadSetStatus,
+    ReadSetSummary,
+    ReferenceImportSource,
+    ReferenceStatus,
+    ReferenceStoreDetail,
+    ReferenceStoreSummary,
+    ReferenceSummary,
+    SequenceStoreDetail,
+    SequenceStoreSummary,
+    SourceFiles,
 )
 
 # Search models and utilities
@@ -70,6 +106,7 @@ __all__ = [
     'AnalysisResult',
     'CacheBehavior',
     'ContainerRegistryMap',
+    'DefinitionRepository',
     'ExportType',
     'ImageMapping',
     'LogEvent',
@@ -78,6 +115,8 @@ __all__ = [
     'RunListResponse',
     'RunStatus',
     'RunSummary',
+    'SourceReference',
+    'SourceReferenceType',
     'StorageRequest',
     'StorageType',
     'TaskListResponse',
@@ -85,12 +124,39 @@ __all__ = [
     'WorkflowListResponse',
     'WorkflowSummary',
     'WorkflowType',
+    # ECR models
+    'CloneContainerResponse',
+    'ContainerAvailabilityResponse',
+    'ContainerImage',
+    'ECRRepository',
+    'ECRRepositoryListResponse',
+    'HealthOmicsAccessStatus',
+    'PullThroughCacheListResponse',
+    'PullThroughCacheRule',
+    'UpstreamRegistry',
+    'UPSTREAM_REGISTRY_URLS',
+    'ValidationIssue',
+    'ValidationResult',
     # S3 models
     'S3File',
     'build_s3_uri',
     'create_s3_file_from_object',
     'get_s3_file_associations',
     'parse_s3_uri',
+    # Store models
+    'ImportJobStatus',
+    'ReadSetFileType',
+    'ReadSetImportSource',
+    'ReadSetStatus',
+    'ReadSetSummary',
+    'ReferenceImportSource',
+    'ReferenceStatus',
+    'ReferenceStoreDetail',
+    'ReferenceStoreSummary',
+    'ReferenceSummary',
+    'SequenceStoreDetail',
+    'SequenceStoreSummary',
+    'SourceFiles',
     # Search models
     'CursorBasedPaginationToken',
     'FileGroup',

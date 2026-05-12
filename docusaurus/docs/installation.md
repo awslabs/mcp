@@ -12,6 +12,17 @@ Example configuration for Kiro MCP (`~/.kiro/settings/mcp.json`):
 ```json
 {
   "mcpServers": {
+    "aws-mcp": {
+      "command": "uvx",
+      "timeout": 100000,
+      "transport": "stdio",
+      "args": [
+        "mcp-proxy-for-aws@latest",
+        "https://aws-mcp.us-east-1.api.aws/mcp",
+        "--metadata",
+        "AWS_REGION=us-west-2"
+      ]
+    },
     "awslabs.aws-pricing-mcp-server": {
       "command": "uvx",
       "args": [
@@ -22,10 +33,10 @@ Example configuration for Kiro MCP (`~/.kiro/settings/mcp.json`):
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
     },
-    "awslabs.cdk-mcp-server": {
+    "awslabs.aws-iac-mcp-server": {
       "command": "uvx",
       "args": [
-        "awslabs.cdk-mcp-server@latest"
+        "awslabs.aws-iac-mcp-server@latest"
       ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
@@ -41,23 +52,12 @@ Example configuration for Kiro MCP (`~/.kiro/settings/mcp.json`):
       },
       "disabled": false,
       "autoApprove": []
-    },
-    "awslabs.terraform-mcp-server": {
-      "command": "uvx",
-      "args": [
-        "awslabs.terraform-mcp-server@latest"
-      ],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      },
-      "disabled": false,
-      "autoApprove": []
     }
   }
 }
 ```
 
-See individual servers under ***Available AWS MCP Servers*** for specific requirements and configuration options.
+See individual servers under ***Available MCP Servers for AWS*** for specific requirements and configuration options.
 
 If you have problems with MCP configuration or want to check if the appropriate parameters are in place, you can try the following:
 
@@ -83,13 +83,13 @@ Using the *"@latest"* suffix checks and downloads the latest MCP server package 
 
 ### Running MCP servers in containers
 
-*This example uses docker with the `awslabs.nova-canvas-mcp-server` and can be repeated for each MCP server*
+*This example uses docker with the `awslabs.aws-documentation-mcp-server` and can be repeated for each MCP server*
 
 - Build and tag the image
 
   ```base
-  cd src/nova-canvas-mcp-server
-  docker build -t awslabs/nova-canvas-mcp-server .
+  cd src/aws-documentation-mcp-server
+  docker build -t awslabs/aws-documentation-mcp-server .
   ```
 
 - Optionally save sensitive environmental variables in a file:
@@ -106,7 +106,7 @@ Using the *"@latest"* suffix checks and downloads the latest MCP server package 
   ```json
   {
     "mcpServers": {
-      "awslabs.nova-canvas-mcp-server": {
+      "awslabs.aws-documentation-mcp-server": {
         "command": "docker",
         "args": [
           "run",
@@ -120,7 +120,7 @@ Using the *"@latest"* suffix checks and downloads the latest MCP server package 
           "/full/path/to/.env",
           "--volume",
           "/full/path/to/.aws:/app/.aws",
-          "awslabs/nova-canvas-mcp-server:latest"
+          "awslabs/aws-documentation-mcp-server:latest"
         ],
         "env": {}
       }
@@ -148,9 +148,9 @@ For macOS/Linux:
 ```json
 {
   "mcpServers": {
-    "awslabs.core-mcp-server": {
+    "awslabs-aws-documentation-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.core-mcp-server@latest"],
+      "args": ["awslabs.aws-documentation-mcp-server@latest"],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
@@ -164,7 +164,7 @@ For Windows:
 ```json
 {
   "mcpServers": {
-    "awslabs.core-mcp-server": {
+    "awslabs-aws-documentation-mcp-server": {
       "disabled": false,
       "timeout": 60,
       "type": "stdio",
@@ -173,8 +173,8 @@ For Windows:
         "tool",
         "run",
         "--from",
-        "awslabs.core-mcp-server@latest",
-        "awslabs.core-mcp-server.exe"
+        "awslabs.aws-documentation-mcp-server@latest",
+        "awslabs.aws-documentation-mcp-server.exe"
       ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
@@ -192,16 +192,16 @@ For Windows:
 2. If using Visual Studio Code, install the [Cline VS Code Extension](https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev) (or equivalent extension for your preferred IDE). Once installed, click the extension to open it. When prompted, select the tier that you wish. In this case, we will be using Amazon Bedrock, so the free tier of Cline is fine as we will be sending requests using the Amazon Bedrock API instead of the Cline API.
 3. Select the **MCP Servers** button.
 4. Select the **Installed** tab, then click **Configure MCP Servers** to open the `cline_mcp_settings.json` file
-5. In the `cline_mcp_settings.json` file, add your desired MCP servers in the `mcpServers` object. See the following example that will use one of the current AWS MCP servers that is available in this repository. Ensure you save the file to install the MCP servers.
+5. In the `cline_mcp_settings.json` file, add your desired MCP servers in the `mcpServers` object. See the following example that will use one of the MCP servers available in this repository. Ensure you save the file to install the MCP servers.
 
 #### `cline_mcp_settings.json`
 
  ```json
   {
    "mcpServers": {
-     "awslabs.nova-canvas-mcp-server": {
+     "awslabs.aws-documentation-mcp-server": {
        "command": "uvx",
-       "args": ["awslabs.nova-canvas-mcp-server@latest"],
+       "args": ["awslabs.aws-documentation-mcp-server@latest"],
        "env": {
          "AWS_PROFILE": "your-aws-profile",
          "AWS_REGION": "us-east-1",
@@ -216,9 +216,9 @@ For Windows:
 7. By default, Cline will be set as the API provider, which has limits for the free tier. Next, let's update the API provider to be AWS Bedrock, so we can use the LLMs through Bedrock, which would have billing go through your connected AWS account.
 8. Click the settings gear to open up the Cline settings. Then under **API Provider**, switch this from `Cline` to `AWS Bedrock` and select `AWS Profile` for the authentication type. As a note, the `AWS Credentials` option works as well, however it uses a static credentials (Access Key ID and Secret Access Key) instead of temporary credentials that are automatically redistributed when the token expires, so the temporary credentials with an AWS Profile is the more secure and recommended method.
 9. Fill out the configuration based on the existing AWS Profile you wish to use, select the desired AWS Region, and enable cross-region inference. Click **Done** to return to the chat interface.
-10. Now you can begin asking questions and testing out the functionality of your installed AWS MCP Servers. The default option in the chat interface is is `Plan` which will provide the output for you to take manual action on (e.g. providing you a sample configuration that you copy and paste into a file). However, you can optionally toggle this to `Act` which will allow Cline to act on your behalf (e.g. searching for content using a web browser, cloning a repository, executing code, etc). You can optionally toggle on the "Auto-approve" section to avoid having to click to approve the suggestions, however we recommend leaving this off during testing, especially if you have the Act toggle selected.
+10. Now you can begin asking questions and testing out the functionality of your installed MCP servers. The default option in the chat interface is is `Plan` which will provide the output for you to take manual action on (e.g. providing you a sample configuration that you copy and paste into a file). However, you can optionally toggle this to `Act` which will allow Cline to act on your behalf (e.g. searching for content using a web browser, cloning a repository, executing code, etc). You can optionally toggle on the "Auto-approve" section to avoid having to click to approve the suggestions, however we recommend leaving this off during testing, especially if you have the Act toggle selected.
 
-**Note:** For the best results, please prompt Cline to use the desired AWS MCP Server you wish to use. For example, `Using the Terraform MCP Server, do...`
+**Note:** For the best results, please prompt Cline to use the desired MCP server you wish to use. For example, `Using the Terraform MCP Server, do...`
 
 
 ### Getting Started with Cursor
@@ -240,9 +240,9 @@ For Windows:
 ```json
  {
   "mcpServers": {
-    "awslabs.nova-canvas-mcp-server": {
+    "awslabs.aws-documentation-mcp-server": {
        "command": "uvx",
-       "args": ["awslabs.nova-canvas-mcp-server@latest"],
+       "args": ["awslabs.aws-documentation-mcp-server@latest"],
        "env": {
          "AWS_PROFILE": "your-aws-profile",
          "AWS_REGION": "us-east-1",
@@ -253,7 +253,7 @@ For Windows:
 }
 ```
 
-3. **Using MCP in Chat** The Composer Agent will automatically use any MCP tools that are listed under Available Tools on the MCP settings page if it determines them to be relevant. To prompt tool usage intentionally, please prompt Cursor to use the desired AWS MCP Server you wish to use. For example, `Using the Terraform MCP Server, do...`
+3. **Using MCP in Chat** The Composer Agent will automatically use any MCP tools that are listed under Available Tools on the MCP settings page if it determines them to be relevant. To prompt tool usage intentionally, please prompt Cursor to use the desired MCP server you wish to use. For example, `Using the Terraform MCP Server, do...`
 
 4. **Tool Approval** By default, when Agent wants to use an MCP tool, it will display a message asking for your approval. You can use the arrow next to the tool name to expand the message and see what arguments the Agent is calling the tool with.
 
@@ -279,9 +279,9 @@ For Windows:
  ```json
  {
    "mcpServers": {
-     "awslabs.core-mcp-server": {
+     "awslabs-aws-documentation-mcp-server": {
        "command": "uvx",
-       "args": ["awslabs.core-mcp-server@latest"],
+       "args": ["awslabs.aws-documentation-mcp-server@latest"],
        "env": {
          "FASTMCP_LOG_LEVEL": "ERROR",
          "MCP_SETTINGS_PATH": "path to your mcp settings file"
@@ -301,9 +301,9 @@ Configure MCP servers in VS Code settings or in `.vscode/mcp.json` (see [VS Code
 ```json
 {
   "mcpServers": {
-    "awslabs.core-mcp-server": {
+    "awslabs-aws-documentation-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.core-mcp-server@latest"],
+      "args": ["awslabs.aws-documentation-mcp-server@latest"],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       }

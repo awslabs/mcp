@@ -15,9 +15,17 @@
 import os
 import pytest
 from awslabs.dynamodb_mcp_server.model_validation_utils import (
+    DynamoDBLocalVersionError,
+    _check_version_meets_minimum,
     _extract_port_from_cmdline,
+    _get_dynamodb_local_container_version,
+    _get_dynamodb_local_java_version,
+    _parse_dynamodb_local_version,
     _safe_extract_members,
+    _try_container_setup,
+    _try_java_setup,
     _validate_download_url,
+    _validate_java_executable,
     check_dynamodb_readiness,
     cleanup_validation_resources,
     create_tables,
@@ -221,8 +229,14 @@ class TestDynamoDBLocalSetup:
             mock_client.list_tables.assert_called_once()
 
     def test_setup_dynamodb_local_reuse_existing(self):
-        """Test setup reuses existing container."""
+        """Test setup reuses existing container when version meets minimum."""
         with (
+            patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils._container_exists'
+            ) as mock_exists,
+            patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils._get_dynamodb_local_container_version'
+            ) as mock_version,
             patch(
                 'awslabs.dynamodb_mcp_server.model_validation_utils.get_existing_container_dynamodb_local_endpoint'
             ) as mock_get_endpoint,
@@ -231,6 +245,8 @@ class TestDynamoDBLocalSetup:
             ) as mock_get_container,
         ):
             mock_get_container.return_value = '/usr/local/bin/docker'
+            mock_exists.return_value = True
+            mock_version.return_value = (3, 3, 0)  # Meets minimum version
             mock_get_endpoint.return_value = 'http://localhost:8001'
 
             endpoint = setup_dynamodb_local()
@@ -240,8 +256,8 @@ class TestDynamoDBLocalSetup:
         """Test setup creates new container when none exists."""
         with (
             patch(
-                'awslabs.dynamodb_mcp_server.model_validation_utils.get_existing_container_dynamodb_local_endpoint'
-            ) as mock_get_endpoint,
+                'awslabs.dynamodb_mcp_server.model_validation_utils._container_exists'
+            ) as mock_exists,
             patch(
                 'awslabs.dynamodb_mcp_server.model_validation_utils.get_container_path'
             ) as mock_get_path,
@@ -253,7 +269,7 @@ class TestDynamoDBLocalSetup:
             ) as mock_start_container,
         ):
             mock_get_path.return_value = '/usr/local/bin/docker'
-            mock_get_endpoint.return_value = None
+            mock_exists.return_value = False  # No existing container
             mock_find_port.return_value = 8001
             mock_start_container.return_value = 'http://localhost:8001'
 
@@ -273,6 +289,9 @@ class TestDynamoDBLocalSetup:
                 'awslabs.dynamodb_mcp_server.model_validation_utils.get_java_path'
             ) as mock_get_java,
             patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils._get_dynamodb_local_java_version'
+            ) as mock_get_version,
+            patch(
                 'awslabs.dynamodb_mcp_server.model_validation_utils.get_existing_java_dynamodb_local_endpoint'
             ) as mock_get_java_endpoint,
             patch(
@@ -285,8 +304,9 @@ class TestDynamoDBLocalSetup:
             # Docker not available
             mock_get_container.return_value = None
 
-            # Java available
+            # Java available with no existing JAR
             mock_get_java.return_value = '/usr/bin/java'
+            mock_get_version.return_value = None  # No existing JAR
             mock_get_java_endpoint.return_value = None
             mock_find_port.return_value = 8002
             mock_start_java.return_value = 'http://localhost:8002'
@@ -477,29 +497,32 @@ class TestDynamoDBLocalSetup:
 
     def test_start_java_process_invalid_executable(self):
         """Test start_java_process with invalid Java executable."""
-        with (
-            patch(
-                'awslabs.dynamodb_mcp_server.model_validation_utils.download_dynamodb_local_jar'
-            ) as mock_download,
-        ):
-            mock_download.return_value = ('DynamoDBLocal.jar', '/tmp/lib')
-
-            with pytest.raises(RuntimeError, match='Invalid Java executable: malicious'):
-                start_java_process('/usr/bin/malicious', 8000)
+        with pytest.raises(ValueError, match='Invalid Java executable: malicious'):
+            start_java_process('/usr/bin/malicious', 8000)
 
     def test_try_container_setup_runtime_error(self):
         """Test _try_container_setup with RuntimeError."""
-        from awslabs.dynamodb_mcp_server.model_validation_utils import _try_container_setup
-
         with (
             patch(
                 'awslabs.dynamodb_mcp_server.model_validation_utils.get_container_path'
             ) as mock_get_path,
             patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils._container_exists'
+            ) as mock_container_exists,
+            patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils._check_version_meets_minimum',
+                return_value=True,
+            ),
+            patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils._get_dynamodb_local_container_version',
+                return_value=(3, 3, 0),
+            ),
+            patch(
                 'awslabs.dynamodb_mcp_server.model_validation_utils.get_existing_container_dynamodb_local_endpoint'
             ) as mock_get_endpoint,
         ):
             mock_get_path.return_value = '/usr/bin/docker'
+            mock_container_exists.return_value = True
             mock_get_endpoint.side_effect = RuntimeError('Container setup failed')
 
             result = _try_container_setup()
@@ -507,8 +530,6 @@ class TestDynamoDBLocalSetup:
 
     def test_try_java_setup_runtime_error(self):
         """Test _try_java_setup with RuntimeError."""
-        from awslabs.dynamodb_mcp_server.model_validation_utils import _try_java_setup
-
         with (
             patch(
                 'awslabs.dynamodb_mcp_server.model_validation_utils.get_java_path'
@@ -1608,3 +1629,354 @@ class TestGetValidationResultTransformPrompt:
 
             with pytest.raises(exception_type):
                 get_validation_result_transform_prompt()
+
+
+class TestParseVersion:
+    """Test cases for _parse_dynamodb_local_version function."""
+
+    def test_parse_version_standard_format(self):
+        """Test parsing standard version format."""
+        assert _parse_dynamodb_local_version('DynamoDB Local version 3.3.0') == (3, 3, 0)
+
+    def test_parse_version_only_numbers(self):
+        """Test parsing version with only numbers."""
+        assert _parse_dynamodb_local_version('3.3.0') == (3, 3, 0)
+
+    def test_parse_version_with_suffix_text(self):
+        """Test parsing version with suffix text."""
+        assert _parse_dynamodb_local_version('3.4.2-SNAPSHOT') == (3, 4, 2)
+
+    def test_parse_version_no_version_found(self):
+        """Test parsing when no version is found."""
+        assert _parse_dynamodb_local_version('No version here') is None
+
+    def test_parse_version_empty_string(self):
+        """Test parsing empty string."""
+        assert _parse_dynamodb_local_version('') is None
+
+
+class TestCheckVersionMeetsMinimum:
+    """Test cases for _check_version_meets_minimum function."""
+
+    def test_version_meets_minimum_exact(self):
+        """Test version exactly at minimum."""
+        assert _check_version_meets_minimum((3, 3, 0)) is True
+
+    def test_version_above_minimum(self):
+        """Test version above minimum."""
+        assert _check_version_meets_minimum((4, 0, 0)) is True
+        assert _check_version_meets_minimum((3, 4, 0)) is True
+        assert _check_version_meets_minimum((3, 3, 1)) is True
+
+    def test_version_below_minimum(self):
+        """Test version below minimum."""
+        assert _check_version_meets_minimum((2, 9, 9)) is False
+        assert _check_version_meets_minimum((3, 2, 9)) is False
+
+    def test_version_none(self):
+        """Test with None version."""
+        assert _check_version_meets_minimum(None) is False
+
+
+class TestGetDynamoDBLocalContainerVersion:
+    """Test cases for _get_dynamodb_local_container_version function."""
+
+    def test_get_ddb_local_container_version_success(self):
+        """Test successful version retrieval from container."""
+        with patch(
+            'awslabs.dynamodb_mcp_server.model_validation_utils._run_subprocess_safely'
+        ) as mock_run:
+            mock_result = MagicMock()
+            mock_result.stdout = 'DynamoDB Local version 3.3.0'
+            mock_result.stderr = ''
+            mock_run.return_value = mock_result
+
+            version = _get_dynamodb_local_container_version('/usr/bin/docker')
+            assert version == (3, 3, 0)
+
+    def test_get_ddb_local_container_version_subprocess_fails(self):
+        """Test when subprocess fails."""
+        with patch(
+            'awslabs.dynamodb_mcp_server.model_validation_utils._run_subprocess_safely'
+        ) as mock_run:
+            mock_run.return_value = None
+
+            version = _get_dynamodb_local_container_version('/usr/bin/docker')
+            assert version is None
+
+    def test_get_ddb_local_container_version_uses_docker_inspect(self):
+        """Test that docker inspect is used to check version from container labels."""
+        with patch(
+            'awslabs.dynamodb_mcp_server.model_validation_utils._run_subprocess_safely'
+        ) as mock_run:
+            mock_run.return_value = None
+
+            _get_dynamodb_local_container_version('/usr/bin/docker')
+
+            # Verify the command uses 'inspect' with the container name
+            call_args = mock_run.call_args[0][0]
+            assert 'inspect' in call_args
+            assert 'dynamodb-local-setup-for-data-model-validation' in call_args
+
+
+class TestGetDynamoDBLocalJavaVersion:
+    """Test cases for _get_dynamodb_local_java_version function."""
+
+    def test_get_ddb_local_java_version_success(self):
+        """Test successful version retrieval from Java JAR."""
+        with (
+            patch('os.path.exists') as mock_exists,
+            patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils._get_dynamodb_local_paths'
+            ) as mock_paths,
+            patch('awslabs.dynamodb_mcp_server.model_validation_utils._validate_java_executable'),
+            patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils._run_subprocess_safely'
+            ) as mock_run,
+        ):
+            mock_exists.return_value = True
+            mock_paths.return_value = ('/tmp/ddb', '/tmp/ddb/DynamoDBLocal.jar', '/tmp/ddb/lib')
+            mock_result = MagicMock()
+            mock_result.stdout = 'DynamoDB Local version 3.3.0'
+            mock_result.stderr = ''
+            mock_run.return_value = mock_result
+
+            version = _get_dynamodb_local_java_version(
+                '/usr/bin/java', '/tmp/ddb/DynamoDBLocal.jar'
+            )
+            assert version == (3, 3, 0)
+
+    def test_get_ddb_local_java_version_jar_not_exists(self):
+        """Test when JAR file doesn't exist."""
+        with patch('os.path.exists') as mock_exists:
+            mock_exists.return_value = False
+
+            version = _get_dynamodb_local_java_version(
+                '/usr/bin/java', '/tmp/ddb/DynamoDBLocal.jar'
+            )
+            assert version is None
+
+    def test_get_ddb_local_java_version_invalid_java_executable(self):
+        """Test with invalid Java executable."""
+        with (
+            patch('os.path.exists') as mock_exists,
+            patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils._get_dynamodb_local_paths'
+            ) as mock_paths,
+            patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils._validate_java_executable'
+            ) as mock_validate,
+        ):
+            mock_exists.return_value = True
+            mock_paths.return_value = ('/tmp/ddb', '/tmp/ddb/DynamoDBLocal.jar', '/tmp/ddb/lib')
+            mock_validate.side_effect = ValueError('Invalid Java executable')
+
+            version = _get_dynamodb_local_java_version(
+                '/usr/bin/malicious', '/tmp/ddb/DynamoDBLocal.jar'
+            )
+            assert version is None
+
+    def test_get_ddb_local_java_version_subprocess_fails(self):
+        """Test when subprocess fails."""
+        with (
+            patch('os.path.exists') as mock_exists,
+            patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils._get_dynamodb_local_paths'
+            ) as mock_paths,
+            patch('awslabs.dynamodb_mcp_server.model_validation_utils._validate_java_executable'),
+            patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils._run_subprocess_safely'
+            ) as mock_run,
+        ):
+            mock_exists.return_value = True
+            mock_paths.return_value = ('/tmp/ddb', '/tmp/ddb/DynamoDBLocal.jar', '/tmp/ddb/lib')
+            mock_run.return_value = None  # Subprocess failed
+
+            version = _get_dynamodb_local_java_version(
+                '/usr/bin/java', '/tmp/ddb/DynamoDBLocal.jar'
+            )
+            assert version is None
+
+
+class TestValidateJavaExecutable:
+    """Test cases for _validate_java_executable function."""
+
+    def test_validate_java_executable_valid(self):
+        """Test valid Java executables."""
+        _validate_java_executable('/usr/bin/java')
+        _validate_java_executable('java')
+        _validate_java_executable('java.exe')
+
+    def test_validate_java_executable_invalid(self):
+        """Test invalid executable."""
+        with pytest.raises(ValueError, match='Invalid Java executable'):
+            _validate_java_executable('/usr/bin/malicious')
+
+
+class TestContainerSetupVersionUpgrade:
+    """Test cases for container setup with version check logic."""
+
+    def test_container_setup_raises_error_for_old_version(self):
+        """Test that old version raises DynamoDBLocalVersionError with removal instructions."""
+        with (
+            patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils.get_container_path'
+            ) as mock_path,
+            patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils._container_exists'
+            ) as mock_exists,
+            patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils._get_dynamodb_local_container_version'
+            ) as mock_version,
+        ):
+            mock_path.return_value = '/usr/bin/docker'
+            mock_exists.return_value = True
+            mock_version.return_value = (2, 0, 0)  # Old version
+
+            with pytest.raises(DynamoDBLocalVersionError) as exc_info:
+                _try_container_setup()
+
+            error_msg = str(exc_info.value)
+            assert '2.0.0' in error_msg
+            assert '3.3.0' in error_msg
+            assert 'docker stop' in error_msg
+            assert 'docker rm' in error_msg
+
+    def test_container_setup_raises_error_for_unknown_version(self):
+        """Test that unknown version raises DynamoDBLocalVersionError with 'unknown' in message."""
+        with (
+            patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils.get_container_path'
+            ) as mock_path,
+            patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils._container_exists'
+            ) as mock_exists,
+            patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils._get_dynamodb_local_container_version'
+            ) as mock_version,
+        ):
+            mock_path.return_value = '/usr/bin/docker'
+            mock_exists.return_value = True
+            mock_version.return_value = None  # Unknown version
+
+            with pytest.raises(DynamoDBLocalVersionError) as exc_info:
+                _try_container_setup()
+
+            error_msg = str(exc_info.value)
+            assert 'unknown' in error_msg
+            assert '3.3.0' in error_msg
+            assert 'docker stop' in error_msg
+            assert 'docker rm' in error_msg
+
+    def test_container_setup_keeps_good_version(self):
+        """Test that good version is kept."""
+        with (
+            patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils.get_container_path'
+            ) as mock_path,
+            patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils._container_exists'
+            ) as mock_exists,
+            patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils._get_dynamodb_local_container_version'
+            ) as mock_version,
+            patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils.get_existing_container_dynamodb_local_endpoint'
+            ) as mock_endpoint,
+        ):
+            mock_path.return_value = '/usr/bin/docker'
+            mock_exists.return_value = True
+            mock_version.return_value = (3, 3, 0)  # Good version
+            mock_endpoint.return_value = 'http://localhost:8001'
+
+            result = _try_container_setup()
+
+            assert result == 'http://localhost:8001'
+
+
+class TestJavaSetupVersionUpgrade:
+    """Test cases for Java setup with version check logic."""
+
+    def test_java_setup_raises_error_for_old_version(self):
+        """Test that old version raises DynamoDBLocalVersionError with removal instructions."""
+        with (
+            patch('awslabs.dynamodb_mcp_server.model_validation_utils.get_java_path') as mock_java,
+            patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils._get_dynamodb_local_paths'
+            ) as mock_paths,
+            patch('os.path.exists') as mock_exists,
+            patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils._get_dynamodb_local_java_version'
+            ) as mock_version,
+        ):
+            mock_java.return_value = '/usr/bin/java'
+            mock_paths.return_value = ('/tmp/ddb', '/tmp/ddb/jar', '/tmp/ddb/lib')
+            mock_exists.return_value = True
+            mock_version.return_value = (2, 0, 0)  # Old version
+
+            with pytest.raises(DynamoDBLocalVersionError) as exc_info:
+                _try_java_setup()
+
+            error_msg = str(exc_info.value)
+            assert '2.0.0' in error_msg
+            assert '3.3.0' in error_msg
+            assert 'rm -rf' in error_msg
+            assert '/tmp/ddb' in error_msg
+
+    def test_java_setup_raises_error_for_old_version_windows(self):
+        """Test that old version raises DynamoDBLocalVersionError with Windows-specific removal instructions."""
+        with (
+            patch('awslabs.dynamodb_mcp_server.model_validation_utils.get_java_path') as mock_java,
+            patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils._get_dynamodb_local_paths'
+            ) as mock_paths,
+            patch('os.path.exists') as mock_exists,
+            patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils._get_dynamodb_local_java_version'
+            ) as mock_version,
+            patch('awslabs.dynamodb_mcp_server.model_validation_utils.sys.platform', 'win32'),
+            patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils.get_existing_java_dynamodb_local_endpoint',
+                return_value='http://localhost:8000',
+            ),
+        ):
+            mock_java.return_value = 'C:\\Program Files\\Java\\bin\\java.exe'
+            mock_paths.return_value = ('C:\\tmp\\ddb', 'C:\\tmp\\ddb\\jar', 'C:\\tmp\\ddb\\lib')
+            mock_exists.return_value = True
+            mock_version.return_value = (2, 0, 0)  # Old version
+
+            with pytest.raises(DynamoDBLocalVersionError) as exc_info:
+                _try_java_setup()
+
+            error_msg = str(exc_info.value)
+            assert '2.0.0' in error_msg
+            assert '3.3.0' in error_msg
+            assert 'powershell' in error_msg
+            assert 'Get-CimInstance' in error_msg
+            assert 'dynamodb.local.setup.for.data.model.validation' in error_msg
+            assert 'rmdir /S /Q' in error_msg
+
+    def test_java_setup_keeps_good_version(self):
+        """Test that good version is kept."""
+        with (
+            patch('awslabs.dynamodb_mcp_server.model_validation_utils.get_java_path') as mock_java,
+            patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils._get_dynamodb_local_paths'
+            ) as mock_paths,
+            patch('os.path.exists') as mock_exists,
+            patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils._get_dynamodb_local_java_version'
+            ) as mock_version,
+            patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils.get_existing_java_dynamodb_local_endpoint'
+            ) as mock_endpoint,
+        ):
+            mock_java.return_value = '/usr/bin/java'
+            mock_paths.return_value = ('/tmp/ddb', '/tmp/ddb/jar', '/tmp/ddb/lib')
+            mock_exists.return_value = True
+            mock_version.return_value = (3, 3, 0)  # Good version
+            mock_endpoint.return_value = 'http://localhost:8001'
+
+            result = _try_java_setup()
+
+            assert result == 'http://localhost:8001'

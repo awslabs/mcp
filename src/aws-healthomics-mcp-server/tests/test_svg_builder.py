@@ -171,14 +171,12 @@ class TestSVGBuilderPropertyBased:
         num_texts: int,
         num_lines: int,
     ):
-        """Property 6: Valid SVG Output.
+        """Property: Valid SVG Output.
 
         For any set of elements added to SVGBuilder, the generated output
         SHALL be a well-formed SVG document (starts with `<svg`, ends with
         `</svg>`, contains no unescaped special characters, and is valid XML).
-
-        **Validates: Requirements 5.1, 5.7, 8.3**
-        **Feature: run-analyzer-enhancement, Property 6: Valid SVG Output**
+        **Feature: run-analyzer-enhancement, Property: Valid SVG Output**
         """
         builder = SVGBuilder(width, height)
 
@@ -241,9 +239,7 @@ class TestSVGBuilderPropertyBased:
         """Property: Escaped text produces valid XML.
 
         For any input text, the escaped output should be safe for XML inclusion.
-
-        **Validates: Requirements 8.3**
-        **Feature: run-analyzer-enhancement, Property 6: Valid SVG Output (escape component)**
+        **Feature: run-analyzer-enhancement, Property: Valid SVG Output (escape component)**
         """
         builder = SVGBuilder(100, 100)
 
@@ -279,9 +275,7 @@ class TestSVGBuilderPropertyBased:
         """Property: X-axis rendering produces valid SVG.
 
         For any valid axis parameters, the resulting SVG should be well-formed.
-
-        **Validates: Requirements 8.2, 8.3**
-        **Feature: run-analyzer-enhancement, Property 6: Valid SVG Output (axis component)**
+        **Feature: run-analyzer-enhancement, Property: Valid SVG Output (axis component)**
         """
         builder = SVGBuilder(width, height)
         margin = {'top': 60, 'right': 40, 'bottom': 40, 'left': 150}
@@ -301,3 +295,88 @@ class TestSVGBuilderPropertyBased:
             ET.fromstring(svg)
         except ET.ParseError as e:
             pytest.fail(f'SVG with x-axis is not valid XML: {e}')
+
+
+class TestSVGBuilderTheme:
+    """Tests for SVGBuilder dark/light theme support."""
+
+    def test_light_theme_default(self):
+        """Test that light theme is the default."""
+        builder = SVGBuilder(800, 600)
+        assert builder.theme == 'light'
+        assert builder._colors == SVGBuilder.THEMES['light']
+
+    def test_dark_theme_initialization(self):
+        """Test SVGBuilder initialization with dark theme."""
+        builder = SVGBuilder(800, 600, theme='dark')
+        assert builder.theme == 'dark'
+        assert builder._colors == SVGBuilder.THEMES['dark']
+
+    def test_invalid_theme_falls_back_to_light(self):
+        """Test that an invalid theme falls back to light."""
+        builder = SVGBuilder(800, 600, theme='invalid')
+        assert builder.theme == 'light'
+        assert builder._colors == SVGBuilder.THEMES['light']
+
+    def test_dark_theme_background_in_build(self):
+        """Test that dark theme produces a dark background rect."""
+        builder = SVGBuilder(800, 600, theme='dark')
+        svg = builder.build()
+        # Background rect should use dark background color
+        assert 'fill="#1E1E1E"' in svg
+
+    def test_light_theme_background_in_build(self):
+        """Test that light theme produces a white background rect."""
+        builder = SVGBuilder(800, 600, theme='light')
+        svg = builder.build()
+        assert 'fill="#FFFFFF"' in svg
+
+    def test_dark_theme_title_text_color(self):
+        """Test that dark theme title uses light text color."""
+        builder = SVGBuilder(800, 600, theme='dark')
+        builder.add_title('Dark Title')
+        assert 'fill="#E0E0E0"' in builder.elements[0]
+
+    def test_light_theme_title_text_color(self):
+        """Test that light theme title uses dark text color."""
+        builder = SVGBuilder(800, 600, theme='light')
+        builder.add_title('Light Title')
+        assert 'fill="#000000"' in builder.elements[0]
+
+    def test_dark_theme_text_color(self):
+        """Test that dark theme add_text uses light text color."""
+        builder = SVGBuilder(800, 600, theme='dark')
+        builder.add_text(10, 20, 'Hello')
+        assert 'fill="#E0E0E0"' in builder.elements[0]
+
+    def test_dark_theme_line_default_stroke(self):
+        """Test that dark theme lines default to light axis color."""
+        builder = SVGBuilder(800, 600, theme='dark')
+        builder.add_line(0, 0, 100, 100)
+        assert 'stroke="#E0E0E0"' in builder.elements[0]
+
+    def test_light_theme_line_default_stroke(self):
+        """Test that light theme lines default to dark axis color."""
+        builder = SVGBuilder(800, 600, theme='light')
+        builder.add_line(0, 0, 100, 100)
+        assert 'stroke="#000000"' in builder.elements[0]
+
+    def test_line_explicit_stroke_overrides_theme(self):
+        """Test that an explicit stroke color overrides the theme default."""
+        builder = SVGBuilder(800, 600, theme='dark')
+        builder.add_line(0, 0, 100, 100, stroke='#FF0000')
+        assert 'stroke="#FF0000"' in builder.elements[0]
+
+    def test_dark_theme_produces_valid_xml(self):
+        """Test that dark theme SVG output is valid XML."""
+        builder = SVGBuilder(800, 600, theme='dark')
+        builder.add_title('Dark Chart')
+        builder.add_rect(10, 10, 100, 50, '#7AAFFF')
+        builder.add_text(50, 100, 'Label')
+        builder.add_line(0, 0, 100, 100)
+        svg = builder.build()
+
+        try:
+            ET.fromstring(svg)
+        except ET.ParseError as e:
+            pytest.fail(f'Dark theme SVG is not valid XML: {e}')

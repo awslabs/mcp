@@ -14,7 +14,6 @@
 
 """GlueInteractiveSessionsHandler for Data Processing MCP Server."""
 
-import json
 from awslabs.aws_dataprocessing_mcp_server.models.glue_models import (
     CancelStatementData,
     CreateSessionData,
@@ -300,7 +299,7 @@ class GlueInteractiveSessionsHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -320,7 +319,7 @@ class GlueInteractiveSessionsHandler:
                     tags = session.get('Tags', {})
 
                     # Construct the ARN for the session
-                    region = AwsHelper.get_aws_region() or 'us-east-1'
+                    region = AwsHelper.get_or_default_aws_region() or 'us-east-1'
                     account_id = AwsHelper.get_aws_account_id()
                     session_arn = f'arn:aws:glue:{region}:{account_id}:session/{session_id}'
 
@@ -361,7 +360,7 @@ class GlueInteractiveSessionsHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -388,7 +387,7 @@ class GlueInteractiveSessionsHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -420,7 +419,7 @@ class GlueInteractiveSessionsHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -440,7 +439,7 @@ class GlueInteractiveSessionsHandler:
                     tags = session.get('Tags', {})
 
                     # Construct the ARN for the session
-                    region = AwsHelper.get_aws_region() or 'us-east-1'
+                    region = AwsHelper.get_or_default_aws_region() or 'us-east-1'
                     account_id = AwsHelper.get_aws_account_id()
                     session_arn = f'arn:aws:glue:{region}:{account_id}:session/{session_id}'
 
@@ -481,7 +480,7 @@ class GlueInteractiveSessionsHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -629,7 +628,7 @@ class GlueInteractiveSessionsHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -661,13 +660,23 @@ class GlueInteractiveSessionsHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
             elif operation == 'get-statement':
                 if statement_id is None:
                     raise ValueError('statement_id is required for get-statement operation')
+
+                # SECURITY: This operation returns statement execution output (customer data)
+                # Require --allow-sensitive-data-access flag to prevent unauthorized data exposure
+                if not self.allow_sensitive_data_access:
+                    error_message = 'Operation get-statement returns execution output with customer data and requires --allow-sensitive-data-access flag'
+                    log_with_request_id(ctx, LogLevel.ERROR, error_message)
+                    return CallToolResult(
+                        isError=True,
+                        content=[TextContent(type='text', text=error_message)],
+                    )
 
                 # Prepare get statement parameters
                 get_params = {
@@ -694,7 +703,7 @@ class GlueInteractiveSessionsHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -724,7 +733,7 @@ class GlueInteractiveSessionsHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 

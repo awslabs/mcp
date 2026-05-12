@@ -39,14 +39,23 @@ from typing import Any, Dict, List, Optional, Tuple
 class HealthOmicsSearchEngine:
     """Search engine for genomics files in HealthOmics sequence and reference stores."""
 
-    def __init__(self, config: SearchConfig):
+    def __init__(
+        self,
+        config: SearchConfig,
+        region_name: Optional[str] = None,
+        profile_name: Optional[str] = None,
+    ):
         """Initialize the HealthOmics search engine.
 
         Args:
             config: Search configuration containing settings
+            region_name: Optional region override
+            profile_name: Optional AWS profile override
         """
         self.config = config
-        self.omics_client = get_omics_client()
+        self._region_name = region_name
+        self._profile_name = profile_name
+        self.omics_client = get_omics_client(region_name=region_name, profile_name=profile_name)
         self.file_type_detector = FileTypeDetector()
         self.pattern_matcher = PatternMatcher()
 
@@ -1520,6 +1529,8 @@ class HealthOmicsSearchEngine:
         Returns:
             AWS region string
         """
+        if self._region_name:
+            return self._region_name
         # Import here to avoid circular imports
         from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_region
 
@@ -1534,7 +1545,7 @@ class HealthOmicsSearchEngine:
         # Import here to avoid circular imports
         from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_account_id
 
-        return get_account_id()
+        return get_account_id(region_name=self._region_name, profile_name=self._profile_name)
 
     def _get_partition(self) -> str:
         """Get the current AWS partition.
@@ -1545,4 +1556,4 @@ class HealthOmicsSearchEngine:
         # Import here to avoid circular imports
         from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_partition
 
-        return get_partition()
+        return get_partition(region_name=self._region_name, profile_name=self._profile_name)

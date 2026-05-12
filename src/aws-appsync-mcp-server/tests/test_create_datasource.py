@@ -48,7 +48,10 @@ class TestValidateHttpConfig:
         """Test localhost endpoints are blocked."""
         configs = [
             {'endpoint': 'https://localhost:8080'},
+            {'endpoint': 'https://localhost.localdomain'},
             {'endpoint': 'https://127.0.0.1:8080'},
+            {'endpoint': 'https://127.0.0.2'},
+            {'endpoint': 'https://127.255.255.255'},
         ]
         for config in configs:
             with pytest.raises(ValueError, match='localhost or private IP'):
@@ -60,9 +63,60 @@ class TestValidateHttpConfig:
             {'endpoint': 'https://10.0.0.1'},
             {'endpoint': 'https://192.168.1.1'},
             {'endpoint': 'https://172.16.0.1'},
+            {'endpoint': 'https://172.31.255.255'},
         ]
         for config in configs:
             with pytest.raises(ValueError, match='localhost or private IP'):
+                _validate_http_config(config)
+
+    def test_link_local_blocked(self):
+        """Test link-local range (AWS IMDS) is blocked."""
+        configs = [
+            {'endpoint': 'https://169.254.169.254'},
+            {'endpoint': 'https://169.254.0.1'},
+        ]
+        for config in configs:
+            with pytest.raises(ValueError, match='localhost or private IP'):
+                _validate_http_config(config)
+
+    def test_reserved_ips_blocked(self):
+        """Test reserved IPs are blocked."""
+        config = {'endpoint': 'https://0.0.0.0'}
+        with pytest.raises(ValueError, match='localhost or private IP'):
+            _validate_http_config(config)
+
+    def test_ipv6_private_blocked(self):
+        """Test IPv6 private addresses are blocked."""
+        configs = [
+            {'endpoint': 'https://[::1]'},  # loopback
+            {'endpoint': 'https://[fe80::1]'},  # link-local
+            {'endpoint': 'https://[fc00::1]'},  # unique local
+        ]
+        for config in configs:
+            with pytest.raises(ValueError, match='localhost or private IP'):
+                _validate_http_config(config)
+
+    def test_decimal_ip_encoding_blocked(self):
+        """Test decimal IP encoding is blocked."""
+        config = {'endpoint': 'https://2130706433'}  # 127.0.0.1 in decimal
+        with pytest.raises(ValueError, match='numeric IP encoding'):
+            _validate_http_config(config)
+
+    def test_hex_ip_encoding_blocked(self):
+        """Test hexadecimal IP encoding is blocked."""
+        config = {'endpoint': 'https://0x7f000001'}  # 127.0.0.1 in hex
+        with pytest.raises(ValueError, match='numeric IP encoding'):
+            _validate_http_config(config)
+
+    def test_octal_ip_encoding_blocked(self):
+        """Test octal IP encoding is blocked."""
+        configs = [
+            {'endpoint': 'https://017700000001'},  # 127.0.0.1 in octal
+            {'endpoint': 'https://0177'},  # Short octal
+            {'endpoint': 'https://01'},  # Minimal octal
+        ]
+        for config in configs:
+            with pytest.raises(ValueError, match='numeric IP encoding'):
                 _validate_http_config(config)
 
     def test_http_protocol_rejected(self):
@@ -75,6 +129,12 @@ class TestValidateHttpConfig:
         """Test empty endpoint is rejected."""
         config = {'endpoint': ''}
         with pytest.raises(ValueError, match='must use HTTPS'):
+            _validate_http_config(config)
+
+    def test_invalid_url(self):
+        """Test invalid URL is rejected."""
+        config = {'endpoint': 'https://'}
+        with pytest.raises(ValueError, match='Invalid endpoint URL'):
             _validate_http_config(config)
 
 

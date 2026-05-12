@@ -9,9 +9,12 @@ This server enables AI assistants like Kiro, Claude, and GitHub Copilot to help 
 1. **Comprehensive Service Auditing** - Monitor overall service health, diagnose root causes, and recommend actionable fixes with built-in APM expertise
 2. **Advanced SLO Compliance Monitoring** - Track Service Level Objectives with breach detection and root cause analysis
 3. **Operation-Level Performance Analysis** - Deep dive into specific API endpoints and operations
-4. **100% Trace Visibility** - Query OpenTelemetry spans data via Transaction Search for complete observability
-5. **Multi-Service Analysis** - Audit multiple services simultaneously with automatic batching
-6. **Natural Language Insights** - Generate business insights from telemetry data through natural language queries
+4. **Group-Level Monitoring** - Assess health, dependencies, and changes across service groups for team-based workflows
+5. **100% Trace Visibility** - Query OpenTelemetry spans data via Transaction Search for complete observability
+6. **Multi-Service Analysis** - Audit multiple services simultaneously with automatic batching
+7. **Natural Language Insights** - Generate business insights from telemetry data through natural language queries
+8. **Synthetics Canary Analysis** - Deep dive into canary failures with knowledge base-powered recommendations for known runtime and environment issues
+9. **Canary-Service Correlation** - Automatically detect and report Synthetics canaries linked to audited services and groups
 
 ## Prerequisites
 
@@ -103,6 +106,7 @@ IaC code: [ABSOLUTE_PATH_TO_IAC]"
 - Root cause analysis with traces, logs, and metrics correlation
 - Issue prioritization by severity (critical, warning, info findings)
 - **Wildcard Pattern Support**: Use `*payment*` for automatic service discovery
+- **Synthetics Canary Correlation**: Automatically detects and reports canary health for audited services
 - Performance optimized for fast execution across multiple targets
 
 **Key Use Cases:**
@@ -238,6 +242,12 @@ FILTER attributes.aws.local.service = "payment-service" and attributes.aws.local
 - **Actionable Remediation**: Provides specific steps based on AWS operational best practices
 - **IAM Analysis**: Validates IAM roles and permissions for common canary access issues
 - **Backend Service Integration**: Correlates canary failures with backend service errors and exceptions
+- **Knowledge Base Recommendations**: Automatically matches failure patterns against a curated knowledge base of known Synthetics runtime and environment issues, providing targeted fix recommendations
+
+**Parameters:**
+- `canary_name` (required): Name of the CloudWatch Synthetics canary to analyze
+- `region` (optional): AWS region where the canary is deployed
+- `description` (optional): User's description of the issue they are experiencing. This is matched against the knowledge base to surface relevant recommendations even when the canary error logs alone may not contain enough context. Examples: "missing runs in console", "visual monitoring baseline keeps resetting", "CloudFormation rollback failed after runtime upgrade"
 
 **Common Use Cases:**
 - Incident Response: Rapid diagnosis of canary failures during outages
@@ -247,14 +257,174 @@ FILTER attributes.aws.local.service = "payment-service" and attributes.aws.local
 - Root Cause Analysis: Deep dive into specific failure scenarios with full context
 - Infrastructure Issues: Diagnose S3 access, VPC connectivity, and browser target problems
 - Backend Service Debugging: Identify application code issues affecting canary success
+- Known Issue Detection: Automatically identify known runtime bugs and get targeted fix recommendations
 
-#### 13. **`list_slis`** - Legacy SLI Status Report (Specialized Tool)
+#### 13. **`list_canaries`** - Canary Discovery and Status
+**List all CloudWatch Synthetics canaries in the account**
+
+- Discover all canaries with their current status (Running, Stopped, Error)
+- View schedule, runtime version, and last run time for each canary
+- Useful for identifying canaries before deep-diving with `analyze_canary_failures()`
+- Output is capped to avoid overwhelming LLM context windows in large accounts
+
+**Parameters:**
+- `region` (optional): AWS region to query (defaults to configured region)
+- `max_results` (optional): Maximum number of canaries to display (default: 20, max: 200)
+
+**Key Use Cases:**
+- `list_canaries()` - List canaries in the default region (first 20)
+- `list_canaries(region="eu-west-1")` - List canaries in a specific region
+- `list_canaries(max_results=100)` - List up to 100 canaries
+
+#### 14. **`list_change_events`** - AWS Application Signals Change Event Query
+**Query AWS Application Signals change events to correlate infrastructure and application changes with service performance issues**
+
+This tool provides access to AWS Application Signals' change detection capabilities through two complementary APIs:
+- **ListEntityEvents**: Comprehensive change history for incident investigation and root cause analysis
+- **ListServiceStates**: Current service state information for status monitoring
+
+**Key Capabilities:**
+- **Change Correlation**: Link deployments, configuration changes, and infrastructure modifications to performance issues
+- **Timeline Analysis**: Build accurate timelines of events leading to incidents, alarms, or SLO breaches
+- **Service-Specific Filtering**: Focus on changes to specific services using Application Signals service attributes
+- **Multi-Change Type Tracking**: Monitor deployment events, configuration updates, infrastructure scaling, and other modifications
+- **Incident Investigation**: Essential for root cause analysis when services experience performance degradation
+
+**API Selection Guide:**
+- **comprehensive_history=True (default)**: Uses ListEntityEvents API
+  - **Question it answers**: "What are the changes in my service?" - Comprehensive change history
+  - **Best for**: Incident investigation, change correlation, root cause analysis, timeline reconstruction
+  - **Returns**: Complete chronological list of all change events (deployments, configurations, scaling) within time range
+  - **Use when**: You need to see all changes that happened and correlate them with performance issues
+
+- **comprehensive_history=False**: Uses ListServiceStates API
+  - **Question it answers**: "Has anything changed in my service?" - Current change status
+  - **Best for**: Service status monitoring, checking if recent changes occurred, troubleshooting current state
+  - **Returns**: Information about the last deployment and other change states of services, providing visibility into recent changes that may have affected service performance
+  - **Use when**: You want to quickly check if there were recent changes without needing the full history
+
+**Common Use Cases:**
+1. **Alarm-Triggered Investigation**: "My checkout-service alarm is firing. What changed recently?"
+2. **Canary Failure Analysis**: "My checkout-canary is failing. Show me recent changes that might be related."
+3. **Log-Based Error Investigation**: "I'm seeing errors in payment-service logs. What deployments happened before these errors?"
+4. **Service Change History**: "Show me all changes to user-authentication-service in the last 24 hours."
+5. **SLO Breach Timeline**: "I had an SLO breach at 3 PM. What changes led up to it?"
+6. **Deployment Impact Analysis**: "Did the 2 PM deployment cause the performance degradation?"
+
+**Integration with Other Tools:**
+- **Enhances audit_services()**: Provides change context for service health issues
+- **Correlates with audit_slos()**: Links changes to SLO breach analysis
+- **Supports audit_service_operations()**: Adds timeline context for operation performance investigations
+- **Complements analyze_canary_failures()**: Provides deployment correlation for canary issues
+
+#### 15. **`list_slis`** - Legacy SLI Status Report (Specialized Tool)
 **Use `audit_services()` as the PRIMARY tool for service auditing**
 
 - Basic report showing summary counts (total, healthy, breached, insufficient data)
 - Simple list of breached services with SLO names
 - **IMPORTANT**: `audit_services()` is the PRIMARY and PREFERRED tool for all service auditing tasks
 - Only use this tool for legacy SLI status report format specifically
+
+### 🏢 Group-Level Monitoring Tools
+
+#### 16. **`list_group_services`** - Group Service Discovery
+**Discover all services belonging to a specific group**
+
+- List services by group name with wildcard support (`*payment*`)
+- View group membership details and sources (TAG, OTEL, etc.)
+- Useful for understanding team ownership and service organization
+
+**Key Use Cases:**
+- `list_group_services(group_name="Payments")` - List all services in Payments group
+- `list_group_services(group_name="*prod*")` - Find all production groups
+
+#### 17. **`audit_group_health`** - Group Health Monitoring
+**Comprehensive health assessment for all services in a group**
+
+- Automatic health detection using SLOs and metrics
+- Configurable thresholds for fault, error, and latency
+- Categorizes services as Healthy, Warning, Critical, or Unknown
+- Provides actionable recommendations for unhealthy services
+- **Synthetics Canary Integration**: Automatically detects and reports canary health for services in the group
+
+**Key Use Cases:**
+- `audit_group_health(group_name="Payments")` - Audit all payment services
+- `audit_group_health(group_name="Frontend", fault_threshold_critical=10.0)` - Custom thresholds
+
+#### 18. **`get_group_dependencies`** - Group Dependency Mapping
+**Map dependencies within and across service groups**
+
+- Identifies intra-group dependencies (services calling each other)
+- Discovers cross-group dependencies with group information
+- Lists external AWS service dependencies (DynamoDB, S3, etc.)
+
+**Key Use Cases:**
+- `get_group_dependencies(group_name="Payments")` - Map payment service dependencies
+- Useful for understanding service architecture and blast radius
+
+#### 19. **`get_group_changes`** - Group Change Tracking
+**Track deployments across a group**
+
+- Lists recent deployments
+- Groups changes by service for easy analysis
+- Useful for correlating deployments with incidents
+- Supports custom time ranges
+
+**Key Use Cases:**
+- `get_group_changes(group_name="Payments")` - Recent deployments in last 24 hours
+- `get_group_changes(group_name="API", start_time="2024-01-15 00:00:00")` - Deployments since specific time
+
+#### 20. **`list_grouping_attribute_definitions`** - Group Configuration
+**List all custom grouping attribute definitions**
+
+- Shows configured grouping attributes (Team, BusinessUnit, etc.)
+- Displays source keys (AWS tags, OTEL attributes)
+- Shows default values for each grouping attribute
+- Useful for understanding available groups
+
+### 🌐 CloudWatch RUM Tools
+
+Monitor real user experience across web and mobile applications using CloudWatch RUM data.
+
+> **Prerequisite:** Most RUM analytics actions require CloudWatch Logs to be enabled on the app monitor (`CwLogEnabled=true`). Use `check_data_access` to verify your setup.
+
+All RUM functionality is exposed through a single **`query_rum_events`** tool with an `action` parameter:
+
+```
+query_rum_events(action="<action_name>", app_monitor_name="my-app", ...)
+```
+
+#### Actions Reference
+
+| Action | Description | Required Params |
+|--------|-------------|-----------------|
+| **Discovery** | | |
+| `check_data_access` | Inspect app monitor config, find issues | `app_monitor_name` |
+| `list_monitors` | List all app monitors | *(none)* |
+| `get_monitor` | Get full app monitor config | `app_monitor_name` |
+| `list_tags` | List tags on an app monitor | `resource_arn` |
+| `get_policy` | Get resource-based policy | `app_monitor_name` |
+| **Analytics** *(require CW Logs)* | | |
+| `query` | Run custom Logs Insights query | `app_monitor_name`, `query_string`, `start_time`, `end_time` |
+| `health` | Quick health audit (errors, slow pages, sessions) | `app_monitor_name`, `start_time`, `end_time` |
+| `errors` | JS/HTTP errors by message and page | `app_monitor_name`, `start_time`, `end_time` |
+| `performance` | Page load + Core Web Vitals with good/needs-improvement/poor assessment | `app_monitor_name`, `start_time`, `end_time` |
+| `sessions` | Recent sessions with browser/OS/device | `app_monitor_name`, `start_time`, `end_time` |
+| `session_detail` | Full event timeline for a single session | `app_monitor_name`, `session_id`, `start_time`, `end_time` |
+| `page_views` | Top pages by view count | `app_monitor_name`, `start_time`, `end_time` |
+| `timeseries` | Time-bucketed trends (errors, performance, sessions) | `app_monitor_name`, `start_time`, `end_time` |
+| `locations` | Sessions and performance by country | `app_monitor_name`, `start_time`, `end_time` |
+| `http_requests` | Top HTTP requests with latency and error rates | `app_monitor_name`, `start_time`, `end_time` |
+| `resources` | Top resource requests by duration and size | `app_monitor_name`, `start_time`, `end_time` |
+| `page_flows` | Page-to-page navigation flows | `app_monitor_name`, `start_time`, `end_time` |
+| `crashes` | Mobile crashes + ANRs (Android validated, iOS experimental) | `app_monitor_name`, `start_time`, `end_time` |
+| `app_launches` | Mobile cold/warm/pre-warm launch times | `app_monitor_name`, `start_time`, `end_time` |
+| `analyze` | Anomaly detection + message patterns | `app_monitor_name`, `start_time`, `end_time` |
+| **Correlation & Metrics** | | |
+| `correlate` | Frontend-to-backend X-Ray trace correlation | `app_monitor_name`, `page_url`, `start_time`, `end_time` |
+| `metrics` | CloudWatch RUM namespace metrics | `app_monitor_name`, `metric_names` (JSON array), `start_time`, `end_time` |
+
+**Optional parameters** (action-dependent): `resource_arn`, `page_url`, `group_by`, `platform`, `max_results`, `max_traces`, `statistic`, `period`, `session_id`, `metric`, `bucket`, `compare_previous`
 
 ## Installation
 
@@ -660,6 +830,111 @@ analyze_canary_failures(canary_name="webapp-erorrpagecanary")
 • Enhanced monitoring: Proactive failure detection and faster resolution
 ```
 
+### Example 7: Change Events Timeline Analysis
+```
+User: "My checkout-service alarm is firing. What changed recently?"
+Assistant: I'll investigate recent changes to your checkout-service that might have triggered the alarm.
+
+[Uses list_change_events to correlate alarm timing with recent changes]
+
+list_change_events(
+  start_time="2024-01-15T12:00:00Z",  # 6 hours before alarm
+  end_time="2024-01-15T18:00:00Z",   # Current time
+  service_key_attributes='{"Name": "checkout-service", "Environment": "eks:production"}'
+)
+
+🚨 **ALARM CORRELATION ANALYSIS:**
+
+**Alarm Details:**
+• Trigger Time: 15:30 UTC
+• Metric: ErrorRate > 5%
+• Current Value: 12.3%
+
+**RECENT CHANGES DETECTED:**
+• 14:45 UTC: DEPLOYMENT - UpdateService (checkout-service v2.1.4)
+• 15:15 UTC: CONFIGURATION - UpdateTaskDefinition (memory limit increased)
+• 15:25 UTC: DEPLOYMENT - UpdateService (rollback attempted)
+
+🎯 **TIMELINE CORRELATION:**
+• Deployment at 14:45 UTC
+• Alarm triggered 45 minutes later (15:30 UTC)
+• Rollback attempt 5 minutes before alarm (15:25 UTC)
+• Suggests deployment introduced errors, rollback may be incomplete
+
+💡 **IMMEDIATE ACTIONS:**
+1. Verify rollback completion status
+2. Check if v2.1.4 introduced breaking changes
+3. Monitor error logs from 14:45 UTC onwards
+4. Consider full rollback to previous stable version
+```
+
+### Example 8: Multi-Service Change Pattern Analysis
+```
+User: "Multiple services are having issues. Show me all recent changes across my environment."
+Assistant: I'll analyze recent changes across your environment. Since you want to see all changes without filtering to specific services, I'll use the ListServiceStates API which provides current service state information.
+
+[Uses list_change_events with comprehensive_history=False for environment-wide analysis]
+
+list_change_events(
+  start_time="2024-01-15T06:00:00Z",  # Last 12 hours
+  end_time="2024-01-15T18:00:00Z",
+  comprehensive_history=False,  # Uses ListServiceStates API - no service filtering required
+  max_results=100
+)
+
+🌐 **ENVIRONMENT-WIDE CHANGE ANALYSIS:**
+
+**SERVICE STATE SUMMARY:**
+• payment-service: Recent deployment detected (v2.1.4)
+• checkout-service: Configuration change detected (memory limits updated)
+• user-service: Stable - no recent changes
+• api-gateway: Recent scaling event detected
+
+**RECENT CHANGE INDICATORS:**
+• Services with recent deployments: 3
+• Services with configuration changes: 2
+• Services with scaling events: 1
+• Stable services: 2
+
+🔍 **CHANGE CORRELATION ANALYSIS:**
+
+**Services Requiring Investigation:**
+• payment-service: Last deployment may correlate with reported issues
+• checkout-service: Configuration changes might be reactive to problems
+• api-gateway: Scaling events suggest increased load or performance issues
+
+💡 **RECOMMENDED NEXT STEPS:**
+
+For detailed change history of specific problematic services, I can investigate further:
+1. Get service details first: get_service_detail("payment-service")
+2. Then query comprehensive change history: list_change_events() with service_key_attributes
+3. Correlate specific change timing with issue onset
+
+Would you like me to investigate the change history for any specific service in detail?
+```
+
+### Example 9: CloudWatch RUM — Real User Monitoring
+```
+User: "Are my users experiencing issues on the checkout page?"
+Assistant: I'll check your RUM data for user-facing issues on the checkout page.
+
+[Step 1: Verify the app monitor is configured correctly]
+query_rum_events(action="check_data_access", app_monitor_name="my-web-app")
+→ CW Logs enabled, X-Ray enabled, all telemetries active. Full analytics available.
+
+[Step 2: Quick health check]
+query_rum_events(action="health", app_monitor_name="my-web-app", start_time="2026-03-18T00:00:00Z", end_time="2026-03-19T00:00:00Z")
+→ Error rate is 3x higher than normal, concentrated on /checkout page, mostly Chrome users in Germany.
+
+[Step 3: Get error details]
+query_rum_events(action="errors", app_monitor_name="my-web-app", start_time="...", end_time="...", page_url="/checkout")
+→ Top error: "TypeError: Cannot read property 'total' of undefined" — 847 occurrences.
+
+[Step 4: Is it frontend or backend?]
+query_rum_events(action="correlate", app_monitor_name="my-web-app", page_url="/checkout", start_time="...", end_time="...")
+→ Backend payment-service is returning 500 errors with avg 5.2s response time. Root cause is in the backend.
+```
+
 ## Recommended Workflows
 
 ### 🎯 Primary Audit Workflow (Most Common)
@@ -677,11 +952,19 @@ analyze_canary_failures(canary_name="webapp-erorrpagecanary")
 2. **Apply wildcard patterns** - e.g., `*GET*` for all GET operations
 3. **Root cause analysis** - Use `auditors="all"` for detailed investigation
 
+### 🔄 Change Correlation Workflow
+1. **Incident Detection** - Identify when issues started (alarms, logs, canary failures)
+2. **Change Timeline** - Use `list_change_events()` to identify recent changes
+3. **Correlation Analysis** - Match change timing with issue onset
+4. **Root Cause Validation** - Use audit tools to confirm change impact
+5. **Remediation** - Rollback problematic changes or implement fixes
+
 ### 📊 Complete Observability Workflow
 1. **Service Discovery** - `audit_services()` with wildcard patterns
 2. **SLO Compliance** - `audit_slos()` for breach detection
 3. **Operation Analysis** - `audit_service_operations()` for endpoint-specific issues
-4. **Trace Investigation** - `search_transaction_spans()` for 100% trace visibility
+4. **Change Correlation** - `list_change_events()` for timeline analysis
+5. **Trace Investigation** - `search_transaction_spans()` for 100% trace visibility
 
 ## Configuration
 
@@ -703,6 +986,11 @@ The server requires the following AWS IAM permissions:
         "application-signals:GetServiceLevelObjective",
         "application-signals:BatchGetServiceLevelObjectiveBudgetReport",
         "application-signals:ListAuditFindings",
+        "application-signals:ListEntityEvents",
+        "application-signals:ListServiceStates",
+        "application-signals:ListServiceDependencies",
+        "application-signals:ListServiceDependents",
+        "application-signals:ListGroupingAttributeDefinitions",
         "cloudwatch:GetMetricData",
         "cloudwatch:GetMetricStatistics",
         "logs:GetQueryResults",
@@ -714,6 +1002,14 @@ The server requires the following AWS IAM permissions:
         "xray:GetTraceSegmentDestination",
         "synthetics:GetCanary",
         "synthetics:GetCanaryRuns",
+        "synthetics:DescribeCanaries",
+        "rum:GetAppMonitor",
+        "rum:ListAppMonitors",
+        "rum:ListTagsForResource",
+        "rum:GetResourcePolicy",
+        "logs:DescribeLogGroups",
+        "logs:ListLogAnomalyDetectors",
+        "logs:ListAnomalies",
         "s3:GetObject",
         "s3:ListBucket",
         "iam:GetRole",
@@ -733,6 +1029,7 @@ The server requires the following AWS IAM permissions:
 - `AWS_REGION` - AWS region (defaults to us-east-1)
 - `MCP_CLOUDWATCH_APPLICATION_SIGNALS_LOG_LEVEL` - Logging level (defaults to INFO)
 - `AUDITOR_LOG_PATH` - Path for audit log files (defaults to /tmp)
+- `MCP_RUM_ENDPOINT` - Override RUM API endpoint URL (for testing against non-production environments)
 
 ### AWS Credentials
 

@@ -43,7 +43,8 @@ DOCUMENTATION_SERVER_PY = 'awslabs/aws_documentation_mcp_server/server.py'
 READ_DOCUMENTATION_TOOL_NAME = 'read_documentation'
 SEARCH_DOCUMENTATION_TOOL_NAME = 'search_documentation'
 RECOMMEND_TOOL_NAME = 'recommend'
-NUMBER_OF_TOOLS = 3
+READ_SECTIONS_TOOL_NAME = 'read_sections'
+NUMBER_OF_TOOLS = 4
 
 # Setup logging
 setup_logging('INFO')
@@ -78,11 +79,12 @@ class TestAWSDocumentationMCPServer:
         # Define expected configuration
         expected_config = create_test_config(
             expected_tools={
-                'count': NUMBER_OF_TOOLS,  # read_documentation, search_documentation, and recommend
+                'count': NUMBER_OF_TOOLS,  # read_documentation, search_documentation, recommend, and read_sections
                 'names': [
                     READ_DOCUMENTATION_TOOL_NAME,
                     SEARCH_DOCUMENTATION_TOOL_NAME,
                     RECOMMEND_TOOL_NAME,
+                    READ_SECTIONS_TOOL_NAME,
                 ],
             },
             expected_resources={

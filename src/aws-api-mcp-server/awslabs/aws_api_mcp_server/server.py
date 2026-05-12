@@ -19,6 +19,7 @@ from .core.aws.driver import translate_cli_to_ir
 from .core.aws.service import (
     check_security_policy,
     execute_awscli_customization,
+    expand_regions_if_needed,
     get_help_document,
     interpret_command,
     request_consent,
@@ -31,6 +32,7 @@ from .core.common.config import (
     FASTMCP_LOG_LEVEL,
     FILE_ACCESS_MODE,
     HOST,
+    MAX_BATCH_COMMANDS,
     PORT,
     READ_ONLY_KEY,
     READ_OPERATIONS_ONLY_MODE,
@@ -45,6 +47,7 @@ from .core.common.errors import AwsApiMcpError, CommandValidationError
 from .core.common.helpers import get_requests_session, validate_aws_region
 from .core.common.models import (
     AwsCliAliasResponse,
+    CallAWSResponse,
     Credentials,
     ProgramInterpretationResponse,
 )
@@ -187,12 +190,33 @@ async def suggest_aws_commands(
     - All commands are validated before execution to prevent errors
     - Supports pagination control via max_results parameter
     - {_FILE_ACCESS_MSGS[FILE_ACCESS_MODE]}
+    - You can use `--region *` to run a command on all regions enabled in the account.
+    - Do not generate explicit batch calls for iterating over all regions, use `--region *` instead.
+
+    Single Command Mode:
+    - You can run a single AWS CLI command using this tool.
+    - Example:
+        call_aws(cli_command="aws s3api list-buckets --region us-east-1")
+
+    Batch Running:
+    - The tool can also run multiple independent commands at the same time.
+    - Call this tool with multiple CLI commands whenever possible.
+    - Batch calling is especially useful where you need to run a command multiple times with different parameter values
+    - Example:
+        call_aws(
+            cli_command=[
+                "aws s3api get-bucket-website --bucket bucket1",
+                "aws s3api get-bucket-website --bucket bucket2"
+            ]
+        )
+    - You can call at most {MAX_BATCH_COMMANDS} CLI commands in batch mode.
 
     Best practices for command generation:
     - Always use the most specific service and operation names
     - Always use the working directory when writing files, unless user explicitly mentioned another directory
     - Include --region when operating across regions
     - Only use filters (--filters, --query, --prefix, --pattern, etc) when necessary or user explicitly asked for it
+    - Always use the tool in batch mode whenever it's possible.
 
     Command restrictions:
     - DO NOT use bash/zsh pipes (|) or any shell operators
@@ -218,21 +242,43 @@ async def suggest_aws_commands(
 )
 async def call_aws(
     cli_command: Annotated[
-        str, Field(description='The complete AWS CLI command to execute. MUST start with "aws"')
+        str | list[str],
+        Field(description='A single command or a list of complete AWS CLI commands to execute'),
     ],
     ctx: Context,
     max_results: Annotated[
         int | None,
         Field(description='Optional limit for number of results (useful for pagination)'),
     ] = None,
-) -> ProgramInterpretationResponse | AwsCliAliasResponse:
+) -> list[CallAWSResponse]:
     """Call AWS with the given CLI command and return the result as a dictionary."""
-    return await call_aws_helper(
-        cli_command=cli_command,
-        ctx=ctx,
-        max_results=max_results,
-        credentials=None,
-    )
+    commands = [cli_command] if isinstance(cli_command, str) else cli_command
+
+    if len(commands) > MAX_BATCH_COMMANDS:
+        raise AwsApiMcpError(
+            f'Number of batch commands exceeds the maximum limit of {MAX_BATCH_COMMANDS}.'
+        )
+
+    results = []
+    for cmd in commands:
+        try:
+            expanded_commands = expand_regions_if_needed(cmd)
+        except Exception as e:
+            results.append(CallAWSResponse(cli_command=cmd, error=str(e)))
+        else:
+            for expanded_cmd in expanded_commands:
+                results.append(await _execute_single_command(expanded_cmd, ctx, max_results))
+    return results
+
+
+async def _execute_single_command(
+    cmd: str, ctx: Context, max_results: int | None
+) -> CallAWSResponse:
+    try:
+        response = await call_aws_helper(cmd, ctx, max_results, None)
+        return CallAWSResponse(cli_command=cmd, response=response)
+    except Exception as e:
+        return CallAWSResponse(cli_command=cmd, error=str(e))
 
 
 async def call_aws_helper(

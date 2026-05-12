@@ -117,6 +117,129 @@ def mock_ce_client():
     return mock_client
 
 
+@pytest.fixture
+def sample_billing_view_arn():
+    """Sample billing view ARN for testing billing view support."""
+    return 'arn:aws:billing::123456789012:billingview/custom-view-abc123'
+
+
+@pytest.mark.asyncio
+class TestBillingViewArnSupport:
+    """Tests for billing_view_arn parameter across all supported CE operations."""
+
+    async def test_get_cost_and_usage_with_billing_view_arn(
+        self, mock_context, mock_ce_client, sample_billing_view_arn
+    ):
+        """Test get_cost_and_usage includes BillingViewArn in request."""
+        result = await get_cost_and_usage(
+            mock_context,
+            mock_ce_client,
+            start_date='2023-01-01',
+            end_date='2023-01-31',
+            billing_view_arn=sample_billing_view_arn,
+        )
+        assert result['status'] == 'success'
+        call_kwargs = mock_ce_client.get_cost_and_usage.call_args[1]
+        assert call_kwargs['BillingViewArn'] == sample_billing_view_arn
+
+    async def test_get_cost_and_usage_without_billing_view_arn(self, mock_context, mock_ce_client):
+        """Test get_cost_and_usage omits BillingViewArn when not provided."""
+        await get_cost_and_usage(mock_context, mock_ce_client)
+        call_kwargs = mock_ce_client.get_cost_and_usage.call_args[1]
+        assert 'BillingViewArn' not in call_kwargs
+
+    async def test_get_cost_and_usage_with_resources_with_billing_view_arn(
+        self, mock_context, mock_ce_client, sample_billing_view_arn
+    ):
+        """Test get_cost_and_usage_with_resources includes BillingViewArn."""
+        result = await get_cost_and_usage_with_resources(
+            mock_context,
+            mock_ce_client,
+            start_date='2023-01-01',
+            end_date='2023-01-07',
+            billing_view_arn=sample_billing_view_arn,
+        )
+        assert result['status'] == 'success'
+        call_kwargs = mock_ce_client.get_cost_and_usage_with_resources.call_args[1]
+        assert call_kwargs['BillingViewArn'] == sample_billing_view_arn
+
+    async def test_get_dimension_values_with_billing_view_arn(
+        self, mock_context, mock_ce_client, sample_billing_view_arn
+    ):
+        """Test get_dimension_values includes BillingViewArn."""
+        result = await get_dimension_values(
+            mock_context,
+            mock_ce_client,
+            dimension='SERVICE',
+            billing_view_arn=sample_billing_view_arn,
+        )
+        assert result['status'] == 'success'
+        call_kwargs = mock_ce_client.get_dimension_values.call_args[1]
+        assert call_kwargs['BillingViewArn'] == sample_billing_view_arn
+
+    async def test_get_cost_forecast_with_billing_view_arn(
+        self, mock_context, mock_ce_client, sample_billing_view_arn
+    ):
+        """Test get_cost_forecast includes BillingViewArn."""
+        result = await get_cost_forecast(
+            mock_context,
+            mock_ce_client,
+            metric='UNBLENDED_COST',
+            start_date='2023-02-01',
+            end_date='2023-02-28',
+            billing_view_arn=sample_billing_view_arn,
+        )
+        assert result['status'] == 'success'
+        call_kwargs = mock_ce_client.get_cost_forecast.call_args[1]
+        assert call_kwargs['BillingViewArn'] == sample_billing_view_arn
+
+    async def test_get_usage_forecast_with_billing_view_arn(
+        self, mock_context, mock_ce_client, sample_billing_view_arn
+    ):
+        """Test get_usage_forecast includes BillingViewArn."""
+        mock_ce_client.get_usage_forecast.return_value = {
+            'Total': {'Amount': '1500.0', 'Unit': 'GB'},
+            'ForecastResultsByTime': [],
+        }
+        result = await get_usage_forecast(
+            mock_context,
+            mock_ce_client,
+            metric='USAGE_QUANTITY',
+            start_date='2023-02-01',
+            end_date='2023-02-28',
+            billing_view_arn=sample_billing_view_arn,
+        )
+        assert result['status'] == 'success'
+        call_kwargs = mock_ce_client.get_usage_forecast.call_args[1]
+        assert call_kwargs['BillingViewArn'] == sample_billing_view_arn
+
+    async def test_get_tags_with_billing_view_arn(
+        self, mock_context, mock_ce_client, sample_billing_view_arn
+    ):
+        """Test get_tags includes BillingViewArn."""
+        result = await get_tags(
+            mock_context,
+            mock_ce_client,
+            billing_view_arn=sample_billing_view_arn,
+        )
+        assert result['status'] == 'success'
+        call_kwargs = mock_ce_client.get_tags.call_args[1]
+        assert call_kwargs['BillingViewArn'] == sample_billing_view_arn
+
+    async def test_get_cost_categories_with_billing_view_arn(
+        self, mock_context, mock_ce_client, sample_billing_view_arn
+    ):
+        """Test get_cost_categories includes BillingViewArn."""
+        result = await get_cost_categories(
+            mock_context,
+            mock_ce_client,
+            billing_view_arn=sample_billing_view_arn,
+        )
+        assert result['status'] == 'success'
+        call_kwargs = mock_ce_client.get_cost_categories.call_args[1]
+        assert call_kwargs['BillingViewArn'] == sample_billing_view_arn
+
+
 @pytest.mark.asyncio
 class TestGetCostAndUsage:
     """Tests for get_cost_and_usage function."""
