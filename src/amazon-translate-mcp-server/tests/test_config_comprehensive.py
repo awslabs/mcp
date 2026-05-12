@@ -59,7 +59,8 @@ class TestServerConfigComprehensive:
         assert config.aws_region == 'us-west-2'
         assert config.aws_access_key_id == 'AKIAIOSFODNN7EXAMPLE'
         assert (
-            config.aws_secret_access_key == 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+            config.aws_secret_access_key
+            == 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'  # pragma: allowlist secret
         )  # pragma: allowlist secret
         assert config.log_level == 'DEBUG'
         assert config.max_text_length == 5000
@@ -160,7 +161,8 @@ class TestLoadConfigFromEnv:
             assert config.aws_region == 'us-east-1'
             assert config.aws_access_key_id == 'AKIAIOSFODNN7EXAMPLE'
             assert (
-                config.aws_secret_access_key == 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+                config.aws_secret_access_key
+                == 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'  # pragma: allowlist secret
             )  # pragma: allowlist secret
 
     def test_load_config_from_env_logging_settings(self):
@@ -399,7 +401,7 @@ class TestValidateAwsConfig:
 
         # Only secret, no access key ID
         config = ServerConfig(
-            aws_secret_access_key='wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+            aws_secret_access_key='wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'  # pragma: allowlist secret
         )  # pragma: allowlist secret
 
         # Should not raise error, just log warning

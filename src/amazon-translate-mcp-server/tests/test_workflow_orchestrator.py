@@ -463,8 +463,8 @@ class TestErrorAnalysis:
             {
                 'CommonPrefixes': [
                     {
-                        'Prefix': 'output/123456789012-TranslateText-job-123/'
-                    }  # pragma: allowlist secret
+                        'Prefix': 'output/123456789012-TranslateText-job-123/'  # pragma: allowlist secret
+                    }
                 ]
             },
             # Second call - list error files

@@ -106,7 +106,8 @@ class TestAWSClientManager:
         assert manager._profile_name == 'test-profile'
         assert manager._aws_access_key_id == 'AKIAIOSFODNN7EXAMPLE'
         assert (
-            manager._aws_secret_access_key == 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+            manager._aws_secret_access_key
+            == 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'  # pragma: allowlist secret
         )  # pragma: allowlist secret
         assert manager._aws_session_token == 'test-session-token-example'
 
@@ -142,7 +143,8 @@ class TestAWSClientManager:
         assert manager._profile_name == 'env-profile'
         assert manager._aws_access_key_id == 'AKIAIOSFODNN7EXAMPLE'
         assert (
-            manager._aws_secret_access_key == 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+            manager._aws_secret_access_key
+            == 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'  # pragma: allowlist secret
         )  # pragma: allowlist secret
         assert manager._aws_session_token == 'test-session-token-example'
 
