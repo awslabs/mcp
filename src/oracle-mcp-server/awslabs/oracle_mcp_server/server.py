@@ -147,7 +147,7 @@ async def run_query(
             await ctx.error(write_query_prohibited_key)
             return {'error': write_query_prohibited_key}
 
-    issues = check_sql_injection_risk(sql)
+    issues = check_sql_injection_risk(sql, readonly=server_config.readonly_query)
     if issues:
         logger.info(f'query rejected: injection risk, sql:{sql}, reasons:{issues}')
         await ctx.error(
@@ -630,6 +630,14 @@ def main():
     if args.service_name and args.sid:
         logger.error('Cannot specify both --service_name and --sid')
         sys.exit(1)
+
+    if args.db_endpoint:
+        if not args.connection_method:
+            logger.error('--connection_method is required when --db_endpoint is provided')
+            sys.exit(1)
+        if not args.region:
+            logger.error('--region is required when --db_endpoint is provided')
+            sys.exit(1)
 
     logger.info(
         f'MCP configuration:\n'

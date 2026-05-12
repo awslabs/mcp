@@ -191,48 +191,48 @@ class OracledbPoolConnection(AbstractDBConnection):
                 if self.pool is None:
                     raise ValueError('Failed to initialize connection pool')
 
-            async with self.pool.acquire() as conn:
-                conn.call_timeout = self.call_timeout_ms
-                if self.readonly_query:
-                    logger.info('SET TRANSACTION READ ONLY')
-                    await conn.execute('SET TRANSACTION READ ONLY')
+                async with self.pool.acquire() as conn:
+                    conn.call_timeout = self.call_timeout_ms
+                    if self.readonly_query:
+                        logger.info('SET TRANSACTION READ ONLY')
+                        await conn.execute('SET TRANSACTION READ ONLY')
 
-                async with conn.cursor() as cursor:
-                    if parameters:
-                        named_params = self._convert_parameters(parameters)
-                        await cursor.execute(sql, named_params)
-                    else:
-                        await cursor.execute(sql)
-
-                    if cursor.description:
-                        columns = [desc[0] for desc in cursor.description]
-                        if max_rows > 0:
-                            rows = await cursor.fetchmany(max_rows + 1)
+                    async with conn.cursor() as cursor:
+                        if parameters:
+                            named_params = self._convert_parameters(parameters)
+                            await cursor.execute(sql, named_params)
                         else:
-                            rows = await cursor.fetchall()
+                            await cursor.execute(sql)
 
-                        if self.readonly_query:
-                            await conn.rollback()
+                        if cursor.description:
+                            columns = [desc[0] for desc in cursor.description]
+                            if max_rows > 0:
+                                rows = await cursor.fetchmany(max_rows + 1)
+                            else:
+                                rows = await cursor.fetchall()
 
-                        results = []
-                        for row in rows:
-                            record = {}
-                            for col, value in zip(columns, row):
-                                if value is None:
-                                    record[col] = None
-                                elif isinstance(value, (str, bool, int, float, bytes)):
-                                    record[col] = value
-                                else:
-                                    record[col] = str(value)
-                            results.append(record)
+                            if self.readonly_query:
+                                await conn.rollback()
 
-                        return results
-                    else:
-                        if self.readonly_query:
-                            await conn.rollback()
+                            results = []
+                            for row in rows:
+                                record = {}
+                                for col, value in zip(columns, row):
+                                    if value is None:
+                                        record[col] = None
+                                    elif isinstance(value, (str, bool, int, float, bytes)):
+                                        record[col] = value
+                                    else:
+                                        record[col] = str(value)
+                                results.append(record)
+
+                            return results
                         else:
-                            await conn.commit()
-                        return []
+                            if self.readonly_query:
+                                await conn.rollback()
+                            else:
+                                await conn.commit()
+                            return []
 
         except Exception as e:
             logger.exception(f'Database connection error: {str(e)}')

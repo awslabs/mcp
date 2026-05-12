@@ -464,11 +464,30 @@ def test_double_quoted_identifier_escaped_quotes_preserves_following_code():
     assert 'utl_http' in stripped
 
 
-def test_alt_quoting_preserves_opening_delimiter():
-    """Oracle q'[...]' preserves the opening delimiter character in stripped output."""
+def test_alt_quoting_strips_literal_content():
+    """Oracle q'[...]' literal content is stripped for security analysis."""
     sql = "SELECT q'[hello]' FROM DUAL"
     stripped = _strip_sql_comments(sql)
-    assert '[' in stripped
+    assert 'hello' not in stripped
+    assert 'SELECT' in stripped
+    assert 'FROM DUAL' in stripped
+
+
+def test_string_literal_keywords_not_flagged():
+    """Keywords inside string literals do not trigger false positives."""
+    sql = "SELECT * FROM logs WHERE message = 'How to CREATE a table'"
+    assert detect_mutating_keywords(sql) == []
+
+    sql2 = "SELECT * FROM notes WHERE body = 'Please DROP this off at reception'"
+    assert detect_mutating_keywords(sql2) == []
+
+
+def test_standard_string_content_stripped():
+    """Standard single-quoted string contents are stripped for security analysis."""
+    sql = "SELECT * FROM t WHERE col = 'INSERT INTO evil'"
+    stripped = _strip_sql_comments(sql)
+    assert 'INSERT' not in stripped
+    assert 'evil' not in stripped
 
 
 def test_comment_precedence_line_then_block():
@@ -697,20 +716,26 @@ def test_injection_sys_internal_table():
 
 
 def test_injection_v_dollar_view():
-    """V$ dynamic performance view access is flagged as injection risk."""
-    issues = check_sql_injection_risk('SELECT sql_text FROM v$sql')
+    """V$ dynamic performance view access is flagged as injection risk in readonly mode."""
+    issues = check_sql_injection_risk('SELECT sql_text FROM v$sql', readonly=True)
     assert len(issues) == 1
 
 
+def test_injection_v_dollar_view_allowed_in_write_mode():
+    """V$ dynamic performance view access is allowed in write mode."""
+    issues = check_sql_injection_risk('SELECT sql_text FROM v$sql', readonly=False)
+    assert len(issues) == 0
+
+
 def test_injection_gv_dollar_view():
-    """GV$ global dynamic performance view access is flagged as injection risk."""
-    issues = check_sql_injection_risk('SELECT * FROM gv$session')
+    """GV$ global dynamic performance view access is flagged as injection risk in readonly mode."""
+    issues = check_sql_injection_risk('SELECT * FROM gv$session', readonly=True)
     assert len(issues) == 1
 
 
 def test_injection_dba_view():
-    """DBA_ dictionary view access is flagged as injection risk."""
-    issues = check_sql_injection_risk('SELECT username, password FROM dba_users')
+    """DBA_ dictionary view access is flagged as injection risk in readonly mode."""
+    issues = check_sql_injection_risk('SELECT username, password FROM dba_users', readonly=True)
     assert len(issues) == 1
 
 

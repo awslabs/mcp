@@ -12,6 +12,7 @@ dependencies = [
     "botocore>=1.42.79",
     "oracledb>=3.0.0",
     "aiorwlock>=1.3.0",
+    "python-multipart>=0.0.27",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE"]

@@ -153,9 +153,16 @@ class DBConnectionMap:
                     loop = None
 
                 if loop and loop.is_running():
-                    for coro in coros:
-                        coro.close()
-                    logger.warning('Event loop active; connections may not be fully closed')
+                    for key, coro in zip(keys, coros):
+                        task = loop.create_task(coro)
+                        task.add_done_callback(
+                            lambda t, k=key: (
+                                logger.warning(f'Failed to close connection {k}: {t.exception()}')
+                                if t.exception()
+                                else None
+                            )
+                        )
+                    logger.info('Scheduled connection close tasks on running event loop')
                 else:
 
                     async def _close_all():

@@ -92,9 +92,7 @@ SUSPICIOUS_PATTERNS = [
     r'(?i)\bhtf\.\w+',  # Oracle HTML generation toolkit
     r'(?i)\bcreate\s+java\b',  # Java stored procedures — arbitrary code execution
     r'(?i)\bxmltype\s*\(',  # XMLTYPE constructor — XXE attack vector
-    r"(?i)q'\s*[\[{(<|!]",  # Oracle alternative quoting — can hide injection from pattern matching
     r'(?i)\bsys\.\w+\$',  # SYS internal tables — password hashes, link credentials
-    r'(?i)\b(v\$|gv\$|dba_)\w+',  # Sensitive dictionary views — instance metadata, user credentials
     r'(?i)\b(httpuritype|uritype)\b',  # SSRF / data exfiltration via HTTP requests from SQL
     r'(?i)\bctxsys\.\w+',  # Oracle Text schema — known OS command injection vector
     r'(?i)\bconnect\s+by\s+\d+\s*=\s*\d+',  # CONNECT BY tautology — DoS via infinite recursion
@@ -102,19 +100,35 @@ SUSPICIOUS_PATTERNS = [
     r'(?i)\bconnect\s+by\s+rownum\b',  # CONNECT BY ROWNUM — DoS via unbounded row generation
 ]
 
+READONLY_SUSPICIOUS_PATTERNS = [
+    r'(?i)\b(v\$|gv\$|dba_)\w+',  # Sensitive dictionary views — instance metadata, user credentials
+]
+
 COMPILED_SUSPICIOUS_PATTERNS = [re.compile(p) for p in SUSPICIOUS_PATTERNS]
+COMPILED_READONLY_SUSPICIOUS_PATTERNS = [re.compile(p) for p in READONLY_SUSPICIOUS_PATTERNS]
+
+# Patterns checked against raw SQL (before string stripping) to detect obfuscation mechanisms
+RAW_SQL_SUSPICIOUS_PATTERNS = [
+    r"(?i)q'[\[{(<|!]",  # Oracle alternative quoting — can hide injection from pattern matching
+]
+COMPILED_RAW_SUSPICIOUS_PATTERNS = [re.compile(p) for p in RAW_SQL_SUSPICIOUS_PATTERNS]
 
 TRANSACTION_CONTROL_PATTERN = re.compile(r'(?i)\b(COMMIT|ROLLBACK|SAVEPOINT|SET\s+TRANSACTION)\b')
 
 
 def _strip_sql_comments(sql_text: str) -> str:
-    """Remove SQL comments while preserving string literal contents.
+    """Remove SQL comments and string literal contents for security analysis.
 
     Parses character-by-character to correctly handle ``--`` and ``/*``
     that appear inside single-quoted Oracle string literals (including
     Oracle alternative quoting ``q'X...X'``) and double-quoted
-    identifiers.  Comment markers inside strings or identifiers are
-    left untouched; only true comments are replaced with a single space.
+    identifiers.
+
+    Comments are replaced with a single space. String literal contents are
+    replaced with empty literals (``''``) so that keywords inside string
+    values do not trigger false positives in mutation or injection detection.
+    Double-quoted identifiers are preserved as-is since they represent
+    schema object names that should be checked.
     """
     result: list[str] = []
     i = 0
@@ -149,37 +163,28 @@ def _strip_sql_comments(sql_text: str) -> str:
                     if open_delim
                     else None
                 )
-                # Replace the 'q' we already appended with the full literal
-                result.append("'")
-                if open_delim:
-                    result.append(open_delim)
+                # Remove the 'q' we already appended and replace with empty q-literal
+                result.pop()
                 i += 2  # skip past quote + open delimiter
-                # Scan for close_delim followed by '
                 while i < n:
                     if sql_text[i] == close_delim and i + 1 < n and sql_text[i + 1] == "'":
-                        result.append(sql_text[i])
-                        result.append("'")
                         i += 2
                         break
-                    result.append(sql_text[i])
                     i += 1
+                result.append("''")
                 continue
 
             # Standard single-quoted string: '' is an escaped quote
-            result.append("'")
             i += 1
             while i < n:
                 if sql_text[i] == "'":
-                    result.append("'")
                     i += 1
-                    # '' is an escaped single quote — stay in string
                     if i < n and sql_text[i] == "'":
-                        result.append("'")
                         i += 1
                         continue
-                    break  # end of string literal
-                result.append(sql_text[i])
+                    break
                 i += 1
+            result.append("''")
             continue
 
         # --- block comment /* ... */ ---
@@ -214,19 +219,37 @@ def detect_mutating_keywords(sql_text: str) -> list[str]:
     return list({m.upper() for m in matches})
 
 
-def check_sql_injection_risk(sql: str) -> list[dict]:
+def check_sql_injection_risk(sql: str, readonly: bool = False) -> list[dict]:
     """Check for potential SQL injection risks in sql query.
 
     Args:
         sql: query string
+        readonly: when True, also checks for sensitive dictionary view access
+            (v$, gv$, dba_ views) which expose instance metadata and credentials
 
     Returns:
         dictionaries containing detected security issue
     """
     issues = []
+
+    for compiled_pattern in COMPILED_RAW_SUSPICIOUS_PATTERNS:
+        if compiled_pattern.search(sql):
+            issues.append(
+                {
+                    'type': 'sql',
+                    'message': f'Suspicious pattern in query: {sql}',
+                    'severity': 'high',
+                }
+            )
+            return issues
+
     stripped = _strip_sql_comments(sql)
 
-    for compiled_pattern in COMPILED_SUSPICIOUS_PATTERNS:
+    patterns = COMPILED_SUSPICIOUS_PATTERNS
+    if readonly:
+        patterns = COMPILED_SUSPICIOUS_PATTERNS + COMPILED_READONLY_SUSPICIOUS_PATTERNS
+
+    for compiled_pattern in patterns:
         if compiled_pattern.search(stripped):
             issues.append(
                 {
