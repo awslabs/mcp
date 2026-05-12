@@ -1,0 +1,182 @@
+[project]
+name = "awslabs.amazon-translate-mcp-server"
+version = "1.0.0"
+description = "A Model Context Protocol server for Amazon Translate to provide text translation, custom terminology management, and batch translation processing"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    {name = "Amazon Web Services"},
+    {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
+]
+license = { text = "Apache-2.0" }
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Text Processing :: Linguistic",
+]
+keywords = [
+    "mcp",
+    "model-context-protocol",
+    "aws",
+    "amazon-translate",
+    "translation",
+    "ai",
+    "nlp",
+    "language",
+    "localization",
+    "i18n"
+]
+dependencies = [
+    "boto3>=1.38.12",
+    "mcp[cli]>=1.23.0",
+    "pydantic>=2.0.0",
+    "fastmcp>=2.13.1",
+    "defusedxml>=0.7.1",
+    "starlette>=0.50.0",
+    "urllib3>=2.6.0",
+    "authlib>=1.6.6",
+    "filelock>=3.20.0",
+    "python-multipart>=0.0.22",
+]
+
+[project.scripts]
+"awslabs.amazon-translate-mcp-server" = "awslabs.amazon_translate_mcp_server.server:main"
+"amazon-translate-mcp-server" = "awslabs.amazon_translate_mcp_server.server:main"
+"amazon-translate-mcp-validate" = "awslabs.amazon_translate_mcp_server.config:validate_startup_configuration"
+"amazon-translate-mcp-health" = "awslabs.amazon_translate_mcp_server.server:health_check"
+
+[project.urls]
+Homepage = "https://awslabs.github.io/mcp/"
+Documentation = "https://awslabs.github.io/mcp/servers/amazon-translate-mcp-server/"
+Repository = "https://github.com/awslabs/mcp"
+Source = "https://github.com/awslabs/mcp/tree/main/src/amazon-translate-mcp-server"
+"Bug Tracker" = "https://github.com/awslabs/mcp/issues"
+Changelog = "https://github.com/awslabs/mcp/blob/main/src/amazon-translate-mcp-server/CHANGELOG.md"
+"AWS Translate" = "https://aws.amazon.com/translate/"
+"MCP Protocol" = "https://modelcontextprotocol.io/"
+
+[dependency-groups]
+dev = [
+    "commitizen>=4.2.2",
+    "pre-commit>=4.1.0",
+    "ruff>=0.9.7",
+    "pyright>=1.1.398",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.26.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "bandit>=1.8.6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["awslabs"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/awslabs",
+    "/tests",
+    "/README.md",
+    "/CHANGELOG.md",
+    "/LICENSE",
+    "/NOTICE",
+    "/pyproject.toml",
+    "/start-server.sh",
+    "/docker-healthcheck.sh",
+    "/Dockerfile",
+    "/.env.example"
+]
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "1.0.0"
+tag_format = "v$version"
+version_files = [
+    "pyproject.toml:version",
+    "awslabs/amazon_translate_mcp_server/__init__.py:__version__"
+]
+update_changelog_on_bump = true
+changelog_file = "CHANGELOG.md"
+changelog_start_rev = "v1.0.0"
+
+[tool.ruff]
+line-length = 99
+extend-include = ["*.ipynb"]
+exclude = [
+    ".venv",
+    "**/__pycache__",
+    "**/node_modules",
+    "**/dist",
+    "**/build",
+    "**/env",
+    "**/.ruff_cache",
+    "**/.venv",
+    "**/.ipynb_checkpoints"
+]
+force-exclude = true
+
+[tool.ruff.lint]
+exclude = ["__init__.py"]
+select = ["C", "D", "E", "F", "I", "W"]
+ignore = ["C901", "E501", "E741", "F402", "F823", "D100", "D106"]
+
+[tool.ruff.lint.isort]
+lines-after-imports = 2
+no-sections = true
+
+[tool.ruff.lint.per-file-ignores]
+"**/*.ipynb" = ["F704"]
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "--cov=awslabs.amazon_translate_mcp_server --cov-report=term-missing"
+markers = [
+    "live: mark test as making live API calls",
+    "asyncio: mark a test as an asyncio coroutine",
+]
+
+[tool.coverage.report]
+exclude_also = [
+    'pragma: no cover',
+    'if __name__ == .__main__.:\n    main()',
+]
+
+[tool.coverage.run]
+source = ["awslabs"]
+[tool.pyright]
+include = ["awslabs", "tests"]
+exclude = ["**/__pycache__", "**/.venv"]
+reportAttributeAccessIssue = "none"
+reportOptionalOperand = "none"
+reportUndefinedVariable = "error"
+reportCallIssue = "error"
+reportArgumentType = "error"
