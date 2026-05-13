@@ -23,6 +23,7 @@ from awslabs.aws_transform_mcp_server.config_store import (
     build_bearer_config,
     build_cookie_config,
     clear_config,
+    delete_persisted_config,
     derive_transform_api_endpoint,
     extract_region_from_origin,
     get_config,
@@ -54,7 +55,7 @@ from awslabs.aws_transform_mcp_server.transform_api_client import (
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import BaseModel, Field
-from typing import Annotated, Any, Dict, List, Optional
+from typing import Annotated, Any, Dict, List, Literal, Optional
 
 
 async def _discover_profiles(
@@ -211,12 +212,13 @@ class ConfigureHandler:
         self,
         ctx: Context,
         authMode: Annotated[
-            str,
+            Literal['cookie', 'sso', 'reset'],
             Field(
                 description=(
                     'Authentication method. '
                     '"cookie" — requires: origin, sessionCookie. '
-                    '"sso" — requires: startUrl, idcRegion. Opens a browser for login.'
+                    '"sso" — requires: startUrl, idcRegion. Opens a browser for login. '
+                    '"reset" — clears saved session and switches to AWS credential auth if available.'
                 ),
             ),
         ],
@@ -282,6 +284,47 @@ class ConfigureHandler:
 
         [CRITICAL] SSO mode opens the user's default browser. Ensure the user expects this.
         """
+        # ── Reset ───────────────────────────────────────────────────────
+        if authMode == 'reset':
+            from awslabs.aws_transform_mcp_server.server import _probe_sigv4_transform_api
+
+            delete_persisted_config()
+            await _probe_sigv4_transform_api()
+            if is_sigv4_fes_available():
+                region = get_sigv4_region()
+                return text_result(
+                    {
+                        'success': True,
+                        'message': (
+                            f'Session cleared. Switched to AWS credential auth (region: {region}).'
+                        ),
+                        'authMode': 'sigv4',
+                        'region': region,
+                    },
+                )
+            from awslabs.aws_transform_mcp_server.aws_helper import AwsHelper
+
+            session = AwsHelper.create_session()
+            has_creds = session.get_credentials() is not None
+            if has_creds:
+                message = (
+                    'Session cleared. AWS credentials were found but your account '
+                    'does not have access to the Transform API via IAM. '
+                    'Use configure(authMode="sso") to authenticate with IAM Identity Center.'
+                )
+            else:
+                message = (
+                    'Session cleared. No AWS credentials detected. '
+                    'Use configure(authMode="sso") to authenticate, or set '
+                    'AWS_PROFILE in the MCP client env block and restart.'
+                )
+            return text_result(
+                {
+                    'success': True,
+                    'message': message,
+                },
+            )
+
         # ── Cookie auth ─────────────────────────────────────────────────
         if authMode == 'cookie':
             if not sessionCookie:
@@ -747,13 +790,24 @@ class ConfigureHandler:
             }
 
         # ── AWS credential API status ──────────────────────────────────
+        if is_sigv4_fes_available():
+            sigv4_api_message = (
+                'AWS credential auth enabled — all API tools work without configure.'
+            )
+        elif status.get('sigv4', {}).get('configured'):
+            sigv4_api_message = (
+                'AWS credentials detected but your account does not have access to '
+                'the Transform API. Use configure(authMode="sso") to authenticate '
+                'with IAM Identity Center instead.'
+            )
+        else:
+            sigv4_api_message = (
+                'No AWS credentials detected. Set AWS_PROFILE in the MCP client env '
+                'block and restart, or use configure(authMode="sso") to authenticate.'
+            )
         status['sigv4AwsTransformAPI'] = {
             'available': is_sigv4_fes_available(),
-            'message': (
-                'AWS credential auth enabled — all API tools work without configure.'
-                if is_sigv4_fes_available()
-                else 'AWS credential auth not available. Use configure to connect.'
-            ),
+            'message': sigv4_api_message,
         }
 
         fes_status = status.get('connection', {})
