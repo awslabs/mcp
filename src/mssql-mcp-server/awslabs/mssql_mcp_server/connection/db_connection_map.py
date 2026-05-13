@@ -121,7 +121,13 @@ class DBConnectionMap:
                 logger.warning(f'Failed to close connection {key}: {e}')
 
     def close_all(self) -> None:
-        """Close all connections and clear the map."""
+        """Close all connections and clear the map.
+
+        When called from within a running event loop (e.g. during MCP server
+        shutdown), schedules close tasks on that loop. When called outside an
+        event loop (e.g. after mcp.run() returns), creates a new loop to run
+        the async close operations.
+        """
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
@@ -131,15 +137,31 @@ class DBConnectionMap:
             connections = list(self.map.items())
             self.map.clear()
 
+        if not connections:
+            return
+
         if loop and loop.is_running():
-            for key, conn in connections:
-                try:
-                    loop.create_task(conn.close())
-                except Exception as e:
-                    logger.warning(f'Failed to close connection {key}: {e}')
+
+            async def _close_all():
+                for key, conn in connections:
+                    try:
+                        await conn.close()
+                    except Exception as e:
+                        logger.warning(f'Failed to close connection {key}: {e}')
+
+            task = loop.create_task(_close_all())
+            task.add_done_callback(
+                lambda t: logger.warning(f'close_all error: {t.exception()}')
+                if t.exception()
+                else None
+            )
         else:
-            for key, conn in connections:
-                try:
-                    asyncio.run(conn.close())
-                except Exception as e:
-                    logger.warning(f'Failed to close connection {key}: {e}')
+
+            async def _close_all():
+                for key, conn in connections:
+                    try:
+                        await conn.close()
+                    except Exception as e:
+                        logger.warning(f'Failed to close connection {key}: {e}')
+
+            asyncio.run(_close_all())

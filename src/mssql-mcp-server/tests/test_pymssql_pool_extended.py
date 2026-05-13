@@ -379,13 +379,12 @@ def test_convert_parameters_double_blob_bool():
     assert values == [1.25, b'zz', True]
 
 
-def test_convert_parameters_unknown_type_skipped():
-    """Unknown value types are silently skipped (not assigned)."""
+def test_convert_parameters_unknown_type_raises():
+    """Unknown value types raise ValueError with a clear message."""
     conn = make_pool_conn()
     params = [{'name': 'a', 'value': {'mysteryValue': 1}}]
-    result = conn._convert_parameters(params)
-    # 'a' is not present because no known type matched
-    assert 'a' not in result
+    with pytest.raises(ValueError, match='unrecognized value format'):
+        conn._convert_parameters(params)
 
 
 # ─── _get_credentials_from_secret (non-test path) ────────────────────────────

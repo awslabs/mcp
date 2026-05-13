@@ -14,7 +14,6 @@
 
 """Tests for the mssql MCP server tools."""
 
-import json
 import pytest
 from awslabs.mssql_mcp_server.connection.db_connection_map import ConnectionMethod
 from awslabs.mssql_mcp_server.mutable_sql_detector import (
@@ -33,6 +32,7 @@ from awslabs.mssql_mcp_server.server import (
 from awslabs.mssql_mcp_server.server import (
     mcp as server_mcp,
 )
+from mcp.shared.exceptions import McpError
 from unittest.mock import MagicMock
 
 
@@ -250,15 +250,15 @@ async def test_run_query_blocks_drop(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
 
     ctx = DummyCtx()
-    result = await run_query(
-        sql='DROP TABLE users',
-        ctx=ctx,
-        connection_method=ConnectionMethod.MSSQL_PASSWORD,
-        instance_identifier='inst1',
-        db_endpoint='endpoint1',
-        database='db1',
-    )
-    assert 'error' in json.loads(result)[0]
+    with pytest.raises(McpError):
+        await run_query(
+            sql='DROP TABLE users',
+            ctx=ctx,
+            connection_method=ConnectionMethod.MSSQL_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='endpoint1',
+            database='db1',
+        )
 
 
 @pytest.mark.asyncio
@@ -271,15 +271,15 @@ async def test_run_query_blocks_exec(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
 
     ctx = DummyCtx()
-    result = await run_query(
-        sql='EXEC sp_who',
-        ctx=ctx,
-        connection_method=ConnectionMethod.MSSQL_PASSWORD,
-        instance_identifier='inst1',
-        db_endpoint='endpoint1',
-        database='db1',
-    )
-    assert 'error' in json.loads(result)[0]
+    with pytest.raises(McpError):
+        await run_query(
+            sql='EXEC sp_who',
+            ctx=ctx,
+            connection_method=ConnectionMethod.MSSQL_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='endpoint1',
+            database='db1',
+        )
 
 
 @pytest.mark.asyncio
@@ -292,15 +292,15 @@ async def test_run_query_blocks_execute_keyword(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
 
     ctx = DummyCtx()
-    result = await run_query(
-        sql='EXECUTE sp_who',
-        ctx=ctx,
-        connection_method=ConnectionMethod.MSSQL_PASSWORD,
-        instance_identifier='inst1',
-        db_endpoint='endpoint1',
-        database='db1',
-    )
-    assert 'error' in json.loads(result)[0]
+    with pytest.raises(McpError):
+        await run_query(
+            sql='EXECUTE sp_who',
+            ctx=ctx,
+            connection_method=ConnectionMethod.MSSQL_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='endpoint1',
+            database='db1',
+        )
 
 
 @pytest.mark.asyncio
@@ -313,15 +313,15 @@ async def test_run_query_blocks_exec_with_params(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
 
     ctx = DummyCtx()
-    result = await run_query(
-        sql="EXEC sp_addrolemember 'db_owner', 'attacker'",
-        ctx=ctx,
-        connection_method=ConnectionMethod.MSSQL_PASSWORD,
-        instance_identifier='inst1',
-        db_endpoint='endpoint1',
-        database='db1',
-    )
-    assert 'error' in json.loads(result)[0]
+    with pytest.raises(McpError):
+        await run_query(
+            sql="EXEC sp_addrolemember 'db_owner', 'attacker'",
+            ctx=ctx,
+            connection_method=ConnectionMethod.MSSQL_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='endpoint1',
+            database='db1',
+        )
 
 
 @pytest.mark.asyncio
@@ -334,15 +334,15 @@ async def test_run_query_blocks_exec_schema_qualified(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
 
     ctx = DummyCtx()
-    result = await run_query(
-        sql='EXEC dbo.usp_delete_all_users',
-        ctx=ctx,
-        connection_method=ConnectionMethod.MSSQL_PASSWORD,
-        instance_identifier='inst1',
-        db_endpoint='endpoint1',
-        database='db1',
-    )
-    assert 'error' in json.loads(result)[0]
+    with pytest.raises(McpError):
+        await run_query(
+            sql='EXEC dbo.usp_delete_all_users',
+            ctx=ctx,
+            connection_method=ConnectionMethod.MSSQL_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='endpoint1',
+            database='db1',
+        )
 
 
 @pytest.mark.asyncio
@@ -355,15 +355,15 @@ async def test_run_query_blocks_exec_case_insensitive(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
 
     ctx = DummyCtx()
-    result = await run_query(
-        sql='exec sp_who',
-        ctx=ctx,
-        connection_method=ConnectionMethod.MSSQL_PASSWORD,
-        instance_identifier='inst1',
-        db_endpoint='endpoint1',
-        database='db1',
-    )
-    assert 'error' in json.loads(result)[0]
+    with pytest.raises(McpError):
+        await run_query(
+            sql='exec sp_who',
+            ctx=ctx,
+            connection_method=ConnectionMethod.MSSQL_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='endpoint1',
+            database='db1',
+        )
 
 
 @pytest.mark.asyncio
@@ -376,15 +376,15 @@ async def test_run_query_blocks_exec_dynamic_sql(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
 
     ctx = DummyCtx()
-    result = await run_query(
-        sql="EXEC('DROP TABLE users')",
-        ctx=ctx,
-        connection_method=ConnectionMethod.MSSQL_PASSWORD,
-        instance_identifier='inst1',
-        db_endpoint='endpoint1',
-        database='db1',
-    )
-    assert 'error' in json.loads(result)[0]
+    with pytest.raises(McpError):
+        await run_query(
+            sql="EXEC('DROP TABLE users')",
+            ctx=ctx,
+            connection_method=ConnectionMethod.MSSQL_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='endpoint1',
+            database='db1',
+        )
 
 
 @pytest.mark.asyncio
@@ -397,15 +397,15 @@ async def test_run_query_blocks_commit(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
 
     ctx = DummyCtx()
-    result = await run_query(
-        sql='SELECT 1;\n--\nCOMMIT TRANSACTION',
-        ctx=ctx,
-        connection_method=ConnectionMethod.MSSQL_PASSWORD,
-        instance_identifier='inst1',
-        db_endpoint='endpoint1',
-        database='db1',
-    )
-    assert 'error' in json.loads(result)[0]
+    with pytest.raises(McpError):
+        await run_query(
+            sql='SELECT 1;\n--\nCOMMIT TRANSACTION',
+            ctx=ctx,
+            connection_method=ConnectionMethod.MSSQL_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='endpoint1',
+            database='db1',
+        )
 
 
 @pytest.mark.asyncio
@@ -418,15 +418,15 @@ async def test_run_query_blocks_use(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
 
     ctx = DummyCtx()
-    result = await run_query(
-        sql='USE tempdb',
-        ctx=ctx,
-        connection_method=ConnectionMethod.MSSQL_PASSWORD,
-        instance_identifier='inst1',
-        db_endpoint='endpoint1',
-        database='db1',
-    )
-    assert 'error' in json.loads(result)[0]
+    with pytest.raises(McpError):
+        await run_query(
+            sql='USE tempdb',
+            ctx=ctx,
+            connection_method=ConnectionMethod.MSSQL_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='endpoint1',
+            database='db1',
+        )
 
 
 @pytest.mark.asyncio
@@ -439,15 +439,15 @@ async def test_run_query_blocks_implicit_proc_call(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
 
     ctx = DummyCtx()
-    result = await run_query(
-        sql='usp_delete_all_records',
-        ctx=ctx,
-        connection_method=ConnectionMethod.MSSQL_PASSWORD,
-        instance_identifier='inst1',
-        db_endpoint='endpoint1',
-        database='db1',
-    )
-    assert 'error' in json.loads(result)[0]
+    with pytest.raises(McpError):
+        await run_query(
+            sql='usp_delete_all_records',
+            ctx=ctx,
+            connection_method=ConnectionMethod.MSSQL_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='endpoint1',
+            database='db1',
+        )
 
 
 @pytest.mark.asyncio
@@ -460,15 +460,15 @@ async def test_run_query_blocks_checkpoint(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
 
     ctx = DummyCtx()
-    result = await run_query(
-        sql='CHECKPOINT',
-        ctx=ctx,
-        connection_method=ConnectionMethod.MSSQL_PASSWORD,
-        instance_identifier='inst1',
-        db_endpoint='endpoint1',
-        database='db1',
-    )
-    assert 'error' in json.loads(result)[0]
+    with pytest.raises(McpError):
+        await run_query(
+            sql='CHECKPOINT',
+            ctx=ctx,
+            connection_method=ConnectionMethod.MSSQL_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='endpoint1',
+            database='db1',
+        )
 
 
 @pytest.mark.asyncio
@@ -481,15 +481,15 @@ async def test_run_query_blocks_begin_dialog(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
 
     ctx = DummyCtx()
-    result = await run_query(
-        sql="DECLARE @h UNIQUEIDENTIFIER\nBEGIN DIALOG @h FROM SERVICE [//svc] TO SERVICE '//t'",
-        ctx=ctx,
-        connection_method=ConnectionMethod.MSSQL_PASSWORD,
-        instance_identifier='inst1',
-        db_endpoint='endpoint1',
-        database='db1',
-    )
-    assert 'error' in json.loads(result)[0]
+    with pytest.raises(McpError):
+        await run_query(
+            sql="DECLARE @h UNIQUEIDENTIFIER\nBEGIN DIALOG @h FROM SERVICE [//svc] TO SERVICE '//t'",
+            ctx=ctx,
+            connection_method=ConnectionMethod.MSSQL_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='endpoint1',
+            database='db1',
+        )
 
 
 @pytest.mark.asyncio
@@ -502,15 +502,15 @@ async def test_run_query_blocks_end_conversation(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
 
     ctx = DummyCtx()
-    result = await run_query(
-        sql='END CONVERSATION @handle',
-        ctx=ctx,
-        connection_method=ConnectionMethod.MSSQL_PASSWORD,
-        instance_identifier='inst1',
-        db_endpoint='endpoint1',
-        database='db1',
-    )
-    assert 'error' in json.loads(result)[0]
+    with pytest.raises(McpError):
+        await run_query(
+            sql='END CONVERSATION @handle',
+            ctx=ctx,
+            connection_method=ConnectionMethod.MSSQL_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='endpoint1',
+            database='db1',
+        )
 
 
 @pytest.mark.asyncio
@@ -523,15 +523,15 @@ async def test_run_query_blocks_set_noexec(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
 
     ctx = DummyCtx()
-    result = await run_query(
-        sql='SET NOEXEC ON',
-        ctx=ctx,
-        connection_method=ConnectionMethod.MSSQL_PASSWORD,
-        instance_identifier='inst1',
-        db_endpoint='endpoint1',
-        database='db1',
-    )
-    assert 'error' in json.loads(result)[0]
+    with pytest.raises(McpError):
+        await run_query(
+            sql='SET NOEXEC ON',
+            ctx=ctx,
+            connection_method=ConnectionMethod.MSSQL_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='endpoint1',
+            database='db1',
+        )
 
 
 @pytest.mark.asyncio
@@ -544,15 +544,15 @@ async def test_run_query_blocks_raiserror_with_log(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
 
     ctx = DummyCtx()
-    result = await run_query(
-        sql="RAISERROR('test', 16, 1) WITH LOG",
-        ctx=ctx,
-        connection_method=ConnectionMethod.MSSQL_PASSWORD,
-        instance_identifier='inst1',
-        db_endpoint='endpoint1',
-        database='db1',
-    )
-    assert 'error' in json.loads(result)[0]
+    with pytest.raises(McpError):
+        await run_query(
+            sql="RAISERROR('test', 16, 1) WITH LOG",
+            ctx=ctx,
+            connection_method=ConnectionMethod.MSSQL_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='endpoint1',
+            database='db1',
+        )
 
 
 @pytest.mark.asyncio
@@ -565,15 +565,15 @@ async def test_run_query_blocks_select_into(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
 
     ctx = DummyCtx()
-    result = await run_query(
-        sql='SELECT * INTO newtable FROM sys.databases',
-        ctx=ctx,
-        connection_method=ConnectionMethod.MSSQL_PASSWORD,
-        instance_identifier='inst1',
-        db_endpoint='endpoint1',
-        database='db1',
-    )
-    assert 'error' in json.loads(result)[0]
+    with pytest.raises(McpError):
+        await run_query(
+            sql='SELECT * INTO #newtable FROM sys.databases',
+            ctx=ctx,
+            connection_method=ConnectionMethod.MSSQL_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='endpoint1',
+            database='db1',
+        )
 
 
 @pytest.mark.asyncio
@@ -639,21 +639,21 @@ async def test_run_query_write_mode_no_readonly_message(mocker):
 
 @pytest.mark.asyncio
 async def test_run_query_no_connection(mocker):
-    """run_query returns an error when no connection is found."""
+    """run_query raises McpError when no connection is found."""
     from awslabs.mssql_mcp_server.server import run_query
 
     mocker.patch.object(db_connection_map, 'get', return_value=None)
 
     ctx = DummyCtx()
-    result = await run_query(
-        sql='SELECT 1',
-        ctx=ctx,
-        connection_method=ConnectionMethod.MSSQL_PASSWORD,
-        instance_identifier='noexist',
-        db_endpoint='nowhere',
-        database='db1',
-    )
-    assert 'error' in json.loads(result)[0]
+    with pytest.raises(McpError):
+        await run_query(
+            sql='SELECT 1',
+            ctx=ctx,
+            connection_method=ConnectionMethod.MSSQL_PASSWORD,
+            instance_identifier='noexist',
+            db_endpoint='nowhere',
+            database='db1',
+        )
 
 
 # ─── RDS stored procedure injection detection ────────────────────────────────
@@ -1025,12 +1025,20 @@ def test_injection_string_tautology():
     assert len(issues) == 1
 
 
-def test_injection_union_select():
-    """UNION SELECT is flagged as injection risk."""
+def test_injection_union_select_after_string_literal():
+    """UNION SELECT preceded by string-closing is flagged as injection risk."""
+    issues = check_sql_injection_risk(
+        "SELECT * FROM users WHERE name = '' UNION SELECT password FROM credentials"
+    )
+    assert len(issues) == 1
+
+
+def test_legitimate_union_select_not_flagged():
+    """Legitimate UNION SELECT is not flagged as injection risk."""
     issues = check_sql_injection_risk(
         'SELECT name FROM users UNION SELECT password FROM credentials'
     )
-    assert len(issues) == 1
+    assert issues == []
 
 
 def test_injection_stacked_queries():
@@ -1158,6 +1166,7 @@ def test_internal_create_connection_uses_custom_secret_arn(mocker):
     import awslabs.mssql_mcp_server.server as srv
 
     mocker.patch.object(db_connection_map, 'get', return_value=None)
+    mocker.patch('awslabs.mssql_mcp_server.server.validate_endpoint', return_value=('ep1', 1433))
     old_readonly = srv.server_config.readonly_query
     srv.server_config.readonly_query = True
 
@@ -1187,6 +1196,7 @@ def test_internal_create_connection_falls_back_to_master_secret(mocker):
     import awslabs.mssql_mcp_server.server as srv
 
     mocker.patch.object(db_connection_map, 'get', return_value=None)
+    mocker.patch('awslabs.mssql_mcp_server.server.validate_endpoint', return_value=('ep1', 1433))
     old_readonly = srv.server_config.readonly_query
     srv.server_config.readonly_query = True
 
@@ -1231,6 +1241,8 @@ def test_new_database_connection_uses_startup_secret_not_rds_master(mocker):
     # Simulate main() storing --secret_arn at startup
     old_default = srv.server_config.default_secret_arn
     srv.server_config.default_secret_arn = readonly_arn
+
+    mocker.patch('awslabs.mssql_mcp_server.server.validate_endpoint', return_value=('ep1', 1433))
 
     # Mock RDS describe to return a different master secret
     mock_rds = MagicMock()

@@ -90,18 +90,20 @@ def _strip_sql_comments_and_strings(sql_text: str) -> str:
     return result
 
 
-def _strip_sql_comments(sql_text: str) -> str:
-    """Remove SQL comments (-- line comments and /* block comments */) from SQL text."""
-    result = _BLOCK_COMMENT_RE.sub(' ', sql_text)
-    result = _LINE_COMMENT_RE.sub(' ', result)
-    return result
-
-
-SUSPICIOUS_PATTERNS = [
-    r"(?i)'.*?--",  # comment injection
-    r'(?i)\bor\b\s+\d+\s*=\s*\d+',  # numeric tautology e.g. OR 1=1
+# Patterns that must match against the ORIGINAL SQL (before stripping string literals).
+# These detect injection signatures that involve the literal quote character itself.
+ORIGINAL_SQL_PATTERNS = [
     r"(?i)\bor\b\s*'[^']+'\s*=\s*'[^']+'",  # string tautology e.g. OR '1'='1'
-    r'(?i)\bunion\b.*\bselect\b',  # UNION SELECT
+    r"(?i)'[^']*'\s*\bunion\b.*\bselect\b",  # UNION-based injection (closed string followed by UNION SELECT)
+    r"(?i)'\s+\bunion\b.*\bselect\b",  # UNION-based injection (bare closing quote followed by UNION SELECT)
+]
+
+_INLINE_COMMENT_RE = re.compile(r'^(?!\s*--)\S.*--', re.MULTILINE)
+
+# Patterns matched against comment-and-string-stripped SQL to avoid false positives
+# from keywords that appear inside string literal content.
+STRIPPED_SQL_PATTERNS = [
+    r'(?i)\bor\b\s+\d+\s*=\s*\d+',  # numeric tautology e.g. OR 1=1
     r';\s*(?!($|\s*--|\s*/\*))(?=\S)',  # stacked queries, excluding semicolons followed by comments or whitespace
     r'(?i)\bwaitfor\b',  # SQL Server timing attacks (DELAY and TIME variants)
     r'(?i)\bsp_\w+',  # system stored procedures
@@ -114,7 +116,7 @@ SUSPICIOUS_PATTERNS = [
 ]
 
 
-_SELECT_INTO_RE = re.compile(r'(?is)\bselect\b.*?\binto\b')
+_SELECT_INTO_RE = re.compile(r'(?is)\bselect\b[^;]*?\binto\b\s+[#@\w\[\"]')
 
 # Tokens that may validly begin a T-SQL batch in read-only mode.
 # Any first token NOT in this set is treated as an implicit stored procedure call.
@@ -222,6 +224,20 @@ def detect_mutating_keywords(sql_text: str) -> list[str]:
     return result
 
 
+def _has_inline_comment(sql: str) -> bool:
+    """Check if any line has a -- comment after non-whitespace content.
+
+    Standalone comment lines (where -- is the first non-whitespace) are allowed.
+    Inline comments (-- appearing mid-line after code) are rejected because they
+    are indistinguishable from comment injection attacks.
+
+    Runs against string-stripped SQL so that '--' inside string literals
+    (e.g. WHERE col = 'foo--bar') does not trigger a false positive.
+    """
+    stripped = _STRING_LITERAL_RE.sub("''", sql)
+    return _INLINE_COMMENT_RE.search(stripped) is not None
+
+
 def check_sql_injection_risk(sql: str) -> list[dict]:
     """Check for potential SQL injection risks in sql query.
 
@@ -231,14 +247,26 @@ def check_sql_injection_risk(sql: str) -> list[dict]:
     Returns:
         dictionaries containing detected security issue
     """
-    # Run patterns against both original and comment-stripped SQL.
-    # The original is needed for comment-injection detection (e.g. '.*?--).
-    # The stripped version is needed to catch evasions that hide keywords
-    # inside SQL comments (e.g. stacked queries disguised as ;<newline>--<newline>COMMIT).
-    stripped = _strip_sql_comments(sql)
+    # ORIGINAL_SQL_PATTERNS run against the raw SQL because they detect
+    # injection signatures involving the quote character itself.
+    # STRIPPED_SQL_PATTERNS run against fully-stripped SQL (comments AND
+    # string literals removed) to avoid false positives from keywords
+    # that appear inside quoted string content.
+    fully_stripped = _strip_sql_comments_and_strings(sql)
     issues = []
-    for pattern in SUSPICIOUS_PATTERNS:
-        if re.search(pattern, sql) or re.search(pattern, stripped):
+
+    if _has_inline_comment(sql):
+        issues.append(
+            {
+                'type': 'sql',
+                'message': f'Inline comments are not allowed (use standalone comment lines instead): {sql}',
+                'severity': 'high',
+            }
+        )
+        return issues
+
+    for pattern in ORIGINAL_SQL_PATTERNS:
+        if re.search(pattern, sql):
             issues.append(
                 {
                     'type': 'sql',
@@ -246,5 +274,17 @@ def check_sql_injection_risk(sql: str) -> list[dict]:
                     'severity': 'high',
                 }
             )
-            break
+            return issues
+
+    for pattern in STRIPPED_SQL_PATTERNS:
+        if re.search(pattern, fully_stripped):
+            issues.append(
+                {
+                    'type': 'sql',
+                    'message': f'Suspicious pattern in query: {sql}',
+                    'severity': 'high',
+                }
+            )
+            return issues
+
     return issues

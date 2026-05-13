@@ -162,3 +162,29 @@ def test_create_raw_connection_autocommit_enabled_in_write_mode():
         conn._create_raw_connection('user', 'pass')
     call_kwargs = mock_connect.call_args.kwargs
     assert call_kwargs.get('autocommit') is True
+
+
+def test_convert_parameters_unrecognized_value_raises():
+    """_convert_parameters raises ValueError for unrecognized value format."""
+    conn = make_pool_conn()
+    params = [
+        {'name': 'a', 'value': {'stringValue': 'ok'}},
+        {'name': 'b', 'value': {'unknownType': 'bad'}},
+    ]
+    with pytest.raises(ValueError, match='unrecognized value format'):
+        conn._convert_parameters(params)
+
+
+def test_create_raw_connection_closes_on_isolation_level_failure():
+    """_create_raw_connection closes conn if SET TRANSACTION ISOLATION LEVEL fails."""
+    conn = make_pool_conn(readonly=True)
+    mock_pymssql_conn = MagicMock()
+    mock_cursor = MagicMock()
+    mock_cursor.execute.side_effect = Exception('isolation level failed')
+    mock_pymssql_conn.cursor.return_value = mock_cursor
+
+    with patch('pymssql.connect', return_value=mock_pymssql_conn):
+        with pytest.raises(Exception, match='isolation level failed'):
+            conn._create_raw_connection('user', 'pass')
+
+    mock_pymssql_conn.close.assert_called_once()

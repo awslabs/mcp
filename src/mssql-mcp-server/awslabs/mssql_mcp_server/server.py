@@ -36,11 +36,12 @@ from mcp.server.fastmcp import Context, FastMCP
 from mcp.shared.exceptions import McpError
 from mcp.types import INVALID_PARAMS, ErrorData
 from pydantic import Field
-from typing import Annotated, Any, Dict, List, Optional, Tuple
+from typing import Annotated, Any, Dict, List, Optional, Set, Tuple
 
 
 MAX_IDENTIFIER_BYTES = 128
 MAX_PARTS = 3
+DEFAULT_MSSQL_PORT = 1433
 
 db_connection_map = DBConnectionMap()
 client_error_code_key = 'run_query ClientError code'
@@ -55,6 +56,7 @@ class ServerConfig:
         """Initialize with safe defaults."""
         self.readonly_query: bool = True
         self.default_secret_arn: Optional[str] = None
+        self.allowed_endpoints: Set[str] = set()
 
 
 server_config = ServerConfig()
@@ -82,6 +84,7 @@ def extract_cell(cell: dict):
     ):
         if key in cell:
             return cell[key]
+    logger.warning(f'Unrecognized cell value format, treating as None. Keys: {list(cell.keys())}')
     return None
 
 
@@ -140,8 +143,9 @@ async def run_query(
 
     logger.info(
         f'Entered run_query: method:{connection_method}, instance:{instance_identifier}, '
-        f'db_endpoint:{db_endpoint}, database:{database}, port:{port}, sql:{sql}'
+        f'db_endpoint:{db_endpoint}, database:{database}, port:{port}'
     )
+    logger.debug(f'run_query sql: {sql}')
 
     db_connection = db_connection_map.get(
         method=connection_method,
@@ -156,23 +160,18 @@ async def run_query(
             f'instance_identifier:{instance_identifier}, db_endpoint:{db_endpoint}, database:{database}'
         )
         logger.error(err)
-        await ctx.error(err)
-        return json.dumps([{'error': err}])
+        raise McpError(ErrorData(code=INVALID_PARAMS, message=err))
 
     if db_connection.readonly_query:
         matches = detect_mutating_keywords(sql)
         if matches:
             logger.info(f'query rejected: readonly mode, detected keywords: {matches}')
-            await ctx.error(write_query_prohibited_key)
-            return json.dumps([{'error': write_query_prohibited_key}])
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=write_query_prohibited_key))
 
     issues = check_sql_injection_risk(sql)
     if issues:
-        logger.info(f'query rejected: injection risk, sql:{sql}, reasons:{issues}')
-        await ctx.error(
-            str({'message': 'Query parameter contains suspicious pattern', 'details': issues})
-        )
-        return json.dumps([{'error': query_injection_risk_key}])
+        logger.info(f'query rejected: injection risk, reasons:{issues}')
+        raise McpError(ErrorData(code=INVALID_PARAMS, message=query_injection_risk_key))
 
     try:
         response = await db_connection.execute_query(sql, query_parameters)
@@ -180,7 +179,8 @@ async def run_query(
             raise ValueError(
                 f'execute_query must return dict with columnMetadata and records, got keys: {list(response.keys())}'
             )
-        logger.success(f'run_query successfully executed: {sql}')
+        logger.success('run_query successfully executed')
+        logger.debug(f'run_query executed sql: {sql}')
         results = parse_execute_response(response)
         wrapped = _wrap_untrusted_data(results)
         if db_connection.readonly_query:
@@ -289,6 +289,7 @@ async def connect_to_database(
     connection_method: Annotated[ConnectionMethod, Field(description='connection method')],
     instance_identifier: Annotated[str, Field(description='RDS instance identifier')],
     db_endpoint: Annotated[str, Field(description='database endpoint')],
+    ctx: Context,
     port: Annotated[int, Field(description='SQL Server port')] = 1433,
     database: Annotated[str, Field(description='database name')] = 'master',
     secret_arn: Annotated[
@@ -323,6 +324,7 @@ async def connect_to_database(
         return str(llm_response)
     except Exception as e:
         logger.exception(f'connect_to_database failed: {str(e)}')
+        await ctx.error(str({'message': f'connect_to_database failed: {str(e)}'}))
         return json.dumps({'status': 'Failed', 'error': str(e)}, indent=2)
 
 
@@ -347,6 +349,99 @@ def is_database_connected(
 def get_database_connection_info() -> str:
     """Get all cached database connection information."""
     return db_connection_map.get_keys_json()
+
+
+def internal_get_instance_valid_endpoints(
+    instance_identifier: str, region: str
+) -> List[Tuple[str, int]]:
+    """Return the list of valid (host, port) endpoints for an RDS instance.
+
+    Validates that the supplied endpoint matches an actual RDS SQL Server
+    instance. This prevents connection strings from pointing at arbitrary
+    hosts that could capture credentials.
+
+    Args:
+        instance_identifier: RDS instance identifier.
+        region: AWS region.
+
+    Returns:
+        Non-empty list of (host, port) tuples.
+
+    Raises:
+        ValueError: If no valid endpoints could be resolved.
+    """
+    rds_client = boto3.client(
+        'rds', region_name=region, config=Config(user_agent_extra=__user_agent__)
+    )
+
+    try:
+        response = rds_client.describe_db_instances(DBInstanceIdentifier=instance_identifier)
+    except ClientError as e:
+        logger.error(
+            f"Failed to describe RDS instance '{instance_identifier}': "
+            f'{e.response["Error"]["Code"]} - {e.response["Error"]["Message"]}'
+        )
+        raise
+
+    instances = response.get('DBInstances', [])
+    if not instances:
+        raise ValueError(f"RDS instance '{instance_identifier}' not found in region '{region}'")
+
+    endpoints: List[Tuple[str, int]] = []
+    for instance in instances:
+        endpoint_info = instance.get('Endpoint', {})
+        host = endpoint_info.get('Address')
+        port_raw = endpoint_info.get('Port')
+        try:
+            port = int(port_raw) if port_raw is not None else 0
+        except (TypeError, ValueError):
+            logger.warning(
+                f"Unparseable port value '{port_raw}' for instance '{instance_identifier}', "
+                f'defaulting to {DEFAULT_MSSQL_PORT}'
+            )
+            port = DEFAULT_MSSQL_PORT
+        if host and port:
+            endpoints.append((host, port))
+
+    if not endpoints:
+        raise ValueError(f"RDS instance '{instance_identifier}' has no valid connection endpoints")
+
+    return endpoints
+
+
+def validate_endpoint(
+    db_endpoint: str,
+    port: int,
+    instance_identifier: str,
+    region: str,
+) -> Tuple[str, int]:
+    """Validate that the requested endpoint matches an RDS instance or allowed list.
+
+    Returns the AWS-sourced (host, port) on match. Raises ValueError on mismatch.
+    """
+    global server_config
+
+    # Check against the additional allowed endpoints first (on-premise use cases)
+    requested_host_lower = db_endpoint.strip().lower()
+    for allowed in server_config.allowed_endpoints:
+        if allowed.lower() == requested_host_lower:
+            return (db_endpoint.strip(), port)
+
+    # Validate against RDS instance endpoints
+    valid_endpoints = internal_get_instance_valid_endpoints(instance_identifier, region)
+
+    for valid_host, valid_port in valid_endpoints:
+        if valid_host.lower() == requested_host_lower and valid_port == port:
+            return (valid_host, valid_port)
+
+    valid_repr = ', '.join(f'{h}:{p}' for h, p in valid_endpoints) or '<none>'
+    allowed_repr = ', '.join(sorted(server_config.allowed_endpoints)) or '<none>'
+    raise ValueError(
+        f"db_endpoint '{db_endpoint}:{port}' does not match any endpoint of "
+        f"instance '{instance_identifier}'. "
+        f'Valid RDS endpoints: {valid_repr}. '
+        f'Additional allowed endpoints: {allowed_repr}'
+    )
 
 
 def internal_create_connection(
@@ -391,6 +486,10 @@ def internal_create_connection(
         )
         return (existing_conn, llm_response)
 
+    # Validate the endpoint against RDS or the allowed list.
+    # Use the AWS-sourced endpoint for the connection string.
+    db_endpoint, port = validate_endpoint(db_endpoint, port, instance_identifier, region)
+
     if not secret_arn:
         # First try to use the default secret_arn from startup args
         if server_config.default_secret_arn:
@@ -406,7 +505,14 @@ def internal_create_connection(
                 DBInstanceIdentifier=instance_identifier
             )['DBInstances'][0]
 
-            secret_arn = instance_props.get('MasterUserSecret', {}).get('SecretArn', '')
+            master_secret = instance_props.get('MasterUserSecret', {})
+            secret_arn = master_secret.get('SecretArn') if master_secret else None
+            if not secret_arn:
+                raise ValueError(
+                    f"RDS instance '{instance_identifier}' does not have a managed "
+                    f'MasterUserSecret and no --secret_arn was provided. '
+                    f'Supply a --secret_arn or configure a Secrets Manager secret.'
+                )
 
     logger.debug(f'Connection props: secret_arn:{secret_arn}, endpoint:{db_endpoint}, port:{port}')
 
@@ -415,7 +521,7 @@ def internal_create_connection(
         port=port,
         database=database,
         readonly=server_config.readonly_query,
-        secret_arn=secret_arn or '',
+        secret_arn=secret_arn,
         region=region,
         encryption=encryption,
     )
@@ -561,6 +667,12 @@ def main():
         '--secret_arn',
         help='Secrets Manager ARN for database credentials (overrides the RDS master secret)',
     )
+    parser.add_argument(
+        '--allowed_endpoints',
+        nargs='*',
+        default=[],
+        help='Additional allowed endpoint hostnames (for on-premise or non-RDS instances)',
+    )
     args = parser.parse_args()
 
     logger.info(
@@ -577,6 +689,7 @@ def main():
 
     server_config.readonly_query = not args.allow_write_query
     server_config.default_secret_arn = args.secret_arn
+    server_config.allowed_endpoints = set(args.allowed_endpoints)
 
     if server_config.readonly_query:
         readonly_notice = (
@@ -592,9 +705,19 @@ def main():
 
     try:
         if args.instance_identifier and args.db_endpoint:
+            try:
+                connection_method = ConnectionMethod[args.connection_method]
+            except KeyError:
+                valid_methods = ', '.join(m.name for m in ConnectionMethod)
+                logger.error(
+                    f"Invalid connection_method: '{args.connection_method}'. "
+                    f'Valid values: {valid_methods}'
+                )
+                sys.exit(1)
+
             db_connection, _ = internal_create_connection(
                 region=args.region,
-                connection_method=ConnectionMethod[args.connection_method],
+                connection_method=connection_method,
                 instance_identifier=args.instance_identifier,
                 db_endpoint=args.db_endpoint,
                 port=args.port,

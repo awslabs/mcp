@@ -210,15 +210,15 @@ async def test_run_query_injection_risk_blocked(mocker):
     mock_conn = MagicMock()
     mock_conn.readonly_query = False  # write mode
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
-    result = await run_query(
-        sql="EXEC xp_cmdshell 'whoami'",
-        ctx=DummyCtx(),
-        connection_method=ConnectionMethod.MSSQL_PASSWORD,
-        instance_identifier='i',
-        db_endpoint='e',
-        database='d',
-    )
-    assert 'error' in json.loads(result)[0]
+    with pytest.raises(McpError):
+        await run_query(
+            sql="EXEC xp_cmdshell 'whoami'",
+            ctx=DummyCtx(),
+            connection_method=ConnectionMethod.MSSQL_PASSWORD,
+            instance_identifier='i',
+            db_endpoint='e',
+            database='d',
+        )
 
 
 # ─── get_table_schema ────────────────────────────────────────────────────────
@@ -361,6 +361,7 @@ async def test_connect_to_database_success(mocker):
         connection_method=ConnectionMethod.MSSQL_PASSWORD,
         instance_identifier='i',
         db_endpoint='e',
+        ctx=DummyCtx(),
         port=1433,
         database='d',
     )
@@ -388,6 +389,7 @@ async def test_connect_to_database_pool_init_fails(mocker):
         connection_method=ConnectionMethod.MSSQL_PASSWORD,
         instance_identifier='i',
         db_endpoint='e',
+        ctx=DummyCtx(),
         port=1433,
         database='d',
     )
@@ -409,6 +411,7 @@ async def test_connect_to_database_internal_raises(mocker):
         connection_method=ConnectionMethod.MSSQL_PASSWORD,
         instance_identifier='i',
         db_endpoint='e',
+        ctx=DummyCtx(),
         port=1433,
         database='d',
     )
