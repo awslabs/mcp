@@ -65,6 +65,10 @@ class MockOracleCursor:
         """Return mock rows."""
         return self._rows
 
+    async def fetchmany(self, size):
+        """Return at most size mock rows."""
+        return self._rows[:size]
+
     async def __aenter__(self):
         """Enter async context."""
         return self

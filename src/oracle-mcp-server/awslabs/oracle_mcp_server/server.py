@@ -113,8 +113,9 @@ async def run_query(
 
     logger.info(
         f'Entered run_query: method:{connection_method}, instance:{instance_identifier}, '
-        f'db_endpoint:{db_endpoint}, database:{database}, sql:{sql}'
+        f'db_endpoint:{db_endpoint}, database:{database}'
     )
+    logger.debug(f'run_query sql: {sql}')
 
     db_connection = db_connection_map.get(
         method=connection_method,
@@ -136,24 +137,26 @@ async def run_query(
         matches = detect_mutating_keywords(sql)
         if matches:
             logger.info(f'query rejected: readonly mode, detected keywords: {matches}')
-            await ctx.error(write_query_prohibited_key)
-            return {'error': write_query_prohibited_key}
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=write_query_prohibited_key))
 
         txn_matches = detect_transaction_bypass_attempt(sql)
         if txn_matches:
             logger.info(
                 f'query rejected: transaction control in readonly mode, detected: {txn_matches}'
             )
-            await ctx.error(write_query_prohibited_key)
-            return {'error': write_query_prohibited_key}
+            raise McpError(ErrorData(code=INVALID_PARAMS, message=write_query_prohibited_key))
 
     issues = check_sql_injection_risk(sql, readonly=server_config.readonly_query)
     if issues:
-        logger.info(f'query rejected: injection risk, sql:{sql}, reasons:{issues}')
-        await ctx.error(
-            str({'message': 'Query parameter contains suspicious pattern', 'details': issues})
+        logger.info(f'query rejected: injection risk, reasons:{issues}')
+        raise McpError(
+            ErrorData(
+                code=INVALID_PARAMS,
+                message=str(
+                    {'message': 'Query parameter contains suspicious pattern', 'details': issues}
+                ),
+            )
         )
-        return {'error': query_injection_risk_key}
 
     try:
         results = await db_connection.execute_query(
@@ -173,7 +176,7 @@ async def run_query(
                 f'Use a more specific query to see additional data.'
             )
         if db_connection.readonly_query:
-            wrapped += '\n\nNote: MCP server is in read-only mode. Any changes made by the query above will NOT be committed.'
+            wrapped += '\n\nNote: MCP server is in read-only mode. Queries are executed with SET TRANSACTION READ ONLY; any uncommitted changes are automatically rolled back.'
         return wrapped
     except ClientError as e:
         logger.exception(f'run_query ClientError: {e.response["Error"]["Code"]}')
@@ -319,20 +322,24 @@ async def connect_to_database(
         )
 
         if replaced_conn:
-            await replaced_conn.close()
+            try:
+                await replaced_conn.close()
+            except Exception as close_err:
+                logger.warning(f'Failed to close replaced connection: {close_err}')
 
         if isinstance(db_connection, OracledbPoolConnection):
             try:
                 await db_connection.initialize_pool()
-            except Exception:
+            except Exception as pool_err:
                 db_connection_map.remove(
                     connection_method, instance_identifier, db_endpoint, database, port
                 )
-                raise
+                logger.exception(f'connect_to_database pool init failed: {pool_err}')
+                return {'status': 'Failed', 'error': str(pool_err)}
 
         return llm_response
-    except Exception as e:
-        logger.exception(f'connect_to_database failed: {str(e)}')
+    except (ValueError, ClientError) as e:
+        logger.exception(f'connect_to_database failed: {e}')
         return {'status': 'Failed', 'error': str(e)}
 
 
@@ -447,15 +454,37 @@ def internal_create_connection(
         rds_client = boto3.client(
             'rds', region_name=region, config=Config(user_agent_extra=__user_agent__)
         )
-        instance_props = rds_client.describe_db_instances(
-            DBInstanceIdentifier=instance_identifier
-        )['DBInstances'][0]
+        try:
+            response = rds_client.describe_db_instances(DBInstanceIdentifier=instance_identifier)
+        except ClientError as e:
+            code = e.response['Error']['Code']
+            if code == 'DBInstanceNotFound':
+                raise ValueError(
+                    f"RDS instance '{instance_identifier}' not found in region '{region}'"
+                ) from e
+            raise ValueError(
+                f'Failed to describe RDS instance: {e.response["Error"]["Message"]}'
+            ) from e
+
+        instances = response.get('DBInstances', [])
+        if not instances:
+            raise ValueError(
+                f"describe_db_instances returned no instances for '{instance_identifier}'"
+            )
+        instance_props = instances[0]
 
         masteruser = instance_props.get('MasterUsername', '')
 
         # Final fallback for password auth: RDS master secret
         if not secret_arn:
-            secret_arn = instance_props.get('MasterUserSecret', {}).get('SecretArn', '')
+            master_secret = instance_props.get('MasterUserSecret')
+            if master_secret:
+                secret_arn = master_secret.get('SecretArn', '')
+            if not secret_arn:
+                raise ValueError(
+                    f"RDS instance '{instance_identifier}' has no managed master secret. "
+                    'Enable RDS-managed credentials or pass --secret_arn.'
+                )
 
     logger.info(
         f'Instance props: masteruser:{masteruser}, secret_arn:{secret_arn}, '
@@ -685,9 +714,18 @@ def main():
             if not service_name and not sid:
                 service_name = args.database
 
+            try:
+                connection_method = ConnectionMethod[args.connection_method]
+            except KeyError:
+                valid = ', '.join(m.name for m in ConnectionMethod)
+                logger.error(
+                    f"Invalid --connection_method '{args.connection_method}'. Valid values: {valid}"
+                )
+                sys.exit(1)
+
             db_connection, _, _ = internal_create_connection(
                 region=args.region,
-                connection_method=ConnectionMethod[args.connection_method],
+                connection_method=connection_method,
                 instance_identifier=instance_identifier,
                 db_endpoint=args.db_endpoint,
                 port=args.port,

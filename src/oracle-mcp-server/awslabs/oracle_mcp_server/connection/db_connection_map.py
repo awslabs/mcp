@@ -155,13 +155,14 @@ class DBConnectionMap:
                 if loop and loop.is_running():
                     for key, coro in zip(keys, coros):
                         task = loop.create_task(coro)
-                        task.add_done_callback(
-                            lambda t, k=key: (
+
+                        def _done_cb(t, k=key):
+                            if t.cancelled():
+                                logger.warning(f'Close task for connection {k} was cancelled')
+                            elif t.exception():
                                 logger.warning(f'Failed to close connection {k}: {t.exception()}')
-                                if t.exception()
-                                else None
-                            )
-                        )
+
+                        task.add_done_callback(_done_cb)
                     logger.info('Scheduled connection close tasks on running event loop')
                 else:
 

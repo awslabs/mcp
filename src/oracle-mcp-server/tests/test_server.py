@@ -35,6 +35,7 @@ from awslabs.oracle_mcp_server.server import (
     server_config,
     validate_table_name,
 )
+from mcp.shared.exceptions import McpError
 from unittest.mock import AsyncMock, MagicMock
 
 
@@ -189,16 +190,15 @@ async def test_run_query_blocks_drop(mocker):
     mock_conn.readonly_query = True
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
     ctx = DummyCtx()
-    result = await run_query(
-        sql='DROP TABLE HR.EMPLOYEES',
-        ctx=ctx,
-        connection_method=ConnectionMethod.ORACLE_PASSWORD,
-        instance_identifier='inst1',
-        db_endpoint='endpoint1',
-        database='ORCL',
-    )
-    assert isinstance(result, dict)
-    assert 'error' in result
+    with pytest.raises(McpError):
+        await run_query(
+            sql='DROP TABLE HR.EMPLOYEES',
+            ctx=ctx,
+            connection_method=ConnectionMethod.ORACLE_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='endpoint1',
+            database='ORCL',
+        )
 
 
 @pytest.mark.asyncio
@@ -210,16 +210,15 @@ async def test_run_query_blocks_audit(mocker):
     mock_conn.readonly_query = True
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
     ctx = DummyCtx()
-    result = await run_query(
-        sql='AUDIT SELECT TABLE BY ACCESS',
-        ctx=ctx,
-        connection_method=ConnectionMethod.ORACLE_PASSWORD,
-        instance_identifier='inst1',
-        db_endpoint='endpoint1',
-        database='ORCL',
-    )
-    assert isinstance(result, dict)
-    assert 'error' in result
+    with pytest.raises(McpError):
+        await run_query(
+            sql='AUDIT SELECT TABLE BY ACCESS',
+            ctx=ctx,
+            connection_method=ConnectionMethod.ORACLE_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='endpoint1',
+            database='ORCL',
+        )
 
 
 @pytest.mark.asyncio
@@ -880,16 +879,15 @@ async def test_run_query_blocks_commit_in_readonly(mocker):
     mock_conn.readonly_query = True
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
     ctx = DummyCtx()
-    result = await run_query(
-        sql='COMMIT',
-        ctx=ctx,
-        connection_method=ConnectionMethod.ORACLE_PASSWORD,
-        instance_identifier='inst1',
-        db_endpoint='endpoint1',
-        database='ORCL',
-    )
-    assert isinstance(result, dict)
-    assert 'error' in result
+    with pytest.raises(McpError):
+        await run_query(
+            sql='COMMIT',
+            ctx=ctx,
+            connection_method=ConnectionMethod.ORACLE_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='endpoint1',
+            database='ORCL',
+        )
 
 
 @pytest.mark.asyncio
@@ -901,16 +899,15 @@ async def test_run_query_blocks_plsql_begin_in_readonly(mocker):
     mock_conn.readonly_query = True
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
     ctx = DummyCtx()
-    result = await run_query(
-        sql='BEGIN my_pkg.delete_all; END;',
-        ctx=ctx,
-        connection_method=ConnectionMethod.ORACLE_PASSWORD,
-        instance_identifier='inst1',
-        db_endpoint='endpoint1',
-        database='ORCL',
-    )
-    assert isinstance(result, dict)
-    assert 'error' in result
+    with pytest.raises(McpError):
+        await run_query(
+            sql='BEGIN my_pkg.delete_all; END;',
+            ctx=ctx,
+            connection_method=ConnectionMethod.ORACLE_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='endpoint1',
+            database='ORCL',
+        )
 
 
 @pytest.mark.asyncio
@@ -922,16 +919,15 @@ async def test_run_query_blocks_plsql_declare_in_readonly(mocker):
     mock_conn.readonly_query = True
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
     ctx = DummyCtx()
-    result = await run_query(
-        sql='DECLARE v_x NUMBER; BEGIN NULL; END;',
-        ctx=ctx,
-        connection_method=ConnectionMethod.ORACLE_PASSWORD,
-        instance_identifier='inst1',
-        db_endpoint='endpoint1',
-        database='ORCL',
-    )
-    assert isinstance(result, dict)
-    assert 'error' in result
+    with pytest.raises(McpError):
+        await run_query(
+            sql='DECLARE v_x NUMBER; BEGIN NULL; END;',
+            ctx=ctx,
+            connection_method=ConnectionMethod.ORACLE_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='endpoint1',
+            database='ORCL',
+        )
 
 
 @pytest.mark.asyncio
@@ -943,16 +939,15 @@ async def test_run_query_blocks_set_role_in_readonly(mocker):
     mock_conn.readonly_query = True
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
     ctx = DummyCtx()
-    result = await run_query(
-        sql='SET ROLE DBA',
-        ctx=ctx,
-        connection_method=ConnectionMethod.ORACLE_PASSWORD,
-        instance_identifier='inst1',
-        db_endpoint='endpoint1',
-        database='ORCL',
-    )
-    assert isinstance(result, dict)
-    assert 'error' in result
+    with pytest.raises(McpError):
+        await run_query(
+            sql='SET ROLE DBA',
+            ctx=ctx,
+            connection_method=ConnectionMethod.ORACLE_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='endpoint1',
+            database='ORCL',
+        )
 
 
 @pytest.mark.asyncio
@@ -964,16 +959,15 @@ async def test_run_query_blocks_explain_plan_in_readonly(mocker):
     mock_conn.readonly_query = True
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
     ctx = DummyCtx()
-    result = await run_query(
-        sql='EXPLAIN PLAN FOR SELECT * FROM HR.EMPLOYEES',
-        ctx=ctx,
-        connection_method=ConnectionMethod.ORACLE_PASSWORD,
-        instance_identifier='inst1',
-        db_endpoint='endpoint1',
-        database='ORCL',
-    )
-    assert isinstance(result, dict)
-    assert 'error' in result
+    with pytest.raises(McpError):
+        await run_query(
+            sql='EXPLAIN PLAN FOR SELECT * FROM HR.EMPLOYEES',
+            ctx=ctx,
+            connection_method=ConnectionMethod.ORACLE_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='endpoint1',
+            database='ORCL',
+        )
 
 
 @pytest.mark.asyncio
@@ -985,16 +979,15 @@ async def test_run_query_blocks_set_transaction_in_readonly(mocker):
     mock_conn.readonly_query = True
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
     ctx = DummyCtx()
-    result = await run_query(
-        sql='SET TRANSACTION READ WRITE',
-        ctx=ctx,
-        connection_method=ConnectionMethod.ORACLE_PASSWORD,
-        instance_identifier='inst1',
-        db_endpoint='endpoint1',
-        database='ORCL',
-    )
-    assert isinstance(result, dict)
-    assert 'error' in result
+    with pytest.raises(McpError):
+        await run_query(
+            sql='SET TRANSACTION READ WRITE',
+            ctx=ctx,
+            connection_method=ConnectionMethod.ORACLE_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='endpoint1',
+            database='ORCL',
+        )
 
 
 # --- read-only mode message in successful queries ---
@@ -1019,7 +1012,7 @@ async def test_run_query_readonly_appends_message(mocker):
         database='ORCL',
     )
     assert 'MCP server is in read-only mode' in result
-    assert 'will NOT be committed' in result
+    assert 'automatically rolled back' in result
 
 
 # --- max_rows truncation ---
@@ -1301,12 +1294,10 @@ def test_internal_create_connection_empty_secret_arn_raises(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=None)
 
     mock_rds = MagicMock()
-    mock_rds.describe_db_instances.return_value = {
-        'DBInstances': [{'MasterUsername': 'admin', 'MasterUserSecret': {}}]
-    }
+    mock_rds.describe_db_instances.return_value = {'DBInstances': [{'MasterUsername': 'admin'}]}
     mocker.patch('boto3.client', return_value=mock_rds)
 
-    with pytest.raises(ValueError, match='No secret_arn resolved'):
+    with pytest.raises(ValueError, match='no managed master secret'):
         internal_create_connection(
             region='us-east-1',
             connection_method=ConnectionMethod.ORACLE_PASSWORD,
@@ -1423,3 +1414,74 @@ async def test_execute_query_readonly_rollback_no_cursor_description():
     mock_conn.rollback.assert_awaited_once()
     mock_conn.commit.assert_not_awaited()
     assert result == []
+
+
+# --- _wrap_untrusted_data ---
+
+
+def test_wrap_untrusted_data_contains_boundary_and_prefix():
+    """_wrap_untrusted_data wraps data in randomized boundary tags with UNTRUSTED prefix."""
+    from awslabs.oracle_mcp_server.server import _wrap_untrusted_data
+
+    result = _wrap_untrusted_data([{'col': 'val'}])
+    assert 'UNTRUSTED database content' in result
+    assert 'DATA_' in result
+
+
+def test_wrap_untrusted_data_boundary_is_randomized():
+    """Each call to _wrap_untrusted_data generates a unique boundary tag."""
+    from awslabs.oracle_mcp_server.server import _wrap_untrusted_data
+
+    r1 = _wrap_untrusted_data({'a': 1})
+    r2 = _wrap_untrusted_data({'a': 1})
+    import re
+
+    b1 = re.search(r'DATA_[0-9a-f]+', r1)
+    b2 = re.search(r'DATA_[0-9a-f]+', r2)
+    assert b1 and b2
+    assert b1.group() != b2.group()
+
+
+def test_wrap_untrusted_data_serializes_payload():
+    """_wrap_untrusted_data serializes the data as JSON between boundary tags."""
+    import json
+    import re
+    from awslabs.oracle_mcp_server.server import _wrap_untrusted_data
+
+    data = [{'ID': 1, 'NAME': 'Alice'}]
+    result = _wrap_untrusted_data(data)
+    # Find the boundary tag name (the text inside angle brackets)
+    m = re.search(r'<(DATA_[0-9a-f]+)>', result)
+    assert m is not None
+    boundary = m.group(1)
+    # The tag appears twice: once in the prose and once as the actual block delimiter.
+    # The content is between the last open-tag and the close-tag.
+    open_tag = f'<{boundary}>'
+    close_tag = f'</{boundary}>'
+    inner = result.rsplit(open_tag, 1)[1].split(close_tag)[0].strip()
+    assert json.loads(inner) == data
+
+
+# --- readonly run_query end-to-end rejection ---
+
+
+@pytest.mark.asyncio
+async def test_run_query_readonly_rejects_v_dollar_view(mocker):
+    """SELECT from v$sql is rejected in readonly mode (injection risk)."""
+    from awslabs.oracle_mcp_server.server import run_query
+
+    server_config.readonly_query = True
+    mock_conn = MagicMock()
+    mock_conn.readonly_query = True
+    mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
+    ctx = DummyCtx()
+    with pytest.raises(McpError):
+        await run_query(
+            sql='SELECT sql_text FROM v$sql',
+            ctx=ctx,
+            connection_method=ConnectionMethod.ORACLE_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='endpoint1',
+            database='ORCL',
+        )
+    mock_conn.execute_query.assert_not_called()

@@ -75,24 +75,23 @@ def _reset_server_config():
 async def test_run_query_injection_risk_returns_error(mocker):
     """Injection-risk pattern is rejected before the query reaches the DB."""
     from awslabs.oracle_mcp_server.server import run_query
+    from mcp.shared.exceptions import McpError
 
     mock_conn = MagicMock()
     mock_conn.readonly_query = False  # skip the readonly branch
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
     ctx = DummyCtx()
 
-    result = await run_query(
-        sql="EXECUTE IMMEDIATE 'DROP TABLE t'",
-        ctx=ctx,
-        connection_method=ConnectionMethod.ORACLE_PASSWORD,
-        db_endpoint='ep1',
-        database='ORCL',
-    )
+    with pytest.raises(McpError):
+        await run_query(
+            sql="EXECUTE IMMEDIATE 'DROP TABLE t'",
+            ctx=ctx,
+            connection_method=ConnectionMethod.ORACLE_PASSWORD,
+            db_endpoint='ep1',
+            database='ORCL',
+        )
 
-    assert isinstance(result, dict)
-    assert 'error' in result
-    mock_conn.execute_query.assert_not_called() if hasattr(mock_conn, 'execute_query') else None
-    assert len(ctx.errors) == 1
+    mock_conn.execute_query.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -618,7 +617,7 @@ def test_get_credentials_from_secret_missing_username(mocker):
     mock_session.client.return_value = mock_sm
     mocker.patch('boto3.Session', return_value=mock_session)
 
-    with pytest.raises(ValueError, match='Failed to retrieve credentials'):
+    with pytest.raises(ValueError, match='does not contain username'):
         conn._get_credentials_from_secret('arn:any', 'us-east-1')
 
 
@@ -632,7 +631,7 @@ def test_get_credentials_from_secret_missing_password(mocker):
     mock_session.client.return_value = mock_sm
     mocker.patch('boto3.Session', return_value=mock_session)
 
-    with pytest.raises(ValueError, match='Failed to retrieve credentials'):
+    with pytest.raises(ValueError, match='does not contain password'):
         conn._get_credentials_from_secret('arn:any', 'us-east-1')
 
 
@@ -646,7 +645,7 @@ def test_get_credentials_from_secret_no_secret_string(mocker):
     mock_session.client.return_value = mock_sm
     mocker.patch('boto3.Session', return_value=mock_session)
 
-    with pytest.raises(ValueError, match='Failed to retrieve credentials'):
+    with pytest.raises(ValueError, match='does not contain a SecretString'):
         conn._get_credentials_from_secret('arn:any', 'us-east-1')
 
 

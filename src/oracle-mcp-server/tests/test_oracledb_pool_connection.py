@@ -240,11 +240,28 @@ async def test_check_connection_health_uses_dual():
 
 @pytest.mark.asyncio
 async def test_check_connection_health_unhealthy():
-    """Verify failed connection returns False."""
+    """Verify a DatabaseError returns False."""
+    import oracledb
+
     conn = make_pool_conn()
-    with patch.object(conn, 'execute_query', new=AsyncMock(side_effect=Exception('conn failed'))):
+    with patch.object(
+        conn, 'execute_query', new=AsyncMock(side_effect=oracledb.DatabaseError('conn failed'))
+    ):
         result = await conn.check_connection_health()
     assert result is False
+
+
+@pytest.mark.asyncio
+async def test_check_connection_health_pool_not_initialized_propagates():
+    """ValueError (pool not initialized) is not swallowed by check_connection_health."""
+    conn = make_pool_conn()
+    with patch.object(
+        conn,
+        'execute_query',
+        new=AsyncMock(side_effect=ValueError('Failed to initialize connection pool')),
+    ):
+        with pytest.raises(ValueError, match='Failed to initialize connection pool'):
+            await conn.check_connection_health()
 
 
 # --- validate_sync ---
@@ -517,3 +534,30 @@ async def test_execute_query_converts_non_native_types_to_str():
     result = await conn.execute_query('SELECT ts FROM t')
 
     assert result == [{'TS': str(test_dt)}]
+
+
+@pytest.mark.asyncio
+async def test_initialize_pool_failure_leaves_pool_none():
+    """Failed initialize_pool leaves pool=None and re-raises the exception."""
+    conn = make_pool_conn()
+    assert conn.pool is None
+
+    with patch('oracledb.create_pool_async', side_effect=Exception('connection refused')):
+        with pytest.raises(Exception, match='connection refused'):
+            await conn.initialize_pool()
+
+    assert conn.pool is None
+
+
+def test_convert_parameters_missing_name_raises():
+    """_convert_parameters raises ValueError when a parameter has no 'name' field."""
+    conn = make_pool_conn()
+    with pytest.raises(ValueError, match="missing 'name'"):
+        conn._convert_parameters([{'value': {'stringValue': 'x'}}])
+
+
+def test_convert_parameters_unrecognized_type_raises():
+    """_convert_parameters raises ValueError for unrecognized value format."""
+    conn = make_pool_conn()
+    with pytest.raises(ValueError, match='unrecognized value format'):
+        conn._convert_parameters([{'name': 'p', 'value': {'unknownType': 'x'}}])

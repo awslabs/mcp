@@ -20,6 +20,7 @@ import oracledb
 import ssl
 from aiorwlock import RWLock
 from awslabs.oracle_mcp_server.connection.abstract_db_connection import AbstractDBConnection
+from botocore.exceptions import ClientError
 from datetime import datetime, timedelta
 from loguru import logger
 from typing import Any, Dict, List, Optional, Tuple
@@ -142,7 +143,7 @@ class OracledbPoolConnection(AbstractDBConnection):
                 pool_kwargs.update(self._get_ssl_kwargs())
                 self.pool = oracledb.create_pool_async(**pool_kwargs)
             except Exception as e:
-                logger.error(f'Failed to open Oracle connection pool: {type(e).__name__}')
+                logger.error(f'Failed to open Oracle connection pool: {type(e).__name__}: {e}')
                 self.pool = None
                 raise
 
@@ -234,8 +235,11 @@ class OracledbPoolConnection(AbstractDBConnection):
                                 await conn.commit()
                             return []
 
-        except Exception as e:
-            logger.exception(f'Database connection error: {str(e)}')
+        except oracledb.DatabaseError as e:
+            logger.exception(f'Database error: {e}')
+            raise
+        except ValueError as e:
+            logger.exception(f'Connection pool error: {e}')
             raise
 
     def _convert_parameters(self, parameters: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -243,6 +247,8 @@ class OracledbPoolConnection(AbstractDBConnection):
         result = {}
         for param in parameters:
             name = param.get('name')
+            if not name:
+                raise ValueError(f"Parameter is missing 'name' field: {param}")
             value = param.get('value', {})
             if 'stringValue' in value:
                 result[name] = value['stringValue']
@@ -256,6 +262,10 @@ class OracledbPoolConnection(AbstractDBConnection):
                 result[name] = value['blobValue']
             elif 'isNull' in value and value['isNull']:
                 result[name] = None
+            else:
+                raise ValueError(
+                    f"Parameter '{name}' has unrecognized value format: {list(value.keys())}"
+                )
         return result
 
     def _get_credentials_from_secret(
@@ -272,27 +282,31 @@ class OracledbPoolConnection(AbstractDBConnection):
             logger.info(f'Retrieving secret value for {secret_arn}')
             get_secret_value_response = client.get_secret_value(SecretId=secret_arn)
             logger.info('Successfully retrieved secret value')
+        except ClientError as e:
+            logger.exception(f'Failed to retrieve secret from Secrets Manager: {e}')
+            raise ValueError(f'Failed to retrieve credentials from Secrets Manager: {e}') from e
 
-            if 'SecretString' in get_secret_value_response:
-                secret = json.loads(get_secret_value_response['SecretString'])
-                logger.debug(f'Secret keys: {", ".join(secret.keys())}')
-                username = secret.get('username') or secret.get('user') or secret.get('Username')
-                password = secret.get('password') or secret.get('Password')
-                if not username:
-                    raise ValueError(
-                        f'Secret does not contain username. Available keys: {", ".join(secret.keys())}'
-                    )
-                if not password:
-                    raise ValueError(
-                        f'Secret does not contain password. Available keys: {", ".join(secret.keys())}'
-                    )
-                logger.debug(f'Successfully extracted credentials for user: {username}')
-                return username, password
-            else:
-                raise ValueError('Secret does not contain a SecretString')
-        except Exception as e:
-            logger.exception(f'Failed to retrieve credentials from Secrets Manager: {str(e)}')
-            raise ValueError(f'Failed to retrieve credentials from Secrets Manager: {str(e)}')
+        if 'SecretString' not in get_secret_value_response:
+            raise ValueError('Secret does not contain a SecretString')
+
+        try:
+            secret = json.loads(get_secret_value_response['SecretString'])
+        except json.JSONDecodeError as e:
+            raise ValueError(f'Secret value is not valid JSON: {e}') from e
+
+        logger.debug(f'Secret keys: {", ".join(secret.keys())}')
+        username = secret.get('username') or secret.get('user') or secret.get('Username')
+        password = secret.get('password') or secret.get('Password')
+        if not username:
+            raise ValueError(
+                f'Secret does not contain username. Available keys: {", ".join(secret.keys())}'
+            )
+        if not password:
+            raise ValueError(
+                f'Secret does not contain password. Available keys: {", ".join(secret.keys())}'
+            )
+        logger.debug(f'Successfully extracted credentials for user: {username}')
+        return username, password
 
     def validate_sync(self) -> None:
         """Validate the Oracle connection synchronously using a one-shot oracledb.connect().
@@ -325,6 +339,6 @@ class OracledbPoolConnection(AbstractDBConnection):
         try:
             result = await self.execute_query('SELECT 1 FROM DUAL')
             return len(result) > 0
-        except Exception as e:
-            logger.exception(f'Connection health check failed: {str(e)}')
+        except oracledb.DatabaseError as e:
+            logger.exception(f'Connection health check failed: {e}')
             return False

@@ -155,8 +155,13 @@ def _strip_sql_comments(sql_text: str) -> str:
         # --- single-quoted string literal ---
         if sql_text[i] == "'":
             # Check for Oracle alternative quoting: q'<delim>...<delim>'
-            # The prefix is q' or Q' and we already consumed up to the quote.
-            if i >= 1 and sql_text[i - 1] in ('q', 'Q'):
+            # Require the character before q/Q to be non-alphanumeric so that
+            # identifiers ending in 'q' (e.g. seq'...') are not misread.
+            if (
+                i >= 1
+                and sql_text[i - 1] in ('q', 'Q')
+                and (i < 2 or not sql_text[i - 2].isalnum())
+            ):
                 open_delim = sql_text[i + 1] if i + 1 < n else None
                 close_delim = (
                     {'[': ']', '{': '}', '(': ')', '<': '>'}.get(open_delim, open_delim)
