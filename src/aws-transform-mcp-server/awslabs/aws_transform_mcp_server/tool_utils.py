@@ -180,7 +180,32 @@ def failure_result(error: Exception, hint: Optional[str] = None) -> Dict[str, An
     If *error* carries ``status_code`` and ``body`` attributes (e.g. an HttpError),
     those are included in the response.
     """
-    from awslabs.aws_transform_mcp_server.transform_api_client import ProfileSelectionRequired
+    from awslabs.aws_transform_mcp_server.transform_api_client import (
+        AuthConflict,
+        ProfileSelectionRequired,
+    )
+
+    if isinstance(error, AuthConflict):
+        return text_result(
+            {
+                'success': False,
+                'error': {
+                    'code': 'AUTH_CONFLICT',
+                    'message': (
+                        f'{error.failed_method.upper()} auth failed: {error.original_error}. '
+                        f'Alternative auth methods are available.'
+                    ),
+                    'suggestedAction': (
+                        'Run configure(authMode="reset") to clear the stale session and '
+                        'switch to AWS credential auth, or configure(authMode="sso") to '
+                        're-authenticate with IAM Identity Center.'
+                    ),
+                },
+                'failedMethod': error.failed_method,
+                'availableMethods': error.available_methods,
+            },
+            is_error=True,
+        )
 
     if isinstance(error, ProfileSelectionRequired):
         from awslabs.aws_transform_mcp_server.config_store import derive_transform_api_endpoint
