@@ -80,6 +80,7 @@ If `get_status` shows a valid connection (any method), do NOT call `configure`.
 
 - `configure` and `get_status` always work without auth.
 - `get_status` shows which auth method is active and whether the connection is healthy.
+- `configure(authMode="reset")` clears a stale session and re-probes AWS credentials.
 - `accept_connector` requires AWS credentials (for STS + TCP calls).
 
 # Tool Selection
@@ -115,6 +116,9 @@ may still be generating.
   (1) AWS Credentials: set AWS_PROFILE + AWS_REGION in MCP client env and restart,
   (2) SSO: run `configure` with authMode "sso",
   (3) Cookie: run `configure` with authMode "cookie".
+- `AUTH_CONFLICT` → the saved session is stale but AWS credentials exist.
+  Run `configure(authMode="reset")` to clear the stale session and switch to
+  AWS credential auth. Or run `configure(authMode="sso")` to re-authenticate.
 - AWS credential errors → Set `AWS_PROFILE` in your MCP client config env
   block and restart. Use `get_status` to verify credentials are working.
 - `INSTRUCTIONS_REQUIRED` → run `load_instructions` for the job.
@@ -162,11 +166,11 @@ def _register_handlers(mcp: FastMCP) -> None:
 
 
 async def _startup() -> None:
-    """Load persisted config and probe API credential auth if needed."""
+    """Load persisted config and probe API credential auth unconditionally."""
     loaded = await load_persisted_config()
     if not loaded:
         clear_config()
-        await _probe_sigv4_transform_api()
+    await _probe_sigv4_transform_api()
 
 
 async def _probe_sigv4_transform_api() -> None:
@@ -206,6 +210,7 @@ async def _probe_sigv4_transform_api() -> None:
         set_sigv4_fes_available(True)
         logger.info('Credential probe succeeded — auto-selected region {}', regions[0])
     else:
+        set_sigv4_region(None)
         set_sigv4_regions(regions)
         set_sigv4_fes_available(True)
         logger.info(
