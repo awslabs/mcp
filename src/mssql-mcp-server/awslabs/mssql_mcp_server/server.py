@@ -690,6 +690,8 @@ def main():
     server_config.readonly_query = not args.allow_write_query
     server_config.default_secret_arn = args.secret_arn
     server_config.allowed_endpoints = set(args.allowed_endpoints)
+    if args.db_endpoint:
+        server_config.allowed_endpoints.add(args.db_endpoint.strip().lower())
 
     if server_config.readonly_query:
         readonly_notice = (
