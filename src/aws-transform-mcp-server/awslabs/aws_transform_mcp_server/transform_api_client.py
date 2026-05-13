@@ -58,6 +58,21 @@ class ProfileSelectionRequired(Exception):
         super().__init__('Multiple regions available. Please choose one.')
 
 
+class AuthConflict(Exception):
+    """Raised when configured auth fails but alternative auth methods are available."""
+
+    def __init__(  # noqa: D107
+        self, failed_method: str, available_methods: list[str], original_error: str
+    ) -> None:
+        self.failed_method = failed_method
+        self.available_methods = available_methods
+        self.original_error = original_error
+        super().__init__(
+            f'{failed_method} auth failed ({original_error}). '
+            f'Alternative auth available: {", ".join(available_methods)}.'
+        )
+
+
 # ── boto3 client helpers ────────────────────────────────────────────────
 
 
@@ -327,7 +342,27 @@ async def call_transform_api(
     else:
         _inject_bearer_auth(client, config.bearer_token or '', config.origin)
 
-    return await asyncio.to_thread(_call_boto3, client, operation, body)
+    try:
+        return await asyncio.to_thread(_call_boto3, client, operation, body)
+    except HttpError as exc:
+        if exc.status_code == 403 and 'Invalid request origin' in str(exc):
+            available = []
+            if config_store.is_sigv4_fes_available():
+                available.append('sigv4')
+            else:
+                try:
+                    session = AwsHelper.create_session()
+                    if session.get_credentials() is not None:
+                        available.append('sigv4')
+                except Exception:
+                    pass
+            if available:
+                raise AuthConflict(
+                    failed_method=config.auth_mode,
+                    available_methods=available,
+                    original_error=str(exc),
+                ) from exc
+        raise
 
 
 async def _ensure_fresh_token(config: 'ConnectionConfig') -> 'ConnectionConfig':
