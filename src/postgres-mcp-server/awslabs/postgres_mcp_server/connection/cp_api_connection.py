@@ -292,6 +292,8 @@ def internal_create_serverless_cluster(
     min_capacity: float = 0.5,
     max_capacity: float = 4,
     enable_cloudwatch_logs: bool = True,
+    publicly_accessible: bool = False,
+    vpc_security_group_ids: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """Create an Aurora PostgreSQL cluster with a single writer instance.
 
@@ -306,6 +308,13 @@ def internal_create_serverless_cluster(
         min_capacity: minimum ACU capacity
         max_capacity: maximum ACU capacity
         enable_cloudwatch_logs: Enable CloudWatch logs export
+        publicly_accessible: Whether the writer instance gets a public
+            DNS name. Test-only path — never exposed via the MCP
+            create_cluster tool. Default False keeps production behaviour
+            unchanged.
+        vpc_security_group_ids: Optional list of pre-existing VPC SGs to
+            attach to the cluster. Test-only path. Default None lets RDS
+            apply the VPC's default SG.
 
     Returns:
         Dictionary containing cluster information and secret ARN
@@ -352,6 +361,9 @@ def internal_create_serverless_cluster(
             'EnableCloudwatchLogsExports': enable_cloudwatch_logs_exports,
         }
 
+        if vpc_security_group_ids:
+            cluster_params['VpcSecurityGroupIds'] = list(vpc_security_group_ids)
+
         cluster_params['ServerlessV2ScalingConfiguration'] = {
             'MinCapacity': min_capacity,
             'MaxCapacity': max_capacity,
@@ -387,7 +399,7 @@ def internal_create_serverless_cluster(
             'DBInstanceClass': 'db.serverless',
             'Engine': 'aurora-postgresql',
             'DBClusterIdentifier': cluster_identifier,
-            'PubliclyAccessible': False,  # Set to True if needed
+            'PubliclyAccessible': publicly_accessible,
             'Tags': tags,
             'CopyTagsToSnapshot': True,
         }

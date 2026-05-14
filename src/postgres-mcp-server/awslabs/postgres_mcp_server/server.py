@@ -68,11 +68,21 @@ query_comment_prohibited_key = 'The comment in query is prohibited because of in
 query_injection_risk_key = 'Your query contains risky injection patterns'
 readonly_query = True
 
-# Secrets Manager ARN configured at server startup via --secret_arn. Used by
-# internal_create_connection for RDS_API and PG_WIRE_PROTOCOL connections
-# rather than reading MasterUserSecret.SecretArn from cluster properties.
-# PG_WIRE_IAM_PROTOCOL uses IAM auth tokens and does not need this.
-configured_secret_arn: Optional[str] = None
+# Per-target Secrets Manager ARN overrides configured at server startup via
+# repeatable --secret_arn flags. Lookups are by:
+#   - Cluster identifier (e.g. 'mcp-prod-1') for Aurora / RDS-multi-AZ-cluster
+#     deployments. Matches the ``cluster_identifier`` parameter resolved
+#     from --db_cluster_arn or from the connect_to_database tool.
+#   - Instance endpoint hostname (e.g.
+#     'myinstance.abc123.us-west-2.rds.amazonaws.com') for the RPG single-
+#     instance deployment. Matches the AWS-resolved Endpoint.Address that
+#     describe_db_instances returns, NOT any caller-supplied alias.
+# The keying is intentional: the LLM can never inject a target string
+# that wasn't provided by the operator at startup. configured_default_secret_arn
+# (a bare --secret_arn ARN with no key) is used when no per-target entry
+# matches; cluster/instance MasterUserSecret is used as a final fallback.
+configured_secret_arns: Dict[str, str] = {}
+configured_default_secret_arn: Optional[str] = None
 
 
 class DummyCtx:
@@ -573,12 +583,11 @@ def create_cluster_worker(
             cluster_region=region,
         )
 
-        # Use the freshly-created cluster's managed secret ARN. This is the
-        # only place in the server that uses a secret other than the
-        # operator-configured one, because the cluster is brand-new and its
-        # managed secret could not have been known at startup.
-        new_cluster_secret_arn = cluster_result.get('MasterUserSecret', {}).get('SecretArn', '')
-
+        # Connect to the freshly-created cluster. internal_create_connection
+        # falls back to the cluster's MasterUserSecret.SecretArn (sourced
+        # from describe_db_clusters) when no per-target or default
+        # --secret_arn override is configured, so this works regardless of
+        # whether the operator started the MCP server with --secret_arn.
         internal_create_connection(
             region=region,
             database_type=database_type,
@@ -587,7 +596,6 @@ def create_cluster_worker(
             db_endpoint=cluster_result['Endpoint'],
             port=5432,
             database=database,
-            secret_arn_override=new_cluster_secret_arn,
         )
 
         try:
@@ -613,16 +621,28 @@ def internal_create_connection(
     db_endpoint: Annotated[str, Field(description='database endpoint')],
     port: Annotated[int, Field(description='Postgres port')],
     database: Annotated[str, Field(description='database name')] = 'postgres',
-    secret_arn_override: Optional[str] = None,
 ) -> Tuple:
     """Connect to a specific database save the connection internally.
 
-    The Secrets Manager ARN used for authentication (for RDS_API and
-    PG_WIRE_PROTOCOL methods) comes from the operator-configured
-    ``configured_secret_arn`` module variable, which is set from the
-    ``--secret_arn`` CLI argument at startup. The MCP server never reads
-    credentials from cluster/instance properties; the operator controls
-    which secret is used.
+    Secrets Manager ARN resolution priority (each step falls through if
+    nothing matches):
+
+      1. ``configured_secret_arns[cluster_identifier]`` if cluster path,
+         else ``configured_secret_arns[db_endpoint]`` for the RPG instance
+         path. The instance lookup uses the AWS-resolved endpoint
+         hostname, not the caller-supplied input — operator must register
+         the hostname exactly as RDS reports it.
+      2. ``configured_default_secret_arn`` — the bare ``--secret_arn`` ARN
+         with no key, intended as a default for any target the operator
+         didn't pin explicitly.
+      3. Cluster's / instance's ``MasterUserSecret.SecretArn`` from RDS
+         describe_* responses. This is the natural default for clusters
+         whose master user is managed by Secrets Manager
+         (ManageMasterUserPassword=True).
+      4. If none of the above yields a value, raise ``ValueError``.
+
+    Note: the LLM cannot influence steps 1–2. The map keys are facts
+    about the target derived from RDS metadata or operator configuration.
 
     Args:
         region: region
@@ -632,14 +652,11 @@ def internal_create_connection(
         db_endpoint: database endpoint
         port: database port
         database: database name
-        secret_arn_override: Only used internally by create_cluster_worker,
-            which creates a brand-new cluster whose managed secret cannot
-            possibly match the operator-configured secret. All other callers
-            should leave this as None so the configured secret is used.
     """
     global db_connection_map
     global readonly_query
-    global configured_secret_arn
+    global configured_secret_arns
+    global configured_default_secret_arn
 
     logger.info(
         f'Enter internal_create_connection\n'
@@ -681,23 +698,15 @@ def internal_create_connection(
         )
         return (existing_conn, llm_response)
 
-    # Resolve the Secrets Manager ARN for auth before doing anything else.
-    # Every connection method needs the operator-configured ARN (or the
-    # override used by create_cluster_worker for a brand-new cluster):
-    #   - RDS_API / PG_WIRE_PROTOCOL: use the secret for (username, password)
-    #   - PG_WIRE_IAM_PROTOCOL: use the secret for username only; password
-    #     comes from a generated IAM auth token
-    # The ARN is never read from cluster/instance properties; the operator
-    # controls which secret the MCP server is allowed to read. We validate
-    # before the RDS describe_* calls so bad configuration fails fast
-    # without burning a control-plane API call.
-    effective_secret_arn = secret_arn_override or configured_secret_arn or ''
-    if not effective_secret_arn:
-        raise ValueError(
-            'Secrets Manager ARN is required but was not configured. Start the '
-            'MCP server with --secret_arn <arn> or supply secret_arn_override '
-            'when calling internal_create_connection.'
-        )
+    # Resolve the Secrets Manager ARN and master-username candidate from
+    # cluster / instance metadata. Both feed the resolution below: the
+    # operator-supplied --secret_arn override (per-target or default) wins
+    # when set; otherwise we fall back to whatever AWS advertises. Express
+    # clusters have no MasterUserSecret (IAM-only auth, no shared password)
+    # but always populate MasterUsername.
+    # always populate MasterUsername.
+    metadata_secret_arn: str = ''
+    metadata_master_username: str = ''
 
     enable_data_api: bool = False
     cluster_arn: str = ''
@@ -710,6 +719,8 @@ def internal_create_connection(
 
         enable_data_api = cluster_properties.get('HttpEndpointEnabled', False)
         cluster_arn = cluster_properties.get('DBClusterArn', '')
+        metadata_secret_arn = cluster_properties.get('MasterUserSecret', {}).get('SecretArn', '')
+        metadata_master_username = cluster_properties.get('MasterUsername', '') or ''
 
         cluster_writer_endpoint = cluster_properties.get('Endpoint', '')
         try:
@@ -760,6 +771,8 @@ def internal_create_connection(
         # We still overwrite db_endpoint/port with the AWS-sourced values so
         # the connection string never comes from the caller-supplied string.
         instance_properties = internal_get_instance_properties(db_endpoint, region)
+        metadata_secret_arn = instance_properties.get('MasterUserSecret', {}).get('SecretArn', '')
+        metadata_master_username = instance_properties.get('MasterUsername', '') or ''
         instance_endpoint = instance_properties.get('Endpoint', {}) or {}
         resolved_host = instance_endpoint.get('Address', '')
         try:
@@ -771,11 +784,43 @@ def internal_create_connection(
         if resolved_port:
             port = resolved_port
 
+    # Resolve the Secrets Manager ARN. Per-target override map wins,
+    # then the bare default ARN, then the cluster/instance MasterUserSecret.
+    # IAM-only clusters (Aurora express) advertise no MasterUserSecret,
+    # which is fine — the IAM branch below doesn't need one.
+    #
+    # The lookup key is the cluster identifier on the cluster path, and
+    # the AWS-resolved Endpoint.Address on the RPG instance-only path.
+    # The LLM cannot influence either key.
+    if cluster_identifier:
+        target_key = cluster_identifier
+    else:
+        target_key = db_endpoint  # already overwritten with the AWS-resolved host above
+    per_target_secret_arn = configured_secret_arns.get(target_key, '')
+    effective_secret_arn = (
+        per_target_secret_arn or configured_default_secret_arn or metadata_secret_arn or ''
+    )
+
+    # Whether a secret is mandatory depends on the connection method.
+    # RDS_API and PG_WIRE_PROTOCOL need a password from Secrets Manager.
+    # PG_WIRE_IAM_PROTOCOL does not — it uses an IAM auth token; only the
+    # username matters, and it can come from the secret OR from the
+    # cluster's MasterUsername metadata.
+    if connection_method in (ConnectionMethod.RDS_API, ConnectionMethod.PG_WIRE_PROTOCOL):
+        if not effective_secret_arn:
+            raise ValueError(
+                f'Connection method {connection_method} requires a Secrets '
+                f'Manager ARN. Start the MCP server with --secret_arn <arn>, '
+                f'or point at a cluster/instance whose master user is managed '
+                f'by Secrets Manager (ManageMasterUserPassword=True).'
+            )
+
     logger.info(
         f'About to create internal DB connections with:'
         f'enable_data_api:{enable_data_api}\n'
         f'cluster_arn:{cluster_arn}\n'
         f'effective_secret_arn:{effective_secret_arn}\n'
+        f'metadata_master_username:{metadata_master_username}\n'
         f'db_endpoint:{db_endpoint}\n'
         f'port:{port}\n'
         f'region:{region}\n'
@@ -784,13 +829,28 @@ def internal_create_connection(
 
     db_connection = None
     if connection_method == ConnectionMethod.PG_WIRE_IAM_PROTOCOL:
-        # IAM auth uses a generated token as the password, but still needs a
-        # username. Pull the username from the operator-configured secret so
-        # the server never depends on cluster/instance metadata for auth
-        # configuration.
-        iam_username, _ = get_credentials_from_secret(
-            secret_arn=effective_secret_arn, region=region
-        )
+        # IAM auth uses a generated token as the password and only needs a
+        # username. Resolution priority for the username:
+        #   1. The operator-configured secret (when --secret_arn is set,
+        #      we read 'username' from it). This lets the operator bind
+        #      the MCP to a non-master role.
+        #   2. The cluster/instance MasterUsername advertised by AWS.
+        #      This is the only path that works for Aurora express
+        #      clusters, which never have a Secrets Manager secret.
+        if effective_secret_arn:
+            iam_username, _ = get_credentials_from_secret(
+                secret_arn=effective_secret_arn, region=region
+            )
+        elif metadata_master_username:
+            iam_username = metadata_master_username
+        else:
+            raise ValueError(
+                'IAM authentication requires a username. Either supply '
+                '--secret_arn pointing at a secret with a "username" field, '
+                'or use a cluster/instance whose MasterUsername is reported '
+                'by AWS.'
+            )
+
         db_connection = PsycopgPoolConnection(
             host=db_endpoint,
             port=port,
@@ -968,6 +1028,41 @@ def validate_table_name(table_name: str | None) -> bool:
     return True
 
 
+def validate_secret_arn_at_startup(secret_arn: str, region: str) -> None:
+    """Verify the configured Secrets Manager ARN is readable at startup.
+
+    Calls Secrets Manager once with GetSecretValue against the given ARN.
+    Exits the process with a clear error message if the call fails, so the
+    operator learns about misconfiguration (missing IAM permission, typo in
+    ARN, wrong region, KMS Decrypt denied, deleted secret) at start time
+    rather than at first query.
+
+    The fetched credentials are discarded immediately. The connection pool
+    will re-fetch them during its own initialize_pool call.
+
+    Args:
+        secret_arn: The ARN from --secret_arn.
+        region: AWS region for Secrets Manager.
+
+    Raises:
+        SystemExit: If the secret cannot be read. Exit code 1.
+    """
+    try:
+        get_credentials_from_secret(secret_arn, region)
+    except Exception as e:
+        logger.error(
+            f'MCP server cannot start: unable to read Secrets Manager ARN '
+            f'{secret_arn!r} in region {region!r}. '
+            f'Verify the ARN exists, the region is correct, and the AWS '
+            f'principal has secretsmanager:GetSecretValue (and kms:Decrypt '
+            f'on the secret CMK if non-default). '
+            f'Underlying error: {type(e).__name__}: {e}'
+        )
+        sys.exit(1)
+
+    logger.success(f'Verified Secrets Manager access for {secret_arn} in region {region}')
+
+
 def main():
     """Main entry point for the MCP server application.
 
@@ -975,7 +1070,8 @@ def main():
     """
     global db_connection_map
     global readonly_query
-    global configured_secret_arn
+    global configured_secret_arns
+    global configured_default_secret_arn
 
     parser = argparse.ArgumentParser(
         description='An AWS Labs Model Context Protocol (MCP) server for postgres'
@@ -996,14 +1092,64 @@ def main():
     parser.add_argument('--port', type=int, default=5432, help='Database port (default: 5432)')
     parser.add_argument(
         '--secret_arn',
-        required=True,
+        required=False,
+        action='append',
+        default=None,
         help=(
-            'Secrets Manager ARN holding the database master credentials. '
-            'Required. Used by RDS_API and PG_WIRE_PROTOCOL connection methods. '
-            'Ignored by PG_WIRE_IAM_PROTOCOL (which uses IAM auth tokens).'
+            'Optional Secrets Manager ARN override. May be repeated. Each '
+            'value is either:\n'
+            '  - "<cluster_identifier>=<arn>" — bind the ARN to a specific '
+            'Aurora / RDS-multi-AZ-cluster (matched against the cluster '
+            'identifier from --db_cluster_arn or the connect_to_database tool).\n'
+            '  - "<instance_endpoint>=<arn>" — bind the ARN to a specific '
+            'RDS instance endpoint hostname (matched against the AWS-resolved '
+            'Endpoint.Address from describe_db_instances).\n'
+            '  - "<arn>" without "=" — bare ARN used as the default for any '
+            'target the operator did not pin explicitly (at most one allowed).\n'
+            'When unspecified, the MCP server falls back to the cluster / '
+            'instance MasterUserSecret advertised by AWS. Used by RDS_API and '
+            'PG_WIRE_PROTOCOL connection methods, and by PG_WIRE_IAM_PROTOCOL '
+            'to source the username (the password is a generated IAM auth token). '
+            'The LLM cannot pick a secret ARN — it can only target a cluster or '
+            'instance the operator has registered here.'
         ),
     )
     args = parser.parse_args()
+
+    # Parse --secret_arn entries into the per-target map and the optional
+    # default. Each --secret_arn value is either "key=arn" (per-target)
+    # or a bare ARN (default).
+    secret_arn_map: Dict[str, str] = {}
+    default_secret_arn: Optional[str] = None
+    for raw in args.secret_arn or []:
+        if '=' in raw:
+            key, _, arn = raw.partition('=')
+            key = key.strip()
+            arn = arn.strip()
+            if not key or not arn:
+                logger.error(
+                    f'Invalid --secret_arn value {raw!r}: both key and ARN '
+                    'must be non-empty when using key=arn syntax.'
+                )
+                sys.exit(2)
+            if key in secret_arn_map:
+                logger.error(
+                    f'Duplicate --secret_arn key {key!r} (already mapped to '
+                    f'{secret_arn_map[key]!r}).'
+                )
+                sys.exit(2)
+            secret_arn_map[key] = arn
+        else:
+            arn = raw.strip()
+            if not arn:
+                continue
+            if default_secret_arn is not None:
+                logger.error(
+                    'At most one bare --secret_arn (no "=" separator) is '
+                    'allowed; got at least two default ARNs.'
+                )
+                sys.exit(2)
+            default_secret_arn = arn
 
     logger.info(
         f'MCP configuration:\n'
@@ -1015,11 +1161,31 @@ def main():
         f'allow_write_query:{args.allow_write_query}\n'
         f'database:{args.database}\n'
         f'port:{args.port}\n'
-        f'secret_arn:{args.secret_arn}\n'
+        f'secret_arn entries: {len(secret_arn_map)} per-target, '
+        f'default={"set" if default_secret_arn else "unset"}\n'
     )
 
     readonly_query = not args.allow_write_query
-    configured_secret_arn = args.secret_arn
+    configured_secret_arns.clear()
+    configured_secret_arns.update(secret_arn_map)
+    configured_default_secret_arn = default_secret_arn
+
+    # Probe every configured ARN at startup so misconfiguration surfaces
+    # before any query is attempted. The probe is skipped only when no
+    # ARNs are configured at all — the cluster's managed secret will be
+    # discovered (and validated) lazily on the first connection attempt.
+    for target, arn in configured_secret_arns.items():
+        try:
+            validate_secret_arn_at_startup(arn, args.region)
+        except SystemExit:
+            logger.error(f'Configured --secret_arn entry for target {target!r} is unreadable.')
+            raise
+    if configured_default_secret_arn:
+        try:
+            validate_secret_arn_at_startup(configured_default_secret_arn, args.region)
+        except SystemExit:
+            logger.error('Configured default --secret_arn is unreadable.')
+            raise
 
     try:
         if args.db_type:
