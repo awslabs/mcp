@@ -15,17 +15,119 @@
 import boto3
 import json
 import time
-import traceback
 from awslabs.postgres_mcp_server import __user_agent__
 from botocore.config import Config
 from botocore.exceptions import ClientError
 from loguru import logger
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
+
+
+DEFAULT_POSTGRES_PORT = 5432
 
 
 def internal_create_rds_client(region: str):
     """Create an RDS client with custom user agent configuration."""
     return boto3.client('rds', region_name=region, config=Config(user_agent_extra=__user_agent__))
+
+
+def internal_get_cluster_valid_endpoints(
+    cluster_properties: Dict[str, Any], region: str
+) -> List[Tuple[str, int]]:
+    """Return the list of valid (host, port) connection endpoints for a cluster.
+
+    A caller-supplied db_endpoint/port is considered legitimate only if it
+    matches one of the endpoints returned here. This is used to prevent
+    connection strings from pointing at arbitrary hosts (e.g. an
+    attacker-controlled FQDN / IP) that could capture DB credentials or
+    IAM auth tokens.
+
+    The returned list includes, where present:
+      - Writer endpoint (cluster.Endpoint)
+      - Reader endpoint (cluster.ReaderEndpoint)
+      - Custom endpoints (cluster.CustomEndpoints)
+      - Each member instance endpoint (from describe_db_instances)
+
+    Host comparison should be case-insensitive (DNS is case-insensitive);
+    this function returns hosts as reported by AWS without normalization.
+
+    Args:
+        cluster_properties: Cluster properties previously fetched via
+            internal_get_cluster_properties.
+        region: AWS region (used to fetch member instance endpoints).
+
+    Returns:
+        Non-empty list of (host, port) tuples.
+
+    Raises:
+        ValueError: If no valid endpoints could be resolved. A real Aurora
+            cluster always has at least a writer endpoint with a port, so
+            an empty result indicates malformed cluster properties or a
+            transient API state; we treat it as an error rather than
+            silently accepting any caller-supplied endpoint.
+    """
+    endpoints: List[Tuple[str, int]] = []
+
+    cluster_port_raw = cluster_properties.get('Port')
+    try:
+        cluster_port = int(cluster_port_raw) if cluster_port_raw is not None else 0
+    except (TypeError, ValueError):
+        cluster_port = DEFAULT_POSTGRES_PORT
+
+    writer_endpoint = cluster_properties.get('Endpoint')
+    if writer_endpoint and cluster_port:
+        endpoints.append((writer_endpoint, cluster_port))
+
+    reader_endpoint = cluster_properties.get('ReaderEndpoint')
+    if reader_endpoint and cluster_port:
+        endpoints.append((reader_endpoint, cluster_port))
+
+    for custom_endpoint in cluster_properties.get('CustomEndpoints', []) or []:
+        if custom_endpoint and cluster_port:
+            endpoints.append((custom_endpoint, cluster_port))
+
+    members = cluster_properties.get('DBClusterMembers', []) or []
+    instance_ids = [
+        m.get('DBInstanceIdentifier') for m in members if m.get('DBInstanceIdentifier')
+    ]
+    if instance_ids:
+        rds_client = internal_create_rds_client(region=region)
+        for instance_id in instance_ids:
+            try:
+                response = rds_client.describe_db_instances(DBInstanceIdentifier=instance_id)
+                for instance in response.get('DBInstances', []):
+                    instance_endpoint = instance.get('Endpoint', {})
+                    host = instance_endpoint.get('Address')
+                    port_raw = instance_endpoint.get('Port')
+                    try:
+                        port = int(port_raw) if port_raw is not None else 0
+                    except (TypeError, ValueError):
+                        port = 0
+                    if host and port:
+                        endpoints.append((host, port))
+            except ClientError as e:
+                # Don't fail the whole validation if a single instance lookup
+                # fails; log and continue. The caller still has to match one of
+                # the endpoints we successfully resolved.
+                logger.warning(
+                    f"Failed to fetch endpoint for member instance '{instance_id}': "
+                    f'{e.response["Error"]["Code"]} - {e.response["Error"]["Message"]}'
+                )
+
+    if not endpoints:
+        # A real Aurora cluster always advertises at least a writer endpoint
+        # with a valid port. An empty result here means either the cluster
+        # properties dict was malformed (missing/invalid Port, missing
+        # Endpoint) or every describe_db_instances call failed. Treat as an
+        # error so the caller doesn't build a connection string from caller
+        # input.
+        raise ValueError(
+            f'Cluster has no valid connection endpoints. '
+            f'Endpoint={cluster_properties.get("Endpoint")!r}, '
+            f'ReaderEndpoint={cluster_properties.get("ReaderEndpoint")!r}, '
+            f'Port={cluster_properties.get("Port")!r}'
+        )
+
+    return endpoints
 
 
 def internal_get_instance_properties(target_endpoint: str, region: str) -> Dict[str, Any]:
@@ -42,20 +144,18 @@ def internal_get_instance_properties(target_endpoint: str, region: str) -> Dict[
                     return instance
     except ClientError as e:
         error_code = e.response['Error']['Code']
-        logger.error(
+        logger.exception(
             f'AWS error fetching all instances in region:{region} '
             f'{error_code} - {e.response["Error"]["Message"]}'
         )
         raise
     except Exception as e:
-        logger.error(
-            f'Error fetchingall instances in region:{region}.  Error: {type(e).__name__}: {e}'
+        logger.exception(
+            f'Error fetching all instances in region:{region}.  Error: {type(e).__name__}: {e}'
         )
         raise
 
-    not_found_error = (
-        f"AWS error fetching instance by endpoint: '{target_endpoint}' in region:{region}"
-    )
+    not_found_error = f"Instance with endpoint '{target_endpoint}' in region:{region} not found when getting its properties"
     logger.error(not_found_error)
     raise ValueError(not_found_error)
 
@@ -112,13 +212,74 @@ def internal_get_cluster_properties(cluster_identifier: str, region: str) -> Dic
 
     except ClientError as e:
         error_code = e.response['Error']['Code']
-        logger.error(
+        logger.exception(
             f"AWS error fetching cluster '{cluster_identifier}': "
             f'{error_code} - {e.response["Error"]["Message"]}'
         )
         raise
     except Exception as e:
-        logger.error(f'Error fetching cluster properties: {type(e).__name__}: {e}')
+        logger.exception(f'Error fetching cluster properties: {type(e).__name__}: {e}')
+        raise
+
+
+def internal_create_express_cluster(cluster_identifier: str, region: str) -> Dict[str, Any]:
+    """Create an Aurora PostgreSQL Express cluster.
+
+    Args:
+        cluster_identifier: Unique name for the cluster
+        region: AWS region where the cluster is located
+
+    Returns:
+        Dict[str, Any]: Cluster properties
+
+    Raises:
+        ValueError: If cluster_identifier is invalid
+        ClientError: If AWS API call fails
+    """
+    rds_client = internal_create_rds_client(region)
+
+    # Add default tags
+    tags = []
+    tags.append({'Key': 'CreatedBy', 'Value': 'MCP'})
+
+    logger.info(f'Creating Aurora Postgres Express cluster: {cluster_identifier}')
+
+    try:
+        cluster_create_start_time = time.time()
+        rds_client.create_db_cluster(
+            DBClusterIdentifier=cluster_identifier,
+            Engine='aurora-postgresql',
+            WithExpressConfiguration=True,
+            Tags=tags,
+        )
+
+        logger.info('Waiting for cluster to become available...')
+        waiter = rds_client.get_waiter('db_cluster_available')
+        waiter.wait(
+            DBClusterIdentifier=cluster_identifier, WaiterConfig={'Delay': 5, 'MaxAttempts': 120}
+        )
+
+        result = rds_client.describe_db_clusters(DBClusterIdentifier=cluster_identifier)[
+            'DBClusters'
+        ][0]
+
+        cluster_create_stop_time = time.time()
+        elapsed_time = cluster_create_stop_time - cluster_create_start_time
+        logger.info(
+            f'Express Cluster {cluster_identifier} created successfully and took {elapsed_time:.2f} seconds'
+        )
+        return result
+
+    except ClientError as e:
+        logger.exception(
+            f"AWS error creating express cluster '{cluster_identifier}': "
+            f'{e.response["Error"]["Code"]} - {e.response["Error"]["Message"]}'
+        )
+        raise
+    except Exception as e:
+        logger.exception(
+            f"Error creating express cluster '{cluster_identifier}': {type(e).__name__}: {e}"
+        )
         raise
 
 
@@ -260,13 +421,13 @@ def internal_create_serverless_cluster(
         return final_cluster
 
     except ClientError as e:
-        logger.error(
+        logger.exception(
             f"AWS error creating serverless cluster '{cluster_identifier}': "
             f'{e.response["Error"]["Code"]} - {e.response["Error"]["Message"]}'
         )
         raise
     except Exception as e:
-        logger.error(
+        logger.exception(
             f"Error creating serverless cluster '{cluster_identifier}': {type(e).__name__}: {e}"
         )
         raise
@@ -319,7 +480,7 @@ def setup_aurora_iam_policy_for_current_user(
         logger.info(f'  UserID: {user_id}')
 
     except Exception as e:
-        logger.error(f'❌ Error getting caller identity: {e}')
+        logger.exception(f'❌ Error getting caller identity: {e}')
         raise
 
     # ============================================================================
@@ -477,13 +638,11 @@ def setup_aurora_iam_policy_for_current_user(
             logger.info('✓ Policy was just created by another process')
 
         except Exception as e:
-            logger.error(f'\n❌ Error creating policy: {e}')
+            logger.exception(f'\n❌ Error creating policy: {e}')
             raise
 
     except Exception as e:
-        logger.error(f'\n❌ Error checking/updating policy: {e}')
-        trace_msg = traceback.format_exc()
-        logger.error(f'Traceback: {trace_msg}')
+        logger.exception(f'\n❌ Error checking/updating policy: {e}')
         raise
 
     # ============================================================================
@@ -541,7 +700,9 @@ def setup_aurora_iam_policy_for_current_user(
 
             except iam.exceptions.AccessDeniedException:
                 # 🔵 MODIFIED: Graceful handling of permission denied
-                logger.error(f"\n❌ Access Denied: Cannot attach policy to role '{current_role}'")
+                logger.exception(
+                    f"\n❌ Access Denied: Cannot attach policy to role '{current_role}'"
+                )
                 logger.error("   Your session does not have 'iam:AttachRolePolicy' permission")
                 logger.info(f'\n✓ Policy created successfully: {policy_arn}')
                 logger.info('   But could not be attached automatically.')
@@ -563,8 +724,7 @@ def setup_aurora_iam_policy_for_current_user(
                 return policy_arn
 
             except iam.exceptions.NoSuchEntityException:
-                logger.error(f"\n❌ Role '{current_role}' not found")
-                logger.error("   This is unexpected - the role should exist since you're using it")
+                logger.exception(f"\n❌ Role '{current_role}' not found")
                 raise
 
         return policy_arn
@@ -572,21 +732,142 @@ def setup_aurora_iam_policy_for_current_user(
     except iam.exceptions.NoSuchEntityException:
         entity_name = current_user if identity_type == 'user' else current_role
         entity_type = 'User' if identity_type == 'user' else 'Role'
-        logger.error(f"\n❌ Error: {entity_type} '{entity_name}' not found")
+        logger.exception(f"\n❌ Error: {entity_type} '{entity_name}' not found")
         raise
 
     except iam.exceptions.LimitExceededException:
         entity_name = current_user if identity_type == 'user' else current_role
         entity_type = 'user' if identity_type == 'user' else 'role'
-        logger.error(
+        logger.exception(
             f"\n❌ Error: Managed policy limit exceeded for {entity_type} '{entity_name}'"
         )
-        logger.error('Maximum 10 managed policies can be attached to a user or role')
-        logger.error('Consider using inline policies or consolidating existing policies')
         raise
 
     except Exception as e:
-        logger.error(f'\n❌ Error attaching policy: {e}')
-        trace_msg = traceback.format_exc()
-        logger.error(f'Traceback: {trace_msg}')
+        logger.exception(f'\n❌ Error attaching policy: {e}')
         raise
+
+
+def internal_delete_cluster(region: str, cluster_id: str) -> None:
+    """Delete an existing Amazon RDS (Aurora) cluster.
+
+    Args:
+        region: AWS region where the cluster is located
+        cluster_id: The DB cluster identifier
+
+    Raises:
+        ClientError: If deletion fails or the cluster is not found
+        Exception: If cluster was not created by MCP tool (safety check)
+    """
+    rds = internal_create_rds_client(region)
+
+    # Check cluster exists and verify it was created by MCP
+    try:
+        resp = rds.describe_db_clusters(DBClusterIdentifier=cluster_id)
+        cluster = resp['DBClusters'][0]
+        status = cluster['Status']
+        arn = cluster['DBClusterArn']
+
+        tag_resp = rds.list_tags_for_resource(ResourceName=arn)
+        tags = tag_resp.get('TagList', [])
+        created_by_mcp = False
+        if tags:
+            for tag in tags:
+                if tag['Key'] == 'CreatedBy' and tag['Value'] == 'MCP':
+                    created_by_mcp = True
+        logger.info(f"Found cluster '{cluster_id}' (status={status})")
+
+        if not created_by_mcp:
+            logger.error('Can only delete clusters created by MCP tool')
+            raise Exception('Can only delete clusters created by MCP tool')
+
+    except ClientError as e:
+        if e.response['Error']['Code'] == 'DBClusterNotFoundFault':
+            logger.info(f"Cluster '{cluster_id}' does not exist")
+            return
+        logger.exception(f"Error checking cluster '{cluster_id}' for deletion")
+        raise
+
+    # Delete all DB instances in the cluster
+    members = cluster.get('DBClusterMembers', [])
+    instance_ids = [m['DBInstanceIdentifier'] for m in members]
+
+    if instance_ids:
+        logger.info(f'Deleting {len(instance_ids)} instance(s): {", ".join(instance_ids)}')
+
+    for inst_id in instance_ids:
+        try:
+            rds.delete_db_instance(
+                DBInstanceIdentifier=inst_id,
+                SkipFinalSnapshot=True,
+                DeleteAutomatedBackups=True,
+            )
+            logger.info(f"Deletion of instance '{inst_id}' initiated")
+        except ClientError as e:
+            code = e.response['Error']['Code']
+            if code in ('DBInstanceNotFound', 'DBInstanceNotFoundFault'):
+                logger.info(f"Instance '{inst_id}' already deleted")
+            else:
+                logger.exception(f"Error deleting instance '{inst_id}': {e}")
+                raise
+
+    # Wait for all instances to be fully deleted (max ~20 minutes)
+    max_instance_attempts = 240
+    if instance_ids:
+        logger.info('Waiting for instances to be deleted...')
+    remaining = set(instance_ids)
+    instance_attempts = 0
+
+    while remaining:
+        instance_attempts += 1
+        if instance_attempts > max_instance_attempts:
+            raise TimeoutError(
+                f'Timed out waiting for instance(s) to be deleted: {", ".join(remaining)}'
+            )
+        done = []
+        for inst_id in list(remaining):
+            try:
+                rds.describe_db_instances(DBInstanceIdentifier=inst_id)
+                # still exists
+            except ClientError as e:
+                if e.response['Error']['Code'] in (
+                    'DBInstanceNotFound',
+                    'DBInstanceNotFoundFault',
+                ):
+                    logger.info(f"Instance '{inst_id}' deleted")
+                    done.append(inst_id)
+                else:
+                    raise
+        for d in done:
+            remaining.discard(d)
+        if remaining:
+            time.sleep(5)
+
+    # Delete cluster
+    try:
+        rds.delete_db_cluster(
+            DBClusterIdentifier=cluster_id,
+            SkipFinalSnapshot=True,
+        )
+        logger.info(f"Deletion of cluster '{cluster_id}' initiated")
+    except ClientError as e:
+        logger.exception(f"Error deleting cluster '{cluster_id}': {e}")
+        raise
+
+    # Poll for cluster deletion (max ~20 minutes)
+    max_cluster_attempts = 240
+    logger.info('Waiting for cluster to be deleted...')
+    cluster_attempts = 0
+    while True:
+        cluster_attempts += 1
+        if cluster_attempts > max_cluster_attempts:
+            raise TimeoutError(f"Timed out waiting for cluster '{cluster_id}' to be deleted")
+        try:
+            rds.describe_db_clusters(DBClusterIdentifier=cluster_id)
+            time.sleep(5)
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'DBClusterNotFoundFault':
+                logger.info(f"Cluster '{cluster_id}' deleted successfully")
+                break
+            else:
+                raise

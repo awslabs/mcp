@@ -30,12 +30,14 @@ from awslabs.aws_support_mcp_server.debug_helper import (
     track_request,
 )
 from awslabs.aws_support_mcp_server.errors import (
+    create_error_response,
     handle_client_error,
     handle_general_error,
     handle_validation_error,
 )
 from awslabs.aws_support_mcp_server.formatters import (
     format_cases,
+    format_communications,
     format_json_response,
     format_markdown_case_summary,
     format_markdown_services,
@@ -44,6 +46,7 @@ from awslabs.aws_support_mcp_server.formatters import (
     format_severity_levels,
 )
 from awslabs.aws_support_mcp_server.models import (
+    AddAttachmentsToSetResponse,
     AddCommunicationResponse,
     CreateCaseResponse,
     DescribeCasesResponse,
@@ -63,146 +66,96 @@ mcp = FastMCP(
     instructions="""
     # AWS Support API MCP Server
 
-    This MCP server provides tools for interacting with the AWS Support API, enabling AI assistants to create and manage support cases and check AWS service health on behalf of users.
+    This MCP server provides tools for interacting with the AWS Support API, enabling AI assistants to create and manage support cases on behalf of users.
 
-    ## Available Tools
+    ## Common Service Codes (use with create_support_case)
 
-    ### create_support_case
-    Create a new AWS Support case with specified subject, service code, category code, severity code, and communication body.
+    Use these codes directly — only call describe_services if the service isn't listed here or you need category codes.
 
-    **Example:**
-    ```
-    create_support_case(
-        subject="EC2 instance not starting",
-        service_code="amazon-elastic-compute-cloud-linux",
-        category_code="using-aws",
-        severity_code="urgent",
-        communication_body="My EC2 instance i-1234567890abcdef0 is not starting."
-    )
-    ```
+    | Service | service_code | Common Categories |
+    |---------|-------------|-------------------|
+    | EC2 (Linux) | amazon-elastic-compute-cloud-linux | general-guidance, using-aws |
+    | EC2 (Windows) | amazon-elastic-compute-cloud-windows | general-guidance, using-aws |
+    | S3 | amazon-simple-storage-service | general-guidance, using-aws |
+    | RDS | amazon-relational-database-service | general-guidance, using-aws |
+    | Lambda | aws-lambda | general-guidance, using-aws |
+    | ECS | ec2-container-service | general-guidance, using-aws |
+    | EKS | amazon-elastic-kubernetes-service | general-guidance, using-aws |
+    | DynamoDB | amazon-dynamodb | general-guidance, using-aws |
+    | CloudFormation | aws-cloudformation | general-guidance, using-aws |
+    | IAM | aws-identity-and-access-management | general-guidance, using-aws |
+    | VPC | amazon-virtual-private-cloud | general-guidance, using-aws |
+    | CloudWatch | amazon-cloudwatch | general-guidance, using-aws |
+    | Route 53 | amazon-route53 | general-guidance, using-aws |
+    | ELB | elastic-load-balancing | general-guidance, using-aws |
+    | SQS | amazon-simple-queue-service | general-guidance, using-aws |
+    | SNS | amazon-simple-notification-service | general-guidance, using-aws |
+    | CloudFront | amazon-cloudfront | general-guidance, using-aws |
+    | ElastiCache | amazon-elasticache | general-guidance, using-aws |
+    | Bedrock | amazon-bedrock | general-guidance, using-aws |
+    | SageMaker | amazon-sagemaker | general-guidance, using-aws |
+    | Account | account | general-guidance, using-aws |
+    | Billing | billing | general-guidance, using-aws |
 
-    ### describe_support_cases
-    Retrieve information about existing support cases, with options to filter by case ID, date range, and include resolved cases.
+    NOTE: Service codes are NOT intuitive (e.g., ECS is `ec2-container-service`, not `amazon-ecs`).
+    When unsure, call describe_services to search.
 
-    **Example:**
-    ```
-    describe_support_cases(
-        include_resolved_cases=False,
-        include_communications=True
-    )
-    ```
+    ## Severity Quick Reference
 
-    ### add_communication_to_case
-    Add a communication to an existing support case, providing updates or additional information.
+    | Code | Name | When to use |
+    |------|------|-------------|
+    | low | General guidance | Development question or feature request |
+    | normal | System impaired | Non-critical functions behaving abnormally |
+    | high | Production system impaired | Important functions impaired, workaround exists |
+    | urgent | Production system down | Business significantly impacted, no workaround |
+    | critical | Business-critical system down | Business at risk, critical functions unavailable |
 
-    **Example:**
-    ```
-    add_communication_to_case(
-        case_id="case-12345678910-2013-c4c1d2bf33c5cf47",
-        communication_body="I've tried rebooting the instance but it's still not starting."
-    )
-    ```
+    ## Recommended Workflow for Creating a Case
 
-    ### resolve_support_case
-    Resolve an existing support case when the issue has been addressed.
+    1. Match the user's issue to a service_code from the table above (or call **describe_services**)
+    2. (Optional) Call **describe_create_case_options** to check support hours and language availability
+    3. Pick severity based on the quick reference above
+    4. (Optional) **add_attachments_to_set** → upload files, get `attachmentSetId`
+    5. **create_support_case** → create the case
 
-    **Example:**
-    ```
-    resolve_support_case(
-        case_id="case-12345678910-2013-c4c1d2bf33c5cf47"
-    )
-    ```
+    ## Recommended Workflow for Managing a Case
 
-    ### describe_supported_languages
-    Retrieve the list of supported languages for AWS Support cases. The server automatically detects the language
-    of case content and uses it when appropriate.
+    1. **describe_support_cases** → list/search cases
+    2. **describe_communications** → read full conversation history
+    3. **describe_attachment** → download attachments referenced in communications
+    4. **add_communication_to_case** → reply (optionally with attachments via add_attachments_to_set)
+    5. **resolve_support_case** → close the case when done
 
-    **Example:**
-    ```python
-    # Get list of supported languages
-    describe_supported_languages()
-    ```
+    ## Available Tools (11)
 
-    **Language Detection and Selection:**
-    The server automatically detects the language of case content using the following process:
-    1. Analyzes both subject and case body text
-    2. Checks if detected language is supported for the specific:
-       - Service code
-       - Category code
-       - Issue type
-    3. Makes language selection:
-       - If supported: Uses detected language
-       - If not supported: Falls back to closest supported language or English
+    | Tool | Purpose |
+    |------|---------|
+    | create_support_case | Create a new support case |
+    | describe_support_cases | List/search existing cases |
+    | describe_communications | Get full communication history for a case |
+    | add_communication_to_case | Reply to a case |
+    | resolve_support_case | Close a case |
+    | describe_services | List AWS services and category codes |
+    | describe_severity_levels | List severity levels |
+    | describe_create_case_options | Check support hours and language availability for a service |
+    | describe_supported_languages | List supported languages for a service/category |
+    | add_attachments_to_set | Upload files for attachment |
+    | describe_attachment | Download an attachment by ID |
 
-    **Example with Automatic Language Detection:**
-    ```python
-    # Server will detect language from content and use if supported
-    create_support_case(
-        subject="EC2インスタンスが起動しません",  # Japanese subject
-        service_code="amazon-elastic-compute-cloud-linux",
-        category_code="using-aws",
-        severity_code="normal",
-        communication_body="インスタンスID i-1234567890abcdef0 が起動しません。"  # Japanese body
-    )
-    # If Japanese is supported for EC2 technical cases, it will be used
-    # If not, it will fall back to the default language (English)
-    ```
+    ## Attachment Workflow
 
-    ### add_attachments_to_set
-    Add one or more attachments to a new or existing attachment set. The attachment set can then be used when creating a case or adding communication to a case.
-
-    **Example:**
-    ```python
-    # Add a single attachment to a new set
-    add_attachments_to_set(
-        attachments=[{
-            "fileName": "error_log.txt",
-            "data": "base64_encoded_content"  # Must be base64-encoded
-        }]
-    )
-
-    # Add to existing set
-    add_attachments_to_set(
-        attachments=[{
-            "fileName": "screenshot.png",
-            "data": "base64_encoded_content"
-        }],
-        attachment_set_id="12345678-1234-1234-1234-123456789012"
-    )
-
-
-    ## Support Case Best Practices
-
-    When creating a support case, consider the following best practices:
-    1. Provide a clear and concise subject
-    2. Include detailed information about the issue in the communication body
-    3. Select the appropriate service, category, and severity level
-    4. Include any relevant error messages or logs
-
-    ## Additional Best Practices
-
-    1. **Always check service and category codes**: Use the aws-services resource to get valid service and category codes before creating a case.
-    2. **Choose the appropriate severity level**: Use the aws-severity-levels resource to understand the different severity levels and choose the appropriate one for the issue.
-    3. **Provide detailed information**: Include relevant details in the communication body, such as resource IDs, error messages, and steps to reproduce the issue.
-    4. **Check for existing cases**: Before creating a new case, check if there's an existing case for the same issue.
-    5. **Handle pagination**: When retrieving a large number of cases, use the next_token parameter to paginate through the results.
-    6. **Error handling**: Implement proper error handling to catch and handle exceptions from the AWS Support API.
-    7. **Rate limiting**: Be aware of API rate limits and implement exponential backoff and retry logic.
+    1. Call **add_attachments_to_set** with base64-encoded file data → returns `attachmentSetId`
+    2. Pass `attachmentSetId` to **create_support_case** or **add_communication_to_case**
+    3. To retrieve attachments, use **describe_communications** to find attachment IDs, then **describe_attachment** to download
 
     ## Attachment Guidelines
 
-    1. **File Size Limits**: Each attachment must be less than 5MB in size.
-    2. **Attachment Set Expiry**: Attachment sets expire after 1 hour.
-    3. **Base64 Encoding**: All attachment data must be base64-encoded.
-    4. **Supported File Types**: Common file types like .txt, .log, .json, .yaml, .pdf, .png, .jpg.
-    5. **Best Practices**:
-       - Include relevant logs, configuration files, or screenshots
-       - Use descriptive file names
-       - Remove sensitive information before attaching
-       - Consider compressing large text files
-       - Verify file content is readable and not corrupted
-       - Include context about what the attachment shows
-       - Use attachment sets within their 1-hour expiry window
+    - Each attachment must be less than 5MB
+    - Attachment sets expire after 1 hour
+    - The `data` field must be the raw file contents encoded as base64 exactly ONCE
+    - Do NOT double-encode — the AWS SDK handles wire-level base64 encoding automatically
+    - The server will reject data that appears to be double-encoded
+    - Remove sensitive information before attaching
     """,
 )
 
@@ -315,7 +268,7 @@ async def create_support_case(
     ),
     severity_code: str = Field(
         ...,
-        description='The severity code for the issue. Use describe_severity_levels to get valid codes.',
+        description='The severity code: low, normal, high, urgent, or critical',
     ),
     communication_body: str = Field(..., description='The initial communication for the case'),
     cc_email_addresses: Optional[List[str]] = Field(
@@ -332,8 +285,16 @@ async def create_support_case(
 ) -> Dict[str, Any]:
     """Create a new AWS Support case.
 
-    ## Usage Requirements
-    - You must provide a clear subject and detailed communication body
+    ## Prerequisites
+    1. **describe_services** → get valid `service_code` and `category_code` values
+    2. (Optional) **describe_create_case_options** → check support hours and language availability
+    3. (Optional) **describe_supported_languages** → check if your preferred language is supported
+
+    Severity codes are: low, normal, high, urgent, critical. Pick based on impact — no need to call describe_severity_levels.
+
+    ## Attaching files
+    Call **add_attachments_to_set** first to upload files, then pass the returned
+    `attachmentSetId` as the `attachment_set_id` parameter here.
 
     ## Example
     ```
@@ -452,6 +413,7 @@ async def describe_support_cases(
     - You can retrieve cases by ID, display ID, or date range
     - You can include or exclude resolved cases and communications
     - You can paginate through results using the next_token parameter
+    - Use **describe_communications** to get the full communication history for a case
 
     ## Example
     ```
@@ -487,6 +449,7 @@ async def describe_support_cases(
 @track_request('describe_severity_levels')
 async def describe_severity_levels(
     ctx: Context,
+    language: str = Field(DEFAULT_LANGUAGE, description="The language code (e.g., 'en', 'ja')"),
     format: str = Field('json', description='The format of the response in markdown or json'),
 ) -> Dict[str, Any]:
     """Retrieve information about AWS Support severity levels. This tool provides details about the available severity levels for AWS Support cases, including their codes and descriptions.
@@ -494,15 +457,11 @@ async def describe_severity_levels(
     ## Usage
     - You can request the response in either JSON or Markdown format.
     - Use this information to determine the appropriate severity level for creating support cases.
-    - Use this information when crafting queries for Describe Cases.
 
     ## Example
     ```
-    # Get severity levels in JSON format
     describe_severity_levels()
-
-    # Get severity levels in Markdown format
-    describe_severity_levels(format='markdown')
+    describe_severity_levels(language='ja', format='markdown')
     ```
     ## Severity Level Guidelines
     - low (General guidance): You have a general development question or want to request a feature
@@ -513,14 +472,11 @@ async def describe_severity_levels(
 
     """
     try:
-        # Retrieve severity levels from the AWS Support API
         logger.debug('Retrieving AWS severity levels')
-        response = await support_client.describe_severity_levels()
+        response = await support_client.describe_severity_levels(language=language)
 
-        # Format the severity levels data
         severity_levels = format_severity_levels(response.get('severityLevels', []))
 
-        # Return the response in the requested format
         return (
             {'markdown': format_markdown_severity_levels(severity_levels)}
             if format.lower() == 'markdown'
@@ -585,7 +541,10 @@ async def add_communication_to_case(
     - You must provide a valid case ID
     - You must provide a communication body
     - You can optionally CC email addresses on the communication
-    - You can optionally attach files using an attachment set ID
+
+    ## Attaching files
+    Call **add_attachments_to_set** first to upload files, then pass the returned
+    `attachmentSetId` as the `attachment_set_id` parameter here.
 
     ## Example
     ```
@@ -725,6 +684,295 @@ async def describe_services(
         return await handle_general_error(ctx, e, 'describe_services')
 
 
+# --- describe_communications ---
+
+
+async def _describe_communications_logic(
+    ctx: Context,
+    case_id: str,
+    after_time: Optional[str] = None,
+    before_time: Optional[str] = None,
+    max_results: Optional[int] = None,
+    next_token: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Business logic for describing communications."""
+    try:
+        logger.info(f'Describing communications for case: {case_id}')
+        response = await support_client.describe_communications(
+            case_id=case_id,
+            after_time=after_time,
+            before_time=before_time,
+            max_results=max_results,
+            next_token=next_token,
+        )
+        return format_communications(response)
+    except ClientError as e:
+        return await handle_client_error(ctx, e, 'describe_communications')
+    except Exception as e:
+        return await handle_general_error(ctx, e, 'describe_communications')
+
+
+@mcp.tool(name='describe_communications')
+@track_performance
+@track_errors
+@track_request('describe_communications')
+async def describe_communications(
+    ctx: Context,
+    case_id: str = Field(..., description='The ID of the support case'),
+    after_time: Optional[str] = Field(None, description='Start date filter (ISO 8601 format)'),
+    before_time: Optional[str] = Field(None, description='End date filter (ISO 8601 format)'),
+    max_results: Optional[int] = Field(
+        None, description='Maximum number of results to return (max 100)'
+    ),
+    next_token: Optional[str] = Field(None, description='Pagination token'),
+) -> Dict[str, Any]:
+    """Retrieve communications for a support case.
+
+    ## Usage
+    - Provide a case ID to get all communications for that case
+    - Use date filters and pagination for large result sets
+    - Communications may include attachment IDs — use **describe_attachment** to download them
+
+    ## Example
+    ```
+    describe_communications(case_id='case-12345678910-2013-c4c1d2bf33c5cf47')
+    ```
+    """
+    return await _describe_communications_logic(
+        ctx, case_id, after_time, before_time, max_results, next_token
+    )
+
+
+# --- describe_supported_languages ---
+
+
+async def _describe_supported_languages_logic(
+    ctx: Context,
+    service_code: str,
+    category_code: str,
+    issue_type: str = 'technical',
+) -> Dict[str, Any]:
+    """Business logic for describing supported languages."""
+    try:
+        logger.info(f'Describing supported languages for service: {service_code}')
+        response = await support_client.describe_supported_languages(
+            service_code=service_code,
+            category_code=category_code,
+            issue_type=issue_type,
+        )
+        return {'supportedLanguages': response.get('supportedLanguages', [])}
+    except ClientError as e:
+        return await handle_client_error(ctx, e, 'describe_supported_languages')
+    except Exception as e:
+        return await handle_general_error(ctx, e, 'describe_supported_languages')
+
+
+@mcp.tool(name='describe_supported_languages')
+@track_performance
+@track_errors
+@track_request('describe_supported_languages')
+async def describe_supported_languages(
+    ctx: Context,
+    service_code: str = Field(..., description='The code for the AWS service'),
+    category_code: str = Field(..., description='The category code for the issue'),
+    issue_type: str = Field(
+        'technical', description='The issue type: technical or customer-service'
+    ),
+) -> Dict[str, Any]:
+    """Retrieve supported languages for a specific service and category.
+
+    Returns a list of languages with their ISO 639-1 code and display name.
+    Language support varies by service, category, and issue type.
+
+    ## Usage
+    - Call before creating a case in a non-English language to verify support
+    - Requires service_code and category_code (get these from describe_services)
+
+    ## Example
+    ```
+    describe_supported_languages(
+        service_code='ec2-container-service',
+        category_code='general-guidance',
+        issue_type='technical',
+    )
+    ```
+    """
+    return await _describe_supported_languages_logic(ctx, service_code, category_code, issue_type)
+
+
+# --- describe_create_case_options ---
+
+
+async def _describe_create_case_options_logic(
+    ctx: Context,
+    service_code: str,
+    language: str = DEFAULT_LANGUAGE,
+    category_code: Optional[str] = None,
+    issue_type: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Business logic for describing create case options."""
+    try:
+        logger.info(f'Describing create case options for service: {service_code}')
+        response = await support_client.describe_create_case_options(
+            service_code=service_code,
+            language=language,
+            category_code=category_code,
+            issue_type=issue_type,
+        )
+        return {
+            'communicationTypes': response.get('communicationTypes', []),
+            'languageAvailability': response.get('languageAvailability', ''),
+        }
+    except ClientError as e:
+        return await handle_client_error(ctx, e, 'describe_create_case_options')
+    except Exception as e:
+        return await handle_general_error(ctx, e, 'describe_create_case_options')
+
+
+@mcp.tool(name='describe_create_case_options')
+@track_performance
+@track_errors
+@track_request('describe_create_case_options')
+async def describe_create_case_options(
+    ctx: Context,
+    service_code: str = Field(..., description='The code for the AWS service'),
+    language: str = Field(DEFAULT_LANGUAGE, description='The language code (ISO 639-1)'),
+    category_code: Optional[str] = Field(None, description='The category code for the issue'),
+    issue_type: Optional[str] = Field(
+        None, description='The issue type: technical or customer-service'
+    ),
+) -> Dict[str, Any]:
+    """Retrieve supported hours and language availability for a service.
+
+    Returns communication types (e.g., chat, phone, web) with their supported
+    hours and any dates without support, plus language availability status.
+
+    ## Usage
+    - Check what support channels and hours are available before creating a case
+    - languageAvailability will be: available, best_effort, or unavailable
+
+    ## Example
+    ```
+    describe_create_case_options(service_code='ec2-container-service')
+    ```
+    """
+    return await _describe_create_case_options_logic(
+        ctx, service_code, language, category_code, issue_type
+    )
+
+
+# --- add_attachments_to_set ---
+
+
+async def _add_attachments_to_set_logic(
+    ctx: Context,
+    attachments: List[Dict[str, str]],
+    attachment_set_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Business logic for adding attachments to a set."""
+    try:
+        logger.info(f'Adding {len(attachments)} attachments to set')
+        response = await support_client.add_attachments_to_set(
+            attachments=attachments,
+            attachment_set_id=attachment_set_id,
+        )
+        result = AddAttachmentsToSetResponse(
+            attachmentSetId=response['attachmentSetId'],
+            expiryTime=response['expiryTime'],
+            status='success',
+            message=f'Attachments added to set: {response["attachmentSetId"]}',
+        )
+        return result.model_dump(by_alias=True)
+    except ValidationError as e:
+        return await handle_validation_error(ctx, e, 'add_attachments_to_set')
+    except ValueError as e:
+        logger.error(f'Attachment validation error: {e}')
+        await ctx.error(str(e))
+        return create_error_response(str(e), status_code=400)
+    except ClientError as e:
+        return await handle_client_error(ctx, e, 'add_attachments_to_set')
+    except Exception as e:
+        return await handle_general_error(ctx, e, 'add_attachments_to_set')
+
+
+@mcp.tool(name='add_attachments_to_set')
+@track_performance
+@track_errors
+@track_request('add_attachments_to_set')
+async def add_attachments_to_set(
+    ctx: Context,
+    attachments: List[Dict[str, str]] = Field(
+        ...,
+        description='List of attachments. Each must have "fileName" and "data" (base64-encoded).',
+    ),
+    attachment_set_id: Optional[str] = Field(
+        None, description='Existing attachment set ID to append to. Omit to create a new set.'
+    ),
+) -> Dict[str, Any]:
+    """Add attachments to a new or existing attachment set.
+
+    ## Usage
+    - Use before create_support_case or add_communication_to_case
+    - Pass the returned attachmentSetId to those tools
+    - Attachment sets expire after 1 hour; each file must be < 5MB
+    - The `data` field must be the file contents as a base64-encoded string
+    - The server decodes it to raw bytes before sending to AWS (the SDK handles wire encoding)
+    - Do NOT double-encode: encode the raw file bytes to base64 exactly once
+
+    ## Example
+    ```
+    add_attachments_to_set(
+        attachments=[{'fileName': 'error.log', 'data': '<base64-encoded-file-contents>'}]
+    )
+    ```
+    """
+    return await _add_attachments_to_set_logic(ctx, attachments, attachment_set_id)
+
+
+# --- describe_attachment ---
+
+
+async def _describe_attachment_logic(
+    ctx: Context,
+    attachment_id: str,
+) -> Dict[str, Any]:
+    """Business logic for describing an attachment."""
+    try:
+        logger.info(f'Describing attachment: {attachment_id}')
+        response = await support_client.describe_attachment(attachment_id=attachment_id)
+        return {
+            'attachment': response.get('attachment', {}),
+        }
+    except ClientError as e:
+        return await handle_client_error(ctx, e, 'describe_attachment')
+    except Exception as e:
+        return await handle_general_error(ctx, e, 'describe_attachment')
+
+
+@mcp.tool(name='describe_attachment')
+@track_performance
+@track_errors
+@track_request('describe_attachment')
+async def describe_attachment(
+    ctx: Context,
+    attachment_id: str = Field(
+        ..., description='The ID of the attachment. Get IDs from describe_communications.'
+    ),
+) -> Dict[str, Any]:
+    """Retrieve an attachment by ID.
+
+    ## Usage
+    - Get attachment IDs from describe_communications results
+    - Returns the file name and base64-encoded content
+
+    ## Example
+    ```
+    describe_attachment(attachment_id='attachment-id-from-communications')
+    ```
+    """
+    return await _describe_attachment_logic(ctx, attachment_id)
+
+
 def main():
     """Run the MCP server with CLI argument support."""
     parser = argparse.ArgumentParser(description='AWS Support API MCP Server')
@@ -784,8 +1032,14 @@ def main():
     if args.debug:
         # Enable more detailed error tracking and performance monitoring
         logger.debug('Enabling detailed performance tracking and error monitoring')
-        # Hook into FastMCP to track performance
-        mcp.settings.debug = True
+        # Hook into FastMCP debug mode where supported (API changed in v3).
+        settings_obj: Any = getattr(mcp, 'settings', None)
+        if settings_obj is not None and hasattr(settings_obj, 'debug'):
+            setattr(settings_obj, 'debug', True)
+        elif hasattr(mcp, 'debug'):
+            setattr(mcp, 'debug', True)
+        else:
+            logger.debug('FastMCP debug setting not available on this version')
         # You could add more diagnostics setup here
 
     logger.debug('Starting awslabs_support_mcp_server MCP server')

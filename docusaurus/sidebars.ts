@@ -45,13 +45,17 @@ const sidebars: SidebarsConfig = {
         },
         {
           type: "category",
+          label: "Migration & Modernization",
+          items: [
+            "servers/aws-transform-mcp-server",
+          ],
+        },
+        {
+          type: "category",
           label: "Infrastructure & Deployment",
           items: [
             "servers/aws-iac-mcp-server",
             "servers/ccapi-mcp-server",
-            "servers/cdk-mcp-server",
-            "servers/cfn-mcp-server",
-            "servers/terraform-mcp-server",
             "servers/eks-mcp-server",
             "servers/ecs-mcp-server",
             "servers/finch-mcp-server",
@@ -60,6 +64,7 @@ const sidebars: SidebarsConfig = {
             "servers/aws-serverless-mcp-server",
             "servers/aws-support-mcp-server",
             "servers/aws-network-mcp-server",
+            "servers/aws-for-sap-management-mcp-server",
           ],
         },
         {
@@ -69,8 +74,8 @@ const sidebars: SidebarsConfig = {
             "servers/bedrock-kb-retrieval-mcp-server",
             "servers/amazon-qindex-mcp-server",
             "servers/amazon-qbusiness-anonymous-mcp-server",
+            'servers/amazon-translate-mcp-server',
             "servers/document-loader-mcp-server",
-            "servers/nova-canvas-mcp-server",
             "servers/aws-bedrock-custom-model-import-mcp-server",
             "servers/amazon-bedrock-agentcore-mcp-server",
             "servers/sagemaker-ai-mcp-server",
@@ -104,19 +109,11 @@ const sidebars: SidebarsConfig = {
           type: "category",
           label: "Developer Tools & Support",
           items: [
-            "servers/core-mcp-server",
-            "servers/git-repo-research-mcp-server",
             "servers/openapi-mcp-server",
-            "servers/aws-diagram-mcp-server",
             "servers/prometheus-mcp-server",
-            "servers/code-doc-gen-mcp-server",
-            "servers/frontend-mcp-server",
             "servers/iam-mcp-server",
             "servers/amazon-kendra-index-mcp-server",
-            "servers/syntheticdata-mcp-server",
-            "servers/aws-bedrock-data-automation-mcp-server",
             "servers/aws-location-mcp-server",
-            "servers/aws-msk-mcp-server",
           ],
         },
         {
@@ -132,7 +129,6 @@ const sidebars: SidebarsConfig = {
           label: "Cost & Operations",
           items: [
             "servers/aws-pricing-mcp-server",
-            "servers/cost-explorer-mcp-server",
             "servers/cloudwatch-mcp-server",
             "servers/cloudwatch-applicationsignals-mcp-server",
             "servers/well-architected-security-mcp-server",

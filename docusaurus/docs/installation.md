@@ -33,10 +33,10 @@ Example configuration for Kiro MCP (`~/.kiro/settings/mcp.json`):
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
     },
-    "awslabs.cdk-mcp-server": {
+    "awslabs.aws-iac-mcp-server": {
       "command": "uvx",
       "args": [
-        "awslabs.cdk-mcp-server@latest"
+        "awslabs.aws-iac-mcp-server@latest"
       ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
@@ -46,17 +46,6 @@ Example configuration for Kiro MCP (`~/.kiro/settings/mcp.json`):
       "command": "uvx",
       "args": [
         "awslabs.aws-documentation-mcp-server@latest"
-      ],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      },
-      "disabled": false,
-      "autoApprove": []
-    },
-    "awslabs.terraform-mcp-server": {
-      "command": "uvx",
-      "args": [
-        "awslabs.terraform-mcp-server@latest"
       ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
@@ -94,13 +83,13 @@ Using the *"@latest"* suffix checks and downloads the latest MCP server package 
 
 ### Running MCP servers in containers
 
-*This example uses docker with the `awslabs.nova-canvas-mcp-server` and can be repeated for each MCP server*
+*This example uses docker with the `awslabs.aws-documentation-mcp-server` and can be repeated for each MCP server*
 
 - Build and tag the image
 
   ```base
-  cd src/nova-canvas-mcp-server
-  docker build -t awslabs/nova-canvas-mcp-server .
+  cd src/aws-documentation-mcp-server
+  docker build -t awslabs/aws-documentation-mcp-server .
   ```
 
 - Optionally save sensitive environmental variables in a file:
@@ -117,7 +106,7 @@ Using the *"@latest"* suffix checks and downloads the latest MCP server package 
   ```json
   {
     "mcpServers": {
-      "awslabs.nova-canvas-mcp-server": {
+      "awslabs.aws-documentation-mcp-server": {
         "command": "docker",
         "args": [
           "run",
@@ -131,7 +120,7 @@ Using the *"@latest"* suffix checks and downloads the latest MCP server package 
           "/full/path/to/.env",
           "--volume",
           "/full/path/to/.aws:/app/.aws",
-          "awslabs/nova-canvas-mcp-server:latest"
+          "awslabs/aws-documentation-mcp-server:latest"
         ],
         "env": {}
       }
@@ -159,9 +148,9 @@ For macOS/Linux:
 ```json
 {
   "mcpServers": {
-    "awslabs-core-mcp-server": {
+    "awslabs-aws-documentation-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.core-mcp-server@latest"],
+      "args": ["awslabs.aws-documentation-mcp-server@latest"],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
@@ -175,7 +164,7 @@ For Windows:
 ```json
 {
   "mcpServers": {
-    "awslabs-core-mcp-server": {
+    "awslabs-aws-documentation-mcp-server": {
       "disabled": false,
       "timeout": 60,
       "type": "stdio",
@@ -184,8 +173,8 @@ For Windows:
         "tool",
         "run",
         "--from",
-        "awslabs.core-mcp-server@latest",
-        "awslabs.core-mcp-server.exe"
+        "awslabs.aws-documentation-mcp-server@latest",
+        "awslabs.aws-documentation-mcp-server.exe"
       ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
@@ -210,9 +199,9 @@ For Windows:
  ```json
   {
    "mcpServers": {
-     "awslabs.nova-canvas-mcp-server": {
+     "awslabs.aws-documentation-mcp-server": {
        "command": "uvx",
-       "args": ["awslabs.nova-canvas-mcp-server@latest"],
+       "args": ["awslabs.aws-documentation-mcp-server@latest"],
        "env": {
          "AWS_PROFILE": "your-aws-profile",
          "AWS_REGION": "us-east-1",
@@ -251,9 +240,9 @@ For Windows:
 ```json
  {
   "mcpServers": {
-    "awslabs.nova-canvas-mcp-server": {
+    "awslabs.aws-documentation-mcp-server": {
        "command": "uvx",
-       "args": ["awslabs.nova-canvas-mcp-server@latest"],
+       "args": ["awslabs.aws-documentation-mcp-server@latest"],
        "env": {
          "AWS_PROFILE": "your-aws-profile",
          "AWS_REGION": "us-east-1",
@@ -290,9 +279,9 @@ For Windows:
  ```json
  {
    "mcpServers": {
-     "awslabs-core-mcp-server": {
+     "awslabs-aws-documentation-mcp-server": {
        "command": "uvx",
-       "args": ["awslabs.core-mcp-server@latest"],
+       "args": ["awslabs.aws-documentation-mcp-server@latest"],
        "env": {
          "FASTMCP_LOG_LEVEL": "ERROR",
          "MCP_SETTINGS_PATH": "path to your mcp settings file"
@@ -312,9 +301,9 @@ Configure MCP servers in VS Code settings or in `.vscode/mcp.json` (see [VS Code
 ```json
 {
   "mcpServers": {
-    "awslabs-core-mcp-server": {
+    "awslabs-aws-documentation-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.core-mcp-server@latest"],
+      "args": ["awslabs.aws-documentation-mcp-server@latest"],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       }

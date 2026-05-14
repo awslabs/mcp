@@ -5,11 +5,28 @@ A Model Context Protocol (MCP) server implementation for interacting with the AW
 ## Features
 
 - Create and manage AWS support cases
-- Retrieve case information and communications
-- Add communications to existing cases
+- Retrieve case information and full communication history
+- Add communications to existing cases (with attachment support)
 - Resolve support cases
-- Determine appropriate Issue Type, Service Code, and Category Code
-- Determine appropriate Severity Level for a case
+- Upload and download attachments with double-encoding protection
+- Discover valid service codes, category codes, severity levels, and languages before creating a case
+- Browse available case creation options per service
+
+## Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `create_support_case` | Create a new support case |
+| `describe_support_cases` | List/search existing cases |
+| `describe_communications` | Get full communication history for a case |
+| `add_communication_to_case` | Reply to a case (with optional attachments) |
+| `resolve_support_case` | Close a case |
+| `describe_services` | List AWS services and category codes |
+| `describe_severity_levels` | List severity levels |
+| `describe_create_case_options` | Get valid categories/severities for a service |
+| `describe_supported_languages` | List supported languages |
+| `add_attachments_to_set` | Upload files for attachment to cases |
+| `describe_attachment` | Download an attachment by ID |
 
 
 ## Requirements

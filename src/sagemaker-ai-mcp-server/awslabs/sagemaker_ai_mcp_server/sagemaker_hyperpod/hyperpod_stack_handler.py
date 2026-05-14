@@ -195,9 +195,9 @@ class HyperPodStackHandler:
             description='AWS profile name. If not provided, uses the default profile.',
         ),
     ) -> Union[
-        'DeployStackResponse',
-        'DescribeStackResponse',
-        'DeleteStackResponse',
+        DeployStackResponse,
+        DescribeStackResponse,
+        DeleteStackResponse,
     ]:
         r"""Manage SageMaker HyperPod Cluster through CloudFormation stacks.
 
