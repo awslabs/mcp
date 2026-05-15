@@ -178,7 +178,3 @@ tools/
 ```
 
 Each sub-package contains: cached boto3 client wrapper, Pydantic response models, structured error handler, domain tool files, and a comprehensive guide tool.
-
-## License
-
-Apache 2.0 — see <LICENSE> for details.
