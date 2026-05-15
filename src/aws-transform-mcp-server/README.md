@@ -1,5 +1,7 @@
 # AWS Transform MCP Server
 
+[![PyPI Downloads](https://static.pepy.tech/personalized-badge/awslabs-aws-transform-mcp-server?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/awslabs-aws-transform-mcp-server) [![PyPI Downloads/month](https://static.pepy.tech/personalized-badge/awslabs-aws-transform-mcp-server?period=month&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads/month)](https://pepy.tech/projects/awslabs-aws-transform-mcp-server)
+
 An MCP server for [AWS Transform](https://aws.amazon.com/transform/) that enables AI assistants to manage transformation workspaces, jobs, connectors, human-in-the-loop (HITL) tasks, artifacts, and chat directly from the IDE.
 
 AWS Transform accelerates migration and modernization of enterprise workloads using specialized AI agents across discovery, planning, and execution. This MCP server exposes the Transform lifecycle through 19 tools, supporting mainframe modernization, VMware migration, .NET modernization, and custom code transformations.
