@@ -200,7 +200,7 @@ IaC code: [ABSOLUTE_PATH_TO_IAC]"
 **Query OpenTelemetry Spans data via Transaction Search (100% sampled data)**
 
 - **100% sampled data** vs X-Ray's 5% sampling for more accurate results
-- Query "aws/spans" log group with CloudWatch Logs Insights
+- Queries OpenTelemetry spans across all log groups using the CloudWatch Logs `@data_format = "AWS-OTEL-TRACE-V1"` default field index; pass `log_group_name` to scope to a single log group
 - Generate business performance insights and summaries
 - **IMPORTANT**: Always include a limit in queries to prevent overwhelming context
 
@@ -696,7 +696,6 @@ Assistant: I'll use Transaction Search to analyze all errors with 100% trace vis
 [Uses search_transaction_spans for complete trace data]
 
 search_transaction_spans(
-  log_group_name="aws/spans",
   query_string='FILTER attributes.aws.local.service = "checkout-service" and attributes.http.status_code >= 400 | STATS count() as error_count by attributes.http.status_code, attributes.aws.local.operation | SORT error_count DESC | LIMIT 20',
   start_time="2024-01-15T10:00:00Z",
   end_time="2024-01-15T11:00:00Z"
@@ -725,6 +724,8 @@ ERROR BREAKDOWN (Last Hour):
 2. Add validation for checkout ID existence (404s)
 3. Implement circuit breaker for payment service calls (503s)
 ```
+
+`log_group_name` is optional. When omitted, the tool prepends `SOURCE logGroups() | filterIndex @data_format = "AWS-OTEL-TRACE-V1"` so it finds OTEL spans wherever they live. Pass `log_group_name="my-spans-lg"` to scope to a single log group.
 
 ### Example 5: Service Discovery and Overview
 ```

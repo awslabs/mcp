@@ -83,7 +83,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-aws-transform-mcp-server"
-version = "0.1.2"
+version = "0.1.3"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },
