@@ -1,6 +1,6 @@
 ---
 name: distributed sql
-description: "Build with Aurora DSQL — manage schemas, execute queries, handle migrations, diagnose query plans, and develop applications with a serverless, distributed SQL database. Covers IAM auth, multi-tenant patterns, MySQL-to-DSQL migration, DDL operations, and query plan explainability. Triggers on phrases like: DSQL, Aurora DSQL, create DSQL table, DSQL schema, migrate to DSQL, distributed SQL database, serverless PostgreSQL-compatible database, DSQL query plan, DSQL EXPLAIN ANALYZE, why is my DSQL query slow."
+description: "Build with Aurora DSQL — manage schemas, execute queries, handle migrations, diagnose query plans, and develop applications with a serverless, distributed SQL database. Covers IAM auth, multi-tenant patterns, MySQL-to-DSQL migration, DDL operations, query plan explainability, and SQL compatibility validation. Triggers on phrases like: DSQL, Aurora DSQL, create DSQL table, DSQL schema, migrate to DSQL, distributed SQL database, serverless PostgreSQL-compatible database, DSQL query plan, DSQL EXPLAIN ANALYZE, why is my DSQL query slow."
 ---
 
 # Amazon Aurora DSQL Skill
@@ -111,6 +111,13 @@ sampled in [mcp/.mcp.json](mcp/.mcp.json)
 **When:** MUST load all four at Workflow 8 Phase 0 — [query-plan/plan-interpretation.md](references/query-plan/plan-interpretation.md), [query-plan/catalog-queries.md](references/query-plan/catalog-queries.md), [query-plan/guc-experiments.md](references/query-plan/guc-experiments.md), [query-plan/report-format.md](references/query-plan/report-format.md)
 **Contains:** DSQL node types + Node Duration math + estimation-error bands, pg_class/pg_stats/pg_indexes SQL + correlated-predicate verification, GUC experiment procedures + 30-second skip protocol, required report structure + element checklist + support request template
 
+### SQL Compatibility Validation:
+
+#### [dsql-lint.md](references/dsql-lint.md)
+
+**When:** MUST load before running `dsql_lint`, processing externally-sourced SQL (pg_dump, ORM migrations, user-pasted DDL), or resolving `fixed_with_warning` / unfixable diagnostics
+**Contains:** `dsql_lint` MCP tool reference, fix statuses, ORM integration, unfixable error resolution
+
 ---
 
 ## MCP Tools Available
@@ -122,6 +129,10 @@ The `aurora-dsql` MCP server provides these tools:
 1. **readonly_query** - Execute SELECT queries (returns list of dicts)
 2. **transact** - Execute DDL/DML statements in transaction (takes list of SQL statements)
 3. **get_schema** - Get table structure for a specific table
+
+**SQL Validation:**
+
+1. **dsql_lint** - Validate SQL for DSQL compatibility and optionally auto-fix issues. Use before executing externally-sourced SQL.
 
 **Documentation & Knowledge:**
 
@@ -150,46 +161,24 @@ defaults that may change — when a user's decision depends on an exact limit, v
 | Max indexes per table          | 24            | `aurora dsql index limits`         |
 | Max columns per index          | 8             | `aurora dsql index limits`         |
 | IDENTITY/SEQUENCE CACHE values | 1 or >= 65536 | `aurora dsql sequence cache`       |
+| Supported column data types    | See docs      | `aurora dsql supported data types` |
 
-**When to verify:** Before recommending batch sizes, connection pool settings, or schema designs
-where hitting a limit would cause failures. No need to verify for general guidance or when
-the exact number doesn't affect the user's decision.
+**When to verify:** Before recommending batch sizes, connection pool settings, or schema designs where hitting a limit would cause failures; any time the exact number can affect user decision.
 
-**Fallback:** If `awsknowledge` is unavailable, use the defaults above and note to the user
-that limits should be verified against [DSQL documentation](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/).
+**Fallback:** If `awsknowledge` is unavailable, use the defaults above and flag that limits should be verified against [DSQL documentation](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/).
 
 ## CLI Scripts Available
 
 Bash scripts in [scripts/](scripts/) for cluster management (create, delete, list, cluster info), psql connection, and bulk data loading from local/s3 csv/tsv/parquet files.
-See [scripts/README.md](scripts/README.md) for usage.
+See [scripts/README.md](scripts/README.md) for usage and hook configuration.
 
 ---
 
 ## Quick Start
 
-### 1. List tables and explore schema
-
-```
-Use readonly_query with information_schema to list tables
-Use get_schema to understand table structure
-```
-
-### 2. Query data
-
-```
-Use readonly_query for SELECT queries
-Always include tenant_id in WHERE clause for multi-tenant apps
-MUST build SQL with safe_query.build() — see mcp/tools/input-validation.md
-```
-
-### 3. Execute schema changes
-
-```
-Use transact tool with list of SQL statements
-Follow one-DDL-per-transaction rule
-Always use CREATE INDEX ASYNC in separate transaction
-ALTER COLUMN TYPE, DROP COLUMN, DROP CONSTRAINT → Table Recreation Pattern (Workflow 6)
-```
+1. **Explore:** Use `readonly_query` with `information_schema` to list tables. Use `get_schema` for table structure.
+2. **Query:** Use `readonly_query` for SELECT queries. **MUST** include `tenant_id` in WHERE for multi-tenant apps. **MUST** build SQL with `safe_query.build()`.
+3. **Schema changes:** Use `transact` with one DDL per transaction. **MUST** batch DML under 3,000 rows. **MUST** use `CREATE INDEX ASYNC` in a separate call. Use `dsql_lint` to validate first.
 
 ---
 
@@ -205,24 +194,25 @@ ALTER COLUMN TYPE, DROP COLUMN, DROP CONSTRAINT → Table Recreation Pattern (Wo
 - MUST include tenant_id in all tables
 - MUST use `CREATE INDEX ASYNC` exclusively
 - MUST issue each DDL in its own transact call: `transact(["CREATE TABLE ..."])`
-- MUST store arrays/JSON as TEXT
+- MUST serialize arrays as TEXT or JSON; cast back at query time (`string_to_array(text, ',')` or `jsonb_array_elements_text(json::jsonb)`)
 
 ### Workflow 2: Safe Data Migration
 
-1. Add column using transact: `transact(["ALTER TABLE ... ADD COLUMN ..."])`
-2. Populate existing rows with UPDATE in separate transact calls (batched under 3,000 rows)
-3. Verify migration with readonly_query using COUNT
-4. Create async index for new column using transact if needed
+Every DDL statement generated in this workflow MUST be validated with `dsql_lint(fix=true)` before its `transact` call — applies to step 2 (ADD COLUMN) and step 5 (async index). DML (`UPDATE` in step 3) does not require linting.
 
+1. Validate ALTER TABLE DDL with `dsql_lint(sql=..., fix=true)` — handle diagnostics per [dsql-lint.md](references/dsql-lint.md)
+2. Add column using transact: `transact(["ALTER TABLE ... ADD COLUMN ..."])`
+3. Populate existing rows with UPDATE in separate transact calls (batched under 3,000 rows)
+4. Verify migration with readonly_query using COUNT
+5. If an index is needed: validate CREATE INDEX ASYNC DDL with `dsql_lint(sql=..., fix=true)`, then create via transact
+
+- MUST validate every externally-sourced or generated DDL statement with `dsql_lint` before executing
 - MUST add column first, populate later
 - MUST issue ADD COLUMN with only name and type; apply DEFAULT via separate UPDATE
 - MUST batch updates under 3,000 rows in separate transact calls
 - MUST issue each ALTER TABLE in its own transaction
 
-**Recovery — batch fails midway:** Rows already updated keep their new value (each batch committed
-in its own transaction). Resume by filtering on the unset state — e.g. add
-`WHERE new_column IS NULL` (or the sentinel value) to the next UPDATE — and continue from there.
-Re-running the entire migration is safe because the filter naturally excludes completed rows.
+**Recovery — batch fails midway:** Rows already updated keep their new value (each batch committed independently). Resume by filtering on the unset state (`WHERE new_column IS NULL`) and continue. Re-running is safe because the filter naturally excludes completed rows.
 
 ### Workflow 3: Application-Layer Referential Integrity
 
@@ -244,13 +234,18 @@ MUST load [access-control.md](references/access-control.md) for role setup, IAM 
 
 ### Workflow 6: Table Recreation DDL Migration
 
-DSQL does NOT support direct `ALTER COLUMN TYPE`, `DROP COLUMN`, `DROP CONSTRAINT`, or `MODIFY PRIMARY KEY`. These operations require the **Table Recreation Pattern** — creating a new table, copying data, dropping the original, and renaming. This is a destructive workflow that requires user confirmation at each step.
+DSQL does NOT support direct `ALTER COLUMN TYPE`, `DROP COLUMN`, `DROP CONSTRAINT`, or `MODIFY PRIMARY KEY`. These require the **Table Recreation Pattern**. This is a destructive workflow that requires user confirmation at each step. Every generated DDL in the pattern (CREATE new, INSERT ... SELECT, DROP old, RENAME) MUST be validated with `dsql_lint(sql=..., fix=true)` before execution.
 
 MUST load [ddl-migrations/overview.md](references/ddl-migrations/overview.md) before attempting any of these operations.
 
-### Workflow 7: MySQL to DSQL Schema Migration
+### Workflow 7: Validate and Migrate to DSQL
 
-MUST load [mysql-migrations/type-mapping.md](references/mysql-migrations/type-mapping.md) for type mappings, feature alternatives, and migration steps.
+MUST load [dsql-lint.md](references/dsql-lint.md) before running `dsql_lint` — it defines diagnostic handling, the three `fix_result.status` values (`fixed`, `fixed_with_warning`, `unfixable`), and user-confirmation gates.
+
+Run `dsql_lint(sql=source_sql, fix=true)` to validate and auto-convert PostgreSQL-compatible SQL. `dsql_lint` uses a PostgreSQL parser, so MySQL dialect syntax that PostgreSQL cannot parse (e.g., `PARTITION BY HASH`, `AUTO_INCREMENT` in some positions) surfaces as a `parse_error` rule rather than individual diagnostics.
+
+- For MySQL-origin SQL, MUST cross-check the source against [mysql-migrations/type-mapping.md](references/mysql-migrations/type-mapping.md) even when lint returns clean — `ENGINE=` clauses and `SET(...)` column types can pass silently through the PostgreSQL parser.
+- On `parse_error`, fall back to [mysql-migrations/type-mapping.md](references/mysql-migrations/type-mapping.md) for manual conversion, then re-run `dsql_lint` on the converted output before executing.
 
 ### Workflow 8: Query Plan Explainability
 
@@ -285,6 +280,7 @@ PGPASSWORD="$TOKEN" psql "host=$HOST port=5432 user=admin dbname=postgres sslmod
 ## Error Scenarios
 
 - **`awsknowledge` returns no results:** Use the default limits in the table above and note that limits should be verified against [DSQL documentation](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/).
+- **`dsql_lint` unavailable or timing out:** See the Error Handling section of [dsql-lint.md](references/dsql-lint.md). Do not silently skip validation — inform the user and require explicit confirmation before proceeding with manual rules from [development-guide.md](references/development-guide.md).
 - **OCC serialization error:** Retry the transaction. If persistent, check for hot-key contention — see [troubleshooting.md](references/troubleshooting.md).
 - **Transaction exceeds limits:** Split into batches under 3,000 rows — see [batched-migration.md](references/ddl-migrations/batched-migration.md).
 - **Token expiration mid-operation:** Generate a fresh IAM token — see [authentication-guide.md](references/auth/authentication-guide.md). See [troubleshooting.md](references/troubleshooting.md) for other issues.

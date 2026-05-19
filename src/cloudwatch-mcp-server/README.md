@@ -1,4 +1,4 @@
-# AWS Labs cloudwatch MCP Server
+# AWS Labs CloudWatch MCP Server
 
 This AWS Labs Model Context Protocol (MCP) server for CloudWatch enables your troubleshooting agents to use CloudWatch data to do AI-powered root cause analysis and provide recommendations. It offers comprehensive observability tools that simplify monitoring, reduce context switching, and help teams quickly diagnose and resolve service issues. This server will provide AI agents with seamless access to CloudWatch telemetry data through standardized MCP interfaces, eliminating the need for custom API integrations and reducing context switching during troubleshooting workflows. By consolidating access to all CloudWatch capabilities, we enable powerful cross-service correlations and insights that accelerate incident resolution and improve operational visibility.
 
@@ -30,6 +30,24 @@ Alarm Recommendations - Suggests recommended alarm configurations for CloudWatch
 * `get_metric_metadata` - Retrieves comprehensive metadata about a specific CloudWatch metric
 * `get_recommended_metric_alarms` - Gets recommended alarms for a CloudWatch metric based on best practice, and trend, seasonality and statistical analysis.
 * `analyze_metric` - Analyzes CloudWatch metric data to determine trend, seasonality, and statistical properties
+
+### Tools for CloudWatch PromQL
+* `execute_promql_query` - Executes an instant PromQL query against CloudWatch, returning metric values at a single point in time. Use for OTLP-ingested metrics, enriched vended AWS metrics, and queries using PromQL label syntax (`@resource.*`, `@aws.*`, `@instrumentation.*`).
+* `execute_promql_range_query` - Executes a PromQL range query over a time window, returning time series data (matrix). Use for trend analysis and graphs with PromQL syntax.
+* `get_promql_label_values` - Gets values for a specific PromQL label (e.g., `__name__` for metric names, `@resource.service.name` for services). Use for metric discovery.
+* `get_promql_series` - Finds time series matching PromQL label selectors. Returns the full label set of matching series.
+* `get_promql_labels` - Lists all available PromQL label names. Use to discover the label structure of OTLP-ingested and enriched vended metrics.
+
+> **Note:** PromQL tools are available in: us-east-1, us-west-2, eu-west-1, ap-southeast-1, ap-southeast-2. For enriched vended AWS metrics, OTel enrichment must be enabled first (`aws cloudwatch start-otel-enrichment`). Vended metrics are histograms — use `histogram_avg()`, `histogram_sum()`, etc. Use `@instrumentation.@name` to disambiguate metrics across services (e.g., `"cloudwatch.aws/ec2"` vs `"cloudwatch.aws/rds"`).
+>
+> **OTLP scope to PromQL label mapping:**
+> | OTLP Scope | Attributes prefix | Example |
+> |---|---|---|
+> | Resource | `@resource.` | `@resource.service.name="myservice"` |
+> | Instrumentation Scope | `@instrumentation.` | `@instrumentation.@name="cloudwatch.aws/ec2"` |
+> | Datapoint | `@datapoint.` or bare | `InstanceId="i-xxx"` or `@datapoint.InstanceId="i-xxx"` |
+> | AWS system labels | `@aws.` | `@aws.account_id="123456789012"`, `@aws.region="us-east-1"` |
+> | AWS resource tags | `@aws.tag.` | `@aws.tag.Environment="production"`, `@aws.tag.Team="backend"` |
 
 ### Tools for CloudWatch Alarms
 * `get_active_alarms` - Identifies currently active CloudWatch alarms across the account

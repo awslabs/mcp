@@ -158,7 +158,11 @@ def get_error_status_code(error: Union[ClientError, ValidationError, Exception])
             return 403
         elif error_code == 'CaseIdNotFound':
             return 404
+        elif error_code == 'AttachmentIdNotFound':
+            return 404
         elif error_code == 'ThrottlingException':
+            return 429
+        elif error_code == 'DescribeAttachmentLimitExceeded':
             return 429
         return 400
     elif isinstance(error, ValidationError):
