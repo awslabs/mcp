@@ -56,6 +56,8 @@ class ErrorCode(str, Enum):
     THROTTLING = 'ThrottlingException'
     TOO_MANY_REQUESTS = 'TooManyRequestsException'
     INTERNAL_SERVER = 'InternalServerError'
+    ATTACHMENT_NOT_FOUND = 'AttachmentIdNotFound'
+    DESCRIBE_ATTACHMENT_LIMIT = 'DescribeAttachmentLimitExceeded'
 
 
 # Default values
@@ -91,6 +93,8 @@ ERROR_AUTHENTICATION_FAILED = 'Failed to authenticate with AWS Support API.'
 ERROR_CASE_NOT_FOUND = 'The specified support case could not be found.'
 ERROR_RATE_LIMIT_EXCEEDED = 'Rate limit exceeded. Please try again later.'
 ERROR_INTERNAL_SERVER = 'An internal server error occurred.'
+ERROR_ATTACHMENT_NOT_FOUND = 'An attachment with the specified ID could not be found.'
+ERROR_DESCRIBE_ATTACHMENT_LIMIT = 'The limit for DescribeAttachment requests has been exceeded.'
 
 # Error code to message mapping
 ERROR_CODE_MAP = {
@@ -100,14 +104,18 @@ ERROR_CODE_MAP = {
     ErrorCode.THROTTLING: ERROR_RATE_LIMIT_EXCEEDED,
     ErrorCode.TOO_MANY_REQUESTS: ERROR_RATE_LIMIT_EXCEEDED,
     ErrorCode.INTERNAL_SERVER: ERROR_INTERNAL_SERVER,
+    ErrorCode.ATTACHMENT_NOT_FOUND: ERROR_ATTACHMENT_NOT_FOUND,
+    ErrorCode.DESCRIBE_ATTACHMENT_LIMIT: ERROR_DESCRIBE_ATTACHMENT_LIMIT,
 }
 
 # HTTP status codes for error types
 ERROR_STATUS_CODES = {
     ErrorCode.ACCESS_DENIED: 403,
     ErrorCode.CASE_NOT_FOUND: 404,
+    ErrorCode.ATTACHMENT_NOT_FOUND: 404,
     ErrorCode.THROTTLING: 429,
     ErrorCode.TOO_MANY_REQUESTS: 429,
+    ErrorCode.DESCRIBE_ATTACHMENT_LIMIT: 429,
     ErrorCode.INTERNAL_SERVER: 500,
 }
 
@@ -116,3 +124,69 @@ MAX_RESULTS_PER_PAGE = 100
 
 # Languages allowed for Case Creation
 PERMITTED_LANGUAGE_CODES = ['en', 'ja', 'zh', 'es', 'pt', 'fr', 'ko', 'tr']
+
+# Common service code aliases — maps intuitive names and common guesses
+# to the actual AWS Support API service codes
+SERVICE_CODE_ALIASES: Dict[str, str] = {
+    # EC2
+    'ec2': 'amazon-elastic-compute-cloud-linux',
+    'amazon-ec2': 'amazon-elastic-compute-cloud-linux',
+    'amazon-ec2-linux': 'amazon-elastic-compute-cloud-linux',
+    'ec2-linux': 'amazon-elastic-compute-cloud-linux',
+    'ec2-windows': 'amazon-elastic-compute-cloud-windows',
+    'amazon-ec2-windows': 'amazon-elastic-compute-cloud-windows',
+    # ECS
+    'ecs': 'ec2-container-service',
+    'amazon-ecs': 'ec2-container-service',
+    'amazon-elastic-container-service': 'ec2-container-service',
+    'elastic-container-service': 'ec2-container-service',
+    'fargate': 'ec2-container-service',
+    # EKS
+    'eks': 'amazon-elastic-kubernetes-service',
+    'amazon-eks': 'amazon-elastic-kubernetes-service',
+    'kubernetes': 'amazon-elastic-kubernetes-service',
+    # S3
+    's3': 'amazon-simple-storage-service',
+    'amazon-s3': 'amazon-simple-storage-service',
+    # Lambda
+    'lambda': 'aws-lambda',
+    'amazon-lambda': 'aws-lambda',
+    # DynamoDB
+    'dynamodb': 'amazon-dynamodb',
+    'dynamo': 'amazon-dynamodb',
+    # RDS
+    'rds': 'amazon-relational-database-service',
+    'amazon-rds': 'amazon-relational-database-service',
+    # IAM
+    'iam': 'aws-identity-and-access-management',
+    'amazon-iam': 'aws-identity-and-access-management',
+    # VPC
+    'vpc': 'amazon-virtual-private-cloud',
+    'amazon-vpc': 'amazon-virtual-private-cloud',
+    # CloudFormation
+    'cloudformation': 'aws-cloudformation',
+    'cfn': 'aws-cloudformation',
+    # CloudWatch
+    'cloudwatch': 'amazon-cloudwatch',
+    # Route 53
+    'route53': 'amazon-route53',
+    'route-53': 'amazon-route53',
+    # ELB/ALB
+    'elb': 'elastic-load-balancing',
+    'alb': 'elastic-load-balancing',
+    'nlb': 'elastic-load-balancing',
+    # SQS
+    'sqs': 'amazon-simple-queue-service',
+    'amazon-sqs': 'amazon-simple-queue-service',
+    # SNS
+    'sns': 'amazon-simple-notification-service',
+    'amazon-sns': 'amazon-simple-notification-service',
+    # CloudFront
+    'cloudfront': 'amazon-cloudfront',
+    # ElastiCache
+    'elasticache': 'amazon-elasticache',
+    # Bedrock
+    'bedrock': 'amazon-bedrock',
+    # SageMaker
+    'sagemaker': 'amazon-sagemaker',
+}

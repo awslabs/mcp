@@ -24,6 +24,7 @@ from awslabs.aws_support_mcp_server.consts import (
     ERROR_SUBSCRIPTION_REQUIRED,
     MAX_RESULTS_PER_PAGE,
     PERMITTED_LANGUAGE_CODES,
+    SERVICE_CODE_ALIASES,
     IssueType,
 )
 from botocore.config import Config as BotoConfig
@@ -181,6 +182,27 @@ class SupportClient:
                 f'Invalid language code: {language}. Must be one of: {", ".join(PERMITTED_LANGUAGE_CODES)}'
             )
 
+    @staticmethod
+    def resolve_service_code(service_code: str) -> str:
+        """Resolve a service code alias to the actual AWS Support API service code.
+
+        Handles common shorthand names (e.g., 'ecs', 's3', 'lambda') and
+        incorrect guesses (e.g., 'amazon-elastic-container-service') by mapping
+        them to the correct API codes. If the code is already valid or unknown,
+        it is returned as-is.
+
+        Args:
+            service_code: The service code or alias to resolve
+
+        Returns:
+            The resolved service code
+        """
+        normalized = service_code.lower().strip()
+        resolved = SERVICE_CODE_ALIASES.get(normalized, service_code)
+        if resolved != service_code:
+            logger.info(f'Resolved service code alias: "{service_code}" → "{resolved}"')
+        return resolved
+
     async def create_case(
         self,
         subject: str,
@@ -221,6 +243,8 @@ class SupportClient:
 
             self._validate_issue_type(issue_type)
             self._validate_language(language)
+
+            service_code = self.resolve_service_code(service_code)
 
             kwargs: Dict[str, Any] = {
                 'subject': subject,
@@ -496,7 +520,9 @@ class SupportClient:
             }
 
             if service_code_list:
-                kwargs['serviceCodeList'] = service_code_list
+                kwargs['serviceCodeList'] = [
+                    self.resolve_service_code(code) for code in service_code_list
+                ]
 
             logger.debug('Describing AWS services')
             response = await self._run_in_executor(self.client.describe_services, **kwargs)
@@ -544,21 +570,44 @@ class SupportClient:
             logger.error(f'Unexpected error describing severity levels: {str(e)}')
             raise
 
-    async def describe_supported_languages(self) -> Dict[str, Any]:
-        """Retrieve the list of supported languages for the AWS Support API.
+    async def describe_supported_languages(
+        self,
+        service_code: str,
+        category_code: str,
+        issue_type: str = 'technical',
+    ) -> Dict[str, Any]:
+        """Retrieve supported languages for a specific service, category, and issue type.
+
+        Args:
+            service_code: The code for the AWS service
+            category_code: The category code for the issue
+            issue_type: The issue type: technical or customer-service (default: technical)
 
         Returns:
-            A dictionary containing the list of supported languages
+            A dictionary containing supportedLanguages (list of {code, display, language})
 
         Raises:
             ClientError: If there is an error calling the AWS Support API
             Exception: If there is an unexpected error
         """
         try:
-            logger.debug('Describing supported languages')
-            response = await self._run_in_executor(self.client.describe_supported_languages)
+            kwargs: Dict[str, Any] = {
+                'serviceCode': self.resolve_service_code(service_code),
+                'categoryCode': category_code,
+                'issueType': issue_type,
+            }
 
-            logger.info(f'Retrieved {len(response.get("languages", []))} supported languages')
+            logger.debug(
+                f'Describing supported languages for service: {service_code}, '
+                f'category: {category_code}, issue type: {issue_type}'
+            )
+            response = await self._run_in_executor(
+                self.client.describe_supported_languages, **kwargs
+            )
+
+            logger.info(
+                f'Retrieved {len(response.get("supportedLanguages", []))} supported languages'
+            )
             return response
         except ClientError as e:
             error_code = e.response['Error']['Code']
@@ -571,16 +620,23 @@ class SupportClient:
             raise
 
     async def describe_create_case_options(
-        self, service_code: str, language: str = 'en'
+        self,
+        service_code: str,
+        language: str = 'en',
+        category_code: Optional[str] = None,
+        issue_type: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Retrieve available options for creating a support case for a specific service.
+        """Retrieve supported hours and language availability for creating a case.
 
         Args:
             service_code: The code for the AWS service
             language: The language to use (default: en)
+            category_code: The category code for the issue (optional)
+            issue_type: The issue type: technical or customer-service (optional)
 
         Returns:
-            A dictionary containing the available categories and severity levels for the service
+            A dictionary containing communicationTypes (supported hours, dates without
+            support, type) and languageAvailability
 
         Raises:
             ClientError: If there is an error calling the AWS Support API
@@ -588,20 +644,25 @@ class SupportClient:
         """
         try:
             kwargs: Dict[str, Any] = {
-                'serviceCode': service_code,
+                'serviceCode': self.resolve_service_code(service_code),
                 'language': language,
             }
+
+            if category_code:
+                kwargs['categoryCode'] = category_code
+            if issue_type:
+                kwargs['issueType'] = issue_type
 
             logger.debug(f'Describing create case options for service: {service_code}')
             response = await self._run_in_executor(
                 self.client.describe_create_case_options, **kwargs
             )
 
-            categories = len(response.get('categoryList', []))
-            severity_levels = len(response.get('severityLevels', []))
+            comm_types = len(response.get('communicationTypes', []))
+            lang_avail = response.get('languageAvailability', 'unknown')
             logger.info(
-                f'Retrieved {categories} categories and {severity_levels} severity levels '
-                f'for service: {service_code}'
+                f'Retrieved {comm_types} communication types, '
+                f'language availability: {lang_avail} for service: {service_code}'
             )
             return response
         except ClientError as e:
@@ -625,9 +686,14 @@ class SupportClient:
         The attachment set is available for 1 hour after it is created. The maximum
         size of an attachment file is 5 MB.
 
+        IMPORTANT: The `data` field must be a base64-encoded string representing the
+        raw file contents. This method decodes it to raw bytes before passing to the
+        AWS SDK (which handles its own wire-level base64 encoding). Do NOT pass raw
+        bytes directly — they must be base64-encoded text.
+
         Args:
             attachments: List of attachments to add. Each attachment should be a dict with:
-                - data: The base64-encoded contents of the file
+                - data: Base64-encoded string of the raw file contents
                 - fileName: The name of the file
             attachment_set_id: The ID of the attachment set to add to (optional)
 
@@ -637,26 +703,62 @@ class SupportClient:
                 - expiryTime: The time when the attachment set expires
 
         Raises:
+            ValueError: If attachment data appears to be double-encoded
             ClientError: If there is an error calling the AWS Support API
             Exception: If there is an unexpected error
-
-        Example:
-            >>> import base64
-            >>> with open('file.txt', 'rb') as f:
-            ...     data = base64.b64encode(f.read()).decode('utf-8')
-            >>> attachments = [{'data': data, 'fileName': 'file.txt'}]
-            >>> result = await client.add_attachments_to_set(attachments)
         """
+        import base64
+
         try:
-            kwargs: Dict[str, Any] = {
-                'attachments': [
+            decoded_attachments = []
+            for attachment in attachments:
+                raw_data = attachment['data']
+
+                # Decode the base64 string to raw bytes for boto3
+                try:
+                    file_bytes = base64.b64decode(raw_data)
+                except Exception:
+                    raise ValueError(
+                        f'Attachment "{attachment["fileName"]}": data is not valid base64. '
+                        'Provide the file contents as a base64-encoded string.'
+                    )
+
+                # Detect double-encoding: if the decoded bytes are themselves
+                # valid base64 text that decodes to something smaller, the caller
+                # likely pre-encoded before passing to us.
+                try:
+                    decoded_text = file_bytes.decode('ascii')
+                    # Check if it looks like base64 (only base64 chars, length divisible by 4)
+                    import re
+
+                    if (
+                        len(decoded_text) > 16
+                        and len(decoded_text) % 4 == 0
+                        and re.fullmatch(r'[A-Za-z0-9+/=\n\r]+', decoded_text)
+                    ):
+                        # Try to decode the inner layer
+                        inner = base64.b64decode(decoded_text)
+                        if len(inner) < len(file_bytes):
+                            raise ValueError(
+                                f'Attachment "{attachment["fileName"]}": data appears to be '
+                                'double-base64-encoded. Provide the raw file contents encoded '
+                                'as base64 only once. The SDK handles wire-level encoding.'
+                            )
+                except (UnicodeDecodeError, ValueError) as e:
+                    # UnicodeDecodeError means it's genuine binary — good
+                    # ValueError from our own raise should propagate
+                    if isinstance(e, ValueError) and 'double-base64-encoded' in str(e):
+                        raise
+                    # Otherwise it's binary data, which is correct
+
+                decoded_attachments.append(
                     {
-                        'data': attachment['data'],
+                        'data': file_bytes,
                         'fileName': attachment['fileName'],
                     }
-                    for attachment in attachments
-                ]
-            }
+                )
+
+            kwargs: Dict[str, Any] = {'attachments': decoded_attachments}
 
             if attachment_set_id:
                 kwargs['attachmentSetId'] = str(attachment_set_id) if attachment_set_id else None
@@ -674,8 +776,41 @@ class SupportClient:
             error_message = e.response['Error']['Message']
             logger.error(f'Failed to add attachments to set: {error_code} - {error_message}')
             raise
+        except ValueError:
+            raise
         except Exception as e:
             logger.error(f'Unexpected error adding attachments to set: {str(e)}')
+            raise
+
+    async def describe_attachment(self, attachment_id: str) -> Dict[str, Any]:
+        """Retrieve an attachment by ID.
+
+        Args:
+            attachment_id: The ID of the attachment to retrieve
+
+        Returns:
+            A dictionary containing the attachment data and file name
+
+        Raises:
+            ClientError: If there is an error calling the AWS Support API
+            Exception: If there is an unexpected error
+        """
+        try:
+            logger.debug(f'Describing attachment: {attachment_id}')
+            response = await self._run_in_executor(
+                self.client.describe_attachment, attachmentId=attachment_id
+            )
+
+            logger.info(f'Retrieved attachment: {attachment_id}')
+            return response
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            error_message = e.response['Error']['Message']
+
+            logger.error(f'Failed to describe attachment: {error_code} - {error_message}')
+            raise
+        except Exception as e:
+            logger.error(f'Unexpected error describing attachment: {str(e)}')
             raise
 
     async def _retry_with_backoff(

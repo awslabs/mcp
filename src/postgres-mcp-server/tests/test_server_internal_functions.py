@@ -17,6 +17,7 @@ import json
 import pytest
 from awslabs.postgres_mcp_server.connection.db_connection_map import ConnectionMethod, DatabaseType
 from awslabs.postgres_mcp_server.server import (
+    DEFAULT_POSTGRES_PORT,
     MAX_IDENTIFIER_BYTES,
     _parse_identifier_parts,
     create_cluster_worker,
@@ -278,6 +279,253 @@ class TestInternalCreateConnection:
             response_dict = json.loads(response)
             assert response_dict['db_endpoint'] == 'cluster.endpoint.com'
             assert response_dict['port'] == 5432
+
+    def test_rejects_endpoint_not_in_cluster(self):
+        """Caller-supplied endpoint that doesn't match any cluster endpoint raises ValueError."""
+        with (
+            patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map,
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_cluster_properties'
+            ) as mock_props,
+        ):
+            mock_map.get.return_value = None
+            mock_props.return_value = {
+                'HttpEndpointEnabled': False,
+                'MasterUsername': 'postgres',
+                'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test',
+                'MasterUserSecret': {'SecretArn': 'arn:secret'},
+                'Endpoint': 'legitimate.endpoint.com',
+                'ReaderEndpoint': 'legitimate.reader.endpoint.com',
+                'Port': 5432,
+            }
+
+            with pytest.raises(ValueError) as exc_info:
+                internal_create_connection(
+                    region='us-east-1',
+                    database_type=DatabaseType.APG,
+                    connection_method=ConnectionMethod.PG_WIRE_PROTOCOL,
+                    cluster_identifier='test-cluster',
+                    db_endpoint='attacker.example.com',
+                    port=5432,
+                    database='testdb',
+                )
+
+            msg = str(exc_info.value)
+            assert 'attacker.example.com' in msg
+            assert 'test-cluster' in msg
+            # Error message should list the legitimate endpoints so the caller
+            # knows which hosts are acceptable.
+            assert 'legitimate.endpoint.com' in msg
+
+    def test_rejects_endpoint_with_wrong_port(self):
+        """Caller supplies correct host but wrong port → ValueError."""
+        with (
+            patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map,
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_cluster_properties'
+            ) as mock_props,
+        ):
+            mock_map.get.return_value = None
+            mock_props.return_value = {
+                'HttpEndpointEnabled': False,
+                'MasterUsername': 'postgres',
+                'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test',
+                'MasterUserSecret': {'SecretArn': 'arn:secret'},
+                'Endpoint': 'test.endpoint.com',
+                'Port': 5432,
+            }
+
+            with pytest.raises(ValueError, match='does not match any endpoint'):
+                internal_create_connection(
+                    region='us-east-1',
+                    database_type=DatabaseType.APG,
+                    connection_method=ConnectionMethod.PG_WIRE_PROTOCOL,
+                    cluster_identifier='test-cluster',
+                    db_endpoint='test.endpoint.com',
+                    port=9999,
+                    database='testdb',
+                )
+
+    def test_endpoint_match_is_case_insensitive(self):
+        """Hostname comparison against cluster endpoints is case-insensitive (DNS is)."""
+        with (
+            patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map,
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_cluster_properties'
+            ) as mock_props,
+            patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
+        ):
+            mock_map.get.return_value = None
+            mock_props.return_value = {
+                'HttpEndpointEnabled': False,
+                'MasterUsername': 'postgres',
+                'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test',
+                'MasterUserSecret': {'SecretArn': 'arn:secret'},
+                'Endpoint': 'test.endpoint.com',
+                'Port': 5432,
+            }
+            mock_pg_conn.return_value = MagicMock()
+
+            conn, response = internal_create_connection(
+                region='us-east-1',
+                database_type=DatabaseType.APG,
+                connection_method=ConnectionMethod.PG_WIRE_PROTOCOL,
+                cluster_identifier='test-cluster',
+                # Mixed-case host should still validate against the lowercase
+                # cluster endpoint.
+                db_endpoint='TEST.Endpoint.COM',
+                port=5432,
+                database='testdb',
+            )
+
+            # The resolved (AWS-sourced) host is what's returned and what the
+            # underlying connection pool is built with — never the caller's
+            # mixed-case input.
+            response_dict = json.loads(response)
+            assert response_dict['db_endpoint'] == 'test.endpoint.com'
+            call_kwargs = mock_pg_conn.call_args[1]
+            assert call_kwargs['host'] == 'test.endpoint.com'
+
+    def test_caller_endpoint_string_is_never_used_for_connection(self):
+        """On successful match, the connection is built from the AWS-sourced host string."""
+        with (
+            patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map,
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_cluster_properties'
+            ) as mock_props,
+            patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
+        ):
+            mock_map.get.return_value = None
+            # Note: writer endpoint intentionally has different capitalization
+            # than the caller will supply, proving we don't echo caller input
+            # back into the connection string.
+            mock_props.return_value = {
+                'HttpEndpointEnabled': False,
+                'MasterUsername': 'postgres',
+                'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test',
+                'MasterUserSecret': {'SecretArn': 'arn:secret'},
+                'Endpoint': 'canonical.endpoint.com',
+                'Port': 5432,
+            }
+            mock_pg_conn.return_value = MagicMock()
+
+            internal_create_connection(
+                region='us-east-1',
+                database_type=DatabaseType.APG,
+                connection_method=ConnectionMethod.PG_WIRE_IAM_PROTOCOL,
+                cluster_identifier='test-cluster',
+                db_endpoint='  Canonical.Endpoint.COM  ',  # extra whitespace + mixed case
+                port=5432,
+                database='testdb',
+            )
+
+            call_kwargs = mock_pg_conn.call_args[1]
+            assert call_kwargs['host'] == 'canonical.endpoint.com'
+
+    def test_cluster_invalid_port_falls_back_to_default(self):
+        """Unparseable cluster Port falls back to DEFAULT_POSTGRES_PORT."""
+        with (
+            patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map,
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_cluster_properties'
+            ) as mock_props,
+            patch('awslabs.postgres_mcp_server.server.RDSDataAPIConnection') as mock_rds_conn,
+        ):
+            mock_map.get.return_value = None
+            mock_props.return_value = {
+                'HttpEndpointEnabled': True,
+                'MasterUsername': 'postgres',
+                'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test',
+                'MasterUserSecret': {'SecretArn': 'arn:secret'},
+                'Endpoint': 'cluster.endpoint.com',
+                'Port': 'not-a-number',
+            }
+            mock_rds_conn.return_value = MagicMock()
+
+            conn, response = internal_create_connection(
+                region='us-east-1',
+                database_type=DatabaseType.APG,
+                connection_method=ConnectionMethod.RDS_API,
+                cluster_identifier='test-cluster',
+                db_endpoint='',  # Take the cluster-default path
+                port=0,
+                database='testdb',
+            )
+
+            response_dict = json.loads(response)
+            # Port round-trips through the default fallback rather than crashing.
+            assert response_dict['port'] == DEFAULT_POSTGRES_PORT
+
+    def test_rpg_instance_uses_aws_sourced_host(self):
+        """RPG instance path: db_endpoint passed to connection comes from AWS, not the caller."""
+        with (
+            patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map,
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_instance_properties'
+            ) as mock_props,
+            patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
+        ):
+            mock_map.get.return_value = None
+            mock_props.return_value = {
+                'MasterUsername': 'postgres',
+                'MasterUserSecret': {'SecretArn': 'arn:secret'},
+                'Endpoint': {
+                    'Address': 'resolved.instance.endpoint.com',
+                    'Port': 5432,
+                },
+            }
+            mock_pg_conn.return_value = MagicMock()
+
+            internal_create_connection(
+                region='us-east-1',
+                database_type=DatabaseType.RPG,
+                connection_method=ConnectionMethod.PG_WIRE_PROTOCOL,
+                cluster_identifier='',
+                db_endpoint='caller.supplied.endpoint.com',
+                port=5432,
+                database='testdb',
+            )
+
+            # internal_get_instance_properties is the gatekeeper for RPG
+            # instances — it already rejects arbitrary endpoints. Once it
+            # returns, we rebuild the connection string from its Address so
+            # the caller's input never reaches the connection pool.
+            call_kwargs = mock_pg_conn.call_args[1]
+            assert call_kwargs['host'] == 'resolved.instance.endpoint.com'
+            assert call_kwargs['port'] == 5432
+
+    def test_rpg_instance_invalid_port_falls_back_to_default(self):
+        """Unparseable instance Port falls back to DEFAULT_POSTGRES_PORT."""
+        with (
+            patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map,
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_instance_properties'
+            ) as mock_props,
+            patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
+        ):
+            mock_map.get.return_value = None
+            mock_props.return_value = {
+                'MasterUsername': 'postgres',
+                'MasterUserSecret': {'SecretArn': 'arn:secret'},
+                'Endpoint': {
+                    'Address': 'resolved.instance.endpoint.com',
+                    'Port': 'not-a-number',
+                },
+            }
+            mock_pg_conn.return_value = MagicMock()
+
+            internal_create_connection(
+                region='us-east-1',
+                database_type=DatabaseType.RPG,
+                connection_method=ConnectionMethod.PG_WIRE_PROTOCOL,
+                cluster_identifier='',
+                db_endpoint='caller.supplied.endpoint.com',
+                port=5432,
+                database='testdb',
+            )
+
+            call_kwargs = mock_pg_conn.call_args[1]
+            assert call_kwargs['port'] == DEFAULT_POSTGRES_PORT
 
 
 class TestCreateClusterWorker:

@@ -408,13 +408,11 @@ async def search_documentation(
                 text_suggestion = suggestion['textExcerptSuggestion']
                 context = None
 
-                # Use SEO abstract if available, as it is designed for this task explicitly. If that is not available,
-                # Try using Intelligent Summary Abstract, then fallback to authored summary and finally content body
+                # Use SEO abstract if available, as it is designed for this task explicitly.
+                # Fallback to authored summary and finally content body
                 metadata = text_suggestion.get('metadata', {})
                 if 'seo_abstract' in metadata:
                     context = metadata['seo_abstract']
-                elif 'abstract' in metadata:
-                    context = metadata['abstract']
                 elif 'summary' in text_suggestion:
                     context = text_suggestion['summary']
                 elif 'suggestionBody' in text_suggestion:

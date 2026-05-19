@@ -1,0 +1,7830 @@
+{
+  "metadata": {
+    "apiVersion": "2022-07-26",
+    "auth": [
+      "aws.auth#sigv4"
+    ],
+    "endpointPrefix": "elasticgumbyfrontendservice",
+    "jsonVersion": "1.0",
+    "protocol": "json",
+    "protocols": [
+      "json"
+    ],
+    "serviceFullName": "Elastic Gumby Frontend Service",
+    "serviceId": "ElasticGumbyFrontend",
+    "signatureVersion": "v4",
+    "signingName": "elasticgumbyfrontendservice",
+    "targetPrefix": "ElasticGumbyFrontEndService",
+    "uid": "elasticgumbyfrontend-2022-07-26"
+  },
+  "operations": {
+    "AddCaseCommunication": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "AddCaseCommunicationRequest"
+      },
+      "name": "AddCaseCommunication",
+      "output": {
+        "shape": "AddCaseCommunicationResponse"
+      }
+    },
+    "BatchGetMessage": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "BatchGetMessageRequest"
+      },
+      "name": "BatchGetMessage",
+      "output": {
+        "shape": "BatchGetMessageResponse"
+      }
+    },
+    "BatchGetUserDetails": {
+      "errors": [
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "BatchGetUserDetailsRequest"
+      },
+      "name": "BatchGetUserDetails",
+      "output": {
+        "shape": "BatchGetUserDetailsResponse"
+      },
+      "readonly": true
+    },
+    "CompleteArtifactUpload": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "CompleteArtifactUploadRequest"
+      },
+      "name": "CompleteArtifactUpload",
+      "output": {
+        "shape": "CompleteArtifactUploadResponse"
+      }
+    },
+    "CreateArtifactDownloadUrl": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "CreateArtifactDownloadUrlRequest"
+      },
+      "name": "CreateArtifactDownloadUrl",
+      "output": {
+        "shape": "CreateArtifactDownloadUrlResponse"
+      }
+    },
+    "CreateArtifactUploadUrl": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "FileAlreadyExistsException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "CreateArtifactUploadUrlRequest"
+      },
+      "name": "CreateArtifactUploadUrl",
+      "output": {
+        "shape": "CreateArtifactUploadUrlResponse"
+      }
+    },
+    "CreateAssetDownloadUrl": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "CreateAssetDownloadUrlRequest"
+      },
+      "name": "CreateAssetDownloadUrl",
+      "output": {
+        "shape": "CreateAssetDownloadUrlResponse"
+      }
+    },
+    "CreateConnector": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "idempotent": true,
+      "input": {
+        "shape": "CreateConnectorRequest"
+      },
+      "name": "CreateConnector",
+      "output": {
+        "shape": "CreateConnectorResponse"
+      }
+    },
+    "CreateDashboard": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "CreateDashboardRequest"
+      },
+      "name": "CreateDashboard",
+      "output": {
+        "shape": "CreateDashboardResponse"
+      }
+    },
+    "CreateFeedback": {
+      "errors": [
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "CreateFeedbackRequest"
+      },
+      "name": "CreateFeedback",
+      "output": {
+        "shape": "CreateFeedbackResponse"
+      }
+    },
+    "CreateJob": {
+      "documentation": "<p>API used to create a job that is associated to a workspace. This does not execute the job.</p>",
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "idempotent": true,
+      "input": {
+        "shape": "CreateJobRequest"
+      },
+      "name": "CreateJob",
+      "output": {
+        "shape": "CreateJobResponse"
+      }
+    },
+    "CreatePlan": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "idempotent": true,
+      "input": {
+        "shape": "CreatePlanRequest"
+      },
+      "name": "CreatePlan",
+      "output": {
+        "shape": "CreatePlanResponse"
+      }
+    },
+    "CreateSession": {
+      "errors": [
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "CreateSessionRequest"
+      },
+      "name": "CreateSession",
+      "output": {
+        "shape": "CreateSessionResponse"
+      }
+    },
+    "CreateSupportCase": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "CreateSupportCaseRequest"
+      },
+      "name": "CreateSupportCase",
+      "output": {
+        "shape": "CreateSupportCaseResponse"
+      }
+    },
+    "CreateWorkspace": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "idempotent": true,
+      "input": {
+        "shape": "CreateWorkspaceRequest"
+      },
+      "name": "CreateWorkspace",
+      "output": {
+        "shape": "CreateWorkspaceResponse"
+      }
+    },
+    "DeleteConnector": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "DeleteConnectorRequest"
+      },
+      "name": "DeleteConnector",
+      "output": {
+        "shape": "DeleteConnectorResponse"
+      }
+    },
+    "DeleteJob": {
+      "documentation": "<p>API used to delete an existing job and all related data.</p>",
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "DeleteJobRequest"
+      },
+      "name": "DeleteJob",
+      "output": {
+        "shape": "DeleteJobResponse"
+      }
+    },
+    "DeleteSelfRoleMappings": {
+      "documentation": "<p>Removes a caller user from the workspace (self-removal).</p>",
+      "errors": [
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "idempotent": true,
+      "input": {
+        "shape": "DeleteSelfRoleMappingsRequest"
+      },
+      "name": "DeleteSelfRoleMappings",
+      "output": {
+        "shape": "DeleteSelfRoleMappingsResponse"
+      }
+    },
+    "DeleteUserRoleMappings": {
+      "documentation": "<p>Removes a target user from a workspace. The target user cannot be the caller.</p>",
+      "errors": [
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "idempotent": true,
+      "input": {
+        "shape": "DeleteUserRoleMappingsRequest"
+      },
+      "name": "DeleteUserRoleMappings",
+      "output": {
+        "shape": "DeleteUserRoleMappingsResponse"
+      }
+    },
+    "DeleteWorkspace": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "idempotent": true,
+      "input": {
+        "shape": "DeleteWorkspaceRequest"
+      },
+      "name": "DeleteWorkspace",
+      "output": {
+        "shape": "DeleteWorkspaceResponse"
+      }
+    },
+    "DetectIsAllowedForOperation": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "DetectIsAllowedForOperationRequest"
+      },
+      "name": "DetectIsAllowedForOperation",
+      "output": {
+        "shape": "DetectIsAllowedForOperationResponse"
+      },
+      "readonly": true
+    },
+    "GetConnector": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "GetConnectorRequest"
+      },
+      "name": "GetConnector",
+      "output": {
+        "shape": "GetConnectorResponse"
+      }
+    },
+    "GetDashboard": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "GetDashboardRequest"
+      },
+      "name": "GetDashboard",
+      "output": {
+        "shape": "GetDashboardResponse"
+      },
+      "readonly": true
+    },
+    "GetFeedbackQuestions": {
+      "errors": [
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "GetFeedbackQuestionsRequest"
+      },
+      "name": "GetFeedbackQuestions",
+      "output": {
+        "shape": "GetFeedbackQuestionsResponse"
+      },
+      "readonly": true
+    },
+    "GetHitlTask": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "GetHitlTaskRequest"
+      },
+      "name": "GetHitlTask",
+      "output": {
+        "shape": "GetHitlTaskResponse"
+      },
+      "readonly": true
+    },
+    "GetJob": {
+      "documentation": "<p>API used to get details about a job.</p>",
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "GetJobRequest"
+      },
+      "name": "GetJob",
+      "output": {
+        "shape": "GetJobResponse"
+      }
+    },
+    "GetLoginRedirectUri": {
+      "errors": [
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "GetLoginRedirectUriRequest"
+      },
+      "name": "GetLoginRedirectUri",
+      "output": {
+        "shape": "GetLoginRedirectUriResponse"
+      },
+      "readonly": true
+    },
+    "GetPlan": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "GetPlanRequest"
+      },
+      "name": "GetPlan",
+      "output": {
+        "shape": "GetPlanResponse"
+      },
+      "readonly": true
+    },
+    "GetUserBackgroundSession": {
+      "errors": [
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "GetUserBackgroundSessionRequest"
+      },
+      "name": "GetUserBackgroundSession",
+      "output": {
+        "shape": "GetUserBackgroundSessionResponse"
+      },
+      "readonly": true
+    },
+    "GetUserDetails": {
+      "errors": [
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "GetUserDetailsRequest"
+      },
+      "name": "GetUserDetails",
+      "output": {
+        "shape": "GetUserDetailsResponse"
+      },
+      "readonly": true
+    },
+    "GetUserPreferences": {
+      "errors": [
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "GetUserPreferencesRequest"
+      },
+      "name": "GetUserPreferences",
+      "output": {
+        "shape": "GetUserPreferencesResponse"
+      },
+      "readonly": true
+    },
+    "GetWorkspace": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "GetWorkspaceRequest"
+      },
+      "name": "GetWorkspace",
+      "output": {
+        "shape": "GetWorkspaceResponse"
+      },
+      "readonly": true
+    },
+    "ListAgents": {
+      "documentation": "<p>Lists agents available for the specified account.</p>",
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "ListAgentsRequest"
+      },
+      "name": "ListAgents",
+      "output": {
+        "shape": "ListAgentsResponse"
+      }
+    },
+    "ListArtifacts": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "ListArtifactsRequest"
+      },
+      "name": "ListArtifacts",
+      "output": {
+        "shape": "ListArtifactsResponse"
+      }
+    },
+    "ListAvailableProfiles": {
+      "errors": [
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "ListAvailableProfilesRequest"
+      },
+      "name": "ListAvailableProfiles",
+      "output": {
+        "shape": "ListAvailableProfilesResponse"
+      },
+      "readonly": true
+    },
+    "ListConnectors": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "ListConnectorsRequest"
+      },
+      "name": "ListConnectors",
+      "output": {
+        "shape": "ListConnectorsResponse"
+      }
+    },
+    "ListHitlTasks": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "ListHitlTasksRequest"
+      },
+      "name": "ListHitlTasks",
+      "output": {
+        "shape": "ListHitlTasksResponse"
+      },
+      "readonly": true
+    },
+    "ListIamRoleAssignments": {
+      "documentation": "<p>Lists IAM role assignments for the calling user. Self-scoped: userId is extracted from the bearer token.</p>",
+      "errors": [
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "ListIamRoleAssignmentsRequest"
+      },
+      "name": "ListIamRoleAssignments",
+      "output": {
+        "shape": "ListIamRoleAssignmentsResponse"
+      },
+      "readonly": true
+    },
+    "ListJobPlanSteps": {
+      "documentation": "<p>This API can be used to either list all the job plan steps, top-level steps only, or steps under a parent step.</p>",
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "ListJobPlanStepsRequest"
+      },
+      "name": "ListJobPlanSteps",
+      "output": {
+        "shape": "ListJobPlanStepsResponse"
+      }
+    },
+    "ListJobs": {
+      "documentation": "<p>API used to list jobs within a workspace.</p>",
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "ListJobsRequest"
+      },
+      "name": "ListJobs",
+      "output": {
+        "shape": "ListJobsResponse"
+      }
+    },
+    "ListMessages": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "ListMessagesRequest"
+      },
+      "name": "ListMessages",
+      "output": {
+        "shape": "ListMessagesResponse"
+      },
+      "readonly": true
+    },
+    "ListPlanUpdates": {
+      "documentation": "<p>API used to list updates that have been made to the job plan since the timestamp passed in the request.</p>",
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "ListPlanUpdatesRequest"
+      },
+      "name": "ListPlanUpdates",
+      "output": {
+        "shape": "ListPlanUpdatesResponse"
+      }
+    },
+    "ListPlans": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "ListPlansRequest"
+      },
+      "name": "ListPlans",
+      "output": {
+        "shape": "ListPlansResponse"
+      },
+      "readonly": true
+    },
+    "ListSuggestions": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "ListSuggestionsRequest"
+      },
+      "name": "ListSuggestions",
+      "output": {
+        "shape": "ListSuggestionsResponse"
+      },
+      "readonly": true
+    },
+    "ListUserRoleMappings": {
+      "errors": [
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "ListUserRoleMappingsRequest"
+      },
+      "name": "ListUserRoleMappings",
+      "output": {
+        "shape": "ListUserRoleMappingsResponse"
+      },
+      "readonly": true
+    },
+    "ListWorklogs": {
+      "documentation": "<p>API for getting agent/HITL/job worklogs</p>",
+      "errors": [
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "ListWorklogsRequest"
+      },
+      "name": "ListWorklogs",
+      "output": {
+        "shape": "ListWorklogsResponse"
+      }
+    },
+    "ListWorkspaces": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "ListWorkspacesRequest"
+      },
+      "name": "ListWorkspaces",
+      "output": {
+        "shape": "ListWorkspacesResponse"
+      },
+      "readonly": true
+    },
+    "PutUserPreferences": {
+      "errors": [
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "PutUserPreferencesRequest"
+      },
+      "name": "PutUserPreferences",
+      "output": {
+        "shape": "PutUserPreferencesResponse"
+      }
+    },
+    "PutUserRoleMappings": {
+      "errors": [
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "PutUserRoleMappingsRequest"
+      },
+      "name": "PutUserRoleMappings",
+      "output": {
+        "shape": "PutUserRoleMappingsResponse"
+      }
+    },
+    "ResolveSupportCase": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "ResolveSupportCaseRequest"
+      },
+      "name": "ResolveSupportCase",
+      "output": {
+        "shape": "ResolveSupportCaseResponse"
+      }
+    },
+    "RevokeSession": {
+      "errors": [
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "RevokeSessionRequest"
+      },
+      "name": "RevokeSession",
+      "output": {
+        "shape": "RevokeSessionResponse"
+      }
+    },
+    "RevokeUserBackgroundSession": {
+      "errors": [
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "RevokeUserBackgroundSessionRequest"
+      },
+      "name": "RevokeUserBackgroundSession",
+      "output": {
+        "shape": "RevokeUserBackgroundSessionResponse"
+      }
+    },
+    "SearchUsers": {
+      "errors": [
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "SearchUsersRequest"
+      },
+      "name": "SearchUsers",
+      "output": {
+        "shape": "SearchUsersResponse"
+      },
+      "readonly": true
+    },
+    "SearchUsersTypeahead": {
+      "errors": [
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "SearchUsersTypeaheadRequest"
+      },
+      "name": "SearchUsersTypeahead",
+      "output": {
+        "shape": "SearchUsersTypeaheadResponse"
+      },
+      "readonly": true
+    },
+    "SendMessage": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "idempotent": true,
+      "input": {
+        "shape": "SendMessageRequest"
+      },
+      "name": "SendMessage",
+      "output": {
+        "shape": "SendMessageResponse"
+      }
+    },
+    "SendMessageStreaming": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "idempotent": true,
+      "input": {
+        "shape": "SendMessageStreamingRequest"
+      },
+      "name": "SendMessageStreaming",
+      "output": {
+        "shape": "SendMessageStreamingResponse"
+      }
+    },
+    "StartJob": {
+      "documentation": "<p>API used to invoke the orchestrator agent, which starts the execution of a job.</p>",
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "idempotent": true,
+      "input": {
+        "shape": "StartJobRequest"
+      },
+      "name": "StartJob",
+      "output": {
+        "shape": "StartJobResponse"
+      }
+    },
+    "StopJob": {
+      "documentation": "<p>API used to stop the execution of a job.</p>",
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "idempotent": true,
+      "input": {
+        "shape": "StopJobRequest"
+      },
+      "name": "StopJob",
+      "output": {
+        "shape": "StopJobResponse"
+      }
+    },
+    "SubmitCriticalHitlTask": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "idempotent": true,
+      "input": {
+        "shape": "SubmitCriticalHitlTaskRequest"
+      },
+      "name": "SubmitCriticalHitlTask",
+      "output": {
+        "shape": "SubmitCriticalHitlTaskResponse"
+      }
+    },
+    "SubmitStandardHitlTask": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "idempotent": true,
+      "input": {
+        "shape": "SubmitStandardHitlTaskRequest"
+      },
+      "name": "SubmitStandardHitlTask",
+      "output": {
+        "shape": "SubmitStandardHitlTaskResponse"
+      }
+    },
+    "TestReleaseTraitPreProd": {
+      "documentation": "<p>Internal API meant for testing.</p>",
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "TestReleaseTraitPreProdRequest"
+      },
+      "name": "TestReleaseTraitPreProd",
+      "output": {
+        "shape": "TestReleaseTraitPreProdResponse"
+      }
+    },
+    "TestReleaseTraitProd": {
+      "documentation": "<p>Internal API meant for testing.</p>",
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "TestReleaseTraitProdRequest"
+      },
+      "name": "TestReleaseTraitProd",
+      "output": {
+        "shape": "TestReleaseTraitProdResponse"
+      }
+    },
+    "UpdateHitlTask": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "idempotent": true,
+      "input": {
+        "shape": "UpdateHitlTaskRequest"
+      },
+      "name": "UpdateHitlTask",
+      "output": {
+        "shape": "UpdateHitlTaskResponse"
+      }
+    },
+    "UpdateJob": {
+      "documentation": "<p>This API is called to update the objective and/or name associated with an already created job.</p>",
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "idempotent": true,
+      "input": {
+        "shape": "UpdateJobRequest"
+      },
+      "name": "UpdateJob",
+      "output": {
+        "shape": "UpdateJobResponse"
+      }
+    },
+    "UpdatePlan": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "idempotent": true,
+      "input": {
+        "shape": "UpdatePlanRequest"
+      },
+      "name": "UpdatePlan",
+      "output": {
+        "shape": "UpdatePlanResponse"
+      }
+    },
+    "UpdateWorkspace": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "idempotent": true,
+      "input": {
+        "shape": "UpdateWorkspaceRequest"
+      },
+      "name": "UpdateWorkspace",
+      "output": {
+        "shape": "UpdateWorkspaceResponse"
+      }
+    },
+    "VerifySession": {
+      "errors": [
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "CustomerConfigurationException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "VerifySessionRequest"
+      },
+      "name": "VerifySession",
+      "output": {
+        "shape": "VerifySessionResponse"
+      },
+      "readonly": true
+    }
+  },
+  "shapes": {
+    "AccessControl": {
+      "enum": [
+        "ENABLED",
+        "DISABLED",
+        "FORCE_DISABLED"
+      ],
+      "type": "string"
+    },
+    "AccessControlType": {
+      "enum": [
+        "ENABLED_AGENTS",
+        "ALL_AGENTS"
+      ],
+      "type": "string"
+    },
+    "AccessControlTypeFilter": {
+      "members": {
+        "accessControlType": {
+          "shape": "AccessControlType"
+        }
+      },
+      "required": [
+        "accessControlType"
+      ],
+      "type": "structure"
+    },
+    "AccessDeniedException": {
+      "documentation": "<p>Returns HTTP status code 403</p>",
+      "exception": true,
+      "members": {
+        "message": {
+          "shape": "String"
+        },
+        "reason": {
+          "shape": "AccessDeniedReason"
+        }
+      },
+      "type": "structure"
+    },
+    "AccessDeniedReason": {
+      "enum": [
+        "NOT_ALLOWLISTED",
+        "INVALID_SESSION",
+        "MISSING_SUBSCRIPTION",
+        "UNAUTHORIZED"
+      ],
+      "type": "string"
+    },
+    "AccountConnection": {
+      "members": {
+        "awsAccountConnection": {
+          "shape": "AwsAccountConnection"
+        }
+      },
+      "type": "structure",
+      "union": true
+    },
+    "AccountConnectionRequest": {
+      "members": {
+        "awsAccountConnectionRequest": {
+          "shape": "AwsAccountConnectionRequest"
+        }
+      },
+      "type": "structure",
+      "union": true
+    },
+    "AccountConnectionStatus": {
+      "enum": [
+        "PENDING",
+        "ACTIVE",
+        "REJECTED"
+      ],
+      "type": "string"
+    },
+    "AccountId": {
+      "documentation": "<p>Represents the AWS account ID of the customer</p>",
+      "pattern": "[0-9]{12}",
+      "type": "string"
+    },
+    "AccountIdString": {
+      "max": 12,
+      "min": 12,
+      "pattern": "[0-9]+",
+      "type": "string"
+    },
+    "Action": {
+      "enum": [
+        "APPROVE",
+        "REJECT"
+      ],
+      "type": "string"
+    },
+    "ActionType": {
+      "enum": [
+        "SELECT",
+        "INVOKE",
+        "GROUP"
+      ],
+      "type": "string"
+    },
+    "AddCaseCommunicationRequest": {
+      "members": {
+        "caseId": {
+          "shape": "SupportCaseId"
+        },
+        "communicationBody": {
+          "shape": "SupportCaseCommunicationBody"
+        },
+        "jobId": {
+          "shape": "UUID"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "jobId",
+        "caseId",
+        "communicationBody"
+      ],
+      "type": "structure"
+    },
+    "AddCaseCommunicationResponse": {
+      "members": {
+        "result": {
+          "shape": "Boolean"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "structure"
+    },
+    "AgentConfigurationAvailability": {
+      "enum": [
+        "RUNTIME_CONFIGURATION_AVAILABLE",
+        "NEEDS_RUNTIME_CONFIGURATION",
+        "ANY"
+      ],
+      "type": "string"
+    },
+    "AgentDependencyList": {
+      "max": 5,
+      "member": {
+        "shape": "AgentName"
+      },
+      "min": 0,
+      "type": "list"
+    },
+    "AgentFeatures": {
+      "key": {
+        "shape": "String"
+      },
+      "type": "map",
+      "value": {
+        "shape": "String"
+      }
+    },
+    "AgentMetadataSummary": {
+      "members": {
+        "accountAccess": {
+          "shape": "AccessControl"
+        },
+        "agentConfigurationAvailability": {
+          "shape": "AgentConfigurationAvailability"
+        },
+        "customerConfigurationRequired": {
+          "shape": "Boolean"
+        },
+        "customerConfiguredAgentDependencies": {
+          "shape": "AgentDependencyList"
+        },
+        "description": {
+          "shape": "String"
+        },
+        "jobOrchestrator": {
+          "shape": "Boolean"
+        },
+        "jobOrchestratorMetadata": {
+          "shape": "JobOrchestratorMetadata"
+        },
+        "marketplaceMetadata": {
+          "shape": "MarketplaceMetadata"
+        },
+        "name": {
+          "shape": "AgentName"
+        },
+        "ownerName": {
+          "shape": "String"
+        },
+        "ownerType": {
+          "shape": "String"
+        },
+        "type": {
+          "shape": "AgentType"
+        },
+        "visibility": {
+          "documentation": "<p>Agent visibility status configured by the partner</p>",
+          "shape": "AgentVisibility"
+        }
+      },
+      "type": "structure"
+    },
+    "AgentMetadataSummaryList": {
+      "max": 10,
+      "member": {
+        "shape": "AgentMetadataSummary"
+      },
+      "min": 0,
+      "type": "list"
+    },
+    "AgentName": {
+      "pattern": "[a-zA-Z0-9_-]+",
+      "type": "string"
+    },
+    "AgentType": {
+      "enum": [
+        "ORCHESTRATOR_AGENT",
+        "SUB_AGENT"
+      ],
+      "type": "string"
+    },
+    "AgentTypeFilter": {
+      "members": {
+        "agentType": {
+          "shape": "AgentType"
+        }
+      },
+      "required": [
+        "agentType"
+      ],
+      "type": "structure"
+    },
+    "AgentVisibility": {
+      "enum": [
+        "PUBLIC",
+        "RESTRICTED"
+      ],
+      "type": "string"
+    },
+    "AllowedStatus": {
+      "enum": [
+        "ALLOWED",
+        "DENIED"
+      ],
+      "type": "string"
+    },
+    "Artifact": {
+      "members": {
+        "artifactCreatedTimestamp": {
+          "shape": "Timestamp"
+        },
+        "artifactExpiryTimestamp": {
+          "shape": "Timestamp"
+        },
+        "artifactId": {
+          "shape": "ArtifactIdentifier"
+        },
+        "artifactType": {
+          "shape": "ArtifactType"
+        },
+        "fileMetadata": {
+          "shape": "FileMetadata"
+        },
+        "jobId": {
+          "shape": "UUID"
+        },
+        "planStepId": {
+          "shape": "StepId"
+        },
+        "sizeInBytes": {
+          "shape": "Long"
+        },
+        "storedInAtxBucket": {
+          "documentation": "<p>Whether the artifact is stored in an ATX-managed bucket</p>",
+          "shape": "Boolean"
+        }
+      },
+      "required": [
+        "artifactId",
+        "artifactType",
+        "artifactCreatedTimestamp",
+        "artifactExpiryTimestamp"
+      ],
+      "type": "structure"
+    },
+    "ArtifactIdentifier": {
+      "documentation": "<p>Identifies an artifact by either a UUID or an S3 object key</p>",
+      "max": 1024,
+      "min": 1,
+      "pattern": ".*[^/]",
+      "type": "string"
+    },
+    "ArtifactReference": {
+      "members": {
+        "artifactId": {
+          "shape": "ArtifactIdentifier"
+        },
+        "artifactType": {
+          "shape": "ArtifactType"
+        }
+      },
+      "type": "structure",
+      "union": true
+    },
+    "ArtifactReferences": {
+      "max": 10,
+      "member": {
+        "shape": "ChatArtifactReference"
+      },
+      "min": 1,
+      "type": "list"
+    },
+    "ArtifactType": {
+      "members": {
+        "categoryType": {
+          "shape": "CategoryType"
+        },
+        "fileType": {
+          "shape": "FileType"
+        },
+        "schemaType": {
+          "shape": "SchemaType"
+        }
+      },
+      "required": [
+        "categoryType",
+        "fileType"
+      ],
+      "type": "structure"
+    },
+    "Artifacts": {
+      "member": {
+        "shape": "Artifact"
+      },
+      "type": "list"
+    },
+    "Asset": {
+      "members": {
+        "assetKey": {
+          "documentation": "<p>Asset object's path in customer's bucket.</p>",
+          "shape": "String"
+        },
+        "createdTimestamp": {
+          "shape": "Long"
+        },
+        "sizeInBytes": {
+          "shape": "Long"
+        }
+      },
+      "required": [
+        "assetKey"
+      ],
+      "type": "structure"
+    },
+    "Assets": {
+      "member": {
+        "shape": "Asset"
+      },
+      "type": "list"
+    },
+    "AttachmentEvent": {
+      "members": {
+        "attachments": {
+          "shape": "Attachments"
+        },
+        "messageId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "messageId"
+      ],
+      "type": "structure"
+    },
+    "Attachments": {
+      "members": {
+        "artifactReferences": {
+          "shape": "ArtifactReferences"
+        }
+      },
+      "type": "structure"
+    },
+    "AttributeKey": {
+      "max": 10,
+      "min": 1,
+      "type": "string"
+    },
+    "AttributeValue": {
+      "max": 50,
+      "min": 1,
+      "type": "string"
+    },
+    "AwsAccountConnection": {
+      "members": {
+        "accountId": {
+          "shape": "AccountIdString"
+        },
+        "connectionToken": {
+          "shape": "UUID"
+        },
+        "createdDate": {
+          "shape": "Timestamp"
+        },
+        "expirationDate": {
+          "shape": "Timestamp"
+        },
+        "roleArn": {
+          "shape": "String"
+        },
+        "status": {
+          "shape": "AccountConnectionStatus"
+        }
+      },
+      "type": "structure"
+    },
+    "AwsAccountConnectionRequest": {
+      "members": {
+        "awsAccountId": {
+          "shape": "AccountIdString"
+        }
+      },
+      "type": "structure"
+    },
+    "BackgroundSessionStatus": {
+      "pattern": "(ENABLED|DISABLED)",
+      "type": "string"
+    },
+    "BatchGetMessageError": {
+      "members": {
+        "errorCode": {
+          "documentation": "<p>A code representing the type of error encountered</p>",
+          "shape": "String"
+        },
+        "errorMessage": {
+          "documentation": "<p>A message describing the error encountered</p>",
+          "shape": "BatchGetMessageErrorMessage"
+        },
+        "messageId": {
+          "documentation": "<p>An identifier for the message that encountered an error during retrieval</p>",
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "messageId",
+        "errorCode",
+        "errorMessage"
+      ],
+      "type": "structure"
+    },
+    "BatchGetMessageErrorMessage": {
+      "sensitive": true,
+      "type": "string"
+    },
+    "BatchGetMessageErrors": {
+      "member": {
+        "shape": "BatchGetMessageError"
+      },
+      "type": "list"
+    },
+    "BatchGetMessageRequest": {
+      "members": {
+        "messageIds": {
+          "documentation": "<p>A list of identifiers for messages being requested</p>",
+          "shape": "BatchGetMessageRequestMessageIdsList"
+        },
+        "workspaceId": {
+          "documentation": "<p>used to perform AuthZ based on workspaceId in the chat.</p>",
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "messageIds"
+      ],
+      "type": "structure"
+    },
+    "BatchGetMessageRequestMessageIdsList": {
+      "max": 100,
+      "member": {
+        "shape": "UUID"
+      },
+      "min": 1,
+      "type": "list"
+    },
+    "BatchGetMessageResponse": {
+      "members": {
+        "errors": {
+          "documentation": "<p>A list of errors encountered during the batch retrieval operation</p>",
+          "shape": "BatchGetMessageErrors"
+        },
+        "messages": {
+          "documentation": "<p>A list of messages retrieved successfully, returned in the order requested</p>",
+          "shape": "Messages"
+        }
+      },
+      "required": [
+        "messages",
+        "errors"
+      ],
+      "type": "structure"
+    },
+    "BatchGetUserDetailsRequest": {
+      "members": {
+        "userIdList": {
+          "shape": "UserIdList"
+        }
+      },
+      "required": [
+        "userIdList"
+      ],
+      "type": "structure"
+    },
+    "BatchGetUserDetailsResponse": {
+      "members": {
+        "failedUserDetails": {
+          "shape": "FailedUserDetails"
+        },
+        "successfulUserDetails": {
+          "shape": "SuccessfulUserDetails"
+        }
+      },
+      "required": [
+        "successfulUserDetails",
+        "failedUserDetails"
+      ],
+      "type": "structure"
+    },
+    "BlockingType": {
+      "enum": [
+        "BLOCKING",
+        "NON_BLOCKING"
+      ],
+      "type": "string"
+    },
+    "Boolean": {
+      "box": true,
+      "type": "boolean"
+    },
+    "CampaignContext": {
+      "members": {
+        "campaignName": {
+          "documentation": "<p>Unique campaign name for campaign-specific dashboard</p>",
+          "shape": "String"
+        }
+      },
+      "required": [
+        "campaignName"
+      ],
+      "type": "structure"
+    },
+    "Categories": {
+      "member": {
+        "shape": "Category"
+      },
+      "type": "list"
+    },
+    "Category": {
+      "enum": [
+        "TOOL_APPROVAL",
+        "REGULAR"
+      ],
+      "type": "string"
+    },
+    "CategoryType": {
+      "documentation": "<p>The categoryType refers to the context or purpose of the data within a workflow</p>",
+      "enum": [
+        "CUSTOMER_OUTPUT",
+        "HITL_FROM_USER",
+        "CUSTOMER_INPUT",
+        "PLAN_STEP_SUMMARY"
+      ],
+      "type": "string"
+    },
+    "ChatArtifactMetadata": {
+      "members": {
+        "artifactId": {
+          "shape": "ArtifactIdentifier"
+        }
+      },
+      "type": "structure"
+    },
+    "ChatArtifactReference": {
+      "members": {
+        "artifactId": {
+          "shape": "ArtifactIdentifier"
+        },
+        "jobId": {
+          "shape": "UUID"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "artifactId",
+        "workspaceId",
+        "jobId"
+      ],
+      "type": "structure"
+    },
+    "ChatConnectors": {
+      "member": {
+        "shape": "ConnectorMetadata"
+      },
+      "type": "list"
+    },
+    "ChatFeedback": {
+      "members": {
+        "feedback": {
+          "shape": "TextResponse"
+        },
+        "feedbackReasons": {
+          "shape": "ChatFeedbackReasons"
+        },
+        "feedbackType": {
+          "shape": "ChatFeedbackType"
+        },
+        "metadata": {
+          "shape": "ChatFeedbackMetadata"
+        }
+      },
+      "required": [
+        "feedbackType",
+        "metadata"
+      ],
+      "type": "structure"
+    },
+    "ChatFeedbackMetadata": {
+      "members": {
+        "hitlTaskId": {
+          "shape": "UUID"
+        },
+        "jobId": {
+          "shape": "UUID"
+        },
+        "jobStepId": {
+          "shape": "StepId"
+        },
+        "messageId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "messageId"
+      ],
+      "type": "structure"
+    },
+    "ChatFeedbackReason": {
+      "enum": [
+        "Harmful",
+        "Not accurate",
+        "Not useful or incomplete",
+        "Something else"
+      ],
+      "type": "string"
+    },
+    "ChatFeedbackReasons": {
+      "member": {
+        "shape": "ChatFeedbackReason"
+      },
+      "type": "list"
+    },
+    "ChatFeedbackType": {
+      "enum": [
+        "POSITIVE",
+        "NEGATIVE"
+      ],
+      "type": "string"
+    },
+    "ChatHitlTaskMetadata": {
+      "members": {
+        "focusState": {
+          "shape": "FocusState"
+        },
+        "hitlTaskId": {
+          "shape": "String"
+        }
+      },
+      "type": "structure"
+    },
+    "ChatJobMetadata": {
+      "members": {
+        "artifact": {
+          "shape": "ChatArtifactMetadata"
+        },
+        "focusState": {
+          "shape": "FocusState"
+        },
+        "hitl": {
+          "shape": "ChatHitlTaskMetadata"
+        },
+        "jobId": {
+          "shape": "UUID"
+        },
+        "worklog": {
+          "shape": "ChatWorklogStepMetadata"
+        }
+      },
+      "type": "structure"
+    },
+    "ChatJobs": {
+      "member": {
+        "shape": "ChatJobMetadata"
+      },
+      "type": "list"
+    },
+    "ChatStepId": {
+      "max": 41,
+      "min": 1,
+      "pattern": "[a-zA-Z0-9-]+",
+      "type": "string"
+    },
+    "ChatWorklogStepMetadata": {
+      "members": {
+        "focusState": {
+          "shape": "FocusState"
+        },
+        "stepId": {
+          "shape": "ChatStepId"
+        }
+      },
+      "type": "structure"
+    },
+    "CitationEvent": {
+      "members": {
+        "messageId": {
+          "shape": "UUID"
+        },
+        "sourceAttributions": {
+          "shape": "SourceAttributionList"
+        }
+      },
+      "required": [
+        "messageId"
+      ],
+      "type": "structure"
+    },
+    "CompleteArtifactUploadRequest": {
+      "members": {
+        "artifactId": {
+          "shape": "ArtifactIdentifier"
+        },
+        "jobId": {
+          "shape": "UUID"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "artifactId"
+      ],
+      "type": "structure"
+    },
+    "CompleteArtifactUploadResponse": {
+      "members": {
+        "artifact": {
+          "shape": "Artifact"
+        }
+      },
+      "required": [
+        "artifact"
+      ],
+      "type": "structure"
+    },
+    "ConflictException": {
+      "documentation": "<p>Returns HTTP status code 409</p>",
+      "exception": true,
+      "members": {
+        "message": {
+          "shape": "String"
+        }
+      },
+      "type": "structure"
+    },
+    "ConnectorConfiguration": {
+      "key": {
+        "shape": "NonBlankString"
+      },
+      "type": "map",
+      "value": {
+        "shape": "NonBlankString"
+      }
+    },
+    "ConnectorDescription": {
+      "sensitive": true,
+      "type": "string"
+    },
+    "ConnectorList": {
+      "member": {
+        "shape": "ConnectorSummaryData"
+      },
+      "type": "list"
+    },
+    "ConnectorMetadata": {
+      "members": {
+        "connectorId": {
+          "shape": "UUID"
+        },
+        "focusState": {
+          "shape": "FocusState"
+        }
+      },
+      "type": "structure"
+    },
+    "ConnectorSummaryData": {
+      "members": {
+        "connectorId": {
+          "shape": "UUID"
+        },
+        "connectorName": {
+          "shape": "NonBlankString"
+        },
+        "connectorType": {
+          "shape": "NonBlankString"
+        },
+        "description": {
+          "shape": "ConnectorDescription"
+        },
+        "targetRegions": {
+          "shape": "RegionList"
+        }
+      },
+      "type": "structure"
+    },
+    "ContentDigest": {
+      "members": {
+        "Sha256": {
+          "shape": "Sha256Checksum"
+        }
+      },
+      "type": "structure",
+      "union": true
+    },
+    "CreateArtifactDownloadUrlRequest": {
+      "members": {
+        "artifactId": {
+          "shape": "ArtifactIdentifier"
+        },
+        "jobId": {
+          "shape": "UUID"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "artifactId"
+      ],
+      "type": "structure"
+    },
+    "CreateArtifactDownloadUrlResponse": {
+      "members": {
+        "artifact": {
+          "shape": "Artifact"
+        },
+        "artifactType": {
+          "shape": "ArtifactType"
+        },
+        "requestHeaders": {
+          "shape": "RequestHeaders"
+        },
+        "s3PreSignedUrl": {
+          "shape": "S3Url"
+        },
+        "s3UrlExpiryTimestamp": {
+          "shape": "Timestamp"
+        }
+      },
+      "required": [
+        "s3PreSignedUrl",
+        "s3UrlExpiryTimestamp",
+        "artifactType",
+        "requestHeaders"
+      ],
+      "type": "structure"
+    },
+    "CreateArtifactUploadUrlRequest": {
+      "members": {
+        "artifactReference": {
+          "shape": "ArtifactReference"
+        },
+        "connectorId": {
+          "documentation": "<p>Unique identifier for a connector</p>",
+          "shape": "UUID"
+        },
+        "contentDigest": {
+          "shape": "ContentDigest"
+        },
+        "fileMetadata": {
+          "shape": "FileMetadata"
+        },
+        "jobId": {
+          "shape": "UUID"
+        },
+        "planStepId": {
+          "shape": "StepId"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "contentDigest",
+        "artifactReference"
+      ],
+      "type": "structure"
+    },
+    "CreateArtifactUploadUrlResponse": {
+      "members": {
+        "artifactId": {
+          "shape": "ArtifactIdentifier"
+        },
+        "requestHeaders": {
+          "shape": "RequestHeaders"
+        },
+        "s3PreSignedUrl": {
+          "shape": "S3Url"
+        },
+        "s3UrlExpiryTimestamp": {
+          "shape": "Timestamp"
+        }
+      },
+      "required": [
+        "s3PreSignedUrl",
+        "s3UrlExpiryTimestamp",
+        "artifactId",
+        "requestHeaders"
+      ],
+      "type": "structure"
+    },
+    "CreateAssetDownloadUrlRequest": {
+      "members": {
+        "assetKey": {
+          "shape": "CreateAssetDownloadUrlRequestAssetKeyString"
+        },
+        "connectorId": {
+          "shape": "UUID"
+        },
+        "jobId": {
+          "shape": "UUID"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "connectorId",
+        "assetKey"
+      ],
+      "type": "structure"
+    },
+    "CreateAssetDownloadUrlRequestAssetKeyString": {
+      "max": 1024,
+      "min": 1,
+      "pattern": "([a-zA-Z0-9._()!*' $@=;:+,?&-]+)(/[a-zA-Z0-9._()!*' $@=;:+,?&-]+)*",
+      "type": "string"
+    },
+    "CreateAssetDownloadUrlResponse": {
+      "members": {
+        "requestHeaders": {
+          "shape": "RequestHeaders"
+        },
+        "s3PreSignedUrl": {
+          "shape": "S3Url"
+        },
+        "s3UrlExpiryTimestamp": {
+          "shape": "Timestamp"
+        }
+      },
+      "required": [
+        "s3PreSignedUrl",
+        "s3UrlExpiryTimestamp",
+        "requestHeaders"
+      ],
+      "type": "structure"
+    },
+    "CreateConnectorRequest": {
+      "members": {
+        "accountConnectionRequest": {
+          "shape": "AccountConnectionRequest"
+        },
+        "configuration": {
+          "shape": "ConnectorConfiguration"
+        },
+        "connectorName": {
+          "shape": "NonBlankString"
+        },
+        "connectorType": {
+          "shape": "NonBlankString"
+        },
+        "description": {
+          "shape": "ConnectorDescription"
+        },
+        "idempotencyToken": {
+          "idempotencyToken": true,
+          "shape": "UUID"
+        },
+        "targetRegions": {
+          "shape": "RegionList"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "connectorName",
+        "connectorType",
+        "accountConnectionRequest",
+        "configuration"
+      ],
+      "type": "structure"
+    },
+    "CreateConnectorResponse": {
+      "members": {
+        "accountConnection": {
+          "shape": "AccountConnection"
+        },
+        "configuration": {
+          "shape": "ConnectorConfiguration"
+        },
+        "connectorId": {
+          "shape": "UUID"
+        },
+        "connectorName": {
+          "shape": "NonBlankString"
+        },
+        "connectorType": {
+          "shape": "NonBlankString"
+        },
+        "description": {
+          "shape": "String"
+        },
+        "targetRegions": {
+          "shape": "RegionList"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "type": "structure"
+    },
+    "CreateDashboardRequest": {
+      "members": {
+        "configuration": {
+          "documentation": "<p>Dashboard view configuration settings</p>",
+          "shape": "DashboardViewConfiguration"
+        }
+      },
+      "type": "structure"
+    },
+    "CreateDashboardResponse": {
+      "members": {
+        "dashboardId": {
+          "documentation": "<p>Dashboard ID for retrieving the generated content</p>",
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "dashboardId"
+      ],
+      "type": "structure"
+    },
+    "CreateFeedbackRequest": {
+      "members": {
+        "feedback": {
+          "shape": "Feedback"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "feedback"
+      ],
+      "type": "structure"
+    },
+    "CreateFeedbackResponse": {
+      "members": {},
+      "type": "structure"
+    },
+    "CreateJobRequest": {
+      "members": {
+        "executionPlanId": {
+          "documentation": "<p>Optional. Plan this job is executing a step of.</p>",
+          "shape": "UUID"
+        },
+        "idempotencyToken": {
+          "idempotencyToken": true,
+          "shape": "UUID"
+        },
+        "intent": {
+          "shape": "String"
+        },
+        "jobName": {
+          "shape": "JobName"
+        },
+        "jobType": {
+          "shape": "JobType"
+        },
+        "objective": {
+          "shape": "JobObjective"
+        },
+        "orchestratorAgent": {
+          "shape": "OrchestratorAgent"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "objective",
+        "jobName",
+        "intent"
+      ],
+      "type": "structure"
+    },
+    "CreateJobResponse": {
+      "members": {
+        "jobId": {
+          "shape": "UUID"
+        },
+        "status": {
+          "shape": "JobStatus"
+        }
+      },
+      "required": [
+        "jobId",
+        "status"
+      ],
+      "type": "structure"
+    },
+    "CreatePlanRequest": {
+      "members": {
+        "idempotencyToken": {
+          "idempotencyToken": true,
+          "shape": "UUID"
+        },
+        "name": {
+          "shape": "PlanName"
+        },
+        "planArtifact": {
+          "shape": "PlanArtifact"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "name"
+      ],
+      "type": "structure"
+    },
+    "CreatePlanResponse": {
+      "members": {
+        "plan": {
+          "shape": "PlanMetadata"
+        }
+      },
+      "required": [
+        "plan"
+      ],
+      "type": "structure"
+    },
+    "CreateSessionRequest": {
+      "members": {
+        "loginQueryParameters": {
+          "shape": "LoginQueryParametersMap"
+        }
+      },
+      "required": [
+        "loginQueryParameters"
+      ],
+      "type": "structure"
+    },
+    "CreateSessionResponse": {
+      "members": {
+        "state": {
+          "shape": "State"
+        },
+        "userId": {
+          "shape": "UserId"
+        }
+      },
+      "required": [
+        "userId"
+      ],
+      "type": "structure"
+    },
+    "CreateSupportCaseRequest": {
+      "members": {
+        "categoryCode": {
+          "shape": "SupportCaseCategoryCode"
+        },
+        "communicationBody": {
+          "shape": "SupportCaseCommunicationBody"
+        },
+        "jobId": {
+          "shape": "UUID"
+        },
+        "serviceCode": {
+          "shape": "SupportCaseServiceCode"
+        },
+        "severityCode": {
+          "shape": "SupportCaseSeverityCode"
+        },
+        "subject": {
+          "shape": "SupportCaseSubject"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "jobId",
+        "subject",
+        "communicationBody"
+      ],
+      "type": "structure"
+    },
+    "CreateSupportCaseResponse": {
+      "members": {
+        "caseId": {
+          "shape": "SupportCaseId"
+        }
+      },
+      "required": [
+        "caseId"
+      ],
+      "type": "structure"
+    },
+    "CreateWorkspaceRequest": {
+      "members": {
+        "description": {
+          "shape": "WorkspaceDescriptionString"
+        },
+        "idempotencyToken": {
+          "idempotencyToken": true,
+          "shape": "UUID"
+        },
+        "name": {
+          "shape": "WorkspaceNameString"
+        }
+      },
+      "type": "structure"
+    },
+    "CreateWorkspaceResponse": {
+      "members": {
+        "workspace": {
+          "shape": "Workspace"
+        }
+      },
+      "required": [
+        "workspace"
+      ],
+      "type": "structure"
+    },
+    "CustomEvent": {
+      "documentation": "<p>CustomEvent should be treated as a union, meaning exactly one member should be populated. However, we use a structure here due to a limiation of Smithy Event Streams: A @streaming Union (SendMessageOutputStream) must contain only structure types. https://smithy.io/2.0/spec/streaming.html#event-streams</p>",
+      "event": true,
+      "members": {
+        "attachmentEvent": {
+          "shape": "AttachmentEvent"
+        },
+        "citationEvent": {
+          "shape": "CitationEvent"
+        },
+        "interactionEvent": {
+          "shape": "InteractionEvent"
+        },
+        "thinkingTextMessageContentEvent": {
+          "shape": "ThinkingTextMessageContentEvent"
+        }
+      },
+      "type": "structure"
+    },
+    "CustomerConfigurationException": {
+      "exception": true,
+      "members": {
+        "errorCode": {
+          "shape": "CustomerConfigurationExceptionErrorCode"
+        },
+        "message": {
+          "shape": "String"
+        }
+      },
+      "required": [
+        "errorCode",
+        "message"
+      ],
+      "type": "structure"
+    },
+    "CustomerConfigurationExceptionErrorCode": {
+      "enum": [
+        "ACCESS_DENIED",
+        "NOT_FOUND"
+      ],
+      "type": "string"
+    },
+    "DashboardScope": {
+      "enum": [
+        "CAMPAIGN",
+        "JOB_TYPE"
+      ],
+      "type": "string"
+    },
+    "DashboardStatus": {
+      "enum": [
+        "PENDING",
+        "COMPLETE",
+        "ERROR"
+      ],
+      "type": "string"
+    },
+    "DashboardViewConfiguration": {
+      "documentation": "<p>Configuration for dashboard view settings</p>",
+      "members": {
+        "summaryConfiguration": {
+          "documentation": "<p>Configuration for summary dashboard type</p>",
+          "shape": "SummaryConfiguration"
+        },
+        "type": {
+          "documentation": "<p>Type of dashboard view to generate</p>",
+          "shape": "DashboardViewType"
+        }
+      },
+      "type": "structure"
+    },
+    "DashboardViewType": {
+      "enum": [
+        "SUMMARY",
+        "TOPOLOGY"
+      ],
+      "type": "string"
+    },
+    "DeleteConnectorRequest": {
+      "members": {
+        "connectorId": {
+          "documentation": "<p>A connector can be assigned only to one workspace</p>",
+          "shape": "UUID"
+        },
+        "workspaceId": {
+          "documentation": "<p>This is the workspace with the connector, the workspace is not deleted, only the connector is deleted</p>",
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "connectorId"
+      ],
+      "type": "structure"
+    },
+    "DeleteConnectorResponse": {
+      "members": {
+        "connectorId": {
+          "documentation": "<p>Deleted connector-id</p>",
+          "shape": "UUID"
+        },
+        "workspaceId": {
+          "documentation": "<p>Workspace-id of deleted connector</p>",
+          "shape": "UUID"
+        }
+      },
+      "type": "structure"
+    },
+    "DeleteJobRequest": {
+      "members": {
+        "jobId": {
+          "shape": "UUID"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "jobId"
+      ],
+      "type": "structure"
+    },
+    "DeleteJobResponse": {
+      "members": {
+        "jobId": {
+          "shape": "UUID"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "jobId"
+      ],
+      "type": "structure"
+    },
+    "DeleteSelfRoleMappingsRequest": {
+      "members": {
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId"
+      ],
+      "type": "structure"
+    },
+    "DeleteSelfRoleMappingsResponse": {
+      "members": {
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId"
+      ],
+      "type": "structure"
+    },
+    "DeleteUserRoleMappingsRequest": {
+      "members": {
+        "userId": {
+          "shape": "UserId"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "userId"
+      ],
+      "type": "structure"
+    },
+    "DeleteUserRoleMappingsResponse": {
+      "members": {
+        "userId": {
+          "shape": "UserId"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "userId"
+      ],
+      "type": "structure"
+    },
+    "DeleteWorkspaceRequest": {
+      "members": {
+        "id": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "structure"
+    },
+    "DeleteWorkspaceResponse": {
+      "members": {
+        "id": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "structure"
+    },
+    "Description": {
+      "max": 1024,
+      "min": 1,
+      "type": "string"
+    },
+    "DetectIsAllowedForOperationRequest": {
+      "members": {
+        "operationName": {
+          "shape": "OperationNameString"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "operationName"
+      ],
+      "type": "structure"
+    },
+    "DetectIsAllowedForOperationResponse": {
+      "members": {
+        "allowed": {
+          "shape": "AllowedStatus"
+        }
+      },
+      "required": [
+        "allowed"
+      ],
+      "type": "structure"
+    },
+    "DisplayName": {
+      "max": 1024,
+      "min": 1,
+      "pattern": "[\\p{L}\\p{M}\\p{S}\\p{N}\\p{P}\\t\\n\\r  \u3000]+",
+      "sensitive": true,
+      "type": "string"
+    },
+    "Document": {
+      "document": true,
+      "members": {},
+      "type": "structure"
+    },
+    "DryRunOperationException": {
+      "documentation": "<p>Returns HTTP status code 400</p>",
+      "exception": true,
+      "members": {
+        "message": {
+          "shape": "String"
+        }
+      },
+      "type": "structure"
+    },
+    "Email": {
+      "max": 1024,
+      "min": 1,
+      "pattern": "[\\p{L}\\p{M}\\p{S}\\p{N}\\p{P}\\t\\n\\r  \u3000]+",
+      "sensitive": true,
+      "type": "string"
+    },
+    "EnabledState": {
+      "enum": [
+        "ENABLED",
+        "DISABLED"
+      ],
+      "type": "string"
+    },
+    "ErrorReason": {
+      "enum": [
+        "NOT_FOUND",
+        "NOT_SUBSCRIBED"
+      ],
+      "type": "string"
+    },
+    "ExecutionPlanFilter": {
+      "documentation": "<p>Filter results to jobs belonging to a specific execution plan.</p>",
+      "members": {
+        "executionPlanId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "executionPlanId"
+      ],
+      "type": "structure"
+    },
+    "FailedUserDetails": {
+      "member": {
+        "shape": "FailedUserSummary"
+      },
+      "type": "list"
+    },
+    "FailedUserSummary": {
+      "members": {
+        "errorReason": {
+          "shape": "ErrorReason"
+        },
+        "userId": {
+          "shape": "UserId"
+        }
+      },
+      "type": "structure"
+    },
+    "FamilyName": {
+      "max": 1024,
+      "min": 1,
+      "pattern": "[\\p{L}\\p{M}\\p{S}\\p{N}\\p{P}\\t\\n\\r  \u3000]+",
+      "sensitive": true,
+      "type": "string"
+    },
+    "Feedback": {
+      "members": {
+        "chatFeedback": {
+          "shape": "ChatFeedback"
+        },
+        "globalFeedback": {
+          "shape": "GlobalFeedback"
+        },
+        "jobFeedback": {
+          "shape": "JobFeedback"
+        }
+      },
+      "type": "structure",
+      "union": true
+    },
+    "FeedbackAnswerType": {
+      "enum": [
+        "TEXT",
+        "RATING"
+      ],
+      "type": "string"
+    },
+    "FeedbackQuestion": {
+      "members": {
+        "answerType": {
+          "shape": "FeedbackAnswerType"
+        },
+        "isRequired": {
+          "shape": "Boolean"
+        },
+        "questionId": {
+          "shape": "UUID"
+        },
+        "questionText": {
+          "shape": "QuestionText"
+        }
+      },
+      "type": "structure"
+    },
+    "FeedbackQuestions": {
+      "member": {
+        "shape": "FeedbackQuestion"
+      },
+      "type": "list"
+    },
+    "FileAlreadyExistsException": {
+      "documentation": "<p>Returns HTTP status code 409</p>",
+      "exception": true,
+      "members": {
+        "message": {
+          "shape": "String"
+        }
+      },
+      "type": "structure"
+    },
+    "FileMetadata": {
+      "members": {
+        "description": {
+          "shape": "FileMetadataDescriptionString"
+        },
+        "path": {
+          "shape": "FilePath"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "type": "structure"
+    },
+    "FileMetadataDescriptionString": {
+      "max": 4000,
+      "min": 1,
+      "pattern": "[^@#$%^&*<>]*",
+      "type": "string"
+    },
+    "FilePath": {
+      "documentation": "<p>Complete file path including directory and filename. Accepts any valid UTF-8 string per S3 object key constraints. Max length is constrained to satisfy 1024 S3 character limit with consideration for the internal file path structure</p>",
+      "max": 838,
+      "min": 1,
+      "pattern": ".*[^/]",
+      "type": "string"
+    },
+    "FileType": {
+      "enum": [
+        "JSON",
+        "ZIP",
+        "PDF",
+        "HTML",
+        "TXT",
+        "MARKDOWN",
+        "CSV",
+        "PPTX",
+        "XLSX",
+        "OTHER"
+      ],
+      "type": "string"
+    },
+    "Float": {
+      "box": true,
+      "type": "float"
+    },
+    "FocusState": {
+      "enum": [
+        "ACTIVE",
+        "INACTIVE",
+        "UNKNOWN"
+      ],
+      "type": "string"
+    },
+    "FolderPath": {
+      "documentation": "<p>S3 safe path with mandatory trailing slash and no leading slash</p>",
+      "max": 1024,
+      "min": 2,
+      "pattern": "[^/].*/",
+      "type": "string"
+    },
+    "Folders": {
+      "member": {
+        "shape": "FolderPath"
+      },
+      "type": "list"
+    },
+    "GetConnectorRequest": {
+      "members": {
+        "connectorId": {
+          "shape": "UUID"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "connectorId"
+      ],
+      "type": "structure"
+    },
+    "GetConnectorResponse": {
+      "members": {
+        "accountConnection": {
+          "shape": "AccountConnection"
+        },
+        "connectorConfiguration": {
+          "shape": "ConnectorConfiguration"
+        },
+        "connectorId": {
+          "shape": "UUID"
+        },
+        "connectorName": {
+          "shape": "NonBlankString"
+        },
+        "connectorType": {
+          "shape": "NonBlankString"
+        },
+        "description": {
+          "shape": "ConnectorDescription"
+        },
+        "sourceAccount": {
+          "shape": "AccountIdString"
+        },
+        "targetRegions": {
+          "shape": "RegionList"
+        },
+        "userId": {
+          "shape": "String"
+        }
+      },
+      "type": "structure"
+    },
+    "GetDashboardRequest": {
+      "members": {
+        "dashboardId": {
+          "documentation": "<p>Dashboard ID returned from CreateDashboard</p>",
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "dashboardId"
+      ],
+      "type": "structure"
+    },
+    "GetDashboardResponse": {
+      "members": {
+        "data": {
+          "documentation": "<p>Renderable json for dashboard</p>",
+          "shape": "Document"
+        },
+        "status": {
+          "shape": "DashboardStatus"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "type": "structure"
+    },
+    "GetFeedbackQuestionsRequest": {
+      "members": {
+        "jobId": {
+          "shape": "UUID"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "jobId"
+      ],
+      "type": "structure"
+    },
+    "GetFeedbackQuestionsResponse": {
+      "members": {
+        "questions": {
+          "shape": "FeedbackQuestions"
+        }
+      },
+      "type": "structure"
+    },
+    "GetHitlTaskRequest": {
+      "members": {
+        "jobId": {
+          "shape": "UUID"
+        },
+        "taskId": {
+          "shape": "String"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "jobId",
+        "taskId"
+      ],
+      "type": "structure"
+    },
+    "GetHitlTaskResponse": {
+      "members": {
+        "task": {
+          "shape": "HitlTask"
+        }
+      },
+      "type": "structure"
+    },
+    "GetJobRequest": {
+      "members": {
+        "includeObjective": {
+          "documentation": "<p>If set to true, the objective will be included in the response.</p>",
+          "shape": "Boolean"
+        },
+        "jobId": {
+          "shape": "UUID"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "jobId"
+      ],
+      "type": "structure"
+    },
+    "GetJobResponse": {
+      "members": {
+        "job": {
+          "shape": "JobInfo"
+        }
+      },
+      "type": "structure"
+    },
+    "GetLoginRedirectUriRequest": {
+      "members": {
+        "callbackRedirectUri": {
+          "shape": "Uri"
+        },
+        "state": {
+          "shape": "State"
+        }
+      },
+      "required": [
+        "callbackRedirectUri"
+      ],
+      "type": "structure"
+    },
+    "GetLoginRedirectUriResponse": {
+      "members": {
+        "ssoRedirectUri": {
+          "shape": "Uri"
+        }
+      },
+      "required": [
+        "ssoRedirectUri"
+      ],
+      "type": "structure"
+    },
+    "GetPlanRequest": {
+      "members": {
+        "planId": {
+          "shape": "UUID"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "planId"
+      ],
+      "type": "structure"
+    },
+    "GetPlanResponse": {
+      "members": {
+        "plan": {
+          "shape": "PlanMetadata"
+        }
+      },
+      "required": [
+        "plan"
+      ],
+      "type": "structure"
+    },
+    "GetUserBackgroundSessionRequest": {
+      "members": {
+        "jobId": {
+          "shape": "UUID"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "jobId"
+      ],
+      "type": "structure"
+    },
+    "GetUserBackgroundSessionResponse": {
+      "members": {
+        "expiresAt": {
+          "shape": "Timestamp"
+        },
+        "userId": {
+          "shape": "UserId"
+        }
+      },
+      "required": [
+        "userId",
+        "expiresAt"
+      ],
+      "type": "structure"
+    },
+    "GetUserDetailsRequest": {
+      "members": {
+        "userId": {
+          "shape": "UserId"
+        }
+      },
+      "required": [
+        "userId"
+      ],
+      "type": "structure"
+    },
+    "GetUserDetailsResponse": {
+      "members": {
+        "userDetails": {
+          "shape": "UserDetails"
+        }
+      },
+      "required": [
+        "userDetails"
+      ],
+      "type": "structure"
+    },
+    "GetUserPreferencesRequest": {
+      "members": {},
+      "type": "structure"
+    },
+    "GetUserPreferencesResponse": {
+      "members": {
+        "notificationSettings": {
+          "shape": "NotificationSettings"
+        }
+      },
+      "required": [
+        "notificationSettings"
+      ],
+      "type": "structure"
+    },
+    "GetWorkspaceRequest": {
+      "members": {
+        "id": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "structure"
+    },
+    "GetWorkspaceResponse": {
+      "members": {
+        "workspace": {
+          "shape": "Workspace"
+        }
+      },
+      "required": [
+        "workspace"
+      ],
+      "type": "structure"
+    },
+    "GivenName": {
+      "max": 1024,
+      "min": 1,
+      "pattern": "[\\p{L}\\p{M}\\p{S}\\p{N}\\p{P}\\t\\n\\r  \u3000]+",
+      "sensitive": true,
+      "type": "string"
+    },
+    "GlobalFeedback": {
+      "members": {
+        "feedback": {
+          "shape": "TextResponse"
+        },
+        "feedbackType": {
+          "shape": "GlobalFeedbackType"
+        },
+        "metadata": {
+          "shape": "GlobalFeedbackMetadata"
+        }
+      },
+      "required": [
+        "feedbackType",
+        "feedback"
+      ],
+      "type": "structure"
+    },
+    "GlobalFeedbackMetadata": {
+      "members": {
+        "hitlTaskId": {
+          "shape": "UUID"
+        },
+        "jobId": {
+          "shape": "UUID"
+        },
+        "jobStepId": {
+          "shape": "StepId"
+        }
+      },
+      "type": "structure"
+    },
+    "GlobalFeedbackType": {
+      "enum": [
+        "Bug",
+        "Feature request",
+        "Job efficacy",
+        "Chat efficacy",
+        "Something else"
+      ],
+      "type": "string"
+    },
+    "GroupInteractionData": {
+      "members": {
+        "children": {
+          "shape": "Interactions"
+        },
+        "groupDescription": {
+          "shape": "GroupInteractionDataGroupDescriptionString"
+        },
+        "groupName": {
+          "shape": "String"
+        }
+      },
+      "type": "structure"
+    },
+    "GroupInteractionDataGroupDescriptionString": {
+      "max": 800,
+      "min": 0,
+      "type": "string"
+    },
+    "HeaderKey": {
+      "min": 1,
+      "sensitive": true,
+      "type": "string"
+    },
+    "HeadersList": {
+      "member": {
+        "shape": "String"
+      },
+      "sensitive": true,
+      "type": "list"
+    },
+    "HitlTask": {
+      "members": {
+        "action": {
+          "shape": "Action"
+        },
+        "agentArtifact": {
+          "shape": "HitlTaskArtifact"
+        },
+        "agentInstanceId": {
+          "documentation": "<p>AgentInstance that creates the HITL Task</p>",
+          "shape": "UUID"
+        },
+        "blockingType": {
+          "shape": "BlockingType"
+        },
+        "category": {
+          "shape": "Category"
+        },
+        "completedAt": {
+          "shape": "Timestamp"
+        },
+        "createdAt": {
+          "shape": "Timestamp"
+        },
+        "description": {
+          "shape": "Description"
+        },
+        "expiredAt": {
+          "shape": "Timestamp"
+        },
+        "humanArtifact": {
+          "shape": "HitlTaskArtifact"
+        },
+        "jobMetadata": {
+          "shape": "JobMetadata"
+        },
+        "planStepId": {
+          "documentation": "<p>jobPlanStep that HITL task is associated to</p>",
+          "shape": "PlanStepId"
+        },
+        "severity": {
+          "shape": "Severity"
+        },
+        "status": {
+          "shape": "HitlTaskStatus"
+        },
+        "submittedBy": {
+          "shape": "UserId"
+        },
+        "tag": {
+          "documentation": "<p>Idenfitifer to chain or group different Hitl tasks together</p>",
+          "shape": "Tag"
+        },
+        "taskId": {
+          "shape": "UUID"
+        },
+        "taskType": {
+          "shape": "HitlTaskType"
+        },
+        "title": {
+          "documentation": "<p>title to display in project plan, e.g.</p>",
+          "shape": "Title"
+        },
+        "updatedAt": {
+          "shape": "Timestamp"
+        },
+        "updatedBy": {
+          "shape": "UserId"
+        },
+        "uxComponentId": {
+          "shape": "UxComponentId"
+        }
+      },
+      "required": [
+        "taskId",
+        "jobMetadata",
+        "title",
+        "uxComponentId",
+        "createdAt",
+        "status",
+        "agentInstanceId",
+        "severity",
+        "taskType"
+      ],
+      "type": "structure"
+    },
+    "HitlTaskArtifact": {
+      "members": {
+        "artifactId": {
+          "shape": "ArtifactIdentifier"
+        }
+      },
+      "type": "structure"
+    },
+    "HitlTaskFilter": {
+      "members": {
+        "blockingType": {
+          "shape": "BlockingType"
+        },
+        "categories": {
+          "shape": "Categories"
+        },
+        "planStepId": {
+          "shape": "PlanStepId"
+        },
+        "tag": {
+          "shape": "Tag"
+        },
+        "taskStatuses": {
+          "shape": "HitlTaskStatuses"
+        }
+      },
+      "type": "structure"
+    },
+    "HitlTaskStatus": {
+      "enum": [
+        "CREATED",
+        "AWAITING_HUMAN_INPUT",
+        "IN_PROGRESS",
+        "AWAITING_APPROVAL",
+        "CLOSED",
+        "SUBMITTED",
+        "CANCELLED",
+        "CLOSED_PENDING_NEXT_TASK",
+        "DELIVERED"
+      ],
+      "type": "string"
+    },
+    "HitlTaskStatuses": {
+      "member": {
+        "shape": "HitlTaskStatus"
+      },
+      "type": "list"
+    },
+    "HitlTaskType": {
+      "enum": [
+        "NORMAL",
+        "DASHBOARD"
+      ],
+      "type": "string"
+    },
+    "HitlTasks": {
+      "member": {
+        "shape": "HitlTask"
+      },
+      "type": "list"
+    },
+    "IamRoleArn": {
+      "documentation": "<p>An IAM role ARN</p>",
+      "max": 2048,
+      "min": 20,
+      "pattern": "arn:aws:iam::\\d{12}:role/[a-zA-Z0-9_./-]+",
+      "type": "string"
+    },
+    "IamRoleAssignment": {
+      "documentation": "<p>Represents a single IAM role assignment for a user</p>",
+      "members": {
+        "createdAt": {
+          "documentation": "<p>Timestamp when the role assignment was created</p>",
+          "shape": "Timestamp"
+        },
+        "roleArn": {
+          "documentation": "<p>The IAM role ARN assigned to the user</p>",
+          "shape": "IamRoleArn"
+        },
+        "updatedAt": {
+          "documentation": "<p>Timestamp when the role assignment was last updated</p>",
+          "shape": "Timestamp"
+        }
+      },
+      "required": [
+        "roleArn"
+      ],
+      "type": "structure"
+    },
+    "IamRoleAssignmentList": {
+      "max": 100,
+      "member": {
+        "shape": "IamRoleAssignment"
+      },
+      "min": 0,
+      "type": "list"
+    },
+    "IdentityDetails": {
+      "members": {
+        "applicationArn": {
+          "shape": "ResourceArn"
+        },
+        "instanceArn": {
+          "shape": "ResourceArn"
+        },
+        "ssoRegion": {
+          "shape": "String"
+        }
+      },
+      "required": [
+        "instanceArn",
+        "applicationArn",
+        "ssoRegion"
+      ],
+      "type": "structure"
+    },
+    "Integer": {
+      "box": true,
+      "type": "integer"
+    },
+    "Interaction": {
+      "members": {
+        "actionType": {
+          "shape": "ActionType"
+        },
+        "data": {
+          "shape": "InteractionData"
+        },
+        "interactionId": {
+          "shape": "UUID"
+        },
+        "target": {
+          "shape": "Target"
+        }
+      },
+      "type": "structure"
+    },
+    "InteractionData": {
+      "members": {
+        "groupInteractionData": {
+          "shape": "GroupInteractionData"
+        },
+        "invokeInteractionData": {
+          "shape": "InvokeInteractionData"
+        },
+        "selectInteractionData": {
+          "shape": "SelectInteractionData"
+        }
+      },
+      "type": "structure"
+    },
+    "InteractionEvent": {
+      "members": {
+        "groupInteractionData": {
+          "shape": "GroupInteractionData"
+        },
+        "invokeInteractionData": {
+          "shape": "InvokeInteractionData"
+        },
+        "messageId": {
+          "shape": "UUID"
+        },
+        "selectInteractionData": {
+          "shape": "SelectInteractionData"
+        }
+      },
+      "required": [
+        "messageId"
+      ],
+      "type": "structure"
+    },
+    "InteractionResult": {
+      "members": {
+        "interactionId": {
+          "shape": "UUID"
+        },
+        "invokedStatus": {
+          "shape": "InvokedStatus"
+        },
+        "selectedOption": {
+          "shape": "Option"
+        }
+      },
+      "type": "structure"
+    },
+    "InteractionResultList": {
+      "member": {
+        "shape": "InteractionResult"
+      },
+      "type": "list"
+    },
+    "InteractionResults": {
+      "members": {
+        "interactionOriginId": {
+          "documentation": "<p>The origin message for which the interaction result should be stored</p>",
+          "shape": "UUID"
+        },
+        "interactionResults": {
+          "shape": "InteractionResultList"
+        }
+      },
+      "type": "structure"
+    },
+    "Interactions": {
+      "member": {
+        "shape": "Interaction"
+      },
+      "type": "list"
+    },
+    "InternalServerException": {
+      "documentation": "<p>Returns HTTP status code 500</p>",
+      "exception": true,
+      "fault": true,
+      "members": {
+        "message": {
+          "shape": "String"
+        }
+      },
+      "type": "structure"
+    },
+    "InvokeApi": {
+      "members": {
+        "label": {
+          "shape": "String"
+        },
+        "operationName": {
+          "shape": "String"
+        },
+        "operationParams": {
+          "shape": "Parameters"
+        }
+      },
+      "type": "structure"
+    },
+    "InvokeInteractionData": {
+      "members": {
+        "invokeApi": {
+          "shape": "InvokeApi"
+        }
+      },
+      "type": "structure"
+    },
+    "InvokedStatus": {
+      "enum": [
+        "INVOKED",
+        "NOT_INVOKED"
+      ],
+      "type": "string"
+    },
+    "JobFailureReason": {
+      "sensitive": true,
+      "type": "string"
+    },
+    "JobFeedback": {
+      "members": {
+        "feedback": {
+          "shape": "JobFeedbackAnswers"
+        },
+        "metadata": {
+          "shape": "JobFeedbackMetadata"
+        }
+      },
+      "required": [
+        "feedback",
+        "metadata"
+      ],
+      "type": "structure"
+    },
+    "JobFeedbackAnswer": {
+      "members": {
+        "answer": {
+          "shape": "JobFeedbackAnswerType"
+        },
+        "questionId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "questionId",
+        "answer"
+      ],
+      "type": "structure"
+    },
+    "JobFeedbackAnswerType": {
+      "members": {
+        "ratingResponse": {
+          "shape": "Rating"
+        },
+        "textResponse": {
+          "shape": "TextResponse"
+        }
+      },
+      "type": "structure",
+      "union": true
+    },
+    "JobFeedbackAnswers": {
+      "member": {
+        "shape": "JobFeedbackAnswer"
+      },
+      "type": "list"
+    },
+    "JobFeedbackMetadata": {
+      "members": {
+        "hitlTaskId": {
+          "shape": "UUID"
+        },
+        "jobId": {
+          "shape": "UUID"
+        },
+        "jobStatus": {
+          "shape": "JobStatus"
+        },
+        "jobStepId": {
+          "shape": "StepId"
+        }
+      },
+      "required": [
+        "jobStatus"
+      ],
+      "type": "structure"
+    },
+    "JobFilter": {
+      "documentation": "<p>Job filter options</p>",
+      "members": {
+        "categoryType": {
+          "documentation": "<p>Filter by category type</p>",
+          "shape": "CategoryType"
+        },
+        "jobId": {
+          "shape": "UUID"
+        },
+        "planStepId": {
+          "documentation": "<p>Filter by job plan step Identifier</p>",
+          "shape": "String"
+        }
+      },
+      "type": "structure"
+    },
+    "JobInfo": {
+      "members": {
+        "agentFeatures": {
+          "shape": "AgentFeatures"
+        },
+        "backgroundSessionStatus": {
+          "shape": "BackgroundSessionStatus"
+        },
+        "clientAppId": {
+          "shape": "String"
+        },
+        "clientSource": {
+          "shape": "String"
+        },
+        "creationTime": {
+          "shape": "Timestamp"
+        },
+        "endExecutionTime": {
+          "shape": "Timestamp"
+        },
+        "executionPlanId": {
+          "documentation": "<p>Plan this job belongs to. Null for non-plan jobs.</p>",
+          "shape": "UUID"
+        },
+        "intent": {
+          "shape": "String"
+        },
+        "jobId": {
+          "shape": "UUID"
+        },
+        "jobName": {
+          "shape": "JobName"
+        },
+        "objective": {
+          "shape": "JobObjective"
+        },
+        "restartable": {
+          "shape": "Boolean"
+        },
+        "startExecutionTime": {
+          "shape": "Timestamp"
+        },
+        "statusDetails": {
+          "shape": "StatusDetails"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "type": "structure"
+    },
+    "JobList": {
+      "member": {
+        "shape": "ListJobEntry"
+      },
+      "type": "list"
+    },
+    "JobMetadata": {
+      "members": {
+        "jobId": {
+          "shape": "UUID"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "jobId",
+        "workspaceId"
+      ],
+      "type": "structure"
+    },
+    "JobName": {
+      "max": 64,
+      "min": 1,
+      "pattern": "[a-zA-Z0-9]+(?:[-_\\. ]+[a-zA-Z0-9]+)*",
+      "sensitive": true,
+      "type": "string"
+    },
+    "JobObjective": {
+      "max": 600,
+      "min": 1,
+      "sensitive": true,
+      "type": "string"
+    },
+    "JobOrchestratorFilter": {
+      "members": {
+        "jobOrchestrator": {
+          "shape": "Boolean"
+        }
+      },
+      "required": [
+        "jobOrchestrator"
+      ],
+      "type": "structure"
+    },
+    "JobOrchestratorMetadata": {
+      "members": {
+        "a2aSupported": {
+          "shape": "Boolean"
+        },
+        "chatAgentIdentifier": {
+          "shape": "JobOrchestratorMetadataChatAgentIdentifierString"
+        },
+        "chatUILabel": {
+          "shape": "JobOrchestratorMetadataChatUILabelString"
+        }
+      },
+      "type": "structure"
+    },
+    "JobOrchestratorMetadataChatAgentIdentifierString": {
+      "max": 150,
+      "min": 1,
+      "type": "string"
+    },
+    "JobOrchestratorMetadataChatUILabelString": {
+      "max": 150,
+      "min": 1,
+      "type": "string"
+    },
+    "JobPlanStep": {
+      "members": {
+        "description": {
+          "shape": "StepDescription"
+        },
+        "endTime": {
+          "shape": "Timestamp"
+        },
+        "parentStepId": {
+          "documentation": "<p>Will be set to 'root' if the entry corresponds to a top-level step.</p>",
+          "shape": "StepId"
+        },
+        "score": {
+          "documentation": "<p>Generated in platform to determine ordering of steps</p>",
+          "shape": "Float"
+        },
+        "startTime": {
+          "shape": "Timestamp"
+        },
+        "status": {
+          "shape": "PlanStepStatus"
+        },
+        "stepId": {
+          "shape": "StepId"
+        },
+        "stepName": {
+          "shape": "StepName"
+        }
+      },
+      "required": [
+        "stepId",
+        "parentStepId",
+        "stepName",
+        "description",
+        "score"
+      ],
+      "type": "structure"
+    },
+    "JobPlanSteps": {
+      "member": {
+        "shape": "JobPlanStep"
+      },
+      "type": "list"
+    },
+    "JobPlanUpdates": {
+      "member": {
+        "shape": "PlanStepUpdateEntry"
+      },
+      "type": "list"
+    },
+    "JobStatus": {
+      "enum": [
+        "CREATED",
+        "STARTING",
+        "ASSESSING",
+        "PLANNING",
+        "PLANNED",
+        "EXECUTING",
+        "AWAITING_HUMAN_INPUT",
+        "COMPLETED",
+        "FAILED",
+        "STOPPING",
+        "STOPPED"
+      ],
+      "type": "string"
+    },
+    "JobType": {
+      "enum": [
+        "JAVA_UPGRADE",
+        "DOT_NET",
+        "VMWARE",
+        "MAINFRAME",
+        "CX_UI_COMPONENT_TESTING",
+        "MIGRATION_ASSESSMENT",
+        "WINDOWS_DATABASE",
+        "PROSERVE_CMF",
+        "DYNAMIC_SHOWCASE",
+        "MAINFRAME_MIGRATION_ACCENTURE_KB",
+        "VMWARE_V2",
+        "WAVE_PLANNING",
+        "MAINFRAME_MODERNIZATION_ACCENTURE",
+        "EXTERNAL_WAVICLE",
+        "DYNAMIC_SHOWCASE_AGENTCORE_TESTING",
+        "EXTERNAL_CAPGEMINI",
+        "APEX_NAVI",
+        "MAINFRAME_V2",
+        "DOTNET_IDE",
+        "EBA_ORCHESTRATION",
+        "CUSTOM_TRANSFORMATION",
+        "EXTERNAL_PEGA",
+        "EXTERNAL_DELOITTE"
+      ],
+      "type": "string"
+    },
+    "JobTypeContext": {
+      "members": {
+        "jobType": {
+          "documentation": "<p>The job type to filter on; across the workspaces</p>",
+          "shape": "String"
+        }
+      },
+      "required": [
+        "jobType"
+      ],
+      "type": "structure"
+    },
+    "ListAgentFilter": {
+      "members": {
+        "accessControlFilter": {
+          "shape": "AccessControlTypeFilter"
+        },
+        "agentTypeFilter": {
+          "shape": "AgentTypeFilter"
+        },
+        "jobOrchestratorFilter": {
+          "shape": "JobOrchestratorFilter"
+        },
+        "ownerTypeFilter": {
+          "shape": "OwnerTypeFilter"
+        }
+      },
+      "type": "structure",
+      "union": true
+    },
+    "ListAgentsRequest": {
+      "members": {
+        "agentConfigurationAvailability": {
+          "documentation": "<p>Optional field to filter by runtime configuration status</p>",
+          "shape": "AgentConfigurationAvailability"
+        },
+        "agentFilter": {
+          "documentation": "<p>Optional filter for listing agents</p>",
+          "shape": "ListAgentFilter"
+        },
+        "maxResults": {
+          "shape": "ListAgentsRequestMaxResultsInteger"
+        },
+        "nextToken": {
+          "shape": "PaginationToken"
+        }
+      },
+      "type": "structure"
+    },
+    "ListAgentsRequestMaxResultsInteger": {
+      "box": true,
+      "max": 10,
+      "min": 1,
+      "type": "integer"
+    },
+    "ListAgentsResponse": {
+      "members": {
+        "items": {
+          "shape": "AgentMetadataSummaryList"
+        },
+        "nextToken": {
+          "shape": "PaginationToken"
+        }
+      },
+      "type": "structure"
+    },
+    "ListArtifactsRequest": {
+      "members": {
+        "jobFilter": {
+          "shape": "JobFilter"
+        },
+        "maxResults": {
+          "shape": "ListArtifactsRequestMaxResultsInteger"
+        },
+        "nextToken": {
+          "shape": "String"
+        },
+        "pathPrefix": {
+          "shape": "FolderPath"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId"
+      ],
+      "type": "structure"
+    },
+    "ListArtifactsRequestMaxResultsInteger": {
+      "box": true,
+      "max": 100,
+      "min": 1,
+      "type": "integer"
+    },
+    "ListArtifactsResponse": {
+      "members": {
+        "artifacts": {
+          "shape": "Artifacts"
+        },
+        "assets": {
+          "shape": "Assets"
+        },
+        "connectorId": {
+          "documentation": "<p>Unique identifier for a connector</p>",
+          "shape": "UUID"
+        },
+        "folders": {
+          "shape": "Folders"
+        },
+        "nextToken": {
+          "shape": "String"
+        }
+      },
+      "required": [
+        "artifacts"
+      ],
+      "type": "structure"
+    },
+    "ListAvailableProfilesRequest": {
+      "members": {
+        "maxResults": {
+          "shape": "ListAvailableProfilesRequestMaxResultsInteger"
+        },
+        "nextToken": {
+          "shape": "PaginationToken"
+        }
+      },
+      "type": "structure"
+    },
+    "ListAvailableProfilesRequestMaxResultsInteger": {
+      "box": true,
+      "max": 100,
+      "min": 1,
+      "type": "integer"
+    },
+    "ListAvailableProfilesResponse": {
+      "members": {
+        "nextToken": {
+          "shape": "PaginationToken"
+        },
+        "profiles": {
+          "shape": "ProfileList"
+        }
+      },
+      "type": "structure"
+    },
+    "ListConnectorsRequest": {
+      "members": {
+        "nextToken": {
+          "shape": "PaginationToken"
+        },
+        "requesterAgentInvocationId": {
+          "shape": "UUID"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId"
+      ],
+      "type": "structure"
+    },
+    "ListConnectorsResponse": {
+      "members": {
+        "connectors": {
+          "shape": "ConnectorList"
+        },
+        "nextToken": {
+          "shape": "PaginationToken"
+        }
+      },
+      "type": "structure"
+    },
+    "ListHitlTasksRequest": {
+      "members": {
+        "jobId": {
+          "shape": "UUID"
+        },
+        "maxResults": {
+          "shape": "ListHitlTasksRequestMaxResultsInteger"
+        },
+        "nextToken": {
+          "shape": "String"
+        },
+        "taskFilter": {
+          "shape": "HitlTaskFilter"
+        },
+        "taskType": {
+          "documentation": "<p>Define the type of tasks returned. HITL will only return NORMAL tasks or DASHBOARD tasks</p>",
+          "shape": "HitlTaskType"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "jobId",
+        "taskType"
+      ],
+      "type": "structure"
+    },
+    "ListHitlTasksRequestMaxResultsInteger": {
+      "box": true,
+      "max": 100,
+      "min": 1,
+      "type": "integer"
+    },
+    "ListHitlTasksResponse": {
+      "members": {
+        "hitlTasks": {
+          "shape": "HitlTasks"
+        },
+        "nextToken": {
+          "shape": "String"
+        }
+      },
+      "type": "structure"
+    },
+    "ListIamRoleAssignmentsRequest": {
+      "members": {
+        "maxResults": {
+          "shape": "ListIamRoleAssignmentsRequestMaxResultsInteger"
+        },
+        "nextToken": {
+          "shape": "PaginationToken"
+        }
+      },
+      "type": "structure"
+    },
+    "ListIamRoleAssignmentsRequestMaxResultsInteger": {
+      "box": true,
+      "max": 100,
+      "min": 1,
+      "type": "integer"
+    },
+    "ListIamRoleAssignmentsResponse": {
+      "members": {
+        "iamRoleAssignments": {
+          "shape": "IamRoleAssignmentList"
+        },
+        "nextToken": {
+          "shape": "PaginationToken"
+        }
+      },
+      "required": [
+        "iamRoleAssignments"
+      ],
+      "type": "structure"
+    },
+    "ListJobEntry": {
+      "members": {
+        "jobInfo": {
+          "shape": "JobInfo"
+        },
+        "userId": {
+          "shape": "UserId"
+        }
+      },
+      "type": "structure"
+    },
+    "ListJobPlanStepsRequest": {
+      "members": {
+        "jobId": {
+          "shape": "UUID"
+        },
+        "maxResults": {
+          "shape": "Integer"
+        },
+        "nextToken": {
+          "shape": "String"
+        },
+        "parentStepId": {
+          "documentation": "<p>If not specified, we return all steps. If specified as root, we return only top-level steps. Otherwise, we return steps only under the parentId</p>",
+          "shape": "StepId"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "jobId"
+      ],
+      "type": "structure"
+    },
+    "ListJobPlanStepsResponse": {
+      "members": {
+        "nextToken": {
+          "shape": "String"
+        },
+        "steps": {
+          "shape": "JobPlanSteps"
+        }
+      },
+      "type": "structure"
+    },
+    "ListJobsRequest": {
+      "members": {
+        "executionPlanFilter": {
+          "documentation": "<p>Filter results to jobs belonging to a specific execution plan.</p>",
+          "shape": "ExecutionPlanFilter"
+        },
+        "nextToken": {
+          "shape": "String"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId"
+      ],
+      "type": "structure"
+    },
+    "ListJobsResponse": {
+      "members": {
+        "jobList": {
+          "shape": "JobList"
+        },
+        "nextToken": {
+          "shape": "String"
+        }
+      },
+      "type": "structure"
+    },
+    "ListMessagesRequest": {
+      "members": {
+        "maxResults": {
+          "shape": "ListMessagesRequestMaxResultsInteger"
+        },
+        "metadata": {
+          "shape": "Metadata"
+        },
+        "nextToken": {
+          "shape": "String"
+        },
+        "startTimestamp": {
+          "shape": "Timestamp"
+        }
+      },
+      "type": "structure"
+    },
+    "ListMessagesRequestMaxResultsInteger": {
+      "box": true,
+      "max": 1000,
+      "min": 1,
+      "type": "integer"
+    },
+    "ListMessagesResponse": {
+      "members": {
+        "messageIds": {
+          "shape": "MessageIds"
+        },
+        "nextToken": {
+          "shape": "String"
+        }
+      },
+      "type": "structure"
+    },
+    "ListPlanUpdatesRequest": {
+      "members": {
+        "jobId": {
+          "shape": "UUID"
+        },
+        "nextToken": {
+          "shape": "String"
+        },
+        "planVersion": {
+          "shape": "String"
+        },
+        "timestamp": {
+          "shape": "Long"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "jobId",
+        "timestamp",
+        "planVersion"
+      ],
+      "type": "structure"
+    },
+    "ListPlanUpdatesResponse": {
+      "members": {
+        "nextToken": {
+          "shape": "String"
+        },
+        "steps": {
+          "shape": "JobPlanUpdates"
+        }
+      },
+      "type": "structure"
+    },
+    "ListPlansRequest": {
+      "members": {
+        "maxResults": {
+          "shape": "ListPlansRequestMaxResultsInteger"
+        },
+        "nextToken": {
+          "shape": "PaginationToken"
+        },
+        "status": {
+          "shape": "PlanStatus"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId"
+      ],
+      "type": "structure"
+    },
+    "ListPlansRequestMaxResultsInteger": {
+      "box": true,
+      "max": 100,
+      "type": "integer"
+    },
+    "ListPlansResponse": {
+      "members": {
+        "items": {
+          "shape": "PlanMetadataList"
+        },
+        "nextToken": {
+          "shape": "PaginationToken"
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "type": "structure"
+    },
+    "ListSuggestionsRequest": {
+      "members": {
+        "limit": {
+          "shape": "ListSuggestionsRequestLimitInteger"
+        },
+        "metadata": {
+          "shape": "SuggestionMetadata"
+        },
+        "resource": {
+          "shape": "SuggestionResource"
+        }
+      },
+      "required": [
+        "resource"
+      ],
+      "type": "structure"
+    },
+    "ListSuggestionsRequestLimitInteger": {
+      "box": true,
+      "max": 10,
+      "min": 1,
+      "type": "integer"
+    },
+    "ListSuggestionsResponse": {
+      "members": {
+        "suggestions": {
+          "shape": "SuggestionList"
+        }
+      },
+      "required": [
+        "suggestions"
+      ],
+      "type": "structure"
+    },
+    "ListUserRoleMappingsRequest": {
+      "members": {
+        "maxResults": {
+          "shape": "ListUserRoleMappingsRequestMaxResultsInteger"
+        },
+        "nextToken": {
+          "shape": "PaginationToken"
+        },
+        "roleFilters": {
+          "documentation": "<p>Filter results by role type. Limited to max length 5 (i.e. the number of possible role types)</p>",
+          "shape": "ListUserRoleMappingsRequestRoleFiltersList"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId"
+      ],
+      "type": "structure"
+    },
+    "ListUserRoleMappingsRequestMaxResultsInteger": {
+      "box": true,
+      "max": 100,
+      "type": "integer"
+    },
+    "ListUserRoleMappingsRequestRoleFiltersList": {
+      "max": 5,
+      "member": {
+        "shape": "RoleName"
+      },
+      "min": 1,
+      "type": "list"
+    },
+    "ListUserRoleMappingsResponse": {
+      "members": {
+        "items": {
+          "shape": "UserList"
+        },
+        "nextToken": {
+          "shape": "PaginationToken"
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "type": "structure"
+    },
+    "ListWorklogsRequest": {
+      "members": {
+        "jobId": {
+          "shape": "UUID"
+        },
+        "nextToken": {
+          "shape": "String"
+        },
+        "worklogFilter": {
+          "shape": "WorklogFilter"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "jobId"
+      ],
+      "type": "structure"
+    },
+    "ListWorklogsResponse": {
+      "members": {
+        "outputToken": {
+          "shape": "String"
+        },
+        "worklogs": {
+          "shape": "WorklogList"
+        }
+      },
+      "type": "structure"
+    },
+    "ListWorkspacesRequest": {
+      "members": {
+        "maxResults": {
+          "shape": "ListWorkspacesRequestMaxResultsInteger"
+        },
+        "nextToken": {
+          "shape": "String"
+        }
+      },
+      "type": "structure"
+    },
+    "ListWorkspacesRequestMaxResultsInteger": {
+      "box": true,
+      "max": 100,
+      "type": "integer"
+    },
+    "ListWorkspacesResponse": {
+      "members": {
+        "items": {
+          "shape": "WorkspaceList"
+        },
+        "nextToken": {
+          "shape": "String"
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "type": "structure"
+    },
+    "LoginQueryParametersMap": {
+      "key": {
+        "shape": "LoginQueryParametersMapKey"
+      },
+      "type": "map",
+      "value": {
+        "shape": "LoginQueryParametersMapValue"
+      }
+    },
+    "LoginQueryParametersMapKey": {
+      "sensitive": true,
+      "type": "string"
+    },
+    "LoginQueryParametersMapValue": {
+      "sensitive": true,
+      "type": "string"
+    },
+    "Long": {
+      "box": true,
+      "type": "long"
+    },
+    "MarketplaceMetadata": {
+      "members": {
+        "productId": {
+          "shape": "MarketplaceMetadataProductIdString"
+        }
+      },
+      "type": "structure"
+    },
+    "MarketplaceMetadataProductIdString": {
+      "max": 30,
+      "min": 5,
+      "pattern": "[a-z]+-[a-z0-9]+",
+      "type": "string"
+    },
+    "Message": {
+      "members": {
+        "attachments": {
+          "shape": "Attachments"
+        },
+        "createdAt": {
+          "shape": "Timestamp"
+        },
+        "interactionResults": {
+          "shape": "InteractionResults"
+        },
+        "interactions": {
+          "shape": "Interactions"
+        },
+        "messageId": {
+          "shape": "UUID"
+        },
+        "messageOrigin": {
+          "shape": "MessageOrigin"
+        },
+        "metadata": {
+          "shape": "Metadata"
+        },
+        "parentMessageId": {
+          "shape": "UUID"
+        },
+        "processingInfo": {
+          "shape": "ProcessingInfo"
+        },
+        "sourceAttributions": {
+          "shape": "SourceAttributionList"
+        },
+        "text": {
+          "shape": "MessageTextString"
+        }
+      },
+      "required": [
+        "messageId",
+        "messageOrigin",
+        "createdAt"
+      ],
+      "type": "structure"
+    },
+    "MessageIds": {
+      "member": {
+        "shape": "UUID"
+      },
+      "type": "list"
+    },
+    "MessageOrigin": {
+      "enum": [
+        "USER",
+        "SYSTEM"
+      ],
+      "type": "string"
+    },
+    "MessageText": {
+      "sensitive": true,
+      "type": "string"
+    },
+    "MessageTextString": {
+      "max": 8000,
+      "min": 1,
+      "sensitive": true,
+      "type": "string"
+    },
+    "MessageType": {
+      "enum": [
+        "THINKING",
+        "FINAL_RESPONSE",
+        "ERROR"
+      ],
+      "type": "string"
+    },
+    "Messages": {
+      "member": {
+        "shape": "Message"
+      },
+      "type": "list"
+    },
+    "Metadata": {
+      "members": {
+        "resourcesOnScreen": {
+          "shape": "ResourcesOnScreen"
+        }
+      },
+      "type": "structure"
+    },
+    "NickName": {
+      "max": 1024,
+      "min": 1,
+      "pattern": "[\\p{L}\\p{M}\\p{S}\\p{N}\\p{P}\\t\\n\\r  \u3000]+",
+      "sensitive": true,
+      "type": "string"
+    },
+    "NonBlankString": {
+      "pattern": ".*\\S.*",
+      "type": "string"
+    },
+    "NotificationSettings": {
+      "members": {
+        "hitlBlocked": {
+          "shape": "NotificationStatus"
+        },
+        "hitlImmediate": {
+          "shape": "NotificationStatus"
+        },
+        "jobCompleted": {
+          "shape": "NotificationStatus"
+        },
+        "workspaceInvitation": {
+          "shape": "NotificationStatus"
+        }
+      },
+      "required": [
+        "workspaceInvitation",
+        "hitlBlocked",
+        "jobCompleted"
+      ],
+      "type": "structure"
+    },
+    "NotificationStatus": {
+      "enum": [
+        "ENABLED",
+        "DISABLED"
+      ],
+      "type": "string"
+    },
+    "OperationNameString": {
+      "max": 100,
+      "min": 1,
+      "pattern": "[A-Z]+([a-zA-Z]+)*",
+      "type": "string"
+    },
+    "Option": {
+      "members": {
+        "label": {
+          "shape": "String"
+        },
+        "value": {
+          "shape": "String"
+        }
+      },
+      "sensitive": true,
+      "type": "structure"
+    },
+    "Options": {
+      "member": {
+        "shape": "Option"
+      },
+      "type": "list"
+    },
+    "OrchestratorAgent": {
+      "pattern": "[a-zA-Z0-9_-]+",
+      "type": "string"
+    },
+    "OwnerType": {
+      "enum": [
+        "INTERNAL_AGENT",
+        "DIRECT_AGENT",
+        "MARKETPLACE_AGENT"
+      ],
+      "type": "string"
+    },
+    "OwnerTypeFilter": {
+      "members": {
+        "accessControlType": {
+          "shape": "AccessControlType"
+        },
+        "ownerType": {
+          "shape": "OwnerType"
+        }
+      },
+      "required": [
+        "ownerType"
+      ],
+      "type": "structure"
+    },
+    "PaginationToken": {
+      "max": 2048,
+      "min": 1,
+      "pattern": "[-A-Za-z0-9+/_]*={0,3}",
+      "type": "string"
+    },
+    "Parameters": {
+      "key": {
+        "shape": "String"
+      },
+      "type": "map",
+      "value": {
+        "shape": "String"
+      }
+    },
+    "PartnerInfo": {
+      "members": {
+        "partnerId": {
+          "shape": "PartnerInfoPartnerIdString"
+        },
+        "partnerName": {
+          "shape": "PartnerInfoPartnerNameString"
+        }
+      },
+      "required": [
+        "partnerId"
+      ],
+      "type": "structure"
+    },
+    "PartnerInfoPartnerIdString": {
+      "max": 1024,
+      "min": 1,
+      "type": "string"
+    },
+    "PartnerInfoPartnerNameString": {
+      "max": 1024,
+      "min": 1,
+      "type": "string"
+    },
+    "PlanArtifact": {
+      "members": {
+        "artifactId": {
+          "shape": "UUID"
+        }
+      },
+      "type": "structure",
+      "union": true
+    },
+    "PlanMetadata": {
+      "members": {
+        "approvers": {
+          "shape": "UserIdList"
+        },
+        "authors": {
+          "shape": "UserIdList"
+        },
+        "createdAt": {
+          "shape": "Timestamp"
+        },
+        "lastUpdatedAt": {
+          "shape": "Timestamp"
+        },
+        "name": {
+          "shape": "PlanName"
+        },
+        "planArtifact": {
+          "shape": "PlanArtifact"
+        },
+        "planId": {
+          "shape": "UUID"
+        },
+        "status": {
+          "shape": "PlanStatus"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "planId",
+        "workspaceId",
+        "name",
+        "status",
+        "authors",
+        "createdAt",
+        "lastUpdatedAt"
+      ],
+      "type": "structure"
+    },
+    "PlanMetadataList": {
+      "member": {
+        "shape": "PlanMetadata"
+      },
+      "type": "list"
+    },
+    "PlanName": {
+      "max": 256,
+      "min": 1,
+      "type": "string"
+    },
+    "PlanStatus": {
+      "enum": [
+        "DRAFT",
+        "IN_REVIEW",
+        "APPROVED",
+        "COMPLETED"
+      ],
+      "type": "string"
+    },
+    "PlanStepId": {
+      "max": 64,
+      "min": 1,
+      "pattern": "[a-zA-Z0-9-_]+",
+      "type": "string"
+    },
+    "PlanStepStatus": {
+      "enum": [
+        "NOT_STARTED",
+        "IN_PROGRESS",
+        "SUCCEEDED",
+        "PENDING_HUMAN_INPUT",
+        "FAILED",
+        "STOPPED"
+      ],
+      "type": "string"
+    },
+    "PlanStepUpdateEntry": {
+      "members": {
+        "deleted": {
+          "shape": "Boolean"
+        },
+        "description": {
+          "shape": "StepDescription"
+        },
+        "endTime": {
+          "shape": "Timestamp"
+        },
+        "parentStepId": {
+          "documentation": "<p>Will be set to 'root' if the entry corresponds to a top-level step.</p>",
+          "shape": "StepId"
+        },
+        "score": {
+          "shape": "Float"
+        },
+        "startTime": {
+          "shape": "Timestamp"
+        },
+        "status": {
+          "shape": "PlanStepStatus"
+        },
+        "stepId": {
+          "shape": "StepId"
+        },
+        "stepName": {
+          "shape": "String"
+        }
+      },
+      "required": [
+        "stepId",
+        "parentStepId",
+        "stepName",
+        "description",
+        "score"
+      ],
+      "type": "structure"
+    },
+    "PostUpdateAction": {
+      "enum": [
+        "SEND_FOR_APPROVAL",
+        "TRANSIT_TO_IN_PROGRESS"
+      ],
+      "type": "string"
+    },
+    "ProcessingInfo": {
+      "members": {
+        "messageType": {
+          "documentation": "<p>Indicates the processing status and the category of this message</p>",
+          "shape": "MessageType"
+        }
+      },
+      "type": "structure"
+    },
+    "Profile": {
+      "members": {
+        "accountId": {
+          "shape": "AccountId"
+        },
+        "applicationUrl": {
+          "shape": "Uri"
+        },
+        "arn": {
+          "shape": "ResourceArn"
+        },
+        "createdAt": {
+          "shape": "Long"
+        },
+        "customerKmsArn": {
+          "shape": "ResourceArn"
+        },
+        "identityDetails": {
+          "shape": "IdentityDetails"
+        },
+        "preferences": {
+          "shape": "ProfilePreferences"
+        },
+        "profileName": {
+          "shape": "ProfileName"
+        },
+        "status": {
+          "shape": "ProfileStatus"
+        },
+        "tenantId": {
+          "shape": "TenantId"
+        },
+        "updatedAt": {
+          "shape": "Long"
+        }
+      },
+      "required": [
+        "arn",
+        "profileName",
+        "tenantId",
+        "accountId",
+        "updatedAt",
+        "createdAt"
+      ],
+      "type": "structure"
+    },
+    "ProfileList": {
+      "member": {
+        "shape": "Profile"
+      },
+      "type": "list"
+    },
+    "ProfileName": {
+      "max": 64,
+      "min": 1,
+      "pattern": "[a-zA-Z0-9]+(?:[-_][a-zA-Z0-9]+)*",
+      "type": "string"
+    },
+    "ProfilePreferences": {
+      "members": {
+        "crossRegionKnowledge": {
+          "shape": "EnabledState"
+        }
+      },
+      "required": [
+        "crossRegionKnowledge"
+      ],
+      "type": "structure"
+    },
+    "ProfileStatus": {
+      "enum": [
+        "ACTIVE",
+        "CREATING",
+        "CREATE_FAILED",
+        "UPDATING",
+        "UPDATE_FAILED",
+        "DELETING",
+        "DELETE_FAILED"
+      ],
+      "type": "string"
+    },
+    "PutUserPreferencesRequest": {
+      "members": {
+        "notificationSettings": {
+          "shape": "NotificationSettings"
+        }
+      },
+      "required": [
+        "notificationSettings"
+      ],
+      "type": "structure"
+    },
+    "PutUserPreferencesResponse": {
+      "members": {
+        "notificationSettings": {
+          "shape": "NotificationSettings"
+        }
+      },
+      "required": [
+        "notificationSettings"
+      ],
+      "type": "structure"
+    },
+    "PutUserRoleMappingsRequest": {
+      "members": {
+        "roles": {
+          "documentation": "<p>Currently only supporting users having one role at a time.</p>",
+          "shape": "PutUserRoleMappingsRequestRolesList"
+        },
+        "userId": {
+          "shape": "UserId"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "userId",
+        "roles"
+      ],
+      "type": "structure"
+    },
+    "PutUserRoleMappingsRequestRolesList": {
+      "max": 1,
+      "member": {
+        "shape": "RoleName"
+      },
+      "min": 1,
+      "type": "list"
+    },
+    "PutUserRoleMappingsResponse": {
+      "members": {
+        "roles": {
+          "shape": "RoleList"
+        },
+        "userId": {
+          "shape": "UserId"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "userId",
+        "roles"
+      ],
+      "type": "structure"
+    },
+    "QuestionText": {
+      "max": 1000,
+      "min": 1,
+      "type": "string"
+    },
+    "Rating": {
+      "box": true,
+      "max": 5,
+      "min": 1,
+      "type": "integer"
+    },
+    "RegionList": {
+      "member": {
+        "shape": "NonBlankString"
+      },
+      "type": "list"
+    },
+    "RegionString": {
+      "max": 16,
+      "min": 3,
+      "pattern": "(us(?:-gov)?|af|ap|ca|cn|eu|sa)-(central|(?:north|south)?(?:east|west)?)-(\\d+)",
+      "type": "string"
+    },
+    "RequestHeaders": {
+      "key": {
+        "shape": "HeaderKey"
+      },
+      "type": "map",
+      "value": {
+        "shape": "HeadersList"
+      }
+    },
+    "ResolveSupportCaseRequest": {
+      "members": {
+        "caseId": {
+          "shape": "SupportCaseId"
+        },
+        "jobId": {
+          "shape": "UUID"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "jobId",
+        "caseId"
+      ],
+      "type": "structure"
+    },
+    "ResolveSupportCaseResponse": {
+      "members": {},
+      "type": "structure"
+    },
+    "ResourceArn": {
+      "pattern": "arn:aws[a-zA-Z-]*:[a-zA-Z0-9-]+:[a-zA-Z0-9-]*:[0-9]{12}:[a-zA-Z0-9-_/:.]+",
+      "type": "string"
+    },
+    "ResourceNotFoundException": {
+      "documentation": "<p>Returns HTTP status code 404</p>",
+      "exception": true,
+      "members": {
+        "message": {
+          "shape": "String"
+        }
+      },
+      "type": "structure"
+    },
+    "ResourcesOnScreen": {
+      "members": {
+        "workspace": {
+          "shape": "WorkspaceMetadata"
+        }
+      },
+      "type": "structure"
+    },
+    "RevokeSessionRequest": {
+      "members": {},
+      "type": "structure"
+    },
+    "RevokeSessionResponse": {
+      "members": {
+        "ssoRedirectUri": {
+          "shape": "Uri"
+        }
+      },
+      "required": [
+        "ssoRedirectUri"
+      ],
+      "type": "structure"
+    },
+    "RevokeUserBackgroundSessionRequest": {
+      "members": {
+        "jobId": {
+          "documentation": "<p>The job identifier</p>",
+          "shape": "UUID"
+        },
+        "workspaceId": {
+          "documentation": "<p>The workspace identifier</p>",
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "jobId"
+      ],
+      "type": "structure"
+    },
+    "RevokeUserBackgroundSessionResponse": {
+      "members": {},
+      "type": "structure"
+    },
+    "Role": {
+      "members": {
+        "name": {
+          "shape": "RoleName"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "structure"
+    },
+    "RoleList": {
+      "member": {
+        "shape": "Role"
+      },
+      "type": "list"
+    },
+    "RoleName": {
+      "enum": [
+        "ADMIN",
+        "APPROVER",
+        "CONTRIBUTOR",
+        "READ_ONLY",
+        "PARTNER"
+      ],
+      "type": "string"
+    },
+    "RunErrorEvent": {
+      "event": true,
+      "members": {
+        "code": {
+          "shape": "RunErrorEventCodeString"
+        },
+        "message": {
+          "shape": "RunErrorEventMessageString"
+        }
+      },
+      "required": [
+        "message",
+        "code"
+      ],
+      "sensitive": true,
+      "type": "structure"
+    },
+    "RunErrorEventCodeString": {
+      "max": 256,
+      "min": 1,
+      "type": "string"
+    },
+    "RunErrorEventMessageString": {
+      "max": 8000,
+      "min": 1,
+      "type": "string"
+    },
+    "RunFinishedEvent": {
+      "documentation": "<p>Signals end of turn \u2014 no more events will be emitted for this request</p>",
+      "event": true,
+      "members": {},
+      "type": "structure"
+    },
+    "S3Url": {
+      "max": 2000,
+      "min": 0,
+      "pattern": "((https://([^/]+)\\.s3((-|\\.)[^/]+)?\\.amazonaws\\.com(.cn)?)|(s3://([^/]+)))/\\S{1,2000}",
+      "sensitive": true,
+      "type": "string"
+    },
+    "SchemaType": {
+      "max": 100,
+      "min": 0,
+      "type": "string"
+    },
+    "SearchUsersRequest": {
+      "members": {
+        "maxResults": {
+          "shape": "SearchUsersRequestMaxResultsInteger"
+        },
+        "nextToken": {
+          "shape": "PaginationToken"
+        },
+        "searchKey": {
+          "shape": "UserSearchKey"
+        },
+        "searchTerm": {
+          "shape": "UserSearchTerm"
+        }
+      },
+      "required": [
+        "searchTerm",
+        "searchKey"
+      ],
+      "type": "structure"
+    },
+    "SearchUsersRequestMaxResultsInteger": {
+      "box": true,
+      "max": 100,
+      "min": 1,
+      "type": "integer"
+    },
+    "SearchUsersResponse": {
+      "members": {
+        "nextToken": {
+          "shape": "PaginationToken"
+        },
+        "users": {
+          "shape": "UserDetailsList"
+        }
+      },
+      "required": [
+        "users"
+      ],
+      "type": "structure"
+    },
+    "SearchUsersTypeaheadRequest": {
+      "members": {
+        "searchKey": {
+          "shape": "TypeaheadUserSearchKey"
+        },
+        "searchTerm": {
+          "shape": "UserSearchTerm"
+        }
+      },
+      "required": [
+        "searchTerm",
+        "searchKey"
+      ],
+      "type": "structure"
+    },
+    "SearchUsersTypeaheadResponse": {
+      "members": {
+        "users": {
+          "shape": "UserDetailsList"
+        }
+      },
+      "required": [
+        "users"
+      ],
+      "type": "structure"
+    },
+    "SelectInteractionData": {
+      "members": {
+        "options": {
+          "shape": "Options"
+        }
+      },
+      "type": "structure"
+    },
+    "SendMessageOutputStream": {
+      "eventstream": true,
+      "members": {
+        "customEvent": {
+          "documentation": "<p>Custom events for extensibility \u2014 see https://docs.ag-ui.com/concepts/events</p>",
+          "shape": "CustomEvent"
+        },
+        "runErrorEvent": {
+          "documentation": "<p>Indicates an error occurred during stream processing</p>",
+          "shape": "RunErrorEvent"
+        },
+        "runFinishedEvent": {
+          "documentation": "<p>Indicates the stream has completed successfully \u2014 signals end of turn</p>",
+          "shape": "RunFinishedEvent"
+        },
+        "textMessageContentEvent": {
+          "documentation": "<p>Progressive text content tokens for the assistant's response</p>",
+          "shape": "TextMessageContentEvent"
+        },
+        "textMessageStartEvent": {
+          "documentation": "<p>Signals the start of a new assistant text message</p>",
+          "shape": "TextMessageStartEvent"
+        },
+        "toolCallEndEvent": {
+          "documentation": "<p>Signals the completion of a tool call</p>",
+          "shape": "ToolCallEndEvent"
+        },
+        "toolCallStartEvent": {
+          "documentation": "<p>Signals the start of a tool call</p>",
+          "shape": "ToolCallStartEvent"
+        }
+      },
+      "type": "structure"
+    },
+    "SendMessageRequest": {
+      "members": {
+        "attachments": {
+          "shape": "Attachments"
+        },
+        "idempotencyToken": {
+          "idempotencyToken": true,
+          "shape": "UUID"
+        },
+        "interactionResults": {
+          "shape": "InteractionResults"
+        },
+        "interactions": {
+          "shape": "Interactions"
+        },
+        "metadata": {
+          "shape": "Metadata"
+        },
+        "text": {
+          "shape": "SendMessageRequestTextString"
+        }
+      },
+      "type": "structure"
+    },
+    "SendMessageRequestTextString": {
+      "max": 7000,
+      "min": 1,
+      "sensitive": true,
+      "type": "string"
+    },
+    "SendMessageResponse": {
+      "members": {
+        "message": {
+          "documentation": "<p>The message object corresponding to the message that was sent by the caller.</p>",
+          "shape": "Message"
+        }
+      },
+      "type": "structure"
+    },
+    "SendMessageStreamingRequest": {
+      "members": {
+        "attachments": {
+          "shape": "Attachments"
+        },
+        "idempotencyToken": {
+          "idempotencyToken": true,
+          "shape": "UUID"
+        },
+        "interactionResults": {
+          "shape": "InteractionResults"
+        },
+        "metadata": {
+          "shape": "Metadata"
+        },
+        "text": {
+          "shape": "SendMessageStreamingRequestTextString"
+        }
+      },
+      "type": "structure"
+    },
+    "SendMessageStreamingRequestTextString": {
+      "max": 7000,
+      "min": 1,
+      "sensitive": true,
+      "type": "string"
+    },
+    "SendMessageStreamingResponse": {
+      "members": {
+        "outputStream": {
+          "shape": "SendMessageOutputStream"
+        }
+      },
+      "required": [
+        "outputStream"
+      ],
+      "type": "structure"
+    },
+    "Severity": {
+      "enum": [
+        "STANDARD",
+        "CRITICAL"
+      ],
+      "type": "string"
+    },
+    "Sha256Checksum": {
+      "max": 64,
+      "min": 1,
+      "pattern": "(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{4}|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}={2})",
+      "type": "string"
+    },
+    "SourceAttribution": {
+      "members": {
+        "title": {
+          "documentation": "<p>Source title</p>",
+          "shape": "SourceAttributionTitleString"
+        },
+        "url": {
+          "documentation": "<p>Source URL</p>",
+          "shape": "Uri"
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "type": "structure"
+    },
+    "SourceAttributionList": {
+      "member": {
+        "shape": "SourceAttribution"
+      },
+      "type": "list"
+    },
+    "SourceAttributionTitleString": {
+      "max": 1024,
+      "min": 1,
+      "type": "string"
+    },
+    "StartJobRequest": {
+      "members": {
+        "idempotencyToken": {
+          "idempotencyToken": true,
+          "shape": "UUID"
+        },
+        "jobId": {
+          "shape": "UUID"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "jobId"
+      ],
+      "type": "structure"
+    },
+    "StartJobResponse": {
+      "members": {
+        "status": {
+          "shape": "JobStatus"
+        }
+      },
+      "type": "structure"
+    },
+    "State": {
+      "sensitive": true,
+      "type": "string"
+    },
+    "StatusDetails": {
+      "members": {
+        "failureReason": {
+          "shape": "JobFailureReason"
+        },
+        "status": {
+          "shape": "JobStatus"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "type": "structure"
+    },
+    "StepDescription": {
+      "max": 350,
+      "min": 1,
+      "type": "string"
+    },
+    "StepId": {
+      "max": 41,
+      "min": 1,
+      "pattern": "[a-zA-Z0-9-]+",
+      "type": "string"
+    },
+    "StepIdFilter": {
+      "members": {
+        "stepId": {
+          "shape": "String"
+        },
+        "timeFilter": {
+          "shape": "TimeFilter"
+        }
+      },
+      "required": [
+        "stepId"
+      ],
+      "type": "structure"
+    },
+    "StepName": {
+      "max": 100,
+      "min": 1,
+      "type": "string"
+    },
+    "StopJobRequest": {
+      "members": {
+        "idempotencyToken": {
+          "idempotencyToken": true,
+          "shape": "UUID"
+        },
+        "jobId": {
+          "shape": "UUID"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "jobId"
+      ],
+      "type": "structure"
+    },
+    "StopJobResponse": {
+      "members": {
+        "status": {
+          "shape": "JobStatus"
+        }
+      },
+      "type": "structure"
+    },
+    "String": {
+      "type": "string"
+    },
+    "StringMap": {
+      "key": {
+        "shape": "AttributeKey"
+      },
+      "max": 10,
+      "min": 0,
+      "type": "map",
+      "value": {
+        "shape": "AttributeValue"
+      }
+    },
+    "SubmitCriticalHitlTaskRequest": {
+      "members": {
+        "action": {
+          "shape": "Action"
+        },
+        "humanArtifact": {
+          "shape": "HitlTaskArtifact"
+        },
+        "idempotencyToken": {
+          "idempotencyToken": true,
+          "shape": "UUID"
+        },
+        "jobId": {
+          "shape": "UUID"
+        },
+        "taskId": {
+          "shape": "String"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "jobId",
+        "taskId",
+        "action"
+      ],
+      "type": "structure"
+    },
+    "SubmitCriticalHitlTaskResponse": {
+      "members": {
+        "status": {
+          "shape": "HitlTaskStatus"
+        }
+      },
+      "type": "structure"
+    },
+    "SubmitStandardHitlTaskRequest": {
+      "members": {
+        "action": {
+          "shape": "Action"
+        },
+        "humanArtifact": {
+          "shape": "HitlTaskArtifact"
+        },
+        "idempotencyToken": {
+          "idempotencyToken": true,
+          "shape": "UUID"
+        },
+        "jobId": {
+          "shape": "UUID"
+        },
+        "taskId": {
+          "shape": "String"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "jobId",
+        "taskId",
+        "action"
+      ],
+      "type": "structure"
+    },
+    "SubmitStandardHitlTaskResponse": {
+      "members": {
+        "status": {
+          "shape": "HitlTaskStatus"
+        }
+      },
+      "type": "structure"
+    },
+    "SuccessfulUserDetails": {
+      "member": {
+        "shape": "UserDetails"
+      },
+      "type": "list"
+    },
+    "Suggestion": {
+      "members": {
+        "category": {
+          "shape": "SuggestionCategoryString"
+        },
+        "label": {
+          "shape": "SuggestionLabelString"
+        },
+        "value": {
+          "shape": "SuggestionValueString"
+        }
+      },
+      "required": [
+        "label",
+        "value"
+      ],
+      "type": "structure"
+    },
+    "SuggestionCategoryString": {
+      "max": 50,
+      "min": 1,
+      "type": "string"
+    },
+    "SuggestionLabelString": {
+      "max": 50,
+      "min": 1,
+      "type": "string"
+    },
+    "SuggestionList": {
+      "member": {
+        "shape": "Suggestion"
+      },
+      "type": "list"
+    },
+    "SuggestionMetadata": {
+      "members": {
+        "artifactId": {
+          "shape": "ArtifactIdentifier"
+        },
+        "connectorId": {
+          "shape": "UUID"
+        },
+        "jobId": {
+          "shape": "UUID"
+        },
+        "stepId": {
+          "shape": "StepId"
+        },
+        "taskId": {
+          "shape": "UUID"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "type": "structure"
+    },
+    "SuggestionResource": {
+      "enum": [
+        "WORKSPACE",
+        "JOB",
+        "ARTIFACT",
+        "TASK",
+        "STEP",
+        "CONNECTOR",
+        "APPROVAL",
+        "COLLABORATOR",
+        "WORKLOG"
+      ],
+      "type": "string"
+    },
+    "SuggestionValueString": {
+      "max": 200,
+      "min": 1,
+      "type": "string"
+    },
+    "SummaryConfiguration": {
+      "documentation": "<p>Inputs parameters for summary dashboard</p>",
+      "members": {
+        "campaignContext": {
+          "documentation": "<p>Context for campaign-specific dashboard summary</p>",
+          "shape": "CampaignContext"
+        },
+        "jobTypeContext": {
+          "documentation": "<p>Context for job-type dashboard summary</p>",
+          "shape": "JobTypeContext"
+        },
+        "scope": {
+          "documentation": "<p>Resource scope for the dashboard</p>",
+          "shape": "DashboardScope"
+        }
+      },
+      "type": "structure"
+    },
+    "SupportCaseCategoryCode": {
+      "max": 100,
+      "min": 1,
+      "type": "string"
+    },
+    "SupportCaseCommunicationBody": {
+      "max": 8000,
+      "min": 1,
+      "type": "string"
+    },
+    "SupportCaseId": {
+      "max": 255,
+      "min": 1,
+      "type": "string"
+    },
+    "SupportCaseServiceCode": {
+      "max": 100,
+      "min": 1,
+      "type": "string"
+    },
+    "SupportCaseSeverityCode": {
+      "type": "string"
+    },
+    "SupportCaseSubject": {
+      "max": 255,
+      "min": 1,
+      "type": "string"
+    },
+    "Tag": {
+      "max": 100,
+      "min": 1,
+      "type": "string"
+    },
+    "Target": {
+      "enum": [
+        "JOB",
+        "JOB_OBJECTIVE",
+        "AGENT"
+      ],
+      "type": "string"
+    },
+    "TenantId": {
+      "max": 17,
+      "min": 1,
+      "pattern": "[0-9a-z]+",
+      "type": "string"
+    },
+    "TestReleaseTraitPreProdRequest": {
+      "members": {},
+      "type": "structure"
+    },
+    "TestReleaseTraitPreProdResponse": {
+      "members": {},
+      "type": "structure"
+    },
+    "TestReleaseTraitProdRequest": {
+      "members": {},
+      "type": "structure"
+    },
+    "TestReleaseTraitProdResponse": {
+      "members": {},
+      "type": "structure"
+    },
+    "TextMessageContentEvent": {
+      "event": true,
+      "members": {
+        "delta": {
+          "shape": "MessageText"
+        },
+        "messageId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "messageId",
+        "delta"
+      ],
+      "type": "structure"
+    },
+    "TextMessageStartEvent": {
+      "event": true,
+      "members": {
+        "messageId": {
+          "shape": "UUID"
+        },
+        "role": {
+          "shape": "TextMessageStartEventRoleString"
+        }
+      },
+      "required": [
+        "messageId",
+        "role"
+      ],
+      "type": "structure"
+    },
+    "TextMessageStartEventRoleString": {
+      "max": 256,
+      "min": 1,
+      "type": "string"
+    },
+    "TextResponse": {
+      "max": 1000,
+      "min": 1,
+      "pattern": "[\\x20-\\x7E\\t\\r\\n]*",
+      "sensitive": true,
+      "type": "string"
+    },
+    "ThinkingTextMessageContentEvent": {
+      "members": {
+        "delta": {
+          "shape": "MessageText"
+        },
+        "messageId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "messageId",
+        "delta"
+      ],
+      "type": "structure"
+    },
+    "ThrottlingException": {
+      "documentation": "<p>Returns HTTP status code 429</p>",
+      "exception": true,
+      "members": {
+        "message": {
+          "shape": "String"
+        }
+      },
+      "type": "structure"
+    },
+    "TimeFilter": {
+      "members": {
+        "endTime": {
+          "shape": "Timestamp"
+        },
+        "startTime": {
+          "shape": "Timestamp"
+        }
+      },
+      "type": "structure"
+    },
+    "Timestamp": {
+      "type": "timestamp"
+    },
+    "Title": {
+      "max": 1024,
+      "min": 1,
+      "type": "string"
+    },
+    "ToolCallEndEvent": {
+      "event": true,
+      "members": {
+        "toolCallId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "toolCallId"
+      ],
+      "type": "structure"
+    },
+    "ToolCallStartEvent": {
+      "event": true,
+      "members": {
+        "parentMessageId": {
+          "shape": "UUID"
+        },
+        "toolCallId": {
+          "shape": "UUID"
+        },
+        "toolCallName": {
+          "shape": "ToolCallStartEventToolCallNameString"
+        }
+      },
+      "required": [
+        "toolCallId",
+        "toolCallName"
+      ],
+      "type": "structure"
+    },
+    "ToolCallStartEventToolCallNameString": {
+      "max": 256,
+      "min": 1,
+      "type": "string"
+    },
+    "TypeaheadUserSearchKey": {
+      "enum": [
+        "USERNAME_OR_EMAIL_ADDRESS"
+      ],
+      "type": "string"
+    },
+    "UUID": {
+      "pattern": "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+      "type": "string"
+    },
+    "UpdateHitlTaskRequest": {
+      "members": {
+        "humanArtifact": {
+          "shape": "HitlTaskArtifact"
+        },
+        "idempotencyToken": {
+          "idempotencyToken": true,
+          "shape": "UUID"
+        },
+        "jobId": {
+          "shape": "UUID"
+        },
+        "postUpdateAction": {
+          "shape": "PostUpdateAction"
+        },
+        "taskId": {
+          "shape": "String"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "jobId",
+        "taskId"
+      ],
+      "type": "structure"
+    },
+    "UpdateHitlTaskResponse": {
+      "members": {
+        "status": {
+          "shape": "HitlTaskStatus"
+        }
+      },
+      "type": "structure"
+    },
+    "UpdateJobRequest": {
+      "members": {
+        "idempotencyToken": {
+          "idempotencyToken": true,
+          "shape": "UUID"
+        },
+        "jobId": {
+          "shape": "UUID"
+        },
+        "jobName": {
+          "shape": "JobName"
+        },
+        "objective": {
+          "shape": "JobObjective"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "jobId"
+      ],
+      "type": "structure"
+    },
+    "UpdateJobResponse": {
+      "members": {},
+      "type": "structure"
+    },
+    "UpdatePlanRequest": {
+      "members": {
+        "approverUserIds": {
+          "shape": "UserIdList"
+        },
+        "expectedPlanArtifact": {
+          "documentation": "<p>Optimistic concurrency check. Must match the plan's current planArtifact. Null when attaching artifact to a newly created plan (planArtifact is null).</p>",
+          "shape": "PlanArtifact"
+        },
+        "name": {
+          "shape": "PlanName"
+        },
+        "newPlanArtifact": {
+          "shape": "PlanArtifact"
+        },
+        "planId": {
+          "shape": "UUID"
+        },
+        "targetStatus": {
+          "shape": "PlanStatus"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "planId"
+      ],
+      "type": "structure"
+    },
+    "UpdatePlanResponse": {
+      "members": {
+        "plan": {
+          "shape": "PlanMetadata"
+        }
+      },
+      "required": [
+        "plan"
+      ],
+      "type": "structure"
+    },
+    "UpdateWorkspaceRequest": {
+      "members": {
+        "description": {
+          "shape": "WorkspaceDescriptionString"
+        },
+        "id": {
+          "shape": "UUID"
+        },
+        "idempotencyToken": {
+          "idempotencyToken": true,
+          "shape": "UUID"
+        },
+        "name": {
+          "shape": "WorkspaceNameString"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "structure"
+    },
+    "UpdateWorkspaceResponse": {
+      "members": {
+        "workspace": {
+          "shape": "Workspace"
+        }
+      },
+      "required": [
+        "workspace"
+      ],
+      "type": "structure"
+    },
+    "Uri": {
+      "pattern": "https?:\\/\\/(www\\.)?[-a-zA-Z0-9@:%._\\+~#=]{1,256}\\.[a-zA-Z0-9()]{1,6}\\b([-a-zA-Z0-9()@:%_\\+.~#?&//=]*)",
+      "type": "string"
+    },
+    "User": {
+      "members": {
+        "roles": {
+          "shape": "RoleList"
+        },
+        "userId": {
+          "shape": "UserId"
+        }
+      },
+      "required": [
+        "roles",
+        "userId"
+      ],
+      "type": "structure"
+    },
+    "UserDetails": {
+      "members": {
+        "displayName": {
+          "shape": "DisplayName"
+        },
+        "email": {
+          "shape": "Email"
+        },
+        "familyName": {
+          "shape": "FamilyName"
+        },
+        "givenName": {
+          "shape": "GivenName"
+        },
+        "nickName": {
+          "shape": "NickName"
+        },
+        "partnerInfo": {
+          "shape": "PartnerInfo"
+        },
+        "userId": {
+          "shape": "UserId"
+        },
+        "userName": {
+          "shape": "UserName"
+        }
+      },
+      "required": [
+        "userId"
+      ],
+      "type": "structure"
+    },
+    "UserDetailsList": {
+      "member": {
+        "shape": "UserDetails"
+      },
+      "type": "list"
+    },
+    "UserId": {
+      "documentation": "<p>Represents the UserId of the customer</p>",
+      "max": 126,
+      "min": 1,
+      "pattern": "[a-zA-Z0-9._:/-]+",
+      "type": "string"
+    },
+    "UserIdList": {
+      "max": 100,
+      "member": {
+        "shape": "UserId"
+      },
+      "min": 1,
+      "type": "list"
+    },
+    "UserList": {
+      "member": {
+        "shape": "User"
+      },
+      "type": "list"
+    },
+    "UserName": {
+      "max": 128,
+      "min": 1,
+      "pattern": "[\\p{L}\\p{M}\\p{S}\\p{N}\\p{P}]+",
+      "sensitive": true,
+      "type": "string"
+    },
+    "UserSearchKey": {
+      "enum": [
+        "USERNAME",
+        "EMAIL_ADDRESS"
+      ],
+      "type": "string"
+    },
+    "UserSearchTerm": {
+      "max": 1024,
+      "min": 1,
+      "pattern": "[\\p{L}\\p{M}\\p{S}\\p{N}\\p{P}\\t\\n\\r  \u3000]+",
+      "sensitive": true,
+      "type": "string"
+    },
+    "UxComponentId": {
+      "max": 64,
+      "min": 1,
+      "pattern": "[a-zA-Z0-9-]+",
+      "type": "string"
+    },
+    "ValidationException": {
+      "documentation": "<p>Returns HTTP status code 400</p>",
+      "exception": true,
+      "members": {
+        "message": {
+          "shape": "String"
+        }
+      },
+      "type": "structure"
+    },
+    "VerifySessionRequest": {
+      "members": {},
+      "type": "structure"
+    },
+    "VerifySessionResponse": {
+      "members": {
+        "userId": {
+          "shape": "UserId"
+        }
+      },
+      "required": [
+        "userId"
+      ],
+      "type": "structure"
+    },
+    "Worklog": {
+      "members": {
+        "attributeMap": {
+          "shape": "StringMap"
+        },
+        "description": {
+          "shape": "WorklogDescription"
+        },
+        "jobMetadata": {
+          "shape": "JobMetadata"
+        },
+        "timestamp": {
+          "shape": "Timestamp"
+        },
+        "worklogType": {
+          "shape": "WorklogType"
+        }
+      },
+      "required": [
+        "jobMetadata",
+        "timestamp",
+        "worklogType"
+      ],
+      "type": "structure"
+    },
+    "WorklogDescription": {
+      "max": 250,
+      "min": 1,
+      "type": "string"
+    },
+    "WorklogFilter": {
+      "members": {
+        "stepIdFilter": {
+          "shape": "StepIdFilter"
+        },
+        "timeFilter": {
+          "shape": "TimeFilter"
+        }
+      },
+      "type": "structure",
+      "union": true
+    },
+    "WorklogList": {
+      "member": {
+        "shape": "Worklog"
+      },
+      "type": "list"
+    },
+    "WorklogType": {
+      "enum": [
+        "JOB_MANAGER",
+        "AGENT",
+        "HITL"
+      ],
+      "type": "string"
+    },
+    "Workspace": {
+      "members": {
+        "accountId": {
+          "shape": "AccountId"
+        },
+        "description": {
+          "shape": "WorkspaceDescriptionString"
+        },
+        "id": {
+          "shape": "UUID"
+        },
+        "name": {
+          "shape": "WorkspaceNameString"
+        },
+        "region": {
+          "shape": "RegionString"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "region",
+        "accountId"
+      ],
+      "type": "structure"
+    },
+    "WorkspaceDescriptionString": {
+      "max": 512,
+      "min": 0,
+      "pattern": "[a-zA-Z0-9]+(?:[-_a-zA-Z0-9.,;:/\\+=?&$%'    ])*",
+      "sensitive": true,
+      "type": "string"
+    },
+    "WorkspaceList": {
+      "member": {
+        "shape": "Workspace"
+      },
+      "type": "list"
+    },
+    "WorkspaceMetadata": {
+      "members": {
+        "connectors": {
+          "shape": "ChatConnectors"
+        },
+        "jobs": {
+          "shape": "ChatJobs"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "type": "structure"
+    },
+    "WorkspaceNameString": {
+      "max": 63,
+      "min": 3,
+      "pattern": "[a-zA-Z0-9]+(?:[-_\\.][a-zA-Z0-9]+)*",
+      "sensitive": true,
+      "type": "string"
+    }
+  },
+  "version": "2.0"
+}

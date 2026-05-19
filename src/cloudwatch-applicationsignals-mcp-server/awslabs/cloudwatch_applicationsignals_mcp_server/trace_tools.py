@@ -16,6 +16,7 @@
 
 import asyncio
 import json
+import re
 from .aws_clients import applicationsignals_client, logs_client, xray_client
 from .sli_report_client import AWSConfig, SLIReportClient
 from .utils import remove_null_values
@@ -24,6 +25,55 @@ from loguru import logger
 from pydantic import Field
 from time import perf_counter as timer
 from typing import Dict, Optional
+
+
+OTEL_TRACE_DATA_FORMAT = 'AWS-OTEL-TRACE-V1'
+
+# Match @data_format only as a whole token, not as a prefix of e.g. @data_format_version.
+_DATA_FORMAT_PATTERN = re.compile(r'@data_format\b', re.IGNORECASE)
+
+_LOG_GROUP_IGNORED_REASON = (
+    'The query_string contained a SOURCE clause, so CloudWatch Logs Insights does '
+    "not accept a separate logGroupNames parameter. The user's SOURCE scope was used "
+    'instead. Remove log_group_name or the SOURCE clause to eliminate this ambiguity.'
+)
+
+
+def _user_query_has_source_clause(user_query: str) -> bool:
+    """Return True if the user's query begins with a SOURCE command token."""
+    first_token = user_query.lstrip().split(None, 1)[:1]
+    return bool(first_token) and first_token[0].lower() == 'source'
+
+
+def _compose_spans_query(user_query: str, log_group_name: str) -> str:
+    """Prepend SOURCE logGroups() and filterIndex @data_format clauses to a user query.
+
+    - If the user already started the query with a SOURCE command, the query is
+      returned untouched (the user has taken control of log-group scoping).
+    - If the user already references @data_format anywhere, the filterIndex clause
+      is not prepended (the user has taken control of the format filter). Note the
+      `@data_format` check is a substring/regex match, so a stray occurrence inside
+      a quoted string literal would also suppress injection — low-probability but
+      worth knowing.
+    - Otherwise, the SOURCE clause is prepended only when no explicit log group
+      was supplied — when one is supplied, StartQuery's logGroupNames parameter
+      scopes the query, so SOURCE is omitted.
+
+    Callers must ensure `user_query` is non-empty; empty queries produce invalid
+    CWL syntax and are rejected upstream at the tool entry point.
+    """
+    if _user_query_has_source_clause(user_query):
+        return user_query
+
+    parts = []
+    if not log_group_name:
+        parts.append('SOURCE logGroups()')
+    if not _DATA_FORMAT_PATTERN.search(user_query):
+        parts.append(f'filterIndex @data_format = "{OTEL_TRACE_DATA_FORMAT}"')
+    if user_query.strip():
+        parts.append(user_query)
+
+    return ' | '.join(parts)
 
 
 def get_trace_summaries_paginated(
@@ -118,7 +168,13 @@ def check_transaction_search_enabled(region: str = 'us-east-1') -> tuple[bool, s
 async def search_transaction_spans(
     log_group_name: str = Field(
         default='',
-        description='CloudWatch log group name (defaults to "aws/spans" if not provided)',
+        description=(
+            'Optional CloudWatch Logs log group name. If omitted, the query runs across '
+            'all log groups in the account (up to the CloudWatch Logs Insights cap, '
+            'currently 10,000) and is pruned via the default @data_format field index '
+            'to log groups carrying AWS-OTEL-TRACE-V1 spans. Supply a log group name '
+            'to avoid the account-wide scan when you already know where the spans live.'
+        ),
     ),
     start_time: str = Field(
         default='', description='Start time in ISO 8601 format (e.g., "2025-04-19T20:00:00+00:00")'
@@ -132,17 +188,28 @@ async def search_transaction_spans(
         default=30, description='Maximum time in seconds to wait for query completion'
     ),
 ) -> Dict:
-    """Executes a CloudWatch Logs Insights query for transaction search (100% sampled trace data).
+    """Executes a CloudWatch Logs Insights query against trace span records stored in CloudWatch Logs with the OpenTelemetry semantic-convention schema (@data_format = "AWS-OTEL-TRACE-V1").
 
-    IMPORTANT: If log_group_name is not provided use 'aws/spans' as default cloudwatch log group name.
-    The volume of returned logs can easily overwhelm the agent context window. Always include a limit in the query
-    (| limit 50) or using the limit parameter.
+    Scope: only log records tagged `@data_format = "AWS-OTEL-TRACE-V1"` will match,
+    so span records must follow the OpenTelemetry semantic-convention schema (e.g.
+    `attributes.aws.local.service`, `attributes.aws.remote.operation`). If your spans
+    are stored in some other shape or log group, pass an explicit `log_group_name`
+    and include your own filter in `query_string`.
+
+    The tool adds the `@data_format = "AWS-OTEL-TRACE-V1"` filter automatically, so
+    you do not need to include it in `query_string`. You can override by providing
+    your own `@data_format` reference, or take control of log-group scoping by
+    starting `query_string` with a `SOURCE logGroups(...)` clause. Don't combine
+    `log_group_name` with a user-supplied `SOURCE` — `log_group_name` is dropped
+    and `log_group_name_ignored: True` appears in the response.
+
+    The volume of returned logs can easily overwhelm the agent context window. Always
+    include a limit in the query (| limit 50) or via the limit parameter.
 
     Usage:
-    "aws/spans" log group stores OpenTelemetry Spans data with many attributes for all monitored services.
-    This provides 100% sampled data vs X-Ray's 5% sampling, giving more accurate results.
-    User can write CloudWatch Logs Insights queries to group, list attribute with sum, avg.
-    If source code is not accessible, consider querying with code-level attributes.
+    Write CloudWatch Logs Insights queries over OpenTelemetry span attributes
+    (filter, stats, sort, limit, etc.). If source code is not accessible, consider
+    querying with code-level attributes.
     ⚠️ Use CORRECT attribute names: attributes.code.file.path, attributes.code.function.name, attributes.code.line.number
 
     ```
@@ -154,17 +221,34 @@ async def search_transaction_spans(
     Returns:
     --------
         A dictionary containing the final query results, including:
-            - status: The current status of the query (e.g., Scheduled, Running, Complete, Failed, etc.)
+            - status: one of 'Scheduled', 'Running', 'Complete', 'Failed', 'Cancelled',
+              'Polling Timeout', 'Transaction Search Not Available', 'Invalid Input'.
+              'Invalid Input' is returned synchronously when query_string is empty or
+              whitespace-only.
             - results: A list of the actual query results if the status is Complete.
             - statistics: Query performance statistics
             - messages: Any informational messages about the query
             - transaction_search_status: Information about transaction search availability
+            - log_group_name_ignored (only when true): set when log_group_name was
+              supplied but dropped because query_string already contained a SOURCE
+              clause. Accompanied by log_group_name_ignored_reason.
     """
     start_time_perf = timer()
     logger.info(
         f'Starting search_transactions - log_group: {log_group_name}, start: {start_time}, end: {end_time}'
     )
     logger.debug(f'Query string: {query_string}')
+
+    if not query_string or not query_string.strip():
+        logger.warning('search_transaction_spans called with empty query_string')
+        return {
+            'status': 'Invalid Input',
+            'message': (
+                'query_string is required and must not be empty. Provide a CloudWatch '
+                'Logs Insights query (e.g., "fields @timestamp, attributes.aws.local.service '
+                '| limit 20").'
+            ),
+        }
 
     # Check if transaction search is enabled
     is_enabled, destination, status = check_transaction_search_enabled()
@@ -192,19 +276,25 @@ async def search_transaction_spans(
         }
 
     try:
-        # Use default log group if none provided
-        if not log_group_name:
-            log_group_name = 'aws/spans'
-            logger.debug('Using default log group: aws/spans')
+        final_query = _compose_spans_query(query_string, log_group_name)
+        logger.debug(f'Composed Logs Insights query: {final_query}')
 
-        # Start query
-        kwargs = {
+        kwargs: Dict = {
             'startTime': int(datetime.fromisoformat(start_time).timestamp()),
             'endTime': int(datetime.fromisoformat(end_time).timestamp()),
-            'queryString': query_string,
-            'logGroupNames': [log_group_name],
+            'queryString': final_query,
             'limit': limit,
         }
+        # StartQuery rejects logGroupNames when queryString already contains a
+        # SOURCE clause, so let the user's SOURCE win in that case.
+        log_group_name_ignored = False
+        if log_group_name and not _user_query_has_source_clause(query_string):
+            kwargs['logGroupNames'] = [log_group_name]
+        elif log_group_name:
+            log_group_name_ignored = True
+            logger.warning(
+                'log_group_name is ignored because query_string already specifies a SOURCE clause'
+            )
 
         logger.debug(f'Starting CloudWatch Logs query with limit: {limit}')
         start_response = logs_client.start_query(**remove_null_values(kwargs))
@@ -296,7 +386,7 @@ async def search_transaction_spans(
                         f'Code-level attributes detected - attributes: {", ".join(sorted(detected_attributes))}'
                     )
 
-                return {
+                result: Dict = {
                     'queryId': query_id,
                     'status': status,
                     'statistics': response.get('statistics', {}),
@@ -305,21 +395,28 @@ async def search_transaction_spans(
                         'enabled': True,
                         'destination': 'CloudWatchLogs',
                         'status': 'ACTIVE',
-                        'message': '✅ Using 100% sampled trace data from Transaction Search',
                     },
                     'code_level_attributes_status': code_level_status,
                 }
+                if log_group_name_ignored:
+                    result['log_group_name_ignored'] = True
+                    result['log_group_name_ignored_reason'] = _LOG_GROUP_IGNORED_REASON
+                return result
 
             await asyncio.sleep(1)
 
         elapsed_time = timer() - start_time_perf
         msg = f'Query {query_id} did not complete within {max_timeout} seconds. Use get_query_results with the returned queryId to try again to retrieve query results.'
         logger.warning(f'Query timeout after {elapsed_time:.3f}s: {msg}')
-        return {
+        timeout_result: Dict = {
             'queryId': query_id,
             'status': 'Polling Timeout',
             'message': msg,
         }
+        if log_group_name_ignored:
+            timeout_result['log_group_name_ignored'] = True
+            timeout_result['log_group_name_ignored_reason'] = _LOG_GROUP_IGNORED_REASON
+        return timeout_result
 
     except Exception as e:
         logger.error(f'Error in search_transactions: {str(e)}', exc_info=True)

@@ -29,6 +29,7 @@ if __name__ == '__main__':
     if parent_dir not in sys.path:
         sys.path.insert(0, parent_dir)
 
+import mcp.types as mcp_types
 from awslabs.billing_cost_management_mcp_server.tools.aws_pricing_tools import aws_pricing_server
 from awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools import (
     bcm_pricing_calculator_server,
@@ -73,10 +74,49 @@ from awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools import 
 from awslabs.billing_cost_management_mcp_server.tools.unified_sql_tools import unified_sql_server
 from awslabs.billing_cost_management_mcp_server.utilities.logging_utils import get_logger
 from fastmcp import FastMCP
+from fastmcp.server.middleware import Middleware
+from fastmcp.tools.tool import ToolResult
 
 
 # Configure logger for server
 logger = get_logger(__name__)
+
+
+class _ErrorToolResult(ToolResult):
+    """A ToolResult that serializes to a CallToolResult with isError=True."""
+
+    def to_mcp_result(self):
+        return mcp_types.CallToolResult(
+            content=self.content,
+            structuredContent=self.structured_content,
+            isError=True,
+            _meta=self.meta,
+        )
+
+
+class ErrorSignalingMiddleware(Middleware):
+    """Middleware that sets isError=True when a tool returns an error response.
+
+    Per the MCP spec, tools should signal errors via isError on CallToolResult.
+    This middleware intercepts tool results that contain status='error' in their
+    response body and returns a result with isError=True, preserving the original
+    content and structuredContent for backward compatibility.
+    """
+
+    async def on_call_tool(self, context, call_next):
+        """Intercept tool results and set isError for error responses."""
+        result = await call_next(context)
+        if (
+            isinstance(result, ToolResult)
+            and isinstance(result.structured_content, dict)
+            and result.structured_content.get('status') == 'error'
+        ):
+            return _ErrorToolResult(
+                content=result.content,
+                structured_content=result.structured_content,
+                meta=result.meta,
+            )
+        return result
 
 
 # Main MCP server instance
@@ -135,6 +175,9 @@ For multi-account environments:
 - Specify accountIds parameter for compute-optimizer and cost-optimization tools
 """,
 )
+
+# Register middleware to signal errors via isError per MCP spec
+mcp.add_middleware(ErrorSignalingMiddleware())
 
 
 async def register_prompts():

@@ -113,6 +113,7 @@ def get_user_agent_extra() -> str:
     user_agent_extra += f' cfg/ro#{"1" if READ_OPERATIONS_ONLY_MODE else "0"}'
     user_agent_extra += f' cfg/consent#{"1" if REQUIRE_MUTATION_CONSENT else "0"}'
     user_agent_extra += f' cfg/scripts#{"1" if ENABLE_AGENT_SCRIPTS else "0"}'
+    user_agent_extra += f' cfg/file-access#{FILE_ACCESS_MODE.value}'
     return user_agent_extra
 
 

@@ -139,6 +139,15 @@ class K8sHandler:
             ApplyYamlResponse with operation result
         """
         try:
+            # Check if write access is disabled
+            if not self.allow_write:
+                error_msg = 'Operation apply_yaml is not allowed without write access'
+                log_with_request_id(ctx, LogLevel.ERROR, error_msg)
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type='text', text=error_msg)],
+                )
+
             # Validate that the path is absolute
             if not os.path.isabs(yaml_path):
                 error_msg = f'Path must be absolute: {yaml_path}'

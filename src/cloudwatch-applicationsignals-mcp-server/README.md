@@ -200,7 +200,7 @@ IaC code: [ABSOLUTE_PATH_TO_IAC]"
 **Query OpenTelemetry Spans data via Transaction Search (100% sampled data)**
 
 - **100% sampled data** vs X-Ray's 5% sampling for more accurate results
-- Query "aws/spans" log group with CloudWatch Logs Insights
+- Queries OpenTelemetry spans across all log groups using the CloudWatch Logs `@data_format = "AWS-OTEL-TRACE-V1"` default field index; pass `log_group_name` to scope to a single log group
 - Generate business performance insights and summaries
 - **IMPORTANT**: Always include a limit in queries to prevent overwhelming context
 
@@ -381,6 +381,50 @@ This tool provides access to AWS Application Signals' change detection capabilit
 - Displays source keys (AWS tags, OTEL attributes)
 - Shows default values for each grouping attribute
 - Useful for understanding available groups
+
+### 🌐 CloudWatch RUM Tools
+
+Monitor real user experience across web and mobile applications using CloudWatch RUM data.
+
+> **Prerequisite:** Most RUM analytics actions require CloudWatch Logs to be enabled on the app monitor (`CwLogEnabled=true`). Use `check_data_access` to verify your setup.
+
+All RUM functionality is exposed through a single **`query_rum_events`** tool with an `action` parameter:
+
+```
+query_rum_events(action="<action_name>", app_monitor_name="my-app", ...)
+```
+
+#### Actions Reference
+
+| Action | Description | Required Params |
+|--------|-------------|-----------------|
+| **Discovery** | | |
+| `check_data_access` | Inspect app monitor config, find issues | `app_monitor_name` |
+| `list_monitors` | List all app monitors | *(none)* |
+| `get_monitor` | Get full app monitor config | `app_monitor_name` |
+| `list_tags` | List tags on an app monitor | `resource_arn` |
+| `get_policy` | Get resource-based policy | `app_monitor_name` |
+| **Analytics** *(require CW Logs)* | | |
+| `query` | Run custom Logs Insights query | `app_monitor_name`, `query_string`, `start_time`, `end_time` |
+| `health` | Quick health audit (errors, slow pages, sessions) | `app_monitor_name`, `start_time`, `end_time` |
+| `errors` | JS/HTTP errors by message and page | `app_monitor_name`, `start_time`, `end_time` |
+| `performance` | Page load + Core Web Vitals with good/needs-improvement/poor assessment | `app_monitor_name`, `start_time`, `end_time` |
+| `sessions` | Recent sessions with browser/OS/device | `app_monitor_name`, `start_time`, `end_time` |
+| `session_detail` | Full event timeline for a single session | `app_monitor_name`, `session_id`, `start_time`, `end_time` |
+| `page_views` | Top pages by view count | `app_monitor_name`, `start_time`, `end_time` |
+| `timeseries` | Time-bucketed trends (errors, performance, sessions) | `app_monitor_name`, `start_time`, `end_time` |
+| `locations` | Sessions and performance by country | `app_monitor_name`, `start_time`, `end_time` |
+| `http_requests` | Top HTTP requests with latency and error rates | `app_monitor_name`, `start_time`, `end_time` |
+| `resources` | Top resource requests by duration and size | `app_monitor_name`, `start_time`, `end_time` |
+| `page_flows` | Page-to-page navigation flows | `app_monitor_name`, `start_time`, `end_time` |
+| `crashes` | Mobile crashes + ANRs (Android validated, iOS experimental) | `app_monitor_name`, `start_time`, `end_time` |
+| `app_launches` | Mobile cold/warm/pre-warm launch times | `app_monitor_name`, `start_time`, `end_time` |
+| `analyze` | Anomaly detection + message patterns | `app_monitor_name`, `start_time`, `end_time` |
+| **Correlation & Metrics** | | |
+| `correlate` | Frontend-to-backend X-Ray trace correlation | `app_monitor_name`, `page_url`, `start_time`, `end_time` |
+| `metrics` | CloudWatch RUM namespace metrics | `app_monitor_name`, `metric_names` (JSON array), `start_time`, `end_time` |
+
+**Optional parameters** (action-dependent): `resource_arn`, `page_url`, `group_by`, `platform`, `max_results`, `max_traces`, `statistic`, `period`, `session_id`, `metric`, `bucket`, `compare_previous`
 
 ## Installation
 
@@ -652,7 +696,6 @@ Assistant: I'll use Transaction Search to analyze all errors with 100% trace vis
 [Uses search_transaction_spans for complete trace data]
 
 search_transaction_spans(
-  log_group_name="aws/spans",
   query_string='FILTER attributes.aws.local.service = "checkout-service" and attributes.http.status_code >= 400 | STATS count() as error_count by attributes.http.status_code, attributes.aws.local.operation | SORT error_count DESC | LIMIT 20',
   start_time="2024-01-15T10:00:00Z",
   end_time="2024-01-15T11:00:00Z"
@@ -681,6 +724,8 @@ ERROR BREAKDOWN (Last Hour):
 2. Add validation for checkout ID existence (404s)
 3. Implement circuit breaker for payment service calls (503s)
 ```
+
+`log_group_name` is optional. When omitted, the tool prepends `SOURCE logGroups() | filterIndex @data_format = "AWS-OTEL-TRACE-V1"` so it finds OTEL spans wherever they live. Pass `log_group_name="my-spans-lg"` to scope to a single log group.
 
 ### Example 5: Service Discovery and Overview
 ```
@@ -869,6 +914,28 @@ For detailed change history of specific problematic services, I can investigate 
 Would you like me to investigate the change history for any specific service in detail?
 ```
 
+### Example 9: CloudWatch RUM — Real User Monitoring
+```
+User: "Are my users experiencing issues on the checkout page?"
+Assistant: I'll check your RUM data for user-facing issues on the checkout page.
+
+[Step 1: Verify the app monitor is configured correctly]
+query_rum_events(action="check_data_access", app_monitor_name="my-web-app")
+→ CW Logs enabled, X-Ray enabled, all telemetries active. Full analytics available.
+
+[Step 2: Quick health check]
+query_rum_events(action="health", app_monitor_name="my-web-app", start_time="2026-03-18T00:00:00Z", end_time="2026-03-19T00:00:00Z")
+→ Error rate is 3x higher than normal, concentrated on /checkout page, mostly Chrome users in Germany.
+
+[Step 3: Get error details]
+query_rum_events(action="errors", app_monitor_name="my-web-app", start_time="...", end_time="...", page_url="/checkout")
+→ Top error: "TypeError: Cannot read property 'total' of undefined" — 847 occurrences.
+
+[Step 4: Is it frontend or backend?]
+query_rum_events(action="correlate", app_monitor_name="my-web-app", page_url="/checkout", start_time="...", end_time="...")
+→ Backend payment-service is returning 500 errors with avg 5.2s response time. Root cause is in the backend.
+```
+
 ## Recommended Workflows
 
 ### 🎯 Primary Audit Workflow (Most Common)
@@ -937,6 +1004,13 @@ The server requires the following AWS IAM permissions:
         "synthetics:GetCanary",
         "synthetics:GetCanaryRuns",
         "synthetics:DescribeCanaries",
+        "rum:GetAppMonitor",
+        "rum:ListAppMonitors",
+        "rum:ListTagsForResource",
+        "rum:GetResourcePolicy",
+        "logs:DescribeLogGroups",
+        "logs:ListLogAnomalyDetectors",
+        "logs:ListAnomalies",
         "s3:GetObject",
         "s3:ListBucket",
         "iam:GetRole",
@@ -956,6 +1030,7 @@ The server requires the following AWS IAM permissions:
 - `AWS_REGION` - AWS region (defaults to us-east-1)
 - `MCP_CLOUDWATCH_APPLICATION_SIGNALS_LOG_LEVEL` - Logging level (defaults to INFO)
 - `AUDITOR_LOG_PATH` - Path for audit log files (defaults to /tmp)
+- `MCP_RUM_ENDPOINT` - Override RUM API endpoint URL (for testing against non-production environments)
 
 ### AWS Credentials
 

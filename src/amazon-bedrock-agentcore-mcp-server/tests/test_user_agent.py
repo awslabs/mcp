@@ -14,10 +14,14 @@
 
 """Unit tests for shared user-agent utility."""
 
+import importlib
+from awslabs.amazon_bedrock_agentcore_mcp_server.utils import user_agent as ua
 from awslabs.amazon_bedrock_agentcore_mcp_server.utils.user_agent import (
     MCP_SERVER_VERSION,
     build_user_agent,
 )
+from importlib.metadata import PackageNotFoundError
+from unittest.mock import patch
 
 
 class TestBuildUserAgent:
@@ -66,3 +70,19 @@ class TestBuildUserAgent:
         v2 = build_user_agent('runtime').split('/')[1].split(' ')[0]
         v3 = build_user_agent('browser').split('/')[1].split(' ')[0]
         assert v1 == v2 == v3 == MCP_SERVER_VERSION
+
+
+class TestPackageVersionFallback:
+    """Tests for version detection fallback."""
+
+    def test_package_not_found_fallback(self):
+        """MCP_SERVER_VERSION falls back to 'unknown' when package metadata is missing."""
+        with patch('importlib.metadata.version', side_effect=PackageNotFoundError):
+            importlib.reload(ua)
+            try:
+                assert ua.MCP_SERVER_VERSION == 'unknown'
+                result = ua.build_user_agent('memory')
+                assert result == 'agentcore-mcp-server/unknown memory'
+            finally:
+                # Restore module to its normal state for other tests
+                importlib.reload(ua)

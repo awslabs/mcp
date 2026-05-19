@@ -138,6 +138,7 @@ def test_initialize_aws_clients_with_profile():
                     iam,
                     lambda_client,
                     sts,
+                    rum,
                 ) = _initialize_aws_clients()
 
                 # Verify Session was called with the profile
@@ -147,18 +148,20 @@ def test_initialize_aws_clients_with_profile():
                 assert call_kwargs['region_name'] == 'us-east-1'
 
                 # Verify all clients were created
-                assert mock_session_instance.client.call_count == 9
+                assert mock_session_instance.client.call_count == 10
                 client_calls = [call[0][0] for call in mock_session_instance.client.call_args_list]
                 assert 'logs' in client_calls
                 assert 'application-signals' in client_calls
                 assert 'cloudwatch' in client_calls
                 assert 'xray' in client_calls
+                assert 'rum' in client_calls
 
                 # Verify the returned clients
                 assert logs == mock_client
                 assert applicationsignals == mock_client
                 assert cloudwatch == mock_client
                 assert xray == mock_client
+                assert rum == mock_client
 
 
 def test_initialize_aws_clients_with_mcp_source():
@@ -182,3 +185,23 @@ def test_initialize_aws_clients_with_mcp_source():
                     user_agent
                     == f'awslabs.cloudwatch-applicationsignals-mcp-server/{__version__}/test-caller'
                 )
+
+
+def test_initialize_aws_clients_logs_rum_endpoint_override():
+    """MCP_RUM_ENDPOINT must trigger the RUM endpoint-override log path."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients import (
+        _initialize_aws_clients,
+    )
+
+    with patch.dict(
+        os.environ,
+        {'MCP_RUM_ENDPOINT': 'https://rum.test.local', 'AWS_REGION': 'us-east-1'},
+    ):
+        with patch('awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.Config'):
+            with patch(
+                'awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.logger'
+            ) as mock_logger:
+                with patch('boto3.client'):
+                    _initialize_aws_clients()
+                    msgs = [args[0] for args, _ in mock_logger.debug.call_args_list if args]
+                    assert any('RUM endpoint override' in m for m in msgs)

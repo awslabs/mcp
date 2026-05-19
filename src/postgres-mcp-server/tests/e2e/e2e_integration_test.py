@@ -31,6 +31,7 @@ from awslabs.postgres_mcp_server.server import (
     get_database_connection_info,
     get_job_status,
     get_table_schema,
+    internal_create_connection,
     is_database_connected,
     run_query,
 )
@@ -366,6 +367,118 @@ async def run_test_suite(config: ClusterConfig, table_suffix: str) -> TestResult
     return result
 
 
+def run_endpoint_validation_suite(
+    cluster_identifier: str,
+    region: str,
+    database: str,
+    valid_endpoint: str,
+    port: int,
+) -> TestResult:
+    """Test the endpoint-validation security check in internal_create_connection.
+
+    Positive case: caller-supplied db_endpoint matches the cluster's writer
+    endpoint → connection succeeds, resolved endpoint in the response matches
+    what AWS reports for the cluster.
+
+    Negative case: caller-supplied db_endpoint is an arbitrary host that is
+    not owned by the cluster → internal_create_connection must raise
+    ValueError and no connection is created.
+
+    The DB connection created here is cached in server.db_connection_map and
+    reused by the main test suite that follows, so these checks don't add
+    extra cluster warm-up cost.
+    """
+    result = TestResult(
+        cluster_identifier=cluster_identifier,
+        connection_method_name='endpoint_validation',
+        passed=[],
+        failed=[],
+    )
+
+    logger.info(f'\n{"=" * 60}')
+    logger.info(f'Running endpoint validation suite on cluster: {cluster_identifier}')
+    logger.info(f'{"=" * 60}')
+
+    def record(step, ok, detail=''):
+        """Record a test step result as passed or failed."""
+        log_step(step, 'PASS' if ok else 'FAIL', detail)
+        if ok:
+            result.passed.append(step)
+        else:
+            result.failed.append((step, detail))
+
+    # Positive case — db_endpoint matches the cluster's writer endpoint.
+    step = 'endpoint_validation_positive(writer endpoint accepted)'
+    try:
+        db_conn, llm_response = internal_create_connection(
+            region=region,
+            database_type=DatabaseType.APG,
+            connection_method=ConnectionMethod.RDS_API,
+            cluster_identifier=cluster_identifier,
+            db_endpoint=valid_endpoint,
+            port=port,
+            database=database,
+        )
+        resp_dict = json.loads(llm_response)
+        # The response echoes the resolved (AWS-sourced) endpoint/port. For the
+        # writer endpoint we just passed, host should match case-insensitively
+        # and port should round-trip.
+        host_ok = resp_dict.get('db_endpoint', '').lower() == valid_endpoint.lower()
+        port_ok = int(resp_dict.get('port') or 0) == port
+        ok = db_conn is not None and host_ok and port_ok
+        record(
+            step,
+            ok,
+            f'resolved={resp_dict.get("db_endpoint")}:{resp_dict.get("port")}',
+        )
+    except Exception as e:
+        record(step, False, str(e))
+
+    # Negative case — arbitrary host that does not belong to the cluster.
+    step = 'endpoint_validation_negative(bogus endpoint rejected)'
+    bogus_endpoint = 'attacker.example.com'
+    try:
+        internal_create_connection(
+            region=region,
+            database_type=DatabaseType.APG,
+            connection_method=ConnectionMethod.RDS_API,
+            cluster_identifier=cluster_identifier,
+            db_endpoint=bogus_endpoint,
+            port=port,
+            database=database,
+        )
+        record(step, False, f'Expected ValueError for endpoint {bogus_endpoint}, got success')
+    except ValueError as e:
+        msg = str(e)
+        ok = bogus_endpoint in msg and cluster_identifier in msg
+        record(step, ok, msg)
+    except Exception as e:
+        record(step, False, f'Expected ValueError, got {type(e).__name__}: {e}')
+
+    # Negative case — valid host with a wrong port.
+    step = 'endpoint_validation_negative(wrong port rejected)'
+    wrong_port = port + 1
+    try:
+        internal_create_connection(
+            region=region,
+            database_type=DatabaseType.APG,
+            connection_method=ConnectionMethod.RDS_API,
+            cluster_identifier=cluster_identifier,
+            db_endpoint=valid_endpoint,
+            port=wrong_port,
+            database=database,
+        )
+        record(step, False, f'Expected ValueError for port {wrong_port}, got success')
+    except ValueError as e:
+        msg = str(e)
+        ok = str(wrong_port) in msg and cluster_identifier in msg
+        record(step, ok, msg)
+    except Exception as e:
+        record(step, False, f'Expected ValueError, got {type(e).__name__}: {e}')
+
+    return result
+
+
 def print_summary(results: list[TestResult]):
     """Print a formatted summary of all test results. Returns True if all passed."""
     logger.info(f'\n{"=" * 60}')
@@ -431,6 +544,20 @@ async def main_async(args):
             engine_version=args.engine_version,
         )
         clusters_to_delete.append(serverless_id)
+
+        # Phase 2a: Endpoint validation (positive + negative). Runs before the
+        # main suite so the db_connection_map starts clean for this cluster
+        # and we genuinely exercise the validation path rather than the
+        # existing-connection short-circuit.
+        results.append(
+            run_endpoint_validation_suite(
+                cluster_identifier=serverless_id,
+                region=args.region,
+                database=args.database,
+                valid_endpoint=serverless_endpoint,
+                port=args.port,
+            )
+        )
 
         connection_methods = [
             (ConnectionMethod.RDS_API, 'RDS_API'),

@@ -15,6 +15,7 @@
 
 import asyncio
 import json
+import os
 import pytest
 import tempfile
 import time
@@ -45,9 +46,14 @@ from awslabs.aws_support_mcp_server.formatters import (
     format_severity_levels,
 )
 from awslabs.aws_support_mcp_server.server import (
+    _add_attachments_to_set_logic,
     _add_communication_to_case_logic,
     _create_support_case_logic,
+    _describe_attachment_logic,
+    _describe_communications_logic,
+    _describe_create_case_options_logic,
     _describe_support_cases_logic,
+    _describe_supported_languages_logic,
     _resolve_support_case_logic,
 )
 from botocore.exceptions import ClientError
@@ -696,7 +702,10 @@ class TestSupportClient:
 
         # Verify error is raised
         with pytest.raises(ClientError) as exc_info:
-            await client.describe_supported_languages()
+            await client.describe_supported_languages(
+                service_code='test-service',
+                category_code='test-category',
+            )
 
         assert exc_info.value.response['Error']['Code'] == 'SomeError'
 
@@ -933,19 +942,25 @@ class TestSupportClient:
         # Setup mocks
         mock_client = MagicMock()
         mock_session.return_value.client.return_value = mock_client
-        mock_run_in_executor.return_value = {'languages': [{'code': 'en', 'name': 'English'}]}
+        mock_run_in_executor.return_value = {
+            'supportedLanguages': [{'code': 'en', 'language': 'English', 'display': 'English'}]
+        }
 
         # Create client
         client = SupportClient()
 
         # Call describe_supported_languages
-        result = await client.describe_supported_languages()
+        result = await client.describe_supported_languages(
+            service_code='test-service',
+            category_code='test-category',
+            issue_type='technical',
+        )
 
         # Verify
         mock_run_in_executor.assert_called_once()
-        assert 'languages' in result
-        assert len(result['languages']) == 1
-        assert result['languages'][0]['code'] == 'en'
+        assert 'supportedLanguages' in result
+        assert len(result['supportedLanguages']) == 1
+        assert result['supportedLanguages'][0]['code'] == 'en'
 
     @patch('boto3.Session')
     @patch('awslabs.aws_support_mcp_server.client.SupportClient._run_in_executor')
@@ -2371,6 +2386,721 @@ async def test_resolve_case_general_error(mock_support_client):
     assert result['status'] == 'error'
 
 
+# --- Tests for new tools ---
+
+
+# describe_communications tests
+
+
+@patch('awslabs.aws_support_mcp_server.server.support_client')
+async def test_describe_communications(mock_support_client):
+    """Test describe_communications calls the API correctly."""
+    mock_support_client.describe_communications = AsyncMock(
+        return_value={
+            'communications': [
+                {
+                    'caseId': 'test-case-id',
+                    'body': 'Test body',
+                    'submittedBy': 'user@example.com',
+                    'timeCreated': '2023-01-01T00:00:00Z',
+                }
+            ],
+            'nextToken': 'token123',
+        }
+    )
+    context = MagicMock()
+    context.error = AsyncMock()
+
+    result = await _describe_communications_logic(
+        context,
+        case_id='test-case-id',
+        after_time='2023-01-01T00:00:00Z',
+        before_time='2023-01-31T00:00:00Z',
+        max_results=10,
+        next_token=None,
+    )
+
+    mock_support_client.describe_communications.assert_called_once()
+    assert 'communications' in result
+    assert len(result['communications']) == 1
+    assert result['communications'][0]['body'] == 'Test body'
+
+
+@patch('awslabs.aws_support_mcp_server.server.support_client')
+async def test_describe_communications_client_error(mock_support_client):
+    """Test describe_communications handles ClientError."""
+    error_response = {'Error': {'Code': 'CaseIdNotFound', 'Message': 'Case not found'}}
+    mock_support_client.describe_communications = AsyncMock(
+        side_effect=ClientError(error_response, 'describe_communications')
+    )
+    context = MagicMock()
+    context.error = AsyncMock()
+
+    result = await _describe_communications_logic(context, case_id='bad-id')
+    assert result['status'] == 'error'
+
+
+@patch('awslabs.aws_support_mcp_server.server.support_client')
+async def test_describe_communications_general_error(mock_support_client):
+    """Test describe_communications handles general Exception."""
+    mock_support_client.describe_communications = AsyncMock(side_effect=Exception('Unexpected'))
+    context = MagicMock()
+    context.error = AsyncMock()
+
+    result = await _describe_communications_logic(context, case_id='test-case-id')
+    assert result['status'] == 'error'
+
+
+# describe_supported_languages tests
+
+
+@patch('awslabs.aws_support_mcp_server.server.support_client')
+async def test_describe_supported_languages(mock_support_client):
+    """Test describe_supported_languages calls the API correctly."""
+    mock_support_client.describe_supported_languages = AsyncMock(
+        return_value={
+            'supportedLanguages': [
+                {'code': 'en', 'language': 'English', 'display': 'English'},
+            ]
+        }
+    )
+    context = MagicMock()
+    context.error = AsyncMock()
+
+    result = await _describe_supported_languages_logic(
+        context,
+        service_code='amazon-elastic-compute-cloud-linux',
+        category_code='general-guidance',
+        issue_type='technical',
+    )
+
+    mock_support_client.describe_supported_languages.assert_called_once()
+    assert 'supportedLanguages' in result
+    assert len(result['supportedLanguages']) == 1
+    assert result['supportedLanguages'][0]['code'] == 'en'
+
+
+@patch('awslabs.aws_support_mcp_server.server.support_client')
+async def test_describe_supported_languages_client_error(mock_support_client):
+    """Test describe_supported_languages handles ClientError."""
+    error_response = {
+        'Error': {'Code': 'SubscriptionRequiredException', 'Message': 'Sub required'}
+    }
+    mock_support_client.describe_supported_languages = AsyncMock(
+        side_effect=ClientError(error_response, 'describe_supported_languages')
+    )
+    context = MagicMock()
+    context.error = AsyncMock()
+
+    result = await _describe_supported_languages_logic(
+        context,
+        service_code='test',
+        category_code='test',
+    )
+    assert result['status'] == 'error'
+
+
+@patch('awslabs.aws_support_mcp_server.server.support_client')
+async def test_describe_supported_languages_general_error(mock_support_client):
+    """Test describe_supported_languages handles general Exception."""
+    mock_support_client.describe_supported_languages = AsyncMock(
+        side_effect=Exception('Unexpected')
+    )
+    context = MagicMock()
+    context.error = AsyncMock()
+
+    result = await _describe_supported_languages_logic(
+        context,
+        service_code='test',
+        category_code='test',
+    )
+    assert result['status'] == 'error'
+
+
+# describe_create_case_options tests
+
+
+@patch('awslabs.aws_support_mcp_server.server.support_client')
+async def test_describe_create_case_options(mock_support_client):
+    """Test describe_create_case_options calls the API correctly."""
+    mock_support_client.describe_create_case_options = AsyncMock(
+        return_value={
+            'communicationTypes': [
+                {
+                    'type': 'chat',
+                    'supportedHours': [{'startTime': '06:00', 'endTime': '22:00'}],
+                    'datesWithoutSupport': [],
+                }
+            ],
+            'languageAvailability': 'available',
+        }
+    )
+    context = MagicMock()
+    context.error = AsyncMock()
+
+    result = await _describe_create_case_options_logic(
+        context, service_code='amazon-ec2', language='en'
+    )
+
+    mock_support_client.describe_create_case_options.assert_called_once()
+    assert 'communicationTypes' in result
+    assert 'languageAvailability' in result
+    assert len(result['communicationTypes']) == 1
+
+
+@patch('awslabs.aws_support_mcp_server.server.support_client')
+async def test_describe_create_case_options_client_error(mock_support_client):
+    """Test describe_create_case_options handles ClientError."""
+    error_response = {'Error': {'Code': 'AccessDenied', 'Message': 'Denied'}}
+    mock_support_client.describe_create_case_options = AsyncMock(
+        side_effect=ClientError(error_response, 'describe_create_case_options')
+    )
+    context = MagicMock()
+    context.error = AsyncMock()
+
+    result = await _describe_create_case_options_logic(context, service_code='bad-service')
+    assert result['status'] == 'error'
+
+
+@patch('awslabs.aws_support_mcp_server.server.support_client')
+async def test_describe_create_case_options_general_error(mock_support_client):
+    """Test describe_create_case_options handles general Exception."""
+    mock_support_client.describe_create_case_options = AsyncMock(
+        side_effect=Exception('Unexpected')
+    )
+    context = MagicMock()
+    context.error = AsyncMock()
+
+    result = await _describe_create_case_options_logic(context, service_code='test')
+    assert result['status'] == 'error'
+
+
+# add_attachments_to_set tests
+
+
+@patch('awslabs.aws_support_mcp_server.server.support_client')
+async def test_add_attachments_to_set_tool(mock_support_client):
+    """Test add_attachments_to_set tool calls the API correctly."""
+    mock_support_client.add_attachments_to_set = AsyncMock(
+        return_value={
+            'attachmentSetId': 'set-123',
+            'expiryTime': '2023-01-01T13:00:00Z',
+        }
+    )
+    context = MagicMock()
+    context.error = AsyncMock()
+
+    result = await _add_attachments_to_set_logic(
+        context,
+        attachments=[{'fileName': 'test.txt', 'data': 'dGVzdA=='}],
+        attachment_set_id=None,
+    )
+
+    mock_support_client.add_attachments_to_set.assert_called_once()
+    assert result['attachmentSetId'] == 'set-123'
+    assert result['status'] == 'success'
+
+
+@patch('awslabs.aws_support_mcp_server.server.support_client')
+async def test_add_attachments_to_set_tool_double_encoded(mock_support_client):
+    """Test add_attachments_to_set rejects double-encoded data."""
+    import base64
+
+    # Simulate double-encoding: encode "hello world" to base64, then encode THAT to base64
+    raw = b'hello world test data that is long enough'
+    single_encoded = base64.b64encode(raw).decode('utf-8')
+    double_encoded = base64.b64encode(single_encoded.encode('ascii')).decode('utf-8')
+
+    # The client should raise ValueError for double-encoded data
+    mock_support_client.add_attachments_to_set = AsyncMock(
+        side_effect=ValueError('Attachment "test.txt": data appears to be double-base64-encoded.')
+    )
+
+    context = MagicMock()
+    context.error = AsyncMock()
+
+    result = await _add_attachments_to_set_logic(
+        context,
+        attachments=[{'fileName': 'test.txt', 'data': double_encoded}],
+    )
+
+    assert result['status'] == 'error'
+    assert result['status_code'] == 400
+
+
+@patch('awslabs.aws_support_mcp_server.server.support_client')
+async def test_add_attachments_to_set_tool_client_error(mock_support_client):
+    """Test add_attachments_to_set tool handles ClientError."""
+    error_response = {'Error': {'Code': 'AccessDenied', 'Message': 'Denied'}}
+    mock_support_client.add_attachments_to_set = AsyncMock(
+        side_effect=ClientError(error_response, 'add_attachments_to_set')
+    )
+    context = MagicMock()
+    context.error = AsyncMock()
+
+    result = await _add_attachments_to_set_logic(
+        context, attachments=[{'fileName': 'f.txt', 'data': 'x'}]
+    )
+    assert result['status'] == 'error'
+
+
+@patch('awslabs.aws_support_mcp_server.server.support_client')
+async def test_add_attachments_to_set_tool_general_error(mock_support_client):
+    """Test add_attachments_to_set tool handles general Exception."""
+    mock_support_client.add_attachments_to_set = AsyncMock(side_effect=Exception('Unexpected'))
+    context = MagicMock()
+    context.error = AsyncMock()
+
+    result = await _add_attachments_to_set_logic(
+        context, attachments=[{'fileName': 'f.txt', 'data': 'x'}]
+    )
+    assert result['status'] == 'error'
+
+
+# describe_attachment tests
+
+
+@patch('awslabs.aws_support_mcp_server.server.support_client')
+async def test_describe_attachment(mock_support_client):
+    """Test describe_attachment calls the API correctly."""
+    mock_support_client.describe_attachment = AsyncMock(
+        return_value={
+            'attachment': {'fileName': 'error.log', 'data': 'dGVzdCBkYXRh'},
+        }
+    )
+    context = MagicMock()
+    context.error = AsyncMock()
+
+    result = await _describe_attachment_logic(context, attachment_id='att-123')
+
+    mock_support_client.describe_attachment.assert_called_once()
+    assert 'attachment' in result
+    assert result['attachment']['fileName'] == 'error.log'
+
+
+@patch('awslabs.aws_support_mcp_server.server.support_client')
+async def test_describe_attachment_not_found(mock_support_client):
+    """Test describe_attachment handles AttachmentIdNotFound."""
+    error_response = {'Error': {'Code': 'AttachmentIdNotFound', 'Message': 'Not found'}}
+    mock_support_client.describe_attachment = AsyncMock(
+        side_effect=ClientError(error_response, 'describe_attachment')
+    )
+    context = MagicMock()
+    context.error = AsyncMock()
+
+    result = await _describe_attachment_logic(context, attachment_id='bad-id')
+    assert result['status'] == 'error'
+
+
+@patch('awslabs.aws_support_mcp_server.server.support_client')
+async def test_describe_attachment_general_error(mock_support_client):
+    """Test describe_attachment handles general Exception."""
+    mock_support_client.describe_attachment = AsyncMock(side_effect=Exception('Unexpected'))
+    context = MagicMock()
+    context.error = AsyncMock()
+
+    result = await _describe_attachment_logic(context, attachment_id='att-123')
+    assert result['status'] == 'error'
+
+
+# Client tests for describe_attachment
+
+
+class TestSupportClientDescribeAttachment:
+    """Tests for the SupportClient.describe_attachment method."""
+
+    @patch('boto3.Session')
+    @patch('awslabs.aws_support_mcp_server.client.SupportClient._run_in_executor')
+    async def test_describe_attachment(self, mock_run_in_executor, mock_session):
+        """Test describe_attachment calls the API correctly."""
+        mock_client = AsyncMock()
+        mock_session.return_value.client.return_value = mock_client
+        mock_run_in_executor.return_value = {
+            'attachment': {'fileName': 'test.log', 'data': 'dGVzdA=='}
+        }
+
+        client = SupportClient()
+        result = await client.describe_attachment(attachment_id='att-123')
+
+        mock_run_in_executor.assert_called_once()
+        assert result['attachment']['fileName'] == 'test.log'
+
+    @patch('boto3.Session')
+    @patch('awslabs.aws_support_mcp_server.client.SupportClient._run_in_executor')
+    async def test_describe_attachment_not_found(self, mock_run_in_executor, mock_session):
+        """Test describe_attachment handles AttachmentIdNotFound."""
+        mock_client = AsyncMock()
+        mock_session.return_value.client.return_value = mock_client
+        error_response = {'Error': {'Code': 'AttachmentIdNotFound', 'Message': 'Not found'}}
+        mock_run_in_executor.side_effect = ClientError(error_response, 'describe_attachment')
+
+        client = SupportClient()
+        with pytest.raises(ClientError) as excinfo:
+            await client.describe_attachment(attachment_id='bad-id')
+        assert excinfo.value.response['Error']['Code'] == 'AttachmentIdNotFound'
+
+    @patch('boto3.Session')
+    @patch('awslabs.aws_support_mcp_server.client.SupportClient._run_in_executor')
+    async def test_describe_attachment_unexpected_error(self, mock_run_in_executor, mock_session):
+        """Test describe_attachment handles unexpected errors."""
+        mock_client = AsyncMock()
+        mock_session.return_value.client.return_value = mock_client
+        mock_run_in_executor.side_effect = Exception('Unexpected')
+
+        client = SupportClient()
+        with pytest.raises(Exception, match='Unexpected'):
+            await client.describe_attachment(attachment_id='att-123')
+
+
+class TestSupportClientExceptionBranches:
+    """Tests for uncovered exception branches in SupportClient methods."""
+
+    def test_resolve_service_code_alias(self):
+        """Test that common aliases are resolved to correct service codes."""
+        assert SupportClient.resolve_service_code('ecs') == 'ec2-container-service'
+        assert (
+            SupportClient.resolve_service_code('amazon-elastic-container-service')
+            == 'ec2-container-service'
+        )
+        assert SupportClient.resolve_service_code('s3') == 'amazon-simple-storage-service'
+        assert SupportClient.resolve_service_code('amazon-s3') == 'amazon-simple-storage-service'
+        assert SupportClient.resolve_service_code('lambda') == 'aws-lambda'
+        assert SupportClient.resolve_service_code('iam') == 'aws-identity-and-access-management'
+        assert SupportClient.resolve_service_code('fargate') == 'ec2-container-service'
+        assert SupportClient.resolve_service_code('ec2') == 'amazon-elastic-compute-cloud-linux'
+
+    def test_resolve_service_code_passthrough(self):
+        """Test that already-correct codes pass through unchanged."""
+        assert (
+            SupportClient.resolve_service_code('ec2-container-service') == 'ec2-container-service'
+        )
+        assert (
+            SupportClient.resolve_service_code('amazon-simple-storage-service')
+            == 'amazon-simple-storage-service'
+        )
+        assert SupportClient.resolve_service_code('unknown-service') == 'unknown-service'
+
+    def test_resolve_service_code_case_insensitive(self):
+        """Test that resolution is case-insensitive."""
+        assert SupportClient.resolve_service_code('ECS') == 'ec2-container-service'
+        assert SupportClient.resolve_service_code('S3') == 'amazon-simple-storage-service'
+        assert SupportClient.resolve_service_code('Lambda') == 'aws-lambda'
+
+    @patch('boto3.Session')
+    @patch('awslabs.aws_support_mcp_server.client.SupportClient._run_in_executor')
+    async def test_create_case_resolves_alias(self, mock_run_in_executor, mock_session):
+        """Test that create_case resolves service code aliases."""
+        mock_session.return_value.client.return_value = MagicMock()
+        mock_run_in_executor.return_value = {'caseId': 'test-id'}
+
+        client = SupportClient()
+        await client.create_case(
+            subject='test',
+            service_code='ecs',
+            category_code='other',
+            severity_code='low',
+            communication_body='test',
+        )
+
+        call_kwargs = mock_run_in_executor.call_args
+        assert (
+            call_kwargs.kwargs.get('serviceCode', call_kwargs[1].get('serviceCode'))
+            == 'ec2-container-service'
+        )
+
+    @patch('boto3.Session')
+    @patch('awslabs.aws_support_mcp_server.client.SupportClient._run_in_executor')
+    async def test_describe_services_resolves_aliases(self, mock_run_in_executor, mock_session):
+        """Test that describe_services resolves service code aliases in the list."""
+        mock_session.return_value.client.return_value = MagicMock()
+        mock_run_in_executor.return_value = {'services': []}
+
+        client = SupportClient()
+        await client.describe_services(service_code_list=['ecs', 's3'])
+
+        call_kwargs = mock_run_in_executor.call_args
+        code_list = call_kwargs.kwargs.get(
+            'serviceCodeList', call_kwargs[1].get('serviceCodeList')
+        )
+        assert code_list == ['ec2-container-service', 'amazon-simple-storage-service']
+
+    @patch('boto3.Session')
+    @patch('awslabs.aws_support_mcp_server.client.SupportClient._run_in_executor')
+    async def test_create_case_unexpected_error(self, mock_run_in_executor, mock_session):
+        """Test create_case propagates unexpected exceptions."""
+        mock_session.return_value.client.return_value = MagicMock()
+        mock_run_in_executor.side_effect = Exception('Unexpected')
+        client = SupportClient()
+        with pytest.raises(Exception, match='Unexpected'):
+            await client.create_case(
+                subject='t',
+                service_code='s',
+                category_code='c',
+                severity_code='low',
+                communication_body='b',
+            )
+
+    @patch('boto3.Session')
+    @patch('awslabs.aws_support_mcp_server.client.SupportClient._run_in_executor')
+    async def test_describe_cases_unexpected_error(self, mock_run_in_executor, mock_session):
+        """Test describe_cases propagates unexpected exceptions."""
+        mock_session.return_value.client.return_value = MagicMock()
+        mock_run_in_executor.side_effect = Exception('Unexpected')
+        client = SupportClient()
+        with pytest.raises(Exception, match='Unexpected'):
+            await client.describe_cases()
+
+    @patch('boto3.Session')
+    @patch('awslabs.aws_support_mcp_server.client.SupportClient._run_in_executor')
+    async def test_resolve_case_unexpected_error(self, mock_run_in_executor, mock_session):
+        """Test resolve_case propagates unexpected exceptions."""
+        mock_session.return_value.client.return_value = MagicMock()
+        mock_run_in_executor.side_effect = Exception('Unexpected')
+        client = SupportClient()
+        with pytest.raises(Exception, match='Unexpected'):
+            await client.resolve_case(case_id='test')
+
+    @patch('boto3.Session')
+    @patch('awslabs.aws_support_mcp_server.client.SupportClient._run_in_executor')
+    async def test_resolve_case_other_client_error(self, mock_run_in_executor, mock_session):
+        """Test resolve_case re-raises unexpected AWS client errors."""
+        mock_session.return_value.client.return_value = MagicMock()
+        error_response = {'Error': {'Code': 'InternalServerError', 'Message': 'ISE'}}
+        mock_run_in_executor.side_effect = ClientError(error_response, 'resolve_case')
+        client = SupportClient()
+        with pytest.raises(ClientError):
+            await client.resolve_case(case_id='test')
+
+    @patch('boto3.Session')
+    @patch('awslabs.aws_support_mcp_server.client.SupportClient._run_in_executor')
+    async def test_add_communication_unexpected_error(self, mock_run_in_executor, mock_session):
+        """Test add_communication_to_case propagates unexpected exceptions."""
+        mock_session.return_value.client.return_value = MagicMock()
+        mock_run_in_executor.side_effect = Exception('Unexpected')
+        client = SupportClient()
+        with pytest.raises(Exception, match='Unexpected'):
+            await client.add_communication_to_case(case_id='t', communication_body='b')
+
+    @patch('boto3.Session')
+    @patch('awslabs.aws_support_mcp_server.client.SupportClient._run_in_executor')
+    async def test_add_communication_other_client_error(self, mock_run_in_executor, mock_session):
+        """Test add_communication_to_case re-raises unexpected AWS client errors."""
+        mock_session.return_value.client.return_value = MagicMock()
+        error_response = {'Error': {'Code': 'InternalServerError', 'Message': 'ISE'}}
+        mock_run_in_executor.side_effect = ClientError(error_response, 'add_communication')
+        client = SupportClient()
+        with pytest.raises(ClientError):
+            await client.add_communication_to_case(case_id='t', communication_body='b')
+
+    @patch('boto3.Session')
+    @patch('awslabs.aws_support_mcp_server.client.SupportClient._run_in_executor')
+    async def test_describe_services_unexpected_error(self, mock_run_in_executor, mock_session):
+        """Test describe_services propagates unexpected exceptions."""
+        mock_session.return_value.client.return_value = MagicMock()
+        mock_run_in_executor.side_effect = Exception('Unexpected')
+        client = SupportClient()
+        with pytest.raises(Exception, match='Unexpected'):
+            await client.describe_services()
+
+    @patch('boto3.Session')
+    @patch('awslabs.aws_support_mcp_server.client.SupportClient._run_in_executor')
+    async def test_describe_severity_levels_unexpected_error(
+        self, mock_run_in_executor, mock_session
+    ):
+        """Test describe_severity_levels propagates unexpected exceptions."""
+        mock_session.return_value.client.return_value = MagicMock()
+        mock_run_in_executor.side_effect = Exception('Unexpected')
+        client = SupportClient()
+        with pytest.raises(Exception, match='Unexpected'):
+            await client.describe_severity_levels()
+
+    @patch('boto3.Session')
+    @patch('awslabs.aws_support_mcp_server.client.SupportClient._run_in_executor')
+    async def test_describe_supported_languages_unexpected_error(
+        self, mock_run_in_executor, mock_session
+    ):
+        """Test describe_supported_languages propagates unexpected exceptions."""
+        mock_session.return_value.client.return_value = MagicMock()
+        mock_run_in_executor.side_effect = Exception('Unexpected')
+        client = SupportClient()
+        with pytest.raises(Exception, match='Unexpected'):
+            await client.describe_supported_languages(
+                service_code='s',
+                category_code='c',
+            )
+
+    @patch('boto3.Session')
+    @patch('awslabs.aws_support_mcp_server.client.SupportClient._run_in_executor')
+    async def test_describe_create_case_options_unexpected_error(
+        self, mock_run_in_executor, mock_session
+    ):
+        """Test describe_create_case_options propagates unexpected exceptions."""
+        mock_session.return_value.client.return_value = MagicMock()
+        mock_run_in_executor.side_effect = Exception('Unexpected')
+        client = SupportClient()
+        with pytest.raises(Exception, match='Unexpected'):
+            await client.describe_create_case_options(service_code='s')
+
+    @patch('boto3.Session')
+    @patch('awslabs.aws_support_mcp_server.client.SupportClient._run_in_executor')
+    async def test_add_attachments_unexpected_error(self, mock_run_in_executor, mock_session):
+        """Test unexpected error after base64 decode succeeds."""
+        mock_session.return_value.client.return_value = MagicMock()
+        mock_run_in_executor.side_effect = Exception('Unexpected')
+        client = SupportClient()
+        with pytest.raises(Exception, match='Unexpected'):
+            await client.add_attachments_to_set(
+                attachments=[{'fileName': 'f.txt', 'data': 'dGVzdA=='}]
+            )
+
+
+# Server inline tool tests — skipped because @mcp.tool wraps into FunctionTool objects.
+# The client exception branches below cover the same code paths.
+
+
+class TestSupportClientAttachmentEncoding:
+    """Tests for attachment base64 decoding and double-encoding detection."""
+
+    @patch('boto3.Session')
+    @patch('awslabs.aws_support_mcp_server.client.SupportClient._run_in_executor')
+    async def test_decodes_base64_to_bytes(self, mock_run_in_executor, mock_session):
+        """Test that base64 data is decoded to raw bytes before passing to boto3."""
+        import base64
+
+        mock_client = AsyncMock()
+        mock_session.return_value.client.return_value = mock_client
+        mock_run_in_executor.return_value = {
+            'attachmentSetId': 'set-1',
+            'expiryTime': '2023-01-01T13:00:00Z',
+        }
+
+        client = SupportClient()
+        raw_content = b'hello world'
+        encoded = base64.b64encode(raw_content).decode('utf-8')
+
+        await client.add_attachments_to_set(
+            attachments=[{'fileName': 'test.txt', 'data': encoded}]
+        )
+
+        # Verify the data passed to boto3 is raw bytes, not the base64 string
+        call_kwargs = mock_run_in_executor.call_args
+        attachment_data = call_kwargs.kwargs.get(
+            'attachments', call_kwargs[1].get('attachments', [])
+        )[0]['data']
+        assert isinstance(attachment_data, bytes)
+        assert attachment_data == raw_content
+
+    @patch('boto3.Session')
+    async def test_rejects_double_encoded_data(self, mock_session):
+        """Test that double-base64-encoded data is rejected."""
+        import base64
+
+        mock_client = MagicMock()
+        mock_session.return_value.client.return_value = mock_client
+
+        client = SupportClient()
+
+        # Double-encode: raw → base64 → base64
+        raw = b'this is a test file with enough content to detect'
+        single = base64.b64encode(raw).decode('utf-8')
+        double = base64.b64encode(single.encode('ascii')).decode('utf-8')
+
+        with pytest.raises(ValueError, match='double-base64-encoded'):
+            await client.add_attachments_to_set(
+                attachments=[{'fileName': 'test.txt', 'data': double}]
+            )
+
+    @patch('boto3.Session')
+    async def test_rejects_invalid_base64(self, mock_session):
+        """Test that non-base64 data is rejected."""
+        mock_client = MagicMock()
+        mock_session.return_value.client.return_value = mock_client
+
+        client = SupportClient()
+
+        with pytest.raises(ValueError, match='not valid base64'):
+            await client.add_attachments_to_set(
+                attachments=[{'fileName': 'test.txt', 'data': '!!!not-base64!!!'}]
+            )
+
+    @patch('boto3.Session')
+    @patch('awslabs.aws_support_mcp_server.client.SupportClient._run_in_executor')
+    async def test_accepts_binary_content_as_base64(self, mock_run_in_executor, mock_session):
+        """Test that genuine binary content (e.g., PNG header) passes validation."""
+        import base64
+
+        mock_client = AsyncMock()
+        mock_session.return_value.client.return_value = mock_client
+        mock_run_in_executor.return_value = {
+            'attachmentSetId': 'set-1',
+            'expiryTime': '2023-01-01T13:00:00Z',
+        }
+
+        client = SupportClient()
+        # PNG file header bytes — definitely not base64 text when decoded
+        binary_content = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR' + b'\x00' * 20
+        encoded = base64.b64encode(binary_content).decode('utf-8')
+
+        result = await client.add_attachments_to_set(
+            attachments=[{'fileName': 'screenshot.png', 'data': encoded}]
+        )
+
+        assert result['attachmentSetId'] == 'set-1'
+
+
+# Error handling tests for new error codes
+
+
+class TestNewErrorCodes:
+    """Tests for new error codes in error handling."""
+
+    @pytest.fixture
+    def mock_context(self):
+        """Return a mock MCP context with async error logger."""
+        ctx = MagicMock()
+        ctx.error = AsyncMock()
+        return ctx
+
+    async def test_handle_client_error_attachment_not_found(self, mock_context):
+        """Test AttachmentIdNotFound maps to a 404 error response."""
+        error_response = {'Error': {'Code': 'AttachmentIdNotFound', 'Message': 'Not found'}}
+        error = ClientError(error_response, 'describe_attachment')
+        result = await handle_client_error(mock_context, error, 'describe_attachment')
+        assert result['status'] == 'error'
+        assert result['status_code'] == 404
+        mock_context.error.assert_called_once()
+
+    async def test_handle_client_error_describe_attachment_limit(self, mock_context):
+        """Test DescribeAttachmentLimitExceeded maps to a 429 error response."""
+        error_response = {
+            'Error': {'Code': 'DescribeAttachmentLimitExceeded', 'Message': 'Limit exceeded'}
+        }
+        error = ClientError(error_response, 'describe_attachment')
+        result = await handle_client_error(mock_context, error, 'describe_attachment')
+        assert result['status'] == 'error'
+        assert result['status_code'] == 429
+        mock_context.error.assert_called_once()
+
+
+# Model tests for DescribeAttachmentResponse
+
+
+class TestDescribeAttachmentModel:
+    """Tests for the DescribeAttachmentResponse model."""
+
+    def test_describe_attachment_response(self):
+        """Test DescribeAttachmentResponse accepts expected attachment payload."""
+        from awslabs.aws_support_mcp_server.models import DescribeAttachmentResponse
+
+        response = DescribeAttachmentResponse(
+            attachment={'fileName': 'test.log', 'data': 'dGVzdA=='},
+            status='success',
+            message='Retrieved attachment',
+        )
+        assert response.attachment['fileName'] == 'test.log'
+        assert response.status == 'success'
+
+
 # Debug Helper Tests
 class TestDiagnosticsTracker:
     """Tests for the DiagnosticsTracker class."""
@@ -2533,8 +3263,8 @@ class TestServer:
         with patch('awslabs.aws_support_mcp_server.server.mcp.run'):
             main()
 
-        # Verify directory was created
-        mock_makedirs.assert_called_once_with(f'{tmpdir}/test')
+        # Verify directory was created (OS-native path separators)
+        mock_makedirs.assert_called_once_with(os.path.join(tmpdir, 'test'))
         # Verify logging was configured
         assert mock_logger.add.call_count >= 2  # Console and file logging
 
@@ -2570,3 +3300,240 @@ class TestServer:
 
         # Verify diagnostics were enabled
         mock_diagnostics.enable.assert_called_once()
+
+
+class TestServerBranchCoverage:
+    """Targeted tests for uncovered server branches."""
+
+    async def test_diagnostics_resource_when_disabled(self):
+        """Test diagnostics resource returns disabled message when diagnostics are off."""
+        from awslabs.aws_support_mcp_server.server import diagnostics_resource
+
+        with patch(
+            'awslabs.aws_support_mcp_server.server.get_diagnostics_report',
+            return_value={'diagnostics_enabled': False},
+        ):
+            result = await diagnostics_resource()
+        assert 'Diagnostics not enabled' in result
+
+    async def test_diagnostics_resource_when_enabled(self):
+        """Test diagnostics resource returns report JSON when diagnostics are enabled."""
+        from awslabs.aws_support_mcp_server.server import diagnostics_resource
+
+        with patch(
+            'awslabs.aws_support_mcp_server.server.get_diagnostics_report',
+            return_value={'diagnostics_enabled': True, 'ok': 1},
+        ):
+            result = await diagnostics_resource()
+        assert '"ok": 1' in result
+
+    async def test_create_support_case_wrapper_calls_logic(self):
+        """Test create_support_case wrapper forwards args to logic function."""
+        from awslabs.aws_support_mcp_server.server import create_support_case
+
+        with patch(
+            'awslabs.aws_support_mcp_server.server._create_support_case_logic',
+            new=AsyncMock(return_value={'status': 'success'}),
+        ) as mock_logic:
+            ctx = MagicMock()
+            result = await create_support_case(
+                ctx=ctx,
+                subject='s',
+                service_code='svc',
+                category_code='cat',
+                severity_code='low',
+                communication_body='body',
+            )
+        assert result['status'] == 'success'
+        mock_logic.assert_awaited_once()
+
+    async def test_describe_support_cases_wrapper_calls_logic(self):
+        """Test describe_support_cases wrapper forwards args to logic function."""
+        from awslabs.aws_support_mcp_server.server import describe_support_cases
+
+        with patch(
+            'awslabs.aws_support_mcp_server.server._describe_support_cases_logic',
+            new=AsyncMock(return_value={'cases': []}),
+        ) as mock_logic:
+            result = await describe_support_cases(ctx=MagicMock())
+        assert result == {'cases': []}
+        mock_logic.assert_awaited_once()
+
+    async def test_add_communication_wrapper_calls_logic(self):
+        """Test add_communication_to_case wrapper forwards args to logic function."""
+        from awslabs.aws_support_mcp_server.server import add_communication_to_case
+
+        with patch(
+            'awslabs.aws_support_mcp_server.server._add_communication_to_case_logic',
+            new=AsyncMock(return_value={'status': 'success'}),
+        ) as mock_logic:
+            result = await add_communication_to_case(
+                ctx=MagicMock(),
+                case_id='case-1',
+                communication_body='hello',
+            )
+        assert result['status'] == 'success'
+        mock_logic.assert_awaited_once()
+
+    async def test_resolve_support_case_wrapper_calls_logic(self):
+        """Test resolve_support_case wrapper forwards args to logic function."""
+        from awslabs.aws_support_mcp_server.server import resolve_support_case
+
+        with patch(
+            'awslabs.aws_support_mcp_server.server._resolve_support_case_logic',
+            new=AsyncMock(return_value={'status': 'success'}),
+        ) as mock_logic:
+            result = await resolve_support_case(ctx=MagicMock(), case_id='case-1')
+        assert result['status'] == 'success'
+        mock_logic.assert_awaited_once()
+
+    async def test_describe_services_markdown_branch(self):
+        """Test describe_services returns markdown when requested."""
+        from awslabs.aws_support_mcp_server.server import describe_services
+
+        with patch(
+            'awslabs.aws_support_mcp_server.server.support_client.describe_services',
+            new=AsyncMock(return_value={'services': []}),
+        ):
+            result = await describe_services(ctx=MagicMock(), format='markdown')
+        assert 'markdown' in result
+
+    async def test_describe_services_general_error_branch(self):
+        """Test describe_services general exception branch."""
+        from awslabs.aws_support_mcp_server.server import describe_services
+
+        ctx = MagicMock()
+        ctx.error = AsyncMock()
+        with patch(
+            'awslabs.aws_support_mcp_server.server.support_client.describe_services',
+            new=AsyncMock(side_effect=Exception('boom')),
+        ):
+            result = await describe_services(ctx=ctx, format='json')
+        assert result.get('status') == 'error'
+
+    async def test_describe_severity_levels_markdown_branch(self):
+        """Test describe_severity_levels returns markdown when requested."""
+        from awslabs.aws_support_mcp_server.server import describe_severity_levels
+
+        with patch(
+            'awslabs.aws_support_mcp_server.server.support_client.describe_severity_levels',
+            new=AsyncMock(return_value={'severityLevels': []}),
+        ):
+            result = await describe_severity_levels(ctx=MagicMock(), format='markdown')
+        assert 'markdown' in result
+
+    async def test_describe_severity_levels_general_error_branch(self):
+        """Test describe_severity_levels general exception branch."""
+        from awslabs.aws_support_mcp_server.server import describe_severity_levels
+
+        ctx = MagicMock()
+        ctx.error = AsyncMock()
+        with patch(
+            'awslabs.aws_support_mcp_server.server.support_client.describe_severity_levels',
+            new=AsyncMock(side_effect=Exception('boom')),
+        ):
+            result = await describe_severity_levels(ctx=ctx, format='json')
+        assert result.get('status') == 'error'
+
+    async def test_describe_communications_wrapper_calls_logic(self):
+        """Test describe_communications wrapper forwards args to logic function."""
+        from awslabs.aws_support_mcp_server.server import describe_communications
+
+        with patch(
+            'awslabs.aws_support_mcp_server.server._describe_communications_logic',
+            new=AsyncMock(return_value={'communications': []}),
+        ) as mock_logic:
+            result = await describe_communications(ctx=MagicMock(), case_id='case-1')
+        assert result == {'communications': []}
+        mock_logic.assert_awaited_once()
+
+    async def test_describe_supported_languages_wrapper_calls_logic(self):
+        """Test describe_supported_languages wrapper forwards args to logic function."""
+        from awslabs.aws_support_mcp_server.server import describe_supported_languages
+
+        with patch(
+            'awslabs.aws_support_mcp_server.server._describe_supported_languages_logic',
+            new=AsyncMock(return_value={'supportedLanguages': []}),
+        ) as mock_logic:
+            result = await describe_supported_languages(
+                ctx=MagicMock(), service_code='svc', category_code='cat'
+            )
+        assert result == {'supportedLanguages': []}
+        mock_logic.assert_awaited_once()
+
+    async def test_describe_create_case_options_wrapper_calls_logic(self):
+        """Test describe_create_case_options wrapper forwards args to logic function."""
+        from awslabs.aws_support_mcp_server.server import describe_create_case_options
+
+        with patch(
+            'awslabs.aws_support_mcp_server.server._describe_create_case_options_logic',
+            new=AsyncMock(
+                return_value={'communicationTypes': [], 'languageAvailability': 'available'}
+            ),
+        ) as mock_logic:
+            result = await describe_create_case_options(ctx=MagicMock(), service_code='svc')
+        assert result['languageAvailability'] == 'available'
+        mock_logic.assert_awaited_once()
+
+    async def test_add_attachments_wrapper_calls_logic(self):
+        """Test add_attachments_to_set wrapper forwards args to logic function."""
+        from awslabs.aws_support_mcp_server.server import add_attachments_to_set
+
+        with patch(
+            'awslabs.aws_support_mcp_server.server._add_attachments_to_set_logic',
+            new=AsyncMock(return_value={'status': 'success'}),
+        ) as mock_logic:
+            result = await add_attachments_to_set(
+                ctx=MagicMock(),
+                attachments=[{'fileName': 'a.txt', 'data': 'dGVzdA=='}],
+            )
+        assert result['status'] == 'success'
+        mock_logic.assert_awaited_once()
+
+    async def test_describe_attachment_wrapper_calls_logic(self):
+        """Test describe_attachment wrapper forwards args to logic function."""
+        from awslabs.aws_support_mcp_server.server import describe_attachment
+
+        with patch(
+            'awslabs.aws_support_mcp_server.server._describe_attachment_logic',
+            new=AsyncMock(return_value={'attachment': {}}),
+        ) as mock_logic:
+            result = await describe_attachment(ctx=MagicMock(), attachment_id='att-1')
+        assert result == {'attachment': {}}
+        mock_logic.assert_awaited_once()
+
+    @patch('awslabs.aws_support_mcp_server.server.logger')
+    @patch('awslabs.aws_support_mcp_server.server.diagnostics')
+    def test_main_debug_settings_path_with_settings_attr(self, mock_diagnostics, mock_logger):
+        """Test main sets debug on mcp.settings when available."""
+        import sys
+        from awslabs.aws_support_mcp_server.server import main
+        from types import SimpleNamespace
+
+        sys.argv = ['server.py', '--debug']
+        with patch('awslabs.aws_support_mcp_server.server.mcp') as mock_mcp:
+            mock_mcp.settings = SimpleNamespace(debug=False)
+            main()
+            assert mock_mcp.settings.debug is True
+
+    @patch('awslabs.aws_support_mcp_server.server.logger')
+    @patch('awslabs.aws_support_mcp_server.server.diagnostics')
+    def test_main_debug_settings_path_with_debug_attr(self, mock_diagnostics, mock_logger):
+        """Test main sets debug directly on mcp when settings are unavailable."""
+        import sys
+        from awslabs.aws_support_mcp_server.server import main
+
+        class DummyMCP:
+            """Minimal MCP object with debug attribute and run method."""
+
+            def __init__(self):
+                self.debug = False
+
+            def run(self, transport='stdio'):
+                """Mock run method."""
+                return transport
+
+        sys.argv = ['server.py', '--debug']
+        with patch('awslabs.aws_support_mcp_server.server.mcp', new=DummyMCP()) as dummy:
+            main()
+            assert dummy.debug is True

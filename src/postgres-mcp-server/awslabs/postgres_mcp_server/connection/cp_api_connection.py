@@ -19,12 +19,115 @@ from awslabs.postgres_mcp_server import __user_agent__
 from botocore.config import Config
 from botocore.exceptions import ClientError
 from loguru import logger
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
+
+
+DEFAULT_POSTGRES_PORT = 5432
 
 
 def internal_create_rds_client(region: str):
     """Create an RDS client with custom user agent configuration."""
     return boto3.client('rds', region_name=region, config=Config(user_agent_extra=__user_agent__))
+
+
+def internal_get_cluster_valid_endpoints(
+    cluster_properties: Dict[str, Any], region: str
+) -> List[Tuple[str, int]]:
+    """Return the list of valid (host, port) connection endpoints for a cluster.
+
+    A caller-supplied db_endpoint/port is considered legitimate only if it
+    matches one of the endpoints returned here. This is used to prevent
+    connection strings from pointing at arbitrary hosts (e.g. an
+    attacker-controlled FQDN / IP) that could capture DB credentials or
+    IAM auth tokens.
+
+    The returned list includes, where present:
+      - Writer endpoint (cluster.Endpoint)
+      - Reader endpoint (cluster.ReaderEndpoint)
+      - Custom endpoints (cluster.CustomEndpoints)
+      - Each member instance endpoint (from describe_db_instances)
+
+    Host comparison should be case-insensitive (DNS is case-insensitive);
+    this function returns hosts as reported by AWS without normalization.
+
+    Args:
+        cluster_properties: Cluster properties previously fetched via
+            internal_get_cluster_properties.
+        region: AWS region (used to fetch member instance endpoints).
+
+    Returns:
+        Non-empty list of (host, port) tuples.
+
+    Raises:
+        ValueError: If no valid endpoints could be resolved. A real Aurora
+            cluster always has at least a writer endpoint with a port, so
+            an empty result indicates malformed cluster properties or a
+            transient API state; we treat it as an error rather than
+            silently accepting any caller-supplied endpoint.
+    """
+    endpoints: List[Tuple[str, int]] = []
+
+    cluster_port_raw = cluster_properties.get('Port')
+    try:
+        cluster_port = int(cluster_port_raw) if cluster_port_raw is not None else 0
+    except (TypeError, ValueError):
+        cluster_port = DEFAULT_POSTGRES_PORT
+
+    writer_endpoint = cluster_properties.get('Endpoint')
+    if writer_endpoint and cluster_port:
+        endpoints.append((writer_endpoint, cluster_port))
+
+    reader_endpoint = cluster_properties.get('ReaderEndpoint')
+    if reader_endpoint and cluster_port:
+        endpoints.append((reader_endpoint, cluster_port))
+
+    for custom_endpoint in cluster_properties.get('CustomEndpoints', []) or []:
+        if custom_endpoint and cluster_port:
+            endpoints.append((custom_endpoint, cluster_port))
+
+    members = cluster_properties.get('DBClusterMembers', []) or []
+    instance_ids = [
+        m.get('DBInstanceIdentifier') for m in members if m.get('DBInstanceIdentifier')
+    ]
+    if instance_ids:
+        rds_client = internal_create_rds_client(region=region)
+        for instance_id in instance_ids:
+            try:
+                response = rds_client.describe_db_instances(DBInstanceIdentifier=instance_id)
+                for instance in response.get('DBInstances', []):
+                    instance_endpoint = instance.get('Endpoint', {})
+                    host = instance_endpoint.get('Address')
+                    port_raw = instance_endpoint.get('Port')
+                    try:
+                        port = int(port_raw) if port_raw is not None else 0
+                    except (TypeError, ValueError):
+                        port = 0
+                    if host and port:
+                        endpoints.append((host, port))
+            except ClientError as e:
+                # Don't fail the whole validation if a single instance lookup
+                # fails; log and continue. The caller still has to match one of
+                # the endpoints we successfully resolved.
+                logger.warning(
+                    f"Failed to fetch endpoint for member instance '{instance_id}': "
+                    f'{e.response["Error"]["Code"]} - {e.response["Error"]["Message"]}'
+                )
+
+    if not endpoints:
+        # A real Aurora cluster always advertises at least a writer endpoint
+        # with a valid port. An empty result here means either the cluster
+        # properties dict was malformed (missing/invalid Port, missing
+        # Endpoint) or every describe_db_instances call failed. Treat as an
+        # error so the caller doesn't build a connection string from caller
+        # input.
+        raise ValueError(
+            f'Cluster has no valid connection endpoints. '
+            f'Endpoint={cluster_properties.get("Endpoint")!r}, '
+            f'ReaderEndpoint={cluster_properties.get("ReaderEndpoint")!r}, '
+            f'Port={cluster_properties.get("Port")!r}'
+        )
+
+    return endpoints
 
 
 def internal_get_instance_properties(target_endpoint: str, region: str) -> Dict[str, Any]:

@@ -1,0 +1,79 @@
+{
+  "pagination": {
+    "ListArtifacts": {
+      "input_token": "nextToken",
+      "limit_key": "maxResults",
+      "output_token": "nextToken",
+      "result_key": "artifacts"
+    },
+    "ListAvailableProfiles": {
+      "input_token": "nextToken",
+      "limit_key": "maxResults",
+      "output_token": "nextToken",
+      "result_key": "profiles"
+    },
+    "ListConnectors": {
+      "input_token": "nextToken",
+      "output_token": "nextToken",
+      "result_key": "connectors"
+    },
+    "ListHitlTasks": {
+      "input_token": "nextToken",
+      "limit_key": "maxResults",
+      "output_token": "nextToken",
+      "result_key": "hitlTasks"
+    },
+    "ListIamRoleAssignments": {
+      "input_token": "nextToken",
+      "limit_key": "maxResults",
+      "output_token": "nextToken",
+      "result_key": "iamRoleAssignments"
+    },
+    "ListJobPlanSteps": {
+      "input_token": "nextToken",
+      "limit_key": "maxResults",
+      "output_token": "nextToken",
+      "result_key": "steps"
+    },
+    "ListJobs": {
+      "input_token": "nextToken",
+      "output_token": "nextToken",
+      "result_key": "jobList"
+    },
+    "ListMessages": {
+      "input_token": "nextToken",
+      "limit_key": "maxResults",
+      "output_token": "nextToken",
+      "result_key": "messageIds"
+    },
+    "ListPlanUpdates": {
+      "input_token": "nextToken",
+      "output_token": "nextToken",
+      "result_key": "steps"
+    },
+    "ListPlans": {
+      "input_token": "nextToken",
+      "limit_key": "maxResults",
+      "output_token": "nextToken",
+      "result_key": "items"
+    },
+    "ListUserRoleMappings": {
+      "input_token": "nextToken",
+      "limit_key": "maxResults",
+      "output_token": "nextToken",
+      "result_key": "items"
+    },
+    "ListWorkspaces": {
+      "input_token": "nextToken",
+      "limit_key": "maxResults",
+      "output_token": "nextToken",
+      "result_key": "items"
+    },
+    "SearchUsers": {
+      "input_token": "nextToken",
+      "limit_key": "maxResults",
+      "output_token": "nextToken",
+      "result_key": "users"
+    }
+  }
+}

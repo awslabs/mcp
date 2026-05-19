@@ -40,6 +40,14 @@ from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
     MetricMetadataIndexKey,
     StaticAlarmThreshold,
 )
+from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.promql_client import PromQLClient
+from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.promql_models import (
+    PromQLInstantResult,
+    PromQLLabelsResult,
+    PromQLLabelValuesResult,
+    PromQLRangeResult,
+    PromQLSeriesResult,
+)
 from datetime import datetime, timedelta, timezone
 from loguru import logger
 from mcp.server.fastmcp import Context
@@ -138,6 +146,13 @@ class CloudWatchMetricsTools:
 
         # Register get_recommended_metric_alarms tool
         mcp.tool(name='get_recommended_metric_alarms')(self.get_recommended_metric_alarms)
+
+        # Register PromQL tools
+        mcp.tool(name='execute_promql_query')(self.execute_promql_query)
+        mcp.tool(name='execute_promql_range_query')(self.execute_promql_range_query)
+        mcp.tool(name='get_promql_label_values')(self.get_promql_label_values)
+        mcp.tool(name='get_promql_series')(self.get_promql_series)
+        mcp.tool(name='get_promql_labels')(self.get_promql_labels)
 
     async def get_metric_data(
         self,
@@ -1162,4 +1177,372 @@ class CloudWatchMetricsTools:
         except Exception as e:
             logger.error(f'Error in analyze_metric: {str(e)}')
             await ctx.error(f'Error encountered when analyzing metric: {str(e)}')
+            raise
+
+    async def execute_promql_query(
+        self,
+        ctx: Context,
+        query: Annotated[
+            str,
+            Field(description='The PromQL query to execute'),
+        ],
+        time: Annotated[
+            Optional[str],
+            Field(
+                description='Evaluation timestamp (RFC3339 or Unix timestamp). Defaults to current time.'
+            ),
+        ] = None,
+        region: Annotated[
+            Optional[str],
+            Field(
+                description='AWS region. Defaults to AWS_REGION env or us-east-1. PromQL is available in: us-east-1, us-west-2, eu-west-1, ap-southeast-1, ap-southeast-2.'
+            ),
+        ] = None,
+        profile_name: Annotated[
+            Optional[str],
+            Field(
+                description='AWS CLI Profile Name. Falls back to AWS_PROFILE env or default credential chain.'
+            ),
+        ] = None,
+    ) -> PromQLInstantResult:
+        """Execute an instant PromQL query against CloudWatch.
+
+        Returns the current value of metrics at a single point in time (instant vector).
+        For time series over a range, use execute_promql_range_query instead.
+
+        Use this tool when:
+        - The user provides a PromQL expression
+        - The user references OTLP-ingested metrics or labels (@resource.*, @aws.*, @instrumentation.*)
+        - The user asks about enriched vended AWS metrics with OTel labels
+        - The user wants to query by AWS resource tags (@aws.tag.*)
+
+        Use get_metric_data instead when:
+        - The user references classic CloudWatch namespaces/dimensions (AWS/EC2, etc.)
+        - The user wants Metrics Insights SQL syntax
+
+        PromQL label conventions (OTLP scope to label mapping):
+        - @resource.{attr} - OTel resource attributes (e.g., @resource.service.name="myservice")
+        - @instrumentation.{attr} - instrumentation scope (e.g., @instrumentation.@name="cloudwatch.aws/ec2")
+        - @datapoint.{attr} or bare - datapoint attributes / CW dimensions (e.g., InstanceId="i-xxx")
+        - @aws.account_id, @aws.region - AWS system labels
+        - @aws.tag.{Key} - AWS resource tags (e.g., @aws.tag.Environment="production", @aws.tag.Team="backend")
+
+        For enriched vended AWS metrics, use histogram functions
+        (OTel enrichment must be enabled first: `aws cloudwatch start-otel-enrichment`):
+        - histogram_avg({CPUUtilization, "@instrumentation.@name"="cloudwatch.aws/ec2"})
+        - histogram_sum({Invocations, FunctionName="my-func"})
+
+        Limits: max 500 series returned, 7-day range, 20s timeout.
+
+        Example queries:
+        - {"http.server.active_requests", "@resource.service.name"="myservice"}
+        - histogram_avg({CPUUtilization, "@instrumentation.@name"="cloudwatch.aws/ec2"})
+        - sum by ("@aws.tag.Team")(histogram_sum({Invocations, "@instrumentation.@name"="cloudwatch.aws/lambda"}))
+        """
+        try:
+            params: Dict[str, str] = {'query': query}
+            if time:
+                params['time'] = time
+
+            data = PromQLClient.make_request(
+                endpoint='query',
+                params=params,
+                region=region,
+                profile_name=profile_name,
+            )
+            return PromQLInstantResult(
+                resultType=data.get('resultType', 'vector'),
+                result=data.get('result', []),
+            )
+        except Exception as e:
+            logger.error(f'Error executing PromQL query: {str(e)}')
+            await ctx.error(f'Error executing PromQL query: {str(e)}')
+            raise
+
+    async def execute_promql_range_query(
+        self,
+        ctx: Context,
+        query: Annotated[
+            str,
+            Field(description='The PromQL query to execute'),
+        ],
+        start: Annotated[
+            str,
+            Field(description='Start timestamp (RFC3339 or Unix timestamp)'),
+        ],
+        end: Annotated[
+            str,
+            Field(description='End timestamp (RFC3339 or Unix timestamp)'),
+        ],
+        step: Annotated[
+            str,
+            Field(description="Query resolution step width (e.g., '60s', '5m', '1h')"),
+        ],
+        region: Annotated[
+            Optional[str],
+            Field(
+                description='AWS region. Defaults to AWS_REGION env or us-east-1. PromQL is available in: us-east-1, us-west-2, eu-west-1, ap-southeast-1, ap-southeast-2.'
+            ),
+        ] = None,
+        profile_name: Annotated[
+            Optional[str],
+            Field(
+                description='AWS CLI Profile Name. Falls back to AWS_PROFILE env or default credential chain.'
+            ),
+        ] = None,
+    ) -> PromQLRangeResult:
+        """Execute a PromQL range query against CloudWatch.
+
+        Returns time series data over a time range (matrix). Use for trend analysis and graphs.
+
+        Use this tool when:
+        - The user provides a PromQL expression and wants data over a time window
+        - The user references OTLP-ingested metrics or labels (@resource.*, @aws.*, @instrumentation.*)
+        - The user asks about enriched vended AWS metrics with OTel labels
+
+        Use get_metric_data instead when:
+        - The user references classic CloudWatch namespaces/dimensions (AWS/EC2, etc.)
+        - The user wants Metrics Insights SQL syntax
+
+        For enriched vended AWS metrics, use histogram functions
+        (OTel enrichment must be enabled first: `aws cloudwatch start-otel-enrichment`):
+        - histogram_avg({CPUUtilization, "@instrumentation.@name"="cloudwatch.aws/ec2"})
+        - histogram_sum({Errors, "@instrumentation.@name"="cloudwatch.aws/lambda", "@aws.tag.Team"="backend"})
+
+        Limits: max 500 series, max 7-day range (including lookback), 20s timeout.
+
+        Example:
+            query: 'avg_over_time({"http.server.active_requests", "@resource.service.name"="myservice"}[5m])'
+            start: "2024-01-01T00:00:00Z"
+            end: "2024-01-01T01:00:00Z"
+            step: "5m"
+        """
+        try:
+            params: Dict[str, str] = {
+                'query': query,
+                'start': start,
+                'end': end,
+                'step': step,
+            }
+
+            data = PromQLClient.make_request(
+                endpoint='query_range',
+                params=params,
+                region=region,
+                profile_name=profile_name,
+            )
+            return PromQLRangeResult(
+                resultType=data.get('resultType', 'matrix'),
+                result=data.get('result', []),
+            )
+        except Exception as e:
+            logger.error(f'Error executing PromQL range query: {str(e)}')
+            await ctx.error(f'Error executing PromQL range query: {str(e)}')
+            raise
+
+    async def get_promql_label_values(
+        self,
+        ctx: Context,
+        label_name: Annotated[
+            str,
+            Field(
+                description='Label name to get values for (e.g., "__name__" for metric names, "@resource.service.name" for services)'
+            ),
+        ],
+        match: Annotated[
+            Optional[List[str]],
+            Field(
+                description='Optional series selectors to filter results (e.g., [\'{"@instrumentation.@name"="cloudwatch.aws/ec2"}\'])'
+            ),
+        ] = None,
+        start: Annotated[
+            Optional[str],
+            Field(description='Optional start timestamp (RFC3339 or Unix)'),
+        ] = None,
+        end: Annotated[
+            Optional[str],
+            Field(description='Optional end timestamp (RFC3339 or Unix)'),
+        ] = None,
+        region: Annotated[
+            Optional[str],
+            Field(
+                description='AWS region. Defaults to AWS_REGION env or us-east-1. PromQL is available in: us-east-1, us-west-2, eu-west-1, ap-southeast-1, ap-southeast-2.'
+            ),
+        ] = None,
+        profile_name: Annotated[
+            Optional[str],
+            Field(
+                description='AWS CLI Profile Name. Falls back to AWS_PROFILE env or default credential chain.'
+            ),
+        ] = None,
+    ) -> PromQLLabelValuesResult:
+        """Get values for a specific PromQL label from CloudWatch.
+
+        Use label_name="__name__" to list all available metric names.
+        Use label_name="@resource.service.name" to list all services.
+
+        Use this tool when:
+        - The user wants to discover available metrics via PromQL
+        - The user wants to see what values exist for a label
+        - The user is exploring OTLP-ingested or enriched vended metrics
+
+        Limits: max 10,000 values returned per request.
+
+        Examples:
+        - label_name="__name__" → list all metric names
+        - label_name="@resource.service.name" → list all service names
+        - label_name="@instrumentation.@name" → list all instrumentation scopes
+        - label_name="@aws.tag.Environment" → list all Environment tag values
+        """
+        try:
+            params: Dict[str, str] = {}
+            if match:
+                params['match[]'] = match[0] if len(match) == 1 else ','.join(match)
+            if start:
+                params['start'] = start
+            if end:
+                params['end'] = end
+
+            data = PromQLClient.make_request(
+                endpoint=f'label/{label_name}/values',
+                params=params,
+                region=region,
+                profile_name=profile_name,
+            )
+            return PromQLLabelValuesResult(values=sorted(data) if isinstance(data, list) else [])
+        except Exception as e:
+            logger.error(f'Error getting PromQL label values: {str(e)}')
+            await ctx.error(f'Error getting PromQL label values: {str(e)}')
+            raise
+
+    async def get_promql_series(
+        self,
+        ctx: Context,
+        match: Annotated[
+            List[str],
+            Field(
+                description='Series selectors to match (e.g., [\'{"http.server.active_requests", "@resource.service.name"="myservice"}\'])'
+            ),
+        ],
+        start: Annotated[
+            Optional[str],
+            Field(description='Optional start timestamp (RFC3339 or Unix)'),
+        ] = None,
+        end: Annotated[
+            Optional[str],
+            Field(description='Optional end timestamp (RFC3339 or Unix)'),
+        ] = None,
+        region: Annotated[
+            Optional[str],
+            Field(
+                description='AWS region. Defaults to AWS_REGION env or us-east-1. PromQL is available in: us-east-1, us-west-2, eu-west-1, ap-southeast-1, ap-southeast-2.'
+            ),
+        ] = None,
+        profile_name: Annotated[
+            Optional[str],
+            Field(
+                description='AWS CLI Profile Name. Falls back to AWS_PROFILE env or default credential chain.'
+            ),
+        ] = None,
+    ) -> PromQLSeriesResult:
+        """Find time series matching label selectors in CloudWatch.
+
+        Returns the label sets of all series matching the provided matchers.
+        Useful for discovering what series exist and their label structure.
+
+        Use this tool when:
+        - The user wants to explore what time series exist for a metric
+        - The user wants to see the full label set of matching series
+        - The user is investigating OTLP-ingested or enriched vended metrics
+
+        Limits: max 10,000 series returned per request.
+
+        Example:
+            match: ['{"@instrumentation.@name"="cloudwatch.aws/ec2"}']
+        """
+        try:
+            params: Dict[str, str] = {'match[]': match[0] if len(match) == 1 else ','.join(match)}
+            if start:
+                params['start'] = start
+            if end:
+                params['end'] = end
+
+            data = PromQLClient.make_request(
+                endpoint='series',
+                params=params,
+                region=region,
+                profile_name=profile_name,
+            )
+            return PromQLSeriesResult(series=data if isinstance(data, list) else [])
+        except Exception as e:
+            logger.error(f'Error getting PromQL series: {str(e)}')
+            await ctx.error(f'Error getting PromQL series: {str(e)}')
+            raise
+
+    async def get_promql_labels(
+        self,
+        ctx: Context,
+        match: Annotated[
+            Optional[List[str]],
+            Field(description='Optional series selectors to filter which labels are returned'),
+        ] = None,
+        start: Annotated[
+            Optional[str],
+            Field(description='Optional start timestamp (RFC3339 or Unix)'),
+        ] = None,
+        end: Annotated[
+            Optional[str],
+            Field(description='Optional end timestamp (RFC3339 or Unix)'),
+        ] = None,
+        region: Annotated[
+            Optional[str],
+            Field(
+                description='AWS region. Defaults to AWS_REGION env or us-east-1. PromQL is available in: us-east-1, us-west-2, eu-west-1, ap-southeast-1, ap-southeast-2.'
+            ),
+        ] = None,
+        profile_name: Annotated[
+            Optional[str],
+            Field(
+                description='AWS CLI Profile Name. Falls back to AWS_PROFILE env or default credential chain.'
+            ),
+        ] = None,
+    ) -> PromQLLabelsResult:
+        """Get all label names available in CloudWatch PromQL.
+
+        Returns a list of all label names. Useful for discovering the label structure
+        of OTLP-ingested metrics and enriched vended AWS metrics.
+
+        Use this tool when:
+        - The user wants to know what labels/dimensions are available
+        - The user is exploring the label structure of their metrics
+
+        Common labels include:
+        - __name__ (metric name)
+        - @resource.service.name, @resource.cloud.region, @resource.cloud.account.id (OTel resource attributes)
+        - @instrumentation.@name (instrumentation scope, e.g., "cloudwatch.aws/ec2", "cloudwatch.aws/lambda")
+        - @aws.account_id, @aws.region (AWS system labels)
+        - @aws.tag.{Key} (AWS resource tags, e.g., @aws.tag.Environment, @aws.tag.Team)
+        - Bare dimension names (e.g., InstanceId, FunctionName) — these are datapoint attributes
+
+        Limits: max 10,000 labels returned per request.
+        """
+        try:
+            params: Dict[str, str] = {}
+            if match:
+                params['match[]'] = match[0] if len(match) == 1 else ','.join(match)
+            if start:
+                params['start'] = start
+            if end:
+                params['end'] = end
+
+            data = PromQLClient.make_request(
+                endpoint='labels',
+                params=params,
+                region=region,
+                profile_name=profile_name,
+            )
+            return PromQLLabelsResult(labels=sorted(data) if isinstance(data, list) else [])
+        except Exception as e:
+            logger.error(f'Error getting PromQL labels: {str(e)}')
+            await ctx.error(f'Error getting PromQL labels: {str(e)}')
             raise
