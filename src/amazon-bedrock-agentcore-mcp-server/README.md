@@ -1,38 +1,39 @@
 # AWS Bedrock AgentCore MCP Server
 
-Model Context Protocol (MCP) server for Amazon Bedrock AgentCore services
+Model Context Protocol (MCP) server for Amazon Bedrock AgentCore — providing operational API tools that let AI coding agents manage AgentCore resources directly.
 
-This MCP server provides comprehensive access to Amazon Bedrock AgentCore documentation, enabling developers to search and retrieve detailed information about AgentCore platform services, APIs, tutorials, and best practices.
+## Overview
 
-## Features
+This MCP server gives AI agents (Claude Code, Kiro, Cursor, VS Code, Codex CLI) direct access to AgentCore platform APIs. Agents can create and manage runtimes, store and retrieve memories, configure identity providers, deploy gateways, and manage policies — all through standard MCP tool calls backed by real boto3 API calls.
 
-- **Search Documentation**: Search through curated AgentCore documentation with ranked results and contextual snippets
-- **Fetch Full Documents**: Retrieve complete documentation pages for in-depth understanding
-- **Browser Automation**: 25 cloud-based browser tools for web navigation, interaction, and data extraction — no local browser installation required
-- **Comprehensive Coverage**: Access documentation for all AgentCore services including Runtime, Memory, Code Interpreter, Browser, Gateway, Observability, and Identity
-- **Smart Caching**: Efficient document caching with on-demand content loading for optimal performance
-- **Curated Documentation List**: Uses llm.txt as a curated list of relevant AgentCore documentations, always fetching the latest version of the file
+**122 tools** across 7 operational primitives + documentation search.
+
+|Primitive           |Tools|What it does                                                                                   |
+|--------------------|----:|-----------------------------------------------------------------------------------------------|
+|**Runtime**         |14   |Deploy, manage, and invoke agent runtimes and endpoints                                        |
+|**Memory**          |21   |Create memory resources, store events, semantic search, batch operations, extraction jobs      |
+|**Identity**        |21   |Manage workload identities, API key providers, OAuth2 providers, token vault, resource policies|
+|**Gateway**         |15   |Create and manage API gateways, gateway targets, resource policies                             |
+|**Policy**          |15   |Create policy engines, manage policies, generate and review policy assets                      |
+|**Browser**         |25   |Cloud-based browser automation — navigate, click, type, screenshot, extract data               |
+|**Code Interpreter**|9    |Sandboxed code execution, file upload/download, package installation                           |
+|**Documentation**   |2    |Search and fetch AgentCore docs                                                                |
 
 ## Prerequisites
 
-### Installation Requirements
-
-1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
-2. Install Python 3.10 or newer using `uv python install 3.10` (or a more recent version)
+1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/)
+1. Install Python 3.10+ using `uv python install 3.10`
+1. AWS credentials configured (AWS_PROFILE, AWS_ACCESS_KEY_ID, or IAM role)
 
 ## Installation
 
-| Kiro | Cursor | VS Code |
-|:----:|:------:|:-------:|
-| [![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=bedrock-agentcore-mcp-server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.amazon-bedrock-agentcore-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%7D) | [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=bedrock-agentcore-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYW1hem9uLWJlZHJvY2stYWdlbnRjb3JlLW1jcC1zZXJ2ZXJAbGF0ZXN0IiwiZW52Ijp7IkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IifSwiZGlzYWJsZWQiOmZhbHNlLCJhdXRvQXBwcm92ZSI6WyJzZWFyY2hfYWdlbnRjb3JlX2RvY3MiLCJmZXRjaF9hZ2VudGNvcmVfZG9jIl19) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=Bedrock%20AgentCore%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.amazon-bedrock-agentcore-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%22search_agentcore_docs%22%2C%22fetch_agentcore_doc%22%5D%7D) |
+|Kiro                                                                                                                                                                                                                                                                                                         |Cursor                                                                                                                                                                                                                                                                                                                                                                                                     |VS Code                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|
+|[![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=bedrock-agentcore-mcp-server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.amazon-bedrock-agentcore-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%7D)|[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=bedrock-agentcore-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYW1hem9uLWJlZHJvY2stYWdlbnRjb3JlLW1jcC1zZXJ2ZXJAbGF0ZXN0IiwiZW52Ijp7IkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IifSwiZGlzYWJsZWQiOmZhbHNlLCJhdXRvQXBwcm92ZSI6WyJzZWFyY2hfYWdlbnRjb3JlX2RvY3MiLCJmZXRjaF9hZ2VudGNvcmVfZG9jIl19)|[![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=Bedrock%20AgentCore%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.amazon-bedrock-agentcore-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%22search_agentcore_docs%22%2C%22fetch_agentcore_doc%22%5D%7D)|
 
-Configure the MCP server in your MCP client configuration:
+### Configuration
 
-For [Kiro](https://kiro.dev/), see the [Kiro IDE documentation](https://kiro.dev/docs/mcp/configuration/) or the [Kiro CLI documentation](https://kiro.dev/docs/cli/mcp/configuration/) for details.
-
-For global configuration, edit `~/.kiro/settings/mcp.json`. For project-specific configuration, edit `.kiro/settings/mcp.json` in your project directory.
-
-Example configuration for Kiro (`~/.kiro/settings/mcp.json`):
+Add to your MCP client configuration (e.g., `~/.kiro/settings/mcp.json`):
 
 ```json
 {
@@ -42,222 +43,138 @@ Example configuration for Kiro (`~/.kiro/settings/mcp.json`):
       "args": ["awslabs.amazon-bedrock-agentcore-mcp-server@latest"],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
-      },
-      "disabled": false,
-      "autoApprove": []
-    }
-  }
-}
-```
-
-### Windows Installation
-
-For Windows users, the MCP server configuration format is slightly different:
-
-```json
-{
-  "mcpServers": {
-    "bedrock-agentcore-mcp-server": {
-      "disabled": false,
-      "timeout": 60,
-      "type": "stdio",
-      "command": "uv",
-      "args": [
-        "tool",
-        "run",
-        "--from",
-        "awslabs.amazon-bedrock-agentcore-mcp-server@latest",
-        "awslabs.amazon-bedrock-agentcore-mcp-server.exe"
-      ],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
       }
     }
   }
 }
 ```
 
-Or using Docker after a successful `docker build -t mcp/amazon-bedrock-agentcore .`:
+### Windows
 
 ```json
 {
   "mcpServers": {
     "bedrock-agentcore-mcp-server": {
-      "command": "docker",
+      "command": "uv",
       "args": [
-        "run",
-        "--rm",
-        "--interactive",
-        "--env",
-        "FASTMCP_LOG_LEVEL=ERROR",
-        "mcp/amazon-bedrock-agentcore:latest"
+        "tool", "run", "--from",
+        "awslabs.amazon-bedrock-agentcore-mcp-server@latest",
+        "awslabs.amazon-bedrock-agentcore-mcp-server.exe"
       ],
-      "env": {},
-      "disabled": false,
-      "autoApprove": []
+      "env": { "FASTMCP_LOG_LEVEL": "ERROR" }
     }
   }
 }
 ```
 
-## Basic Usage
+## Tool Configuration
 
-The server provides access to comprehensive Amazon Bedrock AgentCore documentation covering:
+All primitive tools are enabled by default. Use environment variables to control which tools are registered:
 
-**Platform Services:**
-- AgentCore Runtime (serverless deployment and scaling)
-- AgentCore Memory (persistent knowledge with event and semantic memory)
-- AgentCore Code Interpreter (secure code execution in isolated sandboxes)
-- AgentCore Browser (fast, secure cloud-based browser for web interaction)
-- AgentCore Gateway (transform existing APIs into agent tools)
-- AgentCore Observability (real-time monitoring and tracing)
-- AgentCore Identity (secure authentication and access management)
+```bash
+# Disable specific primitives
+AGENTCORE_DISABLE_TOOLS=browser,code_interpreter
 
-**Development Resources:**
-- Getting started guides and prerequisites
-- Building your first agent or transforming existing code
-- Local development and testing workflows
-- Deployment to AgentCore using CLI
-- API reference documentation
-- Examples and tutorials for various use cases
-
-Example queries:
-- "How do I set up AgentCore Memory for my agent?"
-- "Show me examples of using the Code Interpreter service"
-- "What are the deployment options for AgentCore Runtime?"
-- "How do I integrate AgentCore Browser with my application?"
-- "Start a browser session and navigate to docs.aws.amazon.com"
-- "Take a screenshot of the current page and extract all links"
-
-## Browser Tools
-
-The server includes 25 browser automation tools powered by Amazon Bedrock AgentCore. Each session runs in an isolated Firecracker microVM — no local browser installation is needed.
-
-### Quick Start
-
-```python
-# 1. Start a session
-start_browser_session(timeout_seconds=300)
-
-# 2. Navigate and interact
-browser_navigate(session_id="...", url="https://example.com")
-browser_snapshot(session_id="...")       # accessibility tree with element refs
-browser_click(session_id="...", ref="e3")
-browser_type(session_id="...", ref="e5", text="search query")
-
-# 3. Clean up
-stop_browser_session(session_id="...")
+# Or enable only specific primitives
+AGENTCORE_ENABLE_TOOLS=memory,runtime,identity
 ```
 
-### Tool Categories
+When `AGENTCORE_ENABLE_TOOLS` is set, only the listed primitives are registered. Documentation tools (`search_agentcore_docs`, `fetch_agentcore_doc`) are always available.
 
-| Category | Tools | Description |
-|----------|-------|-------------|
-| **Session** (4) | `start_browser_session`, `get_browser_session`, `list_browser_sessions`, `stop_browser_session` | Create, inspect, list, and terminate sessions |
-| **Navigation** (3) | `browser_navigate`, `browser_navigate_back`, `browser_navigate_forward` | URL navigation and history |
-| **Observation** (6) | `browser_snapshot`, `browser_take_screenshot`, `browser_evaluate`, `browser_wait_for`, `browser_console_messages`, `browser_network_requests` | Page state, screenshots, JS execution, network |
-| **Interaction** (9) | `browser_click`, `browser_type`, `browser_fill_form`, `browser_select_option`, `browser_hover`, `browser_press_key`, `browser_upload_file`, `browser_handle_dialog`, `browser_mouse_wheel` | Click, type, forms, keyboard, dialogs |
-| **Management** (3) | `browser_tabs`, `browser_resize`, `browser_close` | Tab management, viewport, page lifecycle |
+## Primitives
 
-### Tips
+### Runtime (14 tools)
 
-- **Use DuckDuckGo or Bing** instead of Google — Google blocks cloud browser IPs with CAPTCHAs.
-- **Prefer `browser_evaluate` for data extraction** — snapshots show page structure; `browser_evaluate` with `querySelectorAll` extracts actual data efficiently.
-- **Use `browser_evaluate` for long text** — `browser_type` types character-by-character. For long inputs, use `document.querySelector("selector").value = "text"` instead.
-- **Idle timeout, not absolute** — `timeout_seconds` on `start_browser_session` resets on each tool call, not wall-clock duration.
+Manage agent runtimes and endpoints on AgentCore. Create runtimes, deploy endpoint versions, invoke agents, and manage sessions.
 
-## Tools
+Key tools: `create_agent_runtime`, `create_agent_runtime_endpoint`, `invoke_agent_runtime`, `stop_runtime_session`, `get_runtime_guide`
 
-### search_agentcore_docs
+### Memory (21 tools)
 
-Search curated AgentCore documentation and return ranked results with snippets.
+Create memory resources, store conversation events, retrieve semantically relevant memories, and manage extraction jobs. Supports both short-term (session events) and long-term (extracted insights) memory.
 
-```python
-search_agentcore_docs(query: str, k: int = 5) -> List[Dict[str, Any]]
+Key tools: `memory_create`, `memory_create_event`, `memory_retrieve_records`, `memory_batch_create_records`, `get_memory_guide`
+
+> **Note:** The MCP tools call AgentCore Memory APIs directly via boto3. The `agentcore` CLI is not required to use these tools.
+
+### Identity (21 tools)
+
+Manage workload identities, API key credential providers, OAuth2 credential providers, token vault configuration, and resource policies. Data plane operations (token retrieval) are intentionally excluded — they return live credentials that should not flow through LLM context.
+
+Key tools: `identity_create_workload_identity`, `identity_create_api_key_provider`, `identity_create_oauth2_provider`, `identity_get_token_vault`, `get_identity_guide`
+
+### Gateway (15 tools)
+
+Create and manage API gateways that transform existing APIs into agent-callable MCP tools. Manage gateway targets (Lambda, OpenAPI, Smithy, MCP servers) and resource policies. The `InvokeGateway` data plane operation is excluded — it requires agent-runtime JWTs and can return sensitive content.
+
+Key tools: `gateway_create`, `gateway_target_create`, `gateway_target_synchronize`, `gateway_resource_policy_put`, `get_gateway_guide`
+
+### Policy (15 tools)
+
+Create policy engines, manage authorization policies, and generate policy assets. Policy engines enforce fine-grained access control for agent actions.
+
+Key tools: `policy_engine_create`, `policy_create`, `policy_generation_start`, `policy_generation_get`, `get_policy_guide`
+
+### Browser (25 tools)
+
+Cloud-based browser automation powered by AgentCore. Each session runs in an isolated Firecracker microVM — no local browser installation needed.
+
+```
+start_browser_session → browser_navigate → browser_snapshot → browser_click → stop_browser_session
 ```
 
-**Parameters:**
-- `query`: Search query string (e.g., "bedrock agentcore", "memory integration", "deployment guide")
-- `k`: Maximum number of results to return (default: 5)
+Tips:
 
-**Returns:**
-List of dictionaries containing:
-- `url`: Document URL
-- `title`: Display title
-- `score`: Relevance score (0-1, higher is better)
-- `snippet`: Contextual content preview
+- Use DuckDuckGo or Bing instead of Google (CAPTCHAs block cloud IPs)
+- Use `browser_evaluate` with `querySelectorAll` for data extraction
+- `timeout_seconds` is an idle timeout, not absolute duration
 
-### fetch_agentcore_doc
+### Code Interpreter (9 tools)
 
-Fetch full document content by URL.
+Sandboxed code execution in isolated environments. Start a session, execute code or shell commands, install packages, and transfer files.
 
-```python
-fetch_agentcore_doc(uri: str) -> Dict[str, Any]
+Key tools: `start_code_interpreter_session`, `execute_code`, `execute_command`, `install_packages`, `upload_file`, `download_file`
+
+> **Cost note:** Sessions incur AWS charges. Stop sessions when done.
+
+### Documentation (2 tools)
+
+Search and fetch AgentCore documentation. These tools are always available regardless of `AGENTCORE_DISABLE_TOOLS` settings.
+
+- `search_agentcore_docs` — search with ranked results and snippets
+- `fetch_agentcore_doc` — retrieve full document content by URL
+
+## Cost Awareness
+
+Tools that create AWS resources or invoke compute incur charges. Each primitive’s guide tool (`get_memory_guide`, `get_runtime_guide`, etc.) documents cost tiers:
+
+- **Read-only** (no cost): get, list, guide operations
+- **Billable** (AWS charges): create, update, invoke, search operations
+- **Destructive** (irreversible): delete operations
+
+Billable and destructive tools include `COST WARNING:` or `WARNING:` in their descriptions so agents understand the implications before calling them.
+
+## Security
+
+- All API calls use boto3 with credentials resolved from your environment (AWS_PROFILE, env vars, or IAM role)
+- Operations that return credential material (tokens, API keys, secrets) are excluded from MCP tools — credentials should not flow through LLM context
+- Retrieved content (memory records, gateway responses) should be treated as untrusted input
+- User-agent tracking (`agentcore-mcp-server/{version} {primitive}`) is included in API calls for usage analytics — no telemetry is sent elsewhere
+
+## Architecture
+
+Each primitive is implemented as an independent sub-package under `tools/`:
+
+```
+tools/
+├── runtime/       # 14 tools — agent runtime management
+├── memory/        # 21 tools — memory resources and records
+├── identity/      # 21 tools — workload identity and credentials
+├── gateway/       # 15 tools — API gateway management
+├── policy/        # 15 tools — policy engine management
+├── browser/       # 25 tools — cloud browser automation
+├── code_interpreter/  # 9 tools — sandboxed code execution
+└── docs.py        # 2 tools — documentation search
 ```
 
-**Parameters:**
-- `uri`: Document URI (supports http/https URLs)
-
-**Returns:**
-Dictionary containing:
-- `url`: Canonical document URL
-- `title`: Document title
-- `content`: Full document text content
-- `error`: Error message (if fetch failed)
-
-Use this tool to get complete documentation pages when search snippets aren't sufficient for understanding or implementing AgentCore features.
-
-### manage_agentcore_runtime
-
-Provides comprehensive information on deploying and managing agents in AgentCore Runtime.
-
-```python
-manage_agentcore_runtime() -> Dict[str, Any]
-```
-
-**Returns:**
-Detailed deployment guide covering:
-- Code requirements and validation checklist
-- Step-by-step CLI deployment workflow (configure, launch, invoke, status, destroy)
-- Required code patterns with BedrockAgentCoreApp
-- Common issues and troubleshooting
-- Session management and cleanup procedures
-
-Use this tool when you need to deploy agents to AgentCore Runtime or troubleshoot deployment issues.
-
-### manage_agentcore_memory
-
-Provides comprehensive information on managing AgentCore Memory resources.
-
-```python
-manage_agentcore_memory() -> Dict[str, Any]
-```
-
-**Returns:**
-Complete memory management guide covering:
-- Memory resource creation and configuration
-- Short-term memory (STM) and long-term memory (LTM) concepts
-- Semantic memory strategies for facts and knowledge
-- Full CLI command reference (create, get, list, delete, status)
-- Common workflows and examples
-
-Use this tool when working with AgentCore Memory for persistent knowledge storage.
-
-### manage_agentcore_gateway
-
-Provides comprehensive information on deploying and managing MCP Gateways in AgentCore.
-
-```python
-manage_agentcore_gateway() -> Dict[str, Any]
-```
-
-**Returns:**
-Complete gateway deployment guide covering:
-- Gateway creation and configuration requirements
-- Step-by-step CLI deployment workflow
-- Target management for Lambda, OpenAPI, and Smithy models
-- Authentication and authorization setup (Cognito, OAuth2, API keys)
-- Management commands (list, get, delete)
-- Common patterns and troubleshooting
-
-Use this tool when deploying MCP Gateways to provide managed endpoints for Model Context Protocol servers.
+Each sub-package contains: cached boto3 client wrapper, Pydantic response models, structured error handler, domain tool files, and a comprehensive guide tool.

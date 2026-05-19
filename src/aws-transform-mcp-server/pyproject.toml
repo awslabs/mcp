@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.aws-transform-mcp-server"
-version = "0.1.2"
+version = "0.1.3"
 description = "An AWS Labs Model Context Protocol (MCP) server for AWS Transform — manage transformation workspaces, jobs, connectors, HITL tasks, artifacts, and chat"
 readme = "README.md"
 requires-python = ">=3.10"
