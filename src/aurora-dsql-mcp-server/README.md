@@ -33,6 +33,12 @@ The MCP Server requires a valid configuration for --cluster_endpoint, --database
 - **dsql_recommend** - Get recommendations for DSQL best practices
   - Parameters: `url` (required)
 
+### SQL Validation
+
+- **dsql_lint** - Validate SQL for Aurora DSQL compatibility and optionally auto-fix issues
+  - Parameters: `sql` (required), `fix` (optional, default false)
+  - Returns diagnostics with rule violations, suggestions, and optionally a fixed SQL string
+
 ## Prerequisites
 
 1. An AWS account with an [Aurora DSQL Cluster](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/getting-started.html)

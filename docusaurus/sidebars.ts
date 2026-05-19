@@ -45,6 +45,13 @@ const sidebars: SidebarsConfig = {
         },
         {
           type: "category",
+          label: "Migration & Modernization",
+          items: [
+            "servers/aws-transform-mcp-server",
+          ],
+        },
+        {
+          type: "category",
           label: "Infrastructure & Deployment",
           items: [
             "servers/aws-iac-mcp-server",
@@ -57,6 +64,7 @@ const sidebars: SidebarsConfig = {
             "servers/aws-serverless-mcp-server",
             "servers/aws-support-mcp-server",
             "servers/aws-network-mcp-server",
+            "servers/aws-for-sap-management-mcp-server",
           ],
         },
         {
@@ -66,6 +74,7 @@ const sidebars: SidebarsConfig = {
             "servers/bedrock-kb-retrieval-mcp-server",
             "servers/amazon-qindex-mcp-server",
             "servers/amazon-qbusiness-anonymous-mcp-server",
+            'servers/amazon-translate-mcp-server',
             "servers/document-loader-mcp-server",
             "servers/aws-bedrock-custom-model-import-mcp-server",
             "servers/amazon-bedrock-agentcore-mcp-server",

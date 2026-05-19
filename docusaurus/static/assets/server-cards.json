@@ -63,6 +63,29 @@
   ],
   "servers": [
     {
+      "category": "Infrastructure & Deployment",
+      "description": "Manage AWS Transform workspaces, jobs, connectors, HITL tasks, and artifacts for mainframe, VMware, .NET, and custom code transformations.",
+      "icon": "\ud83d\udd04",
+      "id": "aws-transform-mcp-server",
+      "name": "AWS Transform MCP Server",
+      "source_path": "src/aws-transform-mcp-server/",
+      "subcategory": "Migration & Modernization",
+      "tags": [
+        "aws-transform",
+        "migration",
+        "modernization",
+        "mainframe",
+        "vmware",
+        "dotnet",
+        "hitl",
+        "transformation"
+      ],
+      "workflows": [
+        "vibe-coding",
+        "autonomous"
+      ]
+    },
+    {
       "category": "Essential Setup",
       "description": "Secure, auditable AWS operations with API access, documentation, Agent SOPs, and CloudTrail logging.",
       "icon": "\ud83d\udd11",
@@ -910,7 +933,7 @@
     },
     {
       "category": "Data & Analytics",
-      "description": "Comprehensive data processing tools and real-time pipeline visibility across AWS Glue and Amazon EMR-EC2",
+      "description": "Comprehensive data processing tools and real-time pipeline visibility across AWS Glue, Amazon EMR-EC2, and Amazon Athena",
       "icon": "\ud83d\udcca",
       "id": "aws-dataprocessing-mcp-server",
       "name": "Amazon Data Processing MCP Server",
@@ -920,6 +943,7 @@
         "data-analytics",
         "glue",
         "emr",
+        "athena",
         "data-processing",
         "etl",
         "pipeline",
@@ -1148,6 +1172,32 @@
       ]
     },
     {
+      "category": "AI & Machine Learning",
+      "description": "Intelligent text translation with 75+ languages, custom terminology, batch processing, and advanced workflow orchestration",
+      "icon": "\ud83c\udf10",
+      "id": "amazon-translate-mcp-server",
+      "name": "Amazon Translate MCP Server",
+      "source_path": "src/amazon-translate-mcp-server/",
+      "subcategory": "Language Processing",
+      "tags": [
+        "ai-ml",
+        "translate",
+        "language-processing",
+        "multilingual",
+        "terminology",
+        "batch-processing",
+        "workflow-orchestration",
+        "conversational",
+        "autonomous",
+        "vibe-coding"
+      ],
+      "workflows": [
+        "conversational",
+        "autonomous",
+        "vibe-coding"
+      ]
+    },
+    {
       "category": "Data & Analytics",
       "description": "Apache Spark Troubleshooting and code recommendation tool for real time error and workload analysis and fixes for Glue and EMR deployment models",
       "icon": "\ud83d\udcca",
@@ -1194,6 +1244,32 @@
       ],
       "workflows": [
         "autonomous"
+      ]
+    },
+    {
+      "category": "Infrastructure & Deployment",
+      "description": "Manage, monitor, and operate SAP applications on AWS with health checks, configuration validation, and scheduling",
+      "icon": "\ud83c\udfd7\ufe0f",
+      "id": "aws-for-sap-management-mcp-server",
+      "name": "AWS Systems Manager for SAP MCP Server",
+      "source_path": "src/aws-for-sap-management-mcp-server/",
+      "subcategory": "SAP Management",
+      "tags": [
+        "infrastructure-deployment",
+        "ssm-sap",
+        "sap",
+        "hana",
+        "operations",
+        "monitoring",
+        "health-checks",
+        "configuration",
+        "scheduling",
+        "autonomous",
+        "conversational"
+      ],
+      "workflows": [
+        "autonomous",
+        "conversational"
       ]
     }
   ],
