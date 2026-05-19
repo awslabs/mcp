@@ -21,6 +21,7 @@ classifiers = [
 
 dependencies = [
     "fastmcp>=0.6.0",
+    "python-multipart>=0.0.27",
 ]
 
 [project.optional-dependencies]
