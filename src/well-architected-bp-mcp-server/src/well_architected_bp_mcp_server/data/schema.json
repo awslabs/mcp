@@ -26,9 +26,6 @@
         "default": "FRAMEWORK",
         "type": "string"
       },
-      "outcome": {
-        "type": "string"
-      },
       "pillar": {
         "enum": [
           "OPERATIONAL_EXCELLENCE",
@@ -62,6 +59,41 @@
       "title_full": {
         "minLength": 1,
         "type": "string"
+      },
+      "desired_outcome": {
+        "description": "Concrete outcomes that indicate this best practice is established (lens data only)",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "anti_patterns": {
+        "description": "Common anti-patterns to avoid (lens data only)",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "benefits": {
+        "description": "Benefits of establishing this best practice (lens data only)",
+        "oneOf": [
+          { "type": "string" },
+          { "type": "array", "items": { "type": "string" } }
+        ]
+      },
+      "implementation_guidance": {
+        "description": "Actionable steps to implement this best practice (lens data only)",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "resources": {
+        "description": "Related best practices, documents, and AWS services (lens data only)",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
       }
     },
     "required": [
@@ -70,7 +102,6 @@
       "title",
       "href",
       "description",
-      "outcome",
       "pillar",
       "area",
       "relatedIds",
