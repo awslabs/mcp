@@ -8,7 +8,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_securely_operate_multi_accounts.html",
     "id": "SEC01-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC02-BP04"
@@ -26,7 +25,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_securely_operate_aws_account.html",
     "id": "SEC01-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC01-BP01",
@@ -48,7 +46,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_securely_operate_control_objectives.html",
     "id": "SEC01-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC03-BP01",
@@ -72,7 +69,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_securely_operate_updated_threats.html",
     "id": "SEC01-BP04",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC01-BP07",
@@ -92,7 +88,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_securely_operate_reduce_management_scope.html",
     "id": "SEC01-BP05",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "PERF02-BP01",
@@ -112,7 +107,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_securely_operate_automate_security_controls.html",
     "id": "SEC01-BP06",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "OPS05-BP01",
@@ -133,7 +127,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_securely_operate_threat_model.html",
     "id": "SEC01-BP07",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC01-BP03",
@@ -154,7 +147,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_securely_operate_implement_services_features.html",
     "id": "SEC01-BP08",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "PERF01-BP01",
@@ -173,7 +165,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_identities_enforce_mechanisms.html",
     "id": "SEC02-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC02-BP03",
@@ -193,7 +184,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_identities_unique.html",
     "id": "SEC02-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC02-BP03",
@@ -213,7 +203,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_identities_secrets.html",
     "id": "SEC02-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC02-BP02",
@@ -232,7 +221,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_identities_identity_provider.html",
     "id": "SEC02-BP04",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC02-BP06",
@@ -252,7 +240,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_identities_audit.html",
     "id": "SEC02-BP05",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC02-BP02",
@@ -271,7 +258,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_identities_groups_attributes.html",
     "id": "SEC02-BP06",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC02-BP04",
@@ -291,7 +277,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_permissions_define.html",
     "id": "SEC03-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [],
     "risk": "HIGH",
@@ -307,7 +292,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_permissions_least_privileges.html",
     "id": "SEC03-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [],
     "risk": "HIGH",
@@ -323,7 +307,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_permissions_emergency_process.html",
     "id": "SEC03-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC02-BP04",
@@ -344,7 +327,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_permissions_continuous_reduction.html",
     "id": "SEC03-BP04",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [],
     "risk": "MEDIUM",
@@ -360,7 +342,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_permissions_define_guardrails.html",
     "id": "SEC03-BP05",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [],
     "risk": "MEDIUM",
@@ -376,7 +357,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_permissions_lifecycle.html",
     "id": "SEC03-BP06",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC02-BP04"
@@ -394,7 +374,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_permissions_analyze_cross_account.html",
     "id": "SEC03-BP07",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [],
     "risk": "LOW",
@@ -410,7 +389,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_permissions_share_securely.html",
     "id": "SEC03-BP08",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC03-BP07",
@@ -430,7 +408,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_permissions_share_securely_third_party.html",
     "id": "SEC03-BP09",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC02-BP02",
@@ -451,7 +428,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_detect_investigate_events_app_service_logging.html",
     "id": "SEC04-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC04-BP02",
@@ -470,7 +446,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_detect_investigate_events_logs.html",
     "id": "SEC04-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC01-BP01",
@@ -490,7 +465,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_detect_investigate_events_security_alerts.html",
     "id": "SEC04-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC10-BP03",
@@ -509,7 +483,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_detect_investigate_events_noncompliant_resources.html",
     "id": "SEC04-BP04",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC06-BP03"
@@ -527,7 +500,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_network_protection_create_layers.html",
     "id": "SEC05-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "REL02",
@@ -546,7 +518,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_network_protection_layered.html",
     "id": "SEC05-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "REL03-BP01",
@@ -565,7 +536,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_network_protection_inspection.html",
     "id": "SEC05-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [],
     "risk": "MEDIUM",
@@ -581,7 +551,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_network_auto_protect.html",
     "id": "SEC05-BP04",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [],
     "risk": "MEDIUM",
@@ -597,7 +566,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_protect_compute_vulnerability_management.html",
     "id": "SEC06-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [],
     "risk": "HIGH",
@@ -613,7 +581,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_protect_compute_hardened_images.html",
     "id": "SEC06-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "OPS05-BP05"
@@ -631,7 +598,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_protect_compute_reduce_manual_management.html",
     "id": "SEC06-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "REL08-BP04"
@@ -649,7 +615,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_protect_compute_validate_software_integrity.html",
     "id": "SEC06-BP04",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [],
     "risk": "MEDIUM",
@@ -665,7 +630,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_protect_compute_auto_protection.html",
     "id": "SEC06-BP05",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC01-BP06"
@@ -683,7 +647,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_data_classification_identify_data.html",
     "id": "SEC07-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SUS04-BP01"
@@ -701,7 +664,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_data_classification_define_protection.html",
     "id": "SEC07-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "PERF03-BP01",
@@ -720,7 +682,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_data_classification_auto_classification.html",
     "id": "SEC07-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [],
     "risk": "MEDIUM",
@@ -736,7 +697,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_data_classification_lifecycle_management.html",
     "id": "SEC07-BP04",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "COST04-BP05",
@@ -755,7 +715,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_protect_data_rest_key_mgmt.html",
     "id": "SEC08-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [],
     "risk": "HIGH",
@@ -771,7 +730,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_protect_data_rest_encrypt.html",
     "id": "SEC08-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [],
     "risk": "HIGH",
@@ -787,7 +745,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_protect_data_rest_automate_protection.html",
     "id": "SEC08-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC01-BP06",
@@ -811,7 +768,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_protect_data_rest_access_control.html",
     "id": "SEC08-BP04",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC03-BP01",
@@ -830,7 +786,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_protect_data_transit_key_cert_mgmt.html",
     "id": "SEC09-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC02-BP02",
@@ -846,11 +801,10 @@
       "Data protection",
       "Protecting data in transit"
     ],
-    "description": "Enforce your defined encryption requirements based on your organization\u2019s policies, regulatory obligations and standards to help meet organizational, legal, and compliance requirements. Only use protocols with encryption when transmitting sensitive data outside of your virtual private cloud (VPC). Encryption helps maintain data confidentiality even when the data transits untrusted networks.",
+    "description": "Enforce your defined encryption requirements based on your organization’s policies, regulatory obligations and standards to help meet organizational, legal, and compliance requirements. Only use protocols with encryption when transmitting sensitive data outside of your virtual private cloud (VPC). Encryption helps maintain data confidentiality even when the data transits untrusted networks.",
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_protect_data_transit_encrypt.html",
     "id": "SEC09-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [],
     "risk": "HIGH",
@@ -866,7 +820,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_protect_data_transit_authentication.html",
     "id": "SEC09-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC01-BP07",
@@ -886,7 +839,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_incident_response_identify_personnel.html",
     "id": "SEC10-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "OPS02-BP03"
@@ -904,7 +856,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_incident_response_develop_management_plans.html",
     "id": "SEC10-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC04"
@@ -922,7 +873,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_incident_response_prepare_forensic.html",
     "id": "SEC10-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [],
     "risk": "MEDIUM",
@@ -938,7 +888,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_incident_response_playbooks.html",
     "id": "SEC10-BP04",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC10-BP02"
@@ -956,7 +905,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_incident_response_pre_provision_access.html",
     "id": "SEC10-BP05",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [],
     "risk": "MEDIUM",
@@ -972,7 +920,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_incident_response_pre_deploy_tools.html",
     "id": "SEC10-BP06",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC04-BP01",
@@ -987,11 +934,10 @@
       "Incident response",
       "Preparation"
     ],
-    "description": "As organizations grow and evolve over time, so does the threat landscape, making it important to continually review your incident response capabilities. Running simulations (also known as game days) is one method that can be used to perform this assessment. Simulations use real-world security event scenarios designed to mimic a threat actor\u2019s tactics, techniques, and procedures (TTPs) and allow an organization to exercise and evaluate their incident response capabilities by responding to these mock cyber events as they might occur in reality.",
+    "description": "As organizations grow and evolve over time, so does the threat landscape, making it important to continually review your incident response capabilities. Running simulations (also known as game days) is one method that can be used to perform this assessment. Simulations use real-world security event scenarios designed to mimic a threat actor’s tactics, techniques, and procedures (TTPs) and allow an organization to exercise and evaluate their incident response capabilities by responding to these mock cyber events as they might occur in reality.",
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_incident_response_run_game_days.html",
     "id": "SEC10-BP07",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [],
     "risk": "MEDIUM",
@@ -1007,7 +953,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_incident_response_establish_incident_framework.html",
     "id": "SEC10-BP08",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [],
     "risk": "MEDIUM",
@@ -1022,7 +967,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_appsec_train_for_application_security.html",
     "id": "SEC11-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC11-BP08"
@@ -1039,7 +983,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_appsec_automate_testing_throughout_lifecycle.html",
     "id": "SEC11-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [],
     "risk": "MEDIUM",
@@ -1054,7 +997,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_appsec_perform_regular_penetration_testing.html",
     "id": "SEC11-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC11-BP01",
@@ -1072,7 +1014,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_appsec_manual_code_reviews.html",
     "id": "SEC11-BP04",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC11-BP02"
@@ -1089,7 +1030,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_appsec_centralize_services_for_packages_and_dependencies.html",
     "id": "SEC11-BP05",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC11-BP02"
@@ -1106,7 +1046,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_appsec_deploy_software_programmatically.html",
     "id": "SEC11-BP06",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC11-BP02"
@@ -1123,7 +1062,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_appsec_regularly_assess_security_properties_of_pipelines.html",
     "id": "SEC11-BP07",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [],
     "risk": "HIGH",
@@ -1138,7 +1076,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_appsec_build_program_that_embeds_security_ownership_in_teams.html",
     "id": "SEC11-BP08",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC11-BP01",
