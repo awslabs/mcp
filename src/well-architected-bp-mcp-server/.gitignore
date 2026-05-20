@@ -38,6 +38,9 @@ env/
 .coverage
 htmlcov/
 
+# Maintenance
+scripts/
+
 # OS
 .DS_Store
 Thumbs.db
