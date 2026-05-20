@@ -8,7 +8,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_priorities_ext_cust_needs.html",
     "id": "OPS01-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS11-BP03"
@@ -26,7 +25,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_priorities_int_cust_needs.html",
     "id": "OPS01-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS11-BP03"
@@ -44,7 +42,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_priorities_governance_reqs.html",
     "id": "OPS01-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS01-BP04"
@@ -58,11 +55,10 @@
       "Organization",
       "Organization priorities"
     ],
-    "description": "Regulatory, industry, and internal compliance requirements are an important driver for defining your organization\u2019s priorities. Your compliance framework may preclude you from using specific technologies or geographic locations. Apply due diligence if no external compliance frameworks are identified. Generate audits or reports that validate compliance.",
+    "description": "Regulatory, industry, and internal compliance requirements are an important driver for defining your organization’s priorities. Your compliance framework may preclude you from using specific technologies or geographic locations. Apply due diligence if no external compliance frameworks are identified. Generate audits or reports that validate compliance.",
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_priorities_compliance_reqs.html",
     "id": "OPS01-BP04",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "SEC01-BP03",
@@ -83,7 +79,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_priorities_eval_threat_landscape.html",
     "id": "OPS01-BP05",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "SEC01-BP07"
@@ -101,7 +96,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_priorities_eval_tradeoffs.html",
     "id": "OPS01-BP06",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "SEC01-BP05"
@@ -120,7 +114,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ops_model_def_resource_owners.html",
     "id": "OPS02-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS02-BP02",
@@ -140,7 +133,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ops_model_def_proc_owners.html",
     "id": "OPS02-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS02-BP01",
@@ -161,7 +153,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ops_model_def_activity_owners.html",
     "id": "OPS02-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS02-BP01",
@@ -184,7 +175,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ops_model_def_responsibilities_ownership.html",
     "id": "OPS02-BP04",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS02-BP06",
@@ -209,7 +199,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ops_model_req_add_chg_exception.html",
     "id": "OPS02-BP05",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS02-BP01",
@@ -226,11 +215,10 @@
       "Operating model",
       "Relationships and ownership"
     ],
-    "description": "Have defined or negotiated agreements between teams describing how they work with and support each other (for example, response times, service level objectives, or service-level agreements). Inter-team communications channels are documented. Understanding the impact of the teams\u2019 work on business outcomes and the outcomes of other teams and organizations informs the prioritization of their tasks and helps them respond appropriately.",
+    "description": "Have defined or negotiated agreements between teams describing how they work with and support each other (for example, response times, service level objectives, or service-level agreements). Inter-team communications channels are documented. Understanding the impact of the teams’ work on business outcomes and the outcomes of other teams and organizations informs the prioritization of their tasks and helps them respond appropriately.",
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ops_model_def_neg_team_agreements.html",
     "id": "OPS02-BP06",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS02-BP02",
@@ -250,7 +238,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_org_culture_executive_sponsor.html",
     "id": "OPS03-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS03-BP04",
@@ -270,7 +257,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_org_culture_team_emp_take_action.html",
     "id": "OPS03-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS01-BP06",
@@ -290,7 +276,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_org_culture_team_enc_escalation.html",
     "id": "OPS03-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS02-BP05"
@@ -309,7 +294,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_org_culture_effective_comms.html",
     "id": "OPS03-BP04",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS03-BP01",
@@ -330,7 +314,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_org_culture_team_enc_experiment.html",
     "id": "OPS03-BP05",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS11-BP02",
@@ -350,7 +333,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_org_culture_team_enc_learn.html",
     "id": "OPS03-BP06",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS03-BP01",
@@ -370,7 +352,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_org_culture_team_res_appro.html",
     "id": "OPS03-BP07",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS03-BP06",
@@ -391,7 +372,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_observability_identify_kpis.html",
     "id": "OPS04-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS04-BP02",
@@ -412,7 +392,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_observability_application_telemetry.html",
     "id": "OPS04-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS04-BP01",
@@ -433,7 +412,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_observability_customer_telemetry.html",
     "id": "OPS04-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS04-BP01",
@@ -454,7 +432,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_observability_dependency_telemetry.html",
     "id": "OPS04-BP04",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS04-BP01",
@@ -476,7 +453,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_observability_dist_trace.html",
     "id": "OPS04-BP05",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS04-BP01",
@@ -497,7 +473,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_version_control.html",
     "id": "OPS05-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS05-BP04"
@@ -515,7 +490,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_test_val_chg.html",
     "id": "OPS05-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS05-BP01",
@@ -536,7 +510,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_conf_mgmt_sys.html",
     "id": "OPS05-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS06-BP01",
@@ -557,7 +530,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_build_mgmt_sys.html",
     "id": "OPS05-BP04",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS06-BP04"
@@ -575,7 +547,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_patch_mgmt.html",
     "id": "OPS05-BP05",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS06-BP04"
@@ -589,11 +560,10 @@
       "Prepare",
       "Design for operations"
     ],
-    "description": "Share best practices across teams to increase awareness and maximize the benefits of development efforts. Document them and keep them up to date as your architecture evolves. If shared standards are enforced in your organization, it\u2019s critical that mechanisms exist to request additions, changes, and exceptions to standards. Without this option, standards become a constraint on innovation.",
+    "description": "Share best practices across teams to increase awareness and maximize the benefits of development efforts. Document them and keep them up to date as your architecture evolves. If shared standards are enforced in your organization, it’s critical that mechanisms exist to request additions, changes, and exceptions to standards. Without this option, standards become a constraint on innovation.",
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_share_design_stds.html",
     "id": "OPS05-BP06",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS01-BP03",
@@ -615,7 +585,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_code_quality.html",
     "id": "OPS05-BP07",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS05-BP02",
@@ -634,7 +603,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_multi_env.html",
     "id": "OPS05-BP08",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [],
     "risk": "MEDIUM",
@@ -650,7 +618,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_freq_sm_rev_chg.html",
     "id": "OPS05-BP09",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS05-BP03",
@@ -670,7 +637,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_auto_integ_deploy.html",
     "id": "OPS05-BP10",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS05-BP03",
@@ -689,7 +655,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_mit_deploy_risks_plan_for_unsucessful_changes.html",
     "id": "OPS06-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS06-BP04"
@@ -707,7 +672,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_mit_deploy_risks_test_val_chg.html",
     "id": "OPS06-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS05-BP02"
@@ -725,7 +689,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_mit_deploy_risks_deploy_mgmt_sys.html",
     "id": "OPS06-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS05-BP02",
@@ -745,7 +708,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_mit_deploy_risks_auto_testing_and_rollback.html",
     "id": "OPS06-BP04",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS06-BP01",
@@ -764,7 +726,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ready_to_support_personnel_capability.html",
     "id": "OPS07-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS11-BP04"
@@ -782,7 +743,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ready_to_support_const_orr.html",
     "id": "OPS07-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS01-BP03",
@@ -807,7 +767,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ready_to_support_use_runbooks.html",
     "id": "OPS07-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS02-BP02",
@@ -829,7 +788,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ready_to_support_use_playbooks.html",
     "id": "OPS07-BP04",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS02-BP02",
@@ -851,7 +809,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ready_to_support_informed_deploy_decisions.html",
     "id": "OPS07-BP05",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS01-BP03",
@@ -872,7 +829,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ready_to_support_enable_support_plans.html",
     "id": "OPS07-BP06",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS02-BP02"
@@ -890,7 +846,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_workload_observability_analyze_workload_metrics.html",
     "id": "OPS08-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS02-BP02"
@@ -908,7 +863,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_workload_observability_analyze_workload_logs.html",
     "id": "OPS08-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS04-BP01",
@@ -928,7 +882,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_workload_observability_analyze_workload_traces.html",
     "id": "OPS08-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS08-BP01",
@@ -947,7 +900,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_workload_observability_create_alerts.html",
     "id": "OPS08-BP04",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS04-BP01",
@@ -972,7 +924,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_workload_observability_create_dashboards.html",
     "id": "OPS08-BP05",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS04-BP01",
@@ -994,7 +945,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_operations_health_measure_ops_goals_kpis.html",
     "id": "OPS09-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [],
     "risk": "MEDIUM",
@@ -1010,7 +960,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_operations_health_communicate_status_trends.html",
     "id": "OPS09-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS09-BP01"
@@ -1028,7 +977,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_operations_health_review_ops_metrics_prioritize_improvement.html",
     "id": "OPS09-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [],
     "risk": "MEDIUM",
@@ -1044,7 +992,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_event_response_event_incident_problem_process.html",
     "id": "OPS10-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS04-BP01",
@@ -1067,7 +1014,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_event_response_process_per_alert.html",
     "id": "OPS10-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS04-BP01",
@@ -1086,7 +1032,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_event_response_prioritize_events.html",
     "id": "OPS10-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS03-BP03",
@@ -1106,7 +1051,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_event_response_define_escalation_paths.html",
     "id": "OPS10-BP04",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS08-BP04",
@@ -1126,7 +1070,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_event_response_push_notify.html",
     "id": "OPS10-BP05",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS07-BP03",
@@ -1146,7 +1089,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_event_response_dashboards.html",
     "id": "OPS10-BP06",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS08-BP05"
@@ -1164,7 +1106,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_event_response_auto_event_response.html",
     "id": "OPS10-BP07",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS08-BP04",
@@ -1183,7 +1124,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_evolve_ops_process_cont_imp.html",
     "id": "OPS11-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS11-BP02",
@@ -1203,7 +1143,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_evolve_ops_perform_rca_process.html",
     "id": "OPS11-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS11-BP01",
@@ -1222,7 +1161,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_evolve_ops_feedback_loops.html",
     "id": "OPS11-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS01-BP01",
@@ -1243,7 +1181,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_evolve_ops_knowledge_management.html",
     "id": "OPS11-BP04",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS11-BP08"
@@ -1261,7 +1198,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_evolve_ops_drivers_for_imp.html",
     "id": "OPS11-BP05",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS01",
@@ -1284,7 +1220,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_evolve_ops_validate_insights.html",
     "id": "OPS11-BP06",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS01-BP06",
@@ -1304,7 +1239,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_evolve_ops_metrics_review.html",
     "id": "OPS11-BP07",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS08-BP05",
@@ -1324,7 +1258,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_evolve_ops_share_lessons_learned.html",
     "id": "OPS11-BP08",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS02-BP06",
@@ -1346,7 +1279,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_evolve_ops_allocate_time_for_imp.html",
     "id": "OPS11-BP09",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "OPERATIONAL_EXCELLENCE",
     "relatedIds": [
       "OPS05-BP08"
