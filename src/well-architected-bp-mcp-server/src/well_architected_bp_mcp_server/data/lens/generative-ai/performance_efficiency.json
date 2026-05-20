@@ -14,7 +14,36 @@
     ],
     "risk": "MEDIUM",
     "title": "Define a ground truth data set of prompts and responses",
-    "title_full": "GENPERF01-BP01 Define a ground truth data set of prompts and responses"
+    "title_full": "GENPERF01-BP01 Define a ground truth data set of prompts and responses",
+    "desired_outcome": [
+      "When implemented, this best practice enables the measurement of a model's performance for a set of tasks, accelerating model evaluation and enabling model customization workflows."
+    ],
+    "benefits": "Experiment more often - Ground truth testing facilitates rapid experimentation and customization for models on tasks specific to your workload's unique requirements.",
+    "implementation_guidance": [
+      "Define a series of prompts and their expected responses. Consider using Amazon SageMaker Ground Truth or similar to scale the curation of this dataset.",
+      "Enrich prompt-response pairs with relevant meta-data in accordance with your organization's AI policy.",
+      "Store the data in a way which facilitates a dictionary-style lookup of the data. The first several layers could be organizational, referring to abstractions like language, business domain, or use case.",
+      "The last layer includes the prompt-response pairs, where the prompt is the key and the expected response is the value.",
+      "Store the data in an object-store such as Amazon S3.",
+      "Create a data dictionary to facilitate access to the ground truth data. Crawl the object-store using an AWS Glue Crawler to build the data dictionary.",
+      "Develop a testing harness that can automatically test models as they are made available using the ground truth data. Query segments of the ground-truth dataset using a federated query solution such as Amazon Athena.",
+      "Incorporate mock production data and tooling for more advanced workflows such as agents or RAG.",
+      "Define test scenarios corresponding to your golden dataset and adhere to your organization's AI policy. Define metrics to test models against as may be required by your organization's AI policy.",
+      "Track model performance across various tests and metrics, carefully evaluating the trade-offs across models."
+    ],
+    "resources": [
+      "PERF05-BP01: https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_establish_key_performance_indicators.html",
+      "PERF05-BP03: https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_workload_performance.html",
+      "MLPER03: https://docs.aws.amazon.com/wellarchitected/latest/machine-learning-lens/mlper-03.html",
+      "MLPER04: https://docs.aws.amazon.com/wellarchitected/latest/machine-learning-lens/mlper-04.html",
+      "MLPER16: https://docs.aws.amazon.com/wellarchitected/latest/machine-learning-lens/mlper-16.html",
+      "Understand options for evaluating large language models with SageMaker AI Clarify: https://docs.aws.amazon.com/sagemaker/latest/dg/clarify-foundation-model-evaluate.html",
+      "Customize your model to improve its performance for your use case: https://docs.aws.amazon.com/bedrock/latest/userguide/custom-models.html",
+      "Amazon SageMaker AI JumpStart Foundation Models: https://docs.aws.amazon.com/sagemaker/latest/dg/jumpstart-foundation-models.html",
+      "Automate data labeling: https://docs.aws.amazon.com/sagemaker/latest/dg/sms-automated-labeling.html",
+      "Customize models in Amazon Bedrock with your own data using fine-tuning and continued pre-training: https://aws.amazon.com/blogs/aws/customize-models-in-amazon-bedrock-with-your-own-data-using-fine-tuning-and-continued-pre-training/",
+      "High-quality human feedback for your generative AI applications from Amazon SageMaker Ground Truth Plus: https://aws.amazon.com/blogs/machine-learning/high-quality-human-feedback-for-your-generative-ai-applications-from-amazon-sagemaker-ground-truth-plus/"
+    ]
   },
   {
     "area": [
@@ -31,7 +60,47 @@
     ],
     "risk": "MEDIUM",
     "title": "Collect performance metrics from generative AI workloads",
-    "title_full": "GENPERF01-BP02 Collect performance metrics from generative AI workloads"
+    "title_full": "GENPERF01-BP02 Collect performance metrics from generative AI workloads",
+    "desired_outcome": [
+      "When implemented, your organization improves its ability to evaluate model performance against the identified performance metric."
+    ],
+    "benefits": "Experiment more often - Testing model performance using quantifiable evaluation metrics assists in the selection of foundation models for generative AI workloads.",
+    "implementation_guidance": [
+      "Identify the performance metrics to prioritize for your generative AI use case.",
+      "Develop a mechanism to capture the performance metrics.",
+      "Implement a trace framework like OpenLLMetry to capture additional metrics.",
+      "Capture metrics using Amazon CloudWatch or a similar centralized logging and monitoring solution.",
+      "Use a benchmarking dataset within an evaluation framework such as fmeval.",
+      "Establish reasonable performance thresholds and alert accordingly.",
+      "Use Amazon CloudWatch alarms for production alerting on latency, throughput, or other traditional performance metrics.",
+      "Incorporate regular benchmarking using internal golden datasets, and update the dataset as your customer's usage changes.",
+      "Consult model cards for new models, and perform custom benchmarking of new models where appropriate.",
+      "Identify, capture, and log remediation actions in your organization's AI policy.",
+      "For example, increased latency on self-hosted models may call for horizontal scaling to remediate the issue. Your organization's AI policy should define acceptable latency thresholds.",
+      "For example, a model response which is identified as a hallucination may call for updates to a system prompt. Such an update should require testing against internal golden datasets to verify that system prompt changes do not adversely affect related prompt workflows.",
+      "Implement a centralized experiment tracking solution such as Amazon SageMaker AI with MLflow."
+    ],
+    "resources": [
+      "PERF05-BP01: https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_establish_key_performance_indicators.html",
+      "PERF05-BP02: https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_use_monitoring_solutions.html",
+      "PERF05-BP03: https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_workload_performance.html",
+      "PERF05-BP05: https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_automation_remediate_issues.html",
+      "MLPER-03: https://docs.aws.amazon.com/wellarchitected/latest/machine-learning-lens/mlper-03.html",
+      "MLPER-06: https://docs.aws.amazon.com/wellarchitected/latest/machine-learning-lens/mlper-06.html",
+      "MLPER-07: https://docs.aws.amazon.com/wellarchitected/latest/machine-learning-lens/mlper-07.html",
+      "MLPER-09: https://docs.aws.amazon.com/wellarchitected/latest/machine-learning-lens/mlper-09.html",
+      "MLPER-15: https://docs.aws.amazon.com/wellarchitected/latest/machine-learning-lens/mlper-15.html",
+      "MLPER-16: https://docs.aws.amazon.com/wellarchitected/latest/machine-learning-lens/mlper-16.html",
+      "Monitor the health and performance of Amazon Bedrock: https://docs.aws.amazon.com/bedrock/latest/userguide/monitoring.html",
+      "Customize your workflow using the fmeval library: https://docs.aws.amazon.com/sagemaker/latest/dg/clarify-foundation-model-evaluate-auto-lib-custom.html",
+      "Machine learning experiments using Amazon SageMaker AI with MLflow: https://docs.aws.amazon.com/sagemaker/latest/dg/mlflow.html",
+      "Track LLM model evaluation using Amazon SageMaker AI managed MLFlow and FMEval: https://aws.amazon.com/blogs/machine-learning/track-llm-model-evaluation-using-amazon-sagemaker-managed-mlflow-and-fmeval/",
+      "Evaluate large language models for quality and responsibility: https://aws.amazon.com/blogs/machine-learning/evaluate-large-language-models-for-quality-and-responsibility/",
+      "Monitoring Generative AI application using Amazon Bedrock and Amazon CloudWatch integration: https://aws.amazon.com/blogs/mt/monitoring-generative-ai-applications-using-amazon-bedrock-and-amazon-cloudwatch-integration/",
+      "Traceloop OpenLLMetry: https://github.com/traceloop/openllmetry",
+      "AWS fmeval Model Evaluation Library: https://github.com/aws/fmeval",
+      "AWS Samples fm-evaluation-at-scale: https://github.com/aws-samples/fm-evaluation-at-scale"
+    ]
   },
   {
     "area": [
@@ -48,7 +117,34 @@
     ],
     "risk": "HIGH",
     "title": "Load test model endpoints",
-    "title_full": "GENPERF02-BP01 Load test model endpoints"
+    "title_full": "GENPERF02-BP01 Load test model endpoints",
+    "desired_outcome": [
+      "When implemented, this best practice helps you identify the optimal load of a foundation model endpoint. This baseline should be used to inform monitoring and alerting at the upper-threshold of acceptable performance limitations for your workload."
+    ],
+    "benefits": "Experiment more often - Load testing model endpoints assists in the ongoing performance of foundation models at scale.",
+    "implementation_guidance": [
+      "Reference your organization's AI policy for information concerning appropriate performance metrics for model endpoint load testing.",
+      "Develop a load testing harness that prompts a foundation model at configurable rates. Consider incorporating the ability test against internal golden datasets and external third-party benchmarking data.",
+      "Collect performance information from the model from the load test, carefully evaluating where the bottleneck exists. Bottlenecks in the model's ability to serve inference requests may be addressed through model customization techniques or increasing the size and power of the inference endpoint. Bottlenecks inherited from usage patterns may benefit from cross-Region inference, prompt caching, or an entirely different inference paradigm."
+    ],
+    "resources": [
+      "PERF05-BP04: https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_load_test.html",
+      "MLPER-01: https://docs.aws.amazon.com/wellarchitected/latest/machine-learning-lens/mlper-01.html",
+      "MLPER-03: https://docs.aws.amazon.com/wellarchitected/latest/machine-learning-lens/mlper-03.html",
+      "MLPER-05: https://docs.aws.amazon.com/wellarchitected/latest/machine-learning-lens/mlper-05.html",
+      "MLPER-07: https://docs.aws.amazon.com/wellarchitected/latest/machine-learning-lens/mlper-07.html",
+      "Monitor the health and performance of Amazon Bedrock: https://docs.aws.amazon.com/bedrock/latest/userguide/monitoring.html",
+      "Supercharge your LLM performance with Amazon SageMaker AI Large Model Inference container v15: https://aws.amazon.com/blogs/machine-learning/supercharge-your-llm-performance-with-amazon-sagemaker-large-model-inference-container-v15/",
+      "Model management for LoRA fine-tuned models using Llama2 and Amazon SageMaker AI: https://aws.amazon.com/blogs/machine-learning/model-management-for-lora-fine-tuned-models-using-llama2-and-amazon-sagemaker/",
+      "Efficient and cost-effective multi-tenant LoRA serving with Amazon SageMaker AI: https://aws.amazon.com/blogs/machine-learning/efficient-and-cost-effective-multi-tenant-lora-serving-with-amazon-sagemaker/",
+      "Load testing applications: https://docs.aws.amazon.com/prescriptive-guidance/latest/load-testing/welcome.html",
+      "Deploy models with DJL Serving: https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-models-frameworks-djl-serving.html",
+      "The large model inference (LMI) container documentation: https://docs.aws.amazon.com/sagemaker/latest/dg/large-model-inference-container-docs.html",
+      "Amazon Bedrock model evaluation is now generally available: https://aws.amazon.com/blogs/aws/amazon-bedrock-model-evaluation-is-now-generally-available/",
+      "Best practices for load testing Amazon SageMaker AI real-time inference endpoints: https://aws.amazon.com/blogs/machine-learning/best-practices-for-load-testing-amazon-sagemaker-real-time-inference-endpoints/",
+      "Bedrock Latency Benchmarking: https://github.com/gilinachum/bedrock-latency",
+      "vLLM: https://docs.vllm.ai/en/latest/"
+    ]
   },
   {
     "area": [
@@ -65,7 +161,28 @@
     ],
     "risk": "MEDIUM",
     "title": "Optimize inference parameters to improve response quality",
-    "title_full": "GENPERF02-BP02 Optimize inference parameters to improve response quality"
+    "title_full": "GENPERF02-BP02 Optimize inference parameters to improve response quality",
+    "desired_outcome": [
+      "When implemented, you can reduce the variability of foundation models by setting hyperparameters and identifying optimum ranges and values for a use case."
+    ],
+    "benefits": "Experiment more often - Optimize hyperparameters through experimentation to discern the best range and values for a use case.",
+    "implementation_guidance": [
+      "Identify the task required of the foundation model.",
+      "Identify the ground truth data to use for optimizing inference hyperparameters.",
+      "Select the most important hyperparameters for the task.",
+      "Use an optimization method to maximize response quality.",
+      "Use these values or ranges to encourage consistent high-performance of your applications."
+    ],
+    "resources": [
+      "PERF05-BP01: https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_establish_key_performance_indicators.html",
+      "MLPER-03: https://docs.aws.amazon.com/wellarchitected/latest/machine-learning-lens/mlper-03.html",
+      "Monitor the health and performance of Amazon Bedrock: https://docs.aws.amazon.com/bedrock/latest/userguide/monitoring.html",
+      "Influence response generation with inference parameters: https://docs.aws.amazon.com/bedrock/latest/userguide/inference-parameters.html",
+      "Optimize model inference for latency: https://docs.aws.amazon.com/bedrock/latest/userguide/latency-optimized-inference.html",
+      "Load testing applications: https://docs.aws.amazon.com/prescriptive-guidance/latest/load-testing/welcome.html",
+      "Amazon Bedrock model evaluation is now generally available: https://aws.amazon.com/blogs/aws/amazon-bedrock-model-evaluation-is-now-generally-available/",
+      "Best practices for load testing Amazon SageMaker AI real-time inference endpoints: https://aws.amazon.com/blogs/machine-learning/best-practices-for-load-testing-amazon-sagemaker-real-time-inference-endpoints/"
+    ]
   },
   {
     "area": [
@@ -83,7 +200,31 @@
     ],
     "risk": "HIGH",
     "title": "Select and customize the appropriate model for your use case",
-    "title_full": "GENPERF02-BP03 Select and customize the appropriate model for your use case"
+    "title_full": "GENPERF02-BP03 Select and customize the appropriate model for your use case",
+    "desired_outcome": [
+      "When implemented, this best practice helps you select the ideal model for your use case. You understand the reasons a specific model was chosen, and your chosen model provides robust performance and consistency for your use case."
+    ],
+    "implementation_guidance": [
+      "Define minimum performance and response quality thresholds for your workload.",
+      "Select a range of models from different model providers.",
+      "Implement tests to facilitate rapid testing for each of the models.",
+      "Test each model against the ground truth data set, and identify which models surpass the minimum performance and response quality thresholds.",
+      "Select the model which performs best on average for the given use case.",
+      "Consider elevating model performance situationally, and use techniques like prompt routing or customization where appropriate.",
+      "Document results in an AI usage document to track model usage and encourage data-driven decision-making within the organization."
+    ],
+    "resources": [
+      "PERF02-BP01: https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_compute_hardware_select_best_compute_options.html",
+      "MLPER-06: https://docs.aws.amazon.com/wellarchitected/latest/machine-learning-lens/mlper-06.html",
+      "MLPER-16: https://docs.aws.amazon.com/wellarchitected/latest/machine-learning-lens/mlper-16.html",
+      "Understanding intelligent prompt routing in Amazon Bedrock: https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-routing.html",
+      "Supported foundation models in Amazon Bedrock: https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html",
+      "Optimize model inference for latency: https://docs.aws.amazon.com/bedrock/latest/userguide/latency-optimized-inference.html",
+      "Enhance conversational AI with advanced routing techniques with Amazon Bedrock: https://aws.amazon.com/blogs/machine-learning/enhance-conversational-ai-with-advanced-routing-techniques-with-amazon-bedrock/",
+      "Multi-LLM routing strategies for generative AI applications on AWS: https://aws.amazon.com/blogs/machine-learning/multi-llm-routing-strategies-for-generative-ai-applications-on-aws/",
+      "FMEval Library: https://github.com/aws/fmeval",
+      "Evaluate, compare, and select the best foundation models for your use case in Amazon Bedrock (preview): https://aws.amazon.com/blogs/aws/evaluate-compare-and-select-the-best-foundation-models-for-your-use-case-in-amazon-bedrock-preview/"
+    ]
   },
   {
     "area": [
@@ -101,7 +242,34 @@
     ],
     "risk": "MEDIUM",
     "title": "Use managed solutions for model hosting and customization",
-    "title_full": "GENPERF03-BP01 Use managed solutions for model hosting and customization"
+    "title_full": "GENPERF03-BP01 Use managed solutions for model hosting and customization",
+    "desired_outcome": [
+      "When implemented, this best practice facilitates model hosting and customization for highly performant generative AI workloads."
+    ],
+    "benefits": "Use serverless architectures - Serverless architectures enhance the performance of infrastructure-bound workloads, without the operational overhead.",
+    "implementation_guidance": [
+      "Determine the level of control your team needs to exert over the hosting solution.",
+      "For fully managed hosting workload, use API-based hosting solutions such as Amazon Bedrock.",
+      "For managed hosting with more control over the endpoint, use Amazon SageMaker AI model endpoints.",
+      "Apply the same logic to model customization workflows.",
+      "Model training workloads should be done Amazon SageMaker AI HyperPod.",
+      "Provide hosted models access to the appropriate data using a robust permissions model and federated data access."
+    ],
+    "resources": [
+      "PERF02-BP01: https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_compute_hardware_select_best_compute_options.html",
+      "Amazon SageMaker AI HyperPod: https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod.html",
+      "Customize your model to improve its performance for your use case: https://docs.aws.amazon.com/bedrock/latest/userguide/custom-models.html",
+      "Observability for Amazon SageMaker AI HyperPod cluster orchestrated by Amazon EKS: https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-eks-cluster-observability.html",
+      "SageMaker AI HyperPod cluster resources monitoring: https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-cluster-observability-slurm.html",
+      "Amazon Bedrock Model Customization Workshop: https://github.com/aws-samples/amazon-bedrock-customization-workshop",
+      "Efficient and cost-effective multi-tenant LoRA serving with Amazon SageMaker AI: https://aws.amazon.com/blogs/machine-learning/efficient-and-cost-effective-multi-tenant-lora-serving-with-amazon-sagemaker/",
+      "Choosing Between Amazon SageMaker AI Training Jobs and Amazon SageMaker AI HyperPod: A Quick Decision-Making Guide for ML Workloads: https://repost.aws/articles/ARqYgZU7-kTjOYeoi8pZ94ZA/choosing-between-amazon-sagemaker-training-jobs-and-amazon-sagemaker-hyperpod-a-quick-decision-making-guide-for-ml-workloads",
+      "Introducing Amazon SageMaker AI HyperPod to train foundation models at scale: https://aws.amazon.com/blogs/machine-learning/introducing-amazon-sagemaker-hyperpod-to-train-foundation-models-at-scale/",
+      "Customize models in Amazon Bedrock with your own data using fine-tuning and continued pre-training: https://aws.amazon.com/blogs/aws/customize-models-in-amazon-bedrock-with-your-own-data-using-fine-tuning-and-continued-pre-training/",
+      "Accelerate foundation model development with one-click observability in Amazon SageMaker AI HyperPod: https://aws.amazon.com/blogs/machine-learning/accelerate-foundation-model-development-with-one-click-observability-in-amazon-sagemaker-hyperpod/",
+      "Amazon SageMaker AI HyperPod launches model deployments to accelerate the generative AI model development lifecycle: https://aws.amazon.com/blogs/machine-learning/amazon-sagemaker-hyperpod-launches-model-deployments-to-accelerate-the-generative-ai-model-development-lifecycle/",
+      "Implementing inference observability on HyperPod clusters: https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-model-deployment-observability.html"
+    ]
   },
   {
     "area": [
@@ -118,7 +286,30 @@
     ],
     "risk": "HIGH",
     "title": "Test vector store features for latency and relevant performance",
-    "title_full": "GENPERF04-BP01 Test vector store features for latency and relevant performance"
+    "title_full": "GENPERF04-BP01 Test vector store features for latency and relevant performance",
+    "desired_outcome": [
+      "When implemented, this best practice facilitates expedient data storage and access, with accurate and relevant data retrieval."
+    ],
+    "benefits": "Consider mechanical sympathy - Optimizing a data storage system for a generative AI workload can be as simple as changing vector indexes or modifying the chunking strategy. Familiarize yourself with how the system performs data storage and retrieval to best optimize the database.",
+    "implementation_guidance": [
+      "Identify the most important performance KPI for this workload (for example, accuracy, speed, memory usage, or scalability). Consider implementing a custom search algorithm that supports this KPI.",
+      "Organize indices based on a hierarchy, where more detail is introduced towards the bottom of the hierarchy.",
+      "Establish query latency monitoring on the data retrieval system to verify the database latency is consistently monitored and alerted upon.",
+      "Perform regular data quality checks, verifying that data is assessed for quality before being placed into a database.",
+      "Develop an operational runbook to facilitate rapid architecture changes to accommodate shifting usage patterns.",
+      "Develop an operational runbook to facilitate rapid architecture changes to accommodate shifting usage patterns."
+    ],
+    "resources": [
+      "PERF05-BP02: https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_use_monitoring_solutions.html",
+      "PERF05-BP03: https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_workload_performance.html",
+      "Working with vector search collections: https://docs.aws.amazon.com/opensearch-service/latest/developerguide/serverless-vector-search.html",
+      "Vector search features and limits: https://docs.aws.amazon.com/memorydb/latest/devguide/vector-search-limits.html",
+      "Accelerate performance using a custom chunking mechanism with Amazon Bedrock: https://aws.amazon.com/blogs/machine-learning/accelerate-performance-using-a-custom-chunking-mechanism-with-amazon-bedrock/",
+      "Amazon Bedrock Knowledge Bases now supports advanced parsing, chunking, and query reformulation giving greater control of accuracy in RAG based applications: https://aws.amazon.com/blogs/machine-learning/amazon-bedrock-knowledge-bases-now-supports-advanced-parsing-chunking-and-query-reformulation-giving-greater-control-of-accuracy-in-rag-based-applications/",
+      "Amazon OpenSearch Service's vector database capabilities explained: https://aws.amazon.com/blogs/big-data/amazon-opensearch-services-vector-database-capabilities-explained/",
+      "Building scalable, secure, and reliable RAG applications using Amazon Bedrock Knowledge Bases: https://aws.amazon.com/blogs/machine-learning/building-scalable-secure-and-reliable-rag-applications-using-amazon-bedrock-knowledge-bases/",
+      "Dive deep into vector data stores using Amazon Bedrock Knowledge Bases: https://aws.amazon.com/blogs/machine-learning/dive-deep-into-vector-data-stores-using-amazon-bedrock-knowledge-bases/"
+    ]
   },
   {
     "area": [
@@ -135,6 +326,29 @@
     ],
     "risk": "MEDIUM",
     "title": "Optimize vector sizes for your use case",
-    "title_full": "GENPERF04-BP02 Optimize vector sizes for your use case"
+    "title_full": "GENPERF04-BP02 Optimize vector sizes for your use case",
+    "desired_outcome": [
+      "When implemented, this best practice helps verify that vector sizes are optimized for a specific use case, which can lead to improved performance over time."
+    ],
+    "benefits": "Consider mechanical sympathy - Optimizing vector sizes for supported vector embedding models may improve performance of your application. Familiarize yourself with how your selected embedding model performs embeddings and retrievals when optimizing.",
+    "implementation_guidance": [
+      "Identify the most important performance KPI for this workload (like accuracy, speed, memory usage, or scalability).",
+      "Determine the number of vector options supported by your selected embedding model and design experiments meant to test each option. Experiment on a variety of data to get a clear determination of which embedding size is best for this workload.",
+      "Consider self-hosting an open-source embedding model using Amazon SageMaker AI model endpoints if available embedding options are not sufficient.",
+      "Run the experiment and determine the most performant embedding model for this scenario."
+    ],
+    "resources": [
+      "PERF03-BP01: https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_data_use_purpose_built_data_store.html",
+      "PERF03-BP02: https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_data_evaluate_configuration_options_data_store.html",
+      "PERF03-BP03: https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_data_collect_record_data_store_performance_metrics.html",
+      "PERF03-BP04: https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_data_implement_strategies_to_improve_query_performance.html",
+      "Customizing your knowledge base: https://docs.aws.amazon.com/bedrock/latest/userguide/kb-how-customization.html",
+      "Working with vector search collections: https://docs.aws.amazon.com/opensearch-service/latest/developerguide/serverless-vector-search.html",
+      "Vector search features and limits: https://docs.aws.amazon.com/memorydb/latest/devguide/vector-search-limits.html",
+      "Amazon OpenSearch Service's vector database capabilities explained: https://aws.amazon.com/blogs/big-data/amazon-opensearch-services-vector-database-capabilities-explained/",
+      "Building scalable, secure, and reliable RAG applications using Amazon Bedrock Knowledge Bases: https://aws.amazon.com/blogs/machine-learning/building-scalable-secure-and-reliable-rag-applications-using-amazon-bedrock-knowledge-bases/",
+      "Dive deep into vector data stores using Amazon Bedrock Knowledge Bases: https://aws.amazon.com/blogs/machine-learning/dive-deep-into-vector-data-stores-using-amazon-bedrock-knowledge-bases/",
+      "HuggingFace's MTEB Leaderboard: https://huggingface.co/spaces/mteb/leaderboard"
+    ]
   }
 ]
