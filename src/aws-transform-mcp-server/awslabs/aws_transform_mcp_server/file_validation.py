@@ -16,6 +16,7 @@
 
 import os
 from loguru import logger
+from typing import Optional
 
 
 # File basenames that must never be read.
@@ -87,3 +88,31 @@ def validate_read_path(file_path: str) -> str:
         raise ValueError(f'Blocked filename: {os.path.basename(resolved)} cannot be uploaded.')
 
     return resolved
+
+
+def validate_write_path(save_path: str, file_name: Optional[str] = None) -> str:
+    """Validate and resolve a file path before writing a download.
+
+    Prevents path traversal by stripping directory components from *file_name*
+    via os.path.basename(), ensuring the write stays within *save_path*.
+    Also blocks writes into sensitive directories.
+
+    Returns the resolved absolute write path.
+    Raises ValueError on any policy violation.
+    """
+    resolved_dir = os.path.realpath(os.path.expanduser(save_path))
+
+    if _in_blocked_dir(resolved_dir):
+        logger.warning('[security] Blocked write to sensitive directory: {}', save_path)
+        raise ValueError(f'Writing to sensitive directory is not allowed: {save_path}')
+
+    if file_name:
+        safe_name = os.path.basename(file_name)
+        if not safe_name or safe_name == '..':
+            raise ValueError(f'Invalid file name after sanitization: {file_name!r}')
+    else:
+        safe_name = None
+
+    if safe_name:
+        return os.path.join(resolved_dir, safe_name)
+    return resolved_dir

@@ -35,6 +35,7 @@ from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
     GetMetricDataResponse,
     MetricData,
     MetricDataPoint,
+    MetricDataQueryInput,
     MetricDataResult,
     MetricMetadata,
     MetricMetadataIndexKey,
@@ -157,12 +158,24 @@ class CloudWatchMetricsTools:
     async def get_metric_data(
         self,
         ctx: Context,
-        namespace: str,
-        metric_name: str,
+        namespace: Annotated[
+            str | None,
+            Field(
+                description='The namespace of the metric. Required unless queries parameter is provided.'
+            ),
+        ] = None,
+        metric_name: Annotated[
+            str | None,
+            Field(
+                description='The name of the metric. Required unless queries parameter is provided.'
+            ),
+        ] = None,
         start_time: Annotated[
-            Union[str, datetime],
-            Field(description='The start time for the metric data query (ISO format or datetime)'),
-        ],
+            Union[str, datetime] | None,
+            Field(
+                description='The start time for the metric data query (ISO format or datetime). Defaults to 3 hours before end_time if not provided.'
+            ),
+        ] = None,
         dimensions: List[Dimension] = [],
         end_time: Annotated[
             Union[str, datetime] | None,
@@ -233,6 +246,12 @@ class CloudWatchMetricsTools:
                 description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.'
             ),
         ] = None,
+        queries: Annotated[
+            List[MetricDataQueryInput] | None,
+            Field(
+                description='Advanced queries for percentiles, math expressions, and multi-metric batching. When provided, namespace/metric_name/dimensions/statistic parameters are ignored.'
+            ),
+        ] = None,
     ) -> GetMetricDataResponse:
         """Retrieves CloudWatch metric data for a specific metric.
 
@@ -245,6 +264,15 @@ class CloudWatchMetricsTools:
         (group_by_dimension, schema_dimension_keys, limit, sort_order, or order_by_statistic), it will use Metrics Insights.
 
         When using group_by_dimension, you must include that dimension in schema_dimension_keys.
+
+        For advanced use cases, the optional `queries` parameter accepts a list of `MetricDataQueryInput`
+        objects and unlocks capabilities that the single-metric path cannot express: percentile statistics
+        (p50, p90, p99...), metric math expressions (e.g. `errors / invocations`), and multi-metric
+        batching (retrieving many metrics in a single API call). When `queries` is provided,
+        `namespace`, `metric_name`, `dimensions`, and `statistic` are not used.
+
+        `start_time` is optional; when omitted, it defaults to 3 hours before `end_time`
+        (which itself defaults to the current UTC time).
 
         Usage: Use this tool to get actual metric data from CloudWatch for analysis or visualization.
 
@@ -339,8 +367,92 @@ class CloudWatchMetricsTools:
                 print(f"Metric: {metric_result.label}")
                 for datapoint in metric_result.datapoints:
                     print(f"  {datapoint.timestamp}: {datapoint.value}")
+
+        Example 7 (Advanced queries - Lambda Latency Percentiles):
+            Use the queries parameter for percentile statistics (p50, p90, p99).
+
+            result = await get_metric_data(
+                ctx,
+                start_time="2025-12-21T00:00:00Z",
+                queries=[
+                    MetricDataQueryInput(
+                        id="p50",
+                        metric_stat=MetricStatInput(
+                            namespace="AWS/Lambda",
+                            metric_name="Duration",
+                            dimensions=[Dimension(name="FunctionName", value="my-api-function")],
+                            statistic="p50"
+                        ),
+                        label="Median Latency"
+                    ),
+                    MetricDataQueryInput(
+                        id="p99",
+                        metric_stat=MetricStatInput(
+                            namespace="AWS/Lambda",
+                            metric_name="Duration",
+                            dimensions=[Dimension(name="FunctionName", value="my-api-function")],
+                            statistic="p99"
+                        ),
+                        label="p99 Latency"
+                    )
+                ]
+            )
+
+        Example 8 (Advanced queries - Error Rate Calculation with Math Expression):
+            Use queries with math expressions to calculate derived metrics.
+
+            result = await get_metric_data(
+                ctx,
+                start_time="2025-12-21T00:00:00Z",
+                queries=[
+                    MetricDataQueryInput(
+                        id="errors",
+                        metric_stat=MetricStatInput(
+                            namespace="AWS/Lambda",
+                            metric_name="Errors",
+                            dimensions=[Dimension(name="FunctionName", value="my-api-function")],
+                            statistic="Sum"
+                        ),
+                        return_data=False  # Don't include raw errors in results
+                    ),
+                    MetricDataQueryInput(
+                        id="invocations",
+                        metric_stat=MetricStatInput(
+                            namespace="AWS/Lambda",
+                            metric_name="Invocations",
+                            dimensions=[Dimension(name="FunctionName", value="my-api-function")],
+                            statistic="Sum"
+                        ),
+                        return_data=False  # Don't include raw invocations in results
+                    ),
+                    MetricDataQueryInput(
+                        id="error_rate",
+                        expression="(errors / invocations) * 100",
+                        label="Error Rate %"
+                    )
+                ]
+            )
+            # Result contains only the calculated error_rate percentage
         """
         try:
+            # If queries parameter provided, delegate to the batch queries helper
+            if queries:
+                return await self._execute_queries_batch(
+                    ctx=ctx,
+                    queries=queries,
+                    start_time=start_time,
+                    end_time=end_time,
+                    target_datapoints=target_datapoints,
+                    region=region,
+                    profile_name=profile_name,
+                )
+
+            # Validate required parameters when not using queries
+            if not namespace or not metric_name:
+                raise ValueError(
+                    'namespace and metric_name are required when queries parameter is not provided'
+                )
+
             # Process time parameters and calculate period
             start_time, end_time, period = self._prepare_time_parameters(
                 start_time, end_time, target_datapoints
@@ -392,15 +504,22 @@ class CloudWatchMetricsTools:
             raise
 
     def _prepare_time_parameters(self, start_time, end_time, target_datapoints):
-        """Process time parameters and calculate the period."""
-        # Convert string times to datetime objects
-        if isinstance(start_time, str):
-            start_time = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+        """Process time parameters and calculate the period.
 
+        Defaults when not provided:
+        - end_time: current UTC time
+        - start_time: 3 hours before end_time
+        """
         if end_time is None:
             end_time = datetime.now(timezone.utc)
         elif isinstance(end_time, str):
             end_time = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+
+        if start_time is None:
+            # Default to 3 hours before end_time — matches the CloudWatch console default window
+            start_time = end_time - timedelta(hours=3)
+        elif isinstance(start_time, str):
+            start_time = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
 
         # Ensure both datetimes have timezone info for correct datetime arithmetic afterwards.
         # This avoids issues when datetime is passed as naive values (without timezone)
@@ -1048,6 +1167,143 @@ class CloudWatchMetricsTools:
                 values = list(values)
 
         return MetricData(period_seconds=period_seconds, timestamps=timestamps, values=values)
+
+    def _convert_query_input_to_aws(
+        self, query: MetricDataQueryInput, default_period: int
+    ) -> Dict[str, Any]:
+        """Convert MetricDataQueryInput to AWS SDK format.
+
+        Args:
+            query: The input query model
+            default_period: Default period to use if not specified in query
+
+        Returns:
+            Dict formatted for AWS GetMetricData API
+        """
+        aws_query = {
+            'Id': query.id,
+            'ReturnData': query.return_data,
+        }
+
+        # Determine the period to use (precedence: query.period > metric_stat.period > default_period)
+        if query.period is not None:
+            period = query.period
+        elif query.metric_stat and query.metric_stat.period is not None:
+            period = query.metric_stat.period
+        else:
+            period = default_period
+
+        # Add label if provided
+        if query.label:
+            aws_query['Label'] = query.label
+
+        # Build MetricStat or Expression
+        if query.metric_stat:
+            # Convert dimensions to AWS format
+            aws_dimensions = [
+                {'Name': dim.name, 'Value': dim.value} for dim in query.metric_stat.dimensions
+            ]
+
+            # For MetricStat queries, Period goes ONLY inside MetricStat
+            aws_query['MetricStat'] = {
+                'Metric': {
+                    'Namespace': query.metric_stat.namespace,
+                    'MetricName': query.metric_stat.metric_name,
+                    'Dimensions': aws_dimensions,
+                },
+                'Period': period,
+                'Stat': self._map_to_cloudwatch_statistic(query.metric_stat.statistic),
+            }
+        elif query.expression:
+            # For Expression queries, Period goes at the top level
+            aws_query['Period'] = period
+            aws_query['Expression'] = query.expression
+
+        return aws_query
+
+    def _paginate_get_metric_data(self, cloudwatch_client, **base_kwargs) -> dict:
+        """Follow ``NextToken`` through a CloudWatch ``GetMetricData`` call, merging results.
+
+        CloudWatch returns a ``NextToken`` when a single call exceeds its data-point
+        (~100,800 datapoints) or per-request query (500) limits. Without this helper,
+        results would be silently truncated after the first page.
+
+        Results sharing the same ``Id`` across pages are merged (``Timestamps`` and
+        ``Values`` are appended in order). ``Messages`` from all pages are concatenated.
+
+        Args:
+            cloudwatch_client: A boto3 CloudWatch client.
+            **base_kwargs: Keyword arguments forwarded to every ``get_metric_data`` call
+                (typically ``MetricDataQueries``, ``StartTime``, ``EndTime``).
+
+        Returns:
+            Dict with merged ``MetricDataResults`` and ``Messages``, matching the shape
+            of a single ``get_metric_data`` response.
+        """
+        response = cloudwatch_client.get_metric_data(**base_kwargs)
+        all_results = list(response.get('MetricDataResults', []))
+        messages = list(response.get('Messages', []))
+
+        while 'NextToken' in response:
+            response = cloudwatch_client.get_metric_data(
+                **base_kwargs,
+                NextToken=response['NextToken'],
+            )
+            for new in response.get('MetricDataResults', []):
+                existing = next(
+                    (r for r in all_results if r.get('Id') == new.get('Id')),
+                    None,
+                )
+                if existing:
+                    existing['Timestamps'] = existing.get('Timestamps', []) + new.get(
+                        'Timestamps', []
+                    )
+                    existing['Values'] = existing.get('Values', []) + new.get('Values', [])
+                    existing['StatusCode'] = new.get('StatusCode', existing.get('StatusCode'))
+                    # Preserve per-result Messages (warnings/errors scoped to a single query)
+                    # across pages — defensive; CloudWatch doesn't document splitting these.
+                    existing['Messages'] = existing.get('Messages', []) + new.get('Messages', [])
+                else:
+                    all_results.append(new)
+            messages.extend(response.get('Messages', []))
+
+        return {
+            'MetricDataResults': all_results,
+            'Messages': messages,
+        }
+
+    async def _execute_queries_batch(
+        self,
+        ctx: Context,
+        queries: List[MetricDataQueryInput],
+        start_time: Union[str, datetime] | None = None,
+        end_time: Union[str, datetime] | None = None,
+        target_datapoints: int = 60,
+        region: str | None = None,
+        profile_name: str | None = None,
+    ) -> GetMetricDataResponse:
+        """Internal helper: Execute batch queries with support for percentiles, expressions, and multi-metric."""
+        # Process time parameters and calculate default period
+        start_time, end_time, default_period = self._prepare_time_parameters(
+            start_time, end_time, target_datapoints
+        )
+
+        # Convert all queries to AWS format
+        aws_queries = [self._convert_query_input_to_aws(q, default_period) for q in queries]
+
+        # Create CloudWatch client
+        cloudwatch_client = get_aws_client('cloudwatch', region, profile_name)
+
+        # Call GetMetricData API — paginate if the response includes NextToken
+        response = self._paginate_get_metric_data(
+            cloudwatch_client,
+            MetricDataQueries=aws_queries,
+            StartTime=start_time,
+            EndTime=end_time,
+        )
+
+        # Process and return response
+        return self._process_metric_data_response(response)
 
     async def analyze_metric(
         self,

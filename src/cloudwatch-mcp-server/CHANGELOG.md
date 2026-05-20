@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.1.3] - 2026-05-20
+
+### Added
+
+- Added optional `queries` parameter to `get_metric_data` for advanced metric retrieval: percentile statistics (p50, p90, p99, ...), metric math expressions, and multi-metric batching in a single API call
+- Added `MetricStatInput` and `MetricDataQueryInput` Pydantic input models for the `queries` parameter, with mutually-exclusive validation between `metric_stat` and `expression`
+- Automatic `NextToken` pagination in the `queries` path so large responses are not silently truncated
+
+### Changed
+
+- `start_time` parameter on `get_metric_data` is now optional; defaults to 3 hours before `end_time` when omitted (matches the CloudWatch console default)
+
 ## [0.1.1] - 2026-05-12
 
 ### Removed

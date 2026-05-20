@@ -455,3 +455,119 @@ class TestDownloadS3ContentWithFilePath:
             assert result['sizeBytes'] == len(b'file data')
             with open(full_path, 'rb') as fh:
                 assert fh.read() == b'file data'
+
+
+class TestDownloadS3ContentPathTraversal:
+    """Security tests: path traversal in file_name must not escape save_path."""
+
+    @pytest.mark.asyncio
+    async def test_traversal_in_filename_neutralized(self, tmp_path):
+        mock_response = AsyncMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.content = b'malicious content'
+        mock_response.raise_for_status = lambda: None
+
+        with patch('awslabs.aws_transform_mcp_server.tool_utils.httpx.AsyncClient') as MockClient:
+            instance = AsyncMock()
+            instance.get.return_value = mock_response
+            instance.__aenter__ = AsyncMock(return_value=instance)
+            instance.__aexit__ = AsyncMock(return_value=False)
+            MockClient.return_value = instance
+
+            save_dir = str(tmp_path) + '/'
+            result = await download_s3_content(
+                'https://s3.example.com/artifact',
+                save_path=save_dir,
+                file_name='../../etc/passwd',
+            )
+            # Traversal stripped: file lands in tmp_path, not /etc/
+            assert result['savedTo'] == os.path.join(str(tmp_path), 'passwd')
+            assert os.path.dirname(result['savedTo']) == str(tmp_path)
+
+    @pytest.mark.asyncio
+    async def test_deep_traversal_in_filename_neutralized(self, tmp_path):
+        mock_response = AsyncMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.content = b'payload'
+        mock_response.raise_for_status = lambda: None
+
+        with patch('awslabs.aws_transform_mcp_server.tool_utils.httpx.AsyncClient') as MockClient:
+            instance = AsyncMock()
+            instance.get.return_value = mock_response
+            instance.__aenter__ = AsyncMock(return_value=instance)
+            instance.__aexit__ = AsyncMock(return_value=False)
+            MockClient.return_value = instance
+
+            save_dir = str(tmp_path) + '/'
+            result = await download_s3_content(
+                'https://s3.example.com/artifact',
+                save_path=save_dir,
+                file_name='../../../../root/.ssh/authorized_keys',
+            )
+            assert result['savedTo'] == os.path.join(str(tmp_path), 'authorized_keys')
+
+    @pytest.mark.asyncio
+    async def test_blocked_save_path_raises(self):
+        mock_response = AsyncMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.content = b'evil'
+        mock_response.raise_for_status = lambda: None
+
+        with patch('awslabs.aws_transform_mcp_server.tool_utils.httpx.AsyncClient') as MockClient:
+            instance = AsyncMock()
+            instance.get.return_value = mock_response
+            instance.__aenter__ = AsyncMock(return_value=instance)
+            instance.__aexit__ = AsyncMock(return_value=False)
+            MockClient.return_value = instance
+
+            home = os.path.expanduser('~')
+            with pytest.raises(ValueError, match='sensitive directory'):
+                await download_s3_content(
+                    'https://s3.example.com/artifact',
+                    save_path=os.path.join(home, '.ssh') + '/',
+                    file_name='authorized_keys',
+                )
+
+    @pytest.mark.asyncio
+    async def test_dotdot_filename_raises(self, tmp_path):
+        mock_response = AsyncMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.content = b'data'
+        mock_response.raise_for_status = lambda: None
+
+        with patch('awslabs.aws_transform_mcp_server.tool_utils.httpx.AsyncClient') as MockClient:
+            instance = AsyncMock()
+            instance.get.return_value = mock_response
+            instance.__aenter__ = AsyncMock(return_value=instance)
+            instance.__aexit__ = AsyncMock(return_value=False)
+            MockClient.return_value = instance
+
+            save_dir = str(tmp_path) + '/'
+            with pytest.raises(ValueError, match='Invalid file name'):
+                await download_s3_content(
+                    'https://s3.example.com/artifact',
+                    save_path=save_dir,
+                    file_name='..',
+                )
+
+    @pytest.mark.asyncio
+    async def test_traversal_in_save_path_with_extension(self, tmp_path):
+        """When save_path looks like a file (has extension), traversal in it is resolved."""
+        mock_response = AsyncMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.content = b'content'
+        mock_response.raise_for_status = lambda: None
+
+        with patch('awslabs.aws_transform_mcp_server.tool_utils.httpx.AsyncClient') as MockClient:
+            instance = AsyncMock()
+            instance.get.return_value = mock_response
+            instance.__aenter__ = AsyncMock(return_value=instance)
+            instance.__aexit__ = AsyncMock(return_value=False)
+            MockClient.return_value = instance
+
+            safe_file = os.path.join(str(tmp_path), 'output.txt')
+            result = await download_s3_content(
+                'https://s3.example.com/data',
+                save_path=safe_file,
+            )
+            assert result['savedTo'] == os.path.join(str(tmp_path), 'output.txt')
