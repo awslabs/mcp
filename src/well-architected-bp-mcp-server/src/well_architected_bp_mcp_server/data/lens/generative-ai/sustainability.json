@@ -15,7 +15,60 @@
     ],
     "risk": "MEDIUM",
     "title": "Implement auto scaling and serverless architectures to optimize resource utilization",
-    "title_full": "GENSUS01-BP01 Implement auto scaling and serverless architectures to optimize resource utilization"
+    "title_full": "GENSUS01-BP01 Implement auto scaling and serverless architectures to optimize resource utilization",
+    "desired_outcome": [
+      "After implementing this best practice, customers can improve the elasticity of their generative AI workloads and benefit from the efficiencies of scale of the AWS Cloud."
+    ],
+    "benefits": "Optimize resource utilization - Minimize environmental impact by maximizing the efficiency of generative AI resources.",
+    "implementation_guidance": [
+      "Adopt serverless or fully-managed architectures. Use Amazon Bedrock for generative AI tasks to alleviate server management overhead",
+      "Use Amazon Q Business-related AI applications to streamline operations",
+      "Use Amazon SageMaker AI Serverless Inference for on-demand ML inference without managing servers",
+      "Configure auto scaling capabilities. Set up auto scaling for Amazon SageMaker AI Endpoints to handle varying loads efficiently",
+      "Set up EC2 Auto Scaling for custom ML infrastructure to match resource allocation with demand",
+      "Optimize ML development environments. For SageMaker AI notebook instances, configure idle time-out to release resources when not in use",
+      "For ML development instances, schedule automatic shutdown for unused instances to conserve resources",
+      "Use SageMaker AI Inference Recommender. Conduct automated load testing to assess model deployments under various loads",
+      "Select optimal instance types based on recommendations for cost-effective and performance",
+      "Consider both real-time and serverless inference",
+      "Implement efficient model hosting. For model deployments, consider EC2 Inferentia instances for enhanced performance and efficiency",
+      "For large models, scale and distribute the load across multiple instances",
+      "Perform continuous monitoring and optimization. Use Amazon CloudWatch to track resource metrics and identify optimization opportunities",
+      "Track token lengths of prompts and model responses to measure utilization",
+      "Identify idle time periods to scale down or suspend the inference endpoints",
+      "Set up SageMaker AI Model Monitor to continuously monitor model performance and data quality",
+      "Educate your team on sustainable AI practices. Provide training to foster a culture of sustainability",
+      "Encourage the use of pre-trained models to reduce training time and resource consumption"
+    ],
+    "resources": [
+      "SUS02-BP01: https://docs.aws.amazon.com/wellarchitected/latest/framework/sus_sus_user_a2.html",
+      "SUS05-BP02: https://docs.aws.amazon.com/wellarchitected/latest/framework/sus_sus_hardware_a3.html",
+      "SUS02-BP03: https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_user_a4.html",
+      "Sustainability pillar – Best practices: https://docs.aws.amazon.com/wellarchitected/latest/machine-learning-lens/sustainability-pillar-best-practices-5.html",
+      "Automatic scaling of Amazon SageMaker AI models: https://docs.aws.amazon.com/sagemaker/latest/dg/endpoint-auto-scaling.html",
+      "Amazon SageMaker AI Best Practices: https://docs.aws.amazon.com/sagemaker/latest/dg/best-practices.html",
+      "Deploy models with Amazon SageMaker AI Serverless Inference: https://docs.aws.amazon.com/sagemaker/latest/dg/serverless-endpoints.html",
+      "Optimizing Costs for Machine Learning with Amazon SageMaker AI: https://aws.amazon.com/blogs/machine-learning/optimizing-costs-for-machine-learning-with-amazon-sagemaker/",
+      "The executive's guide to generative AI for sustainability: https://aws.amazon.com/blogs/machine-learning/the-executives-guide-to-generative-ai-for-sustainability/",
+      "Optimize generative AI workloads for environmental sustainability: https://aws.amazon.com/blogs/machine-learning/optimize-generative-ai-workloads-for-environmental-sustainability/",
+      "Integrating generative AI effectively into sustainability strategies: https://www.youtube.com/watch?v=8vAMOPLnN-w",
+      "Optimize your AI/ML workloads with Amazon EC2 Graviton: https://www.youtube.com/watch?v=QIAaMlW1fVo",
+      "Orchestrating SageMaker AI HyperPod clusters with Amazon: https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-eks.html",
+      "Orchestrating SageMaker AI HyperPod clusters with Slurm: https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-slurm.html",
+      "Deploy models for inference: https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-model.html",
+      "Supercharge your auto scaling for generative AI inference – Introducing Container Caching in SageMaker AI Inference: https://aws.amazon.com/blogs/machine-learning/supercharge-your-auto-scaling-for-generative-ai-inference-introducing-container-caching-in-sagemaker-inference/",
+      "SageMaker AI Inference Recommender Example: https://github.com/aws/amazon-sagemaker-examples/tree/main/sagemaker-inference-recommender",
+      "AWS can help reduce the carbon footprint of AI workloads by up to 99%: https://www.aboutamazon.com/news/aws/aws-carbon-footprint-ai-workload",
+      "Carrier Uses Amazon Bedrock to Help Customers Achieve Their Sustainability Goals: https://aws.amazon.com/solutions/case-studies/carrier-bedrock-sustainability-testimonial/",
+      "Introducing Amazon SageMaker AI HyperPod, a purpose-built infrastructure for distributed training at scale: https://aws.amazon.com/blogs/aws/introducing-amazon-sagemaker-hyperpod-a-purpose-built-infrastructure-for-distributed-training-at-scale/",
+      "Amazon Bedrock: https://aws.amazon.com/bedrock/",
+      "Amazon SageMaker AI: https://aws.amazon.com/sagemaker/",
+      "Amazon CloudWatch: https://aws.amazon.com/cloudwatch/",
+      "AWS Cost Explorer: https://aws.amazon.com/aws-cost-management/aws-cost-explorer/",
+      "Amazon EC2 Auto Scaling: https://aws.amazon.com/ec2/autoscaling/",
+      "AWS Inferentia: https://aws.amazon.com/ai/machine-learning/inferentia/",
+      "New – Customer Carbon Footprint Tool: https://aws.amazon.com/blogs/aws/new-customer-carbon-footprint-tool/"
+    ]
   },
   {
     "area": [
@@ -32,7 +85,42 @@
     ],
     "risk": "MEDIUM",
     "title": "Use efficient model customization services",
-    "title_full": "GENSUS01-BP02 Use efficient model customization services"
+    "title_full": "GENSUS01-BP02 Use efficient model customization services",
+    "desired_outcome": [
+      "After implementing this practice, your organization can create an environmentally-sustainable infrastructure for training, customizing, and hosting generative AI workloads."
+    ],
+    "benefits": "Optimize resource utilization - Minimize environmental impact through efficient use of generative AI model customization resources.",
+    "implementation_guidance": [
+      "Select the right AWS services. Amazon Bedrock has managed model customization where resource utilization is handled by AWS",
+      "Amazon SageMaker AI offers advanced training features and full control of the underlying infrastructure choices",
+      "Set up SageMaker AI HyperPod for large-scale distributed training. Use pre-tested stacks for popular models to streamline setup",
+      "Consider AWS Trainium instances for reduced energy consumption compared to traditional instances",
+      "Apply parameter-efficient fine-tuning with HyperPod for fine-tuning large language models, reducing the computational and energy requirements",
+      "Use managed spot training. Implement managed spot training to utilize spare Amazon EC2 capacity, leading to better underlying resource utilization",
+      "Set up the checkpointing feature to handle spot instance interruptions and restart from the last point of completion",
+      "Enable SageMaker AI Debugger. Use Debugger to monitor and optimize training job resource utilization",
+      "Configure rules to identify and halt training jobs early in case of issues, minimizing wasted compute resources",
+      "Optimize resource utilization and cost. Analyze usage patterns to adjust instance types and counts",
+      "Use auto scaling features",
+      "Use cost allocation tags to track detailed resource consumption and for billing analysis"
+    ],
+    "resources": [
+      "SUS02-BP01: https://docs.aws.amazon.com/wellarchitected/latest/framework/sus_sus_user_a2.html",
+      "SUS05-BP02: https://docs.aws.amazon.com/wellarchitected/latest/framework/sus_sus_hardware_a3.html",
+      "Customize your model to improve its performance for your use case: https://docs.aws.amazon.com/bedrock/latest/userguide/custom-models.html",
+      "Customize models in Amazon Bedrock with your own data using fine-tuning and continued pre-training: https://aws.amazon.com/blogs/aws/customize-models-in-amazon-bedrock-with-your-own-data-using-fine-tuning-and-continued-pre-training/",
+      "Distributed training in Amazon SageMaker AI: https://docs.aws.amazon.com/sagemaker/latest/dg/distributed-training.html",
+      "Parameter-Efficient Fine-Tuning (PEFT) on SageMaker AI HyperPod with AWS Trainium: https://aws.amazon.com/blogs/machine-learning/peft-fine-tuning-of-llama-3-on-sagemaker-hyperpod-with-aws-trainium/",
+      "Bedrock Model Customization Workshop Notebooks: https://github.com/aws-samples/amazon-bedrock-customization-workshop",
+      "SageMaker AI HyperPod recipe repository: https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-recipe-repository.html",
+      "Guidance for Optimizing MLOps for Sustainability on AWS: https://aws.amazon.com/solutions/guidance/optimizing-mlops-for-sustainability-on-aws/",
+      "Amazon SageMaker AI: https://aws.amazon.com/sagemaker/",
+      "Amazon Bedrock: https://aws.amazon.com/bedrock/",
+      "AWS Trainium: https://aws.amazon.com/ai/machine-learning/trainium/",
+      "Amazon SageMaker AI HyperPod: https://aws.amazon.com/sagemaker-ai/hyperpod/",
+      "Amazon SageMaker AIDebugger: https://docs.aws.amazon.com/sagemaker/latest/dg/train-debugger.html",
+      "AWS Cost Explorer: https://aws.amazon.com/aws-cost-management/aws-cost-explorer/"
+    ]
   },
   {
     "area": [
@@ -50,7 +138,49 @@
     ],
     "risk": "MEDIUM",
     "title": "Optimize data processing and storage to minimize energy consumption",
-    "title_full": "GENSUS02-BP01 Optimize data processing and storage to minimize energy consumption"
+    "title_full": "GENSUS02-BP01 Optimize data processing and storage to minimize energy consumption",
+    "desired_outcome": [
+      "After implementing this practice, you can achieve more efficient data management, reduce carbon footprint, and allocate resources more effectively, which leads to cost and resource efficiency. This approach not only supports sustainable practices but also help organizations scale their generative AI initiatives without incurring unnecessary expenses or resource wastage."
+    ],
+    "benefits": "Optimize resource utilization - Increase sustainability of data processing and storage.",
+    "implementation_guidance": [
+      "Use Amazon S3 for data storage. Enable S3 Intelligent-Tiering to automatically optimize storage costs based on access patterns",
+      "Implement S3 Lifecycle policies to manage data transitions and deletions efficiently",
+      "Automate processes to remove redundant data",
+      "Use S3 Storage Lens for data usage insights and optimization",
+      "Optimize data formats and compression. Adopt columnar formats and convert data to formats like Parquet for enhanced analytical performance",
+      "Apply compression techniques to reduce storage and transfer costs using appropriate compression methods",
+      "Use serverless query and processing services. Use Athena to perform serverless SQL queries on S3 data",
+      "Use AWS Glue to run serverless ETL jobs, discover schemas, and catalog data",
+      "AWS Lambda to handle event-driven computing tasks",
+      "Automatically scale batch processing. Consider Amazon EMR with autoscaling to process large-scale Spark jobs efficiently",
+      "Assess resource efficiency between Lambda, EMR, and AWS Batch",
+      "Use Lambda for short (under 15 minutes) processing jobs",
+      "Consider EMR or Batch for larger scale jobs",
+      "Monitor your resource utilization. Use AWS Cost Explorer and AWS Trusted Advisor for cost and resource optimization recommendations",
+      "Review Amazon CloudWatch metrics to identify efficiency improvements"
+    ],
+    "resources": [
+      "SUS04-BP04: https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_data_a5.html",
+      "SUS04-BP03: https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_data_a4.html",
+      "SUS04-BP02: https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_data_a3.html",
+      "AWS Well Architected Framework Data Analytics Lens: https://docs.aws.amazon.com/wellarchitected/latest/analytics-lens/analytics-lens.html",
+      "Revolutionizing Real-World Evidence: How Generative AI Can Simplify Data Exploration: https://aws.amazon.com/blogs/industries/revolutionizing-real-world-evidence-how-generative-ai-can-simplify-data-exploration/",
+      "Amazon S3 Storage Classes: https://aws.amazon.com/s3/storage-classes/",
+      "Examples of S3 Lifecycle configurations: https://docs.aws.amazon.com/AmazonS3/latest/userguide/lifecycle-configuration-examples.html",
+      "Zero-ETL integrations: https://docs.aws.amazon.com/glue/latest/dg/zero-etl-using.html",
+      "AWS Lambda Machine Learning Blogs and Sample Applications: https://aws.amazon.com/blogs/machine-learning/category/compute/aws-lambda/",
+      "Optimizing streaming media workflows to reduce your carbon footprint: https://aws.amazon.com/blogs/media/optimizing-streaming-media-workflows-to-reduce-your-carbon-footprint-part-i/",
+      "Amazon Athena User Guide: https://docs.aws.amazon.com/athena/latest/ug/what-is.html",
+      "Advanced Scaling for Amazon EMR: https://docs.aws.amazon.com/emr/latest/ManagementGuide/managed-scaling-allocation-strategy-optimized.html",
+      "AWS Cost Explorer: https://aws.amazon.com/aws-cost-management/aws-cost-explorer/",
+      "AWS Trusted Advisor: https://aws.amazon.com/premiumsupport/technology/trusted-advisor/",
+      "Amazon CloudWatch: https://aws.amazon.com/cloudwatch/",
+      "AWS CloudTrail: https://aws.amazon.com/cloudtrail/",
+      "Amazon S3 Storage Lens: https://aws.amazon.com/s3/storage-lens/",
+      "AWS Glue: https://aws.amazon.com/glue/",
+      "Data discovery and cataloging in AWS Glue: https://docs.aws.amazon.com/glue/latest/dg/catalog-and-crawler.html"
+    ]
   },
   {
     "area": [
@@ -68,6 +198,34 @@
     ],
     "risk": "LOW",
     "title": "Leverage smaller models to reduce carbon footprint",
-    "title_full": "GENSUS03-BP01 Leverage smaller models to reduce carbon footprint"
+    "title_full": "GENSUS03-BP01 Leverage smaller models to reduce carbon footprint",
+    "desired_outcome": [
+      "After implementing model optimization practices, you will have cost-effective and carbon-effective AI solutions."
+    ],
+    "benefits": "Optimize resource utilization - Minimize environmental impact by maximizing the efficiency of generative AI resources.",
+    "implementation_guidance": [
+      "Select optimization techniques. Evaluate considerations between model size, speed, and accuracy. Evaluate the effect on tasks and overall performance",
+      "Use SageMaker AI inference optimization techniques like LoRa and quantization",
+      "Use Amazon Bedrock Model Distillation feature to knowledge transfer from a larger model to a smaller model",
+      "Evaluate optimized models. Compare performance with original models",
+      "Assess resource savings and verify accuracy and functionality taking edge cases into considerations"
+    ],
+    "resources": [
+      "SUS02-BP01: https://docs.aws.amazon.com/wellarchitected/latest/framework/sus_sus_user_a2.html",
+      "SUS05-BP02: https://docs.aws.amazon.com/wellarchitected/latest/framework/sus_sus_hardware_a3.html",
+      "SUS02-BP03: https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_user_a4.html",
+      "Impel enhances automative dealership customer experience with fine-tuned LLMs on SageMaker AI: https://aws.amazon.com/blogs/machine-learning/impel-enhances-automotive-dealership-customer-experience-with-fine-tuned-llms-on-amazon-sagemaker/",
+      "A guide to Amazon BedrockModel Distillation (preview): https://aws.amazon.com/blogs/machine-learning/a-guide-to-amazon-bedrock-model-distillation-preview/",
+      "Fine-tune large language models with Amazon SageMaker AI Autopilot: https://aws.amazon.com/blogs/machine-learning/fine-tune-large-language-models-with-amazon-sagemaker-autopilot/",
+      "Inference optimization for Amazon SageMaker AI models: https://docs.aws.amazon.com/sagemaker/latest/dg/model-optimize.html",
+      "Quantum-amenable pruning of large language models and large vision models using block coordinate descent: https://aws.amazon.com/blogs/quantum-computing/quantum-amenable-pruning-of-large-language-models-and-large-vision-models-using-block-coordinate-descent/",
+      "Improve the relevance of query responses with a reranked model in Amazon Bedrock: https://docs.aws.amazon.com/bedrock/latest/userguide/rerank.html",
+      "LLM Rank pruning: https://github.com/amazon-science/llm-rank-pruning",
+      "Optimizing Generative AI LLM Inference Deployment on AWS GPUs By Leveraging Quantization: https://github.com/aws-samples/optimizing-llm-inference-with-quantization",
+      "Amazon SageMaker AI inference optimization toolkit for generative AI using quantization: https://aws.amazon.com/blogs/machine-learning/amazon-sagemaker-launches-the-updated-inference-optimization-toolkit-for-generative-ai/",
+      "Amazon Bedrock: https://aws.amazon.com/bedrock/?nc2=type_a",
+      "Amazon SageMaker AI: https://aws.amazon.com/sagemaker-ai/",
+      "AWSCloudWatch: https://aws.amazon.com/cloudwatch/"
+    ]
   }
 ]
