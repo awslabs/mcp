@@ -8,7 +8,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_manage_service_limits_aware_quotas_and_constraints.html",
     "id": "REL01-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL01-BP02",
@@ -35,7 +34,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_manage_service_limits_limits_considered.html",
     "id": "REL01-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL01-BP01",
@@ -62,7 +60,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_manage_service_limits_aware_fixed_limits.html",
     "id": "REL01-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL01-BP01",
@@ -89,7 +86,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_manage_service_limits_monitor_manage_limits.html",
     "id": "REL01-BP04",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL01-BP01",
@@ -116,7 +112,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_manage_service_limits_automated_monitor_limits.html",
     "id": "REL01-BP05",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL10-BP07"
@@ -134,7 +129,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_manage_service_limits_suff_buffer_limits.html",
     "id": "REL01-BP06",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL01-BP01",
@@ -161,7 +155,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_network_topology_ha_conn_users.html",
     "id": "REL02-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL10-BP01",
@@ -181,7 +174,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_network_topology_ha_conn_private_networks.html",
     "id": "REL02-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [],
     "risk": "HIGH",
@@ -197,7 +189,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_network_topology_ip_subnet_allocation.html",
     "id": "REL02-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL02-BP05"
@@ -215,7 +206,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_network_topology_prefer_hub_and_spoke.html",
     "id": "REL02-BP04",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL02-BP03",
@@ -234,7 +224,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_network_topology_non_overlap_ip.html",
     "id": "REL02-BP05",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [],
     "risk": "MEDIUM",
@@ -250,7 +239,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_service_architecture_monolith_soa_microservice.html",
     "id": "REL03-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL03-BP02"
@@ -268,7 +256,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_service_architecture_business_domains.html",
     "id": "REL03-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL03-BP01",
@@ -287,7 +274,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_service_architecture_api_contracts.html",
     "id": "REL03-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL03-BP01",
@@ -309,7 +295,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_prevent_interaction_failure_identify.html",
     "id": "REL04-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [],
     "risk": "HIGH",
@@ -325,7 +310,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_prevent_interaction_failure_loosely_coupled_system.html",
     "id": "REL04-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [],
     "risk": "HIGH",
@@ -341,7 +325,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_prevent_interaction_failure_constant_work.html",
     "id": "REL04-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [],
     "risk": "LOW",
@@ -357,7 +340,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_prevent_interaction_failure_idempotent.html",
     "id": "REL04-BP04",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL05-BP03",
@@ -378,7 +360,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_graceful_degradation.html",
     "id": "REL05-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [],
     "risk": "HIGH",
@@ -394,7 +375,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_throttle_requests.html",
     "id": "REL05-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL04-BP03",
@@ -413,7 +393,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_limit_retries.html",
     "id": "REL05-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL04-BP04",
@@ -431,11 +410,10 @@
       "Workload architecture",
       "Design interactions in a distributed system to mitigate or withstand failures"
     ],
-    "description": "When a service is unable to respond successfully to a request, fail fast. This allows resources associated with a request to be released, and permits a service to recover if it\u2019s running out of resources. Failing fast is a well-established software design pattern that can be leveraged to build highly reliable workloads in the cloud. Queuing is also a well-established enterprise integration pattern that can smooth load and allow clients to release resources when asynchronous processing can be tolerated. When a service is able to respond successfully under normal conditions but fails when the rate of requests is too high, use a queue to buffer requests. However, do not allow a buildup of long queue backlogs that can result in processing stale requests that a client has already given up on.",
+    "description": "When a service is unable to respond successfully to a request, fail fast. This allows resources associated with a request to be released, and permits a service to recover if it’s running out of resources. Failing fast is a well-established software design pattern that can be leveraged to build highly reliable workloads in the cloud. Queuing is also a well-established enterprise integration pattern that can smooth load and allow clients to release resources when asynchronous processing can be tolerated. When a service is able to respond successfully under normal conditions but fails when the rate of requests is too high, use a queue to buffer requests. However, do not allow a buildup of long queue backlogs that can result in processing stale requests that a client has already given up on.",
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_fail_fast.html",
     "id": "REL05-BP04",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL04-BP02",
@@ -457,7 +435,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_client_timeouts.html",
     "id": "REL05-BP05",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL05-BP03",
@@ -477,7 +454,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_stateless.html",
     "id": "REL05-BP06",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL11-BP03"
@@ -495,7 +471,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_emergency_levers.html",
     "id": "REL05-BP07",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL05-BP01",
@@ -515,7 +490,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_monitor_aws_resources_monitor_resources.html",
     "id": "REL06-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL11-BP03"
@@ -533,7 +507,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_monitor_aws_resources_notification_aggregation.html",
     "id": "REL06-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL06-BP01",
@@ -556,7 +529,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_monitor_aws_resources_notification_monitor.html",
     "id": "REL06-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL06-BP01",
@@ -576,7 +548,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_monitor_aws_resources_automate_response_monitor.html",
     "id": "REL06-BP04",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL06-BP01",
@@ -597,7 +568,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_monitor_aws_resources_storage_analytics.html",
     "id": "REL06-BP05",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [],
     "risk": "MEDIUM",
@@ -613,7 +583,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_monitor_aws_resources_review_monitoring.html",
     "id": "REL06-BP06",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL06-BP01",
@@ -635,7 +604,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_monitor_aws_resources_end_to_end.html",
     "id": "REL06-BP07",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL06-BP01",
@@ -654,7 +622,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_adapt_to_changes_autoscale_adapt.html",
     "id": "REL07-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [],
     "risk": "HIGH",
@@ -670,7 +637,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_adapt_to_changes_reactive_adapt_auto.html",
     "id": "REL07-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL07-BP01",
@@ -689,7 +655,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_adapt_to_changes_proactive_adapt_auto.html",
     "id": "REL07-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [],
     "risk": "MEDIUM",
@@ -705,7 +670,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_adapt_to_changes_load_tested_adapt.html",
     "id": "REL07-BP04",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [],
     "risk": "MEDIUM",
@@ -721,7 +685,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_tracking_change_management_planned_changemgmt.html",
     "id": "REL08-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [],
     "risk": "HIGH",
@@ -737,7 +700,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_tracking_change_management_functional_testing.html",
     "id": "REL08-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL07-BP04",
@@ -757,7 +719,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_tracking_change_management_resiliency_testing.html",
     "id": "REL08-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [],
     "risk": "MEDIUM",
@@ -773,7 +734,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_tracking_change_management_immutable_infrastructure.html",
     "id": "REL08-BP04",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL08-BP05"
@@ -791,7 +751,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_tracking_change_management_automated_changemgmt.html",
     "id": "REL08-BP05",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "OPS05-BP04",
@@ -812,7 +771,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_backing_up_data_identified_backups_data.html",
     "id": "REL09-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL13-BP01",
@@ -831,7 +789,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_backing_up_data_secured_backups_data.html",
     "id": "REL09-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [],
     "risk": "HIGH",
@@ -847,7 +804,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_backing_up_data_automated_backups_data.html",
     "id": "REL09-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [],
     "risk": "MEDIUM",
@@ -861,9 +817,8 @@
     ],
     "description": "Validate that your backup process implementation meets your Recovery Time Objectives (RTO) and Recovery Point Objectives (RPO) by performing a recovery test.",
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_backing_up_data_periodic_recovery_testing_data.html",
-    "id": "PREL09-BP04",
+    "id": "REL09-BP04",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [],
     "risk": "MEDIUM",
@@ -879,7 +834,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_fault_isolation_multiaz_region_system.html",
     "id": "REL10-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL02-BP03",
@@ -899,7 +853,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_fault_isolation_single_az_system.html",
     "id": "REL10-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL02-BP03",
@@ -919,7 +872,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_fault_isolation_use_bulkhead.html",
     "id": "REL10-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL07-BP04",
@@ -938,7 +890,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_withstand_component_failures_monitoring_health.html",
     "id": "REL11-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL11-BP06"
@@ -956,7 +907,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_withstand_component_failures_failover2good.html",
     "id": "REL11-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL10",
@@ -975,7 +925,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_withstand_component_failures_auto_healing_system.html",
     "id": "REL11-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL11-BP01"
@@ -993,7 +942,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_withstand_component_failures_avoid_control_plane.html",
     "id": "REL11-BP04",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL11-BP01"
@@ -1011,7 +959,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_withstand_component_failures_static_stability.html",
     "id": "REL11-BP05",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL11-BP01",
@@ -1030,7 +977,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_withstand_component_failures_notifications_sent_system.html",
     "id": "REL11-BP06",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [],
     "risk": "MEDIUM",
@@ -1046,7 +992,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_withstand_component_failures_service_level_agreements.html",
     "id": "REL11-BP07",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL03-BP01",
@@ -1069,7 +1014,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_testing_resiliency_playbook_resiliency.html",
     "id": "REL12-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [],
     "risk": "HIGH",
@@ -1085,7 +1029,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_testing_resiliency_rca_resiliency.html",
     "id": "REL12-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [],
     "risk": "HIGH",
@@ -1101,7 +1044,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_testing_resiliency_test_non_functional.html",
     "id": "REL12-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL01-BP04",
@@ -1121,7 +1063,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_testing_resiliency_failure_injection_resiliency.html",
     "id": "REL12-BP04",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL08-BP03",
@@ -1140,7 +1081,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_testing_resiliency_game_days_resiliency.html",
     "id": "REL12-BP05",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL12-BP01",
@@ -1162,7 +1102,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_for_recovery_objective_defined_recovery.html",
     "id": "REL13-BP01",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL09-BP04",
@@ -1183,7 +1122,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_for_recovery_disaster_recovery.html",
     "id": "REL13-BP02",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL09-BP01",
@@ -1203,7 +1141,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_for_recovery_dr_tested.html",
     "id": "REL13-BP03",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [],
     "risk": "HIGH",
@@ -1219,7 +1156,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_for_recovery_config_drift.html",
     "id": "REL13-BP04",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL01-BP01",
@@ -1240,7 +1176,6 @@
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_for_recovery_auto_recovery.html",
     "id": "REL13-BP05",
     "lens": "FRAMEWORK",
-    "outcome": "",
     "pillar": "RELIABILITY",
     "relatedIds": [
       "REL07-BP01",
