@@ -14,7 +14,51 @@
     ],
     "risk": "HIGH",
     "title": "Periodically evaluate functional performance",
-    "title_full": "GENOPS01-BP01 Periodically evaluate functional performance"
+    "title_full": "GENOPS01-BP01 Periodically evaluate functional performance",
+    "desired_outcome": [
+      "When implemented, this best practice improves the ability to identify and remediate performance degradation issues in model responses."
+    ],
+    "benefits": [
+      "Implement observability for actionable insights - Model responses to prompts can be observed using key performance indicators (KPIs) to determine adherence to or deviation from acceptable performance levels.",
+      "Anticipate failure - Periodic review of the model's performance levels helps you proactively identify deviations in its performance. This is because foundation models are inherently non-deterministic with a realistic chance of failure."
+    ],
+    "implementation_guidance": [
+      "Create a ground truth dataset. Verify that you have diverse data representation",
+      "Consider various user personas and use cases",
+      "Apply stratified sampling techniques. Categorize ground truth data into relevant groups",
+      "Randomly sample from each group to achieve balanced representation",
+      "Establish periodic evaluation processes. For Amazon Bedrock: Use the built-in model evaluation feature",
+      "Implement model invocation logging",
+      "For Amazon SageMaker AI: Configure manual evaluations using Amazon SageMaker AI Studio.",
+      "Set up automatic evaluations using Amazon SageMaker AI Studio or the fmeval library",
+      "Define custom metrics. Use the fmeval library to create custom metric classes",
+      "Encapsulate logic for calculating specific evaluation criteria",
+      "Perform model evaluations. Input prompts into the model",
+      "Generate outputs and compare them to ground truth values",
+      "Analyze results to track performance over time",
+      "Monitor for performance drifts. Identify potential degradation in model performance",
+      "Address data drift where actual usage diverges from the initial ground truth",
+      "Regularly update the ground truth dataset. Reflect changes in workload inputs and usage patterns",
+      "Maintain the relevance of evaluation data",
+      "Use open-source libraries. Consider using libraries like ragas for additional evaluation capabilities",
+      "Explore complementary metrics and evaluation techniques",
+      "Implement automated workflows. Integrate evaluation processes into CI/CD pipelines",
+      "Set up alerts for significant performance changes"
+    ],
+    "resources": [
+      "OPS11-BP11: https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_evolve_ops_metrics_review.html",
+      "Amazon SageMaker AI Model Evaluation: https://docs.aws.amazon.com/sagemaker/latest/dg/model-optimize-evaluate.html",
+      "Evaluating Models in Amazon Bedrock: https://aws.amazon.com/bedrock/evaluations/",
+      "Data and model quality monitoring with Amazon SageMaker AI Model Monitor: https://docs.aws.amazon.com/sagemaker/latest/dg/model-monitor.html",
+      "AWS re:Invent 2024 - Streamline RAG and model evaluation with Amazon Bedrock (AIM359): https://www.youtube.com/watch?v=7BP9nwFlFws",
+      "SageMaker AI Model Evaluation Examples: https://docs.aws.amazon.com/sagemaker/latest/dg/ex1-test-model.html",
+      "Bedrock Model Evaluation Demo: https://aws.amazon.com/awstv/watch/1a5442fac30/",
+      "Examples with fmeval: https://github.com/aws/fmeval/tree/main/examples",
+      "Amazon SageMaker AI Model Monitor: https://docs.aws.amazon.com/sagemaker/latest/dg/model-monitor.html",
+      "fmeval library: https://github.com/aws/fmeval",
+      "Amazon CloudWatch: https://docs.aws.amazon.com/sagemaker/latest/dg/monitoring-cloudwatch.html",
+      "AWS Step Functions: https://aws.amazon.com/blogs/aws/build-generative-ai-apps-using-aws-step-functions-and-amazon-bedrock/"
+    ]
   },
   {
     "area": [
@@ -31,7 +75,45 @@
     ],
     "risk": "HIGH",
     "title": "Collect and monitor user feedback",
-    "title_full": "GENOPS01-BP02 Collect and monitor user feedback"
+    "title_full": "GENOPS01-BP02 Collect and monitor user feedback",
+    "desired_outcome": [
+      "When implemented, this best practice improves the ability to surface performance degradation issues with foundation models as they happen without requiring ground truth data."
+    ],
+    "implementation_guidance": [
+      "For Amazon Q Business, set up user feedback collection. Integrate simple feedback options within the application",
+      "Use the PutFeedback API action through AWS SDK for application integration",
+      "Use Amazon Q Business usage trends and query analysis",
+      "Consider storing feedback in Amazon DynamoDB for scalable, low-latency storage",
+      "Enable conversation logging to get more insights from user interactions Configure log delivery (choose between Amazon S3, CloudWatch Logs, or Amazon Data Firehose)",
+      "Set up filtering if you need to exclude sensitive information",
+      "Enable logging to start streaming conversation and feedback data",
+      "For Amazon Bedrock, set up user feedback collection. Create an Amazon S3 bucket to store user feedback",
+      "Develop a web form or API endpoint to collect user feedback",
+      "Create an AWS Lambda function to process incoming feedback",
+      "Set up an Amazon EventBridge rule to run the Lambda function when new feedback is added to the S3 bucket",
+      "Establish a regular review process. Schedule periodic reviews of monitoring data, user feedback, and incident reports",
+      "Create an AWS Step Functions workflow to manage the feedback processing pipeline",
+      "Consider Amazon Bedrock's large language models to analyze the feedback",
+      "Consider Quick to create dashboards and visualizations of the feedback data",
+      "Implement and test improvements. Identify optimizations in data pipelines, integration patterns, or model capabilities",
+      "Track KPIs before and after improvements",
+      "Develop and deploy optimizations",
+      "Validate improvements using A/B testing"
+    ],
+    "resources": [
+      "OPS04-BP03: https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_observability_customer_telemetry.html",
+      "Guidance for Capturing and Analyzing Unstructured Customer Feedback on AWS: https://aws.amazon.com/solutions/guidance/capturing-and-analyzing-unstructured-customer-feedback-on-aws/",
+      "Build an automated insight extraction framework for customer feedback analysis with Amazon Bedrock and Quick: https://aws.amazon.com/blogs/machine-learning/build-an-automated-insight-extraction-framework-for-customer-feedback-analysis-with-amazon-bedrock-and-amazon-quicksight/",
+      "Guidance for Automated Customer Feedback Analysis with Amazon Bedrock: https://aws.amazon.com/solutions/guidance/automated-customer-feedback-analysis-with-amazon-bedrock/",
+      "PutFeedback - Amazon Q Business: https://docs.aws.amazon.com/amazonq/latest/api-reference/API_PutFeedback.html",
+      "Configure agent to request information from user to increase accuracy of function prediction - Amazon Bedrock: https://docs.aws.amazon.com/bedrock/latest/userguide/agents-user-input.html",
+      "Amazon Q Business: https://aws.amazon.com/q/business/",
+      "Amazon Bedrock: https://aws.amazon.com/bedrock/",
+      "Amazon DynamoDB: https://aws.amazon.com/dynamodb/",
+      "Amazon CloudWatch: https://aws.amazon.com/cloudwatch/",
+      "Quick: https://aws.amazon.com/quicksight/",
+      "AWS Step Functions: https://aws.amazon.com/step-functions/"
+    ]
   },
   {
     "area": [
@@ -52,7 +134,64 @@
     ],
     "risk": "HIGH",
     "title": "Monitor all application layers",
-    "title_full": "GENOPS02-BP01 Monitor all application layers"
+    "title_full": "GENOPS02-BP01 Monitor all application layers",
+    "desired_outcome": [
+      "When implemented, your organization closely monitors the performance of generative AI workloads."
+    ],
+    "benefits": [
+      "Implement observability for actionable insights - Monitor the performance of your generative AI workload at all layers of the application, increasing visibility into application operational state and facilitating the early intervention of operational issues.",
+      "Learn from all operational events and metrics - Capturing fine-grained observations enables continuous improvement."
+    ],
+    "implementation_guidance": [
+      "Identify your application layers, including: Application layer",
+      "Service layer",
+      "Foundation model layer",
+      "Additional layers (for example, prompt catalog, vector data store, or knowledge graph)",
+      "For application layer monitoring: Enable logs and metrics in Amazon CloudWatch",
+      "For custom metrics, set up for application-specific events and performance indicators",
+      "For service layer monitoring: Enable logs and metrics in Amazon CloudWatch",
+      "For request flow analysis, implement tracing with AWS X-Ray or use Amazon Bedrock Agent's tracing feature",
+      "For foundation model layer monitoring: Use built-in monitoring in Amazon Bedrock or Amazon Q Business",
+      "Configure CloudWatch logging for Amazon SageMaker AI Inference Endpoints",
+      "For additional layer monitoring: Enable logs and metrics in your chosen vector database, such as Amazon OpenSearch Service",
+      "Set up CloudWatch logs and metrics for prompt catalogs or knowledge graphs",
+      "Configure alerting and dashboards. Set up CloudWatch alarms for critical metrics and thresholds",
+      "Create CloudWatch dashboards for key performance indicators",
+      "Configure security monitoring. Enable AWS CloudTrail for API activity logging",
+      "Set up Amazon GuardDuty for threat detection",
+      "Continually optimize. Review and analyze log data to identify improvements",
+      "Adjust monitoring configurations based on changing application needs and usage patterns",
+      "Consider additional logging solutions: For log ingestion and transformation, consider Amazon Data Firehose",
+      "For as-needed querying, explore Amazon Athena for logs stored in Amazon S3"
+    ],
+    "resources": [
+      "OPS08-BP01: https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_workload_observability_analyze_workload_metrics.html",
+      "OPS08-BP02: https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_workload_observability_analyze_workload_logs.html",
+      "OPS08-BP03: https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_workload_observability_analyze_workload_traces.html",
+      "OPS08-BP04: https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_workload_observability_create_alerts.html",
+      "OPS08-BP05: https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_workload_observability_create_dashboards.html",
+      "Using Amazon CloudWatch Metrics: https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/working_with_metrics.html",
+      "Using Amazon CloudWatch Dashboards: https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Dashboards.html",
+      "Amazon CloudWatch Logs: https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/WhatIsCloudWatchLogs.html",
+      "CloudWatch Logs Insights Query Examples: https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax-examples.html",
+      "Publishing Custom Metrics: https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/publishingMetrics.html",
+      "Monitor the health and performance of Amazon Bedrock: https://docs.aws.amazon.com/bedrock/latest/userguide/monitoring.html",
+      "Metrics for monitoring Amazon SageMaker AI with Amazon CloudWatch: https://docs.aws.amazon.com/sagemaker/latest/dg/monitoring-cloudwatch.html",
+      "Monitoring OpenSearch Serverless with Amazon CloudWatch: https://docs.aws.amazon.com/opensearch-service/latest/developerguide/monitoring-cloudwatch.html",
+      "Monitoring Amazon Q Business and Amazon Q Apps with Amazon CloudWatch: https://docs.aws.amazon.com/amazonq/latest/qbusiness-ug/monitoring-cloudwatch.html",
+      "Monitoring Amazon Q Developer with Amazon CloudWatch: https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/monitoring-cloudwatch.html",
+      "Accelerate Foundation Model Development with One-Click Observability in Amazon SageMaker AI HyperPod: https://aws.amazon.com/blogs/machine-learning/accelerate-foundation-model-development-with-one-click-observability-in-amazon-sagemaker-hyperpod/",
+      "Amazon SageMaker AI HyperPod launches model deployments to accelerate the generative AI model development lifecycle: https://aws.amazon.com/blogs/machine-learning/amazon-sagemaker-hyperpod-launches-model-deployments-to-accelerate-the-generative-ai-model-development-lifecycle/",
+      "Amazon CloudWatch: https://aws.amazon.com/cloudwatch/",
+      "AWS CloudTrail: https://aws.amazon.com/cloudtrail/",
+      "Amazon SageMaker AI Model Monitor: https://docs.aws.amazon.com/sagemaker/latest/dg/model-monitor.html",
+      "Amazon Data Firehose: https://docs.aws.amazon.com/firehose/latest/dev/what-is-this-service.html",
+      "Amazon Athena: https://aws.amazon.com/athena/",
+      "Amazon GuardDuty: https://aws.amazon.com/guardduty/",
+      "Amazon OpenSearch Service Serverless: https://aws.amazon.com/opensearch-service/features/serverless/",
+      "Amazon Bedrock: https://aws.amazon.com/bedrock/",
+      "Amazon Q: https://aws.amazon.com/q/"
+    ]
   },
   {
     "area": [
@@ -72,7 +211,58 @@
     ],
     "risk": "HIGH",
     "title": "Monitor foundation model metrics",
-    "title_full": "GENOPS02-BP02 Monitor foundation model metrics"
+    "title_full": "GENOPS02-BP02 Monitor foundation model metrics",
+    "desired_outcome": [
+      "A robust monitoring system is in place that provides real-time visibility into the performance of your foundation models, allows for early detection of anomalies or degradation, and speeds up response to incidents. This system integrates with your existing observability tools and processes, providing a holistic view of your application's health."
+    ],
+    "benefits": [
+      "Implement observability for actionable insights - Monitor foundation model metrics.",
+      "Learn from all operational events and metrics - Capturing fine-grained observations enables continuous improvement."
+    ],
+    "implementation_guidance": [
+      "For Amazon Bedrock, enable model invocation logging. Choose your desired data output options and log destination (Amazon S3 or CloudWatch Logs)",
+      "Track key metrics like InputTokenCount, OutputTokenCount, and InvocationThrottles",
+      "Use these metrics to understand model usage and performance",
+      "If needed, implement additional custom logging in your application using the CloudWatch PutMetricData API",
+      "For Amazon SageMaker AI, implement Amazon SageMaker AI Model Monitor. Establish performance baselines for hosted models",
+      "Include graphs for resource utilization (like memory and GPU) where applicable",
+      "Set up regular monitoring jobs to evaluate model performance",
+      "Configure alerts for deviations detected during monitoring",
+      "Set up a dashboard to visualize key metrics. Create CloudWatch dashboards for your AI services (like Amazon Bedrock and SageMaker AI)",
+      "Add widgets for important metrics such as invocations, latency, token counts, and error rates",
+      "Consider implementing anomaly detection algorithms to identify unusual patterns in data",
+      "Create alarms for critical thresholds. Elevated latency in model invocations",
+      "High error rates or throttling events",
+      "Implement EventBridge rules. Create rules to capture significant events from your AI services",
+      "Set up appropriate targets for these rules (like SNS topics or Lambda functions) and automate the responses",
+      "Develop incident response playbooks. Create playbooks for common scenarios (for example, high latency or increased error rates)",
+      "Define steps for identifying root causes and implementing mitigations",
+      "Establish procedures for communication and escalation",
+      "Establish a regular review process Schedule periodic reviews of dashboards and metrics",
+      "Regularly assess and adjust alarm thresholds",
+      "Conduct retrospective reviews on incidents and near-misses",
+      "Perform periodic audits of your monitoring coverage"
+    ],
+    "resources": [
+      "OPS08-BP01: https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_workload_observability_analyze_workload_metrics.html",
+      "OPS08-BP02: https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_workload_observability_analyze_workload_logs.html",
+      "OPS08-BP04: https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_workload_observability_create_alerts.html",
+      "OPS08-BP05: https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_workload_observability_create_dashboards",
+      "Monitor model invocation using CloudWatch Logs - Amazon Bedrock: https://docs.aws.amazon.com/bedrock/latest/userguide/model-invocation-logging.html",
+      "Monitor the health and performance of Amazon Bedrock - Amazon Bedrock: https://docs.aws.amazon.com/bedrock/latest/userguide/monitoring.html",
+      "Monitoring Generative AI applications using Amazon Bedrock and Amazon CloudWatch integration | AWS Cloud Operations &amp; Migrations Blog: https://aws.amazon.com/blogs/mt/monitoring-generative-ai-applications-using-amazon-bedrock-and-amazon-cloudwatch-integration/",
+      "Data and model quality monitoring with Amazon SageMaker AI Model Monitor: https://docs.aws.amazon.com/sagemaker/latest/dg/model-monitor.html",
+      "AWS Well-Architected Framework: Operational Excellence Pillar: https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/welcome.html",
+      "Accelerate Foundation Model Development with One-Click Observability in Amazon SageMaker AI HyperPod: https://aws.amazon.com/blogs/machine-learning/accelerate-foundation-model-development-with-one-click-observability-in-amazon-sagemaker-hyperpod/",
+      "Amazon SageMaker AI HyperPod launches model deployments to accelerate the generative AI model development lifecycle: https://aws.amazon.com/blogs/machine-learning/amazon-sagemaker-hyperpod-launches-model-deployments-to-accelerate-the-generative-ai-model-development-lifecycle/",
+      "SageMaker AI Model Monitor Example Notebooks: https://github.com/aws/amazon-sagemaker-examples/tree/main/sagemaker_model_monitor",
+      "EventBridge Rules for SageMaker AI Training Jobs: https://docs.aws.amazon.com/sagemaker/latest/dg/automating-sagemaker-with-eventbridge.html",
+      "Amazon CloudWatch: https://aws.amazon.com/cloudwatch/",
+      "Amazon SageMaker AI Model Monitor: https://docs.aws.amazon.com/sagemaker/latest/dg/model-monitor.html",
+      "Amazon EventBridge: https://aws.amazon.com/eventbridge/",
+      "AWS Lambda: https://aws.amazon.com/lambda/",
+      "Amazon Simple Notification Service: https://aws.amazon.com/sns/"
+    ]
   },
   {
     "area": [
@@ -90,7 +280,49 @@
     ],
     "risk": "MEDIUM",
     "title": "Implement rate limiting and throttling to mitigate the risk of system overload",
-    "title_full": "GENOPS02-BP03 Implement rate limiting and throttling to mitigate the risk of system overload"
+    "title_full": "GENOPS02-BP03 Implement rate limiting and throttling to mitigate the risk of system overload",
+    "desired_outcome": [
+      "After implementing rate limiting and throttling, your organization can maintain the stability and performance of their AI applications."
+    ],
+    "benefits": [
+      "Safely automate where possible - Respond to system load events.",
+      "Anticipate failure - Maximize operational success by implementing responses to failure scenarios."
+    ],
+    "implementation_guidance": [
+      "Understand your Amazon Bedrock quotas. Quotas may apply to various aspects of Amazon Bedrock usage, such as API request rates, token usage, or concurrent model invocations",
+      "You can view the current quotas for Amazon Bedrock through the Service Quotas dashboard in the AWS Management Console",
+      "Default quotas may be updated based on factors such as regional availability and usage patterns",
+      "Some quotas may be specific to particular models or model families within Amazon Bedrock",
+      "Some quotas may be adjustable, allowing you to request an increase through the Service Quotas console",
+      "For quotas that cannot be adjusted through Service Quotas, contact Support for guidance",
+      "Implement throttling mechanisms. Use Amazon API Gateway for rate limiting to control the number of requests",
+      "Implement backoff techniques. Use exponential backoff with jitter to handle transient errors effectively",
+      "Integrate with AWS SDK for Javascript's built-in retry mechanisms for seamless error recovery",
+      "Design retry logic. Implement idempotent operations where possible to facilitate safe retries",
+      "Use AWS Step Functions for managing complex retry workflows",
+      "Consider circuit breaker patterns for failing fast in case of repeated failures",
+      "Implement continuous monitoring and optimization. Use Amazon CloudWatch observability to monitor system performance",
+      "Conduct regular load testing and capacity planning"
+    ],
+    "resources": [
+      "OPS10-BP02: https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_event_response_process_per_alert.html",
+      "OPS08-BP04: https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_workload_observability_create_alerts.html",
+      "Quotas for Amazon Bedrock - Amazon Bedrock: https://docs.aws.amazon.com/bedrock/latest/userguide/quotas.html",
+      "Amazon SDK Developer Guide - Retry behavior: https://docs.aws.amazon.com/sdkref/latest/guide/feature-retry-behavior.html",
+      "AWS Prescriptive Guidance - Retry behavior: https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/retry-backoff.html",
+      "Supercharge your auto scaling for generative AI inference – Introducing Container Caching in SageMaker AI Inference: https://aws.amazon.com/blogs/machine-learning/supercharge-your-auto-scaling-for-generative-ai-inference-introducing-container-caching-in-sagemaker-inference/",
+      "Implementing Rate Limiting with API Gateway: https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-request-throttling.html",
+      "Using Step Functions for Retry Logic: https://docs.aws.amazon.com/step-functions/latest/dg/tutorial-handling-error-conditions.html",
+      "Managing and monitoring API throttling in your workloads: https://aws.amazon.com/blogs/mt/managing-monitoring-api-throttling-in-workloads/",
+      "Analyze Amazon SageMaker AI spend and determine cost optimization opportunities based on usage, Part 1: https://aws.amazon.com/blogs/machine-learning/part-1-analyze-amazon-sagemaker-spend-and-determine-cost-optimization-opportunities-based-on-usage-part-1/",
+      "Maximize Accelerator Utilization for Model Development with New Amazon SageMaker AI HyperPod Task Governance: https://aws.amazon.com/blogs/aws/maximize-accelerator-utilization-for-model-development-with-new-amazon-sagemaker-hyperpod-task-governance/",
+      "Introducing Amazon SageMaker AI HyperPod to train foundation models at scale: https://aws.amazon.com/blogs/machine-learning/introducing-amazon-sagemaker-hyperpod-to-train-foundation-models-at-scale/",
+      "Best practices for Amazon SageMaker AI HyperPod task governance: https://aws.amazon.com/blogs/machine-learning/best-practices-for-amazon-sagemaker-hyperpod-task-governance/",
+      "Get started with Amazon SageMaker AI HyperPod task governance: https://www.youtube.com/watch?v=_wDhBAPwhoM",
+      "Usage reporting for cost attribution in SageMaker AI HyperPod: https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-usage-reporting.html",
+      "Amazon API Gateway: https://aws.amazon.com/api-gateway/",
+      "AWS Step Functions: https://aws.amazon.com/step-functions/"
+    ]
   },
   {
     "area": [
@@ -108,7 +340,39 @@
     ],
     "risk": "HIGH",
     "title": "Implement prompt template management",
-    "title_full": "GENOPS03-BP01 Implement prompt template management"
+    "title_full": "GENOPS03-BP01 Implement prompt template management",
+    "desired_outcome": [
+      "You have a robust, versioned prompt template management system in place. Key processes involve testing and comparing different prompt variants, capturing baseline model outputs, and regularly reviewing and optimizing prompts based on performance metrics."
+    ],
+    "benefits": "Safely automate where possible - Automate prompt management, reducing the undifferentiated heavy lifting associated with traditional prompt management techniques.",
+    "implementation_guidance": [
+      "Set up Amazon Bedrock Prompt Management. Create the initial prompt templates by developing a foundational set of prompt templates tailored to your use case",
+      "Incorporate variables within prompts to enhance flexibility and adaptability",
+      "Implement a robust versioning system to track changes and iterations of prompt templates",
+      "Implement a baseline performance evaluation. Compile a dataset of ground truth examples to serve as a benchmark for model evaluation",
+      "Identify and establish performance metrics relevant to your application",
+      "Conduct preliminary performance assessments to establish a baseline",
+      "Create and test prompt variants. Develop several versions of each prompt to explore different phrasings and structures",
+      "Use Amazon Bedrock Flows to configure A/B testing workflows for prompt variants",
+      "Analyze the performance of each prompt variant to determine the most effective options",
+      "Integrate prompts into applications. Use the Amazon Bedrock SDK to incorporate prompts during model inference",
+      "Integrate prompt nodes into Amazon Bedrock Flows where appropriate to streamline application workflows",
+      "Establish a regular review and optimization process. Plan periodic performance evaluations to assess model effectiveness",
+      "Review evaluation outcomes to pinpoint areas requiring enhancement",
+      "Update and version prompts based on evaluation insights to continually improve performance",
+      "Set up cross-team collaboration. Share prompts across teams using Amazon Bedrock Prompt Management",
+      "Establish and disseminate guidelines for prompt creation and modification to maintain consistency and quality"
+    ],
+    "resources": [
+      "OPS05-BP10: https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_dev_integ_auto_integ_deploy.html",
+      "OPS05-BP01: https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_version_control.html",
+      "Amazon Bedrock Prompt Template Examples: https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-templates-and-examples.html",
+      "AWS re:Invent 2023 - Prompt engineering best practices for LLMs on Amazon Bedrock (AIM377): https://www.youtube.com/watch?v=jlqgGkh1wzY",
+      "Evaluating prompts at scale with Prompt Management and Prompt Flows for Amazon Bedrock: https://aws.amazon.com/blogs/machine-learning/evaluating-prompts-at-scale-with-prompt-management-and-prompt-flows-for-amazon-bedrock/",
+      "Amazon Bedrock: https://aws.amazon.com/bedrock/",
+      "Amazon CloudWatch: https://aws.amazon.com/cloudwatch/",
+      "AWS SDK for Python (Boto3): https://boto3.amazonaws.com/v1/documentation/api/latest/index.html"
+    ]
   },
   {
     "area": [
@@ -125,7 +389,58 @@
     ],
     "risk": "HIGH",
     "title": "Enable tracing for agents and RAG workflows",
-    "title_full": "GENOPS03-BP02 Enable tracing for agents and RAG workflows"
+    "title_full": "GENOPS03-BP02 Enable tracing for agents and RAG workflows",
+    "desired_outcome": [
+      "After implementing tracing, you have enhanced agent decision-making and RAG workflows."
+    ],
+    "benefits": "Learn from all operational events and metrics - Gain insights from tracing for agents and RAG workflows.",
+    "implementation_guidance": [
+      "Collect and aggregate trace data. Implement a system to collect trace data from agents involved in your parallel processing workflow",
+      "After running an Amazon Bedrock Agent, view the trace in real-time as your agent performs orchestration",
+      "When making an InvokeAgent request to the Amazon Bedrock runtime endpoint, set the enableTrace field to TRUE. This will include a trace field in the InvokeAgent response for each chunk in the stream",
+      "Store this data in a centralized location, such as Amazon S3 or Amazon CloudWatch Logs, for quick access and analysis",
+      "Secure trace data. Implement appropriate access controls to verify that only authorized personnel can view trace data",
+      "Be mindful of any sensitive information that might be included in traces and handle it according to your organization's security policies",
+      "Analyze the trace components. The trace is structured as a JSON object containing fields such as agentId, sessionId, and trace",
+      "PreProcessingTrace shows how the agent contextualizes and categorizes user input",
+      "OrchestrationTrace reveals how the agent interprets input, invokes action groups, and queries knowledge bases",
+      "PostProcessingTrace demonstrates how the agent handles the final output and prepares the response",
+      "FailureTrace indicates reasons for step failures",
+      "GuardrailTrace shows actions taken by the Guardrail feature",
+      "Analyze runtimes. Review the timestamps in the trace data to identify which agents or steps are taking the longest to complete",
+      "Look for patterns or bottlenecks that might be causing delays in the overall process",
+      "Examine resource utilization. Use the trace data to understand how each agent is utilizing resources such as knowledge bases or action groups",
+      "Identify overutilization or underutilization of resources that might be affecting performance",
+      "Optimize agent configurations. Based on the analysis, adjust the configuration of individual agents to improve their performance",
+      "This may include fine-tuning prompts, adjusting knowledge base queries, or modifying action group structures",
+      "Implement load balancing across agents Use the insights gained from trace data to distribute workloads more evenly across agents",
+      "Consider implementing a dynamic load balancing system that can adjust based on real-time performance metrics",
+      "Optimize data transfer between agents Use the supervisor with routing mode, which allows the supervisor agent to route information directly to the appropriate collaborator agent, reducing unnecessary data transfers and overall latency",
+      "Use the session state feature to maintain context between agent interactions, reducing the need to transfer redundant information",
+      "Where possible, design your multi-agent system to process tasks concurrently, reducing overall runtime",
+      "Where appropriate, cache frequently accessed data to reduce repeated transfers between agents",
+      "Deploy your agents in AWS Regions closest to your users or data sources to minimize network latency",
+      "Optimize your knowledge bases. Verify that each agent's knowledge base is well-structured and contains only relevant information to minimize unnecessary data processing",
+      "Set up performance monitoring. Use Amazon CloudWatch to create custom metrics based on the trace data",
+      "Set up alarms to alert you when performance falls below expected thresholds",
+      "Conduct iterative testing. After making optimizations, run comprehensive tests to measure the change in overall system performance",
+      "Use the trace data from these tests to identify further areas for improvement",
+      "Document and share insights. Keep a record of optimizations made and their effects on performance",
+      "Share these insights with your team to improve future multi-agent system designs"
+    ],
+    "resources": [
+      "OPS08-BP03: https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_workload_observability_analyze_workload_traces.html",
+      "Amazon Bedrock AgentCore Samples: https://github.com/awslabs/amazon-bedrock-agentcore-samples/",
+      "Track agent's step-by-step reasoning process using trace - Amazon Bedrock: https://docs.aws.amazon.com/bedrock/latest/userguide/trace-events.html",
+      "Track each step in your flow by viewing its trace in Amazon Bedrock - Amazon Bedrock: https://docs.aws.amazon.com/bedrock/latest/userguide/flows-trace.html",
+      "Create multi-agent collaboration - Amazon Bedrock: https://docs.aws.amazon.com/bedrock/latest/userguide/create-multi-agent-collaboration.html",
+      "Introducing Amazon Bedrock AgentCore: Securely deploy and operate AI agents at any scale (preview): https://aws.amazon.com/blogs/aws/introducing-amazon-bedrock-agentcore-securely-deploy-and-operate-ai-agents-at-any-scale/",
+      "Optimize model inference for latency - Amazon Bedrock: https://docs.aws.amazon.com/bedrock/latest/userguide/latency-optimized-inference.html",
+      "Optimize performance for Amazon Bedrock agents using a single knowledge base - Amazon Bedrock: https://docs.aws.amazon.com/bedrock/latest/userguide/agents-optimize-performance.html",
+      "Amazon CloudWatch Logs: https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/WhatIsCloudWatchLogs.html",
+      "OpenTelemetry: https://opentelemetry.io/",
+      "LangFuse: https://langfuse.com/"
+    ]
   },
   {
     "area": [
@@ -146,7 +461,56 @@
     ],
     "risk": "HIGH",
     "title": "Automate generative AI application lifecycle with infrastructure as code (IaC)",
-    "title_full": "GENOPS04-BP01 Automate generative AI application lifecycle with infrastructure as code (IaC)"
+    "title_full": "GENOPS04-BP01 Automate generative AI application lifecycle with infrastructure as code (IaC)",
+    "desired_outcome": [
+      "After implementing the practice of automating the lifecycle management of generative AI workloads using IaC, customers have version control infrastructure automated through CI/CD pipelines."
+    ],
+    "benefits": "Safely automate where possible - Define your entire workload and its operations (applications, infrastructure, configuration, and procedures) as code, facilitating infrastructure level change management, infrastructure version control, and advanced paradigms such as self-healing infrastructure.",
+    "implementation_guidance": [
+      "Select your IaC tool stack. Evaluate AWS CDK, AWS CloudFormation, or Terraform",
+      "Consider team skills and project needs",
+      "Assess learning curve and maintainability",
+      "Define your infrastructure resources. Include each component, such as Amazon Bedrock, Amazon API Gateway, AWS Lambda, and AWS Data Pipelines",
+      "Create reproducible, version-controlled stacks",
+      "Use modular design for reusability",
+      "Version control your IaC templates. Use a code repository Git tool",
+      "Implement branching strategy aligned with environments",
+      "Implement a CI/CD pipeline. Consider AWS CodePipeline or Jenkins for orchestration",
+      "Configure initiation events for code changes",
+      "Set up automated testing for IaC templates",
+      "Enable automatic deployment of changes",
+      "Implement approval gates for production deployments",
+      "Manage multiple environments. Use the same templates with different parameters for development, test, and production",
+      "Implement environment-specific security controls",
+      "Establish governance and compliance. Use AWS Config for tracking resource configurations and automate remediations",
+      "Implement Service Catalog for standardized provisioning",
+      "Set up automated compliance checks and reporting",
+      "Regularly audit your IaC templates. Focus on security best practices",
+      "Conduct periodic third-party security assessments"
+    ],
+    "resources": [
+      "OPS05-BP10: https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_dev_integ_auto_integ_deploy.html",
+      "OPS06-BP03: https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_mit_deploy_risks_deploy_mgmt_sys.html",
+      "OPS06-BP04: https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_mit_deploy_risks_auto_testing_and_rollback.html",
+      "OPS05-BP08: https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_dev_integ_multi_env.html",
+      "OPS05-BP01: https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_dev_integ_version_control.html",
+      "Operationalize generative AI applications on AWS: https://aws.amazon.com/blogs/gametech/operationalize-generative-ai-applications-on-aws-part-ii-architecture-deep-dive/",
+      "AWS CloudFormation Amazon Bedrock resources: https://docs.aws.amazon.com/bedrock/latest/userguide/creating-resources-with-cloudformation.html",
+      "AWS re:Invent 2024 - Generative AI in action: From prototype to production (AIM276): https://www.youtube.com/watch?v=aFQFiVOh3P0",
+      "SageMaker AI HyperPod Recipes Official Documentation: https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-recipes.html",
+      "SageMaker AI HyperPod Recipe Repository Documentation: https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-recipe-repository.html",
+      "Walkthrough: Building a pipeline for test and production stacks: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/continuous-delivery-codepipeline-basic-walkthrough.html",
+      "AWS CDK Examples: https://github.com/aws-samples/aws-cdk-examples",
+      "AWS CDK Developer Guide: https://docs.aws.amazon.com/cdk/v2/guide/home.html",
+      "Terraform AWS Provider Examples: https://github.com/terraform-providers/terraform-provider-aws/tree/main/examples",
+      "Accelerate Foundation Model Training and Fine-tuning with New Amazon SageMaker AI HyperPod Recipes: https://aws.amazon.com/blogs/aws/accelerate-foundation-model-training-and-fine-tuning-with-new-amazon-sagemaker-hyperpod-recipes/",
+      "Amazon SageMaker AI model endpoint creation with CloudFormation: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-sagemaker-model.html#aws-resource-sagemaker-model--examples",
+      "AWS CloudFormation: https://aws.amazon.com/cloudformation/",
+      "AWS CDK: https://aws.amazon.com/cdk/",
+      "AWS CodePipeline: https://aws.amazon.com/codepipeline/",
+      "AWS Config: https://aws.amazon.com/config/",
+      "Service Catalog: https://aws.amazon.com/servicecatalog/"
+    ]
   },
   {
     "area": [
@@ -164,7 +528,49 @@
     ],
     "risk": "HIGH",
     "title": "Follow GenAIOps practices to optimize the application lifecycle",
-    "title_full": "GENOPS04-BP02 Follow GenAIOps practices to optimize the application lifecycle"
+    "title_full": "GENOPS04-BP02 Follow GenAIOps practices to optimize the application lifecycle",
+    "desired_outcome": [
+      "After implementing GenAIOps, organizations can have a robust, automated framework for managing the entire lifecycle of generative AI workloads."
+    ],
+    "benefits": "Safely automate where possible - automate the lifecycle of your foundation models.",
+    "implementation_guidance": [
+      "For SageMaker AI, implement pipelines. Use SageMaker AI SDK to add steps which may include data preparation, model training, model evaluation, and model deployment",
+      "Use SageMaker AI Processing to run evaluation scripts on the trained model with SageMaker AI Clarify",
+      "Automate testing with integration and performance tests. Consider AWS Step Functions to orchestrate them",
+      "Start the pipeline execution",
+      "Use Amazon SageMaker AI Studio to view the pipeline's progress",
+      "Set up notifications for pipeline status updates using Amazon CloudWatch Events",
+      "Integrate this into the larger application's CI/CD pipeline using AWS CodePipeline, AWS CodeBuild, and AWS CodeDeploy with Amazon SageMaker AI Projects",
+      "Enable MLflow experiment tracking. In Amazon SageMaker AI Studio, configure MLflow tracking",
+      "Use MLflow to log parameters, metrics, and artifacts during your model training process",
+      "These will be automatically tracked and stored in your SageMaker AI-managed MLflow server",
+      "Use the MLflow UI in SageMaker AI Studio to analyze metrics and artifacts to determine the best model iterations",
+      "Register your best models in the MLflow Model Registry",
+      "Use a version control system. Use a Git compatible repository to manage code and configurations effectively",
+      "Set up SageMaker AI Model Registry to catalog and version models",
+      "Set up monitoring and logging. Monitor real-time FM metrics with Amazon CloudWatch",
+      "Centralize logging with Amazon CloudWatch Logs",
+      "Create a feedback loop for continuous improvement. Gather user feedback and model performance data",
+      "Automate retraining and model updates based on new data"
+    ],
+    "resources": [
+      "OPS05-BP10: https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_dev_integ_auto_integ_deploy.html",
+      "OPS05-BP07: https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_dev_integ_code_quality.html",
+      "OPS05-BP01: https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_dev_integ_version_control.html",
+      "LLM experimentation at scale using Amazon SageMaker AI Pipelines and MLflow | AWS Machine Learning Blog: https://aws.amazon.com/blogs/machine-learning/llm-experimentation-at-scale-using-amazon-sagemaker-pipelines-and-mlflow/",
+      "Achieve operational excellence with well-architected generative AI solutions using Amazon Bedrock: https://aws.amazon.com/blogs/machine-learning/achieve-operational-excellence-with-well-architected-generative-ai-solutions-using-amazon-bedrock/",
+      "MLOps – Machine Learning Operations– Amazon Web Services: https://aws.amazon.com/sagemaker/mlops/",
+      "Amazon SageMaker AI MLOps Workshop: https://github.com/aws-samples/amazon-sagemaker-mlops-workshop",
+      "AWS MLOps Framework: https://aws.amazon.com/solutions/implementations/aws-mlops-framework/",
+      "Amazon SageMaker AI MLOps Project Template: https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-projects-templates-sm.html",
+      "Amazon SageMaker AI Pipelines: https://aws.amazon.com/sagemaker-pipelines/",
+      "AWS CodePipeline: https://aws.amazon.com/codepipeline/",
+      "AWS CodeBuild: https://aws.amazon.com/codebuild/",
+      "AWS CodeDeploy: https://aws.amazon.com/codedeploy/",
+      "AWS Step Functions: https://aws.amazon.com/step-functions/",
+      "Amazon CloudWatch: https://aws.amazon.com/cloudwatch",
+      "Amazon Elastic Kubernetes Service (Amazon EKS): https://aws.amazon.com/eks/"
+    ]
   },
   {
     "area": [
@@ -181,6 +587,51 @@
     ],
     "risk": "HIGH",
     "title": "Learn when to customize models",
-    "title_full": "GENOPS05-BP01 Learn when to customize models"
+    "title_full": "GENOPS05-BP01 Learn when to customize models",
+    "desired_outcome": [
+      "You have an approach to decide when to customize models."
+    ],
+    "benefits": "Use managed services - Manage the undifferentiated heavy lifting associated with large-scale, memory-intensive, distributed computing tasks such as model customization.",
+    "implementation_guidance": [
+      "You have a specific task or use case that requires improved performance",
+      "You have the labeled data relevant to your task",
+      "You need the model to understand domain-specific language (for example, medical or legal terminology)",
+      "You want to enhance the model's accuracy for your application",
+      "None of the available pre-trained models meet your specific requirements",
+      "You have a vast amount of proprietary data to train on",
+      "You need complete control over the model architecture and training process.",
+      "Begin with prompt engineering. Experiment with prompt structures, and test various prompt formats to identify the most effective approach",
+      "Use Amazon Bedrock's prompt engineering tools to streamline the process",
+      "Use Amazon SageMaker AI or Amazon Bedrock's evaluation tools to assess prompt effectiveness",
+      "Evaluate Retrieval-Augmented Generation (RAG) if needed. Use vector databases such as Amazon OpenSearch Service for enhanced knowledge retrieval",
+      "Combine RAG with your selected model in Amazon Bedrock, or consider the managed RAG feature Knowledge Bases",
+      "Measure performance gains and response relevance",
+      "Consider fine-tuning or continued pre-training. Use Amazon Bedrock managed fine-tuning and pre-training features",
+      "Prepare labeled data specific to your task or domain",
+      "Monitor improvements after customization",
+      "Build a custom foundation model. Use Amazon SageMaker AI HyperPod for FM training",
+      "Decide between Slurm or Amazon EKS as your orchestrator",
+      "Use SageMaker AI distributed data parallelism (SMDDP) for data parallelism",
+      "Use SageMaker AI model parallelism (SMP) for model parallelism techniques",
+      "Regularly update and retrain your model. Track model effectiveness over time",
+      "Update models with fresh data as it becomes available",
+      "Use Amazon SageMaker AI Model Monitor for ongoing assessment",
+      "Consider trade-offs in your workload. Evaluate the cost for each approach",
+      "Balance complexity and efficiency"
+    ],
+    "resources": [
+      "OPS04-BP01: https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_observability_identify_kpis.html",
+      "Amazon Bedrock capabilities to enhance data processing and retrieval: https://aws.amazon.com/blogs/aws/new-amazon-bedrock-capabilities-enhance-data-processing-and-retrieval/",
+      "Customize models in Amazon Bedrock with your own data using fine-tuning and continued pre-training: https://aws.amazon.com/blogs/aws/customize-models-in-amazon-bedrock-with-your-own-data-using-fine-tuning-and-continued-pre-training/",
+      "Amazon SageMaker AI HyperPod - Amazon SageMaker AI: https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod.html",
+      "Run distributed training workloads with Slurm on HyperPod - Amazon SageMaker AI: https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-run-jobs-distributed-training-workload.html",
+      "SageMaker AI HyperPod recipe repository - Amazon SageMaker AI: https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-recipe-repository.html",
+      "Amazon Bedrock Agents: https://aws.amazon.com/bedrock/agents/",
+      "Amazon Bedrock Knowledge Bases: https://aws.amazon.com/bedrock/knowledge-bases/",
+      "Amazon SageMaker AI: https://aws.amazon.com/sagemaker/",
+      "Amazon Bedrock: https://aws.amazon.com/bedrock/",
+      "Amazon CloudWatch: https://aws.amazon.com/cloudwatch/",
+      "Amazon Elastic Kubernetes Service (Amazon EKS): https://aws.amazon.com/eks/"
+    ]
   }
 ]
