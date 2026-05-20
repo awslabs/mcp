@@ -18,7 +18,42 @@
     ],
     "risk": "HIGH",
     "title": "Grant least privilege access to foundation model endpoints",
-    "title_full": "GENSEC01-BP01 Grant least privilege access to foundation model endpoints"
+    "title_full": "GENSEC01-BP01 Grant least privilege access to foundation model endpoints",
+    "desired_outcome": [
+      "When implemented, this best practice reduces the risk of unauthorized access to a foundation model endpoint and helps create a process to verify continuous adherence to least-privilege principle."
+    ],
+    "benefits": [
+      "Implement a strong identity foundation - Least privilege access permissions foster access to foundation model endpoints only for authorized identities.",
+      "Apply security at all layers - Least privilege access permissions on endpoints provides an identity-based layer of security, regardless of the hosting paradigm."
+    ],
+    "implementation_guidance": [
+      "Create a custom policy document granting least-privilege access to set of specific foundation model endpoints. Limit access to specific resource ARNs and to a specific set of actions.",
+      "Consider defining conditions to further restrict the allowable traffic, such as requests coming from a specific VPC.",
+      "Create an IAM role to be used by users or services to access the endpoint and attach the custom policy to it. If more permissions are needed for this role, attach the required policies on as-needed bases. Utilize permission boundaries at the role level to set the maximum permissions that an identity-based policy can grant.",
+      "Conditions can be added to a role's trust policy to further limit access to who can assume the role.",
+      "Verify the new role for API calls to endpoints are protected by this policy. An example of an endpoint to protect might be a production Amazon Bedrock endpoint servicing real-time inference through a VPC-Hosted application.",
+      "For a generative AI subscription based generative AI application such as Amazon Q Developer, provision subscription-level access matching the subscriber's business needs."
+    ],
+    "resources": [
+      "SEC02-BP01: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_identities_enforce_mechanisms.html",
+      "SEC02-BP02: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_identities_unique.html",
+      "SEC02-BP06: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_identities_groups_attributes.html",
+      "SEC03-BP01: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_permissions_define.html",
+      "SEC03-BP02: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_permissions_least_privileges.html",
+      "AWS re:Invent 2023-Use new IAM Access Analyzer features on your jouney to least privilege: https://www.youtube.com/watch?v=JpemUkU8INA",
+      "Understanding Subscriptions in Amazon Q Developer: https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/q-admin-setup-subscribe-understanding.html",
+      "Amazon Q Business Subscription Tiers and Index Types: https://docs.aws.amazon.com/amazonq/latest/qbusiness-ug/tiers.html",
+      "OWASP Top 10 for LLMs: https://owasp.org/www-project-top-10-for-large-language-model-applications/",
+      "AWS Identity and Access Management for SageMaker AI HyperPod: https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-prerequisites-iam.html",
+      "IAM users for cluster admin: https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-prerequisites-iam.html#sagemaker-hyperpod-prerequisites-iam-cluster-admin",
+      "IAM users for scientists: https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-prerequisites-iam.html#sagemaker-hyperpod-prerequisites-iam-cluster-user",
+      "IAM role for SageMaker AI HyperPod: https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-prerequisites-iam.html#sagemaker-hyperpod-prerequisites-iam-role-for-hyperpod",
+      "Techniques for Writing Least Privilege IAM Policies: https://aws.amazon.com/blogs/security/techniques-for-writing-least-privilege-iam-policies/",
+      "When and Where to use IAM Permissions Boundaries: https://aws.amazon.com/blogs/security/when-and-where-to-use-iam-permissions-boundaries/",
+      "Example Permissions Boundaries: https://github.com/aws-samples/example-permissions-boundary",
+      "Overseeing AI Risk in a Rapidly Changing Landscape: https://aws.amazon.com/blogs/enterprise-strategy/overseeing-ai-risk-in-a-rapidly-changing-landscape/",
+      "Configure Amazon Q Business with AWS IAM Identity Center trusted identity propagation: https://aws.amazon.com/blogs/machine-learning/configuring-amazon-q-business-with-aws-iam-identity-center-trusted-identity-propagation/"
+    ]
   },
   {
     "area": [
@@ -36,7 +71,30 @@
     ],
     "risk": "HIGH",
     "title": "Implement private network communication between foundation models and applications",
-    "title_full": "GENSEC01-BP02 Implement private network communication between foundation models and applications"
+    "title_full": "GENSEC01-BP02 Implement private network communication between foundation models and applications",
+    "desired_outcome": [
+      "When implemented, this best practice reduces the risk of unauthorized access to a foundation model endpoint. It also helps create a process to grant least privileged access to authorized parties."
+    ],
+    "benefits": [
+      "Apply security at all layers - Private network communications facilitate an additional layer of security within your application.",
+      "Protect data in transit and at rest - Using private networks instead of the default public endpoints helps to protect data in transit, especially when combined with encryption techniques."
+    ],
+    "implementation_guidance": [
+      "Determine the VPC you need to create a private endpoint in.",
+      "Select the service you wish to create a private route to from your VPC.",
+      "Configure the endpoint to allow least privilege access for your services.",
+      "Network access to the interface endpoint is controlled using security groups and policy documents."
+    ],
+    "resources": [
+      "SEC05-BP01: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_network_protection_create_layers.html",
+      "SEC05-BP02: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_network_protection_layered.html",
+      "AWS Expert Paper on PrivateLink: https://docs.aws.amazon.com/whitepapers/latest/aws-privatelink/aws-privatelink.html",
+      "Encryption best practices for Amazon S3: https://docs.aws.amazon.com/prescriptive-guidance/latest/encryption-best-practices/s3.html",
+      "Getting started with Amazon EKS support in SageMaker AI HyperPod: https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-eks-prerequisites.html",
+      "Orchestrating SageMaker AI HyperPod clusters with Slurm: https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-slurm.html",
+      "Use AWS PrivateLink to Set Up Private Access to Amazon Bedrock: https://aws.amazon.com/blogs/machine-learning/use-aws-privatelink-to-set-up-private-access-to-amazon-bedrock/",
+      "Overseeing AI Risk in a Rapidly Changing Landscape: https://aws.amazon.com/blogs/enterprise-strategy/overseeing-ai-risk-in-a-rapidly-changing-landscape/"
+    ]
   },
   {
     "area": [
@@ -57,7 +115,44 @@
     ],
     "risk": "HIGH",
     "title": "Implement least privilege access permissions for foundation models accessing data stores",
-    "title_full": "GENSEC01-BP03 Implement least privilege access permissions for foundation models accessing data stores"
+    "title_full": "GENSEC01-BP03 Implement least privilege access permissions for foundation models accessing data stores",
+    "desired_outcome": [
+      "When implemented, this best practice reduces the risk of accidentally using unauthorized internal data when training and fine-tuning foundation models. Additionally, a process will be implemented to make sure that foundation models and workloads are granted only the minimum necessary access to data, following the principle of least privilege"
+    ],
+    "benefits": [
+      "Implement a strong identity foundation - least privilege access permissions foster model access to only the required data.",
+      "Apply security at all layers - least privilege data access for foundation models provides an identity-based layer of data security.",
+      "Protect data in transit and at rest - least privilege data access for foundation models offers an added protection for data via access controls.",
+      "Keep people away from data - least privilege data access for foundation offers helps prevent sweeping access to data for foundation models."
+    ],
+    "implementation_guidance": [
+      "Classify data by its usage. Data can belong to several usage patterns such as training, RAG, analytics, etc. Classification of data helps to prevent and identify misuse.",
+      "Deploy a vector data store into a secure VPC, setting appropriate access controls on the datastore for various roles (for example, administrator, read-only, or power-user). Consider extending role definitions to encompass generative AI workloads (like model-XX-RAG).",
+      "Develop a data ingestion pipeline which obfuscates or removes data that should not be processed by a foundation model. Examples of this data might be personal information. The scope of this data is informed largely by the workload use case. Ingest this data from your data lake into the vector store lake house. A use case for a customer service assistant may require access to handbooks, documentation, and customer service material, not company financials, staff information or HR policies.",
+      "Sanitizing for prohibited material should happen before the model accesses the data, at time of ingestion.",
+      "Create least-privilege access policies for foundation model and generated AI workloads. This Policy Document should contain resource identifiers granting explicit access to specific data in the vector datastore.",
+      "Test access to data using curated prompts designed to confirm models are not allowed to access sensitive information.",
+      "Similar principles apply for model training and model customization workloads, though data used for model training and model customization typically resides in a data lake, separate from a compute engine."
+    ],
+    "resources": [
+      "SEC03-BP01: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_permissions_define.html",
+      "SEC03-BP02: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_permissions_least_privileges.html",
+      "SEC07-BP01: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_data_classification_identify_data.html",
+      "SEC07-BP02: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_data_classification_define_protection.html",
+      "SEC08-BP04: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_protect_data_rest_access_control.html",
+      "AWS re:Invent 2023 - Use new IAM Access Analyzer features on your journey to least privilege: https://www.youtube.com/watch?v=JpemUkU8INA",
+      "AWS re:Inforce 2022 - Strategies for achieving least privilege (IAM303): https://www.youtube.com/watch?v=j57tBC6U4kk",
+      "AWS Prescriptive Guidance: Creating a data strategy on AWS: https://docs.aws.amazon.com/prescriptive-guidance/latest/strategy-aws-data/aws-architecture.html",
+      "Identity and Access Management in Amazon OpenSearch Service: https://docs.aws.amazon.com/opensearch-service/latest/developerguide/ac.html",
+      "Fine-Grained Access Control in Amazon OpenSearch Service: https://docs.aws.amazon.com/opensearch-service/latest/developerguide/fgac.html",
+      "Amazon Bedrock Knowledge Bases Meta-Data Filtering: https://docs.aws.amazon.com/bedrock/latest/userguide/kb-test-config.html",
+      "Protect Data at Rest Using Encryption: https://docs.aws.amazon.com/sagemaker/latest/dg/encryption-at-rest.html",
+      "Data Protection in Amazon SageMaker AI: https://docs.aws.amazon.com/sagemaker/latest/dg/data-protection.html",
+      "Techniques for Writing Least Privilege IAM Policies: https://aws.amazon.com/blogs/security/techniques-for-writing-least-privilege-iam-policies/",
+      "When and Where to use IAM Permissions Boundaries: https://aws.amazon.com/blogs/security/when-and-where-to-use-iam-permissions-boundaries/",
+      "Example Permissions Boundaries: https://github.com/aws-samples/example-permissions-boundary",
+      "Overseeing AI Risk in a Rapidly Changing Landscape: https://aws.amazon.com/blogs/enterprise-strategy/overseeing-ai-risk-in-a-rapidly-changing-landscape/"
+    ]
   },
   {
     "area": [
@@ -74,7 +169,28 @@
     ],
     "risk": "HIGH",
     "title": "Implement access monitoring to generative AI services and foundation models",
-    "title_full": "GENSEC01-BP04 Implement access monitoring to generative AI services and foundation models"
+    "title_full": "GENSEC01-BP04 Implement access monitoring to generative AI services and foundation models",
+    "desired_outcome": [
+      "When implemented, this current guidance monitors access to sensitive generative AI systems and foundation models. Unintended and unauthorized use of generative AI services and foundation models can be identified quickly and further action can be taken if appropriate."
+    ],
+    "implementation_guidance": [
+      "In Amazon Bedrock, configure model invocation logging to track model invocations and store the logs in Amazon S3, Amazon CloudWatch Logs, or both.",
+      "In Amazon Q Developer, capture user activity by enabling user activity capture in the settings.",
+      "In Amazon Q Business, configure log delivery for analysis and review into Amazon S3, Amazon CloudWatch Logs, or Amazon Data Firehose.",
+      "For self-hosted models on Amazon SageMaker AI Inference Endpoints, configure logging using your preferred logging solution.",
+      "Introduce logging, monitoring and telemetry capture in additional application layers, depending on your specific workload."
+    ],
+    "resources": [
+      "SEC03-BP08: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_permissions_share_securely.html",
+      "Monitoring Amazon Q Business and Q Apps: https://docs.aws.amazon.com/amazonq/latest/qbusiness-ug/monitoring-overview.html",
+      "Monitoring Amazon Q Developer: https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/monitoring-overview.html",
+      "Monitoring Generative AI Applications using Amazon Bedrock and Amazon CloudWatch Integration: https://aws.amazon.com/blogs/mt/monitoring-generative-ai-applications-using-amazon-bedrock-and-amazon-cloudwatch-integration/",
+      "Overseeing AI Risk in a Rapidly Changing Landscape: https://aws.amazon.com/blogs/enterprise-strategy/overseeing-ai-risk-in-a-rapidly-changing-landscape/",
+      "Observability for SageMaker AI HyperPod Cluster Orchestrated by Amazon EKS: https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-eks-cluster-observability.html",
+      "SageMaker AI HyperPod Cluster Resources Monitoring (Slurm): https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-cluster-observability-slurm.html",
+      "Logging Amazon SageMaker AI API Calls Using AWS CloudTrail: https://docs.aws.amazon.com/sagemaker/latest/dg/logging-using-cloudtrail.html",
+      "Amazon SageMaker AI HyperPod Now Integrates with Amazon EventBridge: https://aws.amazon.com/about-aws/whats-new/2025/05/amazon-sagemaker-hyperpod-integrates-amazon-eventbridge-status-change-events"
+    ]
   },
   {
     "area": [
@@ -91,7 +207,32 @@
     ],
     "risk": "HIGH",
     "title": "Implement guardrails to mitigate harmful or incorrect model responses",
-    "title_full": "GENSEC02-BP01 Implement guardrails to mitigate harmful or incorrect model responses"
+    "title_full": "GENSEC02-BP01 Implement guardrails to mitigate harmful or incorrect model responses",
+    "desired_outcome": [
+      "When implemented, this best practice reduces the risk of a foundation model returning harmful, biased or incorrect responses to a user. In the case where a model does return an undesirable response, this best practice defines a fallback action which enables the application to continue without faltering."
+    ],
+    "benefits": "Automate security best practices - Guardrails automate the identification and remediation of undesirable model output.",
+    "implementation_guidance": [
+      "Amazon Bedrock Guardrails: Navigate to the Amazon Bedrock service and choose Guardrails, Create Guardrail.",
+      "Enter guardrail details, including a name and the message for blocked prompts and responses.",
+      "Configure content filter sensitivity based on categories and known prompt attacks.",
+      "Specify a list of denied topics.",
+      "Specify word filters or provide custom words list.",
+      "Specify sensitive information filters for PII or using regular expressions.",
+      "Configure automated reasoning checks for contextual grounding and response relevance.",
+      "Amazon Q Business guardrails: Navigate to the Amazon Q Business service and choose Admin Controls and Guardrails.",
+      "Edit Global Controls for blocked words, response personalization, LLM interaction, and data source querying.",
+      "Create topic controls supplying example messages which trigger rules that control behavior."
+    ],
+    "resources": [
+      "SEC07-BP02: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_data_classification_define_protection.html",
+      "Test a guardrail: https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-test.html",
+      "Use the ApplyGuardrail API in Your Application: https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-use-independent-api.html",
+      "Admin controls and guardrails in Amazon Q Business: https://docs.aws.amazon.com/amazonq/latest/qbusiness-ug/guardrails.html",
+      "Amazon Transcribe Toxicity Detection: https://aws.amazon.com/transcribe/toxicity-detection/",
+      "Implement Model Independent Safety Measures with Amazon Bedrock Guardrails: https://aws.amazon.com/blogs/machine-learning/implement-model-independent-safety-measures-with-amazon-bedrock-guardrails/",
+      "Guardrails AI: https://github.com/guardrails-ai/guardrails"
+    ]
   },
   {
     "area": [
@@ -108,7 +249,50 @@
     ],
     "risk": "HIGH",
     "title": "Implement control plane and data access monitoring to generative AI services and foundation models",
-    "title_full": "GENSEC03-BP01 Implement control plane and data access monitoring to generative AI services and foundation models"
+    "title_full": "GENSEC03-BP01 Implement control plane and data access monitoring to generative AI services and foundation models",
+    "desired_outcome": [
+      "When implemented, you can track the changes made to generative AI services and infrastructure, as well as changes to relevant data stores."
+    ],
+    "benefits": "Apply security at all layers - Control and data plane monitoring provides a layer of security at the service configuration and data access layers.",
+    "implementation_guidance": [
+      "Performance monitoring: Track response times, latency, and throughput of model inference",
+      "Monitor resource utilization (CPU, GPU, and memory)",
+      "Measure token usage and request volumes",
+      "Track batch processing efficiency and queue lengths",
+      "Monitor model loading and unloading times",
+      "Quality and accuracy monitoring: Track completion rates and success ratios",
+      "Monitor response quality scores",
+      "Implement content safety measurements",
+      "Track hallucination rates and accuracy metrics",
+      "Monitor prompt effectiveness and completion relevance",
+      "Security monitoring: Track authentication and authorization attempts",
+      "Monitor for potential prompt injection exploits",
+      "Log access patterns and unusual behaviors",
+      "Track rate limiting and quota usage",
+      "Monitor for potential data leakage",
+      "Cost monitoring: Track token usage and associated costs",
+      "Monitor resource utilization costs",
+      "Track API call volumes and expenses",
+      "Monitor storage and data transfer costs",
+      "Track model deployment and training costs",
+      "Audit trail implementation: Maintain detailed logs of requests and responses",
+      "Record user interactions and system changes",
+      "Log model version changes and updates",
+      "Track configuration modifications",
+      "Maintain compliance-related audit trails",
+      "Compliance monitoring: Track data retention compliance",
+      "Monitor PII handling and protection",
+      "Verify regulatory requirement adherence",
+      "Track consent management",
+      "Monitor geographic data restrictions"
+    ],
+    "resources": [
+      "SEC04-BP01: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_detect_investigate_events_app_service_logging.html",
+      "AWS CloudTrail Data Events: https://docs.aws.amazon.com/awscloudtrail/latest/userguide/logging-data-events-with-cloudtrail.html#logging-data-events",
+      "AWS CloudTrail Management Events: https://docs.aws.amazon.com/awscloudtrail/latest/userguide/logging-management-events-with-cloudtrail.html",
+      "Gain Insights with Natural Language Query into your AWS environment using Amazon CloudTrail and Amazon Q in QuickSight: https://aws.amazon.com/blogs/mt/gain-insights-with-natural-language-query-into-your-aws-environment-using-amazon-cloudtrail-and-amazon-q-in-quicksight/",
+      "Auditing generative AI workloads with AWS CloudTrail: https://aws.amazon.com/blogs/mt/auditing-generative-ai-workloads-with-aws-cloudtrail/"
+    ]
   },
   {
     "area": [
@@ -125,7 +309,25 @@
     ],
     "risk": "MEDIUM",
     "title": "Implement a secure prompt catalog",
-    "title_full": "GENSEC04-BP01 Implement a secure prompt catalog"
+    "title_full": "GENSEC04-BP01 Implement a secure prompt catalog",
+    "desired_outcome": [
+      "By implementing this best practice, you can securely store and manage your prompts and quickly access those prompts from a central location. Prompt catalog access can be protected with identity-based permissions."
+    ],
+    "benefits": "Apply security at all layers - Prompt catalogs implement security at the prompt management layer of the generative AI workload.",
+    "implementation_guidance": [
+      "Navigate to Amazon Bedrock Prompt Management and create a prompt.",
+      "Define the name, description, and encryption of that prompt.",
+      "Draft the prompt, specifying variables and hyperparameters.",
+      "Test the prompt against one or more foundation models.",
+      "Save an acceptable version of the prompt.",
+      "Revisit prompt engineering and testing regularly to verify your prompts behave as expected. Consider extending CI/CD workflows to incorporate prompt engineering."
+    ],
+    "resources": [
+      "SEC08-BP03: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_protect_data_rest_automate_protection.html",
+      "Construct and Store Reusable Prompts with Prompt Management in Amazon Bedrock: https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-management.html",
+      "Implementing Advanced Prompt Engineering with Amazon Bedrock: https://aws.amazon.com/blogs/machine-learning/implementing-advanced-prompt-engineering-with-amazon-bedrock/",
+      "Build and scale generative AI applications with Amazon Bedrock: https://workshops.aws/categories/Prompt%20Engineering"
+    ]
   },
   {
     "area": [
@@ -142,7 +344,27 @@
     ],
     "risk": "HIGH",
     "title": "Sanitize and validate user inputs to foundation models",
-    "title_full": "GENSEC04-BP02 Sanitize and validate user inputs to foundation models"
+    "title_full": "GENSEC04-BP02 Sanitize and validate user inputs to foundation models",
+    "desired_outcome": [
+      "By implementing this best practice, you can capture improper user-provided input, identifying and resolving issues before they become security risks. Following this best practice can reduce the risk of prompt injection."
+    ],
+    "benefits": "Apply security at all layers - Sanitizing and validating user input to a foundation model adds a layer of security.",
+    "implementation_guidance": [
+      "Create a guardrail using Amazon Bedrock Guardrails or similar. A third-party guardrail must be able to process multi-modal responses as well as the prompts before they are sent to the model.",
+      "Test the guardrail against a curated list of prompts, designed to simulate a prompt injection exploits. Guardrails can use allowlists and blocklists to validate prompts.",
+      "Continually refine the guardrail until the prompt injection exploits are successfully mitigated.",
+      "Consider implementing validation at the application layer as well, using a combination of guardrail and LLM-as-a-judge techniques.",
+      "Set character and token size limits on prompts and rate limits on requests to further help protect against prompt-based threats."
+    ],
+    "resources": [
+      "SEC07-BP02: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_data_classification_define_protection.html",
+      "Test a guardrail: https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-test.html",
+      "Use the ApplyGuardrail API in Your Application: https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-use-independent-api.html",
+      "Admin controls and guardrails in Amazon Q Business: https://docs.aws.amazon.com/amazonq/latest/qbusiness-ug/guardrails.html",
+      "Implement Model Independent Safety Measures with Amazon Bedrock Guardrails: https://aws.amazon.com/blogs/machine-learning/implement-model-independent-safety-measures-with-amazon-bedrock-guardrails/",
+      "Using LLM-as-a-judge for an automated and versatile evaluation: https://huggingface.co/learn/cookbook/en/llm_judge",
+      "Guardrails AI: https://www.guardrailsai.com/"
+    ]
   },
   {
     "area": [
@@ -163,7 +385,38 @@
     ],
     "risk": "HIGH",
     "title": "Implement least privilege access and permissions boundaries for agentic workflows",
-    "title_full": "GENSEC05-BP01 Implement least privilege access and permissions boundaries for agentic workflows"
+    "title_full": "GENSEC05-BP01 Implement least privilege access and permissions boundaries for agentic workflows",
+    "desired_outcome": [
+      "When implemented, you can limit and constrain agents from assuming excessive autonomy. This helps prevent agents from performing unauthorized or unintended actions in automated scenarios."
+    ],
+    "benefits": [
+      "Implement a strong identity foundation - Least privilege access permissions enable agents to operate as authorized users within a defined and limited context.",
+      "Apply security at all layers - Applying least privilege access permissions on agents improves security for agent architectures at the agent layer."
+    ],
+    "implementation_guidance": [
+      "Review your organization's identity and access management guidelines to determine the best path to create least privileged roles. Some organizations use service control policies to have central control over the maximum available permissions for the IAM users and IAM roles.",
+      "Review your organization's recommended templates or procedures to create IAM roles or users. Use existing templates and previously created policies if available.",
+      "When creating IAM roles for agents, define a scoped policy with least privilege access. Specify intended resource ARNs for the defined permission and API actions.",
+      "Consider defining conditions to further restrict the allowed action to trusted traffic, such as requests coming from a specific VPC.",
+      "Attach the policy document to a role assumable by a specific set agents. Permissions boundaries can be applied at the role level to prevent inadvertent authorization to additional services.",
+      "Condition statements can be applied at the role's trust policy instead of the policy document consult your security specialist when building role and policy conditions.",
+      "Implement user confirmation for the agent, requiring users to confirm agent actions and mitigating the risk of excessive agency."
+    ],
+    "resources": [
+      "SEC02-BP01: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_identities_enforce_mechanisms.html",
+      "SEC02-BP02: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_identities_unique.html",
+      "SEC02-BP06: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_identities_groups_attributes.html",
+      "SEC03-BP01: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_permissions_define.html",
+      "SEC03-BP02: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_permissions_least_privileges.html",
+      "AWS re:Invent 2023-Use new IAM Access Analyzer features on your jouney to least privilege: https://www.youtube.com/watch?v=JpemUkU8INA",
+      "OWASP Top 10 for LLMs: https://owasp.org/www-project-top-10-for-large-language-model-applications/",
+      "Amazon Bedrock User Guide - User Confirmation: https://docs.aws.amazon.com/bedrock/latest/userguide/agents-userconfirmation.html",
+      "Techniques for Writing Least Privilege IAM Policies: https://aws.amazon.com/blogs/security/techniques-for-writing-least-privilege-iam-policies/",
+      "When and Where to use IAM Permissions Boundaries: https://aws.amazon.com/blogs/security/when-and-where-to-use-iam-permissions-boundaries/",
+      "Example Permissions Boundaries: https://github.com/aws-samples/example-permissions-boundary",
+      "Overseeing AI Risk in a Rapidly Changing Landscape: https://aws.amazon.com/blogs/enterprise-strategy/overseeing-ai-risk-in-a-rapidly-changing-landscape/",
+      "Design secure generative AI application workflows with Amazon Verified Permissions and Amazon Bedrock Agents: https://aws.amazon.com/blogs/machine-learning/design-secure-generative-ai-application-workflows-with-amazon-verified-permissions-and-amazon-bedrock-agents/"
+    ]
   },
   {
     "area": [
@@ -180,6 +433,31 @@
     ],
     "risk": "HIGH",
     "title": "Implement data purification filters for model training workflows",
-    "title_full": "GENSEC06-BP01 Implement data purification filters for model training workflows"
+    "title_full": "GENSEC06-BP01 Implement data purification filters for model training workflows",
+    "desired_outcome": [
+      "When implemented, this best practice reduces the likelihood of inappropriate or undesirable data being introduced into a model training or customization workflow."
+    ],
+    "benefits": "Apply security at all layers - Security at all layers reduces the risk of subtle security vulnerabilities entering an otherwise advanced workflow.",
+    "implementation_guidance": [
+      "Identify the data intended for model pre-training or model customization.",
+      "Consult your organization's AI policy or data cards to identify relevant filters for the data.",
+      "Develop filters to check for data which may be considered poisonous to the model. Examples include data which is biased, factually incorrect, hateful, or violent.",
+      "Other examples include data which is irrelevant to the models intended purpose.",
+      "Consider a guardrail from Amazon Bedrock Guardrails or a third-party solution to check for less discrete signals of poisoning.",
+      "Run these checks on the data intended for model pre-training and model customization, remediating issues as they are discovered.",
+      "Consider a relevance test or filter on data used for model customization workloads."
+    ],
+    "resources": [
+      "SEC07-BP02: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_data_classification_define_protection.html",
+      "Amazon Transcribe Toxicity Detection: https://aws.amazon.com/transcribe/toxicity-detection/",
+      "Use the ApplyGuardrail API in Your Application: https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-use-independent-api.html",
+      "Command-line tool for submitting and managing jobs on HyperPod clusters orchestrated by EKS: https://github.com/aws/sagemaker-hyperpod-cli",
+      "Ready-to-use training recipes and scripts for both EKS and Slurm orchestration, including data pipeline integration: https://github.com/aws/sagemaker-hyperpod-recipes",
+      "Implement Model Independent Safety Measures with Amazon Bedrock Guardrails: https://aws.amazon.com/blogs/machine-learning/implement-model-independent-safety-measures-with-amazon-bedrock-guardrails/",
+      "Blog: Unified Data Preparation: https://aws.amazon.com/blogs/machine-learning/part-2-unified-data-preparation-model-training-and-deployment-with-amazon-sagemaker-data-wrangler-and-amazon-sagemaker-autopilot/",
+      "Scalable Training Platform with SageMaker AI HyperPod: https://aws.amazon.com/blogs/machine-learning/scalable-training-platform-with-amazon-sagemaker-hyperpod-for-innovation-a-video-generation-case-study/",
+      "Guardrails AI: https://github.com/guardrails-ai/guardrails",
+      "OWASP Data Poisoning Attack: https://owasp.org/www-project-machine-learning-security-top-10/docs/ML02_2023-Data_Poisoning_Attack.html"
+    ]
   }
 ]
