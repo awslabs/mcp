@@ -14,7 +14,35 @@
     ],
     "risk": "MEDIUM",
     "title": "Scale and balance foundation model throughput as a function of utilization",
-    "title_full": "GENREL01-BP01 Scale and balance foundation model throughput as a function of utilization"
+    "title_full": "GENREL01-BP01 Scale and balance foundation model throughput as a function of utilization",
+    "desired_outcome": [
+      "When implemented, this best practice improves the reliability of your generative AI workload by matching the configured or provisioned throughput to your foundation models to the workload's demand. This results in optimal resource utilization and consistent performance under varying loads."
+    ],
+    "benefits": "Stop guessing capacity - By understanding the throughput needs of your generative AI workload, you remove the need to guess at throughput capacity.",
+    "implementation_guidance": [
+      "Set up comprehensive monitoring using CloudWatch: Create custom dashboards for throughput metrics",
+      "Configure alarms for quota utilization",
+      "Enable detailed monitoring for critical resources",
+      "Implement request management: Deploy queue-based architecture for request buffering",
+      "Set up rate limiting at the application layer",
+      "Configure retry mechanisms with exponential backoff",
+      "Configure scaling mechanisms: Set up auto-scaling policies based on demand",
+      "Configure provisioned throughput where appropriate",
+      "Implement cross-region request distribution",
+      "Establish ongoing optimization: Regular review of utilization patterns",
+      "Periodic adjustment of quotas and scaling parameters",
+      "Continuous monitoring and refinement of thresholds"
+    ],
+    "resources": [
+      "REL01-BP01: https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_manage_service_limits_aware_quotas_and_constraints.html",
+      "REL01-BP02: https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_manage_service_limits_limits_considered.html",
+      "REL01-BP03: https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_manage_service_limits_aware_fixed_limits.html",
+      "Increase throughput with cross-Region inference: https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html",
+      "Increase model invocation capacity with Provisioned Throughput in Amazon Bedrock: https://docs.aws.amazon.com/bedrock/latest/userguide/prov-throughput.html",
+      "Enable Amazon Bedrock cross-Region inference in multi-account environments: https://aws.amazon.com/blogs/machine-learning/enable-amazon-bedrock-cross-region-inference-in-multi-account-environments/",
+      "Building well-architected serverless applications: Regulating inbound request rates – part 1: https://aws.amazon.com/blogs/compute/building-well-architected-serverless-applications-regulating-inbound-request-rates-part-1/",
+      "Getting Started with cross-Region inference in Amazon Bedrock: https://aws.amazon.com/blogs/machine-learning/getting-started-with-cross-region-inference-in-amazon-bedrock/"
+    ]
   },
   {
     "area": [
@@ -32,7 +60,32 @@
     ],
     "risk": "HIGH",
     "title": "Implement redundant network connections between model endpoints and supporting infrastructure",
-    "title_full": "GENREL02-BP01 Implement redundant network connections between model endpoints and supporting infrastructure"
+    "title_full": "GENREL02-BP01 Implement redundant network connections between model endpoints and supporting infrastructure",
+    "desired_outcome": [
+      "When implemented, this best practice improves the reliability of your generative AI workload by reducing the likelihood of performance degradation due to network issues."
+    ],
+    "benefits": "Scale horizontally to increase aggregate workload availability across multiple components using a reliable network backbone.",
+    "implementation_guidance": [
+      "Identify critical network paths in your generative AI architecture: Map dependencies between foundation models, databases, and other components",
+      "Determine required bandwidth and latency for each connection",
+      "Design redundant network topology: Implement multi-AZ deployments for high availability",
+      "Set up cross-Region connectivity for disaster recovery",
+      "Configure load balancers for traffic distribution",
+      "Implement private networking: Use VPC peering or transit gateways for secure inter-component communication",
+      "Set up VPN or direct connect for on-premises integration if required",
+      "Configure automatic failover: Implement health checks for network paths",
+      "Set up automated failover mechanisms using DNS or overlay networking",
+      "Test and validate redundancy: Conduct failure simulations to verify failover effectiveness",
+      "Perform regular failover drills to verify operational readiness"
+    ],
+    "resources": [
+      "REL02-BP01: https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_network_topology_ha_conn_users.html",
+      "REL02-BP02: https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_manage_service_limits_limits_considered.html",
+      "Securely Access Services Over AWS PrivateLink: https://docs.aws.amazon.com/whitepapers/latest/aws-privatelink/aws-privatelink.html",
+      "Connect to Amazon services using AWS PrivateLink in Amazon SageMaker AI: https://aws.amazon.com/blogs/machine-learning/connect-to-amazon-services-using-aws-privatelink-in-amazon-sagemaker/",
+      "Use AWS PrivateLink to set up private access to Amazon Bedrock: https://aws.amazon.com/blogs/machine-learning/use-aws-privatelink-to-set-up-private-access-to-amazon-bedrock/",
+      "Overseeing AI Risk in a Rapidly Changing Landscape: https://aws.amazon.com/blogs/enterprise-strategy/overseeing-ai-risk-in-a-rapidly-changing-landscape/"
+    ]
   },
   {
     "area": [
@@ -50,7 +103,36 @@
     ],
     "risk": "HIGH",
     "title": "Use logic to manage prompt flows and gracefully recover from failure",
-    "title_full": "GENREL03-BP01 Use logic to manage prompt flows and gracefully recover from failure"
+    "title_full": "GENREL03-BP01 Use logic to manage prompt flows and gracefully recover from failure",
+    "desired_outcome": [
+      "When implemented, this best practice improves the reliability of your generative AI workload by reducing the likelihood of performance degradation logical errors in your prompt flows."
+    ],
+    "benefits": "Automatically recover from failure - Implementing recovery logic in generative AI workflows helps to reduce potentially blocking failures, while encouraging generative AI applications to gracefully recover automatically.",
+    "implementation_guidance": [
+      "Establish error classification system: Categorize common failure types",
+      "Define severity levels",
+      "Create response templates for each error category",
+      "Set up automated detection mechanisms",
+      "Implement recovery mechanisms: Design retries strategies with exponential backoff",
+      "Create fallback prompt templates",
+      "Develop circuit breaker implementations",
+      "Set up automated recovery workflows",
+      "Configure monitoring and alerting: Track recovery success rates",
+      "Monitor remediation effectiveness",
+      "Set up alerts for repeated failures",
+      "Implement performance tracking",
+      "Create continuous improvement process: Analyze failure patterns",
+      "Update remediation strategies",
+      "Refine prompt templates",
+      "Optimize recovery workflows"
+    ],
+    "resources": [
+      "REL05-BP01: https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_graceful_degradation.html",
+      "Demo - Amazon Bedrock Flows: https://www.youtube.com/watch?v=_Bmk6peAHao",
+      "Build an end-to-end generative AI workflow with Amazon Bedrock Flows: https://docs.aws.amazon.com/bedrock/latest/userguide/flows.html",
+      "Amazon Bedrock Flows is now generally available with enhanced safety and traceability: https://aws.amazon.com/blogs/machine-learning/amazon-bedrock-flows-is-now-generally-available-with-enhanced-safety-and-traceability/",
+      "Simplifying the Prompts Lifecycle with Prompt Management and Prompt Flows for Amazon Bedrock Workshop: https://catalog.us-east-1.prod.workshops.aws/workshops/c81935bc-0b43-4bd6-bd01-db45f847d6bd/en-US"
+    ]
   },
   {
     "area": [
@@ -67,7 +149,32 @@
     ],
     "risk": "MEDIUM",
     "title": "Implement timeout mechanisms on agentic workflows",
-    "title_full": "GENREL03-BP02 Implement timeout mechanisms on agentic workflows"
+    "title_full": "GENREL03-BP02 Implement timeout mechanisms on agentic workflows",
+    "desired_outcome": [
+      "When implemented, this best practice improves the reliability of your generative AI workload by freeing resources that might have been consumed by unexpected long-running execution loops."
+    ],
+    "benefits": "Automatically recover from failure - Implementing agent timeouts helps to reduce the likelihood of blocking failures on agentic workflows and executions.",
+    "implementation_guidance": [
+      "Create an agent workflow configuration: Define maximum runtime thresholds",
+      "Set up timeout controls at function and workflow levels",
+      "Configure event publishing for process monitoring",
+      "Implement timeout mechanisms: Add timeouts at the agent layer to terminate sessions waiting for user input",
+      "Configure timeouts on external compute resources",
+      "Set up dead letter queues for timed-out processes",
+      "Establish monitoring and alerting: Track agent execution times",
+      "Monitor timeout frequency",
+      "Alert on repeated timeouts",
+      "Define recovery procedures: Create graceful termination processes",
+      "Implement cleanup routines for timed-out sessions",
+      "Set up automated retry mechanisms where appropriate"
+    ],
+    "resources": [
+      "REL05-BP05: https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_client_timeouts.html",
+      "AWS re:Invent 2023 - Simplify generative AI app development with Agents for Amazon Bedrock (AIM353): https://www.youtube.com/watch?v=JNZPW82uv7w",
+      "Automate tasks in your application using AI agents: https://docs.aws.amazon.com/bedrock/latest/userguide/agents.html",
+      "Best practices for building robust generative AI applications with Amazon Bedrock Agents - Part 1: https://aws.amazon.com/blogs/machine-learning/best-practices-for-building-robust-generative-ai-applications-with-amazon-bedrock-agents-part-1/",
+      "Best practices for building robust generative AI applications with Amazon Bedrock Agents - Part 2: https://aws.amazon.com/blogs/machine-learning/best-practices-for-building-robust-generative-ai-applications-with-amazon-bedrock-agents-part-2/"
+    ]
   },
   {
     "area": [
@@ -84,7 +191,41 @@
     ],
     "risk": "MEDIUM",
     "title": "Implement a prompt catalog",
-    "title_full": "GENREL04-BP01 Implement a prompt catalog"
+    "title_full": "GENREL04-BP01 Implement a prompt catalog",
+    "desired_outcome": [
+      "When implemented, this best practice improves the reliability of your generative AI workload by creating a central store for prompts that can be used for generative AI workloads."
+    ],
+    "benefits": "Manage change through automation - Implementing a prompt catalog helps to automate the process of deploying and rolling back prompt versions.",
+    "implementation_guidance": [
+      "Design catalog structure: Define prompt metadata schema (like version, author, and purpose)",
+      "Create categorization system for different prompt types",
+      "Establish naming conventions and tagging standards",
+      "Define access control requirements",
+      "Implement version control: Set up version tracking for prompts",
+      "Create changelog management process",
+      "Define rollback procedures",
+      "Establish backup and recovery processes",
+      "Create testing framework: Define success criteria for prompts",
+      "Establish validation procedures",
+      "Create test suites for different use cases",
+      "Set up automated testing pipelines",
+      "Configure prompt metadata: Document hyperparameter ranges",
+      "Track performance metrics",
+      "Record model compatibility",
+      "Maintain usage statistics",
+      "Establish governance processes: Define approval workflows",
+      "Create audit trails",
+      "Set up review procedures",
+      "Implement quality controls",
+      "Codify in your organizations AI usage or policy document"
+    ],
+    "resources": [
+      "REL07-BP01: https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_adapt_to_changes_autoscale_adapt.html",
+      "REL08-BP02: https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_tracking_change_management_functional_testing.html",
+      "REL08-BP04: https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_tracking_change_management_immutable_infrastructure.html",
+      "AWS re:Invent 2023 - Prompt Engineering Best Practices for LLMs on Amazon Bedrock (AIM377): https://www.youtube.com/watch?v=jlqgGkh1wzY",
+      "Amazon Bedrock Prompt Management is now Available in GA: https://aws.amazon.com/blogs/machine-learning/amazon-bedrock-prompt-management-is-now-available-in-ga/"
+    ]
   },
   {
     "area": [
@@ -101,7 +242,48 @@
     ],
     "risk": "MEDIUM",
     "title": "Implement a model catalog",
-    "title_full": "GENREL04-BP02 Implement a model catalog"
+    "title_full": "GENREL04-BP02 Implement a model catalog",
+    "desired_outcome": [
+      "When implemented, this best practice improves the reliability of your generative AI workload by helping to make sure the deployed model is the appropriate model for the given use case."
+    ],
+    "benefits": "Manage change through automation - Implementing a model catalog helps to automate the process of deploying and rolling back model versions.",
+    "implementation_guidance": [
+      "Set up catalog structure: Create model classification system (by type, purpose, and provider)",
+      "Define model metadata schema",
+      "Establish versioning conventions",
+      "Design access control framework",
+      "Configure model tracking: Record model lineage and dependencies",
+      "Track model versions and updates",
+      "Document model customizations",
+      "Maintain performance benchmarks",
+      "Implement model cards: Define required model information",
+      "Document model capabilities and limitations",
+      "Record training data characteristics",
+      "Specify intended use cases and constraints",
+      "Include ethical considerations and biases",
+      "Establish model governance: Create model approval workflows",
+      "Define deployment procedures",
+      "Set up model monitoring",
+      "Implement security controls",
+      "Track model usage and access",
+      "Create maintenance procedures: Define model update process",
+      "Establish deprecation policies",
+      "Create archival procedures",
+      "Set up backup and recovery",
+      "Implement validation framework: Create model testing procedures",
+      "Define acceptance criteria",
+      "Set up performance benchmarking",
+      "Establish quality gates"
+    ],
+    "resources": [
+      "REL04-BP02: https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_prevent_interaction_failure_loosely_coupled_system.html",
+      "REL07-BP01: https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_adapt_to_changes_autoscale_adapt.html",
+      "Amazon Bedrock API Reference: https://docs.aws.amazon.com/bedrock/latest/APIReference/welcome.html",
+      "Amazon Bedrock Marketplace: https://docs.aws.amazon.com/bedrock/latest/userguide/amazon-bedrock-marketplace.html",
+      "Find serverless models with the Amazon Bedrock model catalog: https://docs.aws.amazon.com/sagemaker-unified-studio/latest/userguide/model-catalog.html",
+      "Bring your own endpoint: https://docs.aws.amazon.com/bedrock/latest/userguide/bedrock-marketplace-bring-your-own-endpoint.html",
+      "Amazon Bedrock Marketplace: Access over 100 foundation models in one place: https://aws.amazon.com/blogs/aws/amazon-bedrock-marketplace-access-over-100-foundation-models-in-one-place/"
+    ]
   },
   {
     "area": [
@@ -119,7 +301,23 @@
     ],
     "risk": "HIGH",
     "title": "Load-balance inference requests across all regions of availability",
-    "title_full": "GENREL05-BP01 Load-balance inference requests across all regions of availability"
+    "title_full": "GENREL05-BP01 Load-balance inference requests across all regions of availability",
+    "desired_outcome": [
+      "When implemented, this best practice improves the reliability of your generative AI workload by creating a highly available environment for serving inference requests."
+    ],
+    "benefits": "Scale horizontally to increase aggregate workload availability - Load-balanced inference requests across horizontally scaled infrastructure enable inference requests to be serviced evenly across a region of availability.",
+    "implementation_guidance": [
+      "Configure Amazon Bedrock cross-Region inference profiles or deploy self-hosted models on Amazon SageMaker AI Inference Endpoints across multiple Availability Zones.",
+      "Set up an Amazon SageMaker AI Inference Endpoint with auto-scaling enabled to distribute traffic based on health and latency.",
+      "Implement health checks and automated failover to maintain availability.",
+      "Monitor performance metrics like latency, error rates, and throughput across Regions."
+    ],
+    "resources": [
+      "REL04-BP01: https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_prevent_interaction_failure_identify.html",
+      "REL10-BP01: https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_fault_isolation_multiaz_region_system.html",
+      "Supported Regions and models for inference profiles: https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-support.html",
+      "Getting Started with cross-Region inference in Amazon Bedrock: https://aws.amazon.com/blogs/machine-learning/getting-started-with-cross-region-inference-in-amazon-bedrock/"
+    ]
   },
   {
     "area": [
@@ -137,7 +335,26 @@
     ],
     "risk": "HIGH",
     "title": "Replicate embedding data across all regions of availability",
-    "title_full": "GENREL05-BP02 Replicate embedding data across all regions of availability"
+    "title_full": "GENREL05-BP02 Replicate embedding data across all regions of availability",
+    "desired_outcome": [
+      "When implemented, this best practice improves the reliability of your generative AI workload by validating that models have access to the appropriate data to service inference requests across an entire Region of availability."
+    ],
+    "benefits": "Scale horizontally to increase aggregate workload availability - Data replication across a region of availability enables horizontal scaling of the data access infrastructure and supports consistent serving of inference requests.",
+    "implementation_guidance": [
+      "Assess data sovereignty requirements and regulatory constraints for your generative AI workload, including the distribution of embeddings.",
+      "Identify the Regions where you can freely replicate embeddings and other data based on your compliance needs.",
+      "Set up cross-Region replication for embedding data stores like Amazon S3 and Amazon OpenSearch Service within the allowed Regions.",
+      "Implement data ingestion pipelines using AWS Glue to keep the allowed Regions synchronized for embeddings and other data.",
+      "Configure monitoring and alerting to detect data replication issues and compliance violations.",
+      "Optimize data partitioning, compression, and storage tiering to minimize the cost of cross-Region data replication."
+    ],
+    "resources": [
+      "REL04-BP01: https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_prevent_interaction_failure_identify.html",
+      "REL07-BP01: https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_adapt_to_changes_autoscale_adapt.html",
+      "REL10-BP01: https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_fault_isolation_multiaz_region_system.html",
+      "Supported Regions and Models for inference profiles: https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-support.html",
+      "Ensure availability of your data using cross-cluster replication with Amazon OpenSearch Service: https://aws.amazon.com/blogs/big-data/ensure-availability-of-your-data-using-cross-cluster-replication-with-amazon-opensearch-service/"
+    ]
   },
   {
     "area": [
@@ -154,7 +371,24 @@
     ],
     "risk": "MEDIUM",
     "title": "Verify that agent capabilities are available across all regions of availability",
-    "title_full": "GENREL05-BP03 Verify that agent capabilities are available across all regions of availability"
+    "title_full": "GENREL05-BP03 Verify that agent capabilities are available across all regions of availability",
+    "desired_outcome": [
+      "When implemented, this best practice improves the reliability of your generative AI workload by verifying that agents have access to the appropriate supporting infrastructure such as APIs or functions, so they may service a wider region of availability."
+    ],
+    "benefits": "Scale horizontally to increase aggregate workload availability - Data replication across a region of availability horizontally scales data access infrastructure, enabling foundation models to consistently service inference requests across a region of availability.",
+    "implementation_guidance": [
+      "Deploy supporting agent infrastructure (APIs, functions) in primary and secondary Regions.",
+      "Implement latency-based routing or similar mechanisms to distribute agent requests.",
+      "Verify that agents can access the required resources in all Regions.",
+      "Monitor agent performance and resource utilization across Regions."
+    ],
+    "resources": [
+      "REL04-BP01: https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_prevent_interaction_failure_identify.html",
+      "REL07-BP01: https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_adapt_to_changes_autoscale_adapt.html",
+      "REL10-BP01: https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_fault_isolation_multiaz_region_system.html",
+      "Latency-based routing: https://docs.aws.amazon.com/Route%C2%A053/latest/DeveloperGuide/routing-policy-latency.html",
+      "Using latency-based routing with Amazon CloudFront for a multi-Region active-active architecture: https://aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy-latency.html/"
+    ]
   },
   {
     "area": [
@@ -172,6 +406,37 @@
     ],
     "risk": "HIGH",
     "title": "Design for fault-tolerance for high-performance distributed computation tasks",
-    "title_full": "GENREL06-BP01 Design for fault-tolerance for high-performance distributed computation tasks"
+    "title_full": "GENREL06-BP01 Design for fault-tolerance for high-performance distributed computation tasks",
+    "desired_outcome": [
+      "When implemented, this best practice improves the reliability of your model customization workloads, automating recovery during fine-tuning, pre-training, and other model customization workloads."
+    ],
+    "benefits": "Automatically recover from failure - Fault-tolerant infrastructure can automatically recover from failure, improving the reliability of long-running, high-performance, distributed computation tasks like model customization.",
+    "implementation_guidance": [
+      "Amazon SageMaker AI HyperPod: A managed service that automates the provisioning and orchestration of distributed training infrastructure, including handling node failures, checkpointing, and other fault-tolerance mechanisms. HyperPod is optimized for large language model training and can use specialized hardware like AWS Trainium instances.",
+      "Amazon Bedrock: Provides managed workflows for fine-tuning, continued pre-training, and model distillation, abstracting away the underlying infrastructure management and failure handling.",
+      "AWS Batch: A fully-managed batch processing service that can run distributed computational tasks, including model customization, with automatic scaling, retry logic, and resource optimization.",
+      "Evaluate managed services like SageMaker AI HyperPod, Bedrock, and Batch for your model customization needs.",
+      "If implementing a custom distributed workflow, provision high-performance storage and compute resources.",
+      "Implement checkpointing, progress tracking, and automated retry mechanisms to handle failures.",
+      "Configure monitoring, alerting, and automated remediation for the distributed workloads.",
+      "Continuously analyze performance, costs, and reliability to optimize the distributed architecture."
+    ],
+    "resources": [
+      "REL10-BP02: https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_fault_isolation_single_az_system.html",
+      "REL11-BP01: https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_withstand_component_failures_monitoring_health.html",
+      "REL11-BP03: https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_withstand_component_failures_auto_healing_system.html",
+      "Amazon SageMaker AI HyperPod: https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod.html",
+      "Customize your model to improve its performance for your use case: https://docs.aws.amazon.com/bedrock/latest/userguide/custom-models.html",
+      "Resilience-related Kubernetes labels by SageMaker AI HyperPod: https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-eks-resiliency-node-labels.html",
+      "Speed up training on Amazon SageMaker AI using Amazon FSx for Lustre and Amazon EFS file systems: https://aws.amazon.com/blogs/machine-learning/speed-up-training-on-amazon-sagemaker-using-amazon-efs-or-amazon-fsx-for-lustre-file-systems/",
+      "Customize models in Amazon Bedrock with your own data using fine-tuning and continued pre-training: https://aws.amazon.com/blogs/aws/customize-models-in-amazon-bedrock-with-your-own-data-using-fine-tuning-and-continued-pre-training/",
+      "Amazon BedrockModel Customization Workshop Notebooks: https://github.com/aws-samples/amazon-bedrock-customization-workshop",
+      "Amazon SageMaker AI Hyperpod Recipes: https://github.com/aws/sagemaker-hyperpod-recipes",
+      "Introducing Amazon SageMaker AI HyperPod: a purpose-built infrastructure for distributed training at scale: https://aws.amazon.com/blogs/aws/introducing-amazon-sagemaker-hyperpod-a-purpose-built-infrastructure-for-distributed-training-at-scale/",
+      "Introducing Amazon SageMaker AI HyperPod, a purpose-built infrastructure for distributed training at scale: https://aws.amazon.com/blogs/aws/introducing-amazon-sagemaker-hyperpod-a-purpose-built-infrastructure-for-distributed-training-at-scale/",
+      "Ray jobs on Amazon SageMaker AI HyperPod: scalable and resilient distributed AI: https://aws.amazon.com/blogs/machine-learning/ray-jobs-on-amazon-sagemaker-hyperpod-scalable-and-resilient-distributed-ai/",
+      "SageMaker AI HyperPod cluster resiliency: https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-resiliency-slurm.html",
+      "Reduce ML training costs with Amazon SageMaker AI HyperPod: https://aws.amazon.com/blogs/machine-learning/reduce-ml-training-costs-with-amazon-sagemaker-hyperpod/"
+    ]
   }
 ]
