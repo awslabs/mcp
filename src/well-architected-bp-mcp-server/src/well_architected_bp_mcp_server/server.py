@@ -103,6 +103,49 @@ def get_best_practice_impl(id: str) -> dict[str, Any] | None:
     return None
 
 
+V13_DIR = DATA_DIR / 'v13'
+
+
+def get_best_practice_full_impl(id: str) -> dict[str, Any] | None:
+    """Get the full markdown content for a best practice from the v13 reference."""
+    md_file = V13_DIR / f'{id}.md'
+    if not md_file.exists():
+        return get_best_practice_impl(id)
+
+    content = md_file.read_text(encoding='utf-8')
+
+    metadata = {}
+    body = content
+    if content.startswith('---'):
+        parts = content.split('---', 2)
+        if len(parts) >= 3:
+            frontmatter = parts[1]
+            body = parts[2].strip()
+            for line in frontmatter.strip().splitlines():
+                if ':' in line:
+                    key, val = line.split(':', 1)
+                    metadata[key.strip()] = val.strip().strip('"')
+
+    bp_summary = get_best_practice_impl(id)
+
+    result: dict[str, Any] = {
+        'id': id,
+        'title': metadata.get('title', bp_summary.get('title', '') if bp_summary else ''),
+        'domain': metadata.get('domain', ''),
+        'capability': metadata.get('capability', ''),
+        'risk_level': metadata.get('risk_level', ''),
+        'content': body,
+    }
+
+    if bp_summary:
+        result['href'] = bp_summary.get('href', '')
+        result['pillar'] = bp_summary.get('pillar', '')
+        result['area'] = bp_summary.get('area', [])
+        result['relatedIds'] = bp_summary.get('relatedIds', [])
+
+    return result
+
+
 def list_pillars_impl() -> dict[str, int]:
     """List all AWS Well-Architected Framework pillars with best practice counts."""
     pillar_counts = {}
@@ -249,6 +292,28 @@ def get_best_practice(id: str) -> dict[str, Any] | None:
         Best practice details or None if not found
     """
     return get_best_practice_impl(id)
+
+
+@mcp.tool()
+def get_best_practice_full(id: str) -> dict[str, Any] | None:
+    """Get full markdown content for an AWS Well-Architected best practice.
+
+    Returns the complete reference document including detailed implementation steps,
+    related documents, videos, and examples. Use this when you need the full depth
+    of guidance for a specific best practice.
+
+    KEYWORDS: well-architected full, best practice detail, implementation steps,
+    full guidance, complete best practice, wa detail, deep dive best practice,
+    well-architected implementation, best practice markdown, bp reference,
+    how to implement best practice, best practice full content
+
+    Args:
+        id: Best practice ID (e.g., "SEC01-BP01", "OPS05-BP03", "REL10-BP01")
+
+    Returns:
+        Full best practice content with metadata and markdown body, or None if not found
+    """
+    return get_best_practice_full_impl(id)
 
 
 @mcp.tool()
