@@ -402,7 +402,6 @@ def test_get_best_practice_full_without_bp_summary():
     import tempfile
     import unittest.mock
     from pathlib import Path
-
     from well_architected_bp_mcp_server.server import get_best_practice_full_impl
 
     md_content = """---
