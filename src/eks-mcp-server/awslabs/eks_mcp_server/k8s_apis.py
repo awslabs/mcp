@@ -40,10 +40,17 @@ class K8sApis:
         """
         try:
             from kubernetes import client, dynamic
+            import kubernetes
 
             configuration = client.Configuration()
             configuration.host = endpoint
-            configuration.api_key = {'authorization': f'Bearer {token}'}
+
+            # kubernetes >= 36.0.0 changed api_key auth from 'authorization' to 'BearerToken'
+            if int(kubernetes.__version__.split('.')[0]) >= 36:
+                configuration.api_key = {'BearerToken': token}
+                configuration.api_key_prefix = {'BearerToken': 'Bearer'}
+            else:
+                configuration.api_key = {'authorization': f'Bearer {token}'}
 
             # Store the CA cert file path for cleanup
             self._ca_cert_file_path = None
