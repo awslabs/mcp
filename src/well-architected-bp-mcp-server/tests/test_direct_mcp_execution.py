@@ -55,7 +55,11 @@ def test_mcp_tools_execution():
 def test_wrapper_functions_with_mocks():
     """Test wrapper functions with mocked implementations."""
     test_cases = [
-        ('search_best_practices_impl', {'results': [], 'total_count': 0, 'offset': 0, 'has_more': False}, 'search_best_practices'),
+        (
+            'search_best_practices_impl',
+            {'results': [], 'total_count': 0, 'offset': 0, 'has_more': False},
+            'search_best_practices',
+        ),
         ('get_best_practice_impl', {'id': 'test'}, 'get_best_practice'),
         ('list_pillars_impl', {'SECURITY': {'total': 10}}, 'list_pillars'),
         ('get_related_practices_impl', [], 'get_related_practices'),
