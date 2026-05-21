@@ -29,7 +29,8 @@ def test_mcp_tools_execution():
 
     # Test search_best_practices
     result = search_best_practices()
-    assert isinstance(result, list)
+    assert isinstance(result, dict)
+    assert 'results' in result
 
     # Test list_pillars
     result = list_pillars()
@@ -41,22 +42,22 @@ def test_mcp_tools_execution():
 
     # Test get_best_practice with valid ID
     practices = search_best_practices()
-    if practices:
-        result = get_best_practice(practices[0]['id'])
+    if practices['results']:
+        result = get_best_practice(practices['results'][0]['id'])
         assert result is not None
 
     # Test get_related_practices
-    if practices:
-        result = get_related_practices(practices[0]['id'])
+    if practices['results']:
+        result = get_related_practices(practices['results'][0]['id'])
         assert isinstance(result, list)
 
 
 def test_wrapper_functions_with_mocks():
     """Test wrapper functions with mocked implementations."""
     test_cases = [
-        ('search_best_practices_impl', [{'id': 'test'}], 'search_best_practices'),
+        ('search_best_practices_impl', {'results': [], 'total_count': 0, 'offset': 0, 'has_more': False}, 'search_best_practices'),
         ('get_best_practice_impl', {'id': 'test'}, 'get_best_practice'),
-        ('list_pillars_impl', {'SECURITY': 10}, 'list_pillars'),
+        ('list_pillars_impl', {'SECURITY': {'total': 10}}, 'list_pillars'),
         ('get_related_practices_impl', [], 'get_related_practices'),
         (
             'well_architected_framework_review_impl',

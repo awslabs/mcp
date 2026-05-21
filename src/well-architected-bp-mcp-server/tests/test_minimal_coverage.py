@@ -19,12 +19,12 @@ def test_search_no_matches():
     """Test search with filters that return no matches."""
     from well_architected_bp_mcp_server.server import search_best_practices_impl
 
-    # Test filters that likely return no matches to hit different code paths
     result = search_best_practices_impl(
         pillar='NONEXISTENT', risk='INVALID', keyword='zzznomatchzzz'
     )
-    assert isinstance(result, list)
-    assert len(result) == 0
+    assert isinstance(result, dict)
+    assert result['total_count'] == 0
+    assert result['results'] == []
 
 
 def test_load_data_coverage():

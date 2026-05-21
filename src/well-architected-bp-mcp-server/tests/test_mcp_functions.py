@@ -27,10 +27,11 @@ def test_mcp_tool_functions():
 
     # Test search_best_practices
     result = search_best_practices()
-    assert isinstance(result, list)
+    assert isinstance(result, dict)
+    assert 'results' in result
 
     result = search_best_practices(pillar='SECURITY')
-    assert isinstance(result, list)
+    assert isinstance(result, dict)
 
     # Test list_pillars
     result = list_pillars()
@@ -43,13 +44,13 @@ def test_mcp_tool_functions():
 
     # Test get_best_practice
     practices = search_best_practices()
-    if practices:
-        result = get_best_practice(practices[0]['id'])
+    if practices['results']:
+        result = get_best_practice(practices['results'][0]['id'])
         assert result is None or isinstance(result, dict)
 
     # Test get_related_practices
-    if practices:
-        result = get_related_practices(practices[0]['id'])
+    if practices['results']:
+        result = get_related_practices(practices['results'][0]['id'])
         assert isinstance(result, list)
 
 
