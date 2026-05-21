@@ -32,6 +32,18 @@ def test_get_best_practice_wrapper_return():
         assert get_best_practice is not None
 
 
+def test_get_best_practice_full_wrapper_return():
+    """Force execution of get_best_practice_full wrapper return statement."""
+    with unittest.mock.patch(
+        'well_architected_bp_mcp_server.server.get_best_practice_full_impl'
+    ) as mock_func:
+        mock_func.return_value = {'id': 'test', 'content': '# Test'}
+
+        from well_architected_bp_mcp_server.server import get_best_practice_full
+
+        assert get_best_practice_full is not None
+
+
 def test_list_pillars_wrapper_return():
     """Force execution of list_pillars wrapper return statement."""
     with unittest.mock.patch(

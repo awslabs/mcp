@@ -256,6 +256,7 @@ def test_mcp_tool_wrappers():
     """Test MCP tool wrapper functions directly."""
     from well_architected_bp_mcp_server.server import (
         get_best_practice,
+        get_best_practice_full,
         get_related_practices,
         list_pillars,
         search_best_practices,
@@ -265,6 +266,7 @@ def test_mcp_tool_wrappers():
     # Test that MCP tools exist and are callable (FastMCP 3.x API)
     assert callable(search_best_practices)
     assert callable(get_best_practice)
+    assert callable(get_best_practice_full)
     assert callable(list_pillars)
     assert callable(get_related_practices)
     assert callable(well_architected_framework_review)
@@ -313,6 +315,7 @@ def test_all_mcp_wrapper_returns():
     # Import all the wrapper functions to ensure they're loaded and return statements execute
     from well_architected_bp_mcp_server.server import (
         get_best_practice,
+        get_best_practice_full,
         get_related_practices,
         list_pillars,
         search_best_practices,
@@ -322,6 +325,7 @@ def test_all_mcp_wrapper_returns():
     # Verify they are MCP tools (this exercises the return statements)
     assert search_best_practices is not None
     assert get_best_practice is not None
+    assert get_best_practice_full is not None
     assert list_pillars is not None
     assert get_related_practices is not None
     assert well_architected_framework_review is not None
@@ -329,6 +333,116 @@ def test_all_mcp_wrapper_returns():
     # Test they are callable (FastMCP 3.x API)
     assert callable(search_best_practices)
     assert callable(get_best_practice)
+    assert callable(get_best_practice_full)
     assert callable(list_pillars)
     assert callable(get_related_practices)
     assert callable(well_architected_framework_review)
+
+
+def test_get_best_practice_full_with_v13():
+    """Test get_best_practice_full_impl returns full markdown content from v13."""
+    from well_architected_bp_mcp_server.server import get_best_practice_full_impl
+
+    result = get_best_practice_full_impl('SEC01-BP01')
+    assert result is not None
+    assert result['id'] == 'SEC01-BP01'
+    assert result['title'] == 'Separate workloads using accounts'
+    assert result['domain'] == 'Security'
+    assert result['capability'] != ''
+    assert result['risk_level'] == 'High'
+    assert '## Implementation' in result['content']
+    assert result['href'] != ''
+    assert result['pillar'] == 'SECURITY'
+    assert isinstance(result['area'], list)
+    assert isinstance(result['relatedIds'], list)
+
+
+def test_get_best_practice_full_nonexistent_id():
+    """Test get_best_practice_full_impl falls back for IDs not in v13."""
+    from well_architected_bp_mcp_server.server import get_best_practice_full_impl
+
+    result = get_best_practice_full_impl('NONEXISTENT-BP99')
+    assert result is None
+
+
+def test_get_best_practice_full_falls_back_to_json():
+    """Test get_best_practice_full_impl falls back to JSON for lens BPs without v13."""
+    from well_architected_bp_mcp_server.server import get_best_practice_full_impl
+
+    result = get_best_practice_full_impl('GENOPS01-BP01')
+    assert result is not None
+    assert result['id'] == 'GENOPS01-BP01'
+    assert 'content' not in result
+
+
+def test_get_best_practice_full_frontmatter_parsing():
+    """Test that frontmatter is correctly parsed from v13 markdown."""
+    from well_architected_bp_mcp_server.server import get_best_practice_full_impl
+
+    result = get_best_practice_full_impl('OPS01-BP01')
+    assert result is not None
+    assert result['id'] == 'OPS01-BP01'
+    assert result['domain'] == 'Operational Excellence'
+    assert 'content' in result
+    assert not result['content'].startswith('---')
+
+
+def test_get_best_practice_full_content_structure():
+    """Test that v13 content contains expected markdown sections."""
+    from well_architected_bp_mcp_server.server import get_best_practice_full_impl
+
+    result = get_best_practice_full_impl('REL01-BP01')
+    assert result is not None
+    content = result['content']
+    assert '## Desired Outcome' in content or '## Implementation' in content
+
+
+def test_get_best_practice_full_without_bp_summary():
+    """Test get_best_practice_full_impl when BP exists in v13 but not in JSON index."""
+    import tempfile
+    import unittest.mock
+    from pathlib import Path
+
+    from well_architected_bp_mcp_server.server import get_best_practice_full_impl
+
+    md_content = """---
+id: "TEST01-BP01"
+title: "Test Practice"
+framework: "WAF"
+domain: "Testing"
+capability: "How do you test?"
+risk_level: "High"
+---
+
+# TEST01-BP01 Test Practice
+
+## Desired Outcome
+- Tests pass.
+"""
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as f:
+        f.write(md_content)
+        tmp_path = Path(f.name)
+
+    try:
+        with unittest.mock.patch(
+            'well_architected_bp_mcp_server.server.V13_DIR',
+            tmp_path.parent,
+        ):
+            fake_id = tmp_path.stem
+            result = get_best_practice_full_impl(fake_id)
+            assert result is not None
+            assert result['title'] == 'Test Practice'
+            assert result['domain'] == 'Testing'
+            assert 'href' not in result
+    finally:
+        tmp_path.unlink()
+
+
+def test_v13_dir_path():
+    """Test V13_DIR path construction."""
+    from pathlib import Path
+    from well_architected_bp_mcp_server.server import V13_DIR
+
+    assert isinstance(V13_DIR, Path)
+    assert V13_DIR.name == 'v13'
+    assert V13_DIR.exists()
