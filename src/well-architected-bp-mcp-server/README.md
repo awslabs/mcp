@@ -11,7 +11,7 @@ This server provides a single source of truth for AWS Well-Architected Best Prac
 - **356 Best Practices**: Complete coverage across the Well-Architected Framework and Generative AI lens
 - **Six Pillars**: Operational Excellence, Security, Reliability, Performance Efficiency, Cost Optimization, Sustainability
 - **Full Implementation Guidance**: 307 detailed markdown reference documents with implementation steps, anti-patterns, and resources
-- **57 WAR Questions**: Navigate best practices using the formal Well-Architected Review question structure
+- **57 WAFR Questions**: Navigate best practices using the formal Well-Architected Review question structure
 - **Full-Text Search**: Search across all implementation guidance, not just titles
 - **Offline/Zero-Latency**: All data served from in-memory indexes built at startup
 
