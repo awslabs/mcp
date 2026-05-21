@@ -125,7 +125,12 @@ class TestK8sApisInitialization:
 
             # Verify configuration
             assert mock_config.host == 'https://test-endpoint'
-            assert mock_config.api_key == {'authorization': 'Bearer test-token'}
+            import kubernetes
+            if int(kubernetes.__version__.split('.')[0]) >= 36:
+                assert mock_config.api_key == {'BearerToken': 'test-token'}
+                assert mock_config.api_key_prefix == {'BearerToken': 'Bearer'}
+            else:
+                assert mock_config.api_key == {'authorization': 'Bearer test-token'}
             assert mock_config.verify_ssl is True
             assert mock_config.ssl_ca_cert == '/tmp/ca-cert-file'
 
