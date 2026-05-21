@@ -41,6 +41,7 @@ from awslabs.rosa_mcp_server.rosa_auth_handler import RosaAuthHandler
 from awslabs.rosa_mcp_server.rosa_autoscaler_handler import RosaAutoscalerHandler
 from awslabs.rosa_mcp_server.rosa_cluster_handler import RosaClusterHandler
 from awslabs.rosa_mcp_server.rosa_config_handler import RosaConfigHandler
+from awslabs.rosa_mcp_server.rosa_irsa_handler import RosaIRSAHandler
 from awslabs.rosa_mcp_server.rosa_machinepool_handler import RosaMachinePoolHandler
 from awslabs.rosa_mcp_server.rosa_networking_handler import RosaNetworkingHandler
 from awslabs.rosa_mcp_server.rosa_operator_handler import RosaOperatorHandler
@@ -215,6 +216,7 @@ def main():
         RosaUserHandler(mcp, ocm_client, allow_write)
         RosaAdvancedHandler(mcp, ocm_client, allow_write)
         RosaOperatorHandler(mcp, ocm_client, allow_write)
+        RosaIRSAHandler(mcp, ocm_client, allow_write)
         RosaConfigHandler(mcp, ocm_client, allow_write)
         K8sHandler(mcp, ocm_client, allow_write, allow_sensitive_data_access)
         RosaTroubleshootHandler(mcp, ocm_client, allow_sensitive_data_access)
