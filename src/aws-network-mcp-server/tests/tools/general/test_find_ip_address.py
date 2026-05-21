@@ -64,7 +64,7 @@ class TestFindIpAddress:
         assert result == sample_eni_response
         mock_get_client.assert_called_once_with('ec2', 'us-east-1', None)
         mock_ec2_client.describe_network_interfaces.assert_called_once_with(
-            Filters=[{'Name': 'private-ip-address', 'Values': ['10.0.1.100']}]
+            Filters=[{'Name': 'addresses.private-ip-address', 'Values': ['10.0.1.100']}]
         )
 
     @patch.object(find_ip_module, 'get_aws_client')
