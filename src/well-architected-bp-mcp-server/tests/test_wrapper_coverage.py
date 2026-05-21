@@ -128,7 +128,9 @@ def test_module_level_execution():
 
     assert hasattr(server_module, 'mcp')
     assert hasattr(server_module, 'BEST_PRACTICES')
+    assert hasattr(server_module, 'BP_BY_ID')
     assert hasattr(server_module, 'DATA_DIR')
     assert hasattr(server_module, 'V13_SECTIONS')
+    assert hasattr(server_module, 'V13_METADATA')
     assert hasattr(server_module, 'QUESTIONS_INDEX')
     assert hasattr(server_module, 'load_data')

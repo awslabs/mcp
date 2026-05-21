@@ -21,9 +21,6 @@ classifiers = [
 
 dependencies = [
     "fastmcp>=0.6.0",
-    "python-multipart>=0.0.27",
-    "authlib>=1.7.2",
-    "idna>=3.12",
 ]
 
 [project.optional-dependencies]
