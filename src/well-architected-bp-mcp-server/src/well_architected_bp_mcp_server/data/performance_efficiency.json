@@ -143,7 +143,7 @@
     "area": [
       "Compute and hardware"
     ],
-    "description": "Configure and right-size compute resources to match your workload’s performance requirements and avoid under- or over-utilized resources.",
+    "description": "Configure and right-size compute resources to match your workload\u2019s performance requirements and avoid under- or over-utilized resources.",
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_compute_hardware_configure_and_right_size_compute_resources.html",
     "id": "PERF02-BP04",
     "lens": "FRAMEWORK",
@@ -311,7 +311,7 @@
     "area": [
       "Networking and content delivery"
     ],
-    "description": "Make decisions about protocols for communication between systems and networks based on the impact to the workload’s performance.",
+    "description": "Make decisions about protocols for communication between systems and networks based on the impact to the workload\u2019s performance.",
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_networking_choose_network_protocols_improve_performance.html",
     "id": "PERF04-BP05",
     "lens": "FRAMEWORK",

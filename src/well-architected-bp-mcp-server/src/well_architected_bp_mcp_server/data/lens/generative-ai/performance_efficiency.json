@@ -3,22 +3,13 @@
     "area": [
       "Establish performance evaluation processes"
     ],
+    "benefits": "Experiment more often - Ground truth testing facilitates rapid experimentation and customization for models on tasks specific to your workload's unique requirements.",
     "description": "Ground truth data facilitates model testing for use case specific scenarios and should be developed and curated for generative AI workloads. Ground truth data, also known as a golden dataset, is data classified to be true and is vital for the efficient testing of data-driven workloads, particularly generative AI workloads. Ground truth data for generative AI traditionally consists of a prompt and a desirable response to said prompt. For prompts that supplement responses with data from external sources, customers can extend the ground truth data to include source documentation or other useful metadata.",
-    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genperf01-bp01.html",
-    "id": "GENPERF01-BP01",
-    "lens": "GENERATIVE_AI",
-    "outcome": "When implemented, this best practice improves the performance of model selection by measuring a model's performance on task specific prompt-response pairs.",
-    "pillar": "PERFORMANCE_EFFICIENCY",
-    "relatedIds": [
-      "PERF04-BP01"
-    ],
-    "risk": "MEDIUM",
-    "title": "Define a ground truth data set of prompts and responses",
-    "title_full": "GENPERF01-BP01 Define a ground truth data set of prompts and responses",
     "desired_outcome": [
       "When implemented, this best practice enables the measurement of a model's performance for a set of tasks, accelerating model evaluation and enabling model customization workflows."
     ],
-    "benefits": "Experiment more often - Ground truth testing facilitates rapid experimentation and customization for models on tasks specific to your workload's unique requirements.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genperf01-bp01.html",
+    "id": "GENPERF01-BP01",
     "implementation_guidance": [
       "Define a series of prompts and their expected responses. Consider using Amazon SageMaker Ground Truth or similar to scale the curation of this dataset.",
       "Enrich prompt-response pairs with relevant meta-data in accordance with your organization's AI policy.",
@@ -30,6 +21,12 @@
       "Incorporate mock production data and tooling for more advanced workflows such as agents or RAG.",
       "Define test scenarios corresponding to your golden dataset and adhere to your organization's AI policy. Define metrics to test models against as may be required by your organization's AI policy.",
       "Track model performance across various tests and metrics, carefully evaluating the trade-offs across models."
+    ],
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice improves the performance of model selection by measuring a model's performance on task specific prompt-response pairs.",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [
+      "PERF04-BP01"
     ],
     "resources": [
       "PERF05-BP01: https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_establish_key_performance_indicators.html",
@@ -43,28 +40,22 @@
       "Automate data labeling: https://docs.aws.amazon.com/sagemaker/latest/dg/sms-automated-labeling.html",
       "Customize models in Amazon Bedrock with your own data using fine-tuning and continued pre-training: https://aws.amazon.com/blogs/aws/customize-models-in-amazon-bedrock-with-your-own-data-using-fine-tuning-and-continued-pre-training/",
       "High-quality human feedback for your generative AI applications from Amazon SageMaker Ground Truth Plus: https://aws.amazon.com/blogs/machine-learning/high-quality-human-feedback-for-your-generative-ai-applications-from-amazon-sagemaker-ground-truth-plus/"
-    ]
+    ],
+    "risk": "MEDIUM",
+    "title": "Define a ground truth data set of prompts and responses",
+    "title_full": "GENPERF01-BP01 Define a ground truth data set of prompts and responses"
   },
   {
     "area": [
       "Establish performance evaluation processes"
     ],
+    "benefits": "Experiment more often - Testing model performance using quantifiable evaluation metrics assists in the selection of foundation models for generative AI workloads.",
     "description": "Foundation models perform well on a wide-variety of tasks, but they are not always suited to specific tasks. Collecting performance metrics from generative AI workloads helps capture and improve the performance of your generative AI models in production. This includes monitoring response quality, latency, throughput, token usage, and other relevant metrics that indicate how well your models are performing for your specific use cases.",
-    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genperf01-bp02.html",
-    "id": "GENPERF01-BP02",
-    "lens": "GENERATIVE_AI",
-    "outcome": "When implemented, this best practice enables continuous monitoring and improvement of generative AI model performance in production environments.",
-    "pillar": "PERFORMANCE_EFFICIENCY",
-    "relatedIds": [
-      "PERF04-BP02"
-    ],
-    "risk": "MEDIUM",
-    "title": "Collect performance metrics from generative AI workloads",
-    "title_full": "GENPERF01-BP02 Collect performance metrics from generative AI workloads",
     "desired_outcome": [
       "When implemented, your organization improves its ability to evaluate model performance against the identified performance metric."
     ],
-    "benefits": "Experiment more often - Testing model performance using quantifiable evaluation metrics assists in the selection of foundation models for generative AI workloads.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genperf01-bp02.html",
+    "id": "GENPERF01-BP02",
     "implementation_guidance": [
       "Identify the performance metrics to prioritize for your generative AI use case.",
       "Develop a mechanism to capture the performance metrics.",
@@ -79,6 +70,12 @@
       "For example, increased latency on self-hosted models may call for horizontal scaling to remediate the issue. Your organization's AI policy should define acceptable latency thresholds.",
       "For example, a model response which is identified as a hallucination may call for updates to a system prompt. Such an update should require testing against internal golden datasets to verify that system prompt changes do not adversely affect related prompt workflows.",
       "Implement a centralized experiment tracking solution such as Amazon SageMaker AI with MLflow."
+    ],
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice enables continuous monitoring and improvement of generative AI model performance in production environments.",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [
+      "PERF04-BP02"
     ],
     "resources": [
       "PERF05-BP01: https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_establish_key_performance_indicators.html",
@@ -100,32 +97,32 @@
       "Traceloop OpenLLMetry: https://github.com/traceloop/openllmetry",
       "AWS fmeval Model Evaluation Library: https://github.com/aws/fmeval",
       "AWS Samples fm-evaluation-at-scale: https://github.com/aws-samples/fm-evaluation-at-scale"
-    ]
+    ],
+    "risk": "MEDIUM",
+    "title": "Collect performance metrics from generative AI workloads",
+    "title_full": "GENPERF01-BP02 Collect performance metrics from generative AI workloads"
   },
   {
     "area": [
       "Maintaining model performance"
     ],
+    "benefits": "Experiment more often - Load testing model endpoints assists in the ongoing performance of foundation models at scale.",
     "description": "Foundation models are inherently non-deterministic and compute-intensive resources that may require tuning and customization to meet your organization requirements. Load testing model endpoints helps verify your generative AI workload maintains acceptable performance levels under various load conditions. This includes testing throughput, latency, and response quality under different traffic patterns and identifying performance bottlenecks before they impact production workloads.",
+    "desired_outcome": [
+      "When implemented, this best practice helps you identify the optimal load of a foundation model endpoint. This baseline should be used to inform monitoring and alerting at the upper-threshold of acceptable performance limitations for your workload."
+    ],
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genperf02-bp01.html",
     "id": "GENPERF02-BP01",
+    "implementation_guidance": [
+      "Reference your organization's AI policy for information concerning appropriate performance metrics for model endpoint load testing.",
+      "Develop a load testing harness that prompts a foundation model at configurable rates. Consider incorporating the ability test against internal golden datasets and external third-party benchmarking data.",
+      "Collect performance information from the model from the load test, carefully evaluating where the bottleneck exists. Bottlenecks in the model's ability to serve inference requests may be addressed through model customization techniques or increasing the size and power of the inference endpoint. Bottlenecks inherited from usage patterns may benefit from cross-Region inference, prompt caching, or an entirely different inference paradigm."
+    ],
     "lens": "GENERATIVE_AI",
     "outcome": "When implemented, this best practice ensures your generative AI workload can maintain acceptable performance levels under expected and peak load conditions.",
     "pillar": "PERFORMANCE_EFFICIENCY",
     "relatedIds": [
       "PERF03-BP01"
-    ],
-    "risk": "HIGH",
-    "title": "Load test model endpoints",
-    "title_full": "GENPERF02-BP01 Load test model endpoints",
-    "desired_outcome": [
-      "When implemented, this best practice helps you identify the optimal load of a foundation model endpoint. This baseline should be used to inform monitoring and alerting at the upper-threshold of acceptable performance limitations for your workload."
-    ],
-    "benefits": "Experiment more often - Load testing model endpoints assists in the ongoing performance of foundation models at scale.",
-    "implementation_guidance": [
-      "Reference your organization's AI policy for information concerning appropriate performance metrics for model endpoint load testing.",
-      "Develop a load testing harness that prompts a foundation model at configurable rates. Consider incorporating the ability test against internal golden datasets and external third-party benchmarking data.",
-      "Collect performance information from the model from the load test, carefully evaluating where the bottleneck exists. Bottlenecks in the model's ability to serve inference requests may be addressed through model customization techniques or increasing the size and power of the inference endpoint. Bottlenecks inherited from usage patterns may benefit from cross-Region inference, prompt caching, or an entirely different inference paradigm."
     ],
     "resources": [
       "PERF05-BP04: https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_load_test.html",
@@ -144,34 +141,34 @@
       "Best practices for load testing Amazon SageMaker AI real-time inference endpoints: https://aws.amazon.com/blogs/machine-learning/best-practices-for-load-testing-amazon-sagemaker-real-time-inference-endpoints/",
       "Bedrock Latency Benchmarking: https://github.com/gilinachum/bedrock-latency",
       "vLLM: https://docs.vllm.ai/en/latest/"
-    ]
+    ],
+    "risk": "HIGH",
+    "title": "Load test model endpoints",
+    "title_full": "GENPERF02-BP01 Load test model endpoints"
   },
   {
     "area": [
       "Maintaining model performance"
     ],
+    "benefits": "Experiment more often - Optimize hyperparameters through experimentation to discern the best range and values for a use case.",
     "description": "Foundation models have various inference parameters that can be tuned to optimize response quality for specific use cases. These parameters include temperature, top-p, top-k, max tokens, and others that control the randomness and creativity of model responses. Optimizing these parameters helps balance response quality, consistency, and performance based on your specific requirements and use cases.",
-    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genperf02-bp02.html",
-    "id": "GENPERF02-BP02",
-    "lens": "GENERATIVE_AI",
-    "outcome": "When implemented, this best practice improves response quality and consistency by optimizing inference parameters for your specific use cases and requirements.",
-    "pillar": "PERFORMANCE_EFFICIENCY",
-    "relatedIds": [
-      "PERF04-BP03"
-    ],
-    "risk": "MEDIUM",
-    "title": "Optimize inference parameters to improve response quality",
-    "title_full": "GENPERF02-BP02 Optimize inference parameters to improve response quality",
     "desired_outcome": [
       "When implemented, you can reduce the variability of foundation models by setting hyperparameters and identifying optimum ranges and values for a use case."
     ],
-    "benefits": "Experiment more often - Optimize hyperparameters through experimentation to discern the best range and values for a use case.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genperf02-bp02.html",
+    "id": "GENPERF02-BP02",
     "implementation_guidance": [
       "Identify the task required of the foundation model.",
       "Identify the ground truth data to use for optimizing inference hyperparameters.",
       "Select the most important hyperparameters for the task.",
       "Use an optimization method to maximize response quality.",
       "Use these values or ranges to encourage consistent high-performance of your applications."
+    ],
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice improves response quality and consistency by optimizing inference parameters for your specific use cases and requirements.",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [
+      "PERF04-BP03"
     ],
     "resources": [
       "PERF05-BP01: https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_establish_key_performance_indicators.html",
@@ -182,28 +179,21 @@
       "Load testing applications: https://docs.aws.amazon.com/prescriptive-guidance/latest/load-testing/welcome.html",
       "Amazon Bedrock model evaluation is now generally available: https://aws.amazon.com/blogs/aws/amazon-bedrock-model-evaluation-is-now-generally-available/",
       "Best practices for load testing Amazon SageMaker AI real-time inference endpoints: https://aws.amazon.com/blogs/machine-learning/best-practices-for-load-testing-amazon-sagemaker-real-time-inference-endpoints/"
-    ]
+    ],
+    "risk": "MEDIUM",
+    "title": "Optimize inference parameters to improve response quality",
+    "title_full": "GENPERF02-BP02 Optimize inference parameters to improve response quality"
   },
   {
     "area": [
       "Maintaining model performance"
     ],
     "description": "Different foundation models have varying capabilities, performance characteristics, and cost profiles. Selecting and customizing the appropriate model for your use case ensures optimal performance and cost efficiency. This includes evaluating different models against your ground truth data, considering factors like model size, latency requirements, accuracy needs, and implementing fine-tuning or customization when necessary to meet specific performance requirements.",
-    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genperf02-bp03.html",
-    "id": "GENPERF02-BP03",
-    "lens": "GENERATIVE_AI",
-    "outcome": "When implemented, this best practice ensures you are using the most appropriate and optimized model for your specific use case, maximizing both performance and cost efficiency.",
-    "pillar": "PERFORMANCE_EFFICIENCY",
-    "relatedIds": [
-      "PERF01-BP01",
-      "PERF01-BP02"
-    ],
-    "risk": "HIGH",
-    "title": "Select and customize the appropriate model for your use case",
-    "title_full": "GENPERF02-BP03 Select and customize the appropriate model for your use case",
     "desired_outcome": [
       "When implemented, this best practice helps you select the ideal model for your use case. You understand the reasons a specific model was chosen, and your chosen model provides robust performance and consistency for your use case."
     ],
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genperf02-bp03.html",
+    "id": "GENPERF02-BP03",
     "implementation_guidance": [
       "Define minimum performance and response quality thresholds for your workload.",
       "Select a range of models from different model providers.",
@@ -212,6 +202,13 @@
       "Select the model which performs best on average for the given use case.",
       "Consider elevating model performance situationally, and use techniques like prompt routing or customization where appropriate.",
       "Document results in an AI usage document to track model usage and encourage data-driven decision-making within the organization."
+    ],
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice ensures you are using the most appropriate and optimized model for your specific use case, maximizing both performance and cost efficiency.",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [
+      "PERF01-BP01",
+      "PERF01-BP02"
     ],
     "resources": [
       "PERF02-BP01: https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_compute_hardware_select_best_compute_options.html",
@@ -224,29 +221,22 @@
       "Multi-LLM routing strategies for generative AI applications on AWS: https://aws.amazon.com/blogs/machine-learning/multi-llm-routing-strategies-for-generative-ai-applications-on-aws/",
       "FMEval Library: https://github.com/aws/fmeval",
       "Evaluate, compare, and select the best foundation models for your use case in Amazon Bedrock (preview): https://aws.amazon.com/blogs/aws/evaluate-compare-and-select-the-best-foundation-models-for-your-use-case-in-amazon-bedrock-preview/"
-    ]
+    ],
+    "risk": "HIGH",
+    "title": "Select and customize the appropriate model for your use case",
+    "title_full": "GENPERF02-BP03 Select and customize the appropriate model for your use case"
   },
   {
     "area": [
       "Optimize high-performance compute"
     ],
+    "benefits": "Use serverless architectures - Serverless architectures enhance the performance of infrastructure-bound workloads, without the operational overhead.",
     "description": "Foundation models require high processing power to customize and deliver inference at scale. Using managed solutions for model hosting and customization helps optimize computational resources required for high-performance distributed computation tasks. Managed solutions like Amazon Bedrock and Amazon SageMaker provide optimized infrastructure, automatic scaling, and performance optimizations that would be difficult to achieve with self-managed solutions.",
-    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genperf03-bp01.html",
-    "id": "GENPERF03-BP01",
-    "lens": "GENERATIVE_AI",
-    "outcome": "When implemented, this best practice optimizes computational resources and reduces operational overhead while meeting performance requirements for foundation model hosting and customization.",
-    "pillar": "PERFORMANCE_EFFICIENCY",
-    "relatedIds": [
-      "PERF02-BP01",
-      "PERF02-BP02"
-    ],
-    "risk": "MEDIUM",
-    "title": "Use managed solutions for model hosting and customization",
-    "title_full": "GENPERF03-BP01 Use managed solutions for model hosting and customization",
     "desired_outcome": [
       "When implemented, this best practice facilitates model hosting and customization for highly performant generative AI workloads."
     ],
-    "benefits": "Use serverless architectures - Serverless architectures enhance the performance of infrastructure-bound workloads, without the operational overhead.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genperf03-bp01.html",
+    "id": "GENPERF03-BP01",
     "implementation_guidance": [
       "Determine the level of control your team needs to exert over the hosting solution.",
       "For fully managed hosting workload, use API-based hosting solutions such as Amazon Bedrock.",
@@ -254,6 +244,13 @@
       "Apply the same logic to model customization workflows.",
       "Model training workloads should be done Amazon SageMaker AI HyperPod.",
       "Provide hosted models access to the appropriate data using a robust permissions model and federated data access."
+    ],
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice optimizes computational resources and reduces operational overhead while meeting performance requirements for foundation model hosting and customization.",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [
+      "PERF02-BP01",
+      "PERF02-BP02"
     ],
     "resources": [
       "PERF02-BP01: https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_compute_hardware_select_best_compute_options.html",
@@ -269,28 +266,22 @@
       "Accelerate foundation model development with one-click observability in Amazon SageMaker AI HyperPod: https://aws.amazon.com/blogs/machine-learning/accelerate-foundation-model-development-with-one-click-observability-in-amazon-sagemaker-hyperpod/",
       "Amazon SageMaker AI HyperPod launches model deployments to accelerate the generative AI model development lifecycle: https://aws.amazon.com/blogs/machine-learning/amazon-sagemaker-hyperpod-launches-model-deployments-to-accelerate-the-generative-ai-model-development-lifecycle/",
       "Implementing inference observability on HyperPod clusters: https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-model-deployment-observability.html"
-    ]
+    ],
+    "risk": "MEDIUM",
+    "title": "Use managed solutions for model hosting and customization",
+    "title_full": "GENPERF03-BP01 Use managed solutions for model hosting and customization"
   },
   {
     "area": [
       "Vector store optimization"
     ],
+    "benefits": "Consider mechanical sympathy - Optimizing a data storage system for a generative AI workload can be as simple as changing vector indexes or modifying the chunking strategy. Familiarize yourself with how the system performs data storage and retrieval to best optimize the database.",
     "description": "Data retrieval systems like vector databases support some of the most popular design patterns for generative AI systems. A performance bottleneck in a data retrieval system can have cascading downstream effects, which are difficult to identify and account for. Testing vector store features for latency and relevant performance helps improve the performance of data retrieval systems and ensures they can meet the demands of your generative AI applications.",
-    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genperf04-bp01.html",
-    "id": "GENPERF04-BP01",
-    "lens": "GENERATIVE_AI",
-    "outcome": "When implemented, this best practice ensures vector store performance meets requirements and prevents bottlenecks that could impact overall generative AI application performance.",
-    "pillar": "PERFORMANCE_EFFICIENCY",
-    "relatedIds": [
-      "PERF03-BP02"
-    ],
-    "risk": "HIGH",
-    "title": "Test vector store features for latency and relevant performance",
-    "title_full": "GENPERF04-BP01 Test vector store features for latency and relevant performance",
     "desired_outcome": [
       "When implemented, this best practice facilitates expedient data storage and access, with accurate and relevant data retrieval."
     ],
-    "benefits": "Consider mechanical sympathy - Optimizing a data storage system for a generative AI workload can be as simple as changing vector indexes or modifying the chunking strategy. Familiarize yourself with how the system performs data storage and retrieval to best optimize the database.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genperf04-bp01.html",
+    "id": "GENPERF04-BP01",
     "implementation_guidance": [
       "Identify the most important performance KPI for this workload (for example, accuracy, speed, memory usage, or scalability). Consider implementing a custom search algorithm that supports this KPI.",
       "Organize indices based on a hierarchy, where more detail is introduced towards the bottom of the hierarchy.",
@@ -298,6 +289,12 @@
       "Perform regular data quality checks, verifying that data is assessed for quality before being placed into a database.",
       "Develop an operational runbook to facilitate rapid architecture changes to accommodate shifting usage patterns.",
       "Develop an operational runbook to facilitate rapid architecture changes to accommodate shifting usage patterns."
+    ],
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice ensures vector store performance meets requirements and prevents bottlenecks that could impact overall generative AI application performance.",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [
+      "PERF03-BP02"
     ],
     "resources": [
       "PERF05-BP02: https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_use_monitoring_solutions.html",
@@ -309,33 +306,33 @@
       "Amazon OpenSearch Service's vector database capabilities explained: https://aws.amazon.com/blogs/big-data/amazon-opensearch-services-vector-database-capabilities-explained/",
       "Building scalable, secure, and reliable RAG applications using Amazon Bedrock Knowledge Bases: https://aws.amazon.com/blogs/machine-learning/building-scalable-secure-and-reliable-rag-applications-using-amazon-bedrock-knowledge-bases/",
       "Dive deep into vector data stores using Amazon Bedrock Knowledge Bases: https://aws.amazon.com/blogs/machine-learning/dive-deep-into-vector-data-stores-using-amazon-bedrock-knowledge-bases/"
-    ]
+    ],
+    "risk": "HIGH",
+    "title": "Test vector store features for latency and relevant performance",
+    "title_full": "GENPERF04-BP01 Test vector store features for latency and relevant performance"
   },
   {
     "area": [
       "Vector store optimization"
     ],
+    "benefits": "Consider mechanical sympathy - Optimizing vector sizes for supported vector embedding models may improve performance of your application. Familiarize yourself with how your selected embedding model performs embeddings and retrievals when optimizing.",
     "description": "Vector sizes directly impact both storage requirements and query performance in vector databases. Optimizing vector sizes for your use case involves balancing accuracy requirements with performance and storage constraints. This includes selecting appropriate embedding models, dimensionality reduction techniques when applicable, and testing different vector sizes to find the optimal balance for your specific use case and performance requirements.",
-    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genperf04-bp02.html",
-    "id": "GENPERF04-BP02",
-    "lens": "GENERATIVE_AI",
-    "outcome": "When implemented, this best practice optimizes vector database performance and storage efficiency by using appropriately sized vectors for your specific use case requirements.",
-    "pillar": "PERFORMANCE_EFFICIENCY",
-    "relatedIds": [
-      "PERF03-BP03"
-    ],
-    "risk": "MEDIUM",
-    "title": "Optimize vector sizes for your use case",
-    "title_full": "GENPERF04-BP02 Optimize vector sizes for your use case",
     "desired_outcome": [
       "When implemented, this best practice helps verify that vector sizes are optimized for a specific use case, which can lead to improved performance over time."
     ],
-    "benefits": "Consider mechanical sympathy - Optimizing vector sizes for supported vector embedding models may improve performance of your application. Familiarize yourself with how your selected embedding model performs embeddings and retrievals when optimizing.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genperf04-bp02.html",
+    "id": "GENPERF04-BP02",
     "implementation_guidance": [
       "Identify the most important performance KPI for this workload (like accuracy, speed, memory usage, or scalability).",
       "Determine the number of vector options supported by your selected embedding model and design experiments meant to test each option. Experiment on a variety of data to get a clear determination of which embedding size is best for this workload.",
       "Consider self-hosting an open-source embedding model using Amazon SageMaker AI model endpoints if available embedding options are not sufficient.",
       "Run the experiment and determine the most performant embedding model for this scenario."
+    ],
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice optimizes vector database performance and storage efficiency by using appropriately sized vectors for your specific use case requirements.",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [
+      "PERF03-BP03"
     ],
     "resources": [
       "PERF03-BP01: https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_data_use_purpose_built_data_store.html",
@@ -349,6 +346,9 @@
       "Building scalable, secure, and reliable RAG applications using Amazon Bedrock Knowledge Bases: https://aws.amazon.com/blogs/machine-learning/building-scalable-secure-and-reliable-rag-applications-using-amazon-bedrock-knowledge-bases/",
       "Dive deep into vector data stores using Amazon Bedrock Knowledge Bases: https://aws.amazon.com/blogs/machine-learning/dive-deep-into-vector-data-stores-using-amazon-bedrock-knowledge-bases/",
       "HuggingFace's MTEB Leaderboard: https://huggingface.co/spaces/mteb/leaderboard"
-    ]
+    ],
+    "risk": "MEDIUM",
+    "title": "Optimize vector sizes for your use case",
+    "title_full": "GENPERF04-BP02 Optimize vector sizes for your use case"
   }
 ]

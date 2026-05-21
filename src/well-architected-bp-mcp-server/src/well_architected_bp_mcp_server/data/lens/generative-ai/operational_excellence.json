@@ -3,25 +3,16 @@
     "area": [
       "Model performance evaluation"
     ],
-    "description": "Implement periodic evaluations using stratified sampling and custom metrics to maintain the performance and reliability of large language models. This practice verifies that models remain accurate and relevant over time by regularly assessing their performance against ground truth data and specific evaluation criteria. By employing stratified sampling, organizations can obtain a representative subset of data that reflects the diversity of real-world inputs, leading to more reliable performance metrics. Custom metrics allow for tailored assessments that align with specific business goals and user expectations. This practice helps customers achieve consistent model performance, detect and address model drift promptly, and integrate evaluation results into continuous improvement processes.",
-    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genops01-bp01.html",
-    "id": "GENOPS01-BP01",
-    "lens": "GENERATIVE_AI",
-    "outcome": "",
-    "pillar": "OPERATIONAL_EXCELLENCE",
-    "relatedIds": [
-      "OPS11-BP11"
-    ],
-    "risk": "HIGH",
-    "title": "Periodically evaluate functional performance",
-    "title_full": "GENOPS01-BP01 Periodically evaluate functional performance",
-    "desired_outcome": [
-      "When implemented, this best practice improves the ability to identify and remediate performance degradation issues in model responses."
-    ],
     "benefits": [
       "Implement observability for actionable insights - Model responses to prompts can be observed using key performance indicators (KPIs) to determine adherence to or deviation from acceptable performance levels.",
       "Anticipate failure - Periodic review of the model's performance levels helps you proactively identify deviations in its performance. This is because foundation models are inherently non-deterministic with a realistic chance of failure."
     ],
+    "description": "Implement periodic evaluations using stratified sampling and custom metrics to maintain the performance and reliability of large language models. This practice verifies that models remain accurate and relevant over time by regularly assessing their performance against ground truth data and specific evaluation criteria. By employing stratified sampling, organizations can obtain a representative subset of data that reflects the diversity of real-world inputs, leading to more reliable performance metrics. Custom metrics allow for tailored assessments that align with specific business goals and user expectations. This practice helps customers achieve consistent model performance, detect and address model drift promptly, and integrate evaluation results into continuous improvement processes.",
+    "desired_outcome": [
+      "When implemented, this best practice improves the ability to identify and remediate performance degradation issues in model responses."
+    ],
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genops01-bp01.html",
+    "id": "GENOPS01-BP01",
     "implementation_guidance": [
       "Create a ground truth dataset. Verify that you have diverse data representation",
       "Consider various user personas and use cases",
@@ -45,6 +36,12 @@
       "Implement automated workflows. Integrate evaluation processes into CI/CD pipelines",
       "Set up alerts for significant performance changes"
     ],
+    "lens": "GENERATIVE_AI",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS11-BP11"
+    ],
     "resources": [
       "OPS11-BP11: https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_evolve_ops_metrics_review.html",
       "Amazon SageMaker AI Model Evaluation: https://docs.aws.amazon.com/sagemaker/latest/dg/model-optimize-evaluate.html",
@@ -58,27 +55,21 @@
       "fmeval library: https://github.com/aws/fmeval",
       "Amazon CloudWatch: https://docs.aws.amazon.com/sagemaker/latest/dg/monitoring-cloudwatch.html",
       "AWS Step Functions: https://aws.amazon.com/blogs/aws/build-generative-ai-apps-using-aws-step-functions-and-amazon-bedrock/"
-    ]
+    ],
+    "risk": "HIGH",
+    "title": "Periodically evaluate functional performance",
+    "title_full": "GENOPS01-BP01 Periodically evaluate functional performance"
   },
   {
     "area": [
       "Model performance evaluation"
     ],
     "description": "Supplement model performance evaluation with direct feedback from users. Implement continuous feedback loops to optimize application performance and enhance user satisfaction. Systematically collect, analyze, and act on user feedback to drive continuous improvement. By integrating this approach, you can achieve higher operational excellence and reliability, which keeps applications performant and aligned with user expectations. This proactive strategy helps to improve user satisfaction and foster a culture of ongoing enhancement and innovation.",
-    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genops01-bp02.html",
-    "id": "GENOPS01-BP02",
-    "lens": "GENERATIVE_AI",
-    "outcome": "",
-    "pillar": "OPERATIONAL_EXCELLENCE",
-    "relatedIds": [
-      "OPS04-BP03"
-    ],
-    "risk": "HIGH",
-    "title": "Collect and monitor user feedback",
-    "title_full": "GENOPS01-BP02 Collect and monitor user feedback",
     "desired_outcome": [
       "When implemented, this best practice improves the ability to surface performance degradation issues with foundation models as they happen without requiring ground truth data."
     ],
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genops01-bp02.html",
+    "id": "GENOPS01-BP02",
     "implementation_guidance": [
       "For Amazon Q Business, set up user feedback collection. Integrate simple feedback options within the application",
       "Use the PutFeedback API action through AWS SDK for application integration",
@@ -100,6 +91,12 @@
       "Develop and deploy optimizations",
       "Validate improvements using A/B testing"
     ],
+    "lens": "GENERATIVE_AI",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS04-BP03"
+    ],
     "resources": [
       "OPS04-BP03: https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_observability_customer_telemetry.html",
       "Guidance for Capturing and Analyzing Unstructured Customer Feedback on AWS: https://aws.amazon.com/solutions/guidance/capturing-and-analyzing-unstructured-customer-feedback-on-aws/",
@@ -113,35 +110,25 @@
       "Amazon CloudWatch: https://aws.amazon.com/cloudwatch/",
       "Quick: https://aws.amazon.com/quicksight/",
       "AWS Step Functions: https://aws.amazon.com/step-functions/"
-    ]
+    ],
+    "risk": "HIGH",
+    "title": "Collect and monitor user feedback",
+    "title_full": "GENOPS01-BP02 Collect and monitor user feedback"
   },
   {
     "area": [
       "Monitor and manage operational health"
     ],
-    "description": "Implement comprehensive monitoring and logging across all layers of your generative AI application to maintain operational health, provide reliability, and optimize performance. This best practice aims to provide clear visibility into the application's behavior at every level, from user interactions to core model performance. By tracking key metrics, organizations can quickly identify and address issues, enhance user experiences, and make data-driven decisions to improve their AI systems.",
-    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genops02-bp01.html",
-    "id": "GENOPS02-BP01",
-    "lens": "GENERATIVE_AI",
-    "outcome": "",
-    "pillar": "OPERATIONAL_EXCELLENCE",
-    "relatedIds": [
-      "OPS08-BP01",
-      "OPS08-BP02",
-      "OPS08-BP03",
-      "OPS08-BP04",
-      "OPS08-BP05"
-    ],
-    "risk": "HIGH",
-    "title": "Monitor all application layers",
-    "title_full": "GENOPS02-BP01 Monitor all application layers",
-    "desired_outcome": [
-      "When implemented, your organization closely monitors the performance of generative AI workloads."
-    ],
     "benefits": [
       "Implement observability for actionable insights - Monitor the performance of your generative AI workload at all layers of the application, increasing visibility into application operational state and facilitating the early intervention of operational issues.",
       "Learn from all operational events and metrics - Capturing fine-grained observations enables continuous improvement."
     ],
+    "description": "Implement comprehensive monitoring and logging across all layers of your generative AI application to maintain operational health, provide reliability, and optimize performance. This best practice aims to provide clear visibility into the application's behavior at every level, from user interactions to core model performance. By tracking key metrics, organizations can quickly identify and address issues, enhance user experiences, and make data-driven decisions to improve their AI systems.",
+    "desired_outcome": [
+      "When implemented, your organization closely monitors the performance of generative AI workloads."
+    ],
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genops02-bp01.html",
+    "id": "GENOPS02-BP01",
     "implementation_guidance": [
       "Identify your application layers, including: Application layer",
       "Service layer",
@@ -163,6 +150,16 @@
       "Adjust monitoring configurations based on changing application needs and usage patterns",
       "Consider additional logging solutions: For log ingestion and transformation, consider Amazon Data Firehose",
       "For as-needed querying, explore Amazon Athena for logs stored in Amazon S3"
+    ],
+    "lens": "GENERATIVE_AI",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS08-BP01",
+      "OPS08-BP02",
+      "OPS08-BP03",
+      "OPS08-BP04",
+      "OPS08-BP05"
     ],
     "resources": [
       "OPS08-BP01: https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_workload_observability_analyze_workload_metrics.html",
@@ -191,34 +188,25 @@
       "Amazon OpenSearch Service Serverless: https://aws.amazon.com/opensearch-service/features/serverless/",
       "Amazon Bedrock: https://aws.amazon.com/bedrock/",
       "Amazon Q: https://aws.amazon.com/q/"
-    ]
+    ],
+    "risk": "HIGH",
+    "title": "Monitor all application layers",
+    "title_full": "GENOPS02-BP01 Monitor all application layers"
   },
   {
     "area": [
       "Monitor and manage operational health"
     ],
-    "description": "It's critical to set up continuous monitoring and alerting for foundation models for performance, security, and cost-efficiency. This best practice offers a structured approach to monitor models that fosters rapid identification and resolution of issues like data drift, model degradation, and security threats. Adopting this practice enhances reliability, efficiency, and trust in your applications, driving better business outcomes and user satisfaction. It can also help you with regulatory compliance and optimizes resource utilization.",
-    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genops02-bp02.html",
-    "id": "GENOPS02-BP02",
-    "lens": "GENERATIVE_AI",
-    "outcome": "",
-    "pillar": "OPERATIONAL_EXCELLENCE",
-    "relatedIds": [
-      "OPS08-BP01",
-      "OPS08-BP02",
-      "OPS08-BP04",
-      "OPS08-BP05"
-    ],
-    "risk": "HIGH",
-    "title": "Monitor foundation model metrics",
-    "title_full": "GENOPS02-BP02 Monitor foundation model metrics",
-    "desired_outcome": [
-      "A robust monitoring system is in place that provides real-time visibility into the performance of your foundation models, allows for early detection of anomalies or degradation, and speeds up response to incidents. This system integrates with your existing observability tools and processes, providing a holistic view of your application's health."
-    ],
     "benefits": [
       "Implement observability for actionable insights - Monitor foundation model metrics.",
       "Learn from all operational events and metrics - Capturing fine-grained observations enables continuous improvement."
     ],
+    "description": "It's critical to set up continuous monitoring and alerting for foundation models for performance, security, and cost-efficiency. This best practice offers a structured approach to monitor models that fosters rapid identification and resolution of issues like data drift, model degradation, and security threats. Adopting this practice enhances reliability, efficiency, and trust in your applications, driving better business outcomes and user satisfaction. It can also help you with regulatory compliance and optimizes resource utilization.",
+    "desired_outcome": [
+      "A robust monitoring system is in place that provides real-time visibility into the performance of your foundation models, allows for early detection of anomalies or degradation, and speeds up response to incidents. This system integrates with your existing observability tools and processes, providing a holistic view of your application's health."
+    ],
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genops02-bp02.html",
+    "id": "GENOPS02-BP02",
     "implementation_guidance": [
       "For Amazon Bedrock, enable model invocation logging. Choose your desired data output options and log destination (Amazon S3 or CloudWatch Logs)",
       "Track key metrics like InputTokenCount, OutputTokenCount, and InvocationThrottles",
@@ -243,6 +231,15 @@
       "Conduct retrospective reviews on incidents and near-misses",
       "Perform periodic audits of your monitoring coverage"
     ],
+    "lens": "GENERATIVE_AI",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS08-BP01",
+      "OPS08-BP02",
+      "OPS08-BP04",
+      "OPS08-BP05"
+    ],
     "resources": [
       "OPS08-BP01: https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_workload_observability_analyze_workload_metrics.html",
       "OPS08-BP02: https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_workload_observability_analyze_workload_logs.html",
@@ -262,32 +259,25 @@
       "Amazon EventBridge: https://aws.amazon.com/eventbridge/",
       "AWS Lambda: https://aws.amazon.com/lambda/",
       "Amazon Simple Notification Service: https://aws.amazon.com/sns/"
-    ]
+    ],
+    "risk": "HIGH",
+    "title": "Monitor foundation model metrics",
+    "title_full": "GENOPS02-BP02 Monitor foundation model metrics"
   },
   {
     "area": [
       "Monitor and manage operational health"
     ],
-    "description": "Implement rate limiting and throttling for AI application stability and performance. These practices control request processing rates to prevent system overload, which provides consistent application health and a better user experience. By adopting these measures, you can achieve balanced workload distribution, reduce service disruption risks, and enhance application reliability. This approach safeguards against excessive demand, optimizes resource utilization, and improves cost efficiency and performance.",
-    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genops02-bp03.html",
-    "id": "GENOPS02-BP03",
-    "lens": "GENERATIVE_AI",
-    "outcome": "",
-    "pillar": "OPERATIONAL_EXCELLENCE",
-    "relatedIds": [
-      "OPS08-BP04",
-      "OPS10-BP02"
-    ],
-    "risk": "MEDIUM",
-    "title": "Implement rate limiting and throttling to mitigate the risk of system overload",
-    "title_full": "GENOPS02-BP03 Implement rate limiting and throttling to mitigate the risk of system overload",
-    "desired_outcome": [
-      "After implementing rate limiting and throttling, your organization can maintain the stability and performance of their AI applications."
-    ],
     "benefits": [
       "Safely automate where possible - Respond to system load events.",
       "Anticipate failure - Maximize operational success by implementing responses to failure scenarios."
     ],
+    "description": "Implement rate limiting and throttling for AI application stability and performance. These practices control request processing rates to prevent system overload, which provides consistent application health and a better user experience. By adopting these measures, you can achieve balanced workload distribution, reduce service disruption risks, and enhance application reliability. This approach safeguards against excessive demand, optimizes resource utilization, and improves cost efficiency and performance.",
+    "desired_outcome": [
+      "After implementing rate limiting and throttling, your organization can maintain the stability and performance of their AI applications."
+    ],
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genops02-bp03.html",
+    "id": "GENOPS02-BP03",
     "implementation_guidance": [
       "Understand your Amazon Bedrock quotas. Quotas may apply to various aspects of Amazon Bedrock usage, such as API request rates, token usage, or concurrent model invocations",
       "You can view the current quotas for Amazon Bedrock through the Service Quotas dashboard in the AWS Management Console",
@@ -304,13 +294,20 @@
       "Implement continuous monitoring and optimization. Use Amazon CloudWatch observability to monitor system performance",
       "Conduct regular load testing and capacity planning"
     ],
+    "lens": "GENERATIVE_AI",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS08-BP04",
+      "OPS10-BP02"
+    ],
     "resources": [
       "OPS10-BP02: https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_event_response_process_per_alert.html",
       "OPS08-BP04: https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_workload_observability_create_alerts.html",
       "Quotas for Amazon Bedrock - Amazon Bedrock: https://docs.aws.amazon.com/bedrock/latest/userguide/quotas.html",
       "Amazon SDK Developer Guide - Retry behavior: https://docs.aws.amazon.com/sdkref/latest/guide/feature-retry-behavior.html",
       "AWS Prescriptive Guidance - Retry behavior: https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/retry-backoff.html",
-      "Supercharge your auto scaling for generative AI inference – Introducing Container Caching in SageMaker AI Inference: https://aws.amazon.com/blogs/machine-learning/supercharge-your-auto-scaling-for-generative-ai-inference-introducing-container-caching-in-sagemaker-inference/",
+      "Supercharge your auto scaling for generative AI inference \u2013 Introducing Container Caching in SageMaker AI Inference: https://aws.amazon.com/blogs/machine-learning/supercharge-your-auto-scaling-for-generative-ai-inference-introducing-container-caching-in-sagemaker-inference/",
       "Implementing Rate Limiting with API Gateway: https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-request-throttling.html",
       "Using Step Functions for Retry Logic: https://docs.aws.amazon.com/step-functions/latest/dg/tutorial-handling-error-conditions.html",
       "Managing and monitoring API throttling in your workloads: https://aws.amazon.com/blogs/mt/managing-monitoring-api-throttling-in-workloads/",
@@ -322,29 +319,22 @@
       "Usage reporting for cost attribution in SageMaker AI HyperPod: https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-usage-reporting.html",
       "Amazon API Gateway: https://aws.amazon.com/api-gateway/",
       "AWS Step Functions: https://aws.amazon.com/step-functions/"
-    ]
+    ],
+    "risk": "MEDIUM",
+    "title": "Implement rate limiting and throttling to mitigate the risk of system overload",
+    "title_full": "GENOPS02-BP03 Implement rate limiting and throttling to mitigate the risk of system overload"
   },
   {
     "area": [
       "Observability in workloads"
     ],
+    "benefits": "Safely automate where possible - Automate prompt management, reducing the undifferentiated heavy lifting associated with traditional prompt management techniques.",
     "description": "Implement and maintain a versioned prompt template management system to achieve consistent and optimized performance of language models. This best practice aims to provide a structured approach to managing prompt templates, which helps teams systematically version, test, and optimize prompts. By adhering to this practice, you can achieve greater predictability in model behavior, enhance traceability of changes, and improve overall operational efficiency. This leads to more reliable language model deployments, reduced risks associated with prompt modifications, and the ability to quickly roll back to previous versions if needed. Ultimately, this best practice helps you deliver higher-quality outputs and maintain compliance with security and governance standards.",
-    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genops03-bp01.html",
-    "id": "GENOPS03-BP01",
-    "lens": "GENERATIVE_AI",
-    "outcome": "",
-    "pillar": "OPERATIONAL_EXCELLENCE",
-    "relatedIds": [
-      "OPS05-BP01",
-      "OPS05-BP10"
-    ],
-    "risk": "HIGH",
-    "title": "Implement prompt template management",
-    "title_full": "GENOPS03-BP01 Implement prompt template management",
     "desired_outcome": [
       "You have a robust, versioned prompt template management system in place. Key processes involve testing and comparing different prompt variants, capturing baseline model outputs, and regularly reviewing and optimizing prompts based on performance metrics."
     ],
-    "benefits": "Safely automate where possible - Automate prompt management, reducing the undifferentiated heavy lifting associated with traditional prompt management techniques.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genops03-bp01.html",
+    "id": "GENOPS03-BP01",
     "implementation_guidance": [
       "Set up Amazon Bedrock Prompt Management. Create the initial prompt templates by developing a foundational set of prompt templates tailored to your use case",
       "Incorporate variables within prompts to enhance flexibility and adaptability",
@@ -363,6 +353,13 @@
       "Set up cross-team collaboration. Share prompts across teams using Amazon Bedrock Prompt Management",
       "Establish and disseminate guidelines for prompt creation and modification to maintain consistency and quality"
     ],
+    "lens": "GENERATIVE_AI",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS05-BP01",
+      "OPS05-BP10"
+    ],
     "resources": [
       "OPS05-BP10: https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_dev_integ_auto_integ_deploy.html",
       "OPS05-BP01: https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_version_control.html",
@@ -372,28 +369,22 @@
       "Amazon Bedrock: https://aws.amazon.com/bedrock/",
       "Amazon CloudWatch: https://aws.amazon.com/cloudwatch/",
       "AWS SDK for Python (Boto3): https://boto3.amazonaws.com/v1/documentation/api/latest/index.html"
-    ]
+    ],
+    "risk": "HIGH",
+    "title": "Implement prompt template management",
+    "title_full": "GENOPS03-BP01 Implement prompt template management"
   },
   {
     "area": [
       "Observability in workloads"
     ],
+    "benefits": "Learn from all operational events and metrics - Gain insights from tracing for agents and RAG workflows.",
     "description": "Implement comprehensive tracing for generative AI agents and RAG workflows to enhance operational excellence and performance efficiency. This practice offers clear visibility into model decision-making, which helps you identify inefficiencies, optimize performance, and debug efficiently. By adopting tracing, customers achieve more reliable and efficient workflows, which improves model accuracy, speeds up decision-making, and enhances overall system performance. This approach supports continuous improvement while keeping data secure throughout the tracing process.",
-    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genops03-bp02.html",
-    "id": "GENOPS03-BP02",
-    "lens": "GENERATIVE_AI",
-    "outcome": "",
-    "pillar": "OPERATIONAL_EXCELLENCE",
-    "relatedIds": [
-      "OPS08-BP03"
-    ],
-    "risk": "HIGH",
-    "title": "Enable tracing for agents and RAG workflows",
-    "title_full": "GENOPS03-BP02 Enable tracing for agents and RAG workflows",
     "desired_outcome": [
       "After implementing tracing, you have enhanced agent decision-making and RAG workflows."
     ],
-    "benefits": "Learn from all operational events and metrics - Gain insights from tracing for agents and RAG workflows.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genops03-bp02.html",
+    "id": "GENOPS03-BP02",
     "implementation_guidance": [
       "Collect and aggregate trace data. Implement a system to collect trace data from agents involved in your parallel processing workflow",
       "After running an Amazon Bedrock Agent, view the trace in real-time as your agent performs orchestration",
@@ -428,6 +419,12 @@
       "Document and share insights. Keep a record of optimizations made and their effects on performance",
       "Share these insights with your team to improve future multi-agent system designs"
     ],
+    "lens": "GENERATIVE_AI",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS08-BP03"
+    ],
     "resources": [
       "OPS08-BP03: https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_workload_observability_analyze_workload_traces.html",
       "Amazon Bedrock AgentCore Samples: https://github.com/awslabs/amazon-bedrock-agentcore-samples/",
@@ -440,32 +437,22 @@
       "Amazon CloudWatch Logs: https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/WhatIsCloudWatchLogs.html",
       "OpenTelemetry: https://opentelemetry.io/",
       "LangFuse: https://langfuse.com/"
-    ]
+    ],
+    "risk": "HIGH",
+    "title": "Enable tracing for agents and RAG workflows",
+    "title_full": "GENOPS03-BP02 Enable tracing for agents and RAG workflows"
   },
   {
     "area": [
       "Automate lifecycle management"
     ],
+    "benefits": "Safely automate where possible - Define your entire workload and its operations (applications, infrastructure, configuration, and procedures) as code, facilitating infrastructure level change management, infrastructure version control, and advanced paradigms such as self-healing infrastructure.",
     "description": "Implementing and managing IaC is crucial for consistent, version-controlled, and automated infrastructure deployment across environments. This practice streamlines deployment, reduces errors, and enhances team collaboration. IaC helps customers achieve efficiency, reliability, and scalability in infrastructure management, which allows for rapid iteration, straightforward rollback, and improved governance and results in secure deployments aligned with compliance standards.",
-    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genops04-bp01.html",
-    "id": "GENOPS04-BP01",
-    "lens": "GENERATIVE_AI",
-    "outcome": "",
-    "pillar": "OPERATIONAL_EXCELLENCE",
-    "relatedIds": [
-      "OPS05-BP01",
-      "OPS05-BP08",
-      "OPS05-BP10",
-      "OPS06-BP03",
-      "OPS06-BP04"
-    ],
-    "risk": "HIGH",
-    "title": "Automate generative AI application lifecycle with infrastructure as code (IaC)",
-    "title_full": "GENOPS04-BP01 Automate generative AI application lifecycle with infrastructure as code (IaC)",
     "desired_outcome": [
       "After implementing the practice of automating the lifecycle management of generative AI workloads using IaC, customers have version control infrastructure automated through CI/CD pipelines."
     ],
-    "benefits": "Safely automate where possible - Define your entire workload and its operations (applications, infrastructure, configuration, and procedures) as code, facilitating infrastructure level change management, infrastructure version control, and advanced paradigms such as self-healing infrastructure.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genops04-bp01.html",
+    "id": "GENOPS04-BP01",
     "implementation_guidance": [
       "Select your IaC tool stack. Evaluate AWS CDK, AWS CloudFormation, or Terraform",
       "Consider team skills and project needs",
@@ -487,6 +474,16 @@
       "Set up automated compliance checks and reporting",
       "Regularly audit your IaC templates. Focus on security best practices",
       "Conduct periodic third-party security assessments"
+    ],
+    "lens": "GENERATIVE_AI",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS05-BP01",
+      "OPS05-BP08",
+      "OPS05-BP10",
+      "OPS06-BP03",
+      "OPS06-BP04"
     ],
     "resources": [
       "OPS05-BP10: https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_dev_integ_auto_integ_deploy.html",
@@ -510,29 +507,22 @@
       "AWS CodePipeline: https://aws.amazon.com/codepipeline/",
       "AWS Config: https://aws.amazon.com/config/",
       "Service Catalog: https://aws.amazon.com/servicecatalog/"
-    ]
+    ],
+    "risk": "HIGH",
+    "title": "Automate generative AI application lifecycle with infrastructure as code (IaC)",
+    "title_full": "GENOPS04-BP01 Automate generative AI application lifecycle with infrastructure as code (IaC)"
   },
   {
     "area": [
       "Automate lifecycle management"
     ],
+    "benefits": "Safely automate where possible - automate the lifecycle of your foundation models.",
     "description": "To optimize generative AI workloads, organizations should implement GenAIOps, a best practice that automates the development, deployment, and management of models. This approach establishes CI/CD pipelines for training, tuning, and deploying foundation models. GenAIOps enhances operational efficiency, reduces time-to-market, and enables consistent, high-quality model performance. It creates a robust, automated framework that supports the entire generative AI project lifecycle from development to production deployment. Through GenAIOps, customers can achieve greater agility, improved model reliability, and quick adaptation to changing business requirements, driving innovation and competitive advantage.",
-    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genops04-bp02.html",
-    "id": "GENOPS04-BP02",
-    "lens": "GENERATIVE_AI",
-    "outcome": "",
-    "pillar": "OPERATIONAL_EXCELLENCE",
-    "relatedIds": [
-      "OPS08-BP04",
-      "OPS10-BP02"
-    ],
-    "risk": "HIGH",
-    "title": "Follow GenAIOps practices to optimize the application lifecycle",
-    "title_full": "GENOPS04-BP02 Follow GenAIOps practices to optimize the application lifecycle",
     "desired_outcome": [
       "After implementing GenAIOps, organizations can have a robust, automated framework for managing the entire lifecycle of generative AI workloads."
     ],
-    "benefits": "Safely automate where possible - automate the lifecycle of your foundation models.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genops04-bp02.html",
+    "id": "GENOPS04-BP02",
     "implementation_guidance": [
       "For SageMaker AI, implement pipelines. Use SageMaker AI SDK to add steps which may include data preparation, model training, model evaluation, and model deployment",
       "Use SageMaker AI Processing to run evaluation scripts on the trained model with SageMaker AI Clarify",
@@ -553,13 +543,20 @@
       "Create a feedback loop for continuous improvement. Gather user feedback and model performance data",
       "Automate retraining and model updates based on new data"
     ],
+    "lens": "GENERATIVE_AI",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS08-BP04",
+      "OPS10-BP02"
+    ],
     "resources": [
       "OPS05-BP10: https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_dev_integ_auto_integ_deploy.html",
       "OPS05-BP07: https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_dev_integ_code_quality.html",
       "OPS05-BP01: https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_dev_integ_version_control.html",
       "LLM experimentation at scale using Amazon SageMaker AI Pipelines and MLflow | AWS Machine Learning Blog: https://aws.amazon.com/blogs/machine-learning/llm-experimentation-at-scale-using-amazon-sagemaker-pipelines-and-mlflow/",
       "Achieve operational excellence with well-architected generative AI solutions using Amazon Bedrock: https://aws.amazon.com/blogs/machine-learning/achieve-operational-excellence-with-well-architected-generative-ai-solutions-using-amazon-bedrock/",
-      "MLOps – Machine Learning Operations– Amazon Web Services: https://aws.amazon.com/sagemaker/mlops/",
+      "MLOps \u2013 Machine Learning Operations\u2013 Amazon Web Services: https://aws.amazon.com/sagemaker/mlops/",
       "Amazon SageMaker AI MLOps Workshop: https://github.com/aws-samples/amazon-sagemaker-mlops-workshop",
       "AWS MLOps Framework: https://aws.amazon.com/solutions/implementations/aws-mlops-framework/",
       "Amazon SageMaker AI MLOps Project Template: https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-projects-templates-sm.html",
@@ -570,28 +567,22 @@
       "AWS Step Functions: https://aws.amazon.com/step-functions/",
       "Amazon CloudWatch: https://aws.amazon.com/cloudwatch",
       "Amazon Elastic Kubernetes Service (Amazon EKS): https://aws.amazon.com/eks/"
-    ]
+    ],
+    "risk": "HIGH",
+    "title": "Follow GenAIOps practices to optimize the application lifecycle",
+    "title_full": "GENOPS04-BP02 Follow GenAIOps practices to optimize the application lifecycle"
   },
   {
     "area": [
       "Model customization"
     ],
+    "benefits": "Use managed services - Manage the undifferentiated heavy lifting associated with large-scale, memory-intensive, distributed computing tasks such as model customization.",
     "description": "Prioritize prompt engineering and RAG before model customization to optimize resources and enhance performance in developing generative AI solutions. This best practice aims to guide you in making informed decisions about when and how to customize AI models, which helps you verify that they achieve the best balance between efficiency and effectiveness. By starting with prompt engineering and RAG, you can leverage existing model capabilities to meet their needs, reducing the time, cost, and complexity associated with model customization. This approach allows organizations to quickly iterate on solutions, minimize resource consumption, and focus on achieving desired outcomes with minimal upfront investment.",
-    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genops05-bp01.html",
-    "id": "GENOPS05-BP01",
-    "lens": "GENERATIVE_AI",
-    "outcome": "You have an approach to decide when to customize models.",
-    "pillar": "OPERATIONAL_EXCELLENCE",
-    "relatedIds": [
-      "OPS04-BP01"
-    ],
-    "risk": "HIGH",
-    "title": "Learn when to customize models",
-    "title_full": "GENOPS05-BP01 Learn when to customize models",
     "desired_outcome": [
       "You have an approach to decide when to customize models."
     ],
-    "benefits": "Use managed services - Manage the undifferentiated heavy lifting associated with large-scale, memory-intensive, distributed computing tasks such as model customization.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genops05-bp01.html",
+    "id": "GENOPS05-BP01",
     "implementation_guidance": [
       "You have a specific task or use case that requires improved performance",
       "You have the labeled data relevant to your task",
@@ -619,6 +610,12 @@
       "Consider trade-offs in your workload. Evaluate the cost for each approach",
       "Balance complexity and efficiency"
     ],
+    "lens": "GENERATIVE_AI",
+    "outcome": "You have an approach to decide when to customize models.",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS04-BP01"
+    ],
     "resources": [
       "OPS04-BP01: https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_observability_identify_kpis.html",
       "Amazon Bedrock capabilities to enhance data processing and retrieval: https://aws.amazon.com/blogs/aws/new-amazon-bedrock-capabilities-enhance-data-processing-and-retrieval/",
@@ -632,6 +629,9 @@
       "Amazon Bedrock: https://aws.amazon.com/bedrock/",
       "Amazon CloudWatch: https://aws.amazon.com/cloudwatch/",
       "Amazon Elastic Kubernetes Service (Amazon EKS): https://aws.amazon.com/eks/"
-    ]
+    ],
+    "risk": "HIGH",
+    "title": "Learn when to customize models",
+    "title_full": "GENOPS05-BP01 Learn when to customize models"
   }
 ]
