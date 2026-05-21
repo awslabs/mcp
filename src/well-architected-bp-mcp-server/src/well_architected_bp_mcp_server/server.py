@@ -20,6 +20,36 @@ from pathlib import Path
 from typing import Any
 
 
+# --- Constants ---
+
+PILLAR_DISPLAY_NAMES = {
+    'OPERATIONAL_EXCELLENCE': 'Operational Excellence',
+    'SECURITY': 'Security',
+    'RELIABILITY': 'Reliability',
+    'PERFORMANCE_EFFICIENCY': 'Performance Efficiency',
+    'COST_OPTIMIZATION': 'Cost Optimization',
+    'SUSTAINABILITY': 'Sustainability',
+}
+
+PILLAR_FILE_TO_DISPLAY = {
+    'operational_excellence': 'Operational Excellence',
+    'security': 'Security',
+    'reliability': 'Reliability',
+    'performance_efficiency': 'Performance Efficiency',
+    'cost_optimization': 'Cost Optimization',
+    'sustainability': 'Sustainability',
+}
+
+SECTION_NAME_MAP = {
+    'desired_outcome': 'Desired Outcome',
+    'anti_patterns': 'Anti-Patterns',
+    'implementation_guidance': 'Implementation Guidance',
+    'implementation_steps': 'Implementation Steps',
+    'resources': 'Resources',
+}
+
+RISK_ORDER = {'HIGH': 0, 'MEDIUM': 1, 'LOW': 2}
+
 SERVER_INSTRUCTIONS = """AWS Well-Architected Best Practices MCP Server provides offline access to 356 AWS best practices
 across 6 pillars and the Generative AI lens.
 
@@ -51,14 +81,19 @@ mcp = FastMCP(
     instructions=SERVER_INSTRUCTIONS,
 )
 
-# Load best practices data
+# --- Data stores ---
+
 DATA_DIR = Path(__file__).parent / 'data'
 V13_DIR = DATA_DIR / 'v13'
-BEST_PRACTICES: dict[str, list[dict[str, Any]]] = {}
 
-# Indexes built at startup from v13 markdown
+BEST_PRACTICES: dict[str, list[dict[str, Any]]] = {}
+BP_BY_ID: dict[str, dict[str, Any]] = {}
 V13_SECTIONS: dict[str, dict[str, str]] = {}
+V13_METADATA: dict[str, dict[str, str]] = {}
 QUESTIONS_INDEX: dict[str, dict[str, Any]] = {}
+
+
+# --- Data loading ---
 
 
 def _parse_v13_file(filepath: Path) -> tuple[dict[str, str], dict[str, str]]:
@@ -95,9 +130,9 @@ def _parse_v13_file(filepath: Path) -> tuple[dict[str, str], dict[str, str]]:
     return metadata, sections
 
 
-def _build_v13_index():
+def _build_v13_index() -> None:
     """Build in-memory indexes from all v13 markdown files."""
-    global V13_SECTIONS, QUESTIONS_INDEX
+    global V13_SECTIONS, V13_METADATA, QUESTIONS_INDEX
 
     if not V13_DIR.exists():
         return
@@ -106,6 +141,7 @@ def _build_v13_index():
         bp_id = md_file.stem
         metadata, sections = _parse_v13_file(md_file)
         V13_SECTIONS[bp_id] = sections
+        V13_METADATA[bp_id] = metadata
 
         capability = metadata.get('capability', '')
         if capability:
@@ -117,9 +153,9 @@ def _build_v13_index():
             QUESTIONS_INDEX[capability]['bp_ids'].append(bp_id)
 
 
-def load_data():
+def load_data() -> None:
     """Load all best practices from JSON files."""
-    global BEST_PRACTICES
+    global BEST_PRACTICES, BP_BY_ID
 
     for pillar_file in [
         'operational_excellence',
@@ -140,6 +176,13 @@ def load_data():
             key = f'genai_{lens_file.stem}'
             with open(lens_file) as f:
                 BEST_PRACTICES[key] = json.load(f)
+
+    BP_BY_ID = {}
+    for practices in BEST_PRACTICES.values():
+        for bp in practices:
+            bp_id = bp.get('id')
+            if bp_id:
+                BP_BY_ID[bp_id] = bp
 
 
 load_data()
@@ -195,46 +238,24 @@ def search_best_practices_impl(
 
 def get_best_practice_impl(id: str) -> dict[str, Any] | None:
     """Get detailed AWS Well-Architected Framework best practice by ID."""
-    for practices in BEST_PRACTICES.values():
-        for bp in practices:
-            if bp.get('id') == id:
-                return bp
-    return None
+    return BP_BY_ID.get(id)
 
 
 def get_best_practice_full_impl(id: str, section: str | None = None) -> dict[str, Any] | None:
     """Get the full markdown content for a best practice from the v13 reference."""
-    md_file = V13_DIR / f'{id}.md'
-    if not md_file.exists():
+    metadata = V13_METADATA.get(id)
+    if metadata is None:
         return get_best_practice_impl(id)
 
-    content = md_file.read_text(encoding='utf-8')
-
-    metadata: dict[str, str] = {}
-    body = content
-    if content.startswith('---'):
-        parts = content.split('---', 2)
-        if len(parts) >= 3:
-            frontmatter = parts[1]
-            body = parts[2].strip()
-            for line in frontmatter.strip().splitlines():
-                if ':' in line:
-                    key, val = line.split(':', 1)
-                    metadata[key.strip()] = val.strip().strip('"')
+    sections = V13_SECTIONS.get(id, {})
 
     if section:
-        sections = V13_SECTIONS.get(id, {})
-        section_map = {
-            'desired_outcome': 'Desired Outcome',
-            'anti_patterns': 'Anti-Patterns',
-            'implementation_guidance': 'Implementation Guidance',
-            'implementation_steps': 'Implementation Steps',
-            'resources': 'Resources',
-        }
-        section_key = section_map.get(section, section)
+        section_key = SECTION_NAME_MAP.get(section, section)
         body = sections.get(section_key, f'Section "{section}" not found')
+    else:
+        body = sections.get('_full', '')
 
-    bp_summary = get_best_practice_impl(id)
+    bp_summary = BP_BY_ID.get(id)
 
     result: dict[str, Any] = {
         'id': id,
@@ -264,19 +285,11 @@ def search_content_impl(
     results = []
     query_lower = query.lower()
     clamped_max = min(max(max_results, 1), 50)
-
-    section_map = {
-        'desired_outcome': 'Desired Outcome',
-        'anti_patterns': 'Anti-Patterns',
-        'implementation_guidance': 'Implementation Guidance',
-        'implementation_steps': 'Implementation Steps',
-        'resources': 'Resources',
-    }
-    target_section = section_map.get(section, section) if section else None
+    target_section = SECTION_NAME_MAP.get(section, section) if section else None
 
     for bp_id, sections in V13_SECTIONS.items():
+        bp_summary = BP_BY_ID.get(bp_id)
         if pillar:
-            bp_summary = get_best_practice_impl(bp_id)
             if not bp_summary or bp_summary.get('pillar') != pillar:
                 continue
 
@@ -286,8 +299,7 @@ def search_content_impl(
             if target_section and sec_name != target_section:
                 continue
 
-            content_lower = sec_content.lower()
-            pos = content_lower.find(query_lower)
+            pos = sec_content.lower().find(query_lower)
             if pos == -1:
                 continue
 
@@ -299,7 +311,6 @@ def search_content_impl(
             if end < len(sec_content):
                 snippet = snippet + '...'
 
-            bp_summary = get_best_practice_impl(bp_id)
             results.append(
                 {
                     'id': bp_id,
@@ -320,17 +331,8 @@ def search_content_impl(
 
 def list_questions_impl(pillar: str | None = None) -> list[dict[str, Any]]:
     """List all Well-Architected Review questions."""
+    target_domain = PILLAR_DISPLAY_NAMES.get(pillar) if pillar else None
     results = []
-
-    pillar_map = {
-        'OPERATIONAL_EXCELLENCE': 'Operational Excellence',
-        'SECURITY': 'Security',
-        'RELIABILITY': 'Reliability',
-        'PERFORMANCE_EFFICIENCY': 'Performance Efficiency',
-        'COST_OPTIMIZATION': 'Cost Optimization',
-        'SUSTAINABILITY': 'Sustainability',
-    }
-    target_domain = pillar_map.get(pillar) if pillar else None
 
     for question, info in sorted(QUESTIONS_INDEX.items(), key=lambda x: x[1]['domain']):
         if target_domain and info['domain'] != target_domain:
@@ -355,10 +357,9 @@ def get_practices_for_question_impl(question: str) -> list[dict[str, Any]]:
         if question_lower in q_text.lower():
             bp_ids.extend(info['bp_ids'])
 
-    risk_order = {'HIGH': 0, 'MEDIUM': 1, 'LOW': 2}
     results = []
     for bp_id in bp_ids:
-        bp = get_best_practice_impl(bp_id)
+        bp = BP_BY_ID.get(bp_id)
         if bp:
             results.append(
                 {
@@ -369,7 +370,7 @@ def get_practices_for_question_impl(question: str) -> list[dict[str, Any]]:
                 }
             )
 
-    results.sort(key=lambda x: risk_order.get(x.get('risk', ''), 9))
+    results.sort(key=lambda x: RISK_ORDER.get(x.get('risk', ''), 9))
     return results
 
 
@@ -380,15 +381,11 @@ def get_anti_patterns_impl(
 ) -> list[dict[str, Any]]:
     """Get anti-patterns for best practices."""
     results = []
-
-    if id:
-        bp_ids = [id]
-    else:
-        bp_ids = list(V13_SECTIONS.keys())
+    bp_ids = [id] if id else list(V13_SECTIONS.keys())
 
     for bp_id in bp_ids:
+        bp_summary = BP_BY_ID.get(bp_id)
         if pillar or risk:
-            bp_summary = get_best_practice_impl(bp_id)
             if not bp_summary:
                 continue
             if pillar and bp_summary.get('pillar') != pillar:
@@ -409,7 +406,6 @@ def get_anti_patterns_impl(
         if not items:
             items = [anti_patterns_text.strip()]
 
-        bp_summary = get_best_practice_impl(bp_id)
         results.append(
             {
                 'id': bp_id,
@@ -428,33 +424,24 @@ def list_pillars_impl() -> dict[str, Any]:
 
     for practices in BEST_PRACTICES.values():
         for bp in practices:
-            pillar = bp.get('pillar', 'UNKNOWN')
-            if pillar not in pillar_data:
-                pillar_data[pillar] = {
+            p = bp.get('pillar', 'UNKNOWN')
+            if p not in pillar_data:
+                pillar_data[p] = {
                     'total': 0,
                     'risk_distribution': {'HIGH': 0, 'MEDIUM': 0, 'LOW': 0},
                     'areas': set(),
                 }
-            pillar_data[pillar]['total'] += 1
+            pillar_data[p]['total'] += 1
             risk_val = bp.get('risk', '')
-            if risk_val in pillar_data[pillar]['risk_distribution']:
-                pillar_data[pillar]['risk_distribution'][risk_val] += 1
+            if risk_val in pillar_data[p]['risk_distribution']:
+                pillar_data[p]['risk_distribution'][risk_val] += 1
             for a in bp.get('area', []):
-                pillar_data[pillar]['areas'].add(a)
+                pillar_data[p]['areas'].add(a)
 
-    pillar_map = {
-        'OPERATIONAL_EXCELLENCE': 'Operational Excellence',
-        'SECURITY': 'Security',
-        'RELIABILITY': 'Reliability',
-        'PERFORMANCE_EFFICIENCY': 'Performance Efficiency',
-        'COST_OPTIMIZATION': 'Cost Optimization',
-        'SUSTAINABILITY': 'Sustainability',
-    }
-
-    for pillar in pillar_data:
-        pillar_data[pillar]['areas'] = sorted(pillar_data[pillar]['areas'])
-        domain_name = pillar_map.get(pillar, pillar)
-        pillar_data[pillar]['questions_count'] = sum(
+    for p in pillar_data:
+        pillar_data[p]['areas'] = sorted(pillar_data[p]['areas'])
+        domain_name = PILLAR_DISPLAY_NAMES.get(p, p)
+        pillar_data[p]['questions_count'] = sum(
             1 for info in QUESTIONS_INDEX.values() if info['domain'] == domain_name
         )
 
@@ -463,34 +450,18 @@ def list_pillars_impl() -> dict[str, Any]:
 
 def get_related_practices_impl(id: str) -> list[dict[str, Any]]:
     """Get all AWS Well-Architected best practices related to a specific practice."""
-    bp = None
-    for practices in BEST_PRACTICES.values():
-        for practice in practices:
-            if practice.get('id') == id:
-                bp = practice
-                break
-        if bp:
-            break
-
+    bp = BP_BY_ID.get(id)
     if not bp:
         return []
 
-    related_ids = bp.get('relatedIds', [])
-    results = []
-
-    for rid in related_ids:
-        for practices in BEST_PRACTICES.values():
-            for practice in practices:
-                if practice.get('id') == rid:
-                    results.append(practice)
-                    break
-
-    return results
+    return [
+        related for rid in bp.get('relatedIds', []) if (related := BP_BY_ID.get(rid)) is not None
+    ]
 
 
 def well_architected_framework_review_impl() -> dict[str, Any]:
     """Complete AWS Well-Architected Framework review and assessment."""
-    review = {
+    review: dict[str, Any] = {
         'framework': 'AWS Well-Architected Framework',
         'pillars': {},
         'total_practices': 0,
@@ -498,18 +469,9 @@ def well_architected_framework_review_impl() -> dict[str, Any]:
         'assessment_guidance': [],
     }
 
-    pillar_mapping = {
-        'operational_excellence': 'Operational Excellence',
-        'security': 'Security',
-        'reliability': 'Reliability',
-        'performance_efficiency': 'Performance Efficiency',
-        'cost_optimization': 'Cost Optimization',
-        'sustainability': 'Sustainability',
-    }
-
     for key, practices in BEST_PRACTICES.items():
-        if key in pillar_mapping:
-            pillar_name = pillar_mapping[key]
+        if key in PILLAR_FILE_TO_DISPLAY:
+            pillar_name = PILLAR_FILE_TO_DISPLAY[key]
             review['pillars'][pillar_name] = {
                 'practice_count': len(practices),
                 'high_risk_practices': [p for p in practices if p.get('risk') == 'HIGH'],
@@ -559,13 +521,7 @@ def search_best_practices(
     architecture review, best practices, design principles, pillar, security pillar,
     reliability pillar, performance efficiency, cost optimization, operational excellence,
     sustainability pillar, architecture assessment, framework review, well architected review,
-    aws best practices, validate architecture, audit architecture, review architecture,
-    wa review, wa assessment, wa best practices, well-architected assessment,
-    well-architected audit, well-architected validation, architecture validation,
-    aws architecture review, aws security best practices, aws reliability best practices,
-    aws performance best practices, aws cost optimization best practices,
-    aws operational excellence best practices, aws sustainability best practices,
-    well architected tool, well-architected tool, framework assessment, pillar assessment
+    aws best practices, validate architecture, audit architecture, review architecture
 
     Args:
         pillar: Filter by pillar (OPERATIONAL_EXCELLENCE, SECURITY, RELIABILITY,
@@ -621,9 +577,7 @@ def get_best_practice(id: str) -> dict[str, Any] | None:
 
     KEYWORDS: well-architected, well architected, best practice, design principle,
     framework guidance, architecture pattern, AWS Well-Architected Framework, WAF, WAFR,
-    wa best practice, well-architected best practice, aws best practice,
-    architecture best practice, validate best practice, audit best practice,
-    review best practice, well architected guidance, framework recommendation
+    wa best practice, well-architected best practice, aws best practice
 
     Args:
         id: Best practice ID (e.g., "SEC01-BP01")
@@ -644,8 +598,7 @@ def get_best_practice_full(id: str, section: str | None = None) -> dict[str, Any
 
     KEYWORDS: well-architected full, best practice detail, implementation steps,
     full guidance, complete best practice, wa detail, deep dive best practice,
-    well-architected implementation, best practice markdown, bp reference,
-    how to implement best practice, best practice full content
+    well-architected implementation, best practice markdown, bp reference
 
     Args:
         id: Best practice ID (e.g., "SEC01-BP01", "OPS05-BP03", "REL10-BP01")
@@ -668,8 +621,7 @@ def list_questions(pillar: str | None = None) -> list[dict[str, Any]]:
     to find all BPs that address a specific question.
 
     KEYWORDS: well-architected review questions, WAR questions, framework questions,
-    review checklist, assessment questions, pillar questions, architecture questions,
-    well-architected tool questions, wa questions, review questionnaire
+    review checklist, assessment questions, pillar questions, architecture questions
 
     Args:
         pillar: Optional filter by pillar (OPERATIONAL_EXCELLENCE, SECURITY,
@@ -689,7 +641,7 @@ def get_practices_for_question(question: str) -> list[dict[str, Any]]:
     Results are ordered by risk level (HIGH first).
 
     KEYWORDS: question practices, war question best practices, review question answers,
-    which practices answer, find practices for question, question to best practices
+    which practices answer, find practices for question
 
     Args:
         question: The question text or keyword to match (case-insensitive, partial match)
@@ -713,8 +665,7 @@ def get_anti_patterns(
     or risk level.
 
     KEYWORDS: anti-patterns, what not to do, common mistakes, bad practices,
-    avoid, wrong approach, anti pattern, antipattern, mistakes to avoid,
-    well-architected anti-patterns, architecture mistakes
+    avoid, wrong approach, anti pattern, antipattern, mistakes to avoid
 
     Args:
         id: Optional specific best practice ID (e.g., "SEC01-BP01")
@@ -732,10 +683,7 @@ def list_pillars() -> dict[str, Any]:
     """List all AWS Well-Architected Framework pillars with detailed metadata.
 
     KEYWORDS: well-architected pillars, well architected pillars, WAF pillars, WAFR pillars,
-    aws pillars, framework pillars, architecture pillars, wa pillars,
-    security pillar, reliability pillar, performance efficiency pillar,
-    cost optimization pillar, operational excellence pillar, sustainability pillar,
-    well-architected framework pillars, pillar overview, pillar summary
+    aws pillars, framework pillars, architecture pillars, pillar overview, pillar summary
 
     Returns:
         Dictionary mapping pillar names to metadata including total practices,
@@ -749,9 +697,7 @@ def get_related_practices(id: str) -> list[dict[str, Any]]:
     """Get all AWS Well-Architected best practices related to a specific practice.
 
     KEYWORDS: related best practices, well-architected related practices,
-    connected best practices, linked best practices, associated best practices,
-    wa related practices, framework related practices, related wa practices,
-    well architected related practices, best practice relationships
+    connected best practices, linked best practices, associated best practices
 
     Args:
         id: Best practice ID
@@ -766,14 +712,9 @@ def get_related_practices(id: str) -> list[dict[str, Any]]:
 def well_architected_framework_review() -> dict[str, Any]:
     """Complete AWS Well-Architected Framework review and assessment.
 
-    KEYWORDS: well-architected, well architected, AWS Well-Architected Framework, WAF review, WAFR,
+    KEYWORDS: well-architected, well architected, AWS Well-Architected Framework, WAF review,
     architecture review, framework review, well architected review, architecture assessment,
-    design principles, pillar review, best practices review, framework assessment,
-    wa review, wa assessment, wa audit, well-architected assessment, well-architected audit,
-    well-architected validation, architecture validation, aws architecture review,
-    validate architecture, audit architecture, review my architecture, assess architecture,
-    well architected tool review, framework evaluation, pillar assessment,
-    aws best practices review, architecture best practices, well-architected checklist
+    wa review, wa assessment, well-architected checklist
 
     Returns:
         Comprehensive Well-Architected Framework overview with all pillars and key practices

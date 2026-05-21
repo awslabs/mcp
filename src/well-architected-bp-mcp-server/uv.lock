@@ -64,10 +64,7 @@ name = "awslabs-well-architected-bp-mcp-server"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "authlib" },
     { name = "fastmcp" },
-    { name = "idna" },
-    { name = "python-multipart" },
 ]
 
 [package.optional-dependencies]
@@ -93,17 +90,14 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "authlib", specifier = ">=1.7.2" },
     { name = "coverage", marker = "extra == 'dev'", specifier = ">=7.0.0" },
     { name = "coverage", marker = "extra == 'test'", specifier = ">=7.0.0" },
     { name = "fastmcp", specifier = ">=0.6.0" },
-    { name = "idna", specifier = ">=3.12" },
     { name = "pyright", marker = "extra == 'dev'", specifier = ">=1.1.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=7.0.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=4.0.0" },
-    { name = "python-multipart", specifier = ">=0.0.27" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
 ]
 provides-extras = ["dev", "test"]

@@ -43,7 +43,9 @@ def test_server_imports():
 
     assert hasattr(server, 'mcp')
     assert hasattr(server, 'BEST_PRACTICES')
+    assert hasattr(server, 'BP_BY_ID')
     assert hasattr(server, 'V13_SECTIONS')
+    assert hasattr(server, 'V13_METADATA')
     assert hasattr(server, 'QUESTIONS_INDEX')
 
 
@@ -495,14 +497,31 @@ def test_get_best_practice_full_frontmatter_parsing():
 
 def test_v13_index_built():
     """Test that V13 index was built at startup."""
-    from well_architected_bp_mcp_server.server import QUESTIONS_INDEX, V13_SECTIONS
+    from well_architected_bp_mcp_server.server import (
+        QUESTIONS_INDEX,
+        V13_METADATA,
+        V13_SECTIONS,
+    )
 
     assert len(V13_SECTIONS) == 307
+    assert len(V13_METADATA) == 307
     assert len(QUESTIONS_INDEX) == 57
 
     sample = V13_SECTIONS.get('SEC01-BP01', {})
     assert '_full' in sample
     assert 'Anti-Patterns' in sample or 'Implementation Steps' in sample
+
+    sample_meta = V13_METADATA.get('SEC01-BP01', {})
+    assert sample_meta.get('title') == 'Separate workloads using accounts'
+
+
+def test_bp_by_id_index():
+    """Test that BP_BY_ID dict was built at startup."""
+    from well_architected_bp_mcp_server.server import BP_BY_ID
+
+    assert len(BP_BY_ID) > 300
+    assert 'SEC01-BP01' in BP_BY_ID
+    assert BP_BY_ID['SEC01-BP01']['pillar'] == 'SECURITY'
 
 
 def test_build_v13_index_missing_dir():
