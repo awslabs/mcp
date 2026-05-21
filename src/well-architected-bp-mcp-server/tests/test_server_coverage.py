@@ -19,17 +19,17 @@ def test_search_with_all_filters():
     """Test search with all possible filter combinations."""
     from well_architected_bp_mcp_server.server import search_best_practices_impl
 
-    # Test all filter combinations to hit more code paths
     result = search_best_practices_impl(
         pillar='SECURITY', risk='HIGH', lens='FRAMEWORK', keyword='access', area='identity'
     )
-    assert isinstance(result, list)
+    assert isinstance(result, dict)
+    assert 'results' in result
 
     result = search_best_practices_impl(pillar='RELIABILITY', risk='MEDIUM')
-    assert isinstance(result, list)
+    assert isinstance(result['results'], list)
 
     result = search_best_practices_impl(lens='GENERATIVE_AI')
-    assert isinstance(result, list)
+    assert isinstance(result['results'], list)
 
 
 def test_get_best_practice_edge_cases():

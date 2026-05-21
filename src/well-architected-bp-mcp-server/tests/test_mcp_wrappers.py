@@ -15,11 +15,15 @@
 """Test MCP wrapper functions directly for patch coverage."""
 
 from well_architected_bp_mcp_server.server import (
+    get_anti_patterns,
     get_best_practice,
     get_best_practice_full,
+    get_practices_for_question,
     get_related_practices,
     list_pillars,
+    list_questions,
     search_best_practices,
+    search_content,
     well_architected_framework_review,
 )
 
@@ -27,34 +31,50 @@ from well_architected_bp_mcp_server.server import (
 def test_search_best_practices_wrapper():
     """Test search_best_practices MCP wrapper function."""
     result = search_best_practices()
-    assert isinstance(result, list)
+    assert isinstance(result, dict)
+    assert 'results' in result
+    assert 'total_count' in result
 
     result = search_best_practices(pillar='SECURITY')
-    assert isinstance(result, list)
+    assert result['total_count'] > 0
 
     result = search_best_practices(risk='HIGH')
-    assert isinstance(result, list)
+    assert result['total_count'] > 0
 
     result = search_best_practices(lens='FRAMEWORK')
-    assert isinstance(result, list)
+    assert result['total_count'] > 0
 
     result = search_best_practices(keyword='identity')
-    assert isinstance(result, list)
+    assert result['total_count'] > 0
 
     result = search_best_practices(area='access')
+    assert isinstance(result, dict)
+
+    result = search_best_practices(max_results=3, offset=0)
+    assert len(result['results']) <= 3
+
+
+def test_search_content_wrapper():
+    """Test search_content MCP wrapper function."""
+    result = search_content('CloudTrail')
+    assert isinstance(result, list)
+    assert len(result) > 0
+
+    result = search_content('Lambda', pillar='SECURITY')
+    assert isinstance(result, list)
+
+    result = search_content('backup', section='implementation_steps')
     assert isinstance(result, list)
 
 
 def test_get_best_practice_wrapper():
     """Test get_best_practice MCP wrapper function."""
-    # Get a valid ID first
     practices = search_best_practices()
-    if practices:
-        practice_id = practices[0]['id']
+    if practices['results']:
+        practice_id = practices['results'][0]['id']
         result = get_best_practice(practice_id)
         assert result is not None
 
-    # Test with invalid ID
     result = get_best_practice('INVALID-ID')
     assert result is None
 
@@ -66,9 +86,41 @@ def test_get_best_practice_full_wrapper():
     assert result['id'] == 'SEC01-BP01'
     assert 'content' in result
 
-    # Test with invalid ID
+    result = get_best_practice_full('SEC01-BP01', section='resources')
+    assert result is not None
+
     result = get_best_practice_full('INVALID-BP99')
     assert result is None
+
+
+def test_list_questions_wrapper():
+    """Test list_questions MCP wrapper function."""
+    result = list_questions()
+    assert isinstance(result, list)
+    assert len(result) == 57
+
+    result = list_questions(pillar='SECURITY')
+    assert len(result) > 0
+
+
+def test_get_practices_for_question_wrapper():
+    """Test get_practices_for_question MCP wrapper function."""
+    result = get_practices_for_question('securely operate')
+    assert isinstance(result, list)
+    assert len(result) > 0
+
+    result = get_practices_for_question('zzznomatchzzz')
+    assert result == []
+
+
+def test_get_anti_patterns_wrapper():
+    """Test get_anti_patterns MCP wrapper function."""
+    result = get_anti_patterns(id='SEC01-BP01')
+    assert isinstance(result, list)
+    assert len(result) == 1
+
+    result = get_anti_patterns(pillar='SECURITY', risk='HIGH')
+    assert len(result) > 0
 
 
 def test_list_pillars_wrapper():
@@ -76,19 +128,20 @@ def test_list_pillars_wrapper():
     result = list_pillars()
     assert isinstance(result, dict)
     assert len(result) > 0
+    for pillar, data in result.items():
+        assert 'total' in data
+        assert 'risk_distribution' in data
 
 
 def test_get_related_practices_wrapper():
     """Test get_related_practices MCP wrapper function."""
-    # Find a practice with relations
     practices = search_best_practices()
-    for practice in practices:
+    for practice in practices['results']:
         if practice.get('relatedIds'):
             result = get_related_practices(practice['id'])
             assert isinstance(result, list)
             break
 
-    # Test with invalid ID
     result = get_related_practices('INVALID-ID')
     assert isinstance(result, list)
     assert len(result) == 0
