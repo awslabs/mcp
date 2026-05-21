@@ -183,7 +183,7 @@ def search_best_practices_impl(
     total_count = len(all_results)
     clamped_offset = min(offset, total_count)
     clamped_max = min(max(max_results, 1), 50)
-    page = all_results[clamped_offset:clamped_offset + clamped_max]
+    page = all_results[clamped_offset : clamped_offset + clamped_max]
 
     return {
         'results': page,
@@ -300,14 +300,16 @@ def search_content_impl(
                 snippet = snippet + '...'
 
             bp_summary = get_best_practice_impl(bp_id)
-            results.append({
-                'id': bp_id,
-                'title': bp_summary.get('title', '') if bp_summary else bp_id,
-                'pillar': bp_summary.get('pillar', '') if bp_summary else '',
-                'risk': bp_summary.get('risk', '') if bp_summary else '',
-                'matched_section': sec_name,
-                'snippet': snippet,
-            })
+            results.append(
+                {
+                    'id': bp_id,
+                    'title': bp_summary.get('title', '') if bp_summary else bp_id,
+                    'pillar': bp_summary.get('pillar', '') if bp_summary else '',
+                    'risk': bp_summary.get('risk', '') if bp_summary else '',
+                    'matched_section': sec_name,
+                    'snippet': snippet,
+                }
+            )
             break
 
         if len(results) >= clamped_max:
@@ -333,11 +335,13 @@ def list_questions_impl(pillar: str | None = None) -> list[dict[str, Any]]:
     for question, info in sorted(QUESTIONS_INDEX.items(), key=lambda x: x[1]['domain']):
         if target_domain and info['domain'] != target_domain:
             continue
-        results.append({
-            'pillar': info['domain'],
-            'question': question,
-            'practice_count': len(info['bp_ids']),
-        })
+        results.append(
+            {
+                'pillar': info['domain'],
+                'question': question,
+                'practice_count': len(info['bp_ids']),
+            }
+        )
 
     return results
 
@@ -356,12 +360,14 @@ def get_practices_for_question_impl(question: str) -> list[dict[str, Any]]:
     for bp_id in bp_ids:
         bp = get_best_practice_impl(bp_id)
         if bp:
-            results.append({
-                'id': bp['id'],
-                'title': bp.get('title', ''),
-                'risk': bp.get('risk', ''),
-                'area': bp.get('area', []),
-            })
+            results.append(
+                {
+                    'id': bp['id'],
+                    'title': bp.get('title', ''),
+                    'risk': bp.get('risk', ''),
+                    'area': bp.get('area', []),
+                }
+            )
 
     results.sort(key=lambda x: risk_order.get(x.get('risk', ''), 9))
     return results
@@ -404,12 +410,14 @@ def get_anti_patterns_impl(
             items = [anti_patterns_text.strip()]
 
         bp_summary = get_best_practice_impl(bp_id)
-        results.append({
-            'id': bp_id,
-            'title': bp_summary.get('title', '') if bp_summary else bp_id,
-            'risk': bp_summary.get('risk', '') if bp_summary else '',
-            'anti_patterns': items,
-        })
+        results.append(
+            {
+                'id': bp_id,
+                'title': bp_summary.get('title', '') if bp_summary else bp_id,
+                'risk': bp_summary.get('risk', '') if bp_summary else '',
+                'anti_patterns': items,
+            }
+        )
 
     return results
 
