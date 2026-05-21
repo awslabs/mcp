@@ -16,6 +16,7 @@
 
 from well_architected_bp_mcp_server.server import (
     get_best_practice,
+    get_best_practice_full,
     get_related_practices,
     list_pillars,
     search_best_practices,
@@ -55,6 +56,18 @@ def test_get_best_practice_wrapper():
 
     # Test with invalid ID
     result = get_best_practice('INVALID-ID')
+    assert result is None
+
+
+def test_get_best_practice_full_wrapper():
+    """Test get_best_practice_full MCP wrapper function."""
+    result = get_best_practice_full('SEC01-BP01')
+    assert result is not None
+    assert result['id'] == 'SEC01-BP01'
+    assert 'content' in result
+
+    # Test with invalid ID
+    result = get_best_practice_full('INVALID-BP99')
     assert result is None
 
 
