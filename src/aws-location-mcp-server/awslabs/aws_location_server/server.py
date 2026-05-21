@@ -800,13 +800,12 @@ async def optimize_waypoints(
         response = await asyncio.to_thread(client.optimize_waypoints, **params)
         if mode == 'raw':
             return response
-        routes = response.get('Routes', [])
+        routes = response.get('OptimizedWaypoints', [])
         if not routes:
             return {'error': 'No route found'}
-        route = routes[0]
-        distance_meters = route.get('Distance', None)
-        duration_seconds = route.get('DurationSeconds', None)
-        optimized_order = [wp.get('Position') for wp in route.get('Waypoints', [])]
+        distance_meters = response.get('Distance', None)
+        duration_seconds = response.get('Duration', None)
+        optimized_order = [wp.get('Position') for wp in routes]
         return {
             'distance_meters': distance_meters,
             'duration_seconds': duration_seconds,
