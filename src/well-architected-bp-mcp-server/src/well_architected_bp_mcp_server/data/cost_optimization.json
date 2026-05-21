@@ -101,7 +101,7 @@
     "area": [
       "Practice Cloud Financial Management"
     ],
-    "description": "Implement changes or programs across your organization to create a cost-aware culture. It is recommended to start small, then as your capabilities increase and your organization’s use of the cloud increases, implement large and wide ranging programs.",
+    "description": "Implement changes or programs across your organization to create a cost-aware culture. It is recommended to start small, then as your capabilities increase and your organization\u2019s use of the cloud increases, implement large and wide ranging programs.",
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_cloud_financial_management_culture.html",
     "id": "COST01-BP08",
     "lens": "FRAMEWORK",
@@ -115,7 +115,7 @@
     "area": [
       "Practice Cloud Financial Management"
     ],
-    "description": "Quantifying business value from cost optimization allows you to understand the entire set of benefits to your organization. Because cost optimization is a necessary investment, quantifying business value allows you to explain the return on investment to stakeholders. Quantifying business value can help you gain more buy-in from stakeholders on future cost optimization investments, and provides a framework to measure the outcomes for your organization’s cost optimization activities.",
+    "description": "Quantifying business value from cost optimization allows you to understand the entire set of benefits to your organization. Because cost optimization is a necessary investment, quantifying business value allows you to explain the return on investment to stakeholders. Quantifying business value can help you gain more buy-in from stakeholders on future cost optimization investments, and provides a framework to measure the outcomes for your organization\u2019s cost optimization activities.",
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_cloud_financial_management_quantify_value.html",
     "id": "COST01-BP09",
     "lens": "FRAMEWORK",
@@ -130,7 +130,7 @@
       "Expenditure and usage awareness",
       "Governance"
     ],
-    "description": "Develop policies that define how resources are managed by your organization and inspect them periodically. Policies should cover the cost aspects of resources and workloads, including creation, modification, and decommissioning over a resource’s lifetime.",
+    "description": "Develop policies that define how resources are managed by your organization and inspect them periodically. Policies should cover the cost aspects of resources and workloads, including creation, modification, and decommissioning over a resource\u2019s lifetime.",
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_govern_usage_policies.html",
     "id": "COST02-BP01",
     "lens": "FRAMEWORK",
@@ -370,7 +370,7 @@
       "Expenditure and usage awareness",
       "Decommission resources"
     ],
-    "description": "Define data retention policies on supported resources to handle object deletion per your organizations’ requirements. Identify and delete unnecessary or orphaned resources and objects that are no longer required.",
+    "description": "Define data retention policies on supported resources to handle object deletion per your organizations\u2019 requirements. Identify and delete unnecessary or orphaned resources and objects that are no longer required.",
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_decomissioning_resources_data_retention.html",
     "id": "COST04-BP05",
     "lens": "FRAMEWORK",

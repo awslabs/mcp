@@ -3,9 +3,24 @@
     "area": [
       "Endpoint security"
     ],
+    "benefits": [
+      "Implement a strong identity foundation - Least privilege access permissions foster access to foundation model endpoints only for authorized identities.",
+      "Apply security at all layers - Least privilege access permissions on endpoints provides an identity-based layer of security, regardless of the hosting paradigm."
+    ],
     "description": "Granting least privilege access to foundation model endpoints helps limit unintended access and encourages a zero-trust security framework. This best practice describes how to secure foundation model endpoints associated with generative AI workloads. Least privilege access is important to establish an identity-based layer of security for generative AI workloads. It helps verify that access to foundation model endpoints is granted to authorized identities only while also helping verify the data received matches the authorization boundary of their role in their organization. Amazon Bedrock, the Amazon Q family of applications, and Amazon SageMaker AI feature endpoint APIs that can be secured using AWS Identity and Access Management to limit access to foundation model endpoints to IAM roles with least privilege access.",
+    "desired_outcome": [
+      "When implemented, this best practice reduces the risk of unauthorized access to a foundation model endpoint and helps create a process to verify continuous adherence to least-privilege principle."
+    ],
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gensec01-bp01.html",
     "id": "GENSEC01-BP01",
+    "implementation_guidance": [
+      "Create a custom policy document granting least-privilege access to set of specific foundation model endpoints. Limit access to specific resource ARNs and to a specific set of actions.",
+      "Consider defining conditions to further restrict the allowable traffic, such as requests coming from a specific VPC.",
+      "Create an IAM role to be used by users or services to access the endpoint and attach the custom policy to it. If more permissions are needed for this role, attach the required policies on as-needed bases. Utilize permission boundaries at the role level to set the maximum permissions that an identity-based policy can grant.",
+      "Conditions can be added to a role's trust policy to further limit access to who can assume the role.",
+      "Verify the new role for API calls to endpoints are protected by this policy. An example of an endpoint to protect might be a production Amazon Bedrock endpoint servicing real-time inference through a VPC-Hosted application.",
+      "For a generative AI subscription based generative AI application such as Amazon Q Developer, provision subscription-level access matching the subscriber's business needs."
+    ],
     "lens": "GENERATIVE_AI",
     "outcome": "When implemented, this best practice reduces the risk of unauthorized access to a foundation model endpoint and helps create a process to verify continuous adherence to least-privilege principle.",
     "pillar": "SECURITY",
@@ -15,24 +30,6 @@
       "SEC02-BP06",
       "SEC03-BP01",
       "SEC03-BP02"
-    ],
-    "risk": "HIGH",
-    "title": "Grant least privilege access to foundation model endpoints",
-    "title_full": "GENSEC01-BP01 Grant least privilege access to foundation model endpoints",
-    "desired_outcome": [
-      "When implemented, this best practice reduces the risk of unauthorized access to a foundation model endpoint and helps create a process to verify continuous adherence to least-privilege principle."
-    ],
-    "benefits": [
-      "Implement a strong identity foundation - Least privilege access permissions foster access to foundation model endpoints only for authorized identities.",
-      "Apply security at all layers - Least privilege access permissions on endpoints provides an identity-based layer of security, regardless of the hosting paradigm."
-    ],
-    "implementation_guidance": [
-      "Create a custom policy document granting least-privilege access to set of specific foundation model endpoints. Limit access to specific resource ARNs and to a specific set of actions.",
-      "Consider defining conditions to further restrict the allowable traffic, such as requests coming from a specific VPC.",
-      "Create an IAM role to be used by users or services to access the endpoint and attach the custom policy to it. If more permissions are needed for this role, attach the required policies on as-needed bases. Utilize permission boundaries at the role level to set the maximum permissions that an identity-based policy can grant.",
-      "Conditions can be added to a role's trust policy to further limit access to who can assume the role.",
-      "Verify the new role for API calls to endpoints are protected by this policy. An example of an endpoint to protect might be a production Amazon Bedrock endpoint servicing real-time inference through a VPC-Hosted application.",
-      "For a generative AI subscription based generative AI application such as Amazon Q Developer, provision subscription-level access matching the subscriber's business needs."
     ],
     "resources": [
       "SEC02-BP01: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_identities_enforce_mechanisms.html",
@@ -53,37 +50,37 @@
       "Example Permissions Boundaries: https://github.com/aws-samples/example-permissions-boundary",
       "Overseeing AI Risk in a Rapidly Changing Landscape: https://aws.amazon.com/blogs/enterprise-strategy/overseeing-ai-risk-in-a-rapidly-changing-landscape/",
       "Configure Amazon Q Business with AWS IAM Identity Center trusted identity propagation: https://aws.amazon.com/blogs/machine-learning/configuring-amazon-q-business-with-aws-iam-identity-center-trusted-identity-propagation/"
-    ]
+    ],
+    "risk": "HIGH",
+    "title": "Grant least privilege access to foundation model endpoints",
+    "title_full": "GENSEC01-BP01 Grant least privilege access to foundation model endpoints"
   },
   {
     "area": [
       "Endpoint security"
     ],
+    "benefits": [
+      "Apply security at all layers - Private network communications facilitate an additional layer of security within your application.",
+      "Protect data in transit and at rest - Using private networks instead of the default public endpoints helps to protect data in transit, especially when combined with encryption techniques."
+    ],
     "description": "Implementing a scoped down data perimeter on foundation model endpoints helps reduce the surface-area of potential threat vectors and encourages a zero-trust security architecture. This best practice describes how to implement private network communications for your generative AI workloads. Without private network communication between foundation model endpoints and generative AI applications, access to these endpoints would be available through the public internet, increasing exposure. AWS PrivateLink supports a range of AWS generative AI managed services, including Amazon Bedrock and the Amazon Q family of services, enabling customers to maintain private network communication between generative AI managed services and applications without using the public internet.",
+    "desired_outcome": [
+      "When implemented, this best practice reduces the risk of unauthorized access to a foundation model endpoint. It also helps create a process to grant least privileged access to authorized parties."
+    ],
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gensec01-bp02.html",
     "id": "GENSEC01-BP02",
+    "implementation_guidance": [
+      "Determine the VPC you need to create a private endpoint in.",
+      "Select the service you wish to create a private route to from your VPC.",
+      "Configure the endpoint to allow least privilege access for your services.",
+      "Network access to the interface endpoint is controlled using security groups and policy documents."
+    ],
     "lens": "GENERATIVE_AI",
     "outcome": "When implemented, this best practice reduces the risk of unauthorized access to a foundation model endpoint. It also helps create a process to grant least privileged access to authorized parties.",
     "pillar": "SECURITY",
     "relatedIds": [
       "SEC05-BP01",
       "SEC05-BP02"
-    ],
-    "risk": "HIGH",
-    "title": "Implement private network communication between foundation models and applications",
-    "title_full": "GENSEC01-BP02 Implement private network communication between foundation models and applications",
-    "desired_outcome": [
-      "When implemented, this best practice reduces the risk of unauthorized access to a foundation model endpoint. It also helps create a process to grant least privileged access to authorized parties."
-    ],
-    "benefits": [
-      "Apply security at all layers - Private network communications facilitate an additional layer of security within your application.",
-      "Protect data in transit and at rest - Using private networks instead of the default public endpoints helps to protect data in transit, especially when combined with encryption techniques."
-    ],
-    "implementation_guidance": [
-      "Determine the VPC you need to create a private endpoint in.",
-      "Select the service you wish to create a private route to from your VPC.",
-      "Configure the endpoint to allow least privilege access for your services.",
-      "Network access to the interface endpoint is controlled using security groups and policy documents."
     ],
     "resources": [
       "SEC05-BP01: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_network_protection_create_layers.html",
@@ -94,15 +91,36 @@
       "Orchestrating SageMaker AI HyperPod clusters with Slurm: https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-slurm.html",
       "Use AWS PrivateLink to Set Up Private Access to Amazon Bedrock: https://aws.amazon.com/blogs/machine-learning/use-aws-privatelink-to-set-up-private-access-to-amazon-bedrock/",
       "Overseeing AI Risk in a Rapidly Changing Landscape: https://aws.amazon.com/blogs/enterprise-strategy/overseeing-ai-risk-in-a-rapidly-changing-landscape/"
-    ]
+    ],
+    "risk": "HIGH",
+    "title": "Implement private network communication between foundation models and applications",
+    "title_full": "GENSEC01-BP02 Implement private network communication between foundation models and applications"
   },
   {
     "area": [
       "Endpoint security"
     ],
+    "benefits": [
+      "Implement a strong identity foundation - least privilege access permissions foster model access to only the required data.",
+      "Apply security at all layers - least privilege data access for foundation models provides an identity-based layer of data security.",
+      "Protect data in transit and at rest - least privilege data access for foundation models offers an added protection for data via access controls.",
+      "Keep people away from data - least privilege data access for foundation offers helps prevent sweeping access to data for foundation models."
+    ],
     "description": "Foundation models can aggregate and generate rich insights from data they have been trained on or interact with from the APIs providing inputs and outputs. It is important to treat generative AI systems and their foundation models just as you would treat privileged users when providing access to data. This best practice describes how to provide generative AI APIs and services with appropriate access to data. Generative AI architecture patterns like Retrieval Augmented Generation (RAG) make use of external data to correlate with the foundation models output and address user prompts. Addressing access to data requires a multi-layered strategy that includes deploying data stores in a VPC with strong access controls, implementing zero-trust security principles, and enforcing least privilege access for users and applications.",
+    "desired_outcome": [
+      "When implemented, this best practice reduces the risk of accidentally using unauthorized internal data when training and fine-tuning foundation models. Additionally, a process will be implemented to make sure that foundation models and workloads are granted only the minimum necessary access to data, following the principle of least privilege"
+    ],
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gensec01-bp03.html",
     "id": "GENSEC01-BP03",
+    "implementation_guidance": [
+      "Classify data by its usage. Data can belong to several usage patterns such as training, RAG, analytics, etc. Classification of data helps to prevent and identify misuse.",
+      "Deploy a vector data store into a secure VPC, setting appropriate access controls on the datastore for various roles (for example, administrator, read-only, or power-user). Consider extending role definitions to encompass generative AI workloads (like model-XX-RAG).",
+      "Develop a data ingestion pipeline which obfuscates or removes data that should not be processed by a foundation model. Examples of this data might be personal information. The scope of this data is informed largely by the workload use case. Ingest this data from your data lake into the vector store lake house. A use case for a customer service assistant may require access to handbooks, documentation, and customer service material, not company financials, staff information or HR policies.",
+      "Sanitizing for prohibited material should happen before the model accesses the data, at time of ingestion.",
+      "Create least-privilege access policies for foundation model and generated AI workloads. This Policy Document should contain resource identifiers granting explicit access to specific data in the vector datastore.",
+      "Test access to data using curated prompts designed to confirm models are not allowed to access sensitive information.",
+      "Similar principles apply for model training and model customization workloads, though data used for model training and model customization typically resides in a data lake, separate from a compute engine."
+    ],
     "lens": "GENERATIVE_AI",
     "outcome": "When implemented, this best practice reduces the risk of accidentally using unauthorized internal data when training and fine-tuning foundation models. Additionally, a process will be implemented to make sure that foundation models and workloads are granted only the minimum necessary access to data, following the principle of least privilege.",
     "pillar": "SECURITY",
@@ -112,27 +130,6 @@
       "SEC07-BP01",
       "SEC07-BP02",
       "SEC08-BP04"
-    ],
-    "risk": "HIGH",
-    "title": "Implement least privilege access permissions for foundation models accessing data stores",
-    "title_full": "GENSEC01-BP03 Implement least privilege access permissions for foundation models accessing data stores",
-    "desired_outcome": [
-      "When implemented, this best practice reduces the risk of accidentally using unauthorized internal data when training and fine-tuning foundation models. Additionally, a process will be implemented to make sure that foundation models and workloads are granted only the minimum necessary access to data, following the principle of least privilege"
-    ],
-    "benefits": [
-      "Implement a strong identity foundation - least privilege access permissions foster model access to only the required data.",
-      "Apply security at all layers - least privilege data access for foundation models provides an identity-based layer of data security.",
-      "Protect data in transit and at rest - least privilege data access for foundation models offers an added protection for data via access controls.",
-      "Keep people away from data - least privilege data access for foundation offers helps prevent sweeping access to data for foundation models."
-    ],
-    "implementation_guidance": [
-      "Classify data by its usage. Data can belong to several usage patterns such as training, RAG, analytics, etc. Classification of data helps to prevent and identify misuse.",
-      "Deploy a vector data store into a secure VPC, setting appropriate access controls on the datastore for various roles (for example, administrator, read-only, or power-user). Consider extending role definitions to encompass generative AI workloads (like model-XX-RAG).",
-      "Develop a data ingestion pipeline which obfuscates or removes data that should not be processed by a foundation model. Examples of this data might be personal information. The scope of this data is informed largely by the workload use case. Ingest this data from your data lake into the vector store lake house. A use case for a customer service assistant may require access to handbooks, documentation, and customer service material, not company financials, staff information or HR policies.",
-      "Sanitizing for prohibited material should happen before the model accesses the data, at time of ingestion.",
-      "Create least-privilege access policies for foundation model and generated AI workloads. This Policy Document should contain resource identifiers granting explicit access to specific data in the vector datastore.",
-      "Test access to data using curated prompts designed to confirm models are not allowed to access sensitive information.",
-      "Similar principles apply for model training and model customization workloads, though data used for model training and model customization typically resides in a data lake, separate from a compute engine."
     ],
     "resources": [
       "SEC03-BP01: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_permissions_define.html",
@@ -152,33 +149,33 @@
       "When and Where to use IAM Permissions Boundaries: https://aws.amazon.com/blogs/security/when-and-where-to-use-iam-permissions-boundaries/",
       "Example Permissions Boundaries: https://github.com/aws-samples/example-permissions-boundary",
       "Overseeing AI Risk in a Rapidly Changing Landscape: https://aws.amazon.com/blogs/enterprise-strategy/overseeing-ai-risk-in-a-rapidly-changing-landscape/"
-    ]
+    ],
+    "risk": "HIGH",
+    "title": "Implement least privilege access permissions for foundation models accessing data stores",
+    "title_full": "GENSEC01-BP03 Implement least privilege access permissions for foundation models accessing data stores"
   },
   {
     "area": [
       "Endpoint security"
     ],
     "description": "Generative AI services and foundation models can be resource intensive to use and can be misused. Implementing access monitoring on these services and models helps to identify, triage and resolve unintended access quickly. AWS CloudTrail can be used to monitor access to AWS services. To track service-level access to generative AI services such as Amazon Bedrock, customers can utilize AWS CloudTrail. In Amazon Bedrock, customers can additionally turn on model invocation logging to collect metadata, requests and responses for model invocations in an AWS account. Similar capabilities exist for the Amazon Q family of services.",
-    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gensec01-bp04.html",
-    "id": "GENSEC01-BP04",
-    "lens": "GENERATIVE_AI",
-    "outcome": "When implemented, this current guidance monitors access to sensitive generative AI systems and foundation models. Unintended and unauthorized use of generative AI services and foundation models can be identified quickly and further action can be taken if appropriate.",
-    "pillar": "SECURITY",
-    "relatedIds": [
-      "SEC03-BP08"
-    ],
-    "risk": "HIGH",
-    "title": "Implement access monitoring to generative AI services and foundation models",
-    "title_full": "GENSEC01-BP04 Implement access monitoring to generative AI services and foundation models",
     "desired_outcome": [
       "When implemented, this current guidance monitors access to sensitive generative AI systems and foundation models. Unintended and unauthorized use of generative AI services and foundation models can be identified quickly and further action can be taken if appropriate."
     ],
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gensec01-bp04.html",
+    "id": "GENSEC01-BP04",
     "implementation_guidance": [
       "In Amazon Bedrock, configure model invocation logging to track model invocations and store the logs in Amazon S3, Amazon CloudWatch Logs, or both.",
       "In Amazon Q Developer, capture user activity by enabling user activity capture in the settings.",
       "In Amazon Q Business, configure log delivery for analysis and review into Amazon S3, Amazon CloudWatch Logs, or Amazon Data Firehose.",
       "For self-hosted models on Amazon SageMaker AI Inference Endpoints, configure logging using your preferred logging solution.",
       "Introduce logging, monitoring and telemetry capture in additional application layers, depending on your specific workload."
+    ],
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this current guidance monitors access to sensitive generative AI systems and foundation models. Unintended and unauthorized use of generative AI services and foundation models can be identified quickly and further action can be taken if appropriate.",
+    "pillar": "SECURITY",
+    "relatedIds": [
+      "SEC03-BP08"
     ],
     "resources": [
       "SEC03-BP08: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_permissions_share_securely.html",
@@ -190,28 +187,22 @@
       "SageMaker AI HyperPod Cluster Resources Monitoring (Slurm): https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-cluster-observability-slurm.html",
       "Logging Amazon SageMaker AI API Calls Using AWS CloudTrail: https://docs.aws.amazon.com/sagemaker/latest/dg/logging-using-cloudtrail.html",
       "Amazon SageMaker AI HyperPod Now Integrates with Amazon EventBridge: https://aws.amazon.com/about-aws/whats-new/2025/05/amazon-sagemaker-hyperpod-integrates-amazon-eventbridge-status-change-events"
-    ]
+    ],
+    "risk": "HIGH",
+    "title": "Implement access monitoring to generative AI services and foundation models",
+    "title_full": "GENSEC01-BP04 Implement access monitoring to generative AI services and foundation models"
   },
   {
     "area": [
       "Response validation"
     ],
+    "benefits": "Automate security best practices - Guardrails automate the identification and remediation of undesirable model output.",
     "description": "Guardrails are powerful, expansive techniques associated with reducing the risk of harmful, biased or incorrect model responses. This best practice discusses why and how to implement guardrails in generative AI workloads, as well as other complementary techniques. Guardrails leverage and combine complex techniques to identify undesirable model output, ranging from keyword identification and regular expression matching to automated reasoning and constitutional AI. Consider using the Amazon Bedrock Guardrails API to scale the implementation of guardrails in your generative AI workloads. There are several techniques to mitigating the generation of harmful, biased, or factually incorrect responses from a foundation model, including prompt engineering techniques, RAG architectures, and content filtering.",
-    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gensec02-bp01.html",
-    "id": "GENSEC02-BP01",
-    "lens": "GENERATIVE_AI",
-    "outcome": "When implemented, this best practice reduces the risk of a foundation model returning harmful, biased or incorrect responses to a user. In the case where a model does return an undesirable response, this best practice defines a fallback action which enables the application to continue without faltering.",
-    "pillar": "SECURITY",
-    "relatedIds": [
-      "SEC07-BP02"
-    ],
-    "risk": "HIGH",
-    "title": "Implement guardrails to mitigate harmful or incorrect model responses",
-    "title_full": "GENSEC02-BP01 Implement guardrails to mitigate harmful or incorrect model responses",
     "desired_outcome": [
       "When implemented, this best practice reduces the risk of a foundation model returning harmful, biased or incorrect responses to a user. In the case where a model does return an undesirable response, this best practice defines a fallback action which enables the application to continue without faltering."
     ],
-    "benefits": "Automate security best practices - Guardrails automate the identification and remediation of undesirable model output.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gensec02-bp01.html",
+    "id": "GENSEC02-BP01",
     "implementation_guidance": [
       "Amazon Bedrock Guardrails: Navigate to the Amazon Bedrock service and choose Guardrails, Create Guardrail.",
       "Enter guardrail details, including a name and the message for blocked prompts and responses.",
@@ -224,6 +215,12 @@
       "Edit Global Controls for blocked words, response personalization, LLM interaction, and data source querying.",
       "Create topic controls supplying example messages which trigger rules that control behavior."
     ],
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice reduces the risk of a foundation model returning harmful, biased or incorrect responses to a user. In the case where a model does return an undesirable response, this best practice defines a fallback action which enables the application to continue without faltering.",
+    "pillar": "SECURITY",
+    "relatedIds": [
+      "SEC07-BP02"
+    ],
     "resources": [
       "SEC07-BP02: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_data_classification_define_protection.html",
       "Test a guardrail: https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-test.html",
@@ -232,28 +229,22 @@
       "Amazon Transcribe Toxicity Detection: https://aws.amazon.com/transcribe/toxicity-detection/",
       "Implement Model Independent Safety Measures with Amazon Bedrock Guardrails: https://aws.amazon.com/blogs/machine-learning/implement-model-independent-safety-measures-with-amazon-bedrock-guardrails/",
       "Guardrails AI: https://github.com/guardrails-ai/guardrails"
-    ]
+    ],
+    "risk": "HIGH",
+    "title": "Implement guardrails to mitigate harmful or incorrect model responses",
+    "title_full": "GENSEC02-BP01 Implement guardrails to mitigate harmful or incorrect model responses"
   },
   {
     "area": [
       "Event monitoring"
     ],
+    "benefits": "Apply security at all layers - Control and data plane monitoring provides a layer of security at the service configuration and data access layers.",
     "description": "Implement comprehensive monitoring across both control and data planes to enhance the protection of generative AI workloads against service-level misconfigurations. This monitoring and auditing approach enables tracking of key aspects such as application performance, workload quality, and security. Monitoring at the control plane and data layers should track data access, as well as control plane API requests to the services in question. Consider AWS CloudTrail to record management and data events. Amazon Bedrock, Amazon Q Business, and other generative AI services integrate with CloudTrail and can be used to record control plane operations and runtime operations.",
-    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gensec03-bp01.html",
-    "id": "GENSEC03-BP01",
-    "lens": "GENERATIVE_AI",
-    "outcome": "When implemented, you can track the changes made to generative AI services and infrastructure, as well as changes to relevant data stores.",
-    "pillar": "SECURITY",
-    "relatedIds": [
-      "SEC04-BP01"
-    ],
-    "risk": "HIGH",
-    "title": "Implement control plane and data access monitoring to generative AI services and foundation models",
-    "title_full": "GENSEC03-BP01 Implement control plane and data access monitoring to generative AI services and foundation models",
     "desired_outcome": [
       "When implemented, you can track the changes made to generative AI services and infrastructure, as well as changes to relevant data stores."
     ],
-    "benefits": "Apply security at all layers - Control and data plane monitoring provides a layer of security at the service configuration and data access layers.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gensec03-bp01.html",
+    "id": "GENSEC03-BP01",
     "implementation_guidance": [
       "Performance monitoring: Track response times, latency, and throughput of model inference",
       "Monitor resource utilization (CPU, GPU, and memory)",
@@ -286,34 +277,34 @@
       "Track consent management",
       "Monitor geographic data restrictions"
     ],
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, you can track the changes made to generative AI services and infrastructure, as well as changes to relevant data stores.",
+    "pillar": "SECURITY",
+    "relatedIds": [
+      "SEC04-BP01"
+    ],
     "resources": [
       "SEC04-BP01: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_detect_investigate_events_app_service_logging.html",
       "AWS CloudTrail Data Events: https://docs.aws.amazon.com/awscloudtrail/latest/userguide/logging-data-events-with-cloudtrail.html#logging-data-events",
       "AWS CloudTrail Management Events: https://docs.aws.amazon.com/awscloudtrail/latest/userguide/logging-management-events-with-cloudtrail.html",
       "Gain Insights with Natural Language Query into your AWS environment using Amazon CloudTrail and Amazon Q in QuickSight: https://aws.amazon.com/blogs/mt/gain-insights-with-natural-language-query-into-your-aws-environment-using-amazon-cloudtrail-and-amazon-q-in-quicksight/",
       "Auditing generative AI workloads with AWS CloudTrail: https://aws.amazon.com/blogs/mt/auditing-generative-ai-workloads-with-aws-cloudtrail/"
-    ]
+    ],
+    "risk": "HIGH",
+    "title": "Implement control plane and data access monitoring to generative AI services and foundation models",
+    "title_full": "GENSEC03-BP01 Implement control plane and data access monitoring to generative AI services and foundation models"
   },
   {
     "area": [
       "Prompt security"
     ],
+    "benefits": "Apply security at all layers - Prompt catalogs implement security at the prompt management layer of the generative AI workload.",
     "description": "Prompt catalogs facilitate the engineering, testing, versioning and storage of prompts. Implementing a prompt catalog improves the security of system and user prompts. Prompt catalogs are secure, centralized storage for prompts and prompt versions. Consider storing prompts in a managed prompt catalog. Amazon Bedrock's Prompt Management catalog enables customers to create prompts, test them against several foundation models, and manage version lifecycles. Amazon Bedrock Prompt Management API actions can be secured through IAM policy documents with least privilege access to prompt actions.",
-    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gensec04-bp01.html",
-    "id": "GENSEC04-BP01",
-    "lens": "GENERATIVE_AI",
-    "outcome": "By implementing this best practice, you can securely store and manage your prompts and quickly access those prompts from a central location. Prompt catalog access can be protected with identity-based permissions.",
-    "pillar": "SECURITY",
-    "relatedIds": [
-      "SEC08-BP03"
-    ],
-    "risk": "MEDIUM",
-    "title": "Implement a secure prompt catalog",
-    "title_full": "GENSEC04-BP01 Implement a secure prompt catalog",
     "desired_outcome": [
       "By implementing this best practice, you can securely store and manage your prompts and quickly access those prompts from a central location. Prompt catalog access can be protected with identity-based permissions."
     ],
-    "benefits": "Apply security at all layers - Prompt catalogs implement security at the prompt management layer of the generative AI workload.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gensec04-bp01.html",
+    "id": "GENSEC04-BP01",
     "implementation_guidance": [
       "Navigate to Amazon Bedrock Prompt Management and create a prompt.",
       "Define the name, description, and encryption of that prompt.",
@@ -322,39 +313,45 @@
       "Save an acceptable version of the prompt.",
       "Revisit prompt engineering and testing regularly to verify your prompts behave as expected. Consider extending CI/CD workflows to incorporate prompt engineering."
     ],
+    "lens": "GENERATIVE_AI",
+    "outcome": "By implementing this best practice, you can securely store and manage your prompts and quickly access those prompts from a central location. Prompt catalog access can be protected with identity-based permissions.",
+    "pillar": "SECURITY",
+    "relatedIds": [
+      "SEC08-BP03"
+    ],
     "resources": [
       "SEC08-BP03: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_protect_data_rest_automate_protection.html",
       "Construct and Store Reusable Prompts with Prompt Management in Amazon Bedrock: https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-management.html",
       "Implementing Advanced Prompt Engineering with Amazon Bedrock: https://aws.amazon.com/blogs/machine-learning/implementing-advanced-prompt-engineering-with-amazon-bedrock/",
       "Build and scale generative AI applications with Amazon Bedrock: https://workshops.aws/categories/Prompt%20Engineering"
-    ]
+    ],
+    "risk": "MEDIUM",
+    "title": "Implement a secure prompt catalog",
+    "title_full": "GENSEC04-BP01 Implement a secure prompt catalog"
   },
   {
     "area": [
       "Prompt security"
     ],
+    "benefits": "Apply security at all layers - Sanitizing and validating user input to a foundation model adds a layer of security.",
     "description": "Generative AI applications commonly request user input. This user input is often open, unstructured, and loosely formatted, creating a risk of prompt injection and improper content. Prompt injection is the risk of introducing new content or material to a prompt that could impact its behavior. Customers should add an abstraction layer between the prompt and the foundation model to validate the prompt. Prompts should be sanitized for attempts to negatively impact application performance, drive the foundation model to perform an unintended task, or extract sensitive information.",
-    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gensec04-bp02.html",
-    "id": "GENSEC04-BP02",
-    "lens": "GENERATIVE_AI",
-    "outcome": "By implementing this best practice, you can capture improper user-provided input, identifying and resolving issues before they become security risks. Following this best practice can reduce the risk of prompt injection.",
-    "pillar": "SECURITY",
-    "relatedIds": [
-      "SEC07-BP02"
-    ],
-    "risk": "HIGH",
-    "title": "Sanitize and validate user inputs to foundation models",
-    "title_full": "GENSEC04-BP02 Sanitize and validate user inputs to foundation models",
     "desired_outcome": [
       "By implementing this best practice, you can capture improper user-provided input, identifying and resolving issues before they become security risks. Following this best practice can reduce the risk of prompt injection."
     ],
-    "benefits": "Apply security at all layers - Sanitizing and validating user input to a foundation model adds a layer of security.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gensec04-bp02.html",
+    "id": "GENSEC04-BP02",
     "implementation_guidance": [
       "Create a guardrail using Amazon Bedrock Guardrails or similar. A third-party guardrail must be able to process multi-modal responses as well as the prompts before they are sent to the model.",
       "Test the guardrail against a curated list of prompts, designed to simulate a prompt injection exploits. Guardrails can use allowlists and blocklists to validate prompts.",
       "Continually refine the guardrail until the prompt injection exploits are successfully mitigated.",
       "Consider implementing validation at the application layer as well, using a combination of guardrail and LLM-as-a-judge techniques.",
       "Set character and token size limits on prompts and rate limits on requests to further help protect against prompt-based threats."
+    ],
+    "lens": "GENERATIVE_AI",
+    "outcome": "By implementing this best practice, you can capture improper user-provided input, identifying and resolving issues before they become security risks. Following this best practice can reduce the risk of prompt injection.",
+    "pillar": "SECURITY",
+    "relatedIds": [
+      "SEC07-BP02"
     ],
     "resources": [
       "SEC07-BP02: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_data_classification_define_protection.html",
@@ -364,15 +361,34 @@
       "Implement Model Independent Safety Measures with Amazon Bedrock Guardrails: https://aws.amazon.com/blogs/machine-learning/implement-model-independent-safety-measures-with-amazon-bedrock-guardrails/",
       "Using LLM-as-a-judge for an automated and versatile evaluation: https://huggingface.co/learn/cookbook/en/llm_judge",
       "Guardrails AI: https://www.guardrailsai.com/"
-    ]
+    ],
+    "risk": "HIGH",
+    "title": "Sanitize and validate user inputs to foundation models",
+    "title_full": "GENSEC04-BP02 Sanitize and validate user inputs to foundation models"
   },
   {
     "area": [
       "Excessive agency"
     ],
+    "benefits": [
+      "Implement a strong identity foundation - Least privilege access permissions enable agents to operate as authorized users within a defined and limited context.",
+      "Apply security at all layers - Applying least privilege access permissions on agents improves security for agent architectures at the agent layer."
+    ],
     "description": "Implementing least privilege and permissions bounded agents limits the scope of agentic workflows and helps prevent them from taking actions beyond their intended purpose on behalf of the user. This best practice describes how to reduce the risk of excessive agency. Agents introduce a risk called excessive agency, where an agent determines the best solution to a problem is to take broader actions beyond its scope. Consider developing permissions boundaries on foundation model requests and agentic workflows. In Amazon Bedrock, agents have execution roles that should be developed with least privilege access principles in mind.",
+    "desired_outcome": [
+      "When implemented, you can limit and constrain agents from assuming excessive autonomy. This helps prevent agents from performing unauthorized or unintended actions in automated scenarios."
+    ],
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gensec05-bp01.html",
     "id": "GENSEC05-BP01",
+    "implementation_guidance": [
+      "Review your organization's identity and access management guidelines to determine the best path to create least privileged roles. Some organizations use service control policies to have central control over the maximum available permissions for the IAM users and IAM roles.",
+      "Review your organization's recommended templates or procedures to create IAM roles or users. Use existing templates and previously created policies if available.",
+      "When creating IAM roles for agents, define a scoped policy with least privilege access. Specify intended resource ARNs for the defined permission and API actions.",
+      "Consider defining conditions to further restrict the allowed action to trusted traffic, such as requests coming from a specific VPC.",
+      "Attach the policy document to a role assumable by a specific set agents. Permissions boundaries can be applied at the role level to prevent inadvertent authorization to additional services.",
+      "Condition statements can be applied at the role's trust policy instead of the policy document consult your security specialist when building role and policy conditions.",
+      "Implement user confirmation for the agent, requiring users to confirm agent actions and mitigating the risk of excessive agency."
+    ],
     "lens": "GENERATIVE_AI",
     "outcome": "When implemented, you can limit and constrain agents from assuming excessive autonomy. This helps prevent agents from performing unauthorized or unintended actions in automated scenarios.",
     "pillar": "SECURITY",
@@ -382,25 +398,6 @@
       "SEC02-BP06",
       "SEC03-BP01",
       "SEC03-BP02"
-    ],
-    "risk": "HIGH",
-    "title": "Implement least privilege access and permissions boundaries for agentic workflows",
-    "title_full": "GENSEC05-BP01 Implement least privilege access and permissions boundaries for agentic workflows",
-    "desired_outcome": [
-      "When implemented, you can limit and constrain agents from assuming excessive autonomy. This helps prevent agents from performing unauthorized or unintended actions in automated scenarios."
-    ],
-    "benefits": [
-      "Implement a strong identity foundation - Least privilege access permissions enable agents to operate as authorized users within a defined and limited context.",
-      "Apply security at all layers - Applying least privilege access permissions on agents improves security for agent architectures at the agent layer."
-    ],
-    "implementation_guidance": [
-      "Review your organization's identity and access management guidelines to determine the best path to create least privileged roles. Some organizations use service control policies to have central control over the maximum available permissions for the IAM users and IAM roles.",
-      "Review your organization's recommended templates or procedures to create IAM roles or users. Use existing templates and previously created policies if available.",
-      "When creating IAM roles for agents, define a scoped policy with least privilege access. Specify intended resource ARNs for the defined permission and API actions.",
-      "Consider defining conditions to further restrict the allowed action to trusted traffic, such as requests coming from a specific VPC.",
-      "Attach the policy document to a role assumable by a specific set agents. Permissions boundaries can be applied at the role level to prevent inadvertent authorization to additional services.",
-      "Condition statements can be applied at the role's trust policy instead of the policy document consult your security specialist when building role and policy conditions.",
-      "Implement user confirmation for the agent, requiring users to confirm agent actions and mitigating the risk of excessive agency."
     ],
     "resources": [
       "SEC02-BP01: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_identities_enforce_mechanisms.html",
@@ -416,28 +413,22 @@
       "Example Permissions Boundaries: https://github.com/aws-samples/example-permissions-boundary",
       "Overseeing AI Risk in a Rapidly Changing Landscape: https://aws.amazon.com/blogs/enterprise-strategy/overseeing-ai-risk-in-a-rapidly-changing-landscape/",
       "Design secure generative AI application workflows with Amazon Verified Permissions and Amazon Bedrock Agents: https://aws.amazon.com/blogs/machine-learning/design-secure-generative-ai-application-workflows-with-amazon-verified-permissions-and-amazon-bedrock-agents/"
-    ]
+    ],
+    "risk": "HIGH",
+    "title": "Implement least privilege access and permissions boundaries for agentic workflows",
+    "title_full": "GENSEC05-BP01 Implement least privilege access and permissions boundaries for agentic workflows"
   },
   {
     "area": [
       "Data poisoning"
     ],
+    "benefits": "Apply security at all layers - Security at all layers reduces the risk of subtle security vulnerabilities entering an otherwise advanced workflow.",
     "description": "Data poisoning is best handled at the data layer before training or customization has taken place. Data purification filters can be introduced to data pipelines when curating a dataset for training or customization. Data poisoning happens during pre-training, domain adaptation, and fine-tuning, where poisoned data is introduced, intentionally or by mistake, into a model. Protect models from poisoning during pre-training and ongoing training steps by isolating your model training environment, infrastructure, and data. Data should be examined and cleaned for content which may be considered poisonous before introducing that data to a training job.",
-    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gensec06-bp01.html",
-    "id": "GENSEC06-BP01",
-    "lens": "GENERATIVE_AI",
-    "outcome": "When implemented, this best practice reduces the likelihood of inappropriate or undesirable data being introduced into a model training or customization workflow.",
-    "pillar": "SECURITY",
-    "relatedIds": [
-      "SEC07-BP02"
-    ],
-    "risk": "HIGH",
-    "title": "Implement data purification filters for model training workflows",
-    "title_full": "GENSEC06-BP01 Implement data purification filters for model training workflows",
     "desired_outcome": [
       "When implemented, this best practice reduces the likelihood of inappropriate or undesirable data being introduced into a model training or customization workflow."
     ],
-    "benefits": "Apply security at all layers - Security at all layers reduces the risk of subtle security vulnerabilities entering an otherwise advanced workflow.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gensec06-bp01.html",
+    "id": "GENSEC06-BP01",
     "implementation_guidance": [
       "Identify the data intended for model pre-training or model customization.",
       "Consult your organization's AI policy or data cards to identify relevant filters for the data.",
@@ -446,6 +437,12 @@
       "Consider a guardrail from Amazon Bedrock Guardrails or a third-party solution to check for less discrete signals of poisoning.",
       "Run these checks on the data intended for model pre-training and model customization, remediating issues as they are discovered.",
       "Consider a relevance test or filter on data used for model customization workloads."
+    ],
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice reduces the likelihood of inappropriate or undesirable data being introduced into a model training or customization workflow.",
+    "pillar": "SECURITY",
+    "relatedIds": [
+      "SEC07-BP02"
     ],
     "resources": [
       "SEC07-BP02: https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_data_classification_define_protection.html",
@@ -458,6 +455,9 @@
       "Scalable Training Platform with SageMaker AI HyperPod: https://aws.amazon.com/blogs/machine-learning/scalable-training-platform-with-amazon-sagemaker-hyperpod-for-innovation-a-video-generation-case-study/",
       "Guardrails AI: https://github.com/guardrails-ai/guardrails",
       "OWASP Data Poisoning Attack: https://owasp.org/www-project-machine-learning-security-top-10/docs/ML02_2023-Data_Poisoning_Attack.html"
-    ]
+    ],
+    "risk": "HIGH",
+    "title": "Implement data purification filters for model training workflows",
+    "title_full": "GENSEC06-BP01 Implement data purification filters for model training workflows"
   }
 ]

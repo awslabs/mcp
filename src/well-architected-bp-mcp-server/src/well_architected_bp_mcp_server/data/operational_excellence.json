@@ -55,7 +55,7 @@
       "Organization",
       "Organization priorities"
     ],
-    "description": "Regulatory, industry, and internal compliance requirements are an important driver for defining your organization’s priorities. Your compliance framework may preclude you from using specific technologies or geographic locations. Apply due diligence if no external compliance frameworks are identified. Generate audits or reports that validate compliance.",
+    "description": "Regulatory, industry, and internal compliance requirements are an important driver for defining your organization\u2019s priorities. Your compliance framework may preclude you from using specific technologies or geographic locations. Apply due diligence if no external compliance frameworks are identified. Generate audits or reports that validate compliance.",
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_priorities_compliance_reqs.html",
     "id": "OPS01-BP04",
     "lens": "FRAMEWORK",
@@ -215,7 +215,7 @@
       "Operating model",
       "Relationships and ownership"
     ],
-    "description": "Have defined or negotiated agreements between teams describing how they work with and support each other (for example, response times, service level objectives, or service-level agreements). Inter-team communications channels are documented. Understanding the impact of the teams’ work on business outcomes and the outcomes of other teams and organizations informs the prioritization of their tasks and helps them respond appropriately.",
+    "description": "Have defined or negotiated agreements between teams describing how they work with and support each other (for example, response times, service level objectives, or service-level agreements). Inter-team communications channels are documented. Understanding the impact of the teams\u2019 work on business outcomes and the outcomes of other teams and organizations informs the prioritization of their tasks and helps them respond appropriately.",
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ops_model_def_neg_team_agreements.html",
     "id": "OPS02-BP06",
     "lens": "FRAMEWORK",
@@ -560,7 +560,7 @@
       "Prepare",
       "Design for operations"
     ],
-    "description": "Share best practices across teams to increase awareness and maximize the benefits of development efforts. Document them and keep them up to date as your architecture evolves. If shared standards are enforced in your organization, it’s critical that mechanisms exist to request additions, changes, and exceptions to standards. Without this option, standards become a constraint on innovation.",
+    "description": "Share best practices across teams to increase awareness and maximize the benefits of development efforts. Document them and keep them up to date as your architecture evolves. If shared standards are enforced in your organization, it\u2019s critical that mechanisms exist to request additions, changes, and exceptions to standards. Without this option, standards become a constraint on innovation.",
     "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_share_design_stds.html",
     "id": "OPS05-BP06",
     "lens": "FRAMEWORK",
