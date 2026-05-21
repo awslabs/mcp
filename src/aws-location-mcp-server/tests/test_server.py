@@ -828,15 +828,11 @@ async def test_optimize_waypoints(mock_boto3_client, mock_context):
     """Test the optimize_waypoints tool."""
     # Set up mock response
     mock_boto3_client.optimize_waypoints.return_value = {
-        'Routes': [
-            {
-                'Distance': 150.0,
-                'DurationSeconds': 450,
-                'Waypoints': [
-                    {'Position': [-122.200676, 47.610149]},
-                ],
-            }
+        'OptimizedWaypoints': [
+            {'Id': 'Waypoint0', 'Position': [-122.200676, 47.610149]},
         ],
+        'Distance': 150.0,
+        'Duration': 450,
     }
 
     # Patch the geo_routes_client in the server module
