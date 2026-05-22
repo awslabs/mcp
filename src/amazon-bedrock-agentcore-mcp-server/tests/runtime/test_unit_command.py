@@ -34,6 +34,7 @@ class TestParseCommandEventStream:
     """EventStream parsing for InvokeAgentRuntimeCommand."""
 
     def test_none_stream(self):
+        """None stream returns empty defaults without error."""
         out = _parse_command_event_stream(None)
         assert out['stdout'] == ''
         assert out['stderr'] == ''
@@ -41,6 +42,7 @@ class TestParseCommandEventStream:
         assert out['error'] is None
 
     def test_normal_flow(self):
+        """stdout/stderr deltas concatenate; contentStop yields exitCode and status."""
         events = [
             {'chunk': {'contentStart': {}}},
             {'chunk': {'contentDelta': {'stdout': 'hello\n'}}},
@@ -56,6 +58,7 @@ class TestParseCommandEventStream:
         assert out['error'] is None
 
     def test_stream_typed_exception(self):
+        """Typed exception member in stream is captured and stops parsing."""
         events = [
             {'chunk': {'contentDelta': {'stdout': 'partial\n'}}},
             {'validationException': {'message': 'bad timeout', 'httpStatusCode': 400}},
@@ -67,11 +70,13 @@ class TestParseCommandEventStream:
         assert out['stdout'] == 'partial\n'
 
     def test_byte_payload(self):
+        """Byte stdout chunks are decoded to str."""
         events = [{'chunk': {'contentDelta': {'stdout': b'bin\n'}}}]
         out = _parse_command_event_stream(iter(events))
         assert out['stdout'] == 'bin\n'
 
     def test_non_utf8_payload(self):
+        """Non-UTF8 bytes are replaced rather than crashing."""
         events = [{'chunk': {'contentDelta': {'stdout': b'\x80\x81'}}}]
         out = _parse_command_event_stream(iter(events))
         assert '�' in out['stdout']
@@ -82,6 +87,7 @@ class TestInvokeAgentRuntimeCommand:
 
     @pytest.mark.asyncio
     async def test_success(self, mock_ctx, data_factory, mock_data_client):
+        """Happy path: response fields populate InvokeCommandResponse and request kwargs match."""
         mock_data_client.invoke_agent_runtime_command.return_value = {
             'runtimeSessionId': 'sess-1',
             'contentType': 'application/vnd.amazon.eventstream',
@@ -115,6 +121,7 @@ class TestInvokeAgentRuntimeCommand:
 
     @pytest.mark.asyncio
     async def test_timeout_forwarded_in_body(self, mock_ctx, data_factory, mock_data_client):
+        """Timeout parameter is forwarded into the request body."""
         mock_data_client.invoke_agent_runtime_command.return_value = {
             'runtimeSessionId': 'sess',
             'stream': iter([]),
@@ -133,6 +140,7 @@ class TestInvokeAgentRuntimeCommand:
     async def test_propagates_non_200_status_code(
         self, mock_ctx, data_factory, mock_data_client
     ):
+        """Non-200 statusCode from response envelope surfaces on http_status_code."""
         mock_data_client.invoke_agent_runtime_command.return_value = {
             'runtimeSessionId': 'sess',
             'statusCode': 207,
@@ -153,6 +161,7 @@ class TestInvokeAgentRuntimeCommand:
 
     @pytest.mark.asyncio
     async def test_omits_session_when_none(self, mock_ctx, data_factory, mock_data_client):
+        """runtime_session_id=None is omitted from kwargs to let the server auto-generate."""
         mock_data_client.invoke_agent_runtime_command.return_value = {
             'runtimeSessionId': 'auto',
             'stream': iter([]),
@@ -168,6 +177,7 @@ class TestInvokeAgentRuntimeCommand:
 
     @pytest.mark.asyncio
     async def test_typed_exception_in_stream(self, mock_ctx, data_factory, mock_data_client):
+        """Typed exception in stream becomes an ErrorResponse."""
         mock_data_client.invoke_agent_runtime_command.return_value = {
             'runtimeSessionId': 'sess',
             'stream': iter(
@@ -187,6 +197,7 @@ class TestInvokeAgentRuntimeCommand:
 
     @pytest.mark.asyncio
     async def test_client_error(self, mock_ctx, data_factory, mock_data_client):
+        """boto3 ClientError is caught and returned as ErrorResponse."""
         mock_data_client.invoke_agent_runtime_command.side_effect = _client_error(
             'AccessDeniedException', 'Forbidden', 403
         )
