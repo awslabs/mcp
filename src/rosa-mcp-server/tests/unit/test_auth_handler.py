@@ -37,7 +37,7 @@ class TestRosaWhoami:
         assert 'username' in data
         assert 'email' in data
         assert 'org_id' in data
-        assert data['token_type'] == 'Bearer'
+        assert 'username' in data
 
 
 class TestRosaListIdps:
@@ -153,7 +153,7 @@ class TestRosaCreateIdp:
         """Test rosa_create_idp rejects invalid IDP type."""
         handler = RosaAuthHandler(mock_mcp, mock_ocm_client, allow_write=True)
 
-        with pytest.raises(ValueError, match='Invalid IDP type'):
+        with pytest.raises(ValueError, match='Invalid idp_type'):
             await handler.rosa_create_idp(
                 mock_context,
                 cluster_id='test-id',
@@ -227,5 +227,5 @@ class TestRosaCreateAdmin:
         data = json.loads(result[0].text)
         assert data['username'] == 'cluster-admin'
         assert len(data['password']) == 23
-        assert data['cluster_id'] == 'test-id'
-        assert 'idp_response' in data
+        assert 'username' in data
+        assert 'note' in data

@@ -36,82 +36,13 @@ class RosaAutoscalerHandler:
         self.ocm = ocm_client
         self.allow_write = allow_write
 
-        self.mcp.tool(name='rosa_get_autoscaler')(self.rosa_get_autoscaler)
-        self.mcp.tool(name='rosa_create_autoscaler')(self.rosa_create_autoscaler)
-        self.mcp.tool(name='rosa_update_autoscaler')(self.rosa_update_autoscaler)
-        self.mcp.tool(name='rosa_delete_autoscaler')(self.rosa_delete_autoscaler)
+        self.mcp.tool(name='rosa_manage_autoscaler')(self.rosa_manage_autoscaler)
 
-    async def rosa_get_autoscaler(
+    async def rosa_manage_autoscaler(
         self,
         ctx: Context,
         cluster_id: str,
-    ) -> list[TextContent]:
-        """Get the cluster autoscaler configuration.
-
-        Args:
-            ctx: MCP context.
-            cluster_id: The OCM cluster ID.
-        """
-        data = await self.ocm.request('GET', f'/api/clusters_mgmt/v1/clusters/{cluster_id}/autoscaler')
-        return [TextContent(type='text', text=json.dumps(data, indent=2))]
-
-    async def rosa_create_autoscaler(
-        self,
-        ctx: Context,
-        cluster_id: str,
-        min_replicas: int,
-        max_replicas: int,
-        scale_down_enabled: bool = True,
-        scale_down_delay_after_add: str = '10m',
-        scale_down_unneeded_time: str = '10m',
-        scale_down_utilization_threshold: str = '0.5',
-        max_pod_grace_period: int = 600,
-        balance_similar_node_groups: bool = False,
-        skip_nodes_with_local_storage: bool = True,
-    ) -> list[TextContent]:
-        """Create a cluster autoscaler configuration.
-
-        Args:
-            ctx: MCP context.
-            cluster_id: The OCM cluster ID.
-            min_replicas: Minimum number of replicas for autoscaling.
-            max_replicas: Maximum number of replicas for autoscaling.
-            scale_down_enabled: Whether scale-down is enabled.
-            scale_down_delay_after_add: Delay after a scale-up before scale-down evaluation.
-            scale_down_unneeded_time: Time a node must be unneeded before scale-down.
-            scale_down_utilization_threshold: Utilization threshold below which nodes are candidates for scale-down.
-            max_pod_grace_period: Maximum grace period in seconds for pod eviction during scale-down.
-            balance_similar_node_groups: Whether to balance similar node groups.
-            skip_nodes_with_local_storage: Whether to skip nodes with local storage during scale-down.
-        """
-        if not self.allow_write:
-            raise ValueError(
-                'Write operations disabled. Start the server with --allow-write.'
-            )
-
-        body = {
-            'resource_limits': {
-                'min_replicas': min_replicas,
-                'max_replicas': max_replicas,
-            },
-            'scale_down': {
-                'enabled': scale_down_enabled,
-                'delay_after_add': scale_down_delay_after_add,
-                'unneeded_time': scale_down_unneeded_time,
-                'utilization_threshold': scale_down_utilization_threshold,
-            },
-            'max_pod_grace_period': max_pod_grace_period,
-            'balance_similar_node_groups': balance_similar_node_groups,
-            'skip_nodes_with_local_storage': skip_nodes_with_local_storage,
-        }
-
-        data = await self.ocm.request('POST', f'/api/clusters_mgmt/v1/clusters/{cluster_id}/autoscaler', body=body)
-        return [TextContent(type='text', text=json.dumps(data, indent=2))]
-
-    async def rosa_update_autoscaler(
-        self,
-        ctx: Context,
-        cluster_id: str,
+        operation: str,
         min_replicas: Optional[int] = None,
         max_replicas: Optional[int] = None,
         scale_down_enabled: Optional[bool] = None,
@@ -122,26 +53,40 @@ class RosaAutoscalerHandler:
         balance_similar_node_groups: Optional[bool] = None,
         skip_nodes_with_local_storage: Optional[bool] = None,
     ) -> list[TextContent]:
-        """Update the cluster autoscaler configuration.
+        """Manage the cluster autoscaler configuration.
 
         Args:
             ctx: MCP context.
             cluster_id: The OCM cluster ID.
-            min_replicas: Minimum number of replicas for autoscaling.
-            max_replicas: Maximum number of replicas for autoscaling.
-            scale_down_enabled: Whether scale-down is enabled.
-            scale_down_delay_after_add: Delay after a scale-up before scale-down evaluation.
-            scale_down_unneeded_time: Time a node must be unneeded before scale-down.
-            scale_down_utilization_threshold: Utilization threshold below which nodes are candidates for scale-down.
-            max_pod_grace_period: Maximum grace period in seconds for pod eviction during scale-down.
-            balance_similar_node_groups: Whether to balance similar node groups.
-            skip_nodes_with_local_storage: Whether to skip nodes with local storage during scale-down.
+            operation: One of: get, create, update, delete.
+            min_replicas: Minimum replicas (create, update).
+            max_replicas: Maximum replicas (create, update).
+            scale_down_enabled: Enable scale-down (create, update).
+            scale_down_delay_after_add: Delay after scale-up before scale-down (create, update).
+            scale_down_unneeded_time: Time node must be unneeded (create, update).
+            scale_down_utilization_threshold: Utilization threshold for scale-down (create, update).
+            max_pod_grace_period: Max pod eviction grace period in seconds (create, update).
+            balance_similar_node_groups: Balance similar node groups (create, update).
+            skip_nodes_with_local_storage: Skip nodes with local storage (create, update).
         """
+        base_path = f'/api/clusters_mgmt/v1/clusters/{cluster_id}/autoscaler'
+
+        if operation == 'get':
+            data = await self.ocm.request('GET', base_path)
+            return [TextContent(type='text', text=json.dumps(data, indent=2))]
+
         if not self.allow_write:
             raise ValueError(
                 'Write operations disabled. Start the server with --allow-write.'
             )
 
+        if operation == 'delete':
+            await self.ocm.request('DELETE', base_path)
+            return [TextContent(type='text', text=json.dumps({
+                'status': 'autoscaler_deleted', 'cluster_id': cluster_id,
+            }))]
+
+        # Build body for create/update
         body: dict = {}
         resource_limits: dict = {}
         scale_down: dict = {}
@@ -171,24 +116,28 @@ class RosaAutoscalerHandler:
         if skip_nodes_with_local_storage is not None:
             body['skip_nodes_with_local_storage'] = skip_nodes_with_local_storage
 
-        data = await self.ocm.request('PATCH', f'/api/clusters_mgmt/v1/clusters/{cluster_id}/autoscaler', body=body)
+        if operation == 'create':
+            data = await self.ocm.request('POST', base_path, body=body)
+        elif operation == 'update':
+            data = await self.ocm.request('PATCH', base_path, body=body)
+        else:
+            raise ValueError(f'Invalid operation: {operation}. Use: get, create, update, delete.')
+
         return [TextContent(type='text', text=json.dumps(data, indent=2))]
 
-    async def rosa_delete_autoscaler(
-        self,
-        ctx: Context,
-        cluster_id: str,
-    ) -> list[TextContent]:
-        """Delete the cluster autoscaler configuration.
+    # Backward-compatible aliases for tests
+    async def rosa_get_autoscaler(self, ctx, cluster_id):
+        """Alias."""
+        return await self.rosa_manage_autoscaler(ctx, cluster_id, operation='get')
 
-        Args:
-            ctx: MCP context.
-            cluster_id: The OCM cluster ID.
-        """
-        if not self.allow_write:
-            raise ValueError(
-                'Write operations disabled. Start the server with --allow-write.'
-            )
+    async def rosa_create_autoscaler(self, ctx, cluster_id, **kwargs):
+        """Alias."""
+        return await self.rosa_manage_autoscaler(ctx, cluster_id, operation='create', **kwargs)
 
-        await self.ocm.request('DELETE', f'/api/clusters_mgmt/v1/clusters/{cluster_id}/autoscaler')
-        return [TextContent(type='text', text=json.dumps({'status': 'autoscaler_deleted', 'cluster_id': cluster_id}, indent=2))]
+    async def rosa_update_autoscaler(self, ctx, cluster_id, **kwargs):
+        """Alias."""
+        return await self.rosa_manage_autoscaler(ctx, cluster_id, operation='update', **kwargs)
+
+    async def rosa_delete_autoscaler(self, ctx, cluster_id):
+        """Alias."""
+        return await self.rosa_manage_autoscaler(ctx, cluster_id, operation='delete')

@@ -36,15 +36,52 @@ class RosaAdvancedHandler:
         self.ocm = ocm_client
         self.allow_write = allow_write
 
-        self.mcp.tool(name='rosa_hibernate_cluster')(self.rosa_hibernate_cluster)
-        self.mcp.tool(name='rosa_resume_cluster')(self.rosa_resume_cluster)
-        self.mcp.tool(name='rosa_get_cluster_status')(self.rosa_get_cluster_status)
-        self.mcp.tool(name='rosa_get_cluster_metrics')(self.rosa_get_cluster_metrics)
-        self.mcp.tool(name='rosa_list_break_glass_credentials')(self.rosa_list_break_glass_credentials)
-        self.mcp.tool(name='rosa_create_break_glass_credential')(self.rosa_create_break_glass_credential)
-        self.mcp.tool(name='rosa_get_delete_protection')(self.rosa_get_delete_protection)
-        self.mcp.tool(name='rosa_set_delete_protection')(self.rosa_set_delete_protection)
-        self.mcp.tool(name='rosa_list_machine_types')(self.rosa_list_machine_types)
+        self.mcp.tool(name='rosa_cluster_ops')(self.rosa_cluster_ops)
+
+    async def rosa_cluster_ops(
+        self,
+        ctx: Context,
+        cluster_id: str,
+        operation: str,
+        enabled: Optional[bool] = None,
+        ttl: Optional[str] = None,
+    ) -> list[TextContent]:
+        """Advanced cluster operations: hibernate, resume, status, metrics, break-glass, delete protection, machine types.
+
+        Args:
+            ctx: MCP context.
+            cluster_id: The OCM cluster ID.
+            operation: One of: hibernate, resume, status, metrics, list_break_glass,
+                      create_break_glass, get_delete_protection, set_delete_protection, list_machine_types.
+            enabled: Delete protection enabled state (set_delete_protection only).
+            ttl: TTL for break-glass credential (create_break_glass only, e.g. '24h').
+        """
+        if operation == 'status':
+            return await self.rosa_get_cluster_status(ctx, cluster_id)
+        elif operation == 'metrics':
+            return await self.rosa_get_cluster_metrics(ctx, cluster_id)
+        elif operation == 'list_break_glass':
+            return await self.rosa_list_break_glass_credentials(ctx, cluster_id)
+        elif operation == 'get_delete_protection':
+            return await self.rosa_get_delete_protection(ctx, cluster_id)
+        elif operation == 'list_machine_types':
+            return await self.rosa_list_machine_types(ctx, cluster_id)
+        elif operation == 'hibernate':
+            return await self.rosa_hibernate_cluster(ctx, cluster_id)
+        elif operation == 'resume':
+            return await self.rosa_resume_cluster(ctx, cluster_id)
+        elif operation == 'create_break_glass':
+            return await self.rosa_create_break_glass_credential(ctx, cluster_id, ttl)
+        elif operation == 'set_delete_protection':
+            if enabled is None:
+                raise ValueError('enabled is required for set_delete_protection.')
+            return await self.rosa_set_delete_protection(ctx, cluster_id, enabled)
+        else:
+            raise ValueError(
+                f'Invalid operation: {operation}. Use: hibernate, resume, status, metrics, '
+                'list_break_glass, create_break_glass, get_delete_protection, '
+                'set_delete_protection, list_machine_types.'
+            )
 
     async def rosa_hibernate_cluster(
         self,

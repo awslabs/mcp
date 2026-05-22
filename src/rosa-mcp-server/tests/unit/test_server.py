@@ -153,20 +153,11 @@ class TestToolRegistration:
             'rosa_get_install_logs',
             # Auth handler
             'rosa_whoami',
-            'rosa_list_idps',
-            'rosa_create_idp',
-            'rosa_delete_idp',
-            'rosa_create_admin',
+            'rosa_manage_idp',
             # Machine pool handler
-            'rosa_list_machinepools',
-            'rosa_create_machinepool',
-            'rosa_update_machinepool',
-            'rosa_delete_machinepool',
+            'rosa_manage_machinepool',
             # Networking handler
-            'rosa_list_ingresses',
-            'rosa_create_ingress',
-            'rosa_update_ingress',
-            'rosa_delete_ingress',
+            'rosa_manage_ingress',
             # K8s handler
             'rosa_list_resources',
             'rosa_get_pod_logs',
@@ -177,10 +168,7 @@ class TestToolRegistration:
             'rosa_get_cloudwatch_logs',
             'rosa_get_cloudwatch_metrics',
             # IAM handler
-            'rosa_get_account_roles',
-            'rosa_get_operator_roles',
-            'rosa_list_oidc_providers',
-            'rosa_verify_quota',
+            'rosa_manage_iam',
         ]
 
         for tool_name in expected_tools:
@@ -212,10 +200,7 @@ class TestToolRegistration:
         aws_tools = [
             'rosa_get_cloudwatch_logs',
             'rosa_get_cloudwatch_metrics',
-            'rosa_get_account_roles',
-            'rosa_get_operator_roles',
-            'rosa_list_oidc_providers',
-            'rosa_verify_quota',
+            'rosa_manage_iam',
         ]
 
         for tool_name in aws_tools:

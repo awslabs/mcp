@@ -36,124 +36,90 @@ class RosaConfigHandler:
         self.ocm = ocm_client
         self.allow_write = allow_write
 
-        self.mcp.tool(name='rosa_list_tuning_configs')(self.rosa_list_tuning_configs)
-        self.mcp.tool(name='rosa_create_tuning_config')(self.rosa_create_tuning_config)
-        self.mcp.tool(name='rosa_delete_tuning_config')(self.rosa_delete_tuning_config)
-        self.mcp.tool(name='rosa_get_kubelet_config')(self.rosa_get_kubelet_config)
-        self.mcp.tool(name='rosa_update_kubelet_config')(self.rosa_update_kubelet_config)
+        self.mcp.tool(name='rosa_manage_config')(self.rosa_manage_config)
 
-    async def rosa_list_tuning_configs(
+    async def rosa_manage_config(
         self,
         ctx: Context,
         cluster_id: str,
-    ) -> list[TextContent]:
-        """List tuning configurations for a cluster.
-
-        Args:
-            ctx: MCP context.
-            cluster_id: The OCM cluster ID.
-        """
-        data = await self.ocm.request(
-            'GET', f'/api/clusters_mgmt/v1/clusters/{cluster_id}/tuning_configs'
-        )
-        return [TextContent(type='text', text=json.dumps(data, indent=2))]
-
-    async def rosa_create_tuning_config(
-        self,
-        ctx: Context,
-        cluster_id: str,
-        name: str,
-        spec: dict,
-    ) -> list[TextContent]:
-        """Create a tuning configuration for a cluster.
-
-        Args:
-            ctx: MCP context.
-            cluster_id: The OCM cluster ID.
-            name: Name of the tuning configuration.
-            spec: The tuning configuration content (sysctl parameters, etc.).
-        """
-        if not self.allow_write:
-            raise ValueError(
-                'Write operations disabled. Start the server with --allow-write.'
-            )
-
-        body = {
-            'name': name,
-            'spec': spec,
-        }
-
-        data = await self.ocm.request(
-            'POST', f'/api/clusters_mgmt/v1/clusters/{cluster_id}/tuning_configs', body=body
-        )
-        return [TextContent(type='text', text=json.dumps(data, indent=2))]
-
-    async def rosa_delete_tuning_config(
-        self,
-        ctx: Context,
-        cluster_id: str,
-        config_id: str,
-    ) -> list[TextContent]:
-        """Delete a tuning configuration from a cluster.
-
-        Args:
-            ctx: MCP context.
-            cluster_id: The OCM cluster ID.
-            config_id: The tuning configuration ID to delete.
-        """
-        if not self.allow_write:
-            raise ValueError(
-                'Write operations disabled. Start the server with --allow-write.'
-            )
-
-        await self.ocm.request(
-            'DELETE', f'/api/clusters_mgmt/v1/clusters/{cluster_id}/tuning_configs/{config_id}'
-        )
-        return [TextContent(type='text', text=json.dumps({
-            'status': 'tuning_config_deleted',
-            'config_id': config_id,
-            'cluster_id': cluster_id,
-        }, indent=2))]
-
-    async def rosa_get_kubelet_config(
-        self,
-        ctx: Context,
-        cluster_id: str,
-    ) -> list[TextContent]:
-        """Get the kubelet configuration for a cluster.
-
-        Args:
-            ctx: MCP context.
-            cluster_id: The OCM cluster ID.
-        """
-        data = await self.ocm.request(
-            'GET', f'/api/clusters_mgmt/v1/clusters/{cluster_id}/kubelet_config'
-        )
-        return [TextContent(type='text', text=json.dumps(data, indent=2))]
-
-    async def rosa_update_kubelet_config(
-        self,
-        ctx: Context,
-        cluster_id: str,
+        operation: str,
+        config_id: Optional[str] = None,
+        name: Optional[str] = None,
+        spec: Optional[dict] = None,
         pod_pids_limit: Optional[int] = None,
     ) -> list[TextContent]:
-        """Update the kubelet configuration for a cluster.
+        """Manage ROSA cluster tuning and kubelet configuration.
 
         Args:
             ctx: MCP context.
             cluster_id: The OCM cluster ID.
-            pod_pids_limit: Maximum number of PIDs per pod.
+            operation: One of: list_tuning, create_tuning, delete_tuning, get_kubelet, update_kubelet.
+            config_id: Tuning config ID (required for delete_tuning).
+            name: Tuning config name (required for create_tuning).
+            spec: Tuning config content/sysctl params (required for create_tuning).
+            pod_pids_limit: Max PIDs per pod (update_kubelet).
         """
+        base = f'/api/clusters_mgmt/v1/clusters/{cluster_id}'
+
+        if operation == 'list_tuning':
+            data = await self.ocm.request('GET', f'{base}/tuning_configs')
+            return [TextContent(type='text', text=json.dumps(data, indent=2))]
+
+        elif operation == 'get_kubelet':
+            data = await self.ocm.request('GET', f'{base}/kubelet_config')
+            return [TextContent(type='text', text=json.dumps(data, indent=2))]
+
         if not self.allow_write:
             raise ValueError(
                 'Write operations disabled. Start the server with --allow-write.'
             )
 
-        body: dict = {}
-        if pod_pids_limit is not None:
-            body['pod_pids_limit'] = pod_pids_limit
+        if operation == 'create_tuning':
+            if not name or not spec:
+                raise ValueError('name and spec are required for create_tuning.')
+            data = await self.ocm.request(
+                'POST', f'{base}/tuning_configs', body={'name': name, 'spec': spec}
+            )
+            return [TextContent(type='text', text=json.dumps(data, indent=2))]
 
-        data = await self.ocm.request(
-            'PATCH', f'/api/clusters_mgmt/v1/clusters/{cluster_id}/kubelet_config', body=body
-        )
-        return [TextContent(type='text', text=json.dumps(data, indent=2))]
+        elif operation == 'delete_tuning':
+            if not config_id:
+                raise ValueError('config_id is required for delete_tuning.')
+            await self.ocm.request('DELETE', f'{base}/tuning_configs/{config_id}')
+            return [TextContent(type='text', text=json.dumps({
+                'status': 'tuning_config_deleted', 'config_id': config_id,
+            }))]
+
+        elif operation == 'update_kubelet':
+            body: dict = {}
+            if pod_pids_limit is not None:
+                body['pod_pids_limit'] = pod_pids_limit
+            data = await self.ocm.request('PATCH', f'{base}/kubelet_config', body=body)
+            return [TextContent(type='text', text=json.dumps(data, indent=2))]
+
+        else:
+            raise ValueError(
+                f'Invalid operation: {operation}. '
+                'Use: list_tuning, create_tuning, delete_tuning, get_kubelet, update_kubelet.'
+            )
+
+    # Backward-compatible aliases for tests
+    async def rosa_list_tuning_configs(self, ctx, cluster_id):
+        """Alias."""
+        return await self.rosa_manage_config(ctx, cluster_id, operation='list_tuning')
+
+    async def rosa_create_tuning_config(self, ctx, cluster_id, name='', spec=None):
+        """Alias."""
+        return await self.rosa_manage_config(ctx, cluster_id, operation='create_tuning', name=name, spec=spec)
+
+    async def rosa_delete_tuning_config(self, ctx, cluster_id, config_id=''):
+        """Alias."""
+        return await self.rosa_manage_config(ctx, cluster_id, operation='delete_tuning', config_id=config_id)
+
+    async def rosa_get_kubelet_config(self, ctx, cluster_id):
+        """Alias."""
+        return await self.rosa_manage_config(ctx, cluster_id, operation='get_kubelet')
+
+    async def rosa_update_kubelet_config(self, ctx, cluster_id, **kwargs):
+        """Alias."""
+        return await self.rosa_manage_config(ctx, cluster_id, operation='update_kubelet', **kwargs)

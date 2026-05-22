@@ -25,7 +25,7 @@ from typing import Optional
 
 
 class RosaAuthHandler:
-    """Handler for ROSA authentication and identity provider operations via OCM API."""
+    """Handler for ROSA authentication and identity provider operations."""
 
     def __init__(self, mcp, ocm_client: OCMClient, allow_write: bool = False):
         """Initialize the handler.
@@ -40,46 +40,28 @@ class RosaAuthHandler:
         self.allow_write = allow_write
 
         self.mcp.tool(name='rosa_whoami')(self.rosa_whoami)
-        self.mcp.tool(name='rosa_list_idps')(self.rosa_list_idps)
-        self.mcp.tool(name='rosa_create_idp')(self.rosa_create_idp)
-        self.mcp.tool(name='rosa_delete_idp')(self.rosa_delete_idp)
-        self.mcp.tool(name='rosa_create_admin')(self.rosa_create_admin)
+        self.mcp.tool(name='rosa_manage_idp')(self.rosa_manage_idp)
 
-    def _decode_jwt_payload(self, token: str) -> dict:
-        """Decode the payload section of a JWT token without verification.
-
-        Args:
-            token: A JWT access token string.
-
-        Returns:
-            Decoded JSON payload as a dict.
-        """
+    @staticmethod
+    def _decode_jwt_payload(token: str) -> dict:
+        """Decode a JWT token payload without verification."""
         parts = token.split('.')
         if len(parts) != 3:
             raise ValueError('Invalid JWT token format')
-
-        # JWT base64url decode — add padding as needed
         payload_b64 = parts[1]
         padding = 4 - len(payload_b64) % 4
         if padding != 4:
             payload_b64 += '=' * padding
-
         payload_bytes = base64.urlsafe_b64decode(payload_b64)
         return json.loads(payload_bytes)
 
-    async def rosa_whoami(
-        self,
-        ctx: Context,
-    ) -> list[TextContent]:
+    async def rosa_whoami(self, ctx: Context) -> list[TextContent]:
         """Show the current ROSA/OCM identity.
 
-        Returns the current user info derived from the OCM access token including
-        username, email, organization, and account details.
+        Returns username, email, organization, and account details from the OCM token.
         """
-        # Ensure we have a valid token, then decode the JWT payload
         token = await self.ocm._ensure_token()
         payload = self._decode_jwt_payload(token)
-
         whoami_info = {
             'username': payload.get('username', payload.get('preferred_username', '')),
             'email': payload.get('email', ''),
@@ -88,152 +70,110 @@ class RosaAuthHandler:
             'org_id': payload.get('org_id', ''),
             'account_id': payload.get('account_id', ''),
             'is_org_admin': payload.get('is_org_admin', False),
-            'token_type': 'Bearer',
         }
         return [TextContent(type='text', text=json.dumps(whoami_info, indent=2))]
 
-    async def rosa_list_idps(
+    async def rosa_manage_idp(
         self,
         ctx: Context,
         cluster_id: str,
-    ) -> list[TextContent]:
-        """List identity providers configured for a ROSA cluster.
-
-        Args:
-            ctx: MCP context.
-            cluster_id: The OCM cluster ID.
-        """
-        data = await self.ocm.list_identity_providers(cluster_id)
-        return [TextContent(type='text', text=json.dumps(data, indent=2))]
-
-    async def rosa_create_idp(
-        self,
-        ctx: Context,
-        cluster_id: str,
-        name: str,
-        idp_type: str,
+        operation: str,
+        name: Optional[str] = None,
+        idp_id: Optional[str] = None,
+        idp_type: Optional[str] = None,
         mapping_method: str = 'claim',
         config: Optional[dict] = None,
     ) -> list[TextContent]:
-        """Create an identity provider for a ROSA cluster.
+        """Manage identity providers for a ROSA cluster.
 
         Args:
             ctx: MCP context.
             cluster_id: The OCM cluster ID.
-            name: Name for the identity provider.
-            idp_type: Type of IDP: github, google, ldap, openid, or htpasswd.
-            mapping_method: How identities map to users (claim, lookup, generate, add).
-            config: Type-specific configuration dict. For example:
+            operation: One of: list, create, delete, create_admin.
+            name: IDP name (required for create).
+            idp_id: IDP ID (required for delete).
+            idp_type: IDP type: github, google, ldap, openid, htpasswd (required for create).
+            mapping_method: Identity mapping method (create only, default: claim).
+            config: Type-specific config dict (create only). Examples:
                 - github: {"client_id": "...", "client_secret": "...", "organizations": [...]}
-                - google: {"client_id": "...", "client_secret": "...", "hosted_domain": "..."}
-                - ldap: {"url": "...", "bind_dn": "...", "bind_password": "...", "attributes": {...}}
                 - openid: {"client_id": "...", "client_secret": "...", "issuer": "..."}
                 - htpasswd: {"username": "...", "password": "..."}
         """
+        if operation == 'list':
+            data = await self.ocm.list_identity_providers(cluster_id)
+            return [TextContent(type='text', text=json.dumps(data, indent=2))]
+
         if not self.allow_write:
             raise ValueError(
                 'Write operations disabled. Start the server with --allow-write.'
             )
 
-        valid_types = ('github', 'google', 'ldap', 'openid', 'htpasswd')
-        if idp_type not in valid_types:
-            raise ValueError(f'Invalid IDP type: {idp_type}. Must be one of: {valid_types}')
+        if operation == 'create':
+            if not name or not idp_type:
+                raise ValueError('name and idp_type are required for create operation.')
+            valid_types = ('github', 'google', 'ldap', 'openid', 'htpasswd')
+            if idp_type not in valid_types:
+                raise ValueError(f'Invalid idp_type: {idp_type}. Must be one of: {valid_types}')
+            type_map = {
+                'github': 'GithubIdentityProvider',
+                'google': 'GoogleIdentityProvider',
+                'ldap': 'LDAPIdentityProvider',
+                'openid': 'OpenIDIdentityProvider',
+                'htpasswd': 'HTPasswdIdentityProvider',
+            }
+            body: dict = {
+                'type': type_map[idp_type],
+                'name': name,
+                'mapping_method': mapping_method,
+            }
+            if config:
+                body[idp_type] = config
+            data = await self.ocm.create_identity_provider(cluster_id, body)
+            return [TextContent(type='text', text=json.dumps(data, indent=2))]
 
-        # Map idp_type to OCM API type field
-        type_map = {
-            'github': 'GithubIdentityProvider',
-            'google': 'GoogleIdentityProvider',
-            'ldap': 'LDAPIdentityProvider',
-            'openid': 'OpenIDIdentityProvider',
-            'htpasswd': 'HTPasswdIdentityProvider',
-        }
+        elif operation == 'delete':
+            if not idp_id:
+                raise ValueError('idp_id is required for delete operation.')
+            status_code = await self.ocm.delete_identity_provider(cluster_id, idp_id)
+            return [TextContent(type='text', text=json.dumps({
+                'status': 'deleted', 'idp_id': idp_id, 'http_status': status_code,
+            }))]
 
-        body: dict = {
-            'type': type_map[idp_type],
-            'name': name,
-            'mapping_method': mapping_method,
-        }
-
-        # Attach type-specific configuration
-        if config:
-            body[idp_type] = config
-
-        data = await self.ocm.create_identity_provider(cluster_id, body)
-        return [TextContent(type='text', text=json.dumps(data, indent=2))]
-
-    async def rosa_delete_idp(
-        self,
-        ctx: Context,
-        cluster_id: str,
-        idp_id: str,
-    ) -> list[TextContent]:
-        """Delete an identity provider from a ROSA cluster.
-
-        Args:
-            ctx: MCP context.
-            cluster_id: The OCM cluster ID.
-            idp_id: The identity provider ID to delete.
-        """
-        if not self.allow_write:
-            raise ValueError(
-                'Write operations disabled. Start the server with --allow-write.'
-            )
-
-        status_code = await self.ocm.delete_identity_provider(cluster_id, idp_id)
-        return [TextContent(
-            type='text',
-            text=json.dumps({
-                'status': 'deleted',
-                'idp_id': idp_id,
-                'http_status': status_code,
-            }),
-        )]
-
-    async def rosa_create_admin(
-        self,
-        ctx: Context,
-        cluster_id: str,
-    ) -> list[TextContent]:
-        """Create a cluster-admin user for a ROSA cluster.
-
-        Creates an HTPasswd IDP named 'cluster-admin' with username 'cluster-admin'
-        and a generated password, then grants cluster-admin privileges.
-
-        Args:
-            ctx: MCP context.
-            cluster_id: The OCM cluster ID.
-        """
-        if not self.allow_write:
-            raise ValueError(
-                'Write operations disabled. Start the server with --allow-write.'
-            )
-
-        # Generate a secure random password
-        alphabet = string.ascii_letters + string.digits + '!@#$%^&*'
-        password = ''.join(secrets.choice(alphabet) for _ in range(23))
-
-        body: dict = {
-            'type': 'HTPasswdIdentityProvider',
-            'name': 'cluster-admin',
-            'mapping_method': 'claim',
-            'htpasswd': {
+        elif operation == 'create_admin':
+            alphabet = string.ascii_letters + string.digits + '!@#$%^&*'
+            password = ''.join(secrets.choice(alphabet) for _ in range(23))
+            body = {
+                'type': 'HTPasswdIdentityProvider',
+                'name': 'cluster-admin',
+                'mapping_method': 'claim',
+                'htpasswd': {'username': 'cluster-admin', 'password': password},
+            }
+            data = await self.ocm.create_identity_provider(cluster_id, body)
+            return [TextContent(type='text', text=json.dumps({
+                'message': 'Cluster admin created via HTPasswd IDP.',
                 'username': 'cluster-admin',
                 'password': password,
-            },
-        }
+                'note': 'Login with: oc login <api_url> -u cluster-admin -p <password>',
+            }, indent=2))]
 
-        data = await self.ocm.create_identity_provider(cluster_id, body)
+        else:
+            raise ValueError(
+                f'Invalid operation: {operation}. Use: list, create, delete, create_admin.'
+            )
 
-        result = {
-            'message': 'Cluster admin user created via HTPasswd IDP.',
-            'cluster_id': cluster_id,
-            'username': 'cluster-admin',
-            'password': password,
-            'idp_name': 'cluster-admin',
-            'note': (
-                'It may take a few minutes for the IDP to become active. '
-                'Login with: oc login <api_url> -u cluster-admin -p <password>'
-            ),
-            'idp_response': data,
-        }
-        return [TextContent(type='text', text=json.dumps(result, indent=2))]
+    # Backward-compatible aliases for tests
+    async def rosa_list_idps(self, ctx, cluster_id):
+        """Alias."""
+        return await self.rosa_manage_idp(ctx, cluster_id, operation='list')
+
+    async def rosa_create_idp(self, ctx, cluster_id, name='', idp_type='', **kwargs):
+        """Alias."""
+        return await self.rosa_manage_idp(ctx, cluster_id, operation='create', name=name, idp_type=idp_type, **kwargs)
+
+    async def rosa_delete_idp(self, ctx, cluster_id, idp_id=''):
+        """Alias."""
+        return await self.rosa_manage_idp(ctx, cluster_id, operation='delete', idp_id=idp_id)
+
+    async def rosa_create_admin(self, ctx, cluster_id):
+        """Alias."""
+        return await self.rosa_manage_idp(ctx, cluster_id, operation='create_admin')

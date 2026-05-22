@@ -36,13 +36,43 @@ class RosaOperatorHandler:
         self.ocm = ocm_client
         self.allow_write = allow_write
 
-        self.mcp.tool(name='rosa_list_sts_operator_roles')(self.rosa_list_sts_operator_roles)
-        self.mcp.tool(name='rosa_get_cluster_operators')(self.rosa_get_cluster_operators)
-        self.mcp.tool(name='rosa_list_sts_credential_requests')(self.rosa_list_sts_credential_requests)
-        self.mcp.tool(name='rosa_list_sts_policies')(self.rosa_list_sts_policies)
-        self.mcp.tool(name='rosa_install_operator')(self.rosa_install_operator)
-        self.mcp.tool(name='rosa_uninstall_operator')(self.rosa_uninstall_operator)
-        self.mcp.tool(name='rosa_get_operator_status')(self.rosa_get_operator_status)
+        self.mcp.tool(name='rosa_manage_operator')(self.rosa_manage_operator)
+
+    async def rosa_manage_operator(
+        self,
+        ctx: Context,
+        cluster_id: str,
+        operation: str,
+        operator_id: Optional[str] = None,
+    ) -> list[TextContent]:
+        """Manage ROSA STS operators, roles, and policies.
+
+        Args:
+            ctx: MCP context.
+            cluster_id: The OCM cluster ID.
+            operation: One of: list_sts_roles, get_operators, list_credential_requests,
+                      list_policies, install, uninstall, get_status.
+            operator_id: Operator/add-on ID (required for install, uninstall, get_status).
+        """
+        if operation == 'list_sts_roles':
+            return await self.rosa_list_sts_operator_roles(ctx, cluster_id)
+        elif operation == 'get_operators':
+            return await self.rosa_get_cluster_operators(ctx, cluster_id)
+        elif operation == 'list_credential_requests':
+            return await self.rosa_list_sts_credential_requests(ctx, cluster_id)
+        elif operation == 'list_policies':
+            return await self.rosa_list_sts_policies(ctx, cluster_id)
+        elif operation == 'install':
+            return await self.rosa_install_operator(ctx, cluster_id, operator_id)
+        elif operation == 'uninstall':
+            return await self.rosa_uninstall_operator(ctx, cluster_id, operator_id)
+        elif operation == 'get_status':
+            return await self.rosa_get_operator_status(ctx, cluster_id, operator_id)
+        else:
+            raise ValueError(
+                f'Invalid operation: {operation}. Use: list_sts_roles, get_operators, '
+                'list_credential_requests, list_policies, install, uninstall, get_status.'
+            )
 
     async def rosa_list_sts_operator_roles(
         self,

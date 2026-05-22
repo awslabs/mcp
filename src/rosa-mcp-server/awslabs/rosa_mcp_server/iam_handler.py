@@ -45,12 +45,55 @@ class IAMHandler:
         self.allow_sensitive_data_access = allow_sensitive_data_access
         self.allow_write = allow_write
 
-        self.mcp.tool(name='rosa_get_account_roles')(self.rosa_get_account_roles)
-        self.mcp.tool(name='rosa_get_operator_roles')(self.rosa_get_operator_roles)
-        self.mcp.tool(name='rosa_list_oidc_providers')(self.rosa_list_oidc_providers)
-        self.mcp.tool(name='rosa_verify_quota')(self.rosa_verify_quota)
-        self.mcp.tool(name='rosa_get_policies_for_role')(self.rosa_get_policies_for_role)
-        self.mcp.tool(name='rosa_add_inline_policy')(self.rosa_add_inline_policy)
+        self.mcp.tool(name='rosa_manage_iam')(self.rosa_manage_iam)
+
+    async def rosa_manage_iam(
+        self,
+        ctx: Context,
+        operation: str,
+        prefix: Optional[str] = None,
+        cluster_name: Optional[str] = None,
+        role_name: Optional[str] = None,
+        policy_name: Optional[str] = None,
+        policy_document: Optional[dict] = None,
+        region: Optional[str] = None,
+    ) -> list[TextContent]:
+        """Manage ROSA IAM roles, OIDC providers, and service quotas.
+
+        Args:
+            ctx: MCP context.
+            operation: One of: list_account_roles, list_operator_roles, list_oidc_providers,
+                      verify_quota, get_policies_for_role, add_inline_policy.
+            prefix: Filter roles by prefix (list_account_roles).
+            cluster_name: Filter operator roles by cluster (list_operator_roles).
+            role_name: IAM role name (get_policies_for_role, add_inline_policy).
+            policy_name: Inline policy name (add_inline_policy).
+            policy_document: Policy document dict (add_inline_policy).
+            region: AWS region.
+        """
+        if operation == 'list_account_roles':
+            return await self.rosa_get_account_roles(ctx, prefix, region)
+        elif operation == 'list_operator_roles':
+            return await self.rosa_get_operator_roles(ctx, cluster_name, region)
+        elif operation == 'list_oidc_providers':
+            return await self.rosa_list_oidc_providers(ctx, region)
+        elif operation == 'verify_quota':
+            return await self.rosa_verify_quota(ctx, region)
+        elif operation == 'get_policies_for_role':
+            if not role_name:
+                raise ValueError('role_name is required for get_policies_for_role.')
+            return await self.rosa_get_policies_for_role(ctx, role_name, region)
+        elif operation == 'add_inline_policy':
+            if not role_name or not policy_name or not policy_document:
+                raise ValueError(
+                    'role_name, policy_name, and policy_document are required for add_inline_policy.'
+                )
+            return await self.rosa_add_inline_policy(ctx, role_name, policy_name, policy_document, region)
+        else:
+            raise ValueError(
+                f'Invalid operation: {operation}. Use: list_account_roles, list_operator_roles, '
+                'list_oidc_providers, verify_quota, get_policies_for_role, add_inline_policy.'
+            )
 
     async def rosa_get_account_roles(
         self,

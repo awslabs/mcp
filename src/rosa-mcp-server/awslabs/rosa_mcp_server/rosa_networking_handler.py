@@ -36,132 +36,93 @@ class RosaNetworkingHandler:
         self.ocm = ocm_client
         self.allow_write = allow_write
 
-        self.mcp.tool(name='rosa_list_ingresses')(self.rosa_list_ingresses)
-        self.mcp.tool(name='rosa_create_ingress')(self.rosa_create_ingress)
-        self.mcp.tool(name='rosa_update_ingress')(self.rosa_update_ingress)
-        self.mcp.tool(name='rosa_delete_ingress')(self.rosa_delete_ingress)
+        self.mcp.tool(name='rosa_manage_ingress')(self.rosa_manage_ingress)
 
-    async def rosa_list_ingresses(
+    async def rosa_manage_ingress(
         self,
         ctx: Context,
         cluster_id: str,
-    ) -> list[TextContent]:
-        """List ingress controllers for a ROSA cluster.
-
-        Args:
-            ctx: MCP context.
-            cluster_id: The OCM cluster ID.
-        """
-        data = await self.ocm.list_ingresses(cluster_id)
-        return [TextContent(type='text', text=json.dumps(data, indent=2))]
-
-    async def rosa_create_ingress(
-        self,
-        ctx: Context,
-        cluster_id: str,
-        private: bool = False,
-        lb_type: str = 'classic',
-        route_selectors: Optional[dict[str, str]] = None,
-        excluded_namespaces: Optional[list[str]] = None,
-    ) -> list[TextContent]:
-        """Create a new ingress controller for a ROSA cluster.
-
-        Args:
-            ctx: MCP context.
-            cluster_id: The OCM cluster ID.
-            private: Make the ingress private (internal-facing only).
-            lb_type: Load balancer type: 'nlb' or 'classic'.
-            route_selectors: Route label selectors as key-value pairs.
-            excluded_namespaces: List of namespaces to exclude from this ingress.
-        """
-        if not self.allow_write:
-            raise ValueError(
-                'Write operations disabled. Start the server with --allow-write.'
-            )
-
-        body: dict = {
-            'listening': 'internal' if private else 'external',
-        }
-
-        if lb_type:
-            body['load_balancer_type'] = lb_type
-
-        if route_selectors:
-            body['route_selectors'] = route_selectors
-
-        if excluded_namespaces:
-            body['excluded_namespaces'] = excluded_namespaces
-
-        data = await self.ocm.create_ingress(cluster_id, body)
-        return [TextContent(type='text', text=json.dumps(data, indent=2))]
-
-    async def rosa_update_ingress(
-        self,
-        ctx: Context,
-        cluster_id: str,
-        ingress_id: str,
+        operation: str,
+        ingress_id: Optional[str] = None,
         private: Optional[bool] = None,
         lb_type: Optional[str] = None,
         route_selectors: Optional[dict[str, str]] = None,
         excluded_namespaces: Optional[list[str]] = None,
     ) -> list[TextContent]:
-        """Update an ingress controller for a ROSA cluster.
+        """Manage ingress controllers for a ROSA cluster.
 
         Args:
             ctx: MCP context.
             cluster_id: The OCM cluster ID.
-            ingress_id: The ingress ID to update.
-            private: Set the ingress to private (internal) or public (external).
-            lb_type: Load balancer type: 'nlb' or 'classic'.
-            route_selectors: Route label selectors as key-value pairs.
-            excluded_namespaces: List of namespaces to exclude from this ingress.
+            operation: One of: list, create, update, delete.
+            ingress_id: Ingress ID (required for update, delete).
+            private: Make ingress private/internal (create, update).
+            lb_type: Load balancer type: 'nlb' or 'classic' (create, update).
+            route_selectors: Route label selectors (create, update).
+            excluded_namespaces: Namespaces to exclude (create, update).
         """
+        if operation == 'list':
+            data = await self.ocm.list_ingresses(cluster_id)
+            return [TextContent(type='text', text=json.dumps(data, indent=2))]
+
         if not self.allow_write:
             raise ValueError(
                 'Write operations disabled. Start the server with --allow-write.'
             )
 
-        body: dict = {}
+        if operation == 'create':
+            body: dict = {'listening': 'internal' if private else 'external'}
+            if lb_type:
+                body['load_balancer_type'] = lb_type
+            if route_selectors:
+                body['route_selectors'] = route_selectors
+            if excluded_namespaces:
+                body['excluded_namespaces'] = excluded_namespaces
+            data = await self.ocm.create_ingress(cluster_id, body)
+            return [TextContent(type='text', text=json.dumps(data, indent=2))]
 
-        if private is not None:
-            body['listening'] = 'internal' if private else 'external'
+        elif operation == 'update':
+            if not ingress_id:
+                raise ValueError('ingress_id is required for update operation.')
+            body = {}
+            if private is not None:
+                body['listening'] = 'internal' if private else 'external'
+            if lb_type is not None:
+                body['load_balancer_type'] = lb_type
+            if route_selectors is not None:
+                body['route_selectors'] = route_selectors
+            if excluded_namespaces is not None:
+                body['excluded_namespaces'] = excluded_namespaces
+            data = await self.ocm.update_ingress(cluster_id, ingress_id, body)
+            return [TextContent(type='text', text=json.dumps(data, indent=2))]
 
-        if lb_type is not None:
-            body['load_balancer_type'] = lb_type
+        elif operation == 'delete':
+            if not ingress_id:
+                raise ValueError('ingress_id is required for delete operation.')
+            status_code = await self.ocm.delete_ingress(cluster_id, ingress_id)
+            return [TextContent(
+                type='text',
+                text=json.dumps({
+                    'status': 'deleted', 'ingress_id': ingress_id, 'http_status': status_code,
+                }),
+            )]
 
-        if route_selectors is not None:
-            body['route_selectors'] = route_selectors
+        else:
+            raise ValueError(f'Invalid operation: {operation}. Use: list, create, update, delete.')
 
-        if excluded_namespaces is not None:
-            body['excluded_namespaces'] = excluded_namespaces
+    # Backward-compatible aliases for tests
+    async def rosa_list_ingresses(self, ctx, cluster_id):
+        """Alias."""
+        return await self.rosa_manage_ingress(ctx, cluster_id, operation='list')
 
-        data = await self.ocm.update_ingress(cluster_id, ingress_id, body)
-        return [TextContent(type='text', text=json.dumps(data, indent=2))]
+    async def rosa_create_ingress(self, ctx, cluster_id, **kwargs):
+        """Alias."""
+        return await self.rosa_manage_ingress(ctx, cluster_id, operation='create', **kwargs)
 
-    async def rosa_delete_ingress(
-        self,
-        ctx: Context,
-        cluster_id: str,
-        ingress_id: str,
-    ) -> list[TextContent]:
-        """Delete an ingress controller from a ROSA cluster.
+    async def rosa_update_ingress(self, ctx, cluster_id, ingress_id='', **kwargs):
+        """Alias."""
+        return await self.rosa_manage_ingress(ctx, cluster_id, operation='update', ingress_id=ingress_id, **kwargs)
 
-        Args:
-            ctx: MCP context.
-            cluster_id: The OCM cluster ID.
-            ingress_id: The ingress ID to delete.
-        """
-        if not self.allow_write:
-            raise ValueError(
-                'Write operations disabled. Start the server with --allow-write.'
-            )
-
-        status_code = await self.ocm.delete_ingress(cluster_id, ingress_id)
-        return [TextContent(
-            type='text',
-            text=json.dumps({
-                'status': 'deleted',
-                'ingress_id': ingress_id,
-                'http_status': status_code,
-            }),
-        )]
+    async def rosa_delete_ingress(self, ctx, cluster_id, ingress_id=''):
+        """Alias."""
+        return await self.rosa_manage_ingress(ctx, cluster_id, operation='delete', ingress_id=ingress_id)
