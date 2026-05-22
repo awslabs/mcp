@@ -23,6 +23,8 @@ Tool cost classification
 **Per-use billable (create/use microVM sessions — compute charges):**
 - invoke_agent_runtime
   Invokes an agent, spinning up or reusing a microVM session.
+- invoke_agent_runtime_command
+  Runs a shell command in a runtime session via HTTP EventStream.
 
 **One-time setup (creates infrastructure):**
 - create_agent_runtime
