@@ -165,7 +165,7 @@ or docker after a successful `docker build -t awslabs/elasticache-mcp-server .`:
         "--env",
         "FASTMCP_LOG_LEVEL=ERROR",
         "awslabs/elasticache-mcp-server:latest",
-        "--readonly" // Optional paramter if you would like to restrict the MCP to only read actions
+        "--readonly" // Optional parameter if you would like to restrict the MCP to only read actions
       ],
       "env": {},
       "disabled": false,
