@@ -25,20 +25,17 @@ These tests verify the functionality of the AWS Pricing API tools, including:
 import fastmcp
 import importlib
 import json
-import os
 import pytest
 from awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations import (
+    PRICING_API_REGIONS,
     get_attribute_values,
     get_pricing_from_api,
+    get_pricing_region,
     get_service_attributes,
     get_service_codes,
 )
 from awslabs.billing_cost_management_mcp_server.tools.aws_pricing_tools import (
     aws_pricing_server,
-)
-from awslabs.billing_cost_management_mcp_server.utilities.aws_service_base import (
-    PRICING_API_REGIONS,
-    get_pricing_region,
 )
 from fastmcp import Context
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -100,11 +97,11 @@ async def aws_pricing(ctx, operation, **kwargs):
         )
 
     elif operation == 'get_pricing_from_api':
-        if not kwargs.get('service_code') or not kwargs.get('region'):
+        if not kwargs.get('service_code'):
             return format_response(
                 'error',
                 {},
-                'service_code and region are required for get_pricing_from_api operation',
+                'service_code is required for get_pricing_from_api operation',
             )
 
         from awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations import (
@@ -112,19 +109,17 @@ async def aws_pricing(ctx, operation, **kwargs):
         )
 
         service_code = kwargs.get('service_code')
-        region = kwargs.get('region')
         filters = kwargs.get('filters')
         max_results = kwargs.get('max_results')
 
-        if service_code is None or region is None:
-            raise ValueError('service_code and region are required')
+        if service_code is None:
+            raise ValueError('service_code is required')
 
         return await get_pricing_from_api(
             ctx,
             str(service_code),
-            str(region),
             filters,
-            int(max_results) if max_results is not None else None,
+            max_results=int(max_results) if max_results is not None else None,
         )
 
     else:
@@ -140,52 +135,64 @@ def mock_context():
     return context
 
 
+class TestPricingApiRegions:
+    """Tests for PRICING_API_REGIONS constant."""
+
+    def test_pricing_api_regions_classic(self):
+        """Test PRICING_API_REGIONS classic partition contains correct regions."""
+        assert 'us-east-1' in PRICING_API_REGIONS['classic']
+        assert 'eu-central-1' in PRICING_API_REGIONS['classic']
+        assert 'ap-south-1' in PRICING_API_REGIONS['classic']
+
+    def test_pricing_api_regions_china(self):
+        """Test PRICING_API_REGIONS china partition contains correct regions."""
+        assert 'cn-northwest-1' in PRICING_API_REGIONS['china']
+
+
 class TestGetPricingRegion:
     """Tests for get_pricing_region function."""
 
-    def test_pricing_region_with_pricing_region(self):
-        """Test get_pricing_region when requested region is a pricing API region."""
-        for region in PRICING_API_REGIONS['classic'] + PRICING_API_REGIONS['china']:
-            result = get_pricing_region(region)
-            assert result == region
+    def test_returns_region_directly_if_valid_pricing_region(self):
+        """Test that valid pricing regions are returned as-is."""
+        assert get_pricing_region('us-east-1') == 'us-east-1'
+        assert get_pricing_region('eu-central-1') == 'eu-central-1'
+        assert get_pricing_region('ap-south-1') == 'ap-south-1'
+        assert get_pricing_region('cn-northwest-1') == 'cn-northwest-1'
 
-    def test_pricing_region_with_cn_region(self):
-        """Test get_pricing_region with a China region."""
-        result = get_pricing_region('cn-north-1')
-        assert result == 'cn-northwest-1'
+    def test_maps_cn_regions_to_cn_northwest_1(self):
+        """Test that China regions map to cn-northwest-1."""
+        assert get_pricing_region('cn-north-1') == 'cn-northwest-1'
+        assert get_pricing_region('cn-northwest-1') == 'cn-northwest-1'
 
-    def test_pricing_region_with_eu_region(self):
-        """Test get_pricing_region with an EU region."""
-        result = get_pricing_region('eu-west-1')
-        assert result == 'eu-central-1'
+    def test_maps_eu_me_af_regions_to_eu_central_1(self):
+        """Test that EU, Middle East, and Africa regions map to eu-central-1."""
+        assert get_pricing_region('eu-west-1') == 'eu-central-1'
+        assert get_pricing_region('eu-north-1') == 'eu-central-1'
+        assert get_pricing_region('me-south-1') == 'eu-central-1'
+        assert get_pricing_region('af-south-1') == 'eu-central-1'
 
-        # Test Middle East and Africa
-        result = get_pricing_region('me-south-1')
-        assert result == 'eu-central-1'
+    def test_maps_ap_regions_to_ap_south_1(self):
+        """Test that Asia Pacific regions map to ap-south-1."""
+        assert get_pricing_region('ap-northeast-1') == 'ap-south-1'
+        assert get_pricing_region('ap-southeast-1') == 'ap-south-1'
+        assert get_pricing_region('ap-east-1') == 'ap-south-1'
 
-        result = get_pricing_region('af-south-1')
-        assert result == 'eu-central-1'
+    def test_maps_other_regions_to_us_east_1(self):
+        """Test that all other regions (us-*, sa-*, ca-*) map to us-east-1."""
+        assert get_pricing_region('us-west-2') == 'us-east-1'
+        assert get_pricing_region('us-west-1') == 'us-east-1'
+        assert get_pricing_region('sa-east-1') == 'us-east-1'
+        assert get_pricing_region('ca-central-1') == 'us-east-1'
 
-    def test_pricing_region_with_ap_region(self):
-        """Test get_pricing_region with an Asia Pacific region."""
-        result = get_pricing_region('ap-northeast-1')
-        assert result == 'ap-southeast-1'
+    def test_defaults_to_aws_region_env_var(self):
+        """Test that AWS_REGION env var is used when no region is provided."""
+        with patch.dict('os.environ', {'AWS_REGION': 'eu-west-1'}):
+            assert get_pricing_region() == 'eu-central-1'
 
-    def test_pricing_region_with_us_region(self):
-        """Test get_pricing_region with a US region."""
-        result = get_pricing_region('us-west-2')
-        assert result == 'us-east-1'
-
-    def test_pricing_region_with_default(self):
-        """Test get_pricing_region with default region."""
-        with patch.dict(os.environ, {'AWS_REGION': 'us-west-2'}):
-            result = get_pricing_region()
-            assert result == 'us-east-1'
-
-        # Test without environment variable
-        with patch.dict(os.environ, {}, clear=True):
-            result = get_pricing_region()
-            assert result == 'us-east-1'
+    def test_defaults_to_us_east_1_without_env_var(self):
+        """Test that us-east-1 is used when no region and no env var."""
+        with patch.dict('os.environ', {}, clear=True):
+            assert get_pricing_region() == 'us-east-1'
 
 
 @pytest.mark.asyncio
@@ -306,7 +313,6 @@ class TestAwsPricing:
             mock_context,
             operation='get_pricing_from_api',
             service_code='AmazonEC2',
-            region='us-east-1',
             filters='{"instanceType":"t2.micro"}',
         )
 
@@ -353,23 +359,23 @@ class TestAwsPricing:
         assert 'attribute_name are required' in result['message']
 
     @patch('awslabs.billing_cost_management_mcp_server.utilities.aws_service_base.format_response')
-    async def test_aws_pricing_missing_region(self, mock_format_response, mock_context):
-        """Test aws_pricing with missing region parameter."""
+    async def test_aws_pricing_missing_service_code_pricing(
+        self, mock_format_response, mock_context
+    ):
+        """Test aws_pricing with missing service_code for get_pricing_from_api."""
         # Setup
         mock_format_response.return_value = {
             'status': 'error',
-            'message': 'service_code and region are required for get_pricing_from_api operation',
+            'message': 'service_code is required for get_pricing_from_api operation',
         }
 
         # Execute
-        result = await aws_pricing(
-            mock_context, operation='get_pricing_from_api', service_code='AmazonEC2'
-        )
+        result = await aws_pricing(mock_context, operation='get_pricing_from_api')
 
         # Assert
         assert result['status'] == 'error'
         assert 'message' in result
-        assert 'region are required' in result['message']
+        assert 'service_code is required' in result['message']
 
     @patch('awslabs.billing_cost_management_mcp_server.utilities.aws_service_base.format_response')
     async def test_aws_pricing_unknown_operation(self, mock_format_response, mock_context):
@@ -497,7 +503,7 @@ class TestAwsPricingOperations:
             }
             mock_client.return_value = mock_pricing
 
-            result = await get_pricing_from_api(mock_context, 'AmazonEC2', 'us-east-1')
+            result = await get_pricing_from_api(mock_context, 'AmazonEC2')
             assert result is not None
 
 
@@ -523,9 +529,9 @@ async def test_aws_pricing_missing_params_get_attribute_values():
 async def test_aws_pricing_missing_params_get_pricing():
     """Test get_pricing_from_api without required params."""
     ctx = AsyncMock()
-    result = await aws_pricing(ctx=ctx, operation='get_pricing_from_api', service_code='AmazonEC2')
+    result = await aws_pricing(ctx=ctx, operation='get_pricing_from_api')
     assert result['status'] == 'error'
-    assert 'service_code and region are required' in result['message']
+    assert 'service_code is required' in result['message']
 
 
 @pytest.mark.asyncio
@@ -567,14 +573,14 @@ async def test_aws_pricing_main_function_missing_params():
 
 
 @pytest.mark.asyncio
-async def test_aws_pricing_main_function_get_pricing_missing_region():
-    """Test main aws_pricing function with missing region."""
+async def test_aws_pricing_main_function_get_pricing_missing_service_code():
+    """Test main aws_pricing function with missing service_code."""
     mock_context = MagicMock(spec=Context)
     mock_context.info = AsyncMock()
 
-    result = await aws_pricing(mock_context, 'get_pricing_from_api', service_code='EC2')
+    result = await aws_pricing(mock_context, 'get_pricing_from_api')
     assert result['status'] == 'error'
-    assert 'region are required' in result['message']
+    assert 'service_code is required' in result['message']
 
 
 @pytest.mark.asyncio
@@ -650,12 +656,11 @@ async def test_aws_pricing_get_pricing_from_api_passes_filters_string_and_max_re
             mock_context,
             operation='get_pricing_from_api',
             service_code='AmazonEC2',
-            region='us-east-1',
             filters=filters,
             max_results=100,
         )
         assert res['status'] == 'success'
-        mock_impl.assert_awaited_once_with(mock_context, 'AmazonEC2', 'us-east-1', filters, 100)
+        mock_impl.assert_awaited_once_with(mock_context, 'AmazonEC2', filters, max_results=100)
 
 
 @pytest.mark.asyncio
@@ -670,11 +675,10 @@ async def test_aws_pricing_get_pricing_from_api_passes_filters_dict_too_extra(mo
             mock_context,
             operation='get_pricing_from_api',
             service_code='AmazonEC2',
-            region='us-west-2',
             filters=filters,
         )
         assert res['status'] == 'success'
-        mock_impl.assert_awaited_once_with(mock_context, 'AmazonEC2', 'us-west-2', filters, None)
+        mock_impl.assert_awaited_once_with(mock_context, 'AmazonEC2', filters, max_results=None)
 
 
 def _reload_pricing_with_identity_decorator():
@@ -774,21 +778,18 @@ async def test_ap_real_get_pricing_from_api_reload_identity_decorator(mock_conte
             mock_context,
             operation='get_pricing_from_api',
             service_code='AmazonEC2',
-            region='us-east-1',
             filters=filters,
             max_results=100,
         )
         assert res['status'] == 'success'
-        mock_impl.assert_awaited_once_with(
-            mock_context, 'AmazonEC2', 'us-east-1', filters, max_results=100
-        )
+        mock_impl.assert_awaited_once_with(mock_context, 'AmazonEC2', filters, max_results=100)
 
-    # missing region/service_code -> error
+    # missing service_code -> error
     res2 = await real_fn(  # type: ignore  # type: ignore
-        mock_context, operation='get_pricing_from_api', service_code='AmazonEC2'
+        mock_context, operation='get_pricing_from_api'
     )
     assert res2['status'] == 'error'
-    assert 'service_code and region' in res2.get('data', {}).get('message', '')
+    assert 'service_code is required' in res2.get('data', {}).get('message', '')
 
 
 @pytest.mark.asyncio
@@ -982,7 +983,7 @@ class TestGetPricingFromApiAdditional:
             'row_count': 1,
         }
 
-        result = await get_pricing_from_api(mock_context, 'AmazonEC2', 'us-east-1')
+        result = await get_pricing_from_api(mock_context, 'AmazonEC2')
 
         assert result['status'] == 'success'
         assert 'data_stored' in result['data']
@@ -1007,7 +1008,7 @@ class TestGetPricingFromApiAdditional:
 
         mock_convert_table.return_value = None
 
-        result = await get_pricing_from_api(mock_context, 'InvalidService', 'us-east-1')
+        result = await get_pricing_from_api(mock_context, 'InvalidService')
 
         assert result['status'] == 'error'
         assert 'did not return any pricing data' in result['data']['message']
@@ -1042,7 +1043,7 @@ class TestGetPricingFromApiAdditional:
 
         mock_convert_table.return_value = None
 
-        result = await get_pricing_from_api(mock_context, 'AmazonEC2', 'us-east-1')
+        result = await get_pricing_from_api(mock_context, 'AmazonEC2')
 
         assert result['status'] == 'success'
         assert len(result['data']['products']) == 2
@@ -1083,7 +1084,7 @@ class TestGetPricingFromApiAdditional:
         with patch('json.loads') as mock_json_loads:
             mock_json_loads.side_effect = [RuntimeError('Processing error')]
 
-            result = await get_pricing_from_api(mock_context, 'AmazonEC2', 'us-east-1')
+            result = await get_pricing_from_api(mock_context, 'AmazonEC2')
 
             assert result['status'] == 'success'
             assert len(result['data']['products']) == 1
@@ -1120,7 +1121,7 @@ class TestGetPricingFromApiAdditional:
 
         mock_convert_table.return_value = None
 
-        result = await get_pricing_from_api(mock_context, 'AmazonEC2', 'us-east-1', max_results=75)
+        result = await get_pricing_from_api(mock_context, 'AmazonEC2', max_results=75)
 
         assert result['status'] == 'success'
         # Should stop at max_results despite having more pages
@@ -1153,9 +1154,7 @@ class TestGetPricingFromApiAdditional:
         }
 
         filters_json = '{"instanceType": "t3.micro", "location": "US East (N. Virginia)"}'
-        result = await get_pricing_from_api(
-            mock_context, 'AmazonEC2', 'us-east-1', filters=filters_json
-        )
+        result = await get_pricing_from_api(mock_context, 'AmazonEC2', filters=filters_json)
 
         assert result['status'] == 'success'
         # Verify filters were parsed
@@ -1195,9 +1194,7 @@ class TestGetPricingFromApiAdditional:
             filters_json = (
                 '{"instanceType": "t3.micro", "location": null, "storageClass": "Standard"}'
             )
-            result = await get_pricing_from_api(
-                mock_context, 'AmazonEC2', 'us-east-1', filters=filters_json
-            )
+            result = await get_pricing_from_api(mock_context, 'AmazonEC2', filters=filters_json)
 
             assert result['status'] == 'success'
             # Verify API was called with only non-None filters
@@ -1206,24 +1203,18 @@ class TestGetPricingFromApiAdditional:
             assert len(call_kwargs['Filters']) == 2  # Only non-None values
 
     @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.get_pricing_region'
-    )
-    @patch(
         'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
     )
-    async def test_get_pricing_from_api_pricing_region_mapping(
-        self, mock_create_client, mock_get_pricing_region, mock_context
+    async def test_get_pricing_from_api_uses_pricing_region(
+        self, mock_create_client, mock_context
     ):
-        """Test get_pricing_from_api uses correct pricing region."""
+        """Test get_pricing_from_api uses get_pricing_region() to determine endpoint."""
         mock_client = MagicMock()
         mock_create_client.return_value = mock_client
-        mock_get_pricing_region.return_value = 'eu-central-1'
 
         mock_client.get_products.return_value = {'PriceList': []}
 
-        await get_pricing_from_api(mock_context, 'AmazonEC2', 'eu-west-1')
+        await get_pricing_from_api(mock_context, 'AmazonEC2')
 
-        # Verify pricing region was determined
-        mock_get_pricing_region.assert_called_once_with('eu-west-1')
-        # Verify client was created with correct region
-        mock_create_client.assert_called_once_with('pricing', 'eu-central-1')
+        # Defaults to us-east-1 when AWS_REGION is not set
+        mock_create_client.assert_called_once_with('pricing', 'us-east-1')

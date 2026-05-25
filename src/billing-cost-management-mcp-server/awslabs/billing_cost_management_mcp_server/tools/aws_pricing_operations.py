@@ -19,16 +19,59 @@ Updated to use shared utility functions.
 """
 
 import json
+import os
 from ..utilities.aws_service_base import (
     create_aws_client,
     format_response,
-    get_pricing_region,
     parse_json,
 )
 from ..utilities.logging_utils import get_context_logger
 from ..utilities.sql_utils import convert_api_response_to_table
 from fastmcp import Context
 from typing import Any, Dict, Optional
+
+
+PRICING_API_REGIONS = {
+    'classic': ['us-east-1', 'eu-central-1', 'ap-south-1'],
+    'china': ['cn-northwest-1'],
+}
+
+
+def get_pricing_region(requested_region: Optional[str] = None) -> str:
+    """Determine the appropriate AWS Pricing API region.
+
+    The AWS Pricing API is only available in specific regions:
+    - Classic partition: us-east-1, eu-central-1, ap-south-1
+    - China partition: cn-northwest-1
+
+    Args:
+        requested_region: The AWS region requested by the user (default: None)
+
+    Returns:
+        str: The closest AWS Pricing API region
+    """
+    if not requested_region:
+        requested_region = os.environ.get('AWS_REGION', 'us-east-1')
+
+    all_pricing_regions = PRICING_API_REGIONS['classic'] + PRICING_API_REGIONS['china']
+    if requested_region in all_pricing_regions:
+        return requested_region
+
+    if requested_region.startswith('cn-'):
+        pricing_region = 'cn-northwest-1'
+    elif requested_region.startswith(('eu-', 'me-', 'af-')):
+        pricing_region = 'eu-central-1'
+    elif requested_region.startswith('ap-'):
+        pricing_region = 'ap-south-1'
+    else:
+        pricing_region = 'us-east-1'
+
+    return pricing_region
+
+
+def create_pricing_client() -> Any:
+    """Create a Pricing API client using the appropriate regional endpoint."""
+    return create_aws_client('pricing', get_pricing_region())
 
 
 async def get_service_codes(ctx: Context, max_results: Optional[int] = None) -> Dict[str, Any]:
@@ -47,7 +90,7 @@ async def get_service_codes(ctx: Context, max_results: Optional[int] = None) -> 
         await ctx.info('Retrieving AWS service codes from Price List API')
 
         # Create pricing client using shared utility
-        pricing_client = create_aws_client('pricing', 'us-east-1')
+        pricing_client = create_pricing_client()
 
         # Initialize collection variables
         service_codes = []
@@ -115,7 +158,7 @@ async def get_service_attributes(ctx: Context, service_code: str) -> Dict[str, A
         await ctx.info(f'Retrieving attributes for service: {service_code}')
 
         # Create pricing client using shared utility
-        pricing_client = create_aws_client('pricing', 'us-east-1')
+        pricing_client = create_pricing_client()
 
         # Make API call
         response = pricing_client.describe_services(ServiceCode=service_code)
@@ -173,7 +216,7 @@ async def get_attribute_values(
         )
 
         # Create pricing client using shared utility
-        pricing_client = create_aws_client('pricing', 'us-east-1')
+        pricing_client = create_pricing_client()
 
         # Initialize collection variables
         values = []
@@ -241,7 +284,6 @@ async def get_attribute_values(
 async def get_pricing_from_api(
     ctx: Context,
     service_code: str,
-    region: str,
     filters: Optional[str] = None,
     max_results: Optional[int] = None,
 ) -> Dict[str, Any]:
@@ -250,7 +292,6 @@ async def get_pricing_from_api(
     Args:
         ctx: MCP context
         service_code: AWS service code
-        region: AWS region
         filters: Optional filters as JSON string
         max_results: Maximum number of results to return
 
@@ -258,16 +299,10 @@ async def get_pricing_from_api(
         Dict containing pricing data
     """
     try:
-        await ctx.info(
-            f"Retrieving pricing data for service '{service_code}' in region '{region}'"
-        )
-
-        # Determine correct pricing region
-        pricing_region = get_pricing_region(region)
-        await ctx.info(f'Using pricing API endpoint in region: {pricing_region}')
+        await ctx.info(f"Retrieving pricing data for service '{service_code}'")
 
         # Create pricing client using shared utility
-        pricing_client = create_aws_client('pricing', pricing_region)
+        pricing_client = create_pricing_client()
 
         # Process filters
         api_filters = []
@@ -337,7 +372,6 @@ async def get_pricing_from_api(
         # Create response with raw data
         raw_response = {
             'service_code': service_code,
-            'region': region,
             'filter_count': len(api_filters),
             'total_products_found': len(all_price_list),
             'PriceList': all_price_list,
@@ -345,7 +379,7 @@ async def get_pricing_from_api(
 
         # Convert large responses to SQL table
         table_response = await convert_api_response_to_table(
-            ctx, raw_response, 'getPricing', service_code=service_code, region=region
+            ctx, raw_response, 'getPricing', service_code=service_code
         )
 
         # If table was created, return that, otherwise process the response for easier consumption
@@ -446,7 +480,6 @@ async def get_pricing_from_api(
         # Use shared format_response utility
         result = {
             'service_code': service_code,
-            'region': region,
             'filter_count': len(api_filters),
             'total_products_found': len(all_price_list),
             'products_returned': len(processed_products),
@@ -469,7 +502,6 @@ async def get_pricing_from_api(
             {
                 'message': f'Pricing API request failed: {str(e)}',
                 'service_code': service_code,
-                'region': region,
                 'note': 'AWS service codes typically follow patterns like "AmazonS3", "AmazonEC2", "AmazonES" (for OpenSearch), etc.',
             },
         )
