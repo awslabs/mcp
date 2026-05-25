@@ -74,6 +74,7 @@ const sidebars: SidebarsConfig = {
             "servers/bedrock-kb-retrieval-mcp-server",
             "servers/amazon-qindex-mcp-server",
             "servers/amazon-qbusiness-anonymous-mcp-server",
+            'servers/amazon-translate-mcp-server',
             "servers/document-loader-mcp-server",
             "servers/aws-bedrock-custom-model-import-mcp-server",
             "servers/amazon-bedrock-agentcore-mcp-server",
