@@ -5,15 +5,13 @@
 # You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
-"""Tests for CA bundle integrity verification and --ca_bundle override.
+"""Tests for CA bundle loading and --ca_bundle override.
 
-These tests guard the IAM-auth trust boundary. The bundled RDS global CA
-bundle must be verified against a pinned hash before it is ever loaded into
-an SSL context; otherwise on-disk tampering would silently compromise all
-IAM auth connections.
+These tests guard the IAM-auth trust resolution path: which CA file ends
+up trusted by the SSL context depending on whether the bundled PEM is
+present and whether the operator passed --ca_bundle <path>.
 """
 
-import hashlib
 import os
 from awslabs.mysql_mcp_server.connection import asyncmy_pool_connection as mod
 from awslabs.mysql_mcp_server.connection.asyncmy_pool_connection import (
@@ -22,48 +20,21 @@ from awslabs.mysql_mcp_server.connection.asyncmy_pool_connection import (
 )
 
 
-class TestCaBundleIntegrity:
-    """Integrity checks for the bundled RDS CA."""
+class TestBundledCaFile:
+    """Behaviour of the _bundled_ca_file() helper."""
 
     def test_bundle_file_exists(self):
-        """The bundled PEM must ship with the package."""
+        """The bundled PEM must ship with the package (fetched at build time)."""
         assert os.path.isfile(mod._RDS_CA_BUNDLE_PATH), (
             f'Bundled RDS CA missing at {mod._RDS_CA_BUNDLE_PATH}. '
-            'Run `curl https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem` '
-            'and save to that path.'
+            'Run `python hatch_build.py` to fetch it.'
         )
 
-    def test_bundle_hash_matches_pin(self):
-        """The shipped PEM must match the hash pinned in the source.
-
-        If this fails, the bundle has been modified but the pin was not
-        updated. Either revert the change or update _RDS_CA_BUNDLE_SHA256 to
-        match the new bundle content.
-        """
-        with open(mod._RDS_CA_BUNDLE_PATH, 'rb') as fh:
-            digest = hashlib.sha256(fh.read()).hexdigest()
-        assert digest == mod._RDS_CA_BUNDLE_SHA256, (
-            f'RDS CA bundle hash mismatch. File hash: {digest}, '
-            f'pinned: {mod._RDS_CA_BUNDLE_SHA256}. '
-            'Update the pin or restore the bundle.'
-        )
-
-    def test_bundled_ca_file_returns_path_when_valid(self):
-        """_bundled_ca_file returns the path when the hash matches."""
+    def test_returns_path_when_file_present(self):
+        """_bundled_ca_file returns the path when the file is on disk."""
         assert _bundled_ca_file() == mod._RDS_CA_BUNDLE_PATH
 
-    def test_bundled_ca_file_rejects_tampered_content(self, tmp_path, monkeypatch):
-        """_bundled_ca_file returns None when the file hash does not match.
-
-        Simulates on-disk tampering by pointing the module at a temp PEM
-        whose content does not match the pinned hash.
-        """
-        tampered = tmp_path / 'tampered.pem'
-        tampered.write_text('-----BEGIN CERTIFICATE-----\nTAMPERED\n-----END CERTIFICATE-----\n')
-        monkeypatch.setattr(mod, '_RDS_CA_BUNDLE_PATH', str(tampered))
-        assert _bundled_ca_file() is None
-
-    def test_bundled_ca_file_handles_missing_file(self, tmp_path, monkeypatch):
+    def test_returns_none_when_file_missing(self, tmp_path, monkeypatch):
         """_bundled_ca_file returns None when the bundle file is absent."""
         monkeypatch.setattr(mod, '_RDS_CA_BUNDLE_PATH', str(tmp_path / 'nope.pem'))
         assert _bundled_ca_file() is None
@@ -111,7 +82,7 @@ class TestCaBundleSslContextWiring:
 
     The IAM auth code has a three-step trust resolution chain:
       1. --ca_bundle override
-      2. bundled and hash-verified RDS CA
+      2. bundled RDS CA (fetched at build time)
       3. system trust store (warned)
 
     These tests pin which branch is taken in each scenario so a regression
@@ -135,12 +106,9 @@ class TestCaBundleSslContextWiring:
         return AsyncmyPoolConnection(**kwargs)
 
     async def test_override_takes_precedence_over_bundled(self, tmp_path, monkeypatch):
-        """Operator-provided --ca_bundle wins even when a valid bundled bundle exists."""
+        """Operator-provided --ca_bundle wins even when the bundled file exists."""
         from unittest.mock import AsyncMock, MagicMock, patch
 
-        # Pre-conditions: bundled bundle exists and is valid (already verified
-        # by test_bundle_hash_matches_pin); we just need to confirm the
-        # override path is taken.
         override = tmp_path / 'override.pem'
         override.write_text(
             '-----BEGIN CERTIFICATE-----\nFAKE-OVERRIDE\n-----END CERTIFICATE-----\n'
@@ -163,7 +131,7 @@ class TestCaBundleSslContextWiring:
         )
 
     async def test_bundled_used_when_override_absent(self, monkeypatch):
-        """With no override and a valid bundled bundle, the bundled path is used."""
+        """With no override and a present bundled file, the bundled path is used."""
         from unittest.mock import AsyncMock, MagicMock, patch
 
         captured = {}
@@ -182,19 +150,18 @@ class TestCaBundleSslContextWiring:
             'ssl.create_default_context when no override is provided.'
         )
 
-    async def test_system_store_fallback_when_bundle_tampered(self, tmp_path, monkeypatch):
-        """If the bundled bundle fails its hash check, fall back to the system store.
+    async def test_system_store_fallback_when_bundle_missing(self, tmp_path, monkeypatch):
+        """If the bundled file is absent, fall back to the system store.
 
         This exercises the warning path: connection still attempts to come up,
         but with no explicit cafile so the operator can recover by providing
-        --ca_bundle on the next start.
+        --ca_bundle on the next start, or by rebuilding the package to refetch
+        the bundle.
         """
         from unittest.mock import AsyncMock, MagicMock, patch
 
-        # Point the module at a tampered PEM so _bundled_ca_file() returns None
-        tampered = tmp_path / 'tampered.pem'
-        tampered.write_text('not a valid cert chain')
-        monkeypatch.setattr(mod, '_RDS_CA_BUNDLE_PATH', str(tampered))
+        # Point the module at a missing path so _bundled_ca_file() returns None
+        monkeypatch.setattr(mod, '_RDS_CA_BUNDLE_PATH', str(tmp_path / 'missing.pem'))
 
         captured: dict = {'cafile': 'sentinel-not-set'}
 
@@ -208,9 +175,8 @@ class TestCaBundleSslContextWiring:
             await conn.initialize_pool()
 
         assert captured['cafile'] is None, (
-            'When the bundled bundle fails integrity check, '
-            'create_default_context must be called with no cafile so the '
-            'system trust store is used (warned).'
+            'When the bundled file is missing, create_default_context must be '
+            'called with no cafile so the system trust store is used (warned).'
         )
 
     async def test_no_ssl_context_for_non_iam(self, monkeypatch):

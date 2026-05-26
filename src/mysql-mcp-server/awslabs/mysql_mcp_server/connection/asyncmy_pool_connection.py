@@ -22,7 +22,6 @@ parameters (host, port, database, user, password) or via AWS Secrets Manager.
 import asyncmy
 import asyncmy.cursors
 import boto3
-import hashlib
 import json
 import os
 import ssl as ssl_module
@@ -35,50 +34,39 @@ from loguru import logger
 from typing import Any, Dict, List, Optional, Tuple
 
 
-# Path to the bundled Amazon RDS global CA bundle. The bundle is verified
-# against a pinned SHA-256 below before it is trusted for IAM-auth SSL
-# verification. This prevents a silent trust upgrade if the bundled file is
-# tampered with independently of the Python source (for example, by an
-# accidental file edit, a misconfigured container build, or a CI script).
+# Path to the bundled Amazon RDS global CA bundle. The bundle is fetched
+# at build time by hatch_build.py and shipped inside the wheel so that IAM
+# authenticated connections can perform strict TLS verification out of the
+# box. The PEM is gitignored; rebuilding the package fetches a fresh copy.
 #
-# To refresh the bundle:
-#   1. Download a fresh copy from
-#      https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem
-#   2. Replace the file at _RDS_CA_BUNDLE_PATH
-#   3. Update _RDS_CA_BUNDLE_SHA256 below to match `shasum -a 256 <path>`
-#   4. Bump the package version and release
-#
-# Users who maintain their own trust store can bypass the bundled bundle
-# entirely by passing --ca_bundle <path> on the server command line.
+# Users who maintain their own trust store can override the bundled file
+# by passing --ca_bundle <path> on the server command line.
 _RDS_CA_BUNDLE_PATH = os.path.join(os.path.dirname(__file__), 'rds_global_bundle.pem')
-_RDS_CA_BUNDLE_SHA256 = 'e5bb2084ccf45087bda1c9bffdea0eb15ee67f0b91646106e466714f9de3c7e3'
 
 
 def _bundled_ca_file() -> Optional[str]:
-    """Return the bundled CA path if its content matches the pinned hash.
+    """Return the bundled CA path if it is present on disk, else None.
 
-    Returns None (with a logged error) if the bundle is missing, unreadable,
-    or its hash does not match the pinned value. In that case callers should
-    either fall back to the system trust store or refuse to use IAM auth.
+    Returns None (with a logged error) if the bundle is missing or
+    unreadable. In that case callers should either fall back to the system
+    trust store or refuse to use IAM auth.
     """
-    try:
-        with open(_RDS_CA_BUNDLE_PATH, 'rb') as fh:
-            content = fh.read()
-    except OSError as exc:
+    if not os.path.isfile(_RDS_CA_BUNDLE_PATH):
         logger.error(
-            'Bundled RDS CA bundle is missing or unreadable at {}: {}',
+            'Bundled RDS CA bundle is missing at {}. The build hook should '
+            'have fetched it during package build; rebuild the package or '
+            'pass --ca_bundle <path> to override.',
             _RDS_CA_BUNDLE_PATH,
-            exc,
         )
         return None
-    digest = hashlib.sha256(content).hexdigest()
-    if digest != _RDS_CA_BUNDLE_SHA256:
+    try:
+        with open(_RDS_CA_BUNDLE_PATH, 'rb'):
+            pass
+    except OSError as exc:
         logger.error(
-            'Bundled RDS CA bundle at {} failed integrity check '
-            '(got sha256={}, expected {}). Refusing to use it.',
+            'Bundled RDS CA bundle at {} could not be read: {}',
             _RDS_CA_BUNDLE_PATH,
-            digest,
-            _RDS_CA_BUNDLE_SHA256,
+            exc,
         )
         return None
     return _RDS_CA_BUNDLE_PATH

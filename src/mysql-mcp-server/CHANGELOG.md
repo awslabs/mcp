@@ -12,11 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `database_type` parameter on `connect_to_database` accepts `aurora-mysql`,
   `mysql` (RDS MySQL), and `mariadb` (RDS MariaDB). Engine values match
   AWS RDS engine strings so they can be forwarded directly to RDS APIs.
-- `mysqlwire_iam` connection method for IAM-auth connections with
-  hash-pinned Amazon RDS CA bundle. The CA bundle is fetched at build
-  time by `hatch_build.py` and verified against a SHA-256 pin so AWS CA
-  rotations require a reviewed pin bump rather than silently changing
-  what the package trusts.
+- `mysqlwire_iam` connection method for IAM-auth connections backed by
+  the Amazon RDS CA bundle. The bundle is fetched at build time by
+  `hatch_build.py` and shipped inside the wheel; operators can override
+  the bundled file with `--ca_bundle <path>` if they maintain their own
+  trust store or need a fresher bundle than the latest release.
 - `create_cluster` MCP tool for creating Aurora MySQL clusters
   (Serverless v2 by default, or provisioned via `cluster_type='provisioned'`).
   Returns a job id; poll `get_job_status` until the cluster is available.
@@ -48,3 +48,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `db_connection_singleton.py` (replaced by `db_connection_map.py`).
 - `constants.py` (single `USER_AGENT_*` value moved into
   `awslabs/mysql_mcp_server/__init__.py` alongside `__version__`).
+- SHA-256 pinning of the RDS CA bundle in `hatch_build.py` and the
+  runtime hash re-check in `asyncmy_pool_connection.py`. The build
+  hook still fetches the bundle from
+  `truststore.pki.rds.amazonaws.com` at build time and ships it in
+  the wheel; CA bundle rotations are picked up automatically on the
+  next build. Runtime TLS validation against the bundled CA is
+  unchanged.

@@ -148,24 +148,22 @@ Make sure the AWS profile has permissions to access the RDS Data API, and the se
 This package ships the Amazon RDS global CA bundle inside the wheel so IAM
 authenticated connections (`mysqlwire_iam`) can perform strict TLS
 verification out of the box. The PEM itself is not checked into source
-control; it is fetched and verified at build time by `hatch_build.py`.
+control; it is fetched at build time by `hatch_build.py`.
 
 ### Why the bundle is fetched at build time
 
-AWS rotates the RDS global CA bundle without notice. If we shipped the PEM
-as a checked-in file, a `git pull` could silently change which CA chain
-the package trusts. Instead, the build hook fetches the bundle from
+AWS rotates the RDS global CA bundle without notice. Keeping the PEM out
+of source control avoids committing binary blobs to code review, and lets
+the build hook automatically pick up the latest bundle from
 `https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem` on
-every build and verifies it against a SHA-256 pinned in `hatch_build.py`.
-A rotation fails the build until a human reviews the new chain and bumps
-the pin in a reviewed commit. CA rotation becomes a code-review event
-rather than a quiet file change.
+every build. Runtime TLS validation against the bundled CA handles cert
+chain and FQDN matching in the usual way.
 
 ### Running the build hook
 
 `uv build`, `uv sync`, `pip wheel`, and `pip install` from source all
-invoke the hook automatically. The hook is idempotent: if the verified
-PEM is already on disk with the correct hash, it skips the fetch.
+invoke the hook automatically. The hook is idempotent: if the PEM is
+already on disk, it skips the fetch.
 
 To run the hook standalone (for example, to populate the PEM in an
 editable checkout that has not yet been built):
@@ -174,28 +172,15 @@ editable checkout that has not yet been built):
 python hatch_build.py
 ```
 
-This writes the verified bundle to
+This writes the bundle to
 `awslabs/mysql_mcp_server/connection/rds_global_bundle.pem`.
-
-### When AWS rotates the CA bundle
-
-The build fails with a hash-mismatch error that prints the new SHA-256.
-After verifying out of band that the rotation is legitimate (AWS blog,
-Trust and Safety advisory), update the pin:
-
-```bash
-python hatch_build.py --refresh-hash
-```
-
-Update `_RDS_CA_BUNDLE_SHA256` in `hatch_build.py` to the new value and
-commit the change for review.
 
 ### Building offline
 
 If the build machine cannot reach `truststore.pki.rds.amazonaws.com`,
 the hook fails with an error that includes a `curl` recovery command.
 Run that on a connected host once and rerun the build; the hook will
-SHA-256-verify the placed file and use it.
+use the placed file.
 
 ### Optional: override the CA bundle at runtime
 
