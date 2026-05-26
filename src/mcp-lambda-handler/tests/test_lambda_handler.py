@@ -928,7 +928,7 @@ def test_handle_request_malformed_jsonrpc():
 def test_handle_request_finally_clears_context():
     """Test that handle_request finally clears the context variables."""
     handler = MCPLambdaHandler('test-server')
-    from awslabs.mcp_lambda_handler.mcp_lambda_handler import current_protocol_version, current_session_id
+    from awslabs.mcp_lambda_handler.mcp_lambda_handler import current_session_id
 
     token = current_session_id.set('sid123')
     # Cause an exception in handle_request
@@ -939,7 +939,6 @@ def test_handle_request_finally_clears_context():
         pass
     # Should be cleared to defaults
     assert current_session_id.get() is None
-    assert current_protocol_version.get() == '2025-11-25'
     current_session_id.reset(token)
 
 
@@ -1500,8 +1499,14 @@ def test_tool_names_preserve_snake_case():
     assert body['result']['content'][0]['text'] == 'Searching for: laptop'
 
 
-def test_initialize_protocol_version_negotiation():
-    """Test protocol version negotiation during initialization."""
+def test_initialize_always_advertises_latest_protocol_version():
+    """Server always responds with the latest protocol version regardless of client request.
+
+    Per the MCP spec, the server advertises the version it supports and the
+    client decides whether to continue or disconnect. We intentionally do not
+    echo older client versions back, since the response format is only emitted
+    in the 2025-11-25 shape.
+    """
     handler = MCPLambdaHandler('test-server')
 
     @handler.tool()
@@ -1509,7 +1514,7 @@ def test_initialize_protocol_version_negotiation():
         """Dummy tool."""
         return 'ok'
 
-    # Client sends a supported version
+    # Client sends the latest version
     req = {
         'jsonrpc': '2.0',
         'id': 1,
@@ -1522,15 +1527,15 @@ def test_initialize_protocol_version_negotiation():
     assert body['result']['protocolVersion'] == '2025-11-25'
     assert resp['headers']['MCP-Protocol-Version'] == '2025-11-25'
 
-    # Client sends an older supported version
+    # Client sends an older version — server still responds with the latest
     req['params']['protocolVersion'] = '2024-11-05'
     event = make_lambda_event(req)
     resp = handler.handle_request(event, None)
     body = json.loads(resp['body'])
-    assert body['result']['protocolVersion'] == '2024-11-05'
-    assert resp['headers']['MCP-Protocol-Version'] == '2024-11-05'
+    assert body['result']['protocolVersion'] == '2025-11-25'
+    assert resp['headers']['MCP-Protocol-Version'] == '2025-11-25'
 
-    # Client sends an unsupported version — server responds with latest
+    # Client sends an unknown future version — server responds with the latest
     req['params']['protocolVersion'] = '9999-12-31'
     event = make_lambda_event(req)
     resp = handler.handle_request(event, None)

@@ -49,16 +49,11 @@ from typing import (
 )
 
 LATEST_PROTOCOL_VERSION = '2025-11-25'
-SUPPORTED_PROTOCOL_VERSIONS = {'2024-11-05', '2025-03-26', '2025-06-18', '2025-11-25'}
 
 logger = logging.getLogger(__name__)
 
 # Context variable to store current session ID
 current_session_id: ContextVar[Optional[str]] = ContextVar('current_session_id', default=None)
-# Context variable to store negotiated protocol version for the current request
-current_protocol_version: ContextVar[str] = ContextVar(
-    'current_protocol_version', default=LATEST_PROTOCOL_VERSION
-)
 
 T = TypeVar('T')
 
@@ -342,7 +337,7 @@ class MCPLambdaHandler:
             jsonrpc='2.0', id=request_id, error=error, errorContent=error_content
         )
 
-        headers = {'Content-Type': 'application/json', 'MCP-Protocol-Version': current_protocol_version.get()}
+        headers = {'Content-Type': 'application/json', 'MCP-Protocol-Version': LATEST_PROTOCOL_VERSION}
         if session_id:
             headers['MCP-Session-Id'] = session_id
 
@@ -414,7 +409,7 @@ class MCPLambdaHandler:
         """Create a standardized success response."""
         response = JSONRPCResponse(jsonrpc='2.0', id=request_id, result=result)
 
-        headers = {'Content-Type': 'application/json', 'MCP-Protocol-Version': current_protocol_version.get()}
+        headers = {'Content-Type': 'application/json', 'MCP-Protocol-Version': LATEST_PROTOCOL_VERSION}
         if session_id:
             headers['MCP-Session-Id'] = session_id
 
@@ -488,14 +483,13 @@ class MCPLambdaHandler:
                 session_id = self.session_store.create_session()
                 current_session_id.set(session_id)
 
-                # Protocol version negotiation
-                params = request.params if isinstance(request.params, dict) else {}
-                client_version = params.get('protocolVersion', LATEST_PROTOCOL_VERSION)
-                if client_version in SUPPORTED_PROTOCOL_VERSIONS:
-                    negotiated_version = client_version
-                else:
-                    negotiated_version = LATEST_PROTOCOL_VERSION
-                current_protocol_version.set(negotiated_version)
+                # Always advertise the latest protocol version. Per the MCP spec,
+                # the server responds with the version it supports and the client
+                # decides whether to continue or disconnect. Echoing the client's
+                # version while only emitting 2025-11-25-format responses would
+                # be ambiguous (e.g. an older client checking
+                # `capabilities.tools.call` would silently skip the feature).
+                negotiated_version = LATEST_PROTOCOL_VERSION
 
                 capabilities = Capabilities()
                 if self.tools:
@@ -645,4 +639,3 @@ class MCPLambdaHandler:
             return self._create_error_response(-32000, str(e), request_id, session_id=session_id)
         finally:
             current_session_id.set(None)
-            current_protocol_version.set(LATEST_PROTOCOL_VERSION)
