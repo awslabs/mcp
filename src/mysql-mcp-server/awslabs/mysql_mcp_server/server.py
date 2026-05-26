@@ -19,7 +19,6 @@ import asyncio
 import json
 import sys
 import threading
-import traceback
 from awslabs.mysql_mcp_server.connection.abstract_db_connection import AbstractDBConnection
 from awslabs.mysql_mcp_server.connection.asyncmy_pool_connection import AsyncmyPoolConnection
 from awslabs.mysql_mcp_server.connection.cp_api_connection import (
@@ -197,15 +196,18 @@ async def run_query(
         logger.success(f'run_query successfully executed query:{sql}')
         return parse_execute_response(response)
     except ClientError as e:
+        # AWS ClientError has a structured Error.Code we can safely surface;
+        # the message can include identity strings, so we keep that out of
+        # the LLM response and rely on logger.exception for operator visibility.
         logger.exception(client_error_code_key)
-        await ctx.error(
-            str({'code': e.response['Error']['Code'], 'message': e.response['Error']['Message']})
-        )
+        await ctx.error(str({'code': e.response['Error']['Code']}))
         return [{'error': client_error_code_key}]
     except Exception as e:
+        # Full traceback is logged locally; only the exception type name is
+        # surfaced to the LLM so identity-revealing strings from asyncmy /
+        # botocore exceptions never leave the server.
         logger.exception(unexpected_error_key)
-        error_details = f'{type(e).__name__}: {str(e)}'
-        await ctx.error(str({'message': error_details}))
+        await ctx.error(str({'error_type': type(e).__name__}))
         return [{'error': unexpected_error_key}]
 
 
@@ -242,6 +244,10 @@ async def get_table_schema(
         SELECT
             COLUMN_NAME AS column_name,
             COLUMN_TYPE AS data_type,
+            IS_NULLABLE AS is_nullable,
+            COLUMN_DEFAULT AS column_default,
+            COLUMN_KEY AS column_key,
+            EXTRA AS extra,
             COLUMN_COMMENT AS column_comment
         FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_SCHEMA = :table_schema
@@ -318,10 +324,17 @@ def connect_to_database(
         return str(llm_response)
 
     except Exception as e:
-        logger.error(f'connect_to_database failed with error: {str(e)}')
-        trace_msg = traceback.format_exc()
-        logger.error(f'Trace:{trace_msg}')
-        llm_response = {'status': 'Failed', 'error': str(e)}
+        # Log full traceback locally for the operator (cluster ARNs, secret
+        # ARNs, hostnames, etc. are useful for debugging on the host running
+        # the server). Return only the exception class name to the LLM client
+        # so identity-revealing strings from boto3 / asyncmy / Secrets Manager
+        # exceptions never leave the server.
+        logger.exception('connect_to_database failed')
+        llm_response = {
+            'status': 'Failed',
+            'error_type': type(e).__name__,
+            'error_message': 'connect_to_database failed; see server logs for details',
+        }
         return json.dumps(llm_response, indent=2)
 
 
@@ -569,11 +582,18 @@ def create_cluster_worker(
         finally:
             async_job_status_lock.release()
     except Exception as e:
-        logger.error(f'create_cluster_worker failed with {e}')
+        # Log full traceback locally for the operator. The async_job_status
+        # entry is read by the LLM via get_job_status, so we surface only the
+        # exception type name there to avoid leaking identity-revealing
+        # strings from boto3 / RDS / IAM exceptions.
+        logger.exception('create_cluster_worker failed')
         try:
             async_job_status_lock.acquire()
             async_job_status[job_id]['state'] = 'failed'
-            async_job_status[job_id]['result'] = str(e)
+            async_job_status[job_id]['result'] = (
+                f'cluster creation failed ({type(e).__name__}); '
+                'see server logs for details'
+            )
         finally:
             async_job_status_lock.release()
 

@@ -164,7 +164,16 @@ class TestConnectToDatabase:
 
         parsed = json.loads(result)
         assert parsed['status'] == 'Failed'
-        assert 'connection failed' in parsed['error']
+        # Exception type name is surfaced to the LLM; the raw message is
+        # logged locally only and must NOT appear in the response payload
+        # to avoid leaking identity-revealing strings from boto3 / asyncmy /
+        # Secrets Manager exceptions.
+        assert parsed['error_type'] == 'RuntimeError'
+        assert 'see server logs' in parsed['error_message']
+        assert 'connection failed' not in result, (
+            'Raw exception message must not appear anywhere in the response '
+            'returned to the LLM client.'
+        )
 
 
 class TestCreateCluster:
