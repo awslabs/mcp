@@ -16,11 +16,13 @@ import re
 
 
 # -- Mutating keyword set for quick string matching --
+# Note: REPLACE is handled separately below because `REPLACE INTO ...`
+# is a mutating DML statement while `REPLACE(col, 'a', 'b')` is a
+# safe string function that must be allowed in read-only mode.
 MUTATING_KEYWORDS = {
     'INSERT',
     'UPDATE',
     'DELETE',
-    'REPLACE',
     'TRUNCATE',
     'CREATE',
     'DROP',
@@ -34,8 +36,14 @@ MUTATING_KEYWORDS = {
     'UNINSTALL PLUGIN',
 }
 
+# Build the mutating keyword pattern.  REPLACE needs special handling:
+# `REPLACE INTO ...` is mutating, but `REPLACE(col, 'a', 'b')` is a
+# safe string function.  A negative lookahead for `(` distinguishes
+# the two forms.
+_REPLACE_PATTERN = r'REPLACE(?!\s*\()'
+_OTHER_KEYWORDS = sorted(k for k in MUTATING_KEYWORDS)
 MUTATING_PATTERN = re.compile(
-    r'(?i)\b(' + '|'.join(re.escape(k) for k in MUTATING_KEYWORDS) + r')\b'
+    r'(?i)\b(' + '|'.join([_REPLACE_PATTERN] + [re.escape(k) for k in _OTHER_KEYWORDS]) + r')\b'
 )
 
 # -- Regex for DDL statements --
