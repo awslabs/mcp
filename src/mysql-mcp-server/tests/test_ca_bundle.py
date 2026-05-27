@@ -113,6 +113,13 @@ class TestCaBundleSslContextWiring:
         override.write_text(
             '-----BEGIN CERTIFICATE-----\nFAKE-OVERRIDE\n-----END CERTIFICATE-----\n'
         )
+        # Also make _bundled_ca_file() succeed without depending on the
+        # build-hook-fetched PEM, which is absent in fresh CI checkouts.
+        bundled = tmp_path / 'bundled.pem'
+        bundled.write_text(
+            '-----BEGIN CERTIFICATE-----\nFAKE-BUNDLED\n-----END CERTIFICATE-----\n'
+        )
+        monkeypatch.setattr(mod, '_RDS_CA_BUNDLE_PATH', str(bundled))
 
         captured = {}
 
@@ -121,7 +128,18 @@ class TestCaBundleSslContextWiring:
             return MagicMock()
 
         monkeypatch.setattr(mod.ssl_module, 'create_default_context', fake_create_default_context)
-        with patch.object(mod.asyncmy, 'create_pool', new_callable=AsyncMock):
+        # initialize_pool() calls get_iam_auth_token() which hits boto3+RDS
+        # to mint a real auth token. CI runners have no AWS credentials,
+        # so we short-circuit that call to keep the test focused on the
+        # SSL trust-chain wiring under test.
+        with (
+            patch.object(
+                AsyncmyPoolConnection,
+                'get_iam_auth_token',
+                return_value='fake-iam-token',
+            ),
+            patch.object(mod.asyncmy, 'create_pool', new_callable=AsyncMock),
+        ):
             conn = self._make_iam_conn(ca_bundle_path=str(override))
             await conn.initialize_pool()
 
@@ -130,9 +148,18 @@ class TestCaBundleSslContextWiring:
             'silently fallen through to the bundled or system store.'
         )
 
-    async def test_bundled_used_when_override_absent(self, monkeypatch):
+    async def test_bundled_used_when_override_absent(self, tmp_path, monkeypatch):
         """With no override and a present bundled file, the bundled path is used."""
         from unittest.mock import AsyncMock, MagicMock, patch
+
+        # Point the module at a temp file the test creates so this test does
+        # not depend on the build-hook-fetched PEM being present on disk
+        # (CI checkouts run pytest without first building the wheel).
+        bundled = tmp_path / 'bundled.pem'
+        bundled.write_text(
+            '-----BEGIN CERTIFICATE-----\nFAKE-BUNDLED\n-----END CERTIFICATE-----\n'
+        )
+        monkeypatch.setattr(mod, '_RDS_CA_BUNDLE_PATH', str(bundled))
 
         captured = {}
 
@@ -141,11 +168,18 @@ class TestCaBundleSslContextWiring:
             return MagicMock()
 
         monkeypatch.setattr(mod.ssl_module, 'create_default_context', fake_create_default_context)
-        with patch.object(mod.asyncmy, 'create_pool', new_callable=AsyncMock):
+        with (
+            patch.object(
+                AsyncmyPoolConnection,
+                'get_iam_auth_token',
+                return_value='fake-iam-token',
+            ),
+            patch.object(mod.asyncmy, 'create_pool', new_callable=AsyncMock),
+        ):
             conn = self._make_iam_conn()
             await conn.initialize_pool()
 
-        assert captured['cafile'] == mod._RDS_CA_BUNDLE_PATH, (
+        assert captured['cafile'] == str(bundled), (
             'Expected the bundled RDS CA path to be passed to '
             'ssl.create_default_context when no override is provided.'
         )
@@ -170,7 +204,14 @@ class TestCaBundleSslContextWiring:
             return MagicMock()
 
         monkeypatch.setattr(mod.ssl_module, 'create_default_context', fake_create_default_context)
-        with patch.object(mod.asyncmy, 'create_pool', new_callable=AsyncMock):
+        with (
+            patch.object(
+                AsyncmyPoolConnection,
+                'get_iam_auth_token',
+                return_value='fake-iam-token',
+            ),
+            patch.object(mod.asyncmy, 'create_pool', new_callable=AsyncMock),
+        ):
             conn = self._make_iam_conn()
             await conn.initialize_pool()
 

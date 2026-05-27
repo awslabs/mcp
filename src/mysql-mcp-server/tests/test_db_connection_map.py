@@ -632,3 +632,76 @@ class TestHasConnectionForCluster:
         )
         # Caller doesn't know the endpoint or the database — still matches.
         assert m.has_connection_for_cluster('prod') is True
+
+
+class TestCloseAllSync:
+    """Tests for the synchronous best-effort close path used at process shutdown."""
+
+    def test_closes_pool_on_each_connection(self):
+        """close_all_sync calls .pool.close() on every cached connection and clears the map."""
+        from awslabs.mysql_mcp_server.connection.db_connection_map import (
+            ConnectionMethod,
+            DBConnectionMap,
+        )
+        from unittest.mock import MagicMock
+
+        m = DBConnectionMap()
+
+        conn1 = MagicMock()
+        conn1.pool = MagicMock()
+        conn2 = MagicMock()
+        conn2.pool = MagicMock()
+
+        m.set(ConnectionMethod.RDS_API, 'cluster-1', 'ep1', 'app', conn1)
+        m.set(ConnectionMethod.MYSQL_WIRE_PROTOCOL, 'cluster-2', 'ep2', 'app', conn2)
+
+        m.close_all_sync()
+
+        conn1.pool.close.assert_called_once()
+        conn2.pool.close.assert_called_once()
+        # After close_all_sync the map must be empty so the next process
+        # restart starts fresh.
+        assert len(m.map) == 0
+
+    def test_skips_connection_without_pool_attribute(self):
+        """A connection that exposes no .pool attribute (e.g. Data API) is silently skipped."""
+        from awslabs.mysql_mcp_server.connection.db_connection_map import (
+            ConnectionMethod,
+            DBConnectionMap,
+        )
+        from unittest.mock import MagicMock
+
+        m = DBConnectionMap()
+
+        # spec=[] so .pool attribute access raises AttributeError. hasattr()
+        # returns False, and the connection is skipped without error.
+        conn = MagicMock(spec=[])
+        m.set(ConnectionMethod.RDS_API, 'cluster-1', 'ep', 'app', conn)
+
+        m.close_all_sync()
+        assert len(m.map) == 0
+
+    def test_swallows_close_exceptions(self):
+        """A close() that raises must not prevent the rest of the connections from closing."""
+        from awslabs.mysql_mcp_server.connection.db_connection_map import (
+            ConnectionMethod,
+            DBConnectionMap,
+        )
+        from unittest.mock import MagicMock
+
+        m = DBConnectionMap()
+
+        bad = MagicMock()
+        bad.pool = MagicMock()
+        bad.pool.close.side_effect = RuntimeError('socket already shut')
+
+        good = MagicMock()
+        good.pool = MagicMock()
+
+        m.set(ConnectionMethod.RDS_API, 'cluster-bad', 'ep', 'app', bad)
+        m.set(ConnectionMethod.RDS_API, 'cluster-good', 'ep2', 'app', good)
+
+        # Must not raise.
+        m.close_all_sync()
+        good.pool.close.assert_called_once()
+        assert len(m.map) == 0

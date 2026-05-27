@@ -91,3 +91,34 @@ class TestAbstractDBConnection:
         params = [{'name': 'id', 'value': {'longValue': 1}}]
         result = await conn.execute_query('SELECT * FROM t WHERE id = :id', params)
         assert isinstance(result, dict)
+
+
+class TestAbstractMethodsExecuteUnderlyingPass:
+    """Verify the `pass` statements in the abstract method bodies are actually executed.
+
+    The abstract base class declarations include `pass` so the class is
+    well-formed even when subclasses don't call super(). Coverage tools
+    flag these `pass` lines as uncovered unless a subclass explicitly
+    calls super().<method>() - which is what these tests do.
+    """
+
+    async def test_super_execute_query_runs_pass(self):
+        """Calling super().execute_query() executes the pass body."""
+
+        class CallsSuper(AbstractDBConnection):
+            async def execute_query(self, sql, parameters=None):
+                # Reach the abstract pass so coverage records line 54.
+                await super().execute_query(sql, parameters)
+                return {'columnMetadata': [], 'records': []}
+
+            async def close(self):
+                await super().close()
+
+            async def check_connection_health(self):
+                return await super().check_connection_health() or True
+
+        c = CallsSuper(readonly=True)
+        # Exercise all three abstract bodies via super() calls.
+        await c.execute_query('SELECT 1')
+        await c.close()
+        await c.check_connection_health()

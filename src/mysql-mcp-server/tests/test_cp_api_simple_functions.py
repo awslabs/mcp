@@ -232,3 +232,64 @@ class TestInternalCreateRdsClient:
         assert call_args[0][0] == 'rds'
         assert call_args[1]['region_name'] == 'us-west-2'
         assert result is mock_client
+
+
+class TestInternalGetInstancePropertiesGenericException:
+    """Cover the generic-Exception branch alongside the ClientError test."""
+
+    @patch('awslabs.mysql_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_generic_exception_reraises(self, mock_create_client):
+        """Non-ClientError exceptions are logged with type name and re-raised."""
+        mock_client = MagicMock()
+        paginator = MagicMock()
+        paginator.paginate.side_effect = RuntimeError('connection reset')
+        mock_client.get_paginator.return_value = paginator
+        mock_create_client.return_value = mock_client
+
+        with pytest.raises(RuntimeError, match='connection reset'):
+            internal_get_instance_properties('ep.rds.amazonaws.com', 'us-east-1')
+
+
+class TestInternalCreateAuroraClusterErrors:
+    """Tests for internal_create_aurora_cluster's ClientError and generic-Exception branches."""
+
+    @patch('awslabs.mysql_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_client_error_reraises(self, mock_create_client):
+        """ClientError from create_db_cluster is logged and re-raised."""
+        from awslabs.mysql_mcp_server.connection.cp_api_connection import (
+            internal_create_aurora_cluster,
+        )
+
+        mock_client = MagicMock()
+        mock_client.create_db_cluster.side_effect = ClientError(
+            {'Error': {'Code': 'DBClusterAlreadyExistsFault', 'Message': 'exists'}},
+            'CreateDBCluster',
+        )
+        mock_create_client.return_value = mock_client
+
+        with pytest.raises(ClientError):
+            internal_create_aurora_cluster(
+                region='us-east-1',
+                cluster_identifier='my-cluster',
+                engine_version='8.0',
+                database_name='app',
+            )
+
+    @patch('awslabs.mysql_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_generic_exception_reraises(self, mock_create_client):
+        """A non-AWS exception is also logged with the type name and re-raised."""
+        from awslabs.mysql_mcp_server.connection.cp_api_connection import (
+            internal_create_aurora_cluster,
+        )
+
+        mock_client = MagicMock()
+        mock_client.create_db_cluster.side_effect = RuntimeError('out of memory')
+        mock_create_client.return_value = mock_client
+
+        with pytest.raises(RuntimeError, match='out of memory'):
+            internal_create_aurora_cluster(
+                region='us-east-1',
+                cluster_identifier='my-cluster',
+                engine_version='8.0',
+                database_name='app',
+            )

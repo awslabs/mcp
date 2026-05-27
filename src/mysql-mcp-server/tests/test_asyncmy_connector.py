@@ -807,3 +807,310 @@ class TestAsyncmyPoolConnectionGetIAMAuthToken:
             DBUsername='admin',
             Region='us-east-1',
         )
+
+
+class TestBundledCaFileOsError:
+    """The _bundled_ca_file() helper's read-failure branch."""
+
+    def test_returns_none_when_file_unreadable(self, tmp_path, monkeypatch):
+        """If the bundle path exists but is unreadable, _bundled_ca_file returns None.
+
+        Exercises the OSError path that runs after os.path.isfile() has
+        already returned True. Simulated by patching builtins.open to
+        raise instead of by chmod, so the test works for any user.
+        """
+        from awslabs.mysql_mcp_server.connection import asyncmy_pool_connection as mod
+
+        # The file must exist for the os.path.isfile check.
+        bundle = tmp_path / 'bundle.pem'
+        bundle.write_text('fake')
+        monkeypatch.setattr(mod, '_RDS_CA_BUNDLE_PATH', str(bundle))
+
+        original_open = open
+
+        def patched_open(file, *args, **kwargs):
+            if file == str(bundle):
+                raise OSError('Permission denied')
+            return original_open(file, *args, **kwargs)
+
+        monkeypatch.setattr('builtins.open', patched_open)
+
+        assert mod._bundled_ca_file() is None
+
+
+class TestExecuteQueryResultShaping:
+    """Tests that exercise the value-type branches in execute_query result mapping."""
+
+    @staticmethod
+    def _build_conn():
+        return AsyncmyPoolConnection(
+            host='localhost',
+            port=3306,
+            database='testdb',
+            readonly=False,
+            secret_arn='arn:secret',
+            db_user='',
+            region='us-east-1',
+            is_iam_auth=False,
+            is_test=True,
+        )
+
+    @staticmethod
+    def _make_pool_with_rows(description, rows):
+        """Build a fake asyncmy pool whose cursor returns the given description+rows."""
+        cursor = MagicMock()
+        cursor.description = description
+        cursor.fetchall = AsyncMock(return_value=rows)
+        cursor.execute = AsyncMock()
+
+        # Async context manager wrapping the cursor
+        cursor_cm = MagicMock()
+        cursor_cm.__aenter__ = AsyncMock(return_value=cursor)
+        cursor_cm.__aexit__ = AsyncMock(return_value=False)
+
+        conn = MagicMock()
+        conn.cursor = MagicMock(return_value=cursor_cm)
+        conn.autocommit = AsyncMock()
+        conn.rollback = AsyncMock()
+
+        # async with await self._get_connection() as conn  ->
+        # _get_connection() returns an async context manager.
+        conn_cm = MagicMock()
+        conn_cm.__aenter__ = AsyncMock(return_value=conn)
+        conn_cm.__aexit__ = AsyncMock(return_value=False)
+        return conn_cm
+
+    async def test_maps_all_value_types_to_data_api_record_shape(self):
+        """Str / bool / int / float / bytes / None / fallback are each mapped."""
+        conn = self._build_conn()
+        # Same column names as the DictCursor would yield as keys.
+        description = [
+            ('s',),
+            ('b',),
+            ('n_int',),
+            ('n_float',),
+            ('blob',),
+            ('null',),
+            ('other',),
+        ]
+        # DictCursor returns dicts keyed by column name.
+        rows = [
+            {
+                's': 'hello',
+                'b': True,
+                'n_int': 42,
+                'n_float': 3.14,
+                'blob': b'\x00\xff',
+                'null': None,
+                # An unrecognized type falls through to the str() branch.
+                'other': complex(1, 2),
+            }
+        ]
+        conn_cm = self._make_pool_with_rows(description, rows)
+
+        with patch.object(conn, '_get_connection', new=AsyncMock(return_value=conn_cm)):
+            result = await conn.execute_query('SELECT *')
+
+        # We need bool *before* int because in Python isinstance(True, int) is True.
+        # The production code checks isinstance(value, str) first, then bool, then int.
+        # Map check by index.
+        record = result['records'][0]
+        assert record[0] == {'stringValue': 'hello'}
+        assert record[1] == {'booleanValue': True}
+        assert record[2] == {'longValue': 42}
+        assert record[3] == {'doubleValue': 3.14}
+        assert record[4] == {'blobValue': b'\x00\xff'}
+        assert record[5] == {'isNull': True}
+        assert 'stringValue' in record[6]  # complex falls through to str()
+
+    async def test_returns_empty_records_when_cursor_has_no_description(self):
+        """A non-result-producing query (e.g. INSERT) returns columnMetadata=[] and records=[]."""
+        conn = self._build_conn()
+        # description=None -> fetchall path is skipped.
+        conn_cm = self._make_pool_with_rows(None, [])
+
+        with patch.object(conn, '_get_connection', new=AsyncMock(return_value=conn_cm)):
+            result = await conn.execute_query('UPDATE t SET x=1')
+
+        assert result == {'columnMetadata': [], 'records': []}
+
+    async def test_no_params_path_calls_execute_with_sql_only(self):
+        """When parameters=None, cursor.execute is called with just the SQL."""
+        conn = self._build_conn()
+        cursor = MagicMock()
+        cursor.description = [('x',)]
+        cursor.fetchall = AsyncMock(return_value=[{'x': 1}])
+        cursor.execute = AsyncMock()
+        cursor_cm = MagicMock()
+        cursor_cm.__aenter__ = AsyncMock(return_value=cursor)
+        cursor_cm.__aexit__ = AsyncMock(return_value=False)
+        inner = MagicMock()
+        inner.cursor = MagicMock(return_value=cursor_cm)
+        inner.autocommit = AsyncMock()
+        inner.rollback = AsyncMock()
+        outer = MagicMock()
+        outer.__aenter__ = AsyncMock(return_value=inner)
+        outer.__aexit__ = AsyncMock(return_value=False)
+
+        with patch.object(conn, '_get_connection', new=AsyncMock(return_value=outer)):
+            await conn.execute_query('SELECT 1')
+
+        # Single positional arg = SQL string only, no parameter conversion.
+        cursor.execute.assert_awaited_once_with('SELECT 1')
+
+
+class TestGetCredentialsFromSecretTestMode:
+    """Tests for the _get_credentials_from_secret is_test=True short-circuit."""
+
+    def test_test_mode_returns_static_credentials(self):
+        """is_test=True bypasses Secrets Manager and returns ('test_user', 'test_password')."""
+        conn = AsyncmyPoolConnection(
+            host='localhost',
+            port=3306,
+            database='testdb',
+            readonly=True,
+            secret_arn='arn:secret',
+            db_user='',
+            region='us-east-1',
+            is_iam_auth=False,
+            is_test=True,
+        )
+
+        user, password = conn._get_credentials_from_secret('arn:secret', 'us-east-1', is_test=True)
+        assert user == 'test_user'
+        assert password == 'test_password'
+
+
+class TestGetPoolStatsActive:
+    """Tests for get_pool_stats() when the pool is alive."""
+
+    async def test_returns_real_pool_metrics(self):
+        """When self.pool is not None, return actual size/min/max/idle."""
+        conn = AsyncmyPoolConnection(
+            host='localhost',
+            port=3306,
+            database='testdb',
+            readonly=True,
+            secret_arn='arn:secret',
+            db_user='',
+            region='us-east-1',
+            is_iam_auth=False,
+            is_test=True,
+        )
+
+        fake_pool = MagicMock()
+        fake_pool.size = 5
+        fake_pool.minsize = 2
+        fake_pool.maxsize = 10
+        fake_pool.freesize = 3
+        conn.pool = fake_pool
+
+        stats = await conn.get_pool_stats()
+        assert stats == {'size': 5, 'min_size': 2, 'max_size': 10, 'idle': 3}
+
+
+class TestExecuteQueryWithParameters:
+    """Cover the parameters branch in execute_query (named -> positional substitution)."""
+
+    async def test_with_named_parameters_calls_execute_with_positional(self):
+        """Parameters != None routes through _convert_parameters + named->positional."""
+        conn = AsyncmyPoolConnection(
+            host='localhost',
+            port=3306,
+            database='testdb',
+            readonly=False,
+            secret_arn='arn:secret',
+            db_user='',
+            region='us-east-1',
+            is_iam_auth=False,
+            is_test=True,
+        )
+
+        cursor = MagicMock()
+        cursor.description = [('count',)]
+        cursor.fetchall = AsyncMock(return_value=[{'count': 5}])
+        cursor.execute = AsyncMock()
+        cursor_cm = MagicMock()
+        cursor_cm.__aenter__ = AsyncMock(return_value=cursor)
+        cursor_cm.__aexit__ = AsyncMock(return_value=False)
+        inner = MagicMock()
+        inner.cursor = MagicMock(return_value=cursor_cm)
+        inner.autocommit = AsyncMock()
+        inner.rollback = AsyncMock()
+        outer = MagicMock()
+        outer.__aenter__ = AsyncMock(return_value=inner)
+        outer.__aexit__ = AsyncMock(return_value=False)
+
+        params = [{'name': 'id', 'value': {'longValue': 42}}]
+        with patch.object(conn, '_get_connection', new=AsyncMock(return_value=outer)):
+            await conn.execute_query('SELECT count FROM t WHERE id = %(id)s', params)
+
+        # cursor.execute is called with the converted SQL (positional %s) and ordered values.
+        sql_arg, positional = cursor.execute.await_args.args
+        assert '%s' in sql_arg
+        assert positional == [42]
+
+
+class TestCheckConnectionHealth:
+    """Covers the SELECT 1 + result-shape interpretation in check_connection_health."""
+
+    async def test_healthy_returns_true(self):
+        """When execute_query returns a non-empty records list, the pool is healthy."""
+        conn = AsyncmyPoolConnection(
+            host='localhost',
+            port=3306,
+            database='testdb',
+            readonly=True,
+            secret_arn='arn:secret',
+            db_user='',
+            region='us-east-1',
+            is_iam_auth=False,
+            is_test=True,
+        )
+
+        with patch.object(
+            conn,
+            'execute_query',
+            new=AsyncMock(return_value={'records': [[{'longValue': 1}]]}),
+        ):
+            assert await conn.check_connection_health() is True
+
+    async def test_empty_result_returns_false(self):
+        """No records (e.g. SELECT 1 returned 0 rows) is treated as unhealthy."""
+        conn = AsyncmyPoolConnection(
+            host='localhost',
+            port=3306,
+            database='testdb',
+            readonly=True,
+            secret_arn='arn:secret',
+            db_user='',
+            region='us-east-1',
+            is_iam_auth=False,
+            is_test=True,
+        )
+        with patch.object(
+            conn,
+            'execute_query',
+            new=AsyncMock(return_value={'records': []}),
+        ):
+            assert await conn.check_connection_health() is False
+
+    async def test_exception_returns_false_after_log(self):
+        """An exception during the health probe is logged and reported as unhealthy."""
+        conn = AsyncmyPoolConnection(
+            host='localhost',
+            port=3306,
+            database='testdb',
+            readonly=True,
+            secret_arn='arn:secret',
+            db_user='',
+            region='us-east-1',
+            is_iam_auth=False,
+            is_test=True,
+        )
+        with patch.object(
+            conn,
+            'execute_query',
+            new=AsyncMock(side_effect=RuntimeError('socket reset')),
+        ):
+            assert await conn.check_connection_health() is False
