@@ -85,9 +85,21 @@ def fetch(output_path: str = _OUTPUT_PATH) -> str:
     if os.path.exists(abs_path):
         return abs_path
 
+    # Defensive scheme check before urlopen. urllib.request.urlopen accepts
+    # any URL scheme, including file:// and ftp://, which static analysers
+    # rightly flag (Bandit B310). Guard against future bugs that change
+    # _RDS_CA_BUNDLE_URL or pass an attacker-controlled value here.
+    if not _RDS_CA_BUNDLE_URL.startswith('https://'):
+        raise RuntimeError(f'RDS CA bundle URL must use https://, got: {_RDS_CA_BUNDLE_URL!r}')
+
     try:
         ctx = _ssl_context_for_aws_endpoint()
-        with urllib.request.urlopen(_RDS_CA_BUNDLE_URL, timeout=30, context=ctx) as resp:
+        # B310 (audit url open for permitted schemes): scheme is enforced
+        # to be https:// by the explicit check above, and the URL is a
+        # module-level constant pointing at AWS's public truststore.
+        with urllib.request.urlopen(  # nosec B310
+            _RDS_CA_BUNDLE_URL, timeout=30, context=ctx
+        ) as resp:
             content = resp.read()
     except Exception as exc:
         raise RuntimeError(
@@ -143,9 +155,7 @@ if BuildHookInterface is not None:
 
 def _main(argv: list) -> int:
     parser = argparse.ArgumentParser(
-        description=(
-            'Fetch the Amazon RDS global CA bundle for the MySQL MCP server package.'
-        )
+        description=('Fetch the Amazon RDS global CA bundle for the MySQL MCP server package.')
     )
     parser.parse_args(argv)
 

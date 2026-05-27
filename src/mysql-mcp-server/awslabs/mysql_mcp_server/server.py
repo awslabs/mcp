@@ -591,8 +591,7 @@ def create_cluster_worker(
             async_job_status_lock.acquire()
             async_job_status[job_id]['state'] = 'failed'
             async_job_status[job_id]['result'] = (
-                f'cluster creation failed ({type(e).__name__}); '
-                'see server logs for details'
+                f'cluster creation failed ({type(e).__name__}); see server logs for details'
             )
         finally:
             async_job_status_lock.release()
@@ -726,7 +725,12 @@ def internal_connect_to_database(
             port=port,
             database=database,
             readonly=readonly_query,
-            secret_arn='',
+            # IAM auth flow does not use a Secrets Manager secret; the empty
+            # string here disables the secret_arn lookup path inside the
+            # connection class. Bandit B106 (hardcoded password) is a false
+            # positive: this is an explicit "no secret" sentinel, not a
+            # credential value.
+            secret_arn='',  # nosec B106
             db_user=masteruser,
             region=region,
             is_iam_auth=True,

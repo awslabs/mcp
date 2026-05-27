@@ -102,6 +102,31 @@ class TestFetch:
         assert hatch_build._RDS_CA_BUNDLE_URL in msg
         assert str(path.resolve()) in msg or os.path.abspath(str(path)) in msg
 
+    def test_rejects_non_https_url(self, tmp_path, monkeypatch):
+        """fetch() must refuse to call urlopen on any non-https URL.
+
+        Defensive guard against a future bug that points _RDS_CA_BUNDLE_URL
+        at file://, ftp://, or any other scheme urllib would happily accept.
+        Bandit B310 was correct to flag this; the explicit check makes the
+        invariant enforceable.
+        """
+        path = tmp_path / 'bundle.pem'
+        # Point the constant at file:// so the guard fires before urlopen.
+        monkeypatch.setattr(
+            hatch_build,
+            '_RDS_CA_BUNDLE_URL',
+            'file:///etc/passwd',
+        )
+
+        with patch.object(hatch_build.urllib.request, 'urlopen') as mock_urlopen:
+            with pytest.raises(RuntimeError, match='must use https://'):
+                hatch_build.fetch(str(path))
+
+        assert mock_urlopen.call_count == 0, (
+            'fetch() must refuse non-https URLs before invoking urlopen, '
+            'so a tampered constant cannot trigger a file:// read.'
+        )
+
 
 class TestSslContext:
     """Builder for the SSL context used during the fetch."""
