@@ -203,13 +203,41 @@ metadata:
             assert 'other-annotation: This should be preserved' in result
 
     @pytest.mark.asyncio
-    async def test_apply_yaml_relative_path(self, mock_context, mock_mcp, mock_client_cache):
-        """Test apply_yaml method with a relative path."""
-        # Initialize the K8s handler
+    async def test_apply_yaml_write_access_disabled(
+        self, mock_context, mock_mcp, mock_client_cache
+    ):
+        """Test apply_yaml method rejects requests when write access is disabled."""
+        # Initialize the K8s handler with write access disabled
         with patch(
             'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
         ):
-            handler = K8sHandler(mock_mcp)
+            handler = K8sHandler(mock_mcp, allow_write=False)
+
+        # Attempt to apply YAML without write access
+        result = await handler.apply_yaml(
+            mock_context,
+            yaml_path='/absolute/path/to/manifest.yaml',
+            cluster_name='test-cluster',
+            namespace='default',
+            force=True,
+        )
+
+        # Verify the result is an error
+        assert result.isError
+        assert isinstance(result.content[0], TextContent)
+        assert 'Operation apply_yaml is not allowed without write access' in result.content[0].text
+
+        # Verify that no Kubernetes client was created (apply was blocked before reaching k8s)
+        mock_client_cache.get_client.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_apply_yaml_relative_path(self, mock_context, mock_mcp, mock_client_cache):
+        """Test apply_yaml method with a relative path."""
+        # Initialize the K8s handler with write access enabled
+        with patch(
+            'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
+        ):
+            handler = K8sHandler(mock_mcp, allow_write=True)
 
         # Mock os.path.isabs to return False for relative paths
         with patch('os.path.isabs', return_value=False):
@@ -231,11 +259,11 @@ metadata:
     @pytest.mark.asyncio
     async def test_apply_yaml_success(self, mock_context, mock_mcp, mock_client_cache):
         """Test apply_yaml method with successful application."""
-        # Initialize the K8s handler
+        # Initialize the K8s handler with write access enabled
         with patch(
             'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
         ):
-            handler = K8sHandler(mock_mcp)
+            handler = K8sHandler(mock_mcp, allow_write=True)
 
         # Mock get_client
         mock_k8s_apis = MagicMock()
@@ -286,11 +314,11 @@ metadata:
     @pytest.mark.asyncio
     async def test_apply_yaml_file_not_found(self, mock_context, mock_mcp, mock_client_cache):
         """Test apply_yaml method with file not found error."""
-        # Initialize the K8s handler
+        # Initialize the K8s handler with write access enabled
         with patch(
             'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
         ):
-            handler = K8sHandler(mock_mcp)
+            handler = K8sHandler(mock_mcp, allow_write=True)
 
         # Mock get_client
         mock_k8s_apis = MagicMock()
@@ -319,11 +347,11 @@ metadata:
     @pytest.mark.asyncio
     async def test_apply_yaml_io_error(self, mock_context, mock_mcp, mock_client_cache):
         """Test apply_yaml method with IO error."""
-        # Initialize the K8s handler
+        # Initialize the K8s handler with write access enabled
         with patch(
             'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
         ):
-            handler = K8sHandler(mock_mcp)
+            handler = K8sHandler(mock_mcp, allow_write=True)
 
         # Mock get_client
         mock_k8s_apis = MagicMock()
@@ -353,11 +381,11 @@ metadata:
     @pytest.mark.asyncio
     async def test_apply_yaml_create_error(self, mock_context, mock_mcp, mock_client_cache):
         """Test apply_yaml method with error from create_from_yaml."""
-        # Initialize the K8s handler
+        # Initialize the K8s handler with write access enabled
         with patch(
             'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
         ):
-            handler = K8sHandler(mock_mcp)
+            handler = K8sHandler(mock_mcp, allow_write=True)
 
         # Mock get_client
         mock_k8s_apis = MagicMock()
@@ -394,11 +422,11 @@ metadata:
     @pytest.mark.asyncio
     async def test_apply_yaml_outer_exception(self, mock_context, mock_mcp, mock_client_cache):
         """Test apply_yaml method with outer exception (Error applying YAML from file)."""
-        # Initialize the K8s handler
+        # Initialize the K8s handler with write access enabled
         with patch(
             'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
         ):
-            handler = K8sHandler(mock_mcp)
+            handler = K8sHandler(mock_mcp, allow_write=True)
 
         # Mock get_client to raise an exception
         with patch.object(handler, 'get_client', side_effect=Exception('Connection error')):

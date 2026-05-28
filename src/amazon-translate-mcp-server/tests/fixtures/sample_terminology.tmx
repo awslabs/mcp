@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tmx version="1.4">
+  <header>
+    <prop type="x-filename">sample_terminology.tmx</prop>
+  </header>
+  <body>
+    <tu tuid="1">
+      <tuv xml:lang="en">
+        <seg>hello</seg>
+      </tuv>
+      <tuv xml:lang="es">
+        <seg>hola</seg>
+      </tuv>
+    </tu>
+    <tu tuid="2">
+      <tuv xml:lang="en">
+        <seg>world</seg>
+      </tuv>
+      <tuv xml:lang="es">
+        <seg>mundo</seg>
+      </tuv>
+    </tu>
+    <tu tuid="3">
+      <tuv xml:lang="en">
+        <seg>computer</seg>
+      </tuv>
+      <tuv xml:lang="es">
+        <seg>computadora</seg>
+      </tuv>
+    </tu>
+    <tu tuid="4">
+      <tuv xml:lang="en">
+        <seg>artificial intelligence</seg>
+      </tuv>
+      <tuv xml:lang="es">
+        <seg>inteligencia artificial</seg>
+      </tuv>
+    </tu>
+  </body>
+</tmx>

@@ -25,17 +25,36 @@ class SVGBuilder:
     that does not require external JavaScript libraries.
     """
 
-    def __init__(self, width: int, height: int):
+    # Theme color definitions
+    THEMES = {
+        'light': {
+            'background': '#FFFFFF',
+            'text': '#000000',
+            'axis': '#000000',
+            'grid': '#E0E0E0',
+        },
+        'dark': {
+            'background': '#1E1E1E',
+            'text': '#E0E0E0',
+            'axis': '#E0E0E0',
+            'grid': '#444444',
+        },
+    }
+
+    def __init__(self, width: int, height: int, theme: str = 'light'):
         """Initialize SVG builder.
 
         Args:
             width: SVG canvas width in pixels
             height: SVG canvas height in pixels
+            theme: Color theme ('light' or 'dark'). Defaults to 'light'.
         """
         self.width = width
         self.height = height
         self.elements: list[str] = []
         self.defs: list[str] = []
+        self.theme = theme if theme in self.THEMES else 'light'
+        self._colors = self.THEMES[self.theme]
 
     def add_title(self, text: str, x: Optional[int] = None, y: int = 30) -> None:
         """Add title text to SVG.
@@ -48,7 +67,8 @@ class SVGBuilder:
         x = x if x is not None else self.width // 2
         self.elements.append(
             f'<text x="{x}" y="{y}" text-anchor="middle" '
-            f'font-family="sans-serif" font-size="14" font-weight="bold">'
+            f'font-family="sans-serif" font-size="14" font-weight="bold" '
+            f'fill="{self._colors["text"]}">'
             f'{self._escape(text)}</text>'
         )
 
@@ -103,6 +123,7 @@ class SVGBuilder:
         self.elements.append(
             f'<text x="{x:.2f}" y="{y:.2f}" text-anchor="{anchor}" '
             f'font-family="sans-serif" font-size="{font_size}" '
+            f'fill="{self._colors["text"]}" '
             f'dominant-baseline="middle">{self._escape(text)}</text>'
         )
 
@@ -112,7 +133,7 @@ class SVGBuilder:
         y1: float,
         x2: float,
         y2: float,
-        stroke: str = '#000',
+        stroke: Optional[str] = None,
         stroke_width: float = 1,
     ) -> None:
         """Add line element.
@@ -122,9 +143,10 @@ class SVGBuilder:
             y1: Start Y position
             x2: End X position
             y2: End Y position
-            stroke: Stroke color
+            stroke: Stroke color (defaults to theme axis color)
             stroke_width: Stroke width
         """
+        stroke = stroke if stroke is not None else self._colors['axis']
         self.elements.append(
             f'<line x1="{x1:.2f}" y1="{y1:.2f}" x2="{x2:.2f}" y2="{y2:.2f}" '
             f'stroke="{stroke}" stroke-width="{stroke_width}"/>'
@@ -205,10 +227,12 @@ class SVGBuilder:
         Returns:
             Complete SVG document as string
         """
+        bg_color = self._colors['background']
         svg_parts = [
             f'<svg width="{self.width}" height="{self.height}" '
             f'xmlns="http://www.w3.org/2000/svg">',
             '<style>rect:hover { opacity: 0.8; cursor: pointer; }</style>',
+            f'<rect width="{self.width}" height="{self.height}" fill="{bg_color}"/>',
         ]
 
         if self.defs:

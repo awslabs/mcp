@@ -57,11 +57,13 @@ done
 echo "Fetching cluster information for: $CLUSTER_ID"
 echo ""
 
-# Get cluster details
-aws dsql get-cluster \
+# Get cluster details — capture output first so AWS CLI failures aren't hidden by the pipe
+CLUSTER_JSON=$(aws dsql get-cluster \
   --identifier "$CLUSTER_ID" \
   --region "$REGION" \
-  --output json | jq '{
+  --output json)
+
+echo "$CLUSTER_JSON" | jq '{
     identifier: .identifier,
     endpoint: .endpoint,
     arn: .arn,
@@ -70,7 +72,6 @@ aws dsql get-cluster \
   }'
 
 echo ""
-ENDPOINT="${CLUSTER_ID}.dsql.${REGION}.on.aws"
 echo "To connect with psql:"
 echo "export CLUSTER=$CLUSTER_ID"
 echo "export REGION=$REGION"

@@ -27,6 +27,7 @@ from awslabs.aurora_dsql_mcp_server.consts import (
     ROLLBACK_TRANSACTION_SQL,
     BEGIN_TRANSACTION_SQL,
     GET_SCHEMA_SQL,
+    GET_QUALIFIED_SCHEMA_SQL,
     INTERNAL_ERROR,
     READ_ONLY_QUERY_WRITE_ERROR,
     ERROR_BEGIN_TRANSACTION,
@@ -240,6 +241,48 @@ async def test_get_schema_failure(mocker):
     )
 
 
+async def test_get_schema_with_schema_qualified_name(mocker):
+    mock_get_connection = mocker.patch(
+        'awslabs.aurora_dsql_mcp_server.server.get_connection'
+    )
+    mock_conn = AsyncMock()
+    mock_get_connection.return_value = mock_conn
+    mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
+    mock_execute_query.return_value = {'col1': 'integer'}
+
+    result = await get_schema('data.Associate', ctx)
+
+    assert result == {'col1': 'integer'}
+
+    mock_execute_query.assert_called_once_with(
+        ctx,
+        mock_conn,
+        GET_QUALIFIED_SCHEMA_SQL,
+        ['data', 'Associate'],
+    )
+
+
+async def test_get_schema_without_schema_uses_table_name_only(mocker):
+    mock_get_connection = mocker.patch(
+        'awslabs.aurora_dsql_mcp_server.server.get_connection'
+    )
+    mock_conn = AsyncMock()
+    mock_get_connection.return_value = mock_conn
+    mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
+    mock_execute_query.return_value = {'col1': 'integer'}
+
+    result = await get_schema('Associate', ctx)
+
+    assert result == {'col1': 'integer'}
+
+    mock_execute_query.assert_called_once_with(
+        ctx,
+        mock_conn,
+        GET_SCHEMA_SQL,
+        ['Associate'],
+    )
+
+
 async def test_readonly_query_commit_on_success(mocker):
     mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
     mock_execute_query.return_value = {'column': 1}
@@ -258,7 +301,7 @@ async def test_readonly_query_commit_on_success(mocker):
     mock_execute_query.assert_has_calls(
         [
             call(ctx, mock_conn, BEGIN_READ_ONLY_TRANSACTION_SQL),
-            call(ctx, mock_conn, sql),
+            call(ctx, mock_conn, sql, None),
             call(ctx, mock_conn, COMMIT_TRANSACTION_SQL),
         ]
     )
@@ -281,7 +324,7 @@ async def test_readonly_query_rollback_on_failure(mocker):
     mock_execute_query.assert_has_calls(
         [
             call(ctx, mock_conn, BEGIN_READ_ONLY_TRANSACTION_SQL),
-            call(ctx, mock_conn, sql),
+            call(ctx, mock_conn, sql, None),
             call(ctx, mock_conn, ROLLBACK_TRANSACTION_SQL),
         ]
     )
@@ -349,8 +392,8 @@ async def test_transact_commit_on_success(mocker):
     mock_execute_query.assert_has_calls(
         [
             call(ctx, mock_conn, BEGIN_TRANSACTION_SQL),
-            call(ctx, mock_conn, sql1),
-            call(ctx, mock_conn, sql2),
+            call(ctx, mock_conn, sql1, None),
+            call(ctx, mock_conn, sql2, None),
             call(ctx, mock_conn, COMMIT_TRANSACTION_SQL),
         ]
     )
@@ -377,7 +420,7 @@ async def test_transact_rollback_on_failure(mocker):
     mock_execute_query.assert_has_calls(
         [
             call(ctx, mock_conn, BEGIN_TRANSACTION_SQL),
-            call(ctx, mock_conn, sql1),
+            call(ctx, mock_conn, sql1, None),
             call(ctx, mock_conn, ROLLBACK_TRANSACTION_SQL),
         ]
     )
@@ -574,3 +617,186 @@ async def test_execute_query_retry_returns_empty(mocker):
 
     assert result == []
     assert mock_get_connection.call_count == 2
+
+
+# --------------------------------------------------------------------------
+# Parameterized query support
+# --------------------------------------------------------------------------
+
+
+class TestReadonlyQueryParams:
+    """Tests for the optional params argument on readonly_query."""
+
+    @pytest.mark.asyncio
+    async def test_params_passed_to_execute_query(self, mocker):
+        """When params is provided, it reaches execute_query."""
+        mock_eq = mocker.patch(
+            'awslabs.aurora_dsql_mcp_server.server.execute_query',
+            return_value=[{'id': 1}],
+        )
+        mocker.patch(
+            'awslabs.aurora_dsql_mcp_server.server.get_connection',
+            return_value=AsyncMock(),
+        )
+
+        sql = 'SELECT * FROM t WHERE tenant_id = %s'
+        result = await readonly_query(sql, ctx, params=['acme'])
+
+        assert result == [{'id': 1}]
+        # The query call (second) should carry the params list.
+        query_call = mock_eq.call_args_list[1]
+        assert query_call == call(ctx, mocker.ANY, sql, ['acme'])
+
+    @pytest.mark.asyncio
+    async def test_no_params_backwards_compatible(self, mocker):
+        """Calling without params still works (None passed through)."""
+        mock_eq = mocker.patch(
+            'awslabs.aurora_dsql_mcp_server.server.execute_query',
+            return_value=[],
+        )
+        mocker.patch(
+            'awslabs.aurora_dsql_mcp_server.server.get_connection',
+            return_value=AsyncMock(),
+        )
+
+        result = await readonly_query('SELECT 1', ctx)
+
+        assert result == []
+        query_call = mock_eq.call_args_list[1]
+        assert query_call == call(ctx, mocker.ANY, 'SELECT 1', None)
+
+    @pytest.mark.asyncio
+    async def test_params_none_backwards_compatible(self, mocker):
+        """Explicit params=None is the same as omitting it."""
+        mock_eq = mocker.patch(
+            'awslabs.aurora_dsql_mcp_server.server.execute_query',
+            return_value=[],
+        )
+        mocker.patch(
+            'awslabs.aurora_dsql_mcp_server.server.get_connection',
+            return_value=AsyncMock(),
+        )
+
+        result = await readonly_query('SELECT 1', ctx, params=None)
+
+        assert result == []
+        query_call = mock_eq.call_args_list[1]
+        assert query_call == call(ctx, mocker.ANY, 'SELECT 1', None)
+
+    @pytest.mark.asyncio
+    async def test_params_with_multiple_placeholders(self, mocker):
+        mock_eq = mocker.patch(
+            'awslabs.aurora_dsql_mcp_server.server.execute_query',
+            return_value=[{'a': 1, 'b': 2}],
+        )
+        mocker.patch(
+            'awslabs.aurora_dsql_mcp_server.server.get_connection',
+            return_value=AsyncMock(),
+        )
+
+        sql = 'SELECT * FROM t WHERE a = %s AND b = %s'
+        result = await readonly_query(sql, ctx, params=[1, 'two'])
+
+        query_call = mock_eq.call_args_list[1]
+        assert query_call == call(ctx, mocker.ANY, sql, [1, 'two'])
+
+
+@patch('awslabs.aurora_dsql_mcp_server.server.read_only', False)
+class TestTransactParamsList:
+    """Tests for the optional params_list argument on transact."""
+
+    @pytest.mark.asyncio
+    async def test_params_list_passed_per_statement(self, mocker):
+        mock_eq = mocker.patch(
+            'awslabs.aurora_dsql_mcp_server.server.execute_query',
+            return_value=[],
+        )
+        mocker.patch(
+            'awslabs.aurora_dsql_mcp_server.server.get_connection',
+            return_value=AsyncMock(),
+        )
+
+        sql_list = [
+            "INSERT INTO t (id, name) VALUES (%s, %s)",
+            "INSERT INTO t (id, name) VALUES (%s, %s)",
+        ]
+        params_list = [['id1', 'Widget'], ['id2', 'Gadget']]
+
+        await transact(sql_list, ctx, params_list=params_list)
+
+        # Calls: BEGIN, stmt1, stmt2, COMMIT
+        stmt1_call = mock_eq.call_args_list[1]
+        stmt2_call = mock_eq.call_args_list[2]
+        assert stmt1_call == call(ctx, mocker.ANY, sql_list[0], ['id1', 'Widget'])
+        assert stmt2_call == call(ctx, mocker.ANY, sql_list[1], ['id2', 'Gadget'])
+
+    @pytest.mark.asyncio
+    async def test_params_list_none_entries(self, mocker):
+        """A None entry in params_list means no params for that statement."""
+        mock_eq = mocker.patch(
+            'awslabs.aurora_dsql_mcp_server.server.execute_query',
+            return_value=[],
+        )
+        mocker.patch(
+            'awslabs.aurora_dsql_mcp_server.server.get_connection',
+            return_value=AsyncMock(),
+        )
+
+        sql_list = [
+            "CREATE TABLE t (id TEXT PRIMARY KEY)",
+            "INSERT INTO t (id) VALUES (%s)",
+        ]
+        params_list = [None, ['abc']]
+
+        await transact(sql_list, ctx, params_list=params_list)
+
+        stmt1_call = mock_eq.call_args_list[1]
+        stmt2_call = mock_eq.call_args_list[2]
+        assert stmt1_call == call(ctx, mocker.ANY, sql_list[0], None)
+        assert stmt2_call == call(ctx, mocker.ANY, sql_list[1], ['abc'])
+
+    @pytest.mark.asyncio
+    async def test_no_params_list_backwards_compatible(self, mocker):
+        """Omitting params_list passes None for every statement."""
+        mock_eq = mocker.patch(
+            'awslabs.aurora_dsql_mcp_server.server.execute_query',
+            return_value=[],
+        )
+        mocker.patch(
+            'awslabs.aurora_dsql_mcp_server.server.get_connection',
+            return_value=AsyncMock(),
+        )
+
+        await transact(['SELECT 1', 'SELECT 2'], ctx)
+
+        stmt1_call = mock_eq.call_args_list[1]
+        stmt2_call = mock_eq.call_args_list[2]
+        assert stmt1_call == call(ctx, mocker.ANY, 'SELECT 1', None)
+        assert stmt2_call == call(ctx, mocker.ANY, 'SELECT 2', None)
+
+    @pytest.mark.asyncio
+    async def test_params_list_length_mismatch_raises(self, mocker):
+        """params_list must be same length as sql_list."""
+        with pytest.raises(ValueError, match='params_list length'):
+            await transact(
+                ['SELECT 1', 'SELECT 2'],
+                ctx,
+                params_list=[['a']],
+            )
+
+    @pytest.mark.asyncio
+    async def test_params_list_none_backwards_compatible(self, mocker):
+        """Explicit params_list=None is the same as omitting it."""
+        mock_eq = mocker.patch(
+            'awslabs.aurora_dsql_mcp_server.server.execute_query',
+            return_value=[],
+        )
+        mocker.patch(
+            'awslabs.aurora_dsql_mcp_server.server.get_connection',
+            return_value=AsyncMock(),
+        )
+
+        await transact(['SELECT 1'], ctx, params_list=None)
+
+        stmt_call = mock_eq.call_args_list[1]
+        assert stmt_call == call(ctx, mocker.ANY, 'SELECT 1', None)
