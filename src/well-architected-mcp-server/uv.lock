@@ -60,7 +60,7 @@ wheels = [
 ]
 
 [[package]]
-name = "awslabs-well-architected-bp-mcp-server"
+name = "awslabs-well-architected-mcp-server"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
