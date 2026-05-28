@@ -67,6 +67,7 @@ RUNTIME_TOOLS = {
     'delete_agent_runtime_endpoint',
     'list_agent_runtime_endpoints',
     'invoke_agent_runtime',
+    'invoke_agent_runtime_command',
     'stop_runtime_session',
     'get_runtime_guide',
 }

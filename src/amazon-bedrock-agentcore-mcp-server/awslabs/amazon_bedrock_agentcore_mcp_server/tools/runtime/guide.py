@@ -122,6 +122,8 @@ All require a `/ping` GET endpoint returning `{"status": "Healthy"}`.
 ### Per-use billable (creates/uses microVM sessions)
 - `invoke_agent_runtime` — sends request to agent, charges for
   compute time while session is active
+- `invoke_agent_runtime_command` — runs a shell command, streams
+  stdout/stderr via HTTP EventStream
 
 ### One-time setup (creates infrastructure)
 - `create_agent_runtime` — provisions runtime definition
@@ -156,6 +158,7 @@ bedrock-agentcore:UpdateAgentRuntimeEndpoint
 bedrock-agentcore:DeleteAgentRuntimeEndpoint
 bedrock-agentcore:ListAgentRuntimeEndpoints
 bedrock-agentcore:InvokeAgentRuntime
+bedrock-agentcore:InvokeAgentRuntimeCommand
 bedrock-agentcore:StopRuntimeSession
 ```
 
