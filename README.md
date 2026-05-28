@@ -26,6 +26,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
     - [🏗️ Infrastructure \& Deployment](#️-infrastructure--deployment)
       - [Container Platforms](#container-platforms)
       - [Serverless \& Functions](#serverless--functions)
+      - [Migration \& Modernization](#migration--modernization)
       - [Support](#support)
     - [🤖 AI \& Machine Learning](#-ai--machine-learning)
     - [📊 Data \& Analytics](#-data--analytics)
