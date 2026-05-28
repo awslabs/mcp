@@ -92,14 +92,36 @@ class UnifiedCassandraClient:
 
         logger.info('Using password authentication with Apache Cassandra ...')
 
-        cluster = Cluster(
-            contact_points=[self.database_config.cassandra_contact_points],
-            port=self.database_config.cassandra_port,
-            auth_provider=auth_provider,
-            protocol_version=4,  # Use protocol version 4 for better compatibility
-            control_connection_timeout=CONTROL_CONNECTION_TIMEOUT,
-            connect_timeout=int(CONNECTION_TIMEOUT),
-        )
+        cluster_kwargs: Dict[str, Any] = {
+            'contact_points': [self.database_config.cassandra_contact_points],
+            'port': self.database_config.cassandra_port,
+            'auth_provider': auth_provider,
+            'protocol_version': self.database_config.cassandra_protocol_version,
+            'control_connection_timeout': CONTROL_CONNECTION_TIMEOUT,
+            'connect_timeout': int(CONNECTION_TIMEOUT),
+        }
+
+        if self.database_config.use_ssl:
+            ssl_context = ssl.create_default_context()
+            cert_path = self.database_config.ssl_cert_path
+            if cert_path:
+                try:
+                    ssl_context.load_verify_locations(cafile=cert_path)
+                    logger.info(f'Loaded SSL certificate from {cert_path}')
+                except Exception as e:
+                    logger.warning(f'Failed to load SSL certificate from {cert_path}: {e}')
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+
+            if HAS_SSL_OPTIONS:
+                ssl_options = SSLOptions(ssl_context=ssl_context)
+                cluster_kwargs['ssl_options'] = ssl_options
+            else:
+                cluster_kwargs['ssl_context'] = ssl_context
+
+            logger.info('SSL enabled for Cassandra connection')
+
+        cluster = Cluster(**cluster_kwargs)
 
         cluster.connection_class = AsyncoreConnection
 

@@ -14,7 +14,7 @@
 """Configuration module for Keyspaces MCP Server."""
 
 import os
-from .consts import CASSANDRA_DEFAULT_PORT, ENV_DIRECTORY, ENV_FILENAME
+from .consts import CASSANDRA_DEFAULT_PORT, ENV_DIRECTORY, ENV_FILENAME, PROTOCOL_VERSION
 from dataclasses import dataclass
 from dotenv import load_dotenv
 
@@ -37,6 +37,11 @@ class DatabaseConfig:
     cassandra_local_datacenter: str
     cassandra_username: str
     cassandra_password: str
+    cassandra_protocol_version: int
+
+    # SSL configuration (for plain Cassandra connections)
+    use_ssl: bool
+    ssl_cert_path: str
 
     # Keyspaces configuration
     keyspaces_endpoint: str
@@ -52,6 +57,11 @@ class DatabaseConfig:
             cassandra_local_datacenter=os.getenv('DB_CASSANDRA_LOCAL_DATACENTER', 'datacenter1'),
             cassandra_username=os.getenv('DB_CASSANDRA_USERNAME', ''),
             cassandra_password=os.getenv('DB_CASSANDRA_PASSWORD', ''),
+            cassandra_protocol_version=int(
+                os.getenv('DB_CASSANDRA_PROTOCOL_VERSION', str(PROTOCOL_VERSION))
+            ),
+            use_ssl=os.getenv('DB_USE_SSL', 'false').lower() == 'true',
+            ssl_cert_path=os.getenv('DB_SSL_CERT_PATH', ''),
             keyspaces_endpoint=os.getenv(
                 'DB_KEYSPACES_ENDPOINT', 'cassandra.us-east-1.amazonaws.com'
             ),
