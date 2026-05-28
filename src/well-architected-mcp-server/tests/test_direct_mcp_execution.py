@@ -19,7 +19,7 @@ import unittest.mock
 
 def test_mcp_tools_execution():
     """Test MCP tools execution directly."""
-    from well_architected_bp_mcp_server.server import (
+    from awslabs.well_architected_mcp_server.server import (
         get_best_practice,
         get_related_practices,
         list_pillars,
@@ -72,11 +72,11 @@ def test_wrapper_functions_with_mocks():
 
     for internal_func, mock_return, wrapper_name in test_cases:
         with unittest.mock.patch(
-            f'well_architected_bp_mcp_server.server.{internal_func}'
+            f'awslabs.well_architected_mcp_server.server.{internal_func}'
         ) as mock_func:
             mock_func.return_value = mock_return
 
-            module = __import__('well_architected_bp_mcp_server.server', fromlist=[wrapper_name])
+            module = __import__('awslabs.well_architected_mcp_server.server', fromlist=[wrapper_name])
             wrapper_func = getattr(module, wrapper_name)
 
             if wrapper_name in ['get_best_practice', 'get_related_practices']:

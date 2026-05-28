@@ -17,7 +17,7 @@
 
 def test_mcp_tool_functions():
     """Test all MCP tool functions."""
-    from well_architected_bp_mcp_server.server import (
+    from awslabs.well_architected_mcp_server.server import (
         get_best_practice,
         get_related_practices,
         list_pillars,
@@ -56,7 +56,7 @@ def test_mcp_tool_functions():
 
 def test_tool_names():
     """Test tool names."""
-    from well_architected_bp_mcp_server.server import (
+    from awslabs.well_architected_mcp_server.server import (
         get_best_practice,
         get_related_practices,
         list_pillars,

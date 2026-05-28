@@ -19,7 +19,7 @@ import importlib
 
 def test_force_execute_wrapper_returns():
     """Force execution of all MCP wrapper return statements."""
-    from well_architected_bp_mcp_server.server import (
+    from awslabs.well_architected_mcp_server.server import (
         get_best_practice_impl,
         get_related_practices_impl,
         list_pillars_impl,
@@ -35,7 +35,7 @@ def test_force_execute_wrapper_returns():
     well_architected_framework_review_impl()
 
     # Import wrappers to trigger return statements
-    from well_architected_bp_mcp_server.server import (
+    from awslabs.well_architected_mcp_server.server import (
         get_best_practice,
         get_related_practices,
         list_pillars,
@@ -58,7 +58,7 @@ def test_force_execute_wrapper_returns():
 
 def test_module_reload():
     """Test module reload to force re-execution."""
-    import well_architected_bp_mcp_server.server as server_module
+    import awslabs.well_architected_mcp_server.server as server_module
 
     assert hasattr(server_module, 'mcp')
     importlib.reload(server_module)

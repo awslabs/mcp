@@ -14,7 +14,7 @@
 
 """Test MCP wrapper functions directly for patch coverage."""
 
-from well_architected_bp_mcp_server.server import (
+from awslabs.well_architected_mcp_server.server import (
     get_anti_patterns,
     get_best_practice,
     get_best_practice_full,

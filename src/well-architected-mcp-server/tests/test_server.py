@@ -7,7 +7,7 @@ from pathlib import Path
 
 def test_data_files_exist():
     """Test that data files exist and are valid JSON."""
-    data_dir = Path(__file__).parent.parent / 'src' / 'well_architected_bp_mcp_server' / 'data'
+    data_dir = Path(__file__).parent.parent / 'awslabs' / 'well_architected_mcp_server' / 'data'
 
     assert data_dir.exists(), f'Data directory not found: {data_dir}'
 
@@ -22,7 +22,7 @@ def test_data_files_exist():
 
 def test_best_practices_data_structure():
     """Test that best practices data has expected structure."""
-    from well_architected_bp_mcp_server.server import BEST_PRACTICES
+    from awslabs.well_architected_mcp_server.server import BEST_PRACTICES
 
     assert isinstance(BEST_PRACTICES, dict)
     assert len(BEST_PRACTICES) > 0
@@ -39,7 +39,7 @@ def test_best_practices_data_structure():
 
 def test_server_imports():
     """Test that server module imports correctly."""
-    from well_architected_bp_mcp_server import server
+    from awslabs.well_architected_mcp_server import server
 
     assert hasattr(server, 'mcp')
     assert hasattr(server, 'BEST_PRACTICES')
@@ -51,14 +51,14 @@ def test_server_imports():
 
 def test_main_function_exists():
     """Test that main function exists."""
-    from well_architected_bp_mcp_server.server import main
+    from awslabs.well_architected_mcp_server.server import main
 
     assert callable(main)
 
 
 def test_search_best_practices():
     """Test search_best_practices_impl returns paginated results."""
-    from well_architected_bp_mcp_server.server import search_best_practices_impl
+    from awslabs.well_architected_mcp_server.server import search_best_practices_impl
 
     result = search_best_practices_impl()
     assert isinstance(result, dict)
@@ -79,7 +79,7 @@ def test_search_best_practices():
 
 def test_search_best_practices_pagination():
     """Test pagination in search_best_practices_impl."""
-    from well_architected_bp_mcp_server.server import search_best_practices_impl
+    from awslabs.well_architected_mcp_server.server import search_best_practices_impl
 
     page1 = search_best_practices_impl(max_results=5, offset=0)
     assert len(page1['results']) == 5
@@ -96,7 +96,7 @@ def test_search_best_practices_pagination():
 
 def test_get_best_practice():
     """Test get_best_practice function."""
-    from well_architected_bp_mcp_server.server import (
+    from awslabs.well_architected_mcp_server.server import (
         get_best_practice_impl,
         search_best_practices_impl,
     )
@@ -113,7 +113,7 @@ def test_get_best_practice():
 
 def test_list_pillars():
     """Test list_pillars function returns rich metadata."""
-    from well_architected_bp_mcp_server.server import list_pillars_impl
+    from awslabs.well_architected_mcp_server.server import list_pillars_impl
 
     pillars = list_pillars_impl()
     assert isinstance(pillars, dict)
@@ -132,7 +132,7 @@ def test_list_pillars():
 
 def test_get_related_practices():
     """Test get_related_practices function."""
-    from well_architected_bp_mcp_server.server import (
+    from awslabs.well_architected_mcp_server.server import (
         get_related_practices_impl,
         search_best_practices_impl,
     )
@@ -149,7 +149,9 @@ def test_get_related_practices():
 
 def test_well_architected_framework_review():
     """Test well_architected_framework_review function."""
-    from well_architected_bp_mcp_server.server import well_architected_framework_review_impl
+    from awslabs.well_architected_mcp_server.server import (
+        well_architected_framework_review_impl,
+    )
 
     review = well_architected_framework_review_impl()
     assert isinstance(review, dict)
@@ -163,7 +165,7 @@ def test_well_architected_framework_review():
 
 def test_load_data_function():
     """Test load_data function and data loading edge cases."""
-    from well_architected_bp_mcp_server.server import BEST_PRACTICES, load_data
+    from awslabs.well_architected_mcp_server.server import BEST_PRACTICES, load_data
 
     original_count = len(BEST_PRACTICES)
     load_data()
@@ -172,7 +174,7 @@ def test_load_data_function():
 
 def test_search_filters():
     """Test search with various filter combinations."""
-    from well_architected_bp_mcp_server.server import search_best_practices_impl
+    from awslabs.well_architected_mcp_server.server import search_best_practices_impl
 
     high_risk = search_best_practices_impl(risk='HIGH')
     assert isinstance(high_risk['results'], list)
@@ -189,7 +191,7 @@ def test_search_filters():
 
 def test_get_related_practices_with_relations():
     """Test get_related_practices with actual related practices."""
-    from well_architected_bp_mcp_server.server import (
+    from awslabs.well_architected_mcp_server.server import (
         get_related_practices_impl,
         search_best_practices_impl,
     )
@@ -209,7 +211,7 @@ def test_get_related_practices_with_relations():
 
 def test_mcp_object_exists():
     """Test that MCP object is properly initialized."""
-    from well_architected_bp_mcp_server.server import mcp
+    from awslabs.well_architected_mcp_server.server import mcp
 
     assert mcp is not None
     assert str(mcp).startswith('FastMCP')
@@ -217,16 +219,16 @@ def test_mcp_object_exists():
 
 def test_main_function_callable():
     """Test main function without actually running the server."""
-    from well_architected_bp_mcp_server.server import main
+    from awslabs.well_architected_mcp_server.server import main
 
-    with unittest.mock.patch('well_architected_bp_mcp_server.server.mcp.run') as mock_run:
+    with unittest.mock.patch('awslabs.well_architected_mcp_server.server.mcp.run') as mock_run:
         main()
         mock_run.assert_called_once()
 
 
 def test_load_data_edge_cases():
     """Test load_data function with file system edge cases."""
-    from well_architected_bp_mcp_server.server import BEST_PRACTICES, load_data
+    from awslabs.well_architected_mcp_server.server import BEST_PRACTICES, load_data
 
     with unittest.mock.patch('pathlib.Path.exists', return_value=False):
         load_data()
@@ -242,8 +244,8 @@ def test_main_module_execution():
     import sys
 
     with unittest.mock.patch.object(sys, 'argv', ['server.py']):
-        with unittest.mock.patch('well_architected_bp_mcp_server.server.mcp.run') as mock_run:
-            from well_architected_bp_mcp_server.server import main
+        with unittest.mock.patch('awslabs.well_architected_mcp_server.server.mcp.run') as mock_run:
+            from awslabs.well_architected_mcp_server.server import main
 
             main()
             mock_run.assert_called_once()
@@ -251,7 +253,7 @@ def test_main_module_execution():
 
 def test_data_dir_path():
     """Test DATA_DIR path construction."""
-    from well_architected_bp_mcp_server.server import DATA_DIR
+    from awslabs.well_architected_mcp_server.server import DATA_DIR
 
     assert isinstance(DATA_DIR, Path)
     assert DATA_DIR.name == 'data'
@@ -259,7 +261,7 @@ def test_data_dir_path():
 
 def test_v13_dir_path():
     """Test V13_DIR path construction."""
-    from well_architected_bp_mcp_server.server import V13_DIR
+    from awslabs.well_architected_mcp_server.server import V13_DIR
 
     assert isinstance(V13_DIR, Path)
     assert V13_DIR.name == 'v13'
@@ -271,7 +273,7 @@ def test_v13_dir_path():
 
 def test_search_content():
     """Test search_content_impl full-text search."""
-    from well_architected_bp_mcp_server.server import search_content_impl
+    from awslabs.well_architected_mcp_server.server import search_content_impl
 
     results = search_content_impl('DynamoDB')
     assert isinstance(results, list)
@@ -284,7 +286,7 @@ def test_search_content():
 
 def test_search_content_with_pillar_filter():
     """Test search_content_impl with pillar filter."""
-    from well_architected_bp_mcp_server.server import search_content_impl
+    from awslabs.well_architected_mcp_server.server import search_content_impl
 
     results = search_content_impl('CloudTrail', pillar='SECURITY')
     assert isinstance(results, list)
@@ -294,7 +296,7 @@ def test_search_content_with_pillar_filter():
 
 def test_search_content_with_section_filter():
     """Test search_content_impl with section filter."""
-    from well_architected_bp_mcp_server.server import search_content_impl
+    from awslabs.well_architected_mcp_server.server import search_content_impl
 
     results = search_content_impl('automat', section='implementation_steps')
     assert isinstance(results, list)
@@ -304,7 +306,7 @@ def test_search_content_with_section_filter():
 
 def test_search_content_no_results():
     """Test search_content_impl with query that has no matches."""
-    from well_architected_bp_mcp_server.server import search_content_impl
+    from awslabs.well_architected_mcp_server.server import search_content_impl
 
     results = search_content_impl('zzznomatchxyzzzz')
     assert results == []
@@ -312,7 +314,7 @@ def test_search_content_no_results():
 
 def test_search_content_max_results():
     """Test search_content_impl respects max_results."""
-    from well_architected_bp_mcp_server.server import search_content_impl
+    from awslabs.well_architected_mcp_server.server import search_content_impl
 
     results = search_content_impl('AWS', max_results=3)
     assert len(results) <= 3
@@ -320,7 +322,7 @@ def test_search_content_max_results():
 
 def test_list_questions():
     """Test list_questions_impl returns WAR questions."""
-    from well_architected_bp_mcp_server.server import list_questions_impl
+    from awslabs.well_architected_mcp_server.server import list_questions_impl
 
     questions = list_questions_impl()
     assert isinstance(questions, list)
@@ -335,7 +337,7 @@ def test_list_questions():
 
 def test_list_questions_with_pillar():
     """Test list_questions_impl filtered by pillar."""
-    from well_architected_bp_mcp_server.server import list_questions_impl
+    from awslabs.well_architected_mcp_server.server import list_questions_impl
 
     security_qs = list_questions_impl(pillar='SECURITY')
     assert len(security_qs) > 0
@@ -350,7 +352,7 @@ def test_list_questions_with_pillar():
 
 def test_get_practices_for_question():
     """Test get_practices_for_question_impl returns BPs ordered by risk."""
-    from well_architected_bp_mcp_server.server import get_practices_for_question_impl
+    from awslabs.well_architected_mcp_server.server import get_practices_for_question_impl
 
     results = get_practices_for_question_impl('operate your workload')
     assert isinstance(results, list)
@@ -369,7 +371,7 @@ def test_get_practices_for_question():
 
 def test_get_practices_for_question_no_match():
     """Test get_practices_for_question_impl with no matching question."""
-    from well_architected_bp_mcp_server.server import get_practices_for_question_impl
+    from awslabs.well_architected_mcp_server.server import get_practices_for_question_impl
 
     results = get_practices_for_question_impl('zzznoquestionmatchzzz')
     assert results == []
@@ -377,7 +379,7 @@ def test_get_practices_for_question_no_match():
 
 def test_get_anti_patterns_by_id():
     """Test get_anti_patterns_impl for a specific BP."""
-    from well_architected_bp_mcp_server.server import get_anti_patterns_impl
+    from awslabs.well_architected_mcp_server.server import get_anti_patterns_impl
 
     results = get_anti_patterns_impl(id='SEC01-BP01')
     assert isinstance(results, list)
@@ -389,7 +391,7 @@ def test_get_anti_patterns_by_id():
 
 def test_get_anti_patterns_by_pillar():
     """Test get_anti_patterns_impl filtered by pillar."""
-    from well_architected_bp_mcp_server.server import get_anti_patterns_impl
+    from awslabs.well_architected_mcp_server.server import get_anti_patterns_impl
 
     results = get_anti_patterns_impl(pillar='SECURITY')
     assert isinstance(results, list)
@@ -398,7 +400,7 @@ def test_get_anti_patterns_by_pillar():
 
 def test_get_anti_patterns_by_risk():
     """Test get_anti_patterns_impl filtered by risk."""
-    from well_architected_bp_mcp_server.server import get_anti_patterns_impl
+    from awslabs.well_architected_mcp_server.server import get_anti_patterns_impl
 
     results = get_anti_patterns_impl(risk='HIGH')
     assert isinstance(results, list)
@@ -409,7 +411,7 @@ def test_get_anti_patterns_by_risk():
 
 def test_get_anti_patterns_combined_filters():
     """Test get_anti_patterns_impl with pillar and risk filters."""
-    from well_architected_bp_mcp_server.server import get_anti_patterns_impl
+    from awslabs.well_architected_mcp_server.server import get_anti_patterns_impl
 
     results = get_anti_patterns_impl(pillar='RELIABILITY', risk='HIGH')
     assert isinstance(results, list)
@@ -418,7 +420,7 @@ def test_get_anti_patterns_combined_filters():
 
 def test_get_anti_patterns_no_match():
     """Test get_anti_patterns_impl for BP without anti-patterns section."""
-    from well_architected_bp_mcp_server.server import get_anti_patterns_impl
+    from awslabs.well_architected_mcp_server.server import get_anti_patterns_impl
 
     results = get_anti_patterns_impl(id='NONEXISTENT-BP99')
     assert results == []
@@ -426,7 +428,7 @@ def test_get_anti_patterns_no_match():
 
 def test_get_best_practice_full_with_v13():
     """Test get_best_practice_full_impl returns full markdown content from v13."""
-    from well_architected_bp_mcp_server.server import get_best_practice_full_impl
+    from awslabs.well_architected_mcp_server.server import get_best_practice_full_impl
 
     result = get_best_practice_full_impl('SEC01-BP01')
     assert result is not None
@@ -444,7 +446,7 @@ def test_get_best_practice_full_with_v13():
 
 def test_get_best_practice_full_section_filter():
     """Test get_best_practice_full_impl with section filter."""
-    from well_architected_bp_mcp_server.server import get_best_practice_full_impl
+    from awslabs.well_architected_mcp_server.server import get_best_practice_full_impl
 
     result = get_best_practice_full_impl('SEC01-BP01', section='implementation_steps')
     assert result is not None
@@ -458,7 +460,7 @@ def test_get_best_practice_full_section_filter():
 
 def test_get_best_practice_full_invalid_section():
     """Test get_best_practice_full_impl with invalid section."""
-    from well_architected_bp_mcp_server.server import get_best_practice_full_impl
+    from awslabs.well_architected_mcp_server.server import get_best_practice_full_impl
 
     result = get_best_practice_full_impl('SEC01-BP01', section='nonexistent_section')
     assert result is not None
@@ -467,7 +469,7 @@ def test_get_best_practice_full_invalid_section():
 
 def test_get_best_practice_full_nonexistent_id():
     """Test get_best_practice_full_impl falls back for IDs not in v13."""
-    from well_architected_bp_mcp_server.server import get_best_practice_full_impl
+    from awslabs.well_architected_mcp_server.server import get_best_practice_full_impl
 
     result = get_best_practice_full_impl('NONEXISTENT-BP99')
     assert result is None
@@ -475,7 +477,7 @@ def test_get_best_practice_full_nonexistent_id():
 
 def test_get_best_practice_full_falls_back_to_json():
     """Test get_best_practice_full_impl falls back to JSON for lens BPs without v13."""
-    from well_architected_bp_mcp_server.server import get_best_practice_full_impl
+    from awslabs.well_architected_mcp_server.server import get_best_practice_full_impl
 
     result = get_best_practice_full_impl('GENOPS01-BP01')
     assert result is not None
@@ -485,7 +487,7 @@ def test_get_best_practice_full_falls_back_to_json():
 
 def test_get_best_practice_full_frontmatter_parsing():
     """Test that frontmatter is correctly parsed from v13 markdown."""
-    from well_architected_bp_mcp_server.server import get_best_practice_full_impl
+    from awslabs.well_architected_mcp_server.server import get_best_practice_full_impl
 
     result = get_best_practice_full_impl('OPS01-BP01')
     assert result is not None
@@ -497,7 +499,7 @@ def test_get_best_practice_full_frontmatter_parsing():
 
 def test_v13_index_built():
     """Test that V13 index was built at startup."""
-    from well_architected_bp_mcp_server.server import (
+    from awslabs.well_architected_mcp_server.server import (
         QUESTIONS_INDEX,
         V13_METADATA,
         V13_SECTIONS,
@@ -517,7 +519,7 @@ def test_v13_index_built():
 
 def test_bp_by_id_index():
     """Test that BP_BY_ID dict was built at startup."""
-    from well_architected_bp_mcp_server.server import BP_BY_ID
+    from awslabs.well_architected_mcp_server.server import BP_BY_ID
 
     assert len(BP_BY_ID) > 300
     assert 'SEC01-BP01' in BP_BY_ID
@@ -526,10 +528,10 @@ def test_bp_by_id_index():
 
 def test_build_v13_index_missing_dir():
     """Test _build_v13_index handles missing directory."""
-    from well_architected_bp_mcp_server.server import _build_v13_index
+    from awslabs.well_architected_mcp_server.server import _build_v13_index
 
     with unittest.mock.patch(
-        'well_architected_bp_mcp_server.server.V13_DIR',
+        'awslabs.well_architected_mcp_server.server.V13_DIR',
         Path('/nonexistent/path'),
     ):
         _build_v13_index()
@@ -537,7 +539,7 @@ def test_build_v13_index_missing_dir():
 
 def test_mcp_tool_wrappers():
     """Test MCP tool wrapper functions directly."""
-    from well_architected_bp_mcp_server.server import (
+    from awslabs.well_architected_mcp_server.server import (
         get_anti_patterns,
         get_best_practice,
         get_best_practice_full,
@@ -564,7 +566,7 @@ def test_mcp_tool_wrappers():
 
 def test_wrapper_function_calls():
     """Test that wrapper functions properly call internal functions."""
-    from well_architected_bp_mcp_server.server import (
+    from awslabs.well_architected_mcp_server.server import (
         get_best_practice_impl,
         get_related_practices_impl,
         list_pillars_impl,

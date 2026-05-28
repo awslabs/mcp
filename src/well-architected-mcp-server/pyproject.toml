@@ -1,5 +1,5 @@
 [project]
-name = "awslabs.well-architected-bp-mcp-server"
+name = "awslabs.well-architected-mcp-server"
 version = "0.1.0"
 description = "MCP server for AWS Well-Architected Framework Best Practices"
 readme = "README.md"
@@ -40,26 +40,22 @@ test = [
 [project.urls]
 Homepage = "https://github.com/awslabs/mcp"
 Repository = "https://github.com/awslabs/mcp"
-Documentation = "https://github.com/awslabs/mcp/tree/main/src/well-architected-bp-mcp-server"
+Documentation = "https://github.com/awslabs/mcp/tree/main/src/well-architected-mcp-server"
 
 [project.scripts]
-well-architected-bp-mcp-server = "well_architected_bp_mcp_server.server:main"
+well-architected-mcp-server = "awslabs.well_architected_mcp_server.server:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/well_architected_bp_mcp_server"]
-
-[tool.hatch.build.targets.wheel.shared-data]
-"src/well_architected_bp_mcp_server/data" = "share/well_architected_bp_mcp_server/data"
+packages = ["awslabs"]
 
 [tool.hatch.build.targets.sdist]
 include = [
-    "/src",
+    "/awslabs",
     "/README.md",
-    "/MANIFEST.in",
 ]
 
 [dependency-groups]

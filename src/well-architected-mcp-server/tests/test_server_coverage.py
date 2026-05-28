@@ -17,7 +17,7 @@
 
 def test_search_with_all_filters():
     """Test search with all possible filter combinations."""
-    from well_architected_bp_mcp_server.server import search_best_practices_impl
+    from awslabs.well_architected_mcp_server.server import search_best_practices_impl
 
     result = search_best_practices_impl(
         pillar='SECURITY', risk='HIGH', lens='FRAMEWORK', keyword='access', area='identity'
@@ -34,7 +34,7 @@ def test_search_with_all_filters():
 
 def test_get_best_practice_edge_cases():
     """Test get_best_practice with various IDs."""
-    from well_architected_bp_mcp_server.server import get_best_practice_impl
+    from awslabs.well_architected_mcp_server.server import get_best_practice_impl
 
     # Test with empty string
     result = get_best_practice_impl('')
@@ -47,7 +47,7 @@ def test_get_best_practice_edge_cases():
 
 def test_get_related_practices_edge_cases():
     """Test get_related_practices with various scenarios."""
-    from well_architected_bp_mcp_server.server import get_related_practices_impl
+    from awslabs.well_architected_mcp_server.server import get_related_practices_impl
 
     # Test with empty string
     result = get_related_practices_impl('')
@@ -62,7 +62,9 @@ def test_get_related_practices_edge_cases():
 
 def test_framework_review_structure():
     """Test framework review structure in detail."""
-    from well_architected_bp_mcp_server.server import well_architected_framework_review_impl
+    from awslabs.well_architected_mcp_server.server import (
+        well_architected_framework_review_impl,
+    )
 
     result = well_architected_framework_review_impl()
 

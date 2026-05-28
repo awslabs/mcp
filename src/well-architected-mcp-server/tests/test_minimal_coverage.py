@@ -17,7 +17,7 @@
 
 def test_search_no_matches():
     """Test search with filters that return no matches."""
-    from well_architected_bp_mcp_server.server import search_best_practices_impl
+    from awslabs.well_architected_mcp_server.server import search_best_practices_impl
 
     result = search_best_practices_impl(
         pillar='NONEXISTENT', risk='INVALID', keyword='zzznomatchzzz'
@@ -29,7 +29,7 @@ def test_search_no_matches():
 
 def test_load_data_coverage():
     """Test load_data function coverage."""
-    from well_architected_bp_mcp_server.server import BEST_PRACTICES, load_data
+    from awslabs.well_architected_mcp_server.server import BEST_PRACTICES, load_data
 
     # Call load_data to ensure it's covered
     original_count = len(BEST_PRACTICES)

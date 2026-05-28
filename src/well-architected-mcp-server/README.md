@@ -19,24 +19,24 @@ This server provides a single source of truth for AWS Well-Architected Best Prac
 
 ```bash
 # Using uvx (recommended)
-uvx awslabs.well-architected-bp-mcp-server@latest
+uvx awslabs.well-architected-mcp-server@latest
 
 # Using pip
-pip install awslabs.well-architected-bp-mcp-server
+pip install awslabs.well-architected-mcp-server
 ```
 
 ## Configuration
 
-### Amazon Q CLI
+### Kiro CLI
 
-Add to `~/.aws/amazonq/mcp.json`:
+Add to `~/.kiro/settings/tools/mcp.json`:
 
 ```json
 {
   "mcpServers": {
-    "well-architected-bp": {
+    "well-architected": {
       "command": "uvx",
-      "args": ["awslabs.well-architected-bp-mcp-server@latest"],
+      "args": ["awslabs.well-architected-mcp-server@latest"],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
@@ -52,9 +52,9 @@ Add to `.cursor/mcp.json`, `cline_mcp_settings.json`, or `.vscode/mcp.json`:
 ```json
 {
   "mcpServers": {
-    "well-architected-bp": {
+    "well-architected": {
       "command": "uvx",
-      "args": ["awslabs.well-architected-bp-mcp-server@latest"],
+      "args": ["awslabs.well-architected-mcp-server@latest"],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
