@@ -4,7 +4,7 @@
 
 ## Best Practices Guide
 
-- SHOULD never atempt FLUX queries
+- SHOULD never attempt FLUX queries
 
 ## Tool Examples
 
