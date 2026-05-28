@@ -386,3 +386,171 @@ class TestMultiTableParsing:
         assert len(result['tables']) == 2
         assert result['tables'][0]['columns'] == ['Col1']
         assert result['tables'][1]['columns'] == ['Col2']
+
+
+class TestCellToText:
+    """Tests for _cell_to_text edge cases via parse_html_tables."""
+
+    def test_link_without_href(self):
+        """A link tag with text but no href renders as plain text."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>Name</th></tr></thead>
+        <tbody><tr><td><a>plain link</a></td></tr></tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result['rows'][0]['Name'] == 'plain link'
+
+    def test_nested_tag_with_link(self):
+        """A nested tag (span/p) containing a link preserves the link as markdown."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>Name</th></tr></thead>
+        <tbody><tr><td><span><a href="/docs/foo">Foo Link</a></span></td></tr></tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result['rows'][0]['Name'] == '[Foo Link](/docs/foo)'
+
+    def test_nested_tag_with_link_no_href(self):
+        """A nested tag containing a link with no href renders as plain text."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>Name</th></tr></thead>
+        <tbody><tr><td><span><a>Just Text</a></span></td></tr></tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result['rows'][0]['Name'] == 'Just Text'
+
+    def test_nested_tag_without_link(self):
+        """A nested tag without any link renders as plain text."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>Name</th><th>Info</th></tr></thead>
+        <tbody><tr><td><a href="/x">link</a></td><td><span>some info</span></td></tr></tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result['rows'][0]['Info'] == 'some info'
+
+    def test_mixed_text_and_link(self):
+        """Cell with raw text nodes alongside a link preserves both."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>Name</th></tr></thead>
+        <tbody><tr><td>See <a href="/doc">docs</a> for details</td></tr></tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        cell_val = result['rows'][0]['Name']
+        assert '[docs](/doc)' in cell_val
+        assert 'See' in cell_val
+        assert 'for details' in cell_val
+
+
+class TestExtractTableDataEdgeCases:
+    """Tests for _extract_table_data edge cases."""
+
+    def test_table_without_thead(self):
+        """Table without thead uses first row as headers."""
+        html = """<html><body><h2>Sec</h2><table>
+        <tbody>
+        <tr><th>Name</th><th>Value</th></tr>
+        <tr><td>foo</td><td>100</td></tr>
+        <tr><td>bar</td><td>200</td></tr>
+        </tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result is not None
+        assert result['columns'] == ['Name', 'Value']
+        # First row is headers re-parsed as data (no thead/tbody split)
+        assert result['rows'][0] == {'Name': 'Name', 'Value': 'Value'}
+        assert result['rows'][1] == {'Name': 'foo', 'Value': '100'}
+        assert result['rows'][2] == {'Name': 'bar', 'Value': '200'}
+
+    def test_table_with_no_headers(self):
+        """Table with no parseable headers returns error."""
+        html = """<html><body><h2>Sec</h2><table>
+        <tbody></tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert 'error' in result
+        assert 'No parseable table data' in result['error']
+
+    def test_table_with_empty_rows(self):
+        """Rows with no cells are skipped."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>Name</th></tr></thead>
+        <tbody><tr></tr><tr><td>valid</td></tr></tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert len(result['rows']) == 1
+        assert result['rows'][0]['Name'] == 'valid'
+
+    def test_table_with_no_data_rows(self):
+        """Table with headers but no data rows returns None."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>Name</th></tr></thead>
+        <tbody></tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert 'error' in result
+
+    def test_row_with_fewer_cells_than_headers(self):
+        """Rows with fewer cells than headers are skipped."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>A</th><th>B</th><th>C</th></tr></thead>
+        <tbody>
+            <tr><td>1</td><td>2</td><td>3</td></tr>
+            <tr><td>x</td></tr>
+        </tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert len(result['rows']) == 1
+        assert result['rows'][0] == {'A': '1', 'B': '2', 'C': '3'}
+
+
+class TestSectionBoundary:
+    """Tests for section boundary detection in parse_html_tables."""
+
+    def test_stops_at_next_h2(self):
+        """Table search stops at the next h2 heading."""
+        html = """<html><body>
+        <h2>First</h2>
+        <table><thead><tr><th>A</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table>
+        <h2>Second</h2>
+        <table><thead><tr><th>B</th></tr></thead><tbody><tr><td>2</td></tr></tbody></table>
+        </body></html>"""
+        result = parse_html_tables(html, 'First')
+        assert 'tables' not in result
+        assert result['columns'] == ['A']
+        assert result['rows'][0] == {'A': '1'}
+
+    def test_finds_table_nested_in_div(self):
+        """Table nested in a div after the heading is still found."""
+        html = """<html><body>
+        <h2>My Section</h2>
+        <div class="wrapper">
+            <table><thead><tr><th>X</th></tr></thead><tbody><tr><td>val</td></tr></tbody></table>
+        </div>
+        </body></html>"""
+        result = parse_html_tables(html, 'My Section')
+        assert result['columns'] == ['X']
+        assert result['rows'][0] == {'X': 'val'}
+
+    def test_unparseable_table_in_section(self):
+        """Section with a table that has no usable data returns error."""
+        html = """<html><body>
+        <h2>Bad Tables</h2>
+        <table><tbody><tr></tr><tr></tr></tbody></table>
+        </body></html>"""
+        result = parse_html_tables(html, 'Bad Tables')
+        assert 'error' in result
+
+    def test_no_tables_on_page_returns_none(self):
+        """Page with no tables at all returns None when section is None."""
+        html = """<html><body><h2>Just text</h2><p>No tables here</p></body></html>"""
+        result = parse_html_tables(html, None)
+        assert result is None
+
+    def test_all_tables_unparseable_returns_none(self):
+        """Page where all tables have no usable data returns None."""
+        html = """<html><body>
+        <h2>Section</h2>
+        <table><tbody></tbody></table>
+        <table><tbody><tr></tr></tbody></table>
+        </body></html>"""
+        result = parse_html_tables(html, None)
+        assert result is None
