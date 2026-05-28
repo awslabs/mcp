@@ -1,11 +1,11 @@
 # AWS Core Network MCP Server
 
-A Model Context Protocol (MCP) server providing comprehensive tools for troubleshooting and analyzing AWS core networking services including Cloud WAN, Transit Gateway, VPC, Network Firewall, and VPN connections.
+A Model Context Protocol (MCP) server providing comprehensive tools for troubleshooting and analyzing AWS core networking services including Cloud WAN, Transit Gateway, VPC, Network Firewall, VPN connections, Load Balancers, Route 53 / DNS, and VPC Endpoints / PrivateLink.
 
 ### Key Features
 
 - **Systematic troubleshooting**: Built-in methodology for network path tracing and connectivity analysis
-- **Multi-service coverage**: Unified interface for Cloud WAN, Transit Gateway, VPC, Network Firewall, and VPN
+- **Multi-service coverage**: Unified interface for Cloud WAN, Transit Gateway, VPC, Network Firewall, VPN, Load Balancers, Route 53, and VPC Endpoints
 - **Flow log analysis**: Query and filter VPC, Transit Gateway, and Network Firewall flow logs from CloudWatch
 - **Inspection detection**: Automatically identify firewalls in traffic paths for security analysis
 - **Multi-region support**: Search for resources across all AWS regions
@@ -19,6 +19,9 @@ A Model Context Protocol (MCP) server providing comprehensive tools for troubles
 - **Routing analysis**: Trace traffic paths through VPC, Transit Gateway, and Cloud WAN
 - **Traffic verification**: Query flow logs to confirm actual traffic patterns
 - **Inspection detection**: Identify AWS Network Firewall and third-party firewalls in traffic paths
+- **Load balancer health**: List load balancers, inspect listeners and target groups, check per-target health status
+- **DNS troubleshooting**: List hosted zones, query DNS records, check health check statuses, inspect Resolver rules and endpoints
+- **VPC endpoint diagnostics**: Detailed endpoint inventory with type-specific fields, connectivity diagnostics with security group and ENI analysis
 
 ### Tools
 
@@ -60,6 +63,21 @@ A Model Context Protocol (MCP) server providing comprehensive tools for troubles
 
 #### VPN Tools
 27. `list_vpn_connections`: List all Site-to-Site VPN connections in a region
+
+#### Load Balancer Tools
+28. `list_load_balancers`: List all ALBs, NLBs, and GLBs in a region with optional type filtering
+29. `get_lb_details`: Get detailed load balancer configuration including listeners, target groups, and security groups
+30. `get_lb_target_health`: Get per-target health status with failure reasons for a target group
+
+#### Route 53 / DNS Tools
+31. `list_hosted_zones`: List Route 53 hosted zones with type (public/private) and VPC associations
+32. `query_dns_records`: Search DNS records within a hosted zone by type or name prefix
+33. `check_health_checks`: Check Route 53 health check statuses and identify failing endpoints
+34. `list_resolver_rules`: List Route 53 Resolver rules and endpoints for hybrid DNS troubleshooting
+
+#### VPC Endpoint Tools
+35. `list_vpc_endpoints_detailed`: List VPC endpoints with detailed type-specific information across VPCs
+36. `check_endpoint_connectivity`: Check connectivity diagnostics for a specific VPC endpoint
 
 ## Prerequisites
 - Have an AWS account with [credentials configured](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-files.html)
@@ -134,6 +152,7 @@ AWS Credentials in environment variables will also work but allows only single a
     {
       "Effect": "Allow",
       "Action": [
+        // --- EC2 / VPC (also used by VPC Endpoint tools) ---
         "ec2:DescribeNetworkInterfaces",
         "ec2:DescribeSecurityGroups",
         "ec2:DescribeNetworkAcls",
@@ -150,6 +169,8 @@ AWS Credentials in environment variables will also work but allows only single a
         "ec2:DescribeVpnConnections",
         "ec2:DescribeFlowLogs",
         "ec2:DescribeRegions",
+
+        // --- Cloud WAN / Network Manager ---
         "networkmanager:GetCoreNetwork",
         "networkmanager:GetCoreNetworkPolicy",
         "networkmanager:GetNetworkRoutes",
@@ -164,14 +185,41 @@ AWS Credentials in environment variables will also work but allows only single a
         "networkmanager:ListCoreNetworks",
         "networkmanager:ListAttachments",
         "networkmanager:ListPeerings",
+
+        // --- Network Firewall ---
         "network-firewall:DescribeFirewall",
         "network-firewall:DescribeFirewallPolicy",
         "network-firewall:DescribeRuleGroup",
         "network-firewall:DescribeLoggingConfiguration",
         "network-firewall:ListFirewalls",
+
+        // --- Load Balancer (Phase 1) ---
         "elasticloadbalancing:DescribeLoadBalancers",
+        "elasticloadbalancing:DescribeListeners",
+        "elasticloadbalancing:DescribeTargetGroups",
+        "elasticloadbalancing:DescribeTargetHealth",
+
+        // --- Route 53 / DNS (Phase 2) ---
+        "route53:ListHostedZones",
+        "route53:GetHostedZone",
+        "route53:ListResourceRecordSets",
+        "route53:ListHealthChecks",
+        "route53:GetHealthCheckStatus",
+
+        // --- Route 53 Resolver (Phase 2) ---
+        "route53resolver:ListResolverRules",
+        "route53resolver:ListResolverEndpoints",
+        "route53resolver:ListResolverRuleAssociations",
+        "route53resolver:ListResolverEndpointIpAddresses",
+
+        // --- CloudWatch Metrics (Phase 2 — calculated health check status) ---
+        "cloudwatch:GetMetricStatistics",
+
+        // --- CloudWatch Logs ---
         "logs:StartQuery",
         "logs:GetQueryResults",
+
+        // --- STS ---
         "sts:GetCallerIdentity"
       ],
       "Resource": "*"
