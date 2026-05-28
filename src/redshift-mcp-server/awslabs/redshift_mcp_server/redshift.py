@@ -35,6 +35,7 @@ from awslabs.redshift_mcp_server.consts import (
     SVV_REDSHIFT_DATABASES_QUERY,
 )
 from botocore.config import Config
+from botocore.exceptions import ClientError
 from loguru import logger
 
 
@@ -397,83 +398,109 @@ async def _execute_statement(
 async def discover_clusters() -> list[dict]:
     """Discover all Redshift clusters and serverless workgroups.
 
+    Discovery is best-effort for each type: if either provisioned or serverless
+    discovery succeeds, the function returns whatever was found. It only raises
+    if both fail (i.e., no clusters could be discovered at all).
+
     Returns:
         List of cluster information dictionaries.
+
+    Raises:
+        Exception: If both provisioned and serverless discovery fail.
     """
     clusters = []
+    provisioned_error = None
+    serverless_error = None
 
     try:
-        # Get provisioned clusters
-        logger.debug('Discovering provisioned Redshift clusters')
-        redshift_client = client_manager.redshift_client()
+        # Attempt provisioned cluster discovery
+        try:
+            # Get provisioned clusters
+            logger.debug('Discovering provisioned Redshift clusters')
+            redshift_client = client_manager.redshift_client()
 
-        paginator = redshift_client.get_paginator('describe_clusters')
-        for page in paginator.paginate():
-            for cluster in page.get('Clusters', []):
-                cluster_info = {
-                    'identifier': cluster['ClusterIdentifier'],
-                    'type': 'provisioned',
-                    'status': cluster['ClusterStatus'],
-                    'database_name': cluster.get('DBName', 'dev'),
-                    'endpoint': cluster.get('Endpoint', {}).get('Address'),
-                    'port': cluster.get('Endpoint', {}).get('Port'),
-                    'vpc_id': cluster.get('VpcId'),
-                    'node_type': cluster.get('NodeType'),
-                    'number_of_nodes': cluster.get('NumberOfNodes'),
-                    'creation_time': cluster.get('ClusterCreateTime'),
-                    'master_username': cluster.get('MasterUsername'),
-                    'publicly_accessible': cluster.get('PubliclyAccessible'),
-                    'encrypted': cluster.get('Encrypted'),
-                    'tags': {tag['Key']: tag['Value'] for tag in cluster.get('Tags', [])},
-                }
-                clusters.append(cluster_info)
+            paginator = redshift_client.get_paginator('describe_clusters')
+            for page in paginator.paginate():
+                for cluster in page.get('Clusters', []):
+                    cluster_info = {
+                        'identifier': cluster['ClusterIdentifier'],
+                        'type': 'provisioned',
+                        'status': cluster['ClusterStatus'],
+                        'database_name': cluster.get('DBName', 'dev'),
+                        'endpoint': cluster.get('Endpoint', {}).get('Address'),
+                        'port': cluster.get('Endpoint', {}).get('Port'),
+                        'vpc_id': cluster.get('VpcId'),
+                        'node_type': cluster.get('NodeType'),
+                        'number_of_nodes': cluster.get('NumberOfNodes'),
+                        'creation_time': cluster.get('ClusterCreateTime'),
+                        'master_username': cluster.get('MasterUsername'),
+                        'publicly_accessible': cluster.get('PubliclyAccessible'),
+                        'encrypted': cluster.get('Encrypted'),
+                        'tags': {tag['Key']: tag['Value'] for tag in cluster.get('Tags', [])},
+                    }
+                    clusters.append(cluster_info)
 
-        logger.info(f'Found {len(clusters)} provisioned clusters')
+            logger.info(f'Found {len(clusters)} provisioned clusters')
+
+        except ClientError as e:
+            provisioned_error = e
+            logger.warning(f'Unable to discover provisioned clusters: {str(e)}')
+
+        # Attempt serverless workgroup discovery
+        try:
+            # Get serverless workgroups
+            logger.debug('Discovering Redshift Serverless workgroups')
+            serverless_client = client_manager.redshift_serverless_client()
+
+            paginator = serverless_client.get_paginator('list_workgroups')
+            for page in paginator.paginate():
+                for workgroup in page.get('workgroups', []):
+                    # Get detailed workgroup information
+                    workgroup_detail = serverless_client.get_workgroup(
+                        workgroupName=workgroup['workgroupName']
+                    )['workgroup']
+
+                    cluster_info = {
+                        'identifier': workgroup['workgroupName'],
+                        'type': 'serverless',
+                        'status': workgroup['status'],
+                        'database_name': workgroup_detail.get('configParameters', [{}])[0].get(
+                            'parameterValue', 'dev'
+                        ),
+                        'endpoint': workgroup_detail.get('endpoint', {}).get('address'),
+                        'port': workgroup_detail.get('endpoint', {}).get('port'),
+                        'vpc_id': workgroup_detail.get('subnetIds', [None])[
+                            0
+                        ],  # Approximate VPC from subnet
+                        'node_type': None,  # Not applicable for serverless
+                        'number_of_nodes': None,  # Not applicable for serverless
+                        'creation_time': workgroup.get('creationDate'),
+                        'master_username': None,  # Serverless uses IAM
+                        'publicly_accessible': workgroup_detail.get('publiclyAccessible'),
+                        'encrypted': True,  # Serverless is always encrypted
+                        'tags': {
+                            tag['key']: tag['value']
+                            for tag in workgroup_detail.get('tags', [])
+                        },
+                    }
+                    clusters.append(cluster_info)
+
+            serverless_count = len([c for c in clusters if c['type'] == 'serverless'])
+            logger.info(f'Found {serverless_count} serverless workgroups')
+
+        except ClientError as e:
+            serverless_error = e
+            logger.warning(f'Unable to discover serverless workgroups: {str(e)}')
+
+        # If both discovery methods failed, raise an error
+        if provisioned_error and serverless_error:
+            raise Exception(
+                f'Failed to discover any Redshift clusters. '
+                f'Provisioned error: {provisioned_error}; Serverless error: {serverless_error}'
+            )
 
     except Exception as e:
-        logger.error(f'Error discovering provisioned clusters: {str(e)}')
-        raise
-
-    try:
-        # Get serverless workgroups
-        logger.debug('Discovering Redshift Serverless workgroups')
-        serverless_client = client_manager.redshift_serverless_client()
-
-        paginator = serverless_client.get_paginator('list_workgroups')
-        for page in paginator.paginate():
-            for workgroup in page.get('workgroups', []):
-                # Get detailed workgroup information
-                workgroup_detail = serverless_client.get_workgroup(
-                    workgroupName=workgroup['workgroupName']
-                )['workgroup']
-
-                cluster_info = {
-                    'identifier': workgroup['workgroupName'],
-                    'type': 'serverless',
-                    'status': workgroup['status'],
-                    'database_name': workgroup_detail.get('configParameters', [{}])[0].get(
-                        'parameterValue', 'dev'
-                    ),
-                    'endpoint': workgroup_detail.get('endpoint', {}).get('address'),
-                    'port': workgroup_detail.get('endpoint', {}).get('port'),
-                    'vpc_id': workgroup_detail.get('subnetIds', [None])[
-                        0
-                    ],  # Approximate VPC from subnet
-                    'node_type': None,  # Not applicable for serverless
-                    'number_of_nodes': None,  # Not applicable for serverless
-                    'creation_time': workgroup.get('creationDate'),
-                    'master_username': None,  # Serverless uses IAM
-                    'publicly_accessible': workgroup_detail.get('publiclyAccessible'),
-                    'encrypted': True,  # Serverless is always encrypted
-                    'tags': {tag['key']: tag['value'] for tag in workgroup_detail.get('tags', [])},
-                }
-                clusters.append(cluster_info)
-
-        serverless_count = len([c for c in clusters if c['type'] == 'serverless'])
-        logger.info(f'Found {serverless_count} serverless workgroups')
-
-    except Exception as e:
-        logger.error(f'Error discovering serverless workgroups: {str(e)}')
+        logger.error(f'Error discovering clusters: {str(e)}')
         raise
 
     logger.info(f'Total clusters discovered: {len(clusters)}')
