@@ -1,19 +1,36 @@
 r"""End-to-end integration test for postgres MCP server.
 
 Runs against real Aurora PostgreSQL clusters created during the test.
-Creates one Express cluster and one Serverless cluster:
-- Express cluster: always tested with PG_WIRE_IAM_PROTOCOL (the only
+
+By default ONLY an Express cluster is created and tested — this keeps the
+default run fast (express provisions in well under a minute, whereas the
+serverless cluster + instance adds roughly 7-8 minutes).
+
+- Express cluster (default): tested with PG_WIRE_IAM_PROTOCOL (the only
   method express supports). Express is publicly reachable so this needs
   no special network setup.
-- Serverless (regular) cluster: always tested with RDS_API (public HTTPS).
-  Add --test-non-express-cluster to also test PG_WIRE_IAM_PROTOCOL and
+- Serverless (regular) cluster: created only with
+  --test-serverless-cluster. Tested with RDS_API (public HTTPS). Add
+  --test-non-express-cluster to also test PG_WIRE_IAM_PROTOCOL and
   PG_WIRE_PROTOCOL — those open a Postgres pool on TCP 5432 and require
   the test host to have VPC reachability to the cluster.
-Then cleans up both clusters.
+  (--test-non-express-cluster implies --test-serverless-cluster.)
+
+Whichever clusters are created are cleaned up at the end.
 
 Usage:
+    # Default: express-only, fast
     python tests/e2e_integration_test.py --region us-east-1 --engine-version 16.4
 
+    # Also create + test the serverless cluster via RDS_API
+    python tests/e2e_integration_test.py \\
+        --region us-east-1 \\
+        --engine-version 16.4 \\
+        --database mcp_test_db \\
+        --port 5432 \\
+        --test-serverless-cluster
+
+    # Full run including serverless PG Wire (needs VPC reachability)
     python tests/e2e_integration_test.py \\
         --region us-east-1 \\
         --engine-version 16.4 \\
@@ -1570,6 +1587,258 @@ def run_startup_secret_arn_validation_suite(
     return result
 
 
+# Read queries that MUST be allowed in both read-only and write mode.
+# These mirror the positive-path unit tests in
+# tests/test_mutable_sql_detector.py but exercise the full run_query
+# path against a real cluster.
+ALLOWED_READ_QUERIES = [
+    'SELECT 1',
+    'SELECT version()',
+    "SELECT 'hello' AS greeting",
+    'SELECT count(*) FROM pg_class',
+    'SELECT id FROM (SELECT 1 AS id) sub WHERE id = 1',
+]
+
+# Queries that MUST be blocked in read-only mode (mutating keywords).
+# Each is a real statement an LLM might emit; run_query should reject it
+# before it reaches the database when readonly is on.
+READONLY_BLOCKED_QUERIES = [
+    'INSERT INTO t (a) VALUES (1)',
+    'UPDATE t SET a = 1 WHERE id = 2',
+    'DELETE FROM t WHERE id = 1',
+    'CREATE TABLE t (id int)',
+    'ALTER TABLE t ADD COLUMN c int',
+    'TRUNCATE TABLE t',
+    'SET search_path TO public, attacker_schema',
+    'RESET ALL',
+    'DISCARD ALL',
+    "LOAD 'auto_explain'",
+    'DO $$ BEGIN PERFORM 1; END $$',
+    'GRANT SELECT ON t TO bob',
+]
+
+# Queries that MUST be blocked in BOTH read-only and write mode because
+# they go through check_sql_injection_risk (dangerous functions and
+# security-sensitive GUCs), which runs regardless of the readonly flag.
+ALWAYS_BLOCKED_QUERIES = [
+    'SELECT pg_terminate_backend(99999)',
+    'SELECT pg_cancel_backend(99999)',
+    'SELECT pg_sleep(30)',
+    "SELECT pg_read_file('/etc/passwd')",
+    'SELECT pg_advisory_lock(42)',
+    'SELECT pg_advisory_xact_lock(42)',
+    "SELECT pg_notify('ch', 'x')",
+    'SET row_security = off',
+    'SET session_replication_role = replica',
+]
+
+
+async def run_query_enforcement_suite(
+    cluster_identifier: str,
+    region: str,
+    database: str,
+    valid_endpoint: str,
+    port: int,
+    cluster_kind: str,
+    connection_method: ConnectionMethod,
+    connection_method_name: str,
+) -> TestResult:
+    """Verify run_query's allow/block decisions under both readonly settings.
+
+    The MCP server's ``--allow_write_query`` flag maps directly to the
+    ``server.readonly_query`` global (``readonly_query = not
+    allow_write_query``). Rather than recreate clusters or spawn a second
+    MCP process per setting, this suite toggles that global in place and
+    re-establishes the connection so the pooled connection picks up the
+    new readonly state. Both the cluster and the MCP import are reused.
+
+    Assertions, all driven through the real ``run_query`` tool:
+      readonly = True  (server started WITHOUT --allow_write_query):
+        - ALLOWED_READ_QUERIES succeed
+        - READONLY_BLOCKED_QUERIES are rejected (mutating keywords)
+        - ALWAYS_BLOCKED_QUERIES are rejected (injection-risk check)
+      readonly = False (server started WITH --allow_write_query):
+        - ALLOWED_READ_QUERIES succeed
+        - READONLY_BLOCKED_QUERIES are now allowed past the readonly
+          guard (they may still error at the database for unrelated
+          reasons like a missing table — we only assert they are not
+          rejected by the MCP's readonly guard)
+        - ALWAYS_BLOCKED_QUERIES are STILL rejected (mode-independent)
+    """
+    ctx = DummyCtx()
+    result = TestResult(
+        cluster_identifier=cluster_identifier,
+        connection_method_name=f'query_enforcement_{connection_method_name}',
+        passed=[],
+        failed=[],
+    )
+
+    logger.info(f'\n{"=" * 60}')
+    logger.info(
+        f'Running query-enforcement suite on {cluster_kind} '
+        f'({connection_method_name}) cluster: {cluster_identifier}'
+    )
+    logger.info(f'{"=" * 60}')
+
+    # Express clusters only auto-create the 'postgres' database; the
+    # caller-supplied --database exists only on serverless. PG Wire and
+    # RDS API both connect fine to 'postgres'.
+    test_database = 'postgres'
+
+    def record(step, ok, detail=''):
+        """Record a test step result as passed or failed."""
+        log_step(step, 'PASS' if ok else 'FAIL', detail)
+        if ok:
+            result.passed.append(step)
+        else:
+            result.failed.append((step, detail))
+
+    def _is_rejected(rows) -> bool:
+        """run_query returns [{'error': ...}] when it rejects/fails a query."""
+        return bool(rows) and isinstance(rows[0], dict) and 'error' in rows[0]
+
+    def _is_readonly_rejection(rows) -> bool:
+        """Distinguish the readonly-guard rejection from other errors.
+
+        run_query returns the write_query_prohibited_key message when the
+        mutating-keyword guard fires. Other errors (injection risk,
+        database errors) use different keys.
+        """
+        if not _is_rejected(rows):
+            return False
+        return rows[0]['error'] == server.write_query_prohibited_key
+
+    async def _connect():
+        """(Re)establish the connection so it picks up readonly state.
+
+        internal_create_connection reads the server.readonly_query
+        global at connection-construction time, so the cached connection
+        must be dropped and rebuilt whenever the mode changes.
+        """
+        # Drop any cached connection for this target first so the new
+        # readonly state is actually applied.
+        server.db_connection_map.remove(
+            connection_method, cluster_identifier, valid_endpoint, test_database, port
+        )
+        return await connect_to_database(
+            region=region,
+            database_type=DatabaseType.APG,
+            connection_method=connection_method,
+            cluster_identifier=cluster_identifier,
+            db_endpoint=valid_endpoint,
+            port=port,
+            database=test_database,
+        )
+
+    async def _run(sql):
+        return await run_query(
+            sql=sql,
+            ctx=ctx,
+            connection_method=connection_method,
+            cluster_identifier=cluster_identifier,
+            db_endpoint=valid_endpoint,
+            database=test_database,
+        )
+
+    saved_readonly = server.readonly_query
+    try:
+        # ----------------------------------------------------------------
+        # Mode 1: read-only (server started WITHOUT --allow_write_query)
+        # ----------------------------------------------------------------
+        server.readonly_query = True
+        try:
+            resp = await _connect()
+            if 'Failed' in str(resp):
+                record('readonly:connect', False, str(resp))
+                return result
+            record('readonly:connect', True, 'connected with readonly=True')
+        except Exception as e:
+            record('readonly:connect', False, f'{type(e).__name__}: {e}')
+            return result
+
+        for sql in ALLOWED_READ_QUERIES:
+            step = f'readonly:allow {sql[:48]}'
+            try:
+                rows = await _run(sql)
+                record(step, not _is_rejected(rows), str(rows)[:120])
+            except Exception as e:
+                record(step, False, f'{type(e).__name__}: {e}')
+
+        for sql in READONLY_BLOCKED_QUERIES:
+            step = f'readonly:block {sql[:48]}'
+            try:
+                rows = await _run(sql)
+                # Must be rejected by the readonly mutating-keyword guard.
+                record(step, _is_readonly_rejection(rows), str(rows)[:120])
+            except Exception as e:
+                record(step, False, f'{type(e).__name__}: {e}')
+
+        for sql in ALWAYS_BLOCKED_QUERIES:
+            step = f'readonly:always-block {sql[:48]}'
+            try:
+                rows = await _run(sql)
+                record(step, _is_rejected(rows), str(rows)[:120])
+            except Exception as e:
+                record(step, False, f'{type(e).__name__}: {e}')
+
+        # ----------------------------------------------------------------
+        # Mode 2: write enabled (server started WITH --allow_write_query)
+        # ----------------------------------------------------------------
+        server.readonly_query = False
+        try:
+            resp = await _connect()
+            if 'Failed' in str(resp):
+                record('write:connect', False, str(resp))
+                return result
+            record('write:connect', True, 'connected with readonly=False')
+        except Exception as e:
+            record('write:connect', False, f'{type(e).__name__}: {e}')
+            return result
+
+        for sql in ALLOWED_READ_QUERIES:
+            step = f'write:allow {sql[:48]}'
+            try:
+                rows = await _run(sql)
+                record(step, not _is_rejected(rows), str(rows)[:120])
+            except Exception as e:
+                record(step, False, f'{type(e).__name__}: {e}')
+
+        for sql in READONLY_BLOCKED_QUERIES:
+            step = f'write:not-readonly-blocked {sql[:48]}'
+            try:
+                rows = await _run(sql)
+                # In write mode the readonly guard must NOT fire. The
+                # query may still error at the DB (e.g. table 't' doesn't
+                # exist), but it must not be rejected with the
+                # write-prohibited key.
+                record(step, not _is_readonly_rejection(rows), str(rows)[:120])
+            except Exception as e:
+                record(step, False, f'{type(e).__name__}: {e}')
+
+        for sql in ALWAYS_BLOCKED_QUERIES:
+            step = f'write:always-block {sql[:48]}'
+            try:
+                rows = await _run(sql)
+                # These go through check_sql_injection_risk which is
+                # mode-independent, so they must STILL be rejected.
+                record(step, _is_rejected(rows), str(rows)[:120])
+            except Exception as e:
+                record(step, False, f'{type(e).__name__}: {e}')
+
+    finally:
+        # Restore global and drop the test connection so later suites
+        # start from a clean state.
+        server.readonly_query = saved_readonly
+        try:
+            server.db_connection_map.remove(
+                connection_method, cluster_identifier, valid_endpoint, test_database, port
+            )
+        except Exception:
+            pass
+
+    return result
+
+
 def print_summary(results: list[TestResult]):
     """Print a formatted summary of all test results.
 
@@ -1622,13 +1891,15 @@ async def main_async(args):
     every subsequent entry.
 
     Plan structure:
-      Phase 1: create both clusters (express and serverless), each
-               recorded as a test case so creation failures count toward
-               the exit code.
+      Phase 1: create the express cluster (always) and, when
+               --test-serverless-cluster is set, the serverless cluster.
+               Each creation is recorded as a test case so creation
+               failures count toward the exit code.
       Phase 2: functional SQL suite, run once per compatible
                (cluster_kind, connection_method) cell.
       Phase 3: per-cluster security suites: endpoint validation,
-               secret-ARN validation, startup probe.
+               secret-ARN validation, query read/write enforcement,
+               startup probe.
 
     Cells incompatible by design (e.g. RDS_API on express) are not in the
     plan. Cells that depend on a failed cluster show as skipped with the
@@ -1677,14 +1948,21 @@ async def main_async(args):
 
         Express clusters are reachable from anywhere by default (no VPC
         security group restriction), so the express + PG_WIRE_IAM_PROTOCOL
-        cell runs unconditionally. The regular (serverless) cluster lives
-        in a VPC, so its PG Wire cells require --test-non-express-cluster
-        to indicate the host running this test can reach the cluster on
-        TCP 5432. RDS_API is a public HTTPS endpoint and works regardless.
+        cell runs unconditionally. The regular (serverless) cluster is
+        only created when --test-serverless-cluster is set, so all its
+        cells are gated on that flag. Its PG Wire cells additionally
+        require --test-non-express-cluster to indicate the host running
+        this test can reach the cluster on TCP 5432. RDS_API is a public
+        HTTPS endpoint and works whenever the serverless cluster exists.
         """
         return [
             ('express', ConnectionMethod.PG_WIRE_IAM_PROTOCOL, 'PG_WIRE_IAM_PROTOCOL', True),
-            ('serverless', ConnectionMethod.RDS_API, 'RDS_API', True),
+            (
+                'serverless',
+                ConnectionMethod.RDS_API,
+                'RDS_API',
+                args.test_serverless_cluster,
+            ),
             (
                 'serverless',
                 ConnectionMethod.PG_WIRE_IAM_PROTOCOL,
@@ -1704,7 +1982,8 @@ async def main_async(args):
 
     try:
         # ==============================================================
-        # Phase 1: create both clusters as recorded test cases.
+        # Phase 1: create the express cluster (always) and the
+        # serverless cluster (only with --test-serverless-cluster).
         # ==============================================================
         # Schedule cleanup BEFORE the create call. If creation succeeds
         # in AWS but a downstream step (wait_for_dns, IAM policy setup,
@@ -1744,65 +2023,76 @@ async def main_async(args):
         # egress), and the cluster is configured PubliclyAccessible so
         # the writer instance gets a routable public IP. Both pieces
         # are torn down on cleanup.
+        #
+        # The serverless cluster is only created when
+        # --test-serverless-cluster (or its implier
+        # --test-non-express-cluster) is set. By default the run creates
+        # the express cluster only, which is much faster.
         public_access_kwargs: dict = {}
-        if args.test_non_express_cluster:
-            try:
-                vpc_id = await asyncio.to_thread(get_default_vpc_id, args.region)
-                if not vpc_id:
-                    logger.error(
-                        f'--test-non-express-cluster requires a default VPC in {args.region}; '
-                        'none found. Skipping SG provisioning — PG Wire cases will fail.'
+        if not args.test_serverless_cluster:
+            logger.info(
+                'Skipping serverless cluster creation '
+                '(--test-serverless-cluster not set; express-only run).'
+            )
+        else:
+            if args.test_non_express_cluster:
+                try:
+                    vpc_id = await asyncio.to_thread(get_default_vpc_id, args.region)
+                    if not vpc_id:
+                        logger.error(
+                            f'--test-non-express-cluster requires a default VPC in {args.region}; '
+                            'none found. Skipping SG provisioning — PG Wire cases will fail.'
+                        )
+                    else:
+                        sg_name = f'mcp-e2e-pgwire-{ts}'
+                        test_security_group_id = await asyncio.to_thread(
+                            create_e2e_test_security_group,
+                            args.region,
+                            vpc_id,
+                            E2E_TEST_PREFIX_LIST_IDS,
+                            sg_name,
+                        )
+                        public_access_kwargs = {
+                            'publicly_accessible': True,
+                            'vpc_security_group_ids': [test_security_group_id],
+                        }
+                except Exception as e:
+                    logger.exception(
+                        f'Failed to provision public-access SG for serverless cluster: {e}'
                     )
-                else:
-                    sg_name = f'mcp-e2e-pgwire-{ts}'
-                    test_security_group_id = await asyncio.to_thread(
-                        create_e2e_test_security_group,
-                        args.region,
-                        vpc_id,
-                        E2E_TEST_PREFIX_LIST_IDS,
-                        sg_name,
-                    )
-                    public_access_kwargs = {
-                        'publicly_accessible': True,
-                        'vpc_security_group_ids': [test_security_group_id],
-                    }
-            except Exception as e:
-                logger.exception(
-                    f'Failed to provision public-access SG for serverless cluster: {e}'
-                )
 
-        # Same eager-cleanup guarantee as for the express cluster
-        # above. Critical here because serverless creation routes through
-        # a background thread and the public-access path adds extra
-        # post-create steps (IAM policy, properties refetch) that can
-        # raise after the cluster is alive in AWS.
-        clusters_to_delete.append(serverless_id)
-        try:
-            ep, res = create_cluster_as_test(
-                cluster_kind='serverless',
-                creator_fn=partial(
-                    create_serverless_cluster_and_wait,
-                    cluster_identifier=serverless_id,
-                    region=args.region,
-                    database=args.database,
-                    engine_version=args.engine_version,
-                    **public_access_kwargs,
-                ),
-            )
-            res.cluster_identifier = serverless_id
-            _record(res)
-            if ep is not None:
-                serverless_endpoint = ep
-        except Exception as e:
-            logger.exception('Serverless cluster phase aborted')
-            _record(
-                TestResult(
-                    cluster_identifier=serverless_id,
-                    connection_method_name='create_cluster_serverless',
-                    passed=[],
-                    failed=[('create_cluster_serverless', f'{type(e).__name__}: {e}')],
+            # Same eager-cleanup guarantee as for the express cluster
+            # above. Critical here because serverless creation routes
+            # through a background thread and the public-access path adds
+            # extra post-create steps (IAM policy, properties refetch)
+            # that can raise after the cluster is alive in AWS.
+            clusters_to_delete.append(serverless_id)
+            try:
+                ep, res = create_cluster_as_test(
+                    cluster_kind='serverless',
+                    creator_fn=partial(
+                        create_serverless_cluster_and_wait,
+                        cluster_identifier=serverless_id,
+                        region=args.region,
+                        database=args.database,
+                        engine_version=args.engine_version,
+                        **public_access_kwargs,
+                    ),
                 )
-            )
+                res.cluster_identifier = serverless_id
+                _record(res)
+                if ep is not None:
+                    serverless_endpoint = ep
+            except Exception as e:
+                logger.exception('Serverless cluster phase aborted')
+                _record(
+                    TestResult(
+                        cluster_identifier=serverless_id,
+                        connection_method_name='create_cluster_serverless',
+                        passed=[],
+                        failed=[('create_cluster_serverless', f'{type(e).__name__}: {e}')],
+                    )
+                )
 
         # Map cluster kind → endpoint, used by phases 2 and 3.
         endpoints = {'express': express_endpoint, 'serverless': serverless_endpoint}
@@ -1852,12 +2142,31 @@ async def main_async(args):
 
         # ==============================================================
         # Phase 3: security/invariant suites, per cluster.
-        # Three suites per cluster: endpoint validation, secret-ARN
-        # validation, startup probe.
+        # Suites per cluster: endpoint validation, secret-ARN
+        # validation, query read/write enforcement, startup probe.
+        # The serverless cluster is only present when
+        # --test-serverless-cluster is set; otherwise this is an
+        # express-only run and serverless suites are not planned.
         # ==============================================================
-        for kind in ('express', 'serverless'):
+        phase3_kinds = ['express']
+        if args.test_serverless_cluster:
+            phase3_kinds.append('serverless')
+        for kind in phase3_kinds:
             cid = cluster_ids[kind]
             endpoint = endpoints[kind]
+
+            # The query-enforcement suite needs a connection method that
+            # actually works against this cluster kind from the test
+            # host. Express is publicly reachable via PG_WIRE_IAM.
+            # Serverless uses RDS_API (public HTTPS) by default; only
+            # use a PG Wire method against serverless when
+            # --test-non-express-cluster confirms VPC reachability.
+            if kind == 'express':
+                enforce_method = ConnectionMethod.PG_WIRE_IAM_PROTOCOL
+                enforce_method_name = 'PG_WIRE_IAM_PROTOCOL'
+            else:
+                enforce_method = ConnectionMethod.RDS_API
+                enforce_method_name = 'RDS_API'
 
             # Each entry: (suite_name, is_async_runner, runner_fn).
             # Most suites are sync; run_secret_arn_validation_suite issues
@@ -1886,6 +2195,24 @@ async def main_async(args):
                         port=args.port,
                         cluster_kind=k,
                         test_non_express_cluster=args.test_non_express_cluster,
+                    ),
+                ),
+                (
+                    'query_enforcement',
+                    True,
+                    lambda c=cid,
+                    e=endpoint,
+                    k=kind,
+                    m=enforce_method,
+                    mn=enforce_method_name: run_query_enforcement_suite(
+                        cluster_identifier=c,
+                        region=args.region,
+                        database=args.database,
+                        valid_endpoint=e,
+                        port=args.port,
+                        cluster_kind=k,
+                        connection_method=m,
+                        connection_method_name=mn,
                     ),
                 ),
                 (
@@ -1991,6 +2318,21 @@ def main():
         ),
     )
     parser.add_argument(
+        '--test-serverless-cluster',
+        action='store_true',
+        default=False,
+        help=(
+            'Also create and test a regular Aurora Serverless v2 cluster. '
+            'OFF by default because serverless cluster + instance creation '
+            'adds roughly 7-8 minutes to the run (instance provisioning). '
+            'When off, only the express cluster is created and tested. '
+            'Implied by --test-non-express-cluster. With this flag (and '
+            'without --test-non-express-cluster) the serverless cluster is '
+            'tested via RDS_API only (public HTTPS, no VPC reachability '
+            'needed).'
+        ),
+    )
+    parser.add_argument(
         '--test-non-express-cluster',
         action='store_true',
         default=False,
@@ -2002,10 +2344,16 @@ def main():
             'reachability (direct, peering, VPN, or SSH tunnel). The express '
             'cluster is publicly reachable by default and its PG_WIRE_IAM_PROTOCOL '
             'cell always runs regardless of this flag. RDS_API is a public HTTPS '
-            'endpoint and is unaffected.'
+            'endpoint and is unaffected. Implies --test-serverless-cluster '
+            '(the serverless cluster must exist to be PG-Wire-tested).'
         ),
     )
     args = parser.parse_args()
+
+    # --test-non-express-cluster only makes sense if the serverless
+    # cluster is actually created, so it implies --test-serverless-cluster.
+    if args.test_non_express_cluster:
+        args.test_serverless_cluster = True
 
     # Replace loguru's default sink with one at the requested level. This
     # filters everything (including the postgres-mcp-server modules' own

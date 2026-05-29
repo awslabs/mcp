@@ -62,20 +62,20 @@ def get_credentials_from_secret(
         return 'test_user', 'test_password'
 
     try:
-        logger.info(f'Creating Secrets Manager client in region {region}')
+        logger.debug(f'Creating Secrets Manager client in region {region}')
         session = boto3.Session()
         client = session.client(service_name='secretsmanager', region_name=region)
 
-        logger.info(f'Retrieving secret value for {secret_arn}')
+        logger.debug(f'Retrieving secret value for {secret_arn}')
         get_secret_value_response = client.get_secret_value(SecretId=secret_arn)
-        logger.info('Successfully retrieved secret value')
+        logger.debug('Successfully retrieved secret value')
 
         if 'SecretString' not in get_secret_value_response:
             logger.error('Secret does not contain a SecretString')
             raise ValueError('Secret does not contain a SecretString')
 
         secret = json.loads(get_secret_value_response['SecretString'])
-        logger.info(f'Secret keys: {", ".join(secret.keys())}')
+        logger.debug(f'Secret keys: {", ".join(secret.keys())}')
 
         username = secret.get('username') or secret.get('user') or secret.get('Username')
         password = secret.get('password') or secret.get('Password')
@@ -94,7 +94,7 @@ def get_credentials_from_secret(
                 f'Secret does not contain password. Available keys: {", ".join(secret.keys())}'
             )
 
-        logger.info(f'Successfully extracted credentials for user: {username}')
+        logger.debug(f'Successfully extracted credentials for user: {username}')
         return username, password
     except Exception as e:
         logger.exception(f'Failed to retrieve credentials from Secrets Manager: {str(e)}')
@@ -166,7 +166,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
 
             # set pool expiry before IAM auth token expiry of 15 minutes
             self.pool_expiry_min = 14
-            logger.info(f'Use IAM auth for user: {db_user}')
+            logger.debug(f'Use IAM auth for user: {db_user}')
 
     async def initialize_pool(self):
         """Initialize the connection pool."""
@@ -178,7 +178,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
             if self.pool is not None:
                 return
 
-            logger.info(
+            logger.debug(
                 f'initialize_pool:\n'
                 f'endpoint:{self.host}\n'
                 f'port:{self.port}\n'
@@ -189,10 +189,10 @@ class PsycopgPoolConnection(AbstractDBConnection):
             )
 
             if self.is_iam_auth:
-                logger.info(f'Retrieving IAM auth token for {self.user}')
+                logger.debug(f'Retrieving IAM auth token for {self.user}')
                 password = self.get_iam_auth_token()
             else:
-                logger.info(f'Retrieving credentials from Secrets Manager: {self.secret_arn}')
+                logger.debug(f'Retrieving credentials from Secrets Manager: {self.secret_arn}')
                 self.user, password = self._get_credentials_from_secret(
                     self.secret_arn, self.region, self.is_test
                 )
@@ -238,7 +238,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
 
         pool_name = getattr(self.pool, 'name', 'None') if self.pool else 'None'
         age_seconds = (datetime.now() - self.created_time).total_seconds()
-        logger.warning(
+        logger.debug(
             f'check_expiry: pool {pool_name} expired or None. '
             f'age={age_seconds:.1f}s, expiry={self.pool_expiry_min * 60}s, '
             f'host={self.host}, db={self.database}'
@@ -254,7 +254,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
             async with await self._get_connection() as conn:
                 async with conn.transaction():
                     if self.readonly_query:
-                        logger.info('SET TRANSACTION READ ONLY')
+                        logger.debug('SET TRANSACTION READ ONLY')
                         await conn.execute('SET TRANSACTION READ ONLY')
 
                     # Create a cursor for better control

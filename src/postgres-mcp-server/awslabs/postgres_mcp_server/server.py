@@ -210,7 +210,7 @@ async def run_query(
         return [{'error': query_injection_risk_key}]
 
     try:
-        logger.info(
+        logger.debug(
             (
                 f'run_query: sql:{sql} method:{connection_method}, '
                 f'cluster_identifier:{cluster_identifier} database:{database} '
@@ -658,7 +658,7 @@ def internal_create_connection(
     global configured_secret_arns
     global configured_default_secret_arn
 
-    logger.info(
+    logger.debug(
         f'Enter internal_create_connection\n'
         f'region:{region}\n'
         f'database_type:{database_type}\n'
@@ -815,7 +815,7 @@ def internal_create_connection(
                 f'by Secrets Manager (ManageMasterUserPassword=True).'
             )
 
-    logger.info(
+    logger.debug(
         f'About to create internal DB connections with:'
         f'enable_data_api:{enable_data_api}\n'
         f'cluster_arn:{cluster_arn}\n'
