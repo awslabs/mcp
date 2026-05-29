@@ -14,9 +14,10 @@
 
 """Tests for DBConnectionMap."""
 
+import asyncio
 import pytest
 from awslabs.mssql_mcp_server.connection.db_connection_map import ConnectionMethod, DBConnectionMap
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 
 @pytest.fixture
@@ -89,3 +90,74 @@ def test_default_port_1433(conn_map, mock_conn):
     conn_map.set(ConnectionMethod.MSSQL_PASSWORD, 'i1', 'e1', 'db1', mock_conn)
     result = conn_map.get(ConnectionMethod.MSSQL_PASSWORD, 'i1', 'e1', 'db1')
     assert result is mock_conn
+
+
+def test_get_none_method_raises(conn_map):
+    """get() raises ValueError when method is None."""
+    with pytest.raises(ValueError, match='method cannot be None'):
+        conn_map.get(None, 'i1', 'e1', 'db1', 1433)
+
+
+def test_get_empty_database_raises(conn_map):
+    """get() raises ValueError when database is empty."""
+    with pytest.raises(ValueError, match='database cannot be None or empty'):
+        conn_map.get(ConnectionMethod.MSSQL_PASSWORD, 'i1', 'e1', '', 1433)
+
+
+def test_remove_empty_database_raises(conn_map):
+    """remove() raises ValueError when database is empty."""
+    with pytest.raises(ValueError, match='database cannot be None or empty'):
+        conn_map.remove(ConnectionMethod.MSSQL_PASSWORD, 'i1', 'e1', '', 1433)
+
+
+def test_close_all_empty_map_is_noop(conn_map):
+    """close_all() returns early without error when the map is empty."""
+    conn_map.close_all()
+    assert len(conn_map.map) == 0
+
+
+def test_close_all_swallows_close_errors(conn_map):
+    """close_all() clears the map even when a connection's close() raises."""
+    bad_conn = MagicMock()
+    bad_conn.close = AsyncMock(side_effect=RuntimeError('boom'))
+    conn_map.set(ConnectionMethod.MSSQL_PASSWORD, 'i1', 'e1', 'db1', bad_conn, 1433)
+    conn_map.close_all()
+    assert len(conn_map.map) == 0
+
+
+def test_close_all_inside_running_loop(conn_map):
+    """close_all() schedules closes on the active loop when called from within one."""
+
+    async def _run():
+        conn = MagicMock()
+        conn.close = AsyncMock()
+        conn_map.set(ConnectionMethod.MSSQL_PASSWORD, 'i1', 'e1', 'db1', conn, 1433)
+        conn_map.close_all()
+        # Map is cleared synchronously; the scheduled close task drains afterwards.
+        assert len(conn_map.map) == 0
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        conn.close.assert_awaited()
+
+    asyncio.run(_run())
+
+
+@pytest.mark.asyncio
+async def test_close_all_async_clears_and_closes(conn_map):
+    """close_all_async() awaits each connection's close() and empties the map."""
+    conn = MagicMock()
+    conn.close = AsyncMock()
+    conn_map.set(ConnectionMethod.MSSQL_PASSWORD, 'i1', 'e1', 'db1', conn, 1433)
+    await conn_map.close_all_async()
+    conn.close.assert_awaited()
+    assert len(conn_map.map) == 0
+
+
+@pytest.mark.asyncio
+async def test_close_all_async_swallows_close_errors(conn_map):
+    """close_all_async() logs and continues when a connection's close() raises."""
+    bad_conn = MagicMock()
+    bad_conn.close = AsyncMock(side_effect=RuntimeError('boom'))
+    conn_map.set(ConnectionMethod.MSSQL_PASSWORD, 'i1', 'e1', 'db1', bad_conn, 1433)
+    await conn_map.close_all_async()
+    assert len(conn_map.map) == 0
