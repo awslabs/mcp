@@ -72,7 +72,7 @@ class NatGatewayDict:
     id: str
     type: str
     state: str
-    subnet_id: str
+    subnet_id: Optional[str]
     private_ips: List[str]
     public_ips: List[str]
 
@@ -242,15 +242,24 @@ def process_nat_gateways(nat_gateways: Dict[str, Any]) -> List[NatGatewayDict]:
                 'id': nat['NatGatewayId'],
                 'type': 'NAT Gateway',
                 'state': nat['State'],
-                'subnet_id': nat['SubnetId'],
+                # Regional NAT Gateways (introduced 2026-Q2) bind to a route
+                # table, not a subnet, so SubnetId is absent on those entries.
+                # Use .get() so the strict KeyError doesn't break the whole
+                # get_vpc_network response for any VPC that contains one.
+                'subnet_id': nat.get('SubnetId'),
                 'private_ips': [],
                 'public_ips': [],
             }
         )
 
-        for address in nat['NatGatewayAddresses']:
-            gw.private_ips.append(address['PrivateIp'])
-            gw.public_ips.append(address['PublicIp'])
+        # Regional NAT addresses are auto-provisioned across AZs and may
+        # legitimately lack PrivateIp / PublicIp during/after provisioning.
+        # Guard each access independently. Same defensive shape as PR #2876.
+        for address in nat.get('NatGatewayAddresses', []):
+            if 'PrivateIp' in address:
+                gw.private_ips.append(address['PrivateIp'])
+            if 'PublicIp' in address:
+                gw.public_ips.append(address['PublicIp'])
 
         result.append(gw)
 
