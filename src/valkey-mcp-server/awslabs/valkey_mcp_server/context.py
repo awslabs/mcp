@@ -14,6 +14,8 @@
 
 """Context management for Valkey MCP Server."""
 
+from __future__ import annotations
+
 
 class Context:
     """Context class for Valkey MCP Server."""
