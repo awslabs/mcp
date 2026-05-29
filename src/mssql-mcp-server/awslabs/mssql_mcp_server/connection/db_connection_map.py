@@ -26,7 +26,8 @@ from typing import List
 class ConnectionMethod(str, Enum):
     """Connection method enumeration."""
 
-    MSSQL_PASSWORD = 'password_auth'  # pragma: allowlist secret
+    # Enum member naming the password-auth connection method; not a credential.
+    MSSQL_PASSWORD = 'password_auth'  # nosec B105  # pragma: allowlist secret
 
 
 class DBConnectionMap:
@@ -151,9 +152,9 @@ class DBConnectionMap:
 
             task = loop.create_task(_close_all())
             task.add_done_callback(
-                lambda t: logger.warning(f'close_all error: {t.exception()}')
-                if t.exception()
-                else None
+                lambda t: (
+                    logger.warning(f'close_all error: {t.exception()}') if t.exception() else None
+                )
             )
         else:
 
