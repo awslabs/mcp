@@ -89,6 +89,20 @@ class ExecutionResult(BaseModel):
     model_config = ConfigDict(extra='allow')
 
 
+class FileListResult(BaseModel):
+    """Response from list files operation.
+
+    Attributes:
+        files: List of file/directory paths in the sandbox.
+        content: Raw text output of the file listing.
+        message: Human-readable status message.
+    """
+
+    files: list[str] = Field(default_factory=list, description='List of file/directory paths')
+    content: str = Field(default='', description='Raw text output of the file listing')
+    message: str = Field(default='', description='Human-readable status message')
+
+
 class FileOperationResult(BaseModel):
     """Response from file upload/download operations.
 
