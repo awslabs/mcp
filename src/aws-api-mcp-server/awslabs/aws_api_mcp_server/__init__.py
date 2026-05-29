@@ -14,4 +14,4 @@
 
 """awslabs.aws-api-mcp-server"""
 
-__version__ = '1.3.39'
+__version__ = '1.3.40'

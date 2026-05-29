@@ -799,9 +799,10 @@ def test_abstract_db_connection_abstract_methods_not_implemented():
 
 
 def test_init_version_fallback(monkeypatch):
-    """When importlib.metadata.version raises, __version__ falls back to '0.1.0'."""
+    """When importlib.metadata.version raises, __version__ falls back to the literal in __init__."""
     import awslabs.oracle_mcp_server as pkg
     import importlib
+    import re
 
     def raise_(_):
         raise Exception('not installed')
@@ -809,7 +810,10 @@ def test_init_version_fallback(monkeypatch):
     monkeypatch.setattr('importlib.metadata.version', raise_)
     reloaded = importlib.reload(pkg)
     try:
-        assert reloaded.__version__ == '0.1.0'
+        # Assert the fallback is a valid semver literal rather than a specific
+        # value, so the test survives release version bumps of __init__.py.
+        assert re.fullmatch(r'\d+\.\d+\.\d+', reloaded.__version__)
+        assert reloaded.__user_agent__.endswith(reloaded.__version__)
         assert 'oracle-mcp-server' in reloaded.__user_agent__
     finally:
         # Reload once more with the real metadata available so later tests
