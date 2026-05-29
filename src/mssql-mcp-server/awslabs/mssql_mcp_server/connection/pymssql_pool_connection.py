@@ -163,7 +163,7 @@ class PymssqlPoolConnection(AbstractDBConnection):
                 else:
                     await asyncio.to_thread(conn.close)
         except Exception:
-            # Connection may be broken; try to replace it
+            logger.info('Connection may be broken; try to replace it')
             try:
                 await asyncio.to_thread(conn.close)
             except Exception as close_err:
