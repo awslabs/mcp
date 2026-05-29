@@ -20,6 +20,6 @@ from importlib.metadata import version
 try:
     __version__ = version('awslabs.oracle-mcp-server')
 except Exception:
-    __version__ = '0.1.0'
+    __version__ = '0.1.1'
 
 __user_agent__ = f'md/awslabs#mcp#oracle-mcp-server#{__version__}'
