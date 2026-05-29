@@ -15,7 +15,7 @@
 
 from awslabs.openapi_mcp_server import logger
 from awslabs.openapi_mcp_server.prompts.models import PromptArgument
-from fastmcp.prompts.prompt import Prompt
+from fastmcp.prompts.prompt import Message, Prompt
 from typing import Any, Dict, List
 
 
@@ -225,9 +225,9 @@ def create_workflow_prompt(server: Any, workflow: Dict[str, Any]) -> bool:
                             )
 
         # Create a function that returns messages for this workflow
-        def workflow_fn() -> List[Dict[str, Any]]:
+        def workflow_fn() -> List[Message]:
             # Create messages
-            messages = [{'role': 'user', 'content': {'type': 'text', 'text': documentation}}]
+            messages = [Message(documentation, role='user')]
 
             return messages
 
