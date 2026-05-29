@@ -14,12 +14,13 @@
 
 """Tests for DBConnectionMap."""
 
+import asyncio
 import pytest
 from awslabs.oracle_mcp_server.connection.db_connection_map import (
     ConnectionMethod,
     DBConnectionMap,
 )
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 
 @pytest.fixture
@@ -108,6 +109,64 @@ def test_default_port_1521(conn_map, mock_conn):
     conn_map.set(ConnectionMethod.ORACLE_PASSWORD, 'i1', 'e1', 'db1', mock_conn)
     result = conn_map.get(ConnectionMethod.ORACLE_PASSWORD, 'i1', 'e1', 'db1')
     assert result is mock_conn
+
+
+def test_get_none_method_raises(conn_map):
+    """get() raises ValueError when method is falsy."""
+    with pytest.raises(ValueError, match='method cannot be None'):
+        conn_map.get(None, 'i1', 'e1', 'db1', 1521)
+
+
+def test_get_empty_database_raises(conn_map):
+    """get() raises ValueError when database is empty."""
+    with pytest.raises(ValueError, match='database cannot be None or empty'):
+        conn_map.get(ConnectionMethod.ORACLE_PASSWORD, 'i1', 'e1', '', 1521)
+
+
+def test_remove_empty_database_raises(conn_map):
+    """remove() raises ValueError when database is empty."""
+    with pytest.raises(ValueError, match='database cannot be None or empty'):
+        conn_map.remove(ConnectionMethod.ORACLE_PASSWORD, 'i1', 'e1', '', 1521)
+
+
+def test_close_all_swallows_sync_close_errors(conn_map):
+    """close_all() logs and continues when a connection's close() raises synchronously."""
+    bad_conn = MagicMock()
+    bad_conn.close = MagicMock(side_effect=RuntimeError('boom'))
+    conn_map.set(ConnectionMethod.ORACLE_PASSWORD, 'i1', 'e1', 'db1', bad_conn, 1521)
+    conn_map.close_all()
+    assert len(conn_map.map) == 0
+
+
+def test_close_all_async_close_outside_loop(conn_map):
+    """close_all() drives awaitable closes to completion when no loop is running."""
+    conn = MagicMock()
+    conn.close = AsyncMock()
+    conn_map.set(ConnectionMethod.ORACLE_PASSWORD, 'i1', 'e1', 'db1', conn, 1521)
+    conn_map.close_all()
+    conn.close.assert_awaited()
+    assert len(conn_map.map) == 0
+
+
+def test_close_all_inside_running_loop_schedules_tasks(conn_map):
+    """close_all() schedules close tasks on the active loop; done-callback handles results."""
+
+    async def _run():
+        ok_conn = MagicMock()
+        ok_conn.close = AsyncMock()
+        err_conn = MagicMock()
+        err_conn.close = AsyncMock(side_effect=RuntimeError('boom'))
+        conn_map.set(ConnectionMethod.ORACLE_PASSWORD, 'ok', 'e1', 'db1', ok_conn, 1521)
+        conn_map.set(ConnectionMethod.ORACLE_PASSWORD, 'err', 'e2', 'db2', err_conn, 1521)
+        conn_map.close_all()
+        # Map cleared synchronously; scheduled tasks (and the done-callback) drain after.
+        assert len(conn_map.map) == 0
+        for _ in range(3):
+            await asyncio.sleep(0)
+        ok_conn.close.assert_awaited()
+        err_conn.close.assert_awaited()
+
+    asyncio.run(_run())
 
 
 def test_get_fallback_by_endpoint_when_identifier_differs(conn_map, mock_conn):

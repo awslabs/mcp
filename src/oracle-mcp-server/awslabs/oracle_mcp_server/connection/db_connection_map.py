@@ -26,7 +26,8 @@ from typing import List
 class ConnectionMethod(str, Enum):
     """Connection method enumeration."""
 
-    ORACLE_PASSWORD = 'oracle_password'  # pragma: allowlist secret
+    # Enum member naming the password-auth connection method; not a credential.
+    ORACLE_PASSWORD = 'oracle_password'  # nosec B105  # pragma: allowlist secret
 
 
 class DBConnectionMap:
