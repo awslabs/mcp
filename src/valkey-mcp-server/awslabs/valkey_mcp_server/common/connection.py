@@ -64,6 +64,7 @@ class ValkeyConnectionManager:
                     'ssl_ca_certs': VALKEY_CFG.get('ssl_ca_certs'),
                     'decode_responses': decode_responses,
                     'lib_name': f'valkey-py(mcp-server_v{__version__})',
+                    'client_name': 'valkey_mcp_server_client',
                 }
 
                 # Add max_connections parameter based on mode
