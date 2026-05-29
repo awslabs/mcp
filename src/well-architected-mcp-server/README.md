@@ -1,4 +1,4 @@
-# AWS Well-Architected Best Practices MCP Server
+# AWS Well-Architected MCP Server
 
 A Model Context Protocol (MCP) server providing offline access to AWS Well-Architected Framework Best Practices across all six pillars and the Generative AI lens.
 

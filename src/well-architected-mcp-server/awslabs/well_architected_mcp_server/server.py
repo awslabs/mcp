@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""AWS Well-Architected Best Practices MCP Server."""
+"""AWS Well-Architected MCP Server."""
 
 import json
 from fastmcp import FastMCP
@@ -50,7 +50,7 @@ SECTION_NAME_MAP = {
 
 RISK_ORDER = {'HIGH': 0, 'MEDIUM': 1, 'LOW': 2}
 
-SERVER_INSTRUCTIONS = """AWS Well-Architected Best Practices MCP Server provides offline access to 356 AWS best practices
+SERVER_INSTRUCTIONS = """AWS Well-Architected MCP Server provides offline access to 356 AWS best practices
 across 6 pillars and the Generative AI lens.
 
 ## Tool Selection Guide
