@@ -29,6 +29,7 @@ MAX_SCANS = 50
 @contextmanager
 def _file_lock():
     """Cross-platform file lock. Falls back to no-op on Windows."""
+    STATE_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
     lock_file = STATE_DIR / '.lock'
     try:
         import fcntl

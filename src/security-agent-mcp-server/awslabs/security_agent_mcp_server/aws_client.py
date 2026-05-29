@@ -211,8 +211,8 @@ class SecurityAgentClient:
                         'Effect': 'Allow',
                         'Action': ['s3:GetObject', 's3:GetObjectVersion', 's3:ListBucket'],
                         'Resource': [
-                            f'arn:aws:s3:::security-agent-scans-{account_id}-{self.region}-*',
-                            f'arn:aws:s3:::security-agent-scans-{account_id}-{self.region}-*/*',
+                            f'arn:aws:s3:::security-agent-scans-{account_id}-{self.region}',
+                            f'arn:aws:s3:::security-agent-scans-{account_id}-{self.region}/*',
                         ],
                     },
                     {
@@ -228,7 +228,13 @@ class SecurityAgentClient:
             }
         )
 
-        iam.create_role(RoleName=role_name, AssumeRolePolicyDocument=trust_policy)
+        try:
+            iam.create_role(RoleName=role_name, AssumeRolePolicyDocument=trust_policy)
+        except iam.exceptions.EntityAlreadyExistsException:
+            iam.update_assume_role_policy(
+                RoleName=role_name, PolicyDocument=trust_policy
+            )
+
         iam.put_role_policy(
             RoleName=role_name,
             PolicyName='SecurityAgentCodeReviewAccess',
