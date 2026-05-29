@@ -20,10 +20,12 @@ from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
     AnomalyDetectionAlarmThreshold,
     Dimension,
     GetMetricDataResponse,
+    MetricDataQueryInput,
+    MetricStatInput,
     StaticAlarmThreshold,
 )
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools import CloudWatchMetricsTools
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from moto import mock_aws
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -825,3 +827,470 @@ class TestGetMetricData:
                     metric_name='NonExistentMetric',
                     dimensions=[Dimension(name='TestDim', value='test-value')],
                 )
+
+    # Tests for get_metric_data with queries parameter (advanced queries support)
+
+    async def test_get_metric_data_queries_single_metric(self, ctx, cloudwatch_metrics_tools):
+        """Test basic single metric query using queries parameter."""
+        mock_client = MagicMock()
+        mock_client.get_metric_data.return_value = {
+            'MetricDataResults': [
+                {
+                    'Id': 'm1',
+                    'Label': 'CPUUtilization',
+                    'StatusCode': 'Complete',
+                    'Timestamps': [
+                        datetime(2026, 4, 5, 10, 0, 0),
+                        datetime(2026, 4, 5, 10, 5, 0),
+                    ],
+                    'Values': [23.7, 31.2],
+                }
+            ],
+        }
+
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.get_aws_client',
+            return_value=mock_client,
+        ):
+            queries = [
+                MetricDataQueryInput(
+                    id='m1',
+                    period=120,
+                    metric_stat=MetricStatInput(
+                        namespace='AWS/EC2',
+                        metric_name='CPUUtilization',
+                        dimensions=[Dimension(name='InstanceId', value='i-1234567890abcdef0')],
+                        statistic='Average',
+                    ),
+                )
+            ]
+
+            result = await cloudwatch_metrics_tools.get_metric_data(
+                ctx,
+                start_time='2026-04-05T10:00:00Z',
+                end_time='2026-04-05T11:00:00Z',
+                queries=queries,
+            )
+
+            mock_client.get_metric_data.assert_called_once()
+            assert isinstance(result, GetMetricDataResponse)
+            assert len(result.metricDataResults) == 1
+            assert result.metricDataResults[0].id == 'm1'
+            assert result.metricDataResults[0].label == 'CPUUtilization'
+            assert len(result.metricDataResults[0].datapoints) == 2
+            assert result.metricDataResults[0].datapoints[0].value == 23.7
+            assert result.metricDataResults[0].datapoints[1].value == 31.2
+
+    async def test_get_metric_data_queries_multiple_metrics(self, ctx, cloudwatch_metrics_tools):
+        """Test querying multiple metrics including percentiles in a single call using queries parameter."""
+        mock_client = MagicMock()
+        mock_client.get_metric_data.return_value = {
+            'MetricDataResults': [
+                {
+                    'Id': 'cpu',
+                    'Label': 'CPUUtilization',
+                    'StatusCode': 'Complete',
+                    'Timestamps': [datetime(2026, 4, 5, 11, 30, 0)],
+                    'Values': [42.8],
+                },
+                {
+                    'Id': 'memory',
+                    'Label': 'MemoryUtilization',
+                    'StatusCode': 'Complete',
+                    'Timestamps': [datetime(2026, 4, 5, 11, 30, 0)],
+                    'Values': [67.5],
+                },
+                {
+                    'Id': 'p50',
+                    'Label': 'Duration p50',
+                    'StatusCode': 'Complete',
+                    'Timestamps': [datetime(2026, 4, 5, 11, 30, 0)],
+                    'Values': [142.3],
+                },
+                {
+                    'Id': 'p99',
+                    'Label': 'Duration p99',
+                    'StatusCode': 'Complete',
+                    'Timestamps': [datetime(2026, 4, 5, 11, 30, 0)],
+                    'Values': [1387.9],
+                },
+            ],
+        }
+
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.get_aws_client',
+            return_value=mock_client,
+        ):
+            queries = [
+                MetricDataQueryInput(
+                    id='cpu',
+                    metric_stat=MetricStatInput(
+                        namespace='AWS/EC2',
+                        metric_name='CPUUtilization',
+                        dimensions=[Dimension(name='InstanceId', value='i-1234567890abcdef0')],
+                        statistic='Average',
+                    ),
+                ),
+                MetricDataQueryInput(
+                    id='memory',
+                    metric_stat=MetricStatInput(
+                        namespace='CWAgent',
+                        metric_name='MemoryUtilization',
+                        dimensions=[Dimension(name='InstanceId', value='i-1234567890abcdef0')],
+                        statistic='Average',
+                    ),
+                ),
+                MetricDataQueryInput(
+                    id='p50',
+                    metric_stat=MetricStatInput(
+                        namespace='AWS/Lambda',
+                        metric_name='Duration',
+                        dimensions=[Dimension(name='FunctionName', value='my-function')],
+                        statistic='p50',
+                    ),
+                    label='Duration p50',
+                ),
+                MetricDataQueryInput(
+                    id='p99',
+                    metric_stat=MetricStatInput(
+                        namespace='AWS/Lambda',
+                        metric_name='Duration',
+                        dimensions=[Dimension(name='FunctionName', value='my-function')],
+                        statistic='p99',
+                    ),
+                    label='Duration p99',
+                ),
+            ]
+
+            result = await cloudwatch_metrics_tools.get_metric_data(
+                ctx,
+                start_time='2026-04-05T11:00:00Z',
+                end_time='2026-04-05T12:00:00Z',
+                queries=queries,
+            )
+
+            # Verify all four metrics returned (including percentiles)
+            assert len(result.metricDataResults) == 4
+            assert result.metricDataResults[0].id == 'cpu'
+            assert result.metricDataResults[0].datapoints[0].value == 42.8
+            assert result.metricDataResults[1].id == 'memory'
+            assert result.metricDataResults[1].datapoints[0].value == 67.5
+            assert result.metricDataResults[2].id == 'p50'
+            assert result.metricDataResults[2].label == 'Duration p50'
+            assert result.metricDataResults[2].datapoints[0].value == 142.3
+            assert result.metricDataResults[3].id == 'p99'
+            assert result.metricDataResults[3].label == 'Duration p99'
+            assert result.metricDataResults[3].datapoints[0].value == 1387.9
+
+            # Verify the API call used percentile statistics
+            call_args = mock_client.get_metric_data.call_args[1]
+            queries_sent = call_args['MetricDataQueries']
+            assert len(queries_sent) == 4
+            assert queries_sent[2]['MetricStat']['Stat'] == 'p50'
+            assert queries_sent[3]['MetricStat']['Stat'] == 'p99'
+
+    async def test_get_metric_data_queries_math_expression(self, ctx, cloudwatch_metrics_tools):
+        """Test using math expressions to calculate derived metrics (error rate)."""
+        mock_client = MagicMock()
+        mock_client.get_metric_data.return_value = {
+            'MetricDataResults': [
+                {
+                    'Id': 'error_rate',
+                    'Label': 'Error Rate %',
+                    'StatusCode': 'Complete',
+                    'Timestamps': [
+                        datetime(2026, 4, 5, 14, 30, 0),
+                        datetime(2026, 4, 5, 14, 35, 0),
+                        datetime(2026, 4, 5, 14, 40, 0),
+                    ],
+                    'Values': [1.8, 2.3, 4.1],
+                },
+            ],
+        }
+
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.get_aws_client',
+            return_value=mock_client,
+        ):
+            queries = [
+                MetricDataQueryInput(
+                    id='errors',
+                    metric_stat=MetricStatInput(
+                        namespace='AWS/Lambda',
+                        metric_name='Errors',
+                        dimensions=[Dimension(name='FunctionName', value='my-function')],
+                        statistic='Sum',
+                    ),
+                    return_data=False,
+                ),
+                MetricDataQueryInput(
+                    id='invocations',
+                    metric_stat=MetricStatInput(
+                        namespace='AWS/Lambda',
+                        metric_name='Invocations',
+                        dimensions=[Dimension(name='FunctionName', value='my-function')],
+                        statistic='Sum',
+                    ),
+                    return_data=False,
+                ),
+                MetricDataQueryInput(
+                    id='error_rate',
+                    expression='(errors / invocations) * 100',
+                    label='Error Rate %',
+                ),
+            ]
+
+            result = await cloudwatch_metrics_tools.get_metric_data(
+                ctx,
+                start_time='2026-04-05T14:00:00Z',
+                end_time='2026-04-05T15:00:00Z',
+                queries=queries,
+            )
+
+            assert len(result.metricDataResults) == 1
+            assert result.metricDataResults[0].id == 'error_rate'
+            assert result.metricDataResults[0].label == 'Error Rate %'
+            assert len(result.metricDataResults[0].datapoints) == 3
+            assert result.metricDataResults[0].datapoints[0].value == 1.8
+
+            # Verify the API call structure
+            call_args = mock_client.get_metric_data.call_args[1]
+            queries_sent = call_args['MetricDataQueries']
+            assert len(queries_sent) == 3
+            assert queries_sent[0]['Id'] == 'errors'
+            assert queries_sent[0]['ReturnData'] is False
+            assert queries_sent[2]['Id'] == 'error_rate'
+            assert queries_sent[2]['Expression'] == '(errors / invocations) * 100'
+            assert queries_sent[2]['ReturnData'] is True
+
+    async def test_get_metric_data_queries_validation_no_metric_or_expression(
+        self, ctx, cloudwatch_metrics_tools
+    ):
+        """Test validation error when neither metric_stat nor expression is provided."""
+        with pytest.raises(ValueError) as excinfo:
+            MetricDataQueryInput(id='test')
+
+        assert 'Either metric_stat or expression must be provided' in str(excinfo.value)
+
+    async def test_get_metric_data_queries_validation_both_metric_and_expression(
+        self, ctx, cloudwatch_metrics_tools
+    ):
+        """Test validation error when both metric_stat and expression are provided."""
+        with pytest.raises(ValueError) as excinfo:
+            MetricDataQueryInput(
+                id='test',
+                metric_stat=MetricStatInput(
+                    namespace='AWS/EC2',
+                    metric_name='CPUUtilization',
+                    dimensions=[],
+                    statistic='Average',
+                ),
+                expression='m1 * 100',
+            )
+
+        assert 'Cannot specify both metric_stat and expression' in str(excinfo.value)
+
+    async def test_get_metric_data_queries_error_handling(self, ctx, cloudwatch_metrics_tools):
+        """Test error handling when using queries parameter."""
+        mock_client = MagicMock()
+        mock_client.get_metric_data.side_effect = Exception('AWS API Error')
+        ctx.error = AsyncMock()
+
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.get_aws_client',
+            return_value=mock_client,
+        ):
+            queries = [
+                MetricDataQueryInput(
+                    id='m1',
+                    metric_stat=MetricStatInput(
+                        namespace='AWS/EC2',
+                        metric_name='CPUUtilization',
+                        dimensions=[Dimension(name='InstanceId', value='i-1234567890abcdef0')],
+                        statistic='Average',
+                    ),
+                )
+            ]
+
+            with pytest.raises(Exception):
+                await cloudwatch_metrics_tools.get_metric_data(
+                    ctx,
+                    start_time='2026-04-05T15:00:00Z',
+                    end_time='2026-04-05T16:00:00Z',
+                    queries=queries,
+                )
+
+            ctx.error.assert_called_once()
+            assert 'AWS API Error' in ctx.error.call_args[0][0]
+
+    async def test_get_metric_data_requires_namespace_without_queries(
+        self, ctx, cloudwatch_metrics_tools
+    ):
+        """Test that namespace and metric_name are required when queries is not provided."""
+        with pytest.raises(ValueError) as excinfo:
+            await cloudwatch_metrics_tools.get_metric_data(
+                ctx,
+                start_time='2026-04-05T15:00:00Z',
+                end_time='2026-04-05T16:00:00Z',
+            )
+
+        assert 'namespace and metric_name are required' in str(excinfo.value)
+
+    async def test_get_metric_data_queries_pagination(self, ctx, cloudwatch_metrics_tools):
+        """Test that _execute_queries_batch paginates through NextToken responses.
+
+        CloudWatch GetMetricData returns a NextToken when results exceed ~100,800
+        datapoints or 500 queries. The batch-queries path is particularly exposed
+        because it can request many metrics at once — without pagination handling,
+        results would be silently truncated.
+
+        This test also verifies:
+        - The "new Id appears only on later page" branch: page 2 carries an extra
+          result (``m2``) that wasn't on page 1, ensuring that the paginator
+          appends unseen Ids rather than only merging known ones.
+        - The ``start_time`` default: when omitted, it resolves to 3 hours before
+          ``end_time`` (exercised by pinning ``end_time`` and asserting ``StartTime``
+          on the AWS call).
+        """
+        mock_client = MagicMock()
+        # Page 1: m1 with 2 datapoints + NextToken
+        # Page 2: m1 with 2 more datapoints (merge case) + m2 as a NEW Id (append case)
+        mock_client.get_metric_data.side_effect = [
+            {
+                'MetricDataResults': [
+                    {
+                        'Id': 'm1',
+                        'Label': 'CPUUtilization',
+                        'StatusCode': 'Complete',
+                        'Timestamps': [
+                            datetime(2026, 4, 5, 10, 0, 0),
+                            datetime(2026, 4, 5, 10, 1, 0),
+                        ],
+                        'Values': [10.0, 20.0],
+                    }
+                ],
+                'NextToken': 'page2-token',
+            },
+            {
+                'MetricDataResults': [
+                    {
+                        'Id': 'm1',
+                        'Label': 'CPUUtilization',
+                        'StatusCode': 'Complete',
+                        'Timestamps': [
+                            datetime(2026, 4, 5, 10, 2, 0),
+                            datetime(2026, 4, 5, 10, 3, 0),
+                        ],
+                        'Values': [30.0, 40.0],
+                    },
+                    {
+                        'Id': 'm2',
+                        'Label': 'MemoryUtilization',
+                        'StatusCode': 'Complete',
+                        'Timestamps': [datetime(2026, 4, 5, 10, 3, 0)],
+                        'Values': [55.5],
+                    },
+                ],
+                # no NextToken — pagination complete
+            },
+        ]
+
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.get_aws_client',
+            return_value=mock_client,
+        ):
+            queries = [
+                MetricDataQueryInput(
+                    id='m1',
+                    metric_stat=MetricStatInput(
+                        namespace='AWS/EC2',
+                        metric_name='CPUUtilization',
+                        dimensions=[Dimension(name='InstanceId', value='i-1234567890abcdef0')],
+                        statistic='Average',
+                    ),
+                )
+            ]
+
+            result = await cloudwatch_metrics_tools.get_metric_data(
+                ctx,
+                # start_time intentionally omitted — should default to 3h before end_time
+                end_time=datetime(2026, 4, 5, 11, 0, 0, tzinfo=timezone.utc),
+                queries=queries,
+            )
+
+            # Called exactly twice — once per page
+            assert mock_client.get_metric_data.call_count == 2
+
+            # start_time defaulted to 3 hours before end_time
+            pinned_end = datetime(2026, 4, 5, 11, 0, 0, tzinfo=timezone.utc)
+            first_call_kwargs = mock_client.get_metric_data.call_args_list[0].kwargs
+            assert first_call_kwargs['EndTime'] == pinned_end
+            assert first_call_kwargs['StartTime'] == pinned_end - timedelta(hours=3)
+
+            # Second call must have carried the NextToken forward
+            second_call_kwargs = mock_client.get_metric_data.call_args_list[1].kwargs
+            assert second_call_kwargs.get('NextToken') == 'page2-token'
+
+            # Merged result: two distinct results
+            assert isinstance(result, GetMetricDataResponse)
+            assert len(result.metricDataResults) == 2
+
+            # m1 — merged (4 datapoints from both pages)
+            m1 = next(r for r in result.metricDataResults if r.id == 'm1')
+            assert len(m1.datapoints) == 4
+            assert [dp.value for dp in m1.datapoints] == [10.0, 20.0, 30.0, 40.0]
+
+            # m2 — appended (only appeared on page 2)
+            m2 = next(r for r in result.metricDataResults if r.id == 'm2')
+            assert len(m2.datapoints) == 1
+            assert m2.datapoints[0].value == 55.5
+
+    async def test_get_metric_data_queries_metric_stat_period_fallback(
+        self, ctx, cloudwatch_metrics_tools
+    ):
+        """Test period precedence: when query.period is unset, metric_stat.period wins over default.
+
+        Covers the ``elif query.metric_stat and query.metric_stat.period is not None`` branch
+        of ``_convert_query_input_to_aws``.
+        """
+        mock_client = MagicMock()
+        mock_client.get_metric_data.return_value = {
+            'MetricDataResults': [
+                {
+                    'Id': 'm1',
+                    'Label': 'CPUUtilization',
+                    'StatusCode': 'Complete',
+                    'Timestamps': [datetime(2026, 4, 5, 10, 0, 0)],
+                    'Values': [50.0],
+                }
+            ],
+        }
+
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.get_aws_client',
+            return_value=mock_client,
+        ):
+            queries = [
+                MetricDataQueryInput(
+                    id='m1',
+                    # No period here — forcing fallback to metric_stat.period
+                    metric_stat=MetricStatInput(
+                        namespace='AWS/EC2',
+                        metric_name='CPUUtilization',
+                        dimensions=[Dimension(name='InstanceId', value='i-abc')],
+                        statistic='Average',
+                        period=300,  # 5-minute period — should end up in the AWS call
+                    ),
+                )
+            ]
+
+            await cloudwatch_metrics_tools.get_metric_data(
+                ctx,
+                start_time='2026-04-05T10:00:00Z',
+                end_time='2026-04-05T11:00:00Z',
+                queries=queries,
+            )
+
+            # The AWS MetricStat must carry Period=300 (from metric_stat), not the default
+            aws_query = mock_client.get_metric_data.call_args.kwargs['MetricDataQueries'][0]
+            assert aws_query['MetricStat']['Period'] == 300

@@ -128,6 +128,8 @@ def get_db_connection() -> Tuple[sqlite3.Connection, sqlite3.Cursor]:
 
     # Create connection and cursor
     conn = sqlite3.connect(db_path)
+    conn.execute('PRAGMA journal_mode=WAL')
+    conn.execute('PRAGMA busy_timeout=5000')
     cursor = conn.cursor()
 
     # Create schema_info table to track created tables if it doesn't exist

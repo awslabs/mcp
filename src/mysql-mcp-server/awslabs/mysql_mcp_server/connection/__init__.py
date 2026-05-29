@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""aws.mysql-mcp-server.connection"""
+"""awslabs.mysql-mcp-server.connection"""
 
-from awslabs.mysql_mcp_server.connection.db_connection_singleton import DBConnectionSingleton
 from awslabs.mysql_mcp_server.connection.abstract_db_connection import AbstractDBConnection
