@@ -1227,6 +1227,48 @@ class TestExecuteQuery:
         assert result['query_id'] == 'query-123'
 
     @pytest.mark.asyncio
+    async def test_execute_query_default_read_only(self, mocker):
+        """Test that execute_query defaults to READ ONLY (allow_read_write=False)."""
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+        mock_execute_protected.return_value = (
+            {'ColumnMetadata': [{'name': 'id'}], 'Records': [[{'longValue': 1}]]},
+            'query-ro',
+        )
+        mocker.patch('time.time', side_effect=[1000.0, 1000.1])
+
+        await execute_query('test-cluster', 'dev', 'SELECT 1')
+
+        mock_execute_protected.assert_called_once_with(
+            cluster_identifier='test-cluster',
+            database_name='dev',
+            sql='SELECT 1',
+            allow_read_write=False,
+        )
+
+    @pytest.mark.asyncio
+    async def test_execute_query_allow_read_write(self, mocker):
+        """Test that execute_query passes allow_read_write=True to _execute_protected_statement."""
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+        mock_execute_protected.return_value = (
+            {'ColumnMetadata': [{'name': 'id'}], 'Records': [[{'longValue': 1}]]},
+            'query-rw',
+        )
+        mocker.patch('time.time', side_effect=[1000.0, 1000.1])
+
+        await execute_query('test-cluster', 'dev', 'SELECT 1', allow_read_write=True)
+
+        mock_execute_protected.assert_called_once_with(
+            cluster_identifier='test-cluster',
+            database_name='dev',
+            sql='SELECT 1',
+            allow_read_write=True,
+        )
+
+    @pytest.mark.asyncio
     async def test_execute_query_error_handling(self, mocker):
         """Test error handling in execute_query."""
         # Mock _execute_protected_statement to raise exception
