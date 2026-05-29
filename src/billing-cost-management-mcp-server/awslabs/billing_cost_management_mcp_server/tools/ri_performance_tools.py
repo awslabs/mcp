@@ -176,15 +176,17 @@ async def get_reservation_coverage(
         # Prepare the request parameters
         request_params = {
             'TimePeriod': {'Start': start, 'End': end},
-            'Granularity': granularity,
         }
+
+        # Granularity and GroupBy are mutually exclusive for GetReservationCoverage
+        if group_by:
+            request_params['GroupBy'] = parse_json(group_by, 'group_by')
+        else:
+            request_params['Granularity'] = granularity
 
         # Add optional parameters if provided
         if metrics:
             request_params['Metrics'] = parse_json(metrics, 'metrics')
-
-        if group_by:
-            request_params['GroupBy'] = parse_json(group_by, 'group_by')
 
         if filter_expr:
             request_params['Filter'] = parse_json(filter_expr, 'filter')
@@ -297,13 +299,15 @@ async def get_reservation_utilization(
         # Prepare the request parameters
         request_params = {
             'TimePeriod': {'Start': start, 'End': end},
-            'Granularity': granularity,
         }
 
-        # Add optional parameters if provided
+        # Granularity and GroupBy are mutually exclusive for GetReservationUtilization
         if group_by:
             request_params['GroupBy'] = parse_json(group_by, 'group_by')
+        else:
+            request_params['Granularity'] = granularity
 
+        # Add optional parameters if provided
         if filter_expr:
             request_params['Filter'] = parse_json(filter_expr, 'filter')
 

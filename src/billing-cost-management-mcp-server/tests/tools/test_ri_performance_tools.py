@@ -379,7 +379,7 @@ class TestGetReservationCoverage:
         mock_filter = {'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon EC2']}}
         mock_sort_by = {'Key': 'CoverageHoursPercentage', 'SortOrder': 'DESCENDING'}
 
-        mock_parse_json.side_effect = [mock_metrics, mock_group_by, mock_filter, mock_sort_by]
+        mock_parse_json.side_effect = [mock_group_by, mock_metrics, mock_filter, mock_sort_by]
 
         # Execute
         result = await get_reservation_coverage(
@@ -404,6 +404,8 @@ class TestGetReservationCoverage:
         request_params = mock_paginate_response.call_args[1]['request_params']
         assert request_params['Metrics'] == mock_metrics
         assert request_params['GroupBy'] == mock_group_by
+        # Granularity and GroupBy are mutually exclusive for GetReservationCoverage
+        assert 'Granularity' not in request_params
         assert request_params['Filter'] == mock_filter
         assert request_params['SortBy'] == mock_sort_by
         assert request_params['MaxResults'] == 50
@@ -444,6 +446,93 @@ class TestGetReservationCoverage:
         )
         assert result['status'] == 'error'
         assert result['message'] == 'API error'
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.ri_performance_tools.get_date_range')
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.ri_performance_tools.paginate_aws_response'
+    )
+    @patch('awslabs.billing_cost_management_mcp_server.tools.ri_performance_tools.parse_json')
+    async def test_get_reservation_coverage_granularity_excluded_with_group_by(
+        self,
+        mock_parse_json,
+        mock_paginate_response,
+        mock_get_date_range,
+        mock_context,
+        mock_ce_client,
+    ):
+        """Test that Granularity is excluded when GroupBy is provided.
+
+        The AWS GetReservationCoverage API requires Granularity and GroupBy
+        to be mutually exclusive. Sending both causes an API error.
+        """
+        # Setup
+        mock_get_date_range.return_value = ('2023-01-01', '2023-01-31')
+        mock_paginate_response.return_value = (
+            mock_ce_client.get_reservation_coverage.return_value['CoveragesByTime'],
+            {'NextPageToken': None},
+        )
+
+        mock_group_by = [{'Type': 'DIMENSION', 'Key': 'SERVICE'}]
+        mock_parse_json.return_value = mock_group_by
+
+        # Execute
+        result = await get_reservation_coverage(
+            mock_context,
+            mock_ce_client,
+            '2023-01-01',
+            '2023-01-31',
+            'DAILY',
+            None,  # metrics
+            'group_by_json',  # group_by
+            None,  # filter_expr
+            None,  # sort_by
+            None,  # max_results
+        )
+
+        # Assert - Granularity must NOT be in request_params when GroupBy is present
+        request_params = mock_paginate_response.call_args[1]['request_params']
+        assert 'GroupBy' in request_params
+        assert 'Granularity' not in request_params
+        assert result['status'] == 'success'
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.ri_performance_tools.get_date_range')
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.ri_performance_tools.paginate_aws_response'
+    )
+    async def test_get_reservation_coverage_granularity_included_without_group_by(
+        self,
+        mock_paginate_response,
+        mock_get_date_range,
+        mock_context,
+        mock_ce_client,
+    ):
+        """Test that Granularity is included when GroupBy is not provided."""
+        # Setup
+        mock_get_date_range.return_value = ('2023-01-01', '2023-01-31')
+        mock_paginate_response.return_value = (
+            mock_ce_client.get_reservation_coverage.return_value['CoveragesByTime'],
+            {'NextPageToken': None},
+        )
+
+        # Execute
+        result = await get_reservation_coverage(
+            mock_context,
+            mock_ce_client,
+            '2023-01-01',
+            '2023-01-31',
+            'MONTHLY',
+            None,  # metrics
+            None,  # group_by
+            None,  # filter_expr
+            None,  # sort_by
+            None,  # max_results
+        )
+
+        # Assert - Granularity must be present when GroupBy is absent
+        request_params = mock_paginate_response.call_args[1]['request_params']
+        assert 'GroupBy' not in request_params
+        assert request_params['Granularity'] == 'MONTHLY'
+        assert result['status'] == 'success'
 
 
 @pytest.mark.asyncio
@@ -547,6 +636,8 @@ class TestGetReservationUtilization:
 
         request_params = mock_paginate_response.call_args[1]['request_params']
         assert request_params['GroupBy'] == mock_group_by
+        # Granularity and GroupBy are mutually exclusive for GetReservationUtilization
+        assert 'Granularity' not in request_params
         assert request_params['Filter'] == mock_filter
         assert request_params['SortBy'] == mock_sort_by
         assert request_params['MaxResults'] == 50
@@ -586,6 +677,91 @@ class TestGetReservationUtilization:
         )
         assert result['status'] == 'error'
         assert result['message'] == 'API error'
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.ri_performance_tools.get_date_range')
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.ri_performance_tools.paginate_aws_response'
+    )
+    @patch('awslabs.billing_cost_management_mcp_server.tools.ri_performance_tools.parse_json')
+    async def test_get_reservation_utilization_granularity_excluded_with_group_by(
+        self,
+        mock_parse_json,
+        mock_paginate_response,
+        mock_get_date_range,
+        mock_context,
+        mock_ce_client,
+    ):
+        """Test that Granularity is excluded when GroupBy is provided.
+
+        The AWS GetReservationUtilization API requires Granularity and GroupBy
+        to be mutually exclusive. Sending both causes an API error.
+        """
+        # Setup
+        mock_get_date_range.return_value = ('2023-01-01', '2023-01-31')
+        mock_paginate_response.return_value = (
+            mock_ce_client.get_reservation_utilization.return_value['UtilizationsByTime'],
+            {'NextPageToken': None},
+        )
+
+        mock_group_by = [{'Type': 'DIMENSION', 'Key': 'SUBSCRIPTION_ID'}]
+        mock_parse_json.return_value = mock_group_by
+
+        # Execute
+        result = await get_reservation_utilization(
+            mock_context,
+            mock_ce_client,
+            '2023-01-01',
+            '2023-01-31',
+            'DAILY',
+            'group_by_json',  # group_by
+            None,  # filter_expr
+            None,  # sort_by
+            None,  # max_results
+        )
+
+        # Assert - Granularity must NOT be in request_params when GroupBy is present
+        request_params = mock_paginate_response.call_args[1]['request_params']
+        assert 'GroupBy' in request_params
+        assert 'Granularity' not in request_params
+        assert result['status'] == 'success'
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.ri_performance_tools.get_date_range')
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.ri_performance_tools.paginate_aws_response'
+    )
+    async def test_get_reservation_utilization_granularity_included_without_group_by(
+        self,
+        mock_paginate_response,
+        mock_get_date_range,
+        mock_context,
+        mock_ce_client,
+    ):
+        """Test that Granularity is included when GroupBy is not provided."""
+        # Setup
+        mock_get_date_range.return_value = ('2023-01-01', '2023-01-31')
+        mock_paginate_response.return_value = (
+            mock_ce_client.get_reservation_utilization.return_value['UtilizationsByTime'],
+            {'NextPageToken': None},
+        )
+
+        # Execute
+        result = await get_reservation_utilization(
+            mock_context,
+            mock_ce_client,
+            '2023-01-01',
+            '2023-01-31',
+            'MONTHLY',
+            None,  # group_by
+            None,  # filter_expr
+            None,  # sort_by
+            None,  # max_results
+        )
+
+        # Assert - Granularity must be present when GroupBy is absent
+        request_params = mock_paginate_response.call_args[1]['request_params']
+        assert 'GroupBy' not in request_params
+        assert request_params['Granularity'] == 'MONTHLY'
+        assert result['status'] == 'success'
 
 
 @pytest.mark.asyncio
