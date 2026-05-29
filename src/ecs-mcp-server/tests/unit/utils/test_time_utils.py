@@ -58,3 +58,20 @@ class TestTimeUtils(unittest.TestCase):
         self.assertIsNotNone(start_time)
         self.assertIsNotNone(end_time)
         self.assertEqual((end_time - start_time).total_seconds(), 7200)
+
+    def test_string_iso_format(self):
+        """Test with ISO format strings as passed via MCP JSON."""
+        start_time, end_time = calculate_time_window(
+            start_time="2025-05-01T00:00:00Z",
+            end_time="2025-05-02T00:00:00Z",
+        )
+        self.assertEqual(start_time, datetime.datetime(2025, 5, 1, tzinfo=datetime.timezone.utc))
+        self.assertEqual(end_time, datetime.datetime(2025, 5, 2, tzinfo=datetime.timezone.utc))
+
+    def test_string_with_offset(self):
+        """Test with ISO format strings containing timezone offset."""
+        start_time, end_time = calculate_time_window(
+            start_time="2025-05-01T09:00:00+09:00",
+            end_time="2025-05-01T10:00:00+09:00",
+        )
+        self.assertEqual((end_time - start_time).total_seconds(), 3600)
