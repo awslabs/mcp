@@ -14,7 +14,7 @@ dependencies = [
     "boto3==1.42.41",
     "pyiceberg==0.10.0",
     "pyarrow==22.0.0",
-    "sqlparse==0.5.3",
+    "sqlparse==0.5.4",
     "daft==0.7.1",
 ]
 license = {text = "Apache-2.0"}
