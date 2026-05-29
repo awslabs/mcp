@@ -1,0 +1,26 @@
+{
+  "PreToolUse": [
+    {
+      "matcher": "Write|Edit",
+      "hooks": [
+        {
+          "type": "prompt",
+          "prompt": "If the file being written is inside src/*-mcp-server/, verify it follows the expected project structure from DESIGN_GUIDELINES.md (license header, correct package nesting under awslabs/). Only FAIL if the structure is clearly wrong. Pass silently otherwise.",
+          "timeout": 10
+        }
+      ]
+    }
+  ],
+  "Stop": [
+    {
+      "matcher": "",
+      "hooks": [
+        {
+          "type": "prompt",
+          "prompt": "Before finishing: if any files were modified inside src/*-mcp-server/ during this session, remind the user to run tests with 'uv run --frozen pytest --cov --cov-branch' in the affected server directory. Do NOT block — just add a reminder.",
+          "timeout": 5
+        }
+      ]
+    }
+  ]
+}
