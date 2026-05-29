@@ -30,7 +30,7 @@ from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.retrieval import (
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
-from typing import List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 
 # Remove all default handlers then add our own
@@ -81,6 +81,7 @@ mcp = FastMCP(
     - Knowledge bases contain structured data from various data sources (documents, websites, databases)
     - Each knowledge base has a unique ID that must be used when querying
     - You can filter by specific data sources within a knowledge base using data_source_ids
+    - You can apply metadata filters using the metadata_filter parameter to narrow results by custom attributes
     - Always verify that the knowledge base ID exists in the ListKnowledgeBases tool response before querying
     """,
     dependencies=['boto3'],
@@ -153,6 +154,10 @@ async def query_knowledge_bases_tool(
         None,
         description='The data source IDs to filter the knowledge base by. It must be a list of valid data source IDs from the ListKnowledgeBases tool',
     ),
+    metadata_filter: Optional[Dict[str, Any]] = Field(
+        None,
+        description='Raw Bedrock metadata filter expression. Supports equals, notEquals, greaterThan, lessThan, greaterThanOrEquals, lessThanOrEquals, in, notIn, startsWith, listContains, stringContains, andAll, orAll operators. Example: {"equals": {"key": "department", "value": "engineering"}}',
+    ),
 ) -> str:
     """Query an Amazon Bedrock Knowledge Base using natural language.
 
@@ -173,6 +178,10 @@ async def query_knowledge_bases_tool(
     - score: The relevance score of the document
 
 
+    ## Optional filtering
+    - data_source_ids: restrict to specific data sources
+    - metadata_filter: pass a raw Bedrock retrieval filter expression to narrow results by custom metadata attributes
+
     ## Interpretation Best Practices
     1. Extract and combine key information from multiple results
     2. Consider the source and relevance score when evaluating information
@@ -188,6 +197,7 @@ async def query_knowledge_bases_tool(
         reranking=reranking,
         reranking_model_name=reranking_model_name,
         data_source_ids=data_source_ids,
+        metadata_filter=metadata_filter,
     )
 
 

@@ -34,6 +34,7 @@ async def query_knowledge_base(
     reranking: bool = False,
     reranking_model_name: Literal['COHERE', 'AMAZON'] = 'AMAZON',
     data_source_ids: list[str] | None = None,
+    metadata_filter: dict | None = None,
 ) -> str:
     """# Amazon Bedrock Knowledge Base query tool.
 
@@ -45,6 +46,7 @@ async def query_knowledge_base(
         reranking (bool): Whether to rerank the results. Can be globally configured using the BEDROCK_KB_RERANKING_ENABLED environment variable.
         reranking_model_name (Literal['COHERE', 'AMAZON']): The name of the reranking model to use.
         data_source_ids (list[str] | None): The data source IDs to filter the knowledge base by.
+        metadata_filter (dict | None): Raw Bedrock metadata filter expression to apply.
 
     ## Warning: You must use the `ListKnowledgeBases` tool to get the knowledge base ID and optionally a data source ID first.
 
@@ -68,12 +70,26 @@ async def query_knowledge_base(
         }
     }
 
+    filters: list[dict] = []
+
     if data_source_ids:
-        retrieve_request['vectorSearchConfiguration']['filter'] = {  # type: ignore
-            'in': {
-                'key': 'x-amz-bedrock-kb-data-source-id',
-                'value': data_source_ids,  # type: ignore
+        filters.append(
+            {
+                'in': {
+                    'key': 'x-amz-bedrock-kb-data-source-id',
+                    'value': data_source_ids,  # type: ignore
+                }
             }
+        )
+
+    if metadata_filter:
+        filters.append(metadata_filter)
+
+    if len(filters) == 1:
+        retrieve_request['vectorSearchConfiguration']['filter'] = filters[0]  # type: ignore
+    elif len(filters) > 1:
+        retrieve_request['vectorSearchConfiguration']['filter'] = {  # type: ignore
+            'andAll': filters
         }
 
     if reranking:
