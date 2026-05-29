@@ -41,7 +41,10 @@ const sidebars: SidebarsConfig = {
         {
           type: "category",
           label: "Documentation",
-          items: ["servers/aws-documentation-mcp-server"],
+          items: [
+            "servers/aws-documentation-mcp-server",
+            "servers/well-architected-mcp-server",
+          ],
         },
         {
           type: "category",
