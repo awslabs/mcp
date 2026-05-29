@@ -407,6 +407,53 @@ class TestGetReservationCoverage:
         assert request_params['Filter'] == mock_filter
         assert request_params['SortBy'] == mock_sort_by
         assert request_params['MaxResults'] == 50
+        # Granularity must be absent when group_by is specified (mutually exclusive)
+        assert 'Granularity' not in request_params
+
+        assert result['status'] == 'success'
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.ri_performance_tools.get_date_range')
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.ri_performance_tools.paginate_aws_response'
+    )
+    @patch('awslabs.billing_cost_management_mcp_server.tools.ri_performance_tools.parse_json')
+    async def test_get_reservation_coverage_group_by_omits_granularity(
+        self,
+        mock_parse_json,
+        mock_paginate_response,
+        mock_get_date_range,
+        mock_context,
+        mock_ce_client,
+    ):
+        """Test that Granularity is omitted when group_by is specified (they are mutually exclusive)."""
+        # Setup
+        mock_get_date_range.return_value = ('2026-03-01', '2026-04-01')
+        mock_paginate_response.return_value = (
+            mock_ce_client.get_reservation_coverage.return_value['CoveragesByTime'],
+            {'NextPageToken': None},
+        )
+
+        mock_group_by = [{'Type': 'DIMENSION', 'Key': 'INSTANCE_TYPE'}]
+        mock_parse_json.return_value = mock_group_by
+
+        # Execute
+        result = await get_reservation_coverage(
+            mock_context,
+            mock_ce_client,
+            '2026-03-01',
+            '2026-04-01',
+            'DAILY',
+            None,  # metrics
+            'group_by_json',  # group_by
+            None,  # filter_expr
+            None,  # sort_by
+            None,  # max_results
+        )
+
+        # Assert: Granularity must NOT be in request params when group_by is present
+        request_params = mock_paginate_response.call_args[1]['request_params']
+        assert 'Granularity' not in request_params
+        assert request_params['GroupBy'] == mock_group_by
 
         assert result['status'] == 'success'
 
