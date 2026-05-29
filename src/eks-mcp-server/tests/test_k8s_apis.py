@@ -125,12 +125,6 @@ class TestK8sApisInitialization:
 
             # Verify configuration
             assert mock_config.host == 'https://test-endpoint'
-            import kubernetes
-            if int(kubernetes.__version__.split('.')[0]) >= 36:
-                assert mock_config.api_key == {'BearerToken': 'test-token'}
-                assert mock_config.api_key_prefix == {'BearerToken': 'Bearer'}
-            else:
-                assert mock_config.api_key == {'authorization': 'Bearer test-token'}
             assert mock_config.verify_ssl is True
             assert mock_config.ssl_ca_cert == '/tmp/ca-cert-file'
 
@@ -139,6 +133,35 @@ class TestK8sApisInitialization:
 
             # Verify dynamic client was set
             assert apis.dynamic_client == mock_dynamic_client
+
+    @pytest.mark.parametrize('mock_version,expected_api_key,expected_prefix', [
+        ('36.0.0', {'BearerToken': 'test-token'}, {'BearerToken': 'Bearer'}),
+        ('35.0.0', {'authorization': 'Bearer test-token'}, None),
+    ])
+    def test_init_api_key_by_version(self, mock_kubernetes_client, mock_version, expected_api_key, expected_prefix):
+        """Test api_key configuration for different kubernetes client versions."""
+        _, mock_config, _ = mock_kubernetes_client
+
+        mock_temp_file = MagicMock()
+        mock_temp_file.name = '/tmp/ca-cert-file'
+        mock_temp_file.__enter__ = MagicMock(return_value=mock_temp_file)
+        mock_temp_file.__exit__ = MagicMock(return_value=False)
+
+        mock_dynamic_client = MagicMock()
+
+        with (
+            patch('tempfile.NamedTemporaryFile', return_value=mock_temp_file),
+            patch('os.path.exists', return_value=True),
+            patch('os.unlink'),
+            patch('kubernetes.dynamic.DynamicClient', return_value=mock_dynamic_client),
+            patch('kubernetes.__version__', mock_version),
+        ):
+            ca_data = base64.b64encode(b'test-ca-data').decode('utf-8')
+            K8sApis('https://test-endpoint', 'test-token', ca_data)
+
+            assert mock_config.api_key == expected_api_key
+            if expected_prefix:
+                assert mock_config.api_key_prefix == expected_prefix
 
     def test_init_with_ca_data_error(self, mock_kubernetes_client):
         """Test initialization with CA data when an error occurs."""
