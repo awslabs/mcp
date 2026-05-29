@@ -75,6 +75,31 @@ class TestTruncateLargeTables:
         assert truncate_large_tables('') == ''
         assert truncate_large_tables(None) is None
 
+    def test_large_table_truncated_no_url(self):
+        """Truncated table hint works without a URL (no Example line)."""
+        header = '| Name | Value |'
+        sep = '|---|---|'
+        rows = [f'| row{i} | val{i} |' for i in range(30)]
+        md = '\n'.join([header, sep] + rows)
+
+        result = truncate_large_tables(md, url='', max_rows=10, preview_rows=3)
+
+        assert 'Table truncated (showing 3 of 30 rows)' in result
+        assert 'search_table' in result
+        assert 'Example:' not in result
+
+    def test_incomplete_table_fewer_than_3_lines(self):
+        """Table-like lines with fewer than 3 rows pass through unchanged."""
+        md = '| just a pipe line |\n| another pipe line |'
+        result = truncate_large_tables(md)
+        assert result == md
+
+    def test_single_pipe_line(self):
+        """A single pipe-delimited line passes through unchanged."""
+        md = 'Some text\n| solo pipe line |\nMore text'
+        result = truncate_large_tables(md)
+        assert result == md
+
 
 class TestParseHtmlTables:
     """Tests for parse_html_tables function."""
@@ -439,6 +464,27 @@ class TestCellToText:
         assert 'See' in cell_val
         assert 'for details' in cell_val
 
+    def test_sibling_tag_without_link_in_cell_with_link(self):
+        """A cell with a link AND a sibling tag without links preserves both."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>Name</th></tr></thead>
+        <tbody><tr><td><a href="/x">Link</a><span>extra info</span></td></tr></tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        cell_val = result['rows'][0]['Name']
+        assert '[Link](/x)' in cell_val
+        assert 'extra info' in cell_val
+
+    def test_sibling_tag_without_link_empty_text(self):
+        """A sibling tag with no text in a cell with a link is skipped."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>Name</th></tr></thead>
+        <tbody><tr><td><a href="/x">Link</a><span></span></td></tr></tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        cell_val = result['rows'][0]['Name']
+        assert cell_val == '[Link](/x)'
+
 
 class TestExtractTableDataEdgeCases:
     """Tests for _extract_table_data edge cases."""
@@ -500,6 +546,44 @@ class TestExtractTableDataEdgeCases:
         result = parse_html_tables(html, 'Sec')
         assert len(result['rows']) == 1
         assert result['rows'][0] == {'A': '1', 'B': '2', 'C': '3'}
+
+
+class TestFindAllTablesEdgeCases:
+    """Tests for _find_all_tables edge cases."""
+
+    def test_detected_section_uses_largest_table_heading(self):
+        """detected_section is the heading above the largest table."""
+        html = """<html><body>
+        <h2>Small Section</h2>
+        <table><thead><tr><th>A</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table>
+        <h2>Big Section</h2>
+        <table><thead><tr><th>B</th></tr></thead><tbody>
+            <tr><td>x</td></tr><tr><td>y</td></tr><tr><td>z</td></tr>
+        </tbody></table>
+        </body></html>"""
+        result = parse_html_tables(html, None)
+        assert result['detected_section'] == 'Big Section'
+
+    def test_detected_section_no_heading(self):
+        """detected_section falls back to '(all tables)' when no heading exists."""
+        html = """<html><body>
+        <table><thead><tr><th>A</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table>
+        </body></html>"""
+        result = parse_html_tables(html, None)
+        assert result['detected_section'] == '(all tables)'
+
+    def test_table_heading_uses_nearest_subheading(self):
+        """Each table gets the nearest h3-h6 heading as table_heading."""
+        html = """<html><body>
+        <h2>Section</h2>
+        <h3>Sub A</h3>
+        <table><thead><tr><th>X</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table>
+        <h3>Sub B</h3>
+        <table><thead><tr><th>Y</th></tr></thead><tbody><tr><td>2</td></tr></tbody></table>
+        </body></html>"""
+        result = parse_html_tables(html, None)
+        assert result['tables'][0]['table_heading'] == 'Sub A'
+        assert result['tables'][1]['table_heading'] == 'Sub B'
 
 
 class TestSectionBoundary:

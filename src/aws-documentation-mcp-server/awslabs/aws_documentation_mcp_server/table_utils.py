@@ -204,11 +204,6 @@ def _extract_table_data(table: Tag) -> Optional[dict]:
             parent_cols.update(row['_rowspan_cols'])
             break
 
-    if not parent_cols:
-        for row in parsed_rows:
-            row.pop('_rowspan_cols', None)
-        return {'columns': headers, 'rows': parsed_rows}
-
     parent_headers = [h for i, h in enumerate(headers) if i in parent_cols]
     child_headers = [h for i, h in enumerate(headers) if i not in parent_cols]
 
