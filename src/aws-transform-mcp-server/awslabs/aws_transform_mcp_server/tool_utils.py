@@ -255,6 +255,8 @@ async def download_s3_content(
     function returns ``{"savedTo": ..., "sizeBytes": ...}``.  Otherwise the
     content is returned as ``{"content": ...}``.
     """
+    from awslabs.aws_transform_mcp_server.file_validation import validate_write_path
+
     async with httpx.AsyncClient() as client:
         response = await client.get(s3_url, follow_redirects=True)
         response.raise_for_status()
@@ -262,9 +264,11 @@ async def download_s3_content(
         if save_path is not None:
             resolved_name = file_name or default_name or 'download'
             if save_path.endswith('/') or '.' not in os.path.basename(save_path):
-                full_path = os.path.join(save_path, resolved_name)
+                full_path = validate_write_path(save_path, resolved_name)
             else:
-                full_path = save_path
+                full_path = validate_write_path(
+                    os.path.dirname(save_path), os.path.basename(save_path)
+                )
             with open(full_path, 'wb') as fh:
                 fh.write(response.content)
             return {'savedTo': full_path, 'sizeBytes': len(response.content)}
