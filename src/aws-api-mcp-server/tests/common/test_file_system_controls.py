@@ -193,3 +193,47 @@ def test_ecs_deploy_get_file_contents_is_patched(_mock_open):
     with pytest.raises(SanitizedException) as exc_info:
         awscli.customizations.ecs.deploy.ECSDeploy._get_file_contents(instance, '$MY_SECRET')
     assert SECRET_VALUE not in str(exc_info.value)
+
+
+@patch(
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.WORKING_DIRECTORY',
+    '/test/workdir',
+)
+def test_env_var_home_path_blocked():
+    """Test that $HOME/path is blocked when it resolves outside working directory."""
+    with patch.dict(os.environ, {'HOME': '/Users/testuser'}):
+        with pytest.raises(FilePathValidationError):
+            validate_file_path('$HOME/secret.json')
+
+
+@patch(
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.WORKING_DIRECTORY',
+    '/test/workdir',
+)
+def test_env_var_home_braces_path_blocked():
+    """Test that ${HOME}/path is blocked when it resolves outside working directory."""
+    with patch.dict(os.environ, {'HOME': '/Users/testuser'}):
+        with pytest.raises(FilePathValidationError):
+            validate_file_path('${HOME}/secret.json')
+
+
+@patch(
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.WORKING_DIRECTORY',
+    '/test/workdir',
+)
+def test_env_var_tmpdir_path_blocked():
+    """Test that $TMPDIR/path is blocked when it resolves outside working directory."""
+    with patch.dict(os.environ, {'TMPDIR': '/var/folders/tmp'}):
+        with pytest.raises(FilePathValidationError):
+            validate_file_path('$TMPDIR/secret.json')
+
+
+@patch(
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.WORKING_DIRECTORY',
+    '/test/workdir',
+)
+def test_env_var_path_inside_workdir_allowed():
+    """Test that $MY_DIR/path is allowed when it resolves inside working directory."""
+    with patch.dict(os.environ, {'MY_DIR': '/test/workdir'}):
+        result = validate_file_path('$MY_DIR/safe_file.txt')
+        assert result == '/test/workdir/safe_file.txt'

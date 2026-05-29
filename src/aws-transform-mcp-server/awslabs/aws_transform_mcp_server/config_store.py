@@ -194,6 +194,14 @@ class ConfigStore:
         """Clear the current FES connection config."""
         self._config = None
 
+    def delete_persisted_config(self) -> None:
+        """Delete the persisted config file from disk and clear in-memory state."""
+        self._config = None
+        try:
+            os.remove(self._config_file)
+        except FileNotFoundError:
+            pass
+
     # ── Persistence ─────────────────────────────────────────────────────
 
     def persist_config(self) -> None:
@@ -352,8 +360,8 @@ def is_sigv4_fes_available() -> bool:
     return _sigv4_fes_available is True
 
 
-def set_sigv4_region(region: str) -> None:
-    """Store the selected SigV4 region."""
+def set_sigv4_region(region: str | None) -> None:
+    """Store the selected SigV4 region, or None to clear it."""
     global _sigv4_region
     _sigv4_region = region
 
@@ -397,6 +405,11 @@ def is_configured() -> bool:
 def clear_config() -> None:
     """Clear the current FES connection config."""
     _default_store.clear_config()
+
+
+def delete_persisted_config() -> None:
+    """Delete the persisted config file from disk and clear in-memory state."""
+    _default_store.delete_persisted_config()
 
 
 def persist_config() -> None:
