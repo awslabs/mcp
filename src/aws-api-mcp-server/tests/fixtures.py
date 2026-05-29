@@ -99,7 +99,6 @@ T2_EC2_DESCRIBE_INSTANCES_FILTERED = {
         EMPTY_EC2_RESERVATION.get('Instances'),
         T2_EC2_INSTANCE_RESERVATION.get('Instances'),
     ],
-    'ResponseMetadata': {'HTTPStatusCode': 200},
 }
 
 EC2_DESCRIBE_INSTANCES = {
@@ -147,7 +146,6 @@ LIST_BUCKETS_PAYLOAD = {
 
 LIST_BUCKETS_SORTED_BY_CREATION_DATE = {
     'Result': [PDX_BUCKET['Name'], PDX_BUCKET['CreationDate']],
-    'ResponseMetadata': {'HTTPStatusCode': 200},
 }
 
 SSM_LIST_NODES_PAYLOAD = {
@@ -224,15 +222,15 @@ def raise_(ex):
 
 
 _patched_operations = {
-    'ListEnvironments': lambda *args, **kwargs: CLOUD9_LIST_ENVIRONMENTS,
+    'ListEnvironments': lambda *args, **kwargs: deepcopy(CLOUD9_LIST_ENVIRONMENTS),
     'DescribeInstances': lambda *args, **kwargs: deepcopy(EC2_DESCRIBE_INSTANCES),
-    'ListFunctions': lambda *args, **kwargs: CLOUDFRONT_FUNCTIONS,
-    'DescribeEnvironments': lambda *args, **kwargs: CLOUD9_DESCRIBE_ENVIRONMENTS,
-    'GetCallerIdentity': lambda *args, **kwargs: GET_CALLER_IDENTITY_PAYLOAD,
-    'ListBuckets': lambda *args, **kwargs: LIST_BUCKETS_PAYLOAD,
-    'ListNodes': lambda *args, **kwargs: SSM_LIST_NODES_PAYLOAD,
-    'GetObject': lambda *args, **kwargs: S3_GET_OBJECT_PAYLOAD,
-    'Invoke': lambda *args, **kwargs: LAMBDA_INVOKE_PAYLOAD,
+    'ListFunctions': lambda *args, **kwargs: deepcopy(CLOUDFRONT_FUNCTIONS),
+    'DescribeEnvironments': lambda *args, **kwargs: deepcopy(CLOUD9_DESCRIBE_ENVIRONMENTS),
+    'GetCallerIdentity': lambda *args, **kwargs: deepcopy(GET_CALLER_IDENTITY_PAYLOAD),
+    'ListBuckets': lambda *args, **kwargs: deepcopy(LIST_BUCKETS_PAYLOAD),
+    'ListNodes': lambda *args, **kwargs: deepcopy(SSM_LIST_NODES_PAYLOAD),
+    'GetObject': lambda *args, **kwargs: deepcopy(S3_GET_OBJECT_PAYLOAD),
+    'Invoke': lambda *args, **kwargs: deepcopy(LAMBDA_INVOKE_PAYLOAD),
 }
 
 

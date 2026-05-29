@@ -3,15 +3,12 @@ from awslabs.aws_api_mcp_server.core.common.models import (
     AwsCliAliasResponse,
     CallAWSResponse,
     InterpretationResponse,
-    ProgramInterpretationResponse,
 )
 
 
 def test_call_aws_response_with_response():
     """Test CallAWSResponse with response field."""
-    response = ProgramInterpretationResponse(
-        response=InterpretationResponse(error=None, json='{"test": "data"}', status_code=200)
-    )
+    response = InterpretationResponse(error=None, json='{"test": "data"}', status_code=200)
 
     call_response = CallAWSResponse(cli_command='aws s3 ls', response=response)
 
@@ -49,16 +46,13 @@ def test_call_aws_response_validation_error():
 
 def test_call_aws_response_serialization_with_response():
     """Test CallAWSResponse serialization with response."""
-    response = ProgramInterpretationResponse(
-        response=InterpretationResponse(error=None, json='{"test": "data"}', status_code=200)
-    )
+    response = InterpretationResponse(error=None, json='{"test": "data"}', status_code=200)
     call_response = CallAWSResponse(cli_command='aws s3 ls', response=response)
 
     serialized = call_response.model_dump()
 
     assert serialized['cli_command'] == 'aws s3 ls'
-    assert 'response' in serialized
-    assert serialized['response']['status_code'] == 200
+    assert serialized['status_code'] == 200
 
 
 def test_call_aws_response_serialization_with_error():

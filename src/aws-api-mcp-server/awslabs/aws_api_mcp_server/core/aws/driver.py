@@ -132,7 +132,10 @@ def interpret_command(
             region_name=region,
         )
 
+    status_code = response.get('ResponseMetadata', {}).get('HTTPStatusCode')
+    response.pop('ResponseMetadata', None)
     payload = as_json(response)
+
     if (
         translation.command.region is None
         and translation.command.service_name == 's3'
@@ -149,7 +152,7 @@ def interpret_command(
     return InterpretedProgram(
         translation=translation,
         response=payload,
-        status_code=response['ResponseMetadata']['HTTPStatusCode'],
+        status_code=status_code,
         region_name=region,
         pagination_token=response.get('pagination_token'),
     )

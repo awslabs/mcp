@@ -17,17 +17,14 @@ import re
 from ..aws.regions import get_active_regions
 from ..aws.services import get_awscli_driver
 from ..common.config import AWS_API_MCP_PROFILE_NAME, DEFAULT_REGION
-from ..common.errors import AwsApiMcpError, Failure
+from ..common.errors import AwsApiMcpError, CommandValidationError, Failure
 from ..common.help_command import generate_help_document
 from ..common.models import (
     AwsCliAliasResponse,
     Consent,
     Credentials,
-    InterpretationMetadata,
     InterpretationResponse,
-    InterpretedProgram,
     IRTranslation,
-    ProgramInterpretationResponse,
     ProgramValidationResponse,
 )
 from ..common.models import Context as ContextAPIModel
@@ -130,7 +127,7 @@ def validate(ir: IRTranslation) -> ProgramValidationResponse:
 async def get_help_document(
     cli_command: str,
     ctx: Context,
-) -> ProgramInterpretationResponse:
+) -> InterpretationResponse:
     """Get help command response."""
     args = split_cli_command(cli_command)[1:]
     service_name = args[0]
@@ -140,9 +137,7 @@ async def get_help_document(
         error_message = 'Failed to generate help document'
         await ctx.error(error_message)
         raise AwsApiMcpError(error_message)
-    return ProgramInterpretationResponse(
-        response=InterpretationResponse(json=as_json(help_document), status_code=200, error=None)
-    )
+    return InterpretationResponse(json=as_json(help_document), status_code=200, error=None)
 
 
 def execute_awscli_customization(
@@ -190,7 +185,7 @@ def interpret_command(
     max_results: int | None = None,
     credentials: Credentials | None = None,
     default_region_override: str | None = None,
-) -> ProgramInterpretationResponse:
+) -> InterpretationResponse:
     """Interpret the given CLI command and return an interpretation response."""
     interpreted_program = _interpret_command(
         cli_command,
@@ -199,52 +194,24 @@ def interpret_command(
         default_region_override=default_region_override,
     )
 
-    validation_failures = (
-        []
-        if not interpreted_program.translation.validation_or_translation_failures
-        else interpreted_program.translation.validation_or_translation_failures
+    validation_failures = interpreted_program.translation.validation_or_translation_failures
+    missing_context_failures = interpreted_program.translation.missing_context_failures
+
+    if validation_failures:
+        reasons = '; '.join(f.reason for f in validation_failures)
+        raise CommandValidationError(reasons)
+
+    if missing_context_failures:
+        reasons = '; '.join(f.reason for f in missing_context_failures)
+        raise AwsApiMcpError(reasons)
+
+    return InterpretationResponse(
+        json=interpreted_program.response,
+        error=interpreted_program.service_error,
+        status_code=interpreted_program.status_code,
+        error_code=interpreted_program.error_code,
+        pagination_token=interpreted_program.pagination_token,
     )
-    missing_context_failures = (
-        []
-        if not interpreted_program.translation.missing_context_failures
-        else interpreted_program.translation.missing_context_failures
-    )
-    failed_constraints = interpreted_program.failed_constraints or []
-
-    if (
-        not validation_failures
-        and not missing_context_failures
-        and not interpreted_program.failed_constraints
-    ):
-        response = InterpretationResponse(
-            json=interpreted_program.response,
-            error=interpreted_program.service_error,
-            status_code=interpreted_program.status_code,
-            error_code=interpreted_program.error_code,
-            pagination_token=interpreted_program.pagination_token,
-        )
-    else:
-        response = None
-
-    return ProgramInterpretationResponse(
-        response=response,
-        metadata=_ir_metadata(interpreted_program),
-        validation_failures=_to_validation_failures(validation_failures),
-        missing_context_failures=_to_missing_context_failures(missing_context_failures),
-        failed_constraints=failed_constraints,
-    )
-
-
-def _ir_metadata(program: InterpretedProgram | None) -> InterpretationMetadata | None:
-    if program and program.translation and program.translation.command:
-        command = program.translation.command
-        return InterpretationMetadata(
-            service=command.service_name,
-            service_full_name=command.service_full_name,
-            operation=command.operation_name,
-            region_name=program.region_name,
-        )
-    return None
 
 
 def _to_missing_context_failures(
