@@ -13,8 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This file is part of the awslabs namespace.
-# It is intentionally minimal to support PEP 420 namespace packages.
 """Script to verify that README files correctly reference package names from pyproject.toml files.
 
 This script extracts the package name from a pyproject.toml file and checks if the README.md
