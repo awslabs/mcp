@@ -132,6 +132,7 @@ const sidebars: SidebarsConfig = {
             "servers/aws-pricing-mcp-server",
             "servers/cloudwatch-mcp-server",
             "servers/cloudwatch-applicationsignals-mcp-server",
+            "servers/security-agent-mcp-server",
             "servers/well-architected-security-mcp-server",
             "servers/cloudtrail-mcp-server",
             "servers/billing-cost-management-mcp-server",

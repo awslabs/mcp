@@ -654,6 +654,27 @@
       ]
     },
     {
+      "category": "Developer Tools & Support",
+      "description": "Automated security scanning, code review, and penetration testing using AWS Security Agent",
+      "icon": "\ud83d\udee1\ufe0f",
+      "id": "security-agent-mcp-server",
+      "name": "AWS Security Agent MCP Server",
+      "source_path": "src/security-agent-mcp-server/",
+      "subcategory": "Security",
+      "tags": [
+        "developer-tools",
+        "security",
+        "code-review",
+        "scanning",
+        "pentest",
+        "remediation",
+        "agentic"
+      ],
+      "workflows": [
+        "agentic"
+      ]
+    },
+    {
       "category": "Data & Analytics",
       "description": "InfluxDB-compatible operations",
       "icon": "\ud83d\udcca",

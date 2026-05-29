@@ -1,0 +1,1 @@
+awslabs.security-agent-mcp-server
