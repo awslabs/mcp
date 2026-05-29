@@ -731,6 +731,25 @@ async def audit_group_health(
                 if svc.get('error_rate') is not None:
                     result += f'   Error Rate: {svc["error_rate"]:.2f}%\n'
 
+        # Check Synthetics canaries linked to services in this group
+        try:
+            normalized_targets = [
+                {'Type': 'service', 'Data': {'Service': svc.get('KeyAttributes', {})}}
+                for svc in group_services
+            ]
+            unix_start = int(start_dt.timestamp())
+            unix_end = int(end_dt.timestamp())
+            canary_result = await check_canaries_for_service(
+                normalized_targets, unix_start, unix_end, AWS_REGION
+            )
+            if canary_result:
+                result += '\n' + '=' * 50 + '\n'
+                result += '🧪 **SYNTHETICS CANARIES**\n'
+                result += '=' * 50 + '\n'
+                result += canary_result
+        except Exception as e:
+            logger.warning(f'Canary check in audit_group_health failed: {e}')
+
         # Recommendations
         if critical_services or warning_services:
             result += '\n' + '=' * 50 + '\n'

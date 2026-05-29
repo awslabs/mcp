@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "awslabs.mysql-mcp-server": {
+      "args": [
+        "awslabs.mysql-mcp-server@latest"
+      ],
+      "command": "uvx"
+    }
+  }
+}

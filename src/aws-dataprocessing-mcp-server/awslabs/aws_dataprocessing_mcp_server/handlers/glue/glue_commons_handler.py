@@ -205,7 +205,7 @@ class GlueCommonsHandler:
                     response = self.glue_client.get_usage_profile(Name=profile_name)
 
                     # Construct the ARN for the usage profile
-                    region = AwsHelper.get_aws_region() or 'us-east-1'
+                    region = AwsHelper.get_or_default_aws_region() or 'us-east-1'
                     account_id = AwsHelper.get_aws_account_id()
                     profile_arn = f'arn:aws:glue:{region}:{account_id}:usageProfile/{profile_name}'
 
@@ -274,7 +274,7 @@ class GlueCommonsHandler:
                     response = self.glue_client.get_usage_profile(Name=profile_name)
 
                     # Construct the ARN for the usage profile
-                    region = AwsHelper.get_aws_region() or 'us-east-1'
+                    region = AwsHelper.get_or_default_aws_region() or 'us-east-1'
                     account_id = AwsHelper.get_aws_account_id()
                     profile_arn = f'arn:aws:glue:{region}:{account_id}:usageProfile/{profile_name}'
 

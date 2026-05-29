@@ -24,6 +24,7 @@ from awslabs.aws_healthomics_mcp_server.consts import (
     ERROR_INVALID_STORAGE_TYPE,
     ERROR_STATIC_STORAGE_REQUIRES_CAPACITY,
     ERROR_VPC_MODE_REQUIRES_CONFIGURATION_NAME,
+    NETWORKING_MODE_RESTRICTED,
     NETWORKING_MODE_VPC,
     NETWORKING_MODES,
     RUN_STATUSES,
@@ -318,6 +319,11 @@ async def start_run(
             'workflowVersionName': workflow_version_name,
             'outputUri': output_uri,
             'runGroupId': run_group_id,
+            'tags': response.get('tags', {}),
+            'uuid': response.get('uuid'),
+            'networkingMode': networking_mode
+            if networking_mode is not None
+            else NETWORKING_MODE_RESTRICTED,
         }
     except Exception as e:
         return await handle_tool_error(ctx, e, 'Error starting run')

@@ -47,7 +47,7 @@ class TestDataCatalogManager:
             'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client',
             return_value=mock_glue_client,
         ):
-            manager = DataCatalogManager(allow_write=True)
+            manager = DataCatalogManager(allow_write=True, allow_sensitive_data_access=True)
             return manager
 
     @pytest.mark.asyncio
@@ -166,7 +166,7 @@ class TestDataCatalogManager:
                 return_value=True,
             ),
             patch(
-                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region',
+                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region',
                 return_value='us-east-1',
             ),
             patch(
@@ -209,7 +209,7 @@ class TestDataCatalogManager:
                 return_value=False,
             ),
             patch(
-                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region',
+                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region',
                 return_value='us-east-1',
             ),
             patch(
@@ -691,7 +691,7 @@ class TestDataCatalogManager:
                 return_value=True,
             ),
             patch(
-                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region',
+                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region',
                 return_value='us-east-1',
             ),
             patch(
@@ -761,7 +761,7 @@ class TestDataCatalogManager:
                 return_value=False,
             ),
             patch(
-                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region',
+                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region',
                 return_value='us-east-1',
             ),
             patch(
@@ -810,7 +810,7 @@ class TestDataCatalogManager:
                 return_value=True,
             ),
             patch(
-                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region',
+                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region',
                 return_value='us-east-1',
             ),
             patch(
@@ -876,7 +876,7 @@ class TestDataCatalogManager:
                 return_value=True,
             ),
             patch(
-                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region',
+                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region',
                 return_value='us-east-1',
             ),
             patch(
@@ -942,7 +942,7 @@ class TestDataCatalogManager:
                 return_value=True,
             ),
             patch(
-                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region',
+                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region',
                 return_value='us-east-1',
             ),
             patch(
@@ -981,7 +981,7 @@ class TestDataCatalogManager:
                 return_value=False,
             ),
             patch(
-                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region',
+                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region',
                 return_value='us-east-1',
             ),
             patch(
@@ -1048,7 +1048,7 @@ class TestDataCatalogManager:
                 return_value=True,
             ),
             patch(
-                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region',
+                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region',
                 return_value='us-east-1',
             ),
             patch(
@@ -1167,7 +1167,7 @@ class TestDataCatalogManager:
                 return_value=False,
             ),
             patch(
-                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region',
+                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region',
                 return_value='us-east-1',
             ),
             patch(
@@ -1265,7 +1265,7 @@ class TestDataCatalogManager:
                 return_value=True,
             ),
             patch(
-                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region',
+                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region',
                 return_value='us-east-1',
             ),
             patch(
@@ -1324,7 +1324,7 @@ class TestDataCatalogManager:
                 return_value=False,
             ),
             patch(
-                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region',
+                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region',
                 return_value='us-east-1',
             ),
             patch(
@@ -1410,7 +1410,7 @@ class TestDataCatalogManager:
                 return_value=True,
             ),
             patch(
-                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region',
+                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region',
                 return_value='us-east-1',
             ),
             patch(
@@ -1857,7 +1857,7 @@ class TestDataCatalogManager:
                 return_value=True,
             ),
             patch(
-                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region',
+                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region',
                 return_value='us-east-1',
             ),
             patch(
@@ -1916,7 +1916,7 @@ class TestDataCatalogManager:
                 return_value=True,
             ),
             patch(
-                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region',
+                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region',
                 return_value='us-east-1',
             ),
             patch(
@@ -1978,7 +1978,7 @@ class TestDataCatalogManager:
                 return_value=True,
             ),
             patch(
-                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region',
+                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region',
                 return_value='us-east-1',
             ),
             patch(
@@ -2094,7 +2094,7 @@ class TestDataCatalogManager:
                 return_value=True,
             ),
             patch(
-                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region',
+                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region',
                 return_value='us-east-1',
             ),
             patch(
@@ -2129,7 +2129,7 @@ class TestDataCatalogManager:
                 return_value=False,
             ),
             patch(
-                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region',
+                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region',
                 return_value='us-east-1',
             ),
             patch(
@@ -2159,7 +2159,7 @@ class TestDataCatalogManager:
                 return_value=True,
             ),
             patch(
-                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_region',
+                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_or_default_aws_region',
                 return_value='us-east-1',
             ),
             patch(

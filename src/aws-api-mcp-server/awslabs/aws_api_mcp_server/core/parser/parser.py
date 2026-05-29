@@ -79,10 +79,9 @@ ARN_PATTERN = re.compile(
 # is the fake "s3" service, which is handled properly.
 DENIED_CUSTOM_SERVICES = frozenset({'configure', 'history'})
 
-# These are the custom operations for `aws` services in CLI which are known
-# to not do any subprocess calls and are therefore allowed.
+# All custom operations allowed in UNRESTRICTED mode (the full set).
+# These are custom operations known to not do subprocess calls and are therefore allowed.
 ALLOWED_CUSTOM_OPERATIONS = {
-    # blanket allow these custom operation regardless of service
     '*': [],
     's3': ['ls', 'website', 'sync', 'cp', 'mv', 'rm', 'mb', 'rb', 'presign'],
     'cloudformation': ['package', 'deploy'],
@@ -118,38 +117,52 @@ ALLOWED_CUSTOM_OPERATIONS = {
     'configservice': ['subscribe', 'get-status'],
 }
 
-# These are the custom operations allowed when local file access is disabled.
-# This is a subset of ALLOWED_CUSTOM_OPERATIONS that excludes operations requiring local file access.
-ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED = {
-    # blanket allow these custom operation regardless of service
-    '*': [],
-    's3': ['ls', 'website', 'sync', 'cp', 'mv', 'rm', 'mb', 'rb', 'presign'],
-    'cloudtrail': ['validate-logs'],
-    'codecommit': ['credential-helper'],
-    'datapipeline': ['list-runs', 'create-default-roles'],
-    'dlm': ['create-default-role'],
-    'ecr': ['get-login', 'get-login-password'],
-    'ecr-public': ['get-login-password'],
-    'eks': ['get-token'],
-    'emr': [
-        'add-instance-groups',
-        'create-cluster',
-        'describe-cluster',
-        'terminate-clusters',
-        'modify-cluster-attributes',
-        'install-applications',
-        'add-steps',
-        'restore-from-hbase-backup',
-        'create-hbase-backup',
-        'schedule-hbase-backup',
-        'disable-hbase-backups',
-        'create-default-roles',
-    ],
-    'emr-containers': ['update-role-trust-policy'],
-    'rds': ['generate-db-auth-token'],
-    'deploy': ['deregister'],
-    'configservice': ['subscribe', 'get-status'],
+# Operations denied in WORKDIR mode — these write to paths outside the working
+# directory that cannot be validated (e.g. codeartifact login modifies
+# pip/npm/twine config in the user's home directory).
+_DENIED_IN_WORKDIR: dict[str, list[str] | None] = {
+    'codeartifact': None,  # None = deny entire service
 }
+
+# Operations denied in NO_ACCESS mode — these require local file system access
+# (reading or writing files on disk).
+_DENIED_IN_NO_ACCESS: dict[str, list[str] | None] = {
+    'codeartifact': None,
+    'cloudformation': None,
+    'cloudfront': None,
+    'ecs': None,
+    'eks': ['update-kubeconfig'],
+    'gamelift': None,
+    'servicecatalog': None,
+    'deploy': ['push', 'register'],
+}
+
+
+def _build_restricted_allowlist(
+    denied: dict[str, list[str] | None],
+) -> dict[str, list[str]]:
+    """Derive a restricted allowlist from ALLOWED_CUSTOM_OPERATIONS by removing denied entries."""
+    result: dict[str, list[str]] = {}
+    for service, operations in ALLOWED_CUSTOM_OPERATIONS.items():
+        if service in denied:
+            denied_ops = denied[service]
+            if denied_ops is None:
+                continue
+            filtered = [op for op in operations if op not in denied_ops]
+            if filtered:
+                result[service] = filtered
+        else:
+            result[service] = operations
+    return result
+
+
+ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_WORKDIR = _build_restricted_allowlist(
+    _DENIED_IN_WORKDIR
+)
+ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED = _build_restricted_allowlist(
+    {**_DENIED_IN_WORKDIR, **_DENIED_IN_NO_ACCESS}
+)
+
 
 _excluded_optional_params = frozenset(
     {
@@ -342,7 +355,7 @@ def is_custom_operation(service, operation):
 
 
 def is_denied_custom_service(service):
-    """Returns true if the service is a cli customization that is explicitely denied."""
+    """Returns true if the service is a cli customization that is explicitly denied."""
     return service in DENIED_CUSTOM_SERVICES
 
 
@@ -352,11 +365,12 @@ def is_denied_custom_operation(service, operation):
         return False
 
     # Choose the appropriate allowlist based on file access settings
-    allowed_operations = (
-        ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED
-        if FILE_ACCESS_MODE == FileAccessMode.NO_ACCESS
-        else ALLOWED_CUSTOM_OPERATIONS
-    )
+    if FILE_ACCESS_MODE == FileAccessMode.NO_ACCESS:
+        allowed_operations = ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED
+    elif FILE_ACCESS_MODE == FileAccessMode.WORKDIR:
+        allowed_operations = ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_WORKDIR
+    else:
+        allowed_operations = ALLOWED_CUSTOM_OPERATIONS
 
     if operation in allowed_operations['*']:
         return False
@@ -380,7 +394,7 @@ def parse(cli_command: str, default_region_override: str | None = None) -> IRCom
     service_namespace, args = parser.parse_known_args(tokens)
     service_command = command_table[service_namespace.command]
 
-    if service_command.name in DENIED_CUSTOM_SERVICES:
+    if is_denied_custom_service(service_command.name):
         raise ServiceNotAllowedError(service_command.name)
 
     if isinstance(service_command, ServiceCommand):

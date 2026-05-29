@@ -111,6 +111,7 @@ def _get_endpoint_overrides() -> Dict[str, Optional[str]]:
         'cloudwatch': os.environ.get('MCP_CLOUDWATCH_ENDPOINT'),
         'xray': os.environ.get('MCP_XRAY_ENDPOINT'),
         'synthetics': os.environ.get('MCP_SYNTHETICS_ENDPOINT'),
+        'rum': os.environ.get('MCP_RUM_ENDPOINT'),
     }
 
 
@@ -213,6 +214,7 @@ def _initialize_aws_clients() -> Dict[str, Any]:
         'cloudwatch': _make('cloudwatch'),
         'xray': _make('xray'),
         'synthetics': _make('synthetics'),
+        'rum': _make('rum'),
         's3': _make('s3'),
         'iam': _make('iam'),
         'lambda': _make('lambda'),
@@ -239,6 +241,7 @@ applicationsignals_client = _singleton_clients['application-signals']
 cloudwatch_client = _singleton_clients['cloudwatch']
 xray_client = _singleton_clients['xray']
 synthetics_client = _singleton_clients['synthetics']
+rum_client = _singleton_clients['rum']
 s3_client = _singleton_clients['s3']
 iam_client = _singleton_clients['iam']
 lambda_client = _singleton_clients['lambda']

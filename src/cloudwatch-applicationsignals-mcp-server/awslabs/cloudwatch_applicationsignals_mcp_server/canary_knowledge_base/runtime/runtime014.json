@@ -1,0 +1,96 @@
+{
+  "category": "frame_detachment",
+  "documentation_links": [
+    {
+      "title": "CloudWatch Synthetics Auto Retry",
+      "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Synthetics_Canaries_autoretry.html"
+    },
+    {
+      "title": "CloudWatch Synthetics Metrics",
+      "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Synthetics_Canaries_metrics.html"
+    },
+    {
+      "title": "Chromium 142 Local Network Access Restrictions",
+      "url": "https://developer.chrome.com/release-notes/142#local_network_access_restrictions"
+    }
+  ],
+  "error_patterns": [
+    {
+      "text_contains": "Attempted to use detached Frame"
+    },
+    {
+      "text_contains": "Navigating frame was detached"
+    },
+    {
+      "text_contains": "detached Frame"
+    },
+    {
+      "text_contains": "Connection timed out after 60000ms"
+    }
+  ],
+  "id": "RUNTIME-014",
+  "recommendations": [
+    {
+      "confidence": 95,
+      "estimated_time": "10 minutes",
+      "priority": "critical",
+      "problem": "Intermittent network latency causes transient canary failures that trigger false alarms",
+      "solution": [
+        {
+          "command": "# Via AWS Console:\n# 1. Navigate to CloudWatch > Synthetics Canaries\n# 2. Select your canary\n# 3. Click \"Edit\"\n# 4. Scroll to \"Additional configuration\"\n# 5. Enable \"Automatic retries\"\n# 6. Save changes\n\n# Via AWS CLI:\naws synthetics update-canary \\\n  --name <canary-name> \\\n  --region <canary-region> \\\n  --run-config '{\"AutoRetryConfig\": {\"MaxRetries\": 2}}'\n",
+          "description": "Auto retry automatically retries a failed canary run up to 2 additional times before marking it as failed, handling transient network issues.",
+          "expected_outcome": "Transient failures are automatically retried. Only persistent failures are reported.",
+          "step": "Enable auto retry for the canary"
+        },
+        {
+          "command": "# Via AWS Console:\n# 1. Navigate to CloudWatch > Alarms\n# 2. Select the alarm monitoring your canary\n# 3. Click \"Edit\"\n# 4. Change the metric from SuccessPercent to SuccessPercentWithRetries\n# 5. Save changes\n",
+          "description": "This metric accounts for successful retries and provides a more accurate representation of canary health.",
+          "expected_outcome": "Alarms no longer fire on transient failures that succeed on retry.",
+          "step": "Update CloudWatch alarms to use SuccessPercentWithRetries"
+        }
+      ],
+      "title": "Enable auto retry and use SuccessPercentWithRetries metric"
+    },
+    {
+      "confidence": 75,
+      "estimated_time": "5 minutes",
+      "priority": "high",
+      "problem": "Default 60-second timeout insufficient for regions with higher network latency",
+      "solution": [
+        {
+          "command": "aws synthetics update-canary \\\n  --name <canary-name> \\\n  --region <canary-region> \\\n  --run-config TimeoutInSeconds=120\n",
+          "description": "Give the canary more time to complete navigation steps in high-latency regions.",
+          "expected_outcome": "Canary has more time to complete navigation, reducing timeout-related frame detachment errors.",
+          "step": "Increase canary timeout"
+        }
+      ],
+      "title": "Increase canary timeout to accommodate slow navigation"
+    }
+  ],
+  "root_cause": "Network latency during Chromium page navigation causes the first step to take significantly longer than expected, consuming most of the Lambda timeout budget. By the third or fourth step, Lambda times out and terminates the process, closing the browser. Remaining steps then fail with 'Attempted to use detached Frame' because the page/frame no longer exists. An additional contributing factor on puppeteer-13.x: Chromium 142 introduced local network access restrictions that require permission prompts for local-to-public network boundary requests. In headless mode these prompts cannot be acknowledged, potentially causing navigation hangs. The issue is intermittent because network latency varies between runs and regions.",
+  "runtime_versions": [
+    "syn-nodejs-puppeteer-12.0",
+    "syn-nodejs-puppeteer-13.0",
+    "syn-nodejs-puppeteer-13.1",
+    "syn-nodejs-playwright-2.0+"
+  ],
+  "severity": "high",
+  "symptoms": [
+    "Canary fails intermittently with 'Attempted to use detached Frame' error",
+    "Error: 'No test result returned. Connection timed out after 60000ms'",
+    "First canary step takes unusually long, causing Lambda to timeout at third or fourth step",
+    "HAR file shows redirect taking >58 seconds before timing out",
+    "Canary screenshots show white/blank pages during page redirects",
+    "Issue appeared or worsened after upgrading runtime from puppeteer-10.0 or earlier"
+  ],
+  "tags": [
+    "frame-detachment",
+    "detached-frame",
+    "network-latency",
+    "chromium",
+    "timeout",
+    "auto-retry",
+    "intermittent"
+  ],
+  "title": "Intermittent 'Attempted to use detached Frame' errors caused by network latency in Chromium"
+}
