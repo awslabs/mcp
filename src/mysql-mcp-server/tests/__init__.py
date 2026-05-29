@@ -12,10 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from awslabs.mysql_mcp_server import __version__
-from botocore.config import Config
-
-
-# User agent configuration for AWS service calls
-USER_AGENT_EXTRA = f'md/awslabs#mcp#mysql-mcp-server#{__version__}'
-USER_AGENT_CONFIG = Config(user_agent_extra=USER_AGENT_EXTRA)
+"""Tests for awslabs.mysql-mcp-server."""
