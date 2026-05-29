@@ -422,7 +422,25 @@ def test_handle_request_notification():
     resp = handler.handle_request(event, context)
     assert resp['statusCode'] == 202
     assert resp['body'] == ''
-    assert resp['headers']['Content-Type'] == 'application/json'
+    assert 'Content-Type' not in resp['headers']
+
+
+def test_handle_request_initialized_notification():
+    """Test that notifications/initialized returns 202 Accepted with no body.
+
+    Per MCP Streamable HTTP spec, notification-only POSTs must receive
+    HTTP 202 Accepted with no body.  Strict clients (e.g. rmcp-based
+    Codex adapter) reject any 200 application/json response that cannot
+    be parsed as a JSON-RPC message, so returning 200 null here would
+    break the handshake.
+    """
+    handler = MCPLambdaHandler('test-server')
+    req = {'jsonrpc': '2.0', 'method': 'notifications/initialized'}
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+    assert resp['statusCode'] == 202
+    assert resp['body'] == ''
+    assert 'Content-Type' not in resp['headers']
 
 
 def test_handle_request_ping():
