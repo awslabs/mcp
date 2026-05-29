@@ -509,6 +509,154 @@ class TestExecuteProtectedStatement:
                 'test-cluster', 'test-db', 'SELECT invalid_syntax', allow_read_write=False
             )
 
+    @pytest.mark.asyncio
+    async def test_execute_protected_statement_readonly_stale_mv_retries_read_write(self, mocker):
+        """Test retry with READ WRITE when SELECT on stale Materialized View causes read-only error."""
+        # Mock discover_clusters
+        mock_discover_clusters = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_clusters'
+        )
+        mock_discover_clusters.return_value = [
+            {'identifier': 'test-cluster', 'type': 'provisioned'}
+        ]
+
+        # Mock session manager
+        mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
+        mock_session_manager.session = mocker.AsyncMock(return_value='session-123')
+
+        # Mock _execute_statement: first attempt fails with read-only error, retry succeeds
+        mock_execute_statement = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_statement'
+        )
+
+        call_count = {'n': 0}
+
+        def execute_side_effect(cluster_info, cluster_identifier, database_name, sql, **kwargs):
+            call_count['n'] += 1
+            if sql == 'BEGIN READ ONLY;':
+                return 'begin-ro-id'
+            elif sql == 'SELECT * FROM view_with_stale_mv' and call_count['n'] == 2:
+                raise Exception('Statement failed: ERROR: transaction is read-only')
+            elif sql == 'END;' and call_count['n'] == 3:
+                return 'end-id'
+            elif sql == 'BEGIN READ WRITE;':
+                return 'begin-rw-id'
+            elif sql == 'SELECT * FROM view_with_stale_mv' and call_count['n'] == 5:
+                return 'user-stmt-retry-id'
+            elif sql == 'END;' and call_count['n'] == 6:
+                return 'end-retry-id'
+            return 'stmt-id'
+
+        mock_execute_statement.side_effect = execute_side_effect
+
+        # Mock data client
+        mock_data_client = mocker.Mock()
+        mock_data_client.get_statement_result.return_value = {'Records': [], 'ColumnMetadata': []}
+        mock_client_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.client_manager')
+        mock_client_manager.redshift_data_client.return_value = mock_data_client
+
+        result = await _execute_protected_statement(
+            'test-cluster', 'test-db', 'SELECT * FROM view_with_stale_mv', allow_read_write=False
+        )
+
+        # Verify six statements executed: BEGIN READ ONLY, user SQL (fail), END,
+        # BEGIN READ WRITE, user SQL (success), END
+        assert mock_execute_statement.call_count == 6
+        calls = mock_execute_statement.call_args_list
+        assert calls[0][1]['sql'] == 'BEGIN READ ONLY;'
+        assert calls[1][1]['sql'] == 'SELECT * FROM view_with_stale_mv'
+        assert calls[2][1]['sql'] == 'END;'
+        assert calls[3][1]['sql'] == 'BEGIN READ WRITE;'
+        assert calls[4][1]['sql'] == 'SELECT * FROM view_with_stale_mv'
+        assert calls[5][1]['sql'] == 'END;'
+        assert result[1] == 'user-stmt-retry-id'
+
+    @pytest.mark.asyncio
+    async def test_execute_protected_statement_readonly_non_stale_mv_error_not_retried(self, mocker):
+        """Test that non-read-only errors are not retried."""
+        # Mock discover_clusters
+        mock_discover_clusters = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_clusters'
+        )
+        mock_discover_clusters.return_value = [
+            {'identifier': 'test-cluster', 'type': 'provisioned'}
+        ]
+
+        # Mock session manager
+        mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
+        mock_session_manager.session = mocker.AsyncMock(return_value='session-123')
+
+        # Mock _execute_statement: user SQL fails with a non-read-only error
+        mock_execute_statement = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_statement'
+        )
+
+        def execute_side_effect(cluster_info, cluster_identifier, database_name, sql, **kwargs):
+            if sql == 'BEGIN READ ONLY;':
+                return 'begin-id'
+            elif sql == 'SELECT * FROM missing_table':
+                raise Exception('Statement failed: ERROR: relation "missing_table" does not exist')
+            elif sql == 'END;':
+                return 'end-id'
+            return 'stmt-id'
+
+        mock_execute_statement.side_effect = execute_side_effect
+
+        with pytest.raises(Exception, match='relation "missing_table" does not exist'):
+            await _execute_protected_statement(
+                'test-cluster', 'test-db', 'SELECT * FROM missing_table', allow_read_write=False
+            )
+
+        # Verify only three statements: BEGIN READ ONLY, user SQL (fail), END — no retry
+        assert mock_execute_statement.call_count == 3
+        calls = mock_execute_statement.call_args_list
+        assert calls[0][1]['sql'] == 'BEGIN READ ONLY;'
+        assert calls[1][1]['sql'] == 'SELECT * FROM missing_table'
+        assert calls[2][1]['sql'] == 'END;'
+
+    @pytest.mark.asyncio
+    async def test_execute_protected_statement_readonly_stale_mv_retry_also_fails(self, mocker):
+        """Test that errors on the READ WRITE retry are propagated correctly."""
+        # Mock discover_clusters
+        mock_discover_clusters = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_clusters'
+        )
+        mock_discover_clusters.return_value = [
+            {'identifier': 'test-cluster', 'type': 'provisioned'}
+        ]
+
+        # Mock session manager
+        mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
+        mock_session_manager.session = mocker.AsyncMock(return_value='session-123')
+
+        # Mock _execute_statement: first attempt and retry both fail
+        mock_execute_statement = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_statement'
+        )
+
+        call_count = {'n': 0}
+
+        def execute_side_effect(cluster_info, cluster_identifier, database_name, sql, **kwargs):
+            call_count['n'] += 1
+            if sql == 'BEGIN READ ONLY;':
+                return 'begin-ro-id'
+            elif sql == 'SELECT * FROM view_with_stale_mv' and call_count['n'] == 2:
+                raise Exception('Statement failed: ERROR: transaction is read-only')
+            elif sql == 'END;':
+                return 'end-id'
+            elif sql == 'BEGIN READ WRITE;':
+                return 'begin-rw-id'
+            elif sql == 'SELECT * FROM view_with_stale_mv':
+                raise Exception('Statement failed: ERROR: permission denied')
+            return 'stmt-id'
+
+        mock_execute_statement.side_effect = execute_side_effect
+
+        with pytest.raises(Exception, match='permission denied'):
+            await _execute_protected_statement(
+                'test-cluster', 'test-db', 'SELECT * FROM view_with_stale_mv', allow_read_write=False
+            )
+
 
 class TestExecuteStatement:
     """Tests for _execute_statement function."""
