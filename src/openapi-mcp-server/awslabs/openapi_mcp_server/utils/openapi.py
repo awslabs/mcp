@@ -63,8 +63,14 @@ except ImportError:
     logger.warning('Prance library not found. Reference resolution will be limited.')
 
 
-@cached(ttl_seconds=3600)  # Cache OpenAPI specs for 1 hour
-def load_openapi_spec(url: str = '', path: str = '') -> Dict[str, Any]:
+@cached(
+    ttl_seconds=3600, exclude_from_key={'headers'}
+)  # Cache OpenAPI specs for 1 hour; headers excluded from key so token rotation doesn't fragment the cache
+def load_openapi_spec(
+    url: str = '',
+    path: str = '',
+    headers: Optional[Dict[str, str]] = None,
+) -> Dict[str, Any]:
     """Load an OpenAPI specification from a URL or file path.
 
     If prance is available, it will be used to resolve references in the OpenAPI spec.
@@ -73,6 +79,7 @@ def load_openapi_spec(url: str = '', path: str = '') -> Dict[str, Any]:
     Args:
         url: URL to the OpenAPI specification
         path: Path to the OpenAPI specification file
+        headers: Optional HTTP headers to include when fetching the spec (e.g. Authorization)
 
     Returns:
         Dict[str, Any]: The parsed OpenAPI specification
@@ -96,7 +103,9 @@ def load_openapi_spec(url: str = '', path: str = '') -> Dict[str, Any]:
         # Use retry logic for network resilience
         for attempt in range(3):
             try:
-                response = httpx.get(url, timeout=10.0)
+                response = httpx.get(
+                    url, timeout=10.0, headers=headers or {}, follow_redirects=False
+                )
                 response.raise_for_status()
 
                 if PRANCE_AVAILABLE:

@@ -107,7 +107,7 @@ async def _create_server(config, spec=None, extra_spec=None):
         patch('awslabs.openapi_mcp_server.server.HttpClientFactory.create_client') as mock_client,
     ):
 
-        def load_side_effect(url='', path=''):
+        def load_side_effect(url='', path='', headers=None):
             if extra_spec and url != config.api_spec_url:
                 return extra_spec
             return spec
@@ -459,7 +459,7 @@ async def test_additional_specs_load_failure_skipped():
         patch('awslabs.openapi_mcp_server.server.HttpClientFactory.create_client') as mock_client,
     ):
 
-        def load_side_effect(url='', path=''):
+        def load_side_effect(url='', path='', headers=None):
             if url == 'http://x':
                 raise ValueError('bad spec')
             return PETSTORE_SPEC
@@ -516,7 +516,7 @@ async def test_additional_specs_validation_failure_continues():
         patch('awslabs.openapi_mcp_server.server.HttpClientFactory.create_client') as mock_client,
     ):
 
-        def load_side_effect(url='', path=''):
+        def load_side_effect(url='', path='', headers=None):
             return PETSTORE_SPEC if url != 'http://payments/spec' else EXTRA_SPEC
 
         def validate_side_effect(spec):

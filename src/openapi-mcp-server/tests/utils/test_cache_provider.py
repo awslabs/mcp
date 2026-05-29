@@ -138,6 +138,32 @@ def test_cached_decorator():
     assert call_count == 2  # Function called again
 
 
+def test_cached_decorator_with_exclude_from_key():
+    """Test that excluded kwargs do not affect the cache key."""
+    call_count = 0
+
+    @cached(ttl_seconds=60, exclude_from_key={'headers'})
+    def fetch(url='', headers=None):
+        nonlocal call_count
+        call_count += 1
+        return f'result:{url}'
+
+    # First call
+    result = fetch(url='http://example.com', headers={'Authorization': 'Bearer token_a'})
+    assert result == 'result:http://example.com'
+    assert call_count == 1
+
+    # Same URL, different headers → cache HIT (headers excluded from key)
+    result = fetch(url='http://example.com', headers={'Authorization': 'Bearer token_b'})
+    assert result == 'result:http://example.com'
+    assert call_count == 1
+
+    # Different URL → cache MISS (url is part of the key)
+    result = fetch(url='http://other.com', headers={'Authorization': 'Bearer token_a'})
+    assert result == 'result:http://other.com'
+    assert call_count == 2
+
+
 def test_cached_decorator_with_complex_args():
     """Test the cached decorator with complex arguments."""
     # Create a test function

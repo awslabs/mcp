@@ -9,11 +9,12 @@ class TestServerCoverageBoost:
     """Tests to improve coverage for server.py - adding one test at a time."""
 
     @patch('awslabs.openapi_mcp_server.auth.register.register_provider_by_type')
+    @patch('awslabs.openapi_mcp_server.auth.get_auth_provider')
     @patch('awslabs.openapi_mcp_server.server.load_openapi_spec')
     @patch('awslabs.openapi_mcp_server.server.validate_openapi_spec')
     @patch('awslabs.openapi_mcp_server.server.FastMCP')
     def test_create_mcp_server_with_auth_type_registration(
-        self, mock_fastmcp, mock_validate, mock_load_spec, mock_register
+        self, mock_fastmcp, mock_validate, mock_load_spec, mock_get_auth, mock_register
     ):
         """Test create_mcp_server registers auth provider by type."""
         # Mock dependencies with a valid OpenAPI spec
@@ -32,6 +33,13 @@ class TestServerCoverageBoost:
         mock_validate.return_value = True
         mock_server_instance = MagicMock()
         mock_fastmcp.return_value = mock_server_instance
+        mock_auth_provider = MagicMock()
+        mock_auth_provider.get_auth_headers.return_value = {}
+        mock_auth_provider.get_auth_params.return_value = {}
+        mock_auth_provider.get_auth_cookies.return_value = {}
+        mock_auth_provider.get_httpx_auth.return_value = None
+        mock_auth_provider.provider_name = 'bearer'
+        mock_get_auth.return_value = mock_auth_provider
 
         # Create a config with auth_type
         config = Config(

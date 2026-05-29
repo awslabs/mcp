@@ -88,21 +88,9 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
             logger.error('No API spec URL or path provided')
             raise ValueError('Either api_spec_url or api_spec_path must be provided')
 
-        logger.debug(
-            f'Loading OpenAPI spec from URL: {config.api_spec_url} or path: {config.api_spec_path}'
-        )
-        openapi_spec = load_openapi_spec(url=config.api_spec_url, path=config.api_spec_path)
-
-        # Validate the OpenAPI spec
-        if not validate_openapi_spec(openapi_spec):
-            logger.warning('OpenAPI specification validation failed, but continuing anyway')
-
-        # Create a client for the API
-        if not config.api_base_url:
-            logger.error('No API base URL provided')
-            raise ValueError('API base URL must be provided')
-
         # Configure authentication using the auth factory
+        # Auth is initialized before loading the spec so that the Bearer token
+        # can be passed when fetching a spec URL that requires authentication.
         from awslabs.openapi_mcp_server.auth import get_auth_provider, is_auth_type_available
 
         # Import and register the specific auth provider
@@ -126,7 +114,6 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
         auth_provider = get_auth_provider(config)
 
         # Get authentication components
-        auth_headers = auth_provider.get_auth_headers()
         # Get auth params (not used directly but may be needed in the future)
         _ = auth_provider.get_auth_params()
         auth_cookies = auth_provider.get_auth_cookies()
@@ -174,6 +161,26 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
                 logger.warning(
                     'Continuing with incomplete authentication configuration. This may cause API requests to fail.'
                 )
+
+        logger.debug(
+            f'Loading OpenAPI spec from URL: {config.api_spec_url} or path: {config.api_spec_path}'
+        )
+        # Fetch headers right before first use so the token is as fresh as possible
+        auth_headers = auth_provider.get_auth_headers()
+        openapi_spec = load_openapi_spec(
+            url=config.api_spec_url,
+            path=config.api_spec_path,
+            headers=auth_headers,
+        )
+
+        # Validate the OpenAPI spec
+        if not validate_openapi_spec(openapi_spec):
+            logger.warning('OpenAPI specification validation failed, but continuing anyway')
+
+        # Create a client for the API
+        if not config.api_base_url:
+            logger.error('No API base URL provided')
+            raise ValueError('API base URL must be provided')
 
         # Log authentication info
         if config.auth_type != 'none':
@@ -272,7 +279,9 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
                     logger.info(f'Loading additional spec: {extra_name}')
                     try:
                         extra_spec = load_openapi_spec(
-                            url=entry.get('spec_url', ''), path=entry.get('spec_path', '')
+                            url=entry.get('spec_url', ''),
+                            path=entry.get('spec_path', ''),
+                            headers=auth_provider.get_auth_headers(),
                         )
                     except Exception as e:
                         logger.warning(f'Failed to load additional spec {extra_name}: {e}')
