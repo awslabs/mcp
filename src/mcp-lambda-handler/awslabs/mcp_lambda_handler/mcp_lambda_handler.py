@@ -101,6 +101,8 @@ class MCPLambdaHandler:
         self.tools: Dict[str, Dict] = {}
         self.tool_implementations: Dict[str, Callable] = {}
         self.resources: Dict[str, Resource] = {}
+        self.prompts: Dict[str, Dict] = {}
+        self.prompt_implementations: Dict[str, Callable] = {}
 
         # Configure session storage
         if session_store is None:
@@ -317,6 +319,131 @@ class MCPLambdaHandler:
 
         return decorator
 
+    def prompt(
+        self,
+        func: Optional[Callable] = None,
+        *,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        tags: Optional[set[str]] = None,
+        enabled: bool = True,
+        meta: Optional[Dict[str, Any]] = None,
+    ):
+        """Decorator to register an MCP prompt similar to fastmcp.
+
+        Can be used bare (@handler.prompt) or with arguments (@handler.prompt(...)).
+        """
+
+        def decorator(f: Callable):
+            if not enabled:
+                return f
+
+            # Extract prompt name from argument or function name
+            func_name = f.__name__
+            prompt_name = name or ''.join(
+                [func_name.split('_')[0]]
+                + [word.capitalize() for word in func_name.split('_')[1:]]
+            )
+
+            # Use provided description or fallback to docstring
+            doc = inspect.getdoc(f) or ''
+            prompt_description = description or (doc.split('\n\n')[0] if doc else '')
+
+            # Build argument schemas from type hints
+            hints = get_type_hints(f)
+            hints.pop('return', None)
+
+            args: List[Dict[str, Any]] = []
+
+            # Use inspect.signature to determine which params have defaults
+            sig = inspect.signature(f)
+
+            for param_name, param_type in hints.items():
+                if param_type is str:
+                    arg_type = 'string'
+                elif param_type is int:
+                    arg_type = 'integer'
+                elif param_type is float:
+                    arg_type = 'number'
+                elif param_type is bool:
+                    arg_type = 'boolean'
+                else:
+                    arg_type = 'string'
+
+                sig_param = sig.parameters.get(param_name)
+                is_required = (
+                    sig_param is not None and sig_param.default is inspect.Parameter.empty
+                )
+
+                args.append(
+                    {
+                        'name': param_name,
+                        'type': arg_type,
+                        'description': f'Argument for {param_name}',
+                        'required': is_required,
+                    }
+                )
+
+            schema = {'name': prompt_name, 'description': prompt_description, 'arguments': args}
+
+            if tags:
+                schema['tags'] = list(tags)
+            if meta:
+                schema['_meta'] = meta
+
+            self.prompts[prompt_name] = schema
+            self.prompt_implementations[prompt_name] = f
+
+            @functools.wraps(f)
+            def wrapper(*args, **kwargs):
+                return f(*args, **kwargs)
+
+            return wrapper
+
+        if func is not None:
+            return decorator(func)
+        return decorator
+
+    def _render_prompt(
+        self, name: str, variables: Optional[Dict[str, Any]] = None
+    ) -> Union[str, List[Dict]]:
+        """Render a registered prompt by calling its function.
+
+        Returns either a str (single message) or a list of message dicts
+        (multi-message, each with 'role' and 'content' keys).
+        """
+        if name not in self.prompts:
+            raise ValueError(f'Prompt not found: {name}')
+
+        func = self.prompt_implementations.get(name)
+        if not func:
+            raise ValueError(f'Prompt implementation not found: {name}')
+
+        hints = get_type_hints(func)
+        hints.pop('return', None)
+
+        # Coerce argument values to their expected types
+        call_args = {}
+        for param, param_type in hints.items():
+            if variables and param in variables:
+                raw = variables[param]
+                try:
+                    if param_type is int:
+                        call_args[param] = int(raw)
+                    elif param_type is float:
+                        call_args[param] = float(raw)
+                    elif param_type is bool:
+                        if isinstance(raw, str):
+                            call_args[param] = raw.lower() not in ('false', '0', '')
+                        else:
+                            call_args[param] = bool(raw)
+                    else:
+                        call_args[param] = raw
+                except (ValueError, TypeError):
+                    call_args[param] = raw
+
+        return func(**call_args)
+
     def _create_error_response(
         self,
         code: int,
@@ -459,7 +586,6 @@ class MCPLambdaHandler:
             request = JSONRPCRequest.model_validate(body)
             logger.debug(f'Validated request: {request}')
 
-            # Handle initialization request
             if request.method == 'initialize':
                 logger.info('Handling initialize request')
                 # Create new session
@@ -469,7 +595,9 @@ class MCPLambdaHandler:
                     protocolVersion='2024-11-05',
                     serverInfo=ServerInfo(name=self.name, version=self.version),
                     capabilities=Capabilities(
-                        tools={'list': True, 'call': True}, resources={'list': True, 'read': True}
+                        tools={'list': True, 'call': True},
+                        resources={'list': True, 'read': True},
+                        prompts={'list': True, 'get': True},
                     ),
                 )
                 return self._create_success_response(result.model_dump(), request.id, session_id)
@@ -591,6 +719,67 @@ class MCPLambdaHandler:
                         f'Error reading resource: {str(e)}',
                         request.id,
                         error_content,
+                        session_id,
+                    )
+
+            if request.method == 'prompts/list':
+                logger.info('Handling prompts/list request')
+                if session_id:
+                    session_data = self.session_store.get_session(session_id)
+                    if session_data is None:
+                        return self._create_error_response(
+                            -32000, 'Invalid or expired session', request.id, status_code=404
+                        )
+                elif not isinstance(self.session_store, NoOpSessionStore):
+                    return self._create_error_response(
+                        -32000, 'Session required', request.id, status_code=400
+                    )
+                return self._create_success_response(
+                    {'prompts': list(self.prompts.values())}, request.id, session_id
+                )
+
+            # Handle prompts/get
+            if request.method == 'prompts/get':
+                if session_id:
+                    session_data = self.session_store.get_session(session_id)
+                    if session_data is None:
+                        return self._create_error_response(
+                            -32000, 'Invalid or expired session', request.id, status_code=404
+                        )
+                elif not isinstance(self.session_store, NoOpSessionStore):
+                    return self._create_error_response(
+                        -32000, 'Session required', request.id, status_code=400
+                    )
+
+                if not request.params or 'name' not in request.params:
+                    return self._create_error_response(
+                        -32602,
+                        'Missing required parameter: name',
+                        request.id,
+                        session_id=session_id,
+                    )
+
+                name = request.params['name']
+                variables = request.params.get('arguments', {})
+                try:
+                    result = self._render_prompt(name, variables)
+                    # Support multi-message responses: if the function returns a list,
+                    # treat each item as a message dict; otherwise wrap as a single user message.
+                    if isinstance(result, list):
+                        messages = result
+                    else:
+                        messages = [{'role': 'user', 'content': {'type': 'text', 'text': result}}]
+                    return self._create_success_response(
+                        {'messages': messages},
+                        request.id,
+                        session_id,
+                    )
+                except Exception as e:
+                    return self._create_error_response(
+                        -32603,
+                        f'Error rendering prompt: {str(e)}',
+                        request.id,
+                        [ErrorContent(text=str(e)).model_dump()],
                         session_id,
                     )
 
