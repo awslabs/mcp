@@ -215,6 +215,9 @@ Query monitoring rules (QMR) define metrics-based performance boundaries for WLM
 See also:
 - https://docs.aws.amazon.com/redshift/latest/dg/cm-c-wlm-query-monitoring-rules.html
 - https://docs.aws.amazon.com/redshift/latest/dg/cm-c-wlm-query-monitoring-rules.html#cm-c-wlm-query-monitoring-templates
+- https://docs.aws.amazon.com/redshift/latest/dg/r_STL_WLM_RULE_ACTION.html
+
+Review STL_WLM_RULE_ACTION to identify queries that triggered QMR rules and retrieve the offending queries for further analysis.
 """,
     'REC_023': """\
 ## Increase load performance by optimizing COPY operations
