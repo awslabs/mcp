@@ -39,6 +39,7 @@ docs = "https://awslabs.github.io/mcp/servers/redshift-mcp-server/"
 documentation = "https://awslabs.github.io/mcp/servers/redshift-mcp-server/"
 repository = "https://github.com/awslabs/mcp.git"
 changelog = "https://github.com/awslabs/mcp/blob/main/src/redshift-mcp-server/CHANGELOG.md"
+support = "https://github.com/awslabs/mcp/issues"
 
 [project.scripts]
 "awslabs.redshift-mcp-server" = "awslabs.redshift_mcp_server.server:main"

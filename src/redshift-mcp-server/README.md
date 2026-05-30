@@ -111,7 +111,7 @@ or docker after a successful `docker build -t awslabs/redshift-mcp-server:latest
 - `FASTMCP_LOG_LEVEL`: Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`)
 - `LOG_FILE`: Path to log file (optional, logs to stdout if not specified)
 
-## Basic Usage
+## Prompt Examples
 
 ### Discovery Workflow
 
@@ -274,6 +274,65 @@ WHERE saletime >= '2008-12-30'
 ORDER BY saletime DESC, salesid DESC
 LIMIT 10;
 ```
+ 
+Here are practical prompts to use with the Redshift MCP server in your AI assistant:
+
+### Example 1: Database Discovery
+
+```
+Show me all available Redshift clusters, then list databases in the first available one.
+```
+
+The assistant will:
+1. Call `list_clusters` to discover Redshift instances
+2. Pick the first available cluster and call `list_databases`
+3. Present a summary of what's available
+
+### Example 2: Schema Exploration
+
+```
+What tables are in the 'public' schema of the 'dev' database in my 'analytics-cluster'?
+```
+
+The assistant will:
+1. Call `list_schemas` with the cluster and database
+2. Call `list_tables` with the cluster, database, and schema
+3. List all tables with their types (TABLE, VIEW, EXTERNAL TABLE)
+
+### Example 3: Column Inspection
+
+```
+Show me the columns of the 'users' table in the 'analytics-cluster'.
+```
+
+The assistant will:
+1. Discover databases, schemas, and locate the table
+2. Call `list_columns` to get column metadata
+3. Display column names, types, nullability, and constraints
+
+### Example 4: Data Querying
+
+```
+How many customers signed up last month? Run the query on my production cluster.
+```
+
+The assistant will:
+1. Use `list_clusters` to find the production cluster
+2. Execute the appropriate SQL via `execute_query`
+3. Format and present the results
+
+### Example 5: End-to-End Analysis
+
+```
+Compare total sales by month across all my Redshift clusters for 2024.
+```
+
+The assistant will:
+1. Discover all clusters via `list_clusters`
+2. Explore each cluster's structure (databases, schemas, tables)
+3. Execute aggregate queries on each cluster
+4. Combine and compare results across environments
+```
 
 ## Tools
 
@@ -430,10 +489,3 @@ Your AWS credentials need the following IAM permissions:
 }
 ```
 
-### Database Permissions
-
-In addition to AWS IAM permissions, you need appropriate database-level permissions:
-
-- **Read Access**: `SELECT` permissions on tables/views you want to query
-- **Schema Access**: `USAGE` permissions on schemas you want to explore
-- **Database Access**: Connection permissions to databases you want to access
