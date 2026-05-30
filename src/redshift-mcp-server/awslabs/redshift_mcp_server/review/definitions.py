@@ -16,16 +16,15 @@
 
 RECOMMENDATIONS: dict[str, str] = {
     'REC_001': """\
-## For additional scalability, migrate to the RA3 node type or serverless
+## For additional scalability, migrate to RG instances or serverless
 
-RA3 nodes with managed storage provide independent scaling of compute and storage. Migrating from DC or DS node types to RA3 allows you to scale storage without adding compute, and leverages automatic data tiering between local SSD and S3-backed managed storage.
+RG instances provide the latest generation of compute and managed storage with independent scaling. Migrating from DC, DS, or RA3 node types to RG allows you to benefit from improved price-performance, and leverages automatic data tiering between local SSD and S3-backed managed storage.
 
 See also:
-- https://docs.aws.amazon.com/redshift/latest/mgmt/working-with-clusters.html#rs-upgrading-to-ra3
+- https://aws.amazon.com/redshift/features/rg/
+- https://docs.aws.amazon.com/redshift/latest/mgmt/managing-cluster-considerations.html#rs-upgrading-to-ra3
 - https://docs.aws.amazon.com/redshift/latest/mgmt/serverless-whatis.html
 - https://docs.aws.amazon.com/redshift/latest/mgmt/serverless-migration.html
-- https://aws.amazon.com/premiumsupport/knowledge-center/redshift-ra3-node-type/
-- https://aws.amazon.com/blogs/big-data/use-amazon-redshift-ra3-with-managed-storage-in-your-modern-data-architecture/
 """,
     'REC_002': """\
 ## For busy clusters, schedule a VACUUM DELETE
@@ -697,41 +696,36 @@ INNER JOIN (SELECT node,
   FROM stv_node_storage_capacity) ns ON (s.node = ns.node)
 ORDER by 2
 )
--- Signal: exceeds the recommended storage threshold of 70%
+-- Signal: should consider migrating to RG instances
 SELECT count(*), 'REC_001'
 FROM data
-WHERE storage_utilization_pct > 70 and (node_type like 'dc%' or node_type like 'ds%')
+WHERE node_type NOT LIKE 'rg%'
 UNION ALL
 SELECT count(*), 'REC_002'
 FROM data
-WHERE storage_utilization_pct > 70 and (node_type like 'dc%' or node_type like 'ds%')
+WHERE node_type NOT LIKE 'rg%'
 UNION ALL
 SELECT count(*), 'REC_004'
 FROM data
-WHERE storage_utilization_pct > 70 and (node_type like 'dc%' or node_type like 'ds%')
+WHERE node_type NOT LIKE 'rg%'
 UNION ALL
 SELECT count(*), 'REC_005'
 FROM data
-WHERE storage_utilization_pct > 70 and (node_type like 'dc%' or node_type like 'ds%')
+WHERE node_type NOT LIKE 'rg%'
 UNION ALL
 SELECT count(*), 'REC_006'
 FROM data
-WHERE storage_utilization_pct > 70 and (node_type like 'dc%' or node_type like 'ds%')
+WHERE node_type NOT LIKE 'rg%'
 UNION ALL
 -- Signal: has under-utilized storage
 SELECT count(*), 'REC_012'
 FROM data
-WHERE storage_utilization_pct < 40 and not node_type like 'ra3%'
+WHERE storage_utilization_pct < 40 and node_type NOT LIKE 'rg%'
 UNION ALL
 -- Signal: has 10% data skew
 SELECT count(*), 'REC_008'
 FROM data
 WHERE 100*abs(storage_used_gb - (select min(storage_used_gb) from data))/storage_used_gb >= 10
-UNION ALL
--- Signal: are using a legacy node type
-SELECT count(*), 'REC_001'
-FROM data
-WHERE node_type like 'dc1%' or node_type like 'ds2%'
 """,
     ),
     (
