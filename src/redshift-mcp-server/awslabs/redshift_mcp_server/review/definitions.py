@@ -438,7 +438,7 @@ WHERE type='diststyle' and auto_eligible='f'
     ),
     (
         'CopyPerformance',
-        'all',
+        'provisioned',
         """\
 -- CopyPerformance
 WITH data AS (
@@ -472,7 +472,7 @@ group by 1,2,3,4,5
 -- Signal: files per copy are less than slice count
 SELECT count(*), 'REC_023'
 FROM data
-WHERE no_of_copy > 24 AND (avg_files_per_copy < 64)
+WHERE no_of_copy > 24 AND (avg_files_per_copy < (SELECT COUNT(1) FROM stv_slices))
 UNION ALL
 -- Signal: files with a small size
 SELECT count(*), 'REC_023'
