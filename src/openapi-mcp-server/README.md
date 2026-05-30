@@ -16,7 +16,8 @@ This project is a server that dynamically creates Model Context Protocol (MCP) t
 - **Enriched Tool Descriptions**: Automatically appends response codes and parameter examples from the OpenAPI spec to tool descriptions, helping LLMs make better tool selections
 - **Multi-spec Composition**: Combine multiple OpenAPI specs into a single MCP server
   - Configure via `--additional-specs` CLI arg or `ADDITIONAL_SPECS` env var
-  - Each spec gets its own HTTP client with shared auth configuration
+  - Each spec gets its own HTTP client with independent per-spec authentication
+  - Primary API credentials are **never** sent to additional specs unless explicitly opted in via `"auth": "inherit"`
 - **Output Validation Toggle**: Disable response schema validation for APIs with loose specs via `--no-validate-output` or `VALIDATE_OUTPUT=false`
 - **Dynamic Prompt Generation**: Creates helpful prompts based on API structure
   - **Operation-Specific Prompts**: Generates natural language prompts for each API operation
@@ -28,7 +29,7 @@ This project is a server that dynamically creates Model Context Protocol (MCP) t
 - **Transport Options**: Supports stdio transport
 - **Flexible Configuration**: Configure via environment variables or command line arguments
 - **OpenAPI Support**: Works with OpenAPI 3.x specifications in JSON or YAML format
-- **OpenAPI Specification Validation**: Validates specifications without failing startup if issues detected, logging warnings instead to work with specs having minor issues or non-standard extensions
+- **OpenAPI Specification Validation**: Validates the primary specification without failing startup if issues detected (logging warnings). Additional specs that fail validation are skipped by default unless `allow_invalid` is set.
 - **Authentication Support**: Supports multiple authentication methods (Basic, Bearer Token, API Key, Cognito)
 - **AWS Best Practices**: Implements AWS best practices for caching, resilience, and observability
 - **Comprehensive Testing**: Includes extensive unit and integration tests with high code coverage
@@ -184,14 +185,44 @@ awslabs.openapi-mcp-server --api-url https://api.example.com --spec-url https://
 ### Multi-spec Composition
 
 ```bash
-# Combine multiple APIs into one MCP server
+# Combine multiple APIs into one MCP server (additional spec uses its own bearer token)
 awslabs.openapi-mcp-server --api-url https://api.example.com --spec-url https://api.example.com/openapi.json \
-  --additional-specs '[{"name":"payments","spec_url":"https://payments.example.com/openapi.json","base_url":"https://payments.example.com"}]'
+  --additional-specs '[{"name":"payments","spec_url":"https://payments.example.com/openapi.json","base_url":"https://payments.example.com","auth":{"type":"bearer","token":"PAYMENTS_TOKEN"}}]'
+
+# Additional spec with no auth (default — unauthenticated requests)
+awslabs.openapi-mcp-server --api-url https://api.example.com --spec-url https://api.example.com/openapi.json \
+  --additional-specs '[{"name":"public-api","spec_url":"https://public.example.com/openapi.json","base_url":"https://public.example.com"}]'
+
+# Explicitly inherit primary API auth (only when additional spec is under the same trust boundary)
+awslabs.openapi-mcp-server --api-url https://api.example.com --spec-url https://api.example.com/openapi.json \
+  --additional-specs '[{"name":"internal","spec_url":"https://api.example.com/v2/openapi.json","base_url":"https://api.example.com/v2","auth":"inherit"}]'
 
 # Additional specs may also use a local OpenAPI file via spec_path
 awslabs.openapi-mcp-server --api-url https://api.example.com --spec-url https://api.example.com/openapi.json \
-  --additional-specs '[{"name":"payments","spec_path":"./specs/payments-openapi.json","base_url":"https://payments.example.com"}]'
+  --additional-specs '[{"name":"payments","spec_path":"./specs/payments-openapi.json","base_url":"https://payments.example.com","auth":{"type":"api_key","key":"MY_KEY","key_name":"X-API-Key","key_in":"header"}}]'
 ```
+
+#### Per-spec Authentication
+
+Each additional spec entry supports the following `auth` configurations:
+
+| Value | Behavior |
+|-------|----------|
+| *(absent or null)* | No credentials sent — unauthenticated requests (secure default) |
+| `"inherit"` | Explicitly reuse the primary API's auth headers, cookies, and httpx auth |
+| `{"type": "bearer", "token": "..."}` | Bearer token authentication |
+| `{"type": "api_key", "key": "...", "key_name": "...", "key_in": "header\|cookie"}` | API key authentication (`query` is accepted but falls back to header) |
+| `{"type": "basic", "username": "...", "password": "..."}` | HTTP Basic authentication |
+| `{"type": "none"}` | Explicit no-auth (same as absent) |
+
+**Security note:** The primary API's credentials are never forwarded to additional specs unless you explicitly set `"auth": "inherit"`. Only use `"inherit"` when the additional spec's `base_url` is under the same trust boundary as your primary API.
+
+#### Spec Validation
+
+By default, additional specs that fail OpenAPI validation are **skipped** (not loaded). To override this behavior:
+
+- Per-spec: add `"allow_invalid": true` to the spec entry
+- Globally: set environment variable `ADDITIONAL_SPECS_ALLOW_INVALID=true`
 
 ### Disable Output Validation
 
@@ -279,8 +310,13 @@ export EXCLUDE_TAGS="admin,internal"  # Hide operations with these tags
 export VALIDATE_OUTPUT="true"  # Set to "false" to disable response schema validation
 
 # Multi-spec composition
-# Each additional spec requires base_url and either spec_url or spec_path
-export ADDITIONAL_SPECS='[{"name":"payments","spec_url":"https://payments.example.com/openapi.json","base_url":"https://payments.example.com"},{"name":"billing","spec_path":"./specs/billing-openapi.json","base_url":"https://billing.example.com"}]'
+# Each additional spec requires base_url and either spec_url or spec_path.
+# Auth is per-spec: use "auth" field to configure. Primary API credentials are NEVER
+# sent to additional specs unless "auth": "inherit" is explicitly set.
+export ADDITIONAL_SPECS='[{"name":"payments","spec_url":"https://payments.example.com/openapi.json","base_url":"https://payments.example.com","auth":{"type":"bearer","token":"PAYMENTS_TOKEN"}},{"name":"internal","spec_path":"./specs/internal-openapi.json","base_url":"https://api.example.com/internal","auth":"inherit"}]'
+
+# Allow additional specs with invalid OpenAPI schemas to load (default: false)
+export ADDITIONAL_SPECS_ALLOW_INVALID="false"
 ```
 
 ## Documentation

@@ -16,6 +16,7 @@
 import argparse
 import asyncio
 import httpx
+import os
 import re
 import signal
 import sys
@@ -30,7 +31,7 @@ from awslabs.openapi_mcp_server.utils.openapi import load_openapi_spec
 from awslabs.openapi_mcp_server.utils.openapi_validator import validate_openapi_spec
 from fastmcp import FastMCP
 from fastmcp.server.providers.openapi import MCPType, OpenAPIProvider, RouteMap
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Tuple
 
 
 _HTTP_METHODS = {'get', 'put', 'post', 'delete', 'patch', 'options', 'head', 'trace'}
@@ -59,6 +60,69 @@ def _build_route_maps(spec: Dict[str, Any]) -> list:
                         )
                     )
     return mappings
+
+
+def _build_additional_spec_auth(
+    auth_config: dict,
+) -> Tuple[Dict[str, str], Optional[httpx.Auth], Dict[str, str]]:
+    """Build authentication components for an additional spec from its per-spec auth config.
+
+    Args:
+        auth_config: Auth configuration dict from the additional spec entry.
+            Supported formats:
+            - {"type": "bearer", "token": "..."}
+            - {"type": "api_key", "key": "...", "key_name": "...", "key_in": "header|query|cookie"}
+            - {"type": "basic", "username": "...", "password": "..."}
+            - {"type": "none"} (explicit no-auth)
+
+    Returns:
+        Tuple of (headers, httpx_auth, cookies)
+
+    Raises:
+        ValueError: If auth_config is invalid or missing required fields.
+
+    """
+    auth_type = auth_config.get('type', '').lower()
+
+    if auth_type == 'none' or not auth_type:
+        return {}, None, {}
+
+    if auth_type == 'bearer':
+        token = auth_config.get('token', '')
+        if not token:
+            raise ValueError("Bearer auth requires 'token' field")
+        return {'Authorization': f'Bearer {token}'}, None, {}
+
+    if auth_type == 'api_key':
+        key = auth_config.get('key', '')
+        key_name = auth_config.get('key_name', 'api_key')
+        key_in = auth_config.get('key_in', 'header').lower()
+        if not key:
+            raise ValueError("API key auth requires 'key' field")
+        if key_in not in ('header', 'query', 'cookie'):
+            raise ValueError(f"Invalid key_in value: '{key_in}'. Must be header, query, or cookie")
+        if key_in == 'header':
+            return {key_name: key}, None, {}
+        elif key_in == 'cookie':
+            return {}, None, {key_name: key}
+        else:
+            # HttpClientFactory does not support per-request query params, so query-based
+            # API keys cannot be sent as URL parameters. Fall back to sending the key as
+            # a request header instead, which may not work with all APIs.
+            logger.warning(
+                f"API key in 'query' is not fully supported for additional specs. "
+                f"Using header '{key_name}' instead."
+            )
+            return {key_name: key}, None, {}
+
+    if auth_type == 'basic':
+        username = auth_config.get('username', '')
+        password = auth_config.get('password', '')
+        if not username or not password:
+            raise ValueError("Basic auth requires 'username' and 'password' fields")
+        return {}, httpx.BasicAuth(username=username, password=password), {}
+
+    raise ValueError(f"Unsupported auth type for additional spec: '{auth_type}'")
 
 
 async def create_mcp_server_async(config: Config) -> FastMCP:
@@ -251,6 +315,10 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
         if config.additional_specs:
             import json
 
+            allow_invalid_specs = (
+                os.environ.get('ADDITIONAL_SPECS_ALLOW_INVALID', 'false').lower() == 'true'
+            )
+
             try:
                 extra_specs = json.loads(config.additional_specs)
                 if not isinstance(extra_specs, list):
@@ -278,26 +346,100 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
                         logger.warning(f'Failed to load additional spec {extra_name}: {e}')
                         continue
 
+                    # Validate spec — skip on failure unless explicitly allowed
+                    raw_allow_invalid = entry.get('allow_invalid')
+                    if raw_allow_invalid is None:
+                        entry_allow_invalid = allow_invalid_specs
+                    elif isinstance(raw_allow_invalid, bool):
+                        entry_allow_invalid = raw_allow_invalid
+                    elif isinstance(raw_allow_invalid, str):
+                        entry_allow_invalid = raw_allow_invalid.lower() in ('true', '1', 'yes')
+                    else:
+                        entry_allow_invalid = allow_invalid_specs
+
                     if not validate_openapi_spec(extra_spec):
-                        logger.warning(
-                            f'Additional spec {extra_name} validation failed, continuing anyway'
+                        if entry_allow_invalid:
+                            logger.warning(
+                                f'Additional spec {extra_name} validation failed, '
+                                f'continuing because allow_invalid is set'
+                            )
+                        else:
+                            logger.error(
+                                f'Additional spec {extra_name} validation failed. '
+                                f'Skipping this spec. Set "allow_invalid": true in the '
+                                f'spec entry or ADDITIONAL_SPECS_ALLOW_INVALID=true to override.'
+                            )
+                            continue
+
+                    # Determine authentication for this additional spec.
+                    # SECURITY: Do NOT inherit primary API auth by default to prevent
+                    # credential leakage to untrusted endpoints (CWE-522).
+                    extra_auth_config = entry.get('auth')
+                    if (
+                        isinstance(extra_auth_config, str)
+                        and extra_auth_config.lower() == 'inherit'
+                    ):
+                        extra_headers = auth_headers
+                        extra_httpx_auth = httpx_auth
+                        extra_cookies = auth_cookies
+                        logger.info(
+                            f'Additional spec {extra_name}: inheriting primary auth '
+                            f'(explicit opt-in via "auth": "inherit")'
                         )
-                    extra_client = HttpClientFactory.create_client(
-                        base_url=extra_base_url,
-                        headers=auth_headers,
-                        auth=httpx_auth,
-                        cookies=auth_cookies,
-                    )
-                    providers.append(
-                        OpenAPIProvider(
-                            openapi_spec=extra_spec,
-                            client=extra_client,
-                            route_maps=_build_route_maps(extra_spec),
-                            mcp_component_fn=enrich_component,
-                            validate_output=config.validate_output,
+                    elif isinstance(extra_auth_config, dict):
+                        try:
+                            extra_headers, extra_httpx_auth, extra_cookies = (
+                                _build_additional_spec_auth(extra_auth_config)
+                            )
+                            logger.info(
+                                f'Additional spec {extra_name}: using per-spec auth '
+                                f'(type={extra_auth_config.get("type", "unknown")})'
+                            )
+                        except ValueError as e:
+                            logger.error(
+                                f'Additional spec {extra_name}: invalid auth config: {e}. '
+                                f'Skipping this spec.'
+                            )
+                            continue
+                    elif extra_auth_config is not None:
+                        logger.error(
+                            f'Additional spec {extra_name}: invalid "auth" value: '
+                            f'{extra_auth_config!r}. Expected null, "inherit", or a dict '
+                            f'with "type" field. Skipping this spec.'
                         )
-                    )
-                    logger.info(f'Added additional spec: {extra_name}')
+                        continue
+                    else:
+                        extra_headers = {}
+                        extra_httpx_auth = None
+                        extra_cookies = {}
+                        logger.info(
+                            f'Additional spec {extra_name}: no auth configured, '
+                            f'sending unauthenticated requests'
+                        )
+
+                    try:
+                        extra_client = HttpClientFactory.create_client(
+                            base_url=extra_base_url,
+                            headers=extra_headers,
+                            auth=extra_httpx_auth,
+                            cookies=extra_cookies,
+                        )
+                        providers.append(
+                            OpenAPIProvider(
+                                openapi_spec=extra_spec,
+                                client=extra_client,
+                                route_maps=_build_route_maps(extra_spec),
+                                mcp_component_fn=enrich_component,
+                                validate_output=config.validate_output,
+                            )
+                        )
+                        logger.info(f'Added additional spec: {extra_name}')
+                    except Exception as e:
+                        logger.error(
+                            f'Additional spec {extra_name}: failed to create HTTP client '
+                            f'or provider: {e}. Skipping this spec.'
+                        )
+                        continue
             except (json.JSONDecodeError, TypeError) as e:
                 logger.warning(f'Failed to parse additional specs: {e}')
 

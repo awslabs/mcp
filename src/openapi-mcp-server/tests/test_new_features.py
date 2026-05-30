@@ -499,8 +499,8 @@ async def test_enriched_descriptions_empty_original():
 
 
 @pytest.mark.asyncio
-async def test_additional_specs_validation_failure_continues():
-    """Additional specs with validation failure still get loaded (warn but continue)."""
+async def test_additional_specs_validation_failure_skips():
+    """Additional specs with validation failure are skipped by default (security fix)."""
     extra = json.dumps(
         [
             {
@@ -530,7 +530,45 @@ async def test_additional_specs_validation_failure_continues():
         server = await create_mcp_server_async(config)
         tools = await server.list_tools()
         names = {t.name for t in tools}
-        # Both specs should be loaded despite validation failure on extra
+        # Only primary spec should be loaded; extra is skipped due to validation failure
+        assert 'listPets' in names
+        assert 'createPayment' not in names
+
+
+@pytest.mark.asyncio
+async def test_additional_specs_validation_failure_allowed_with_flag():
+    """Additional specs with allow_invalid=true load despite validation failure."""
+    extra = json.dumps(
+        [
+            {
+                'name': 'payments',
+                'spec_url': 'http://payments/spec',
+                'base_url': 'https://payments.example.com',
+                'allow_invalid': True,
+            }
+        ]
+    )
+    with (
+        patch('awslabs.openapi_mcp_server.server.load_openapi_spec') as mock_load,
+        patch('awslabs.openapi_mcp_server.server.validate_openapi_spec') as mock_validate,
+        patch('awslabs.openapi_mcp_server.server.HttpClientFactory.create_client') as mock_client,
+    ):
+
+        def load_side_effect(url='', path=''):
+            return PETSTORE_SPEC if url != 'http://payments/spec' else EXTRA_SPEC
+
+        def validate_side_effect(spec):
+            # Primary passes, extra fails
+            return spec != EXTRA_SPEC
+
+        mock_load.side_effect = load_side_effect
+        mock_validate.side_effect = validate_side_effect
+        mock_client.return_value = MagicMock()
+        config = _base_config(additional_specs=extra)
+        server = await create_mcp_server_async(config)
+        tools = await server.list_tools()
+        names = {t.name for t in tools}
+        # Both specs loaded because allow_invalid is set
         assert 'listPets' in names
         assert 'createPayment' in names
 
