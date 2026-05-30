@@ -20,7 +20,7 @@ from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.config_store import is_fes_available
 from awslabs.aws_transform_mcp_server.guidance_nudge import job_needs_check
 from awslabs.aws_transform_mcp_server.tool_utils import (
-    READ_ONLY,
+    CREATE,
     download_s3_content,
     error_result,
     failure_result,
@@ -132,7 +132,7 @@ class GetResourceHandler:
             mcp,
             'get_resource',
             title='Get Resource',
-            annotations=READ_ONLY,
+            annotations=CREATE,
             description=TOOL_DESCRIPTION,
         )(self.get_resource)
 
