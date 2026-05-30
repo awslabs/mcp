@@ -299,7 +299,7 @@ See also:
 Due to underlying DDL changes on the base tables used in the materialized view, the materialized view can no longer be refreshed.
 
 See also:
-- https://docs.aws.amazon.com/redshift/latest/dg/r_STV_MV_INFO.html
+- https://docs.aws.amazon.com/redshift/latest/dg/r_SVV_MV_INFO.html
 """,
     'REC_033': """\
 ## To save cost, apply the necessary concurrency scaling usage limit
@@ -650,7 +650,7 @@ UNION ALL
 -- Signal: materialized view cannot be auto refreshed
 SELECT count(*), 'REC_031'
 FROM data
-WHERE state > 1 and is_stale = 't' and autorefresh = 'y'
+WHERE state > 1 and is_stale = 't' and autorefresh = 't'
 UNION ALL
 -- Signal: materialized view is stale
 SELECT count(*), 'REC_039'
