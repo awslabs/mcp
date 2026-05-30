@@ -841,7 +841,7 @@ SELECT
   service_class_id,
   service_class_name,
   query_type,
-  replace(error_message, '''', '\\\\''') error_message,
+  error_message,
   query_priority,
   compute_type
 FROM SYS_QUERY_HISTORY
