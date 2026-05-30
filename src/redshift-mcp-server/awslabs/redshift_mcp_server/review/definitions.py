@@ -908,19 +908,19 @@ UNION ALL
 -- Signal: high count of queries with large disk spill
 SELECT count(*), 'REC_005'
 FROM data
-WHERE total_disk_spill_mb > 100
+WHERE total_disk_spill_mb > 1000000
 UNION ALL
 SELECT count(*), 'REC_011'
 FROM data
-WHERE total_disk_spill_mb > 100
+WHERE total_disk_spill_mb > 1000000
 UNION ALL
 SELECT count(*), 'REC_022'
 FROM data
-WHERE total_disk_spill_mb > 100
+WHERE total_disk_spill_mb > 1000000
 UNION ALL
 SELECT count(*), 'REC_024'
 FROM data
-WHERE total_disk_spill_mb > 100
+WHERE total_disk_spill_mb > 1000000
 """,
     ),
     (
@@ -1011,19 +1011,19 @@ UNION ALL
 -- Signal: high count of spilled to disk
 SELECT count(*), 'REC_005'
 FROM data
-WHERE total_disk_spill_count > 10
+WHERE total_disk_spill_count > 100
 UNION ALL
 SELECT count(*), 'REC_011'
 FROM data
-WHERE total_disk_spill_count > 10
+WHERE total_disk_spill_count > 100
 UNION ALL
 SELECT count(*), 'REC_022'
 FROM data
-WHERE total_disk_spill_count > 10
+WHERE total_disk_spill_count > 100
 UNION ALL
 SELECT count(*), 'REC_024'
 FROM data
-WHERE total_disk_spill_count > 10
+WHERE total_disk_spill_count > 100
 UNION ALL
 -- Signal: high count of compiled
 SELECT count(*), 'REC_025'
