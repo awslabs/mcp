@@ -715,9 +715,16 @@ def test_main_with_valid_parameters(monkeypatch, capsys):
             'postgres',
             '--region',
             'us-west-2',
+            '--secret_arn',  # pragma: allowlist secret
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:test-secret',
         ],
     )
     monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+    # Stub the startup Secrets Manager probe so main() doesn't exit(1).
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
+        lambda secret_arn, region, is_test=False: ('test_user', 'test_password'),
+    )
 
     # Mock the connection so main can complete successfully
     mock_connection = Mock_DBConnection(readonly=False)
@@ -761,9 +768,16 @@ def test_main_with_invalid_parameters(monkeypatch, capsys):
             'postgres',
             '--region',
             'invalid',
+            '--secret_arn',  # pragma: allowlist secret
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:test-secret',
         ],
     )
     monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+    # Stub the startup Secrets Manager probe so main() doesn't exit(1).
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
+        lambda secret_arn, region, is_test=False: ('test_user', 'test_password'),
+    )
 
     # This test of main() will succeed in parsing parameters.
     # With mcp.run mocked, the server starts and stops without error.
@@ -825,9 +839,16 @@ def test_main_with_psycopg_parameters(monkeypatch, capsys):
             'postgres',
             '--region',
             'us-west-2',
+            '--secret_arn',  # pragma: allowlist secret
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:test-secret',
         ],
     )
     monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+    # Stub the startup Secrets Manager probe so main() doesn't exit(1).
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
+        lambda secret_arn, region, is_test=False: ('test_user', 'test_password'),
+    )
 
     # The key fix: patch the PsycopgPoolConnection.__init__ to set is_test=True
     original_init = PsycopgPoolConnection.__init__
@@ -954,6 +975,230 @@ def test_main_with_invalid_psycopg_parameters(monkeypatch, capsys):
     with pytest.raises(SystemExit) as excinfo:
         main()
     assert excinfo.value.code == 2  # argparse exits with code 2 for invalid arguments
+
+
+def test_main_exits_when_secret_arn_unreadable(monkeypatch, capsys):
+    """Server fails to start with a clear error when --secret_arn can't be read.
+
+    Simulates an operator who gives the correct CLI shape but whose AWS
+    principal lacks secretsmanager:GetSecretValue. main() must surface the
+    underlying error, log a clear startup-failure message, and exit(1)
+    before mcp.run() is ever reached.
+    """
+    import awslabs.postgres_mcp_server.server as server_module
+
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--region',
+            'us-west-2',
+            '--secret_arn',  # pragma: allowlist secret
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:unreadable',
+        ],
+    )
+
+    # mcp.run must not be called when startup validation fails.
+    mcp_run_called = {'count': 0}
+
+    def _fail_if_called():
+        mcp_run_called['count'] += 1
+
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', _fail_if_called)
+
+    def _raise_access_denied(secret_arn, region, is_test=False):
+        raise ValueError(
+            'Failed to retrieve credentials from Secrets Manager: AccessDeniedException'
+        )
+
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
+        _raise_access_denied,
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        server_module.main()
+
+    assert excinfo.value.code == 1
+    assert mcp_run_called['count'] == 0
+
+
+def test_main_verifies_secret_before_mcp_run(monkeypatch, capsys):
+    """Happy path: startup validation succeeds and mcp.run is invoked.
+
+    No --db_type is supplied (lazy-connect mode), so the only work done
+    between argument parsing and mcp.run is the secret-ARN verification.
+    """
+    import awslabs.postgres_mcp_server.server as server_module
+
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--region',
+            'us-west-2',
+            '--secret_arn',  # pragma: allowlist secret
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:readable',
+        ],
+    )
+
+    # Capture mcp.run invocation order.
+    call_order = []
+
+    def _record_run():
+        call_order.append('mcp.run')
+
+    def _record_secret(secret_arn, region, is_test=False):
+        call_order.append('get_credentials_from_secret')
+        return ('test_user', 'test_password')
+
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', _record_run)
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
+        _record_secret,
+    )
+
+    server_module.main()
+
+    # Verification must happen before mcp.run, not after.
+    assert call_order == ['get_credentials_from_secret', 'mcp.run']
+
+
+def test_main_skips_secret_probe_when_arg_omitted(monkeypatch, capsys):
+    """When --secret_arn is omitted, no Secrets Manager call is made at startup.
+
+    The cluster's managed secret will be discovered lazily on the first
+    connection attempt; there's nothing to probe at startup.
+    """
+    import awslabs.postgres_mcp_server.server as server_module
+
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--region',
+            'us-west-2',
+        ],
+    )
+
+    secret_probe_calls = {'count': 0}
+
+    def _record_secret(secret_arn, region, is_test=False):
+        secret_probe_calls['count'] += 1
+        return ('test_user', 'test_password')
+
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
+        _record_secret,
+    )
+
+    server_module.main()
+
+    # No --secret_arn → no probe.
+    assert secret_probe_calls['count'] == 0
+    # And the override map plus default ARN are both empty so the
+    # cluster-metadata fallback kicks in on the first connection attempt.
+    assert server_module.configured_secret_arns == {}
+    assert server_module.configured_default_secret_arn is None
+
+
+def test_main_parses_per_target_and_default_secret_arn(monkeypatch, capsys):
+    """Multiple --secret_arn flags populate the per-target map plus the default."""
+    import awslabs.postgres_mcp_server.server as server_module
+
+    cluster_a_arn = 'arn:aws:secretsmanager:us-west-2:123456789012:secret:cluster-a'  # pragma: allowlist secret
+    cluster_b_arn = 'arn:aws:secretsmanager:us-west-2:123456789012:secret:cluster-b'  # pragma: allowlist secret
+    instance_arn = 'arn:aws:secretsmanager:us-west-2:123456789012:secret:instance-x'  # pragma: allowlist secret
+    default_arn = (
+        'arn:aws:secretsmanager:us-west-2:123456789012:secret:default'  # pragma: allowlist secret
+    )
+
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--region',
+            'us-west-2',
+            '--secret_arn',
+            f'cluster-a={cluster_a_arn}',
+            '--secret_arn',
+            f'cluster-b={cluster_b_arn}',
+            '--secret_arn',
+            f'mydb-instance.abc.us-west-2.rds.amazonaws.com={instance_arn}',
+            '--secret_arn',
+            default_arn,
+        ],
+    )
+
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
+        lambda secret_arn, region, is_test=False: ('test_user', 'test_password'),
+    )
+
+    server_module.main()
+
+    assert server_module.configured_secret_arns == {
+        'cluster-a': cluster_a_arn,
+        'cluster-b': cluster_b_arn,
+        'mydb-instance.abc.us-west-2.rds.amazonaws.com': instance_arn,
+    }
+    assert server_module.configured_default_secret_arn == default_arn
+
+
+def test_main_rejects_two_default_secret_arns(monkeypatch, capsys):
+    """Two bare --secret_arn (no '=' separator) → exit 2."""
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--region',
+            'us-west-2',
+            '--secret_arn',
+            'arn:aws:secretsmanager:us-west-2:1:secret:default-a',
+            '--secret_arn',
+            'arn:aws:secretsmanager:us-west-2:1:secret:default-b',
+        ],
+    )
+
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+
+    with pytest.raises(SystemExit) as excinfo:
+        from awslabs.postgres_mcp_server.server import main as main_fn
+
+        main_fn()
+    assert excinfo.value.code == 2
+
+
+def test_main_rejects_duplicate_per_target_key(monkeypatch, capsys):
+    """Two --secret_arn entries with the same key → exit 2."""
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--region',
+            'us-west-2',
+            '--secret_arn',
+            'cluster-a=arn:aws:secretsmanager:us-west-2:1:secret:s1',
+            '--secret_arn',
+            'cluster-a=arn:aws:secretsmanager:us-west-2:1:secret:s2',
+        ],
+    )
+
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+
+    with pytest.raises(SystemExit) as excinfo:
+        from awslabs.postgres_mcp_server.server import main as main_fn
+
+        main_fn()
+    assert excinfo.value.code == 2
 
 
 # =============================================================================

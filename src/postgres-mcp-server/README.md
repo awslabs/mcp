@@ -157,7 +157,7 @@ The MCP server supports connecting to multiple database endpoints using differen
 
 ### AWS Authentication
 
-The MCP server uses the AWS profile specified in the `AWS_PROFILE` environment variable. If not provided, it defaults to the "default" profile in your AWS configuration file.
+The MCP server needs AWS credential to read database cluster or instance data, and to to create clusters or instances. These are control plane operations that are separate from Postgres operations (i.e. SELECT, CREATE etc). If you choose to use rdsapi connection method, the AWS credential must have the rds-data:ExecuteStatement permission on the Aurora cluster (see https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazonrdsdataapi.html). The MCP uses the AWS profile specified in the `AWS_PROFILE` environment variable. If not provided, it defaults to the "default" profile in your AWS configuration file.
 
 ```json
 "env": {
@@ -166,3 +166,71 @@ The MCP server uses the AWS profile specified in the `AWS_PROFILE` environment v
 ```
 
 Make sure the AWS profile has permissions to access the [RDS data API](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/data-api.html#data-api.access), and the secret from AWS Secrets Manager. The MCP server creates a boto3 session using the specified profile to authenticate with AWS services. Your AWS IAM credentials remain on your local machine and are strictly used for accessing AWS services.
+
+### Postgres Authentication
+
+The MCP server supports IAM and username/password methods for Postgres authentication. You must use AWS secret manager to store the credential and to specify the --secretManagerARN in MCP configuration file.
+
+
+### Security Consideration
+
+#### `--allow_write_query` read-only enforcement is best effort
+
+When the MCP server runs without `--allow_write_query`, it rejects queries that
+appear to mutate data or session state. This is implemented with a keyword and
+function blocklist (DML/DDL verbs such as `INSERT`/`UPDATE`/`DROP`, session-state
+statements such as `SET`/`RESET`/`DISCARD`/`LOAD`, anonymous code blocks `DO`,
+and high-impact functions such as `pg_terminate_backend`, `pg_sleep`, and the
+advisory-lock family).
+
+**Treat this as a best-effort, defense-in-depth mechanism, not a security
+boundary.** A blocklist cannot enumerate every dangerous construct, and a
+sufficiently creative query (obfuscation, quoted identifiers, new server/extension
+functions, etc.) may bypass it. Do not rely on it as your only control.
+
+#### Best practice: run the MCP server as a minimal-privilege Postgres role
+
+The strongest control is to connect the MCP server using a dedicated Postgres
+role that has only the privileges it actually needs, so that the database itself
+enforces the boundary regardless of what SQL reaches it. In particular:
+
+- **Do not** connect as a superuser, `rds_superuser`, or the cluster master user.
+  Those roles bypass row-level security, can read credential catalogs
+  (`pg_authid`, `pg_user_mappings`), and can terminate other sessions.
+- For read-only use, grant only `CONNECT` + `USAGE` + `SELECT` on the schemas the
+  agent needs, and force read-only transactions at the role level.
+- For read/write use, grant only the specific `INSERT`/`UPDATE`/`DELETE`
+  privileges required, scoped to the necessary schemas and tables.
+
+Combining a minimal-privilege role (database-enforced) with the blocklist
+(application-enforced) gives you defense in depth: even if a query slips past the
+blocklist, the role's privileges still bound what it can do.
+
+The following is an example read-only role:
+
+```sql
+-- Create a read-only role for Postgres MCP server
+CREATE ROLE postgres_mcp_server_readonly WITH LOGIN PASSWORD 'change-me'
+    NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+
+-- Allow connection and schema visibility for public schema
+-- TODO: add additional schema if required
+GRANT CONNECT ON DATABASE mydb TO postgres_mcp_server_readonly;
+GRANT USAGE ON SCHEMA public TO postgres_mcp_server_readonly;
+
+-- Read existing tables and sequences for public schema
+-- TODO: add additional schema if required
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO postgres_mcp_server_readonly;
+GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO postgres_mcp_server_readonly;
+
+-- Read future tables and sequences for public schema
+-- TODO: add additional schema if required
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+    GRANT SELECT ON TABLES TO postgres_mcp_server_readonly;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+    GRANT SELECT ON SEQUENCES TO postgres_mcp_server_readonly;
+
+-- Force read-only transactions
+ALTER ROLE postgres_mcp_server_readonly SET default_transaction_read_only = on;
+```
+
