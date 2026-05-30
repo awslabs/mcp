@@ -539,3 +539,329 @@ class TestSearchResultCache:
 
         test_query_id = get_query_id_from_cache('testurl4')
         assert test_query_id is None
+
+
+class TestSearchTableImpl:
+    """Tests for search_table_impl URL construction and tracking params."""
+
+    @pytest.mark.asyncio
+    async def test_url_includes_tracking_params(self):
+        """Test that search_table_impl appends tool, query, and section params to URL."""
+        from awslabs.aws_documentation_mcp_server.server_utils import search_table_impl
+
+        url = 'https://docs.aws.amazon.com/general/latest/gr/bedrock.html'
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = '<html><body><h2>Test Section</h2><table><thead><tr><th>Name</th><th>Value</th></tr></thead><tbody><tr><td>foo</td><td>bar</td></tr></tbody></table></body></html>'
+
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client_class.return_value = mock_client
+
+            await search_table_impl(ctx, url, 'Test Section', 'foo', 20, 'test-uuid')
+
+            called_url = mock_client.get.call_args[0][0]
+            assert 'session=test-uuid' in called_url
+            assert 'tool=search_table' in called_url
+            assert 'query=foo' in called_url
+            assert 'section=Test%20Section' in called_url
+
+    @pytest.mark.asyncio
+    async def test_url_without_section_title(self):
+        """Test that section param is omitted when section_title is empty."""
+        from awslabs.aws_documentation_mcp_server.server_utils import search_table_impl
+
+        url = 'https://docs.aws.amazon.com/general/latest/gr/bedrock.html'
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = '<html><body><table><thead><tr><th>Name</th></tr></thead><tbody><tr><td>foo</td></tr></tbody></table></body></html>'
+
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client_class.return_value = mock_client
+
+            await search_table_impl(ctx, url, '', 'foo', 20, 'test-uuid')
+
+            called_url = mock_client.get.call_args[0][0]
+            assert 'tool=search_table' in called_url
+            assert 'query=foo' in called_url
+            assert 'section=' not in called_url
+
+    @pytest.mark.asyncio
+    async def test_http_error(self):
+        """Test search_table_impl handles HTTP errors."""
+        from awslabs.aws_documentation_mcp_server.server_utils import search_table_impl
+
+        url = 'https://docs.aws.amazon.com/test.html'
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client.get = AsyncMock(side_effect=httpx.HTTPError('Connection error'))
+            mock_client_class.return_value = mock_client
+
+            result = await search_table_impl(ctx, url, 'Sec', 'query', 20, 'test-uuid')
+
+            assert result.tables_searched == 0
+            assert result.hint is not None
+            assert 'Failed to fetch' in result.hint
+            assert 'Connection error' in result.hint
+            ctx.error.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_http_status_error(self):
+        """Test search_table_impl handles 404 status codes."""
+        from awslabs.aws_documentation_mcp_server.server_utils import search_table_impl
+
+        url = 'https://docs.aws.amazon.com/test.html'
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 404
+
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client_class.return_value = mock_client
+
+            result = await search_table_impl(ctx, url, 'Sec', 'query', 20, 'test-uuid')
+
+            assert result.tables_searched == 0
+            assert result.hint is not None
+            assert 'Failed to fetch' in result.hint
+            assert 'status code 404' in result.hint
+
+    @pytest.mark.asyncio
+    async def test_no_tables_on_page(self):
+        """Test search_table_impl when page has no tables."""
+        from awslabs.aws_documentation_mcp_server.server_utils import search_table_impl
+
+        url = 'https://docs.aws.amazon.com/test.html'
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = '<html><body><h2>Section</h2><p>No tables here</p></body></html>'
+
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client_class.return_value = mock_client
+
+            result = await search_table_impl(ctx, url, '', 'query', 20, 'test-uuid')
+
+            assert result.tables_searched == 0
+            assert result.hint is not None
+            assert 'No tables found' in result.hint
+
+    @pytest.mark.asyncio
+    async def test_section_not_found(self):
+        """Test search_table_impl when section doesn't exist."""
+        from awslabs.aws_documentation_mcp_server.server_utils import search_table_impl
+
+        url = 'https://docs.aws.amazon.com/test.html'
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = '<html><body><h2>Real Section</h2><table><thead><tr><th>A</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table></body></html>'
+
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client_class.return_value = mock_client
+
+            result = await search_table_impl(
+                ctx, url, 'Nonexistent Section', 'query', 20, 'test-uuid'
+            )
+
+            assert result.tables_searched == 0
+            assert result.hint is not None
+            assert 'not found' in result.hint
+            assert 'Real Section' in result.hint
+
+    @pytest.mark.asyncio
+    async def test_successful_match(self):
+        """Test search_table_impl returns matching rows."""
+        from awslabs.aws_documentation_mcp_server.server_utils import search_table_impl
+
+        url = 'https://docs.aws.amazon.com/test.html'
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = """<html><body><h2>Quotas</h2><table>
+        <thead><tr><th>Name</th><th>Value</th></tr></thead>
+        <tbody>
+            <tr><td>Titan requests</td><td>6000</td></tr>
+            <tr><td>Claude requests</td><td>500</td></tr>
+            <tr><td>Titan tokens</td><td>300000</td></tr>
+        </tbody></table></body></html>"""
+
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client_class.return_value = mock_client
+
+            result = await search_table_impl(ctx, url, 'Quotas', 'Titan', 20, 'test-uuid')
+
+            assert result.tables_searched == 1
+            assert result.tables_with_matches == 1
+            assert len(result.results) == 1
+            assert result.results[0].matched_rows == 2
+            assert result.hint is None
+
+    @pytest.mark.asyncio
+    async def test_no_matches_returns_hint(self):
+        """Test search_table_impl returns hint when no rows match."""
+        from awslabs.aws_documentation_mcp_server.server_utils import search_table_impl
+
+        url = 'https://docs.aws.amazon.com/test.html'
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = """<html><body><h2>Quotas</h2><table>
+        <thead><tr><th>Name</th><th>Value</th></tr></thead>
+        <tbody><tr><td>foo</td><td>bar</td></tr></tbody></table></body></html>"""
+
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client_class.return_value = mock_client
+
+            result = await search_table_impl(ctx, url, 'Quotas', 'nonexistent', 20, 'test-uuid')
+
+            assert result.tables_with_matches == 0
+            assert result.results == []
+            assert result.hint is not None
+            assert 'No rows matched' in result.hint
+
+    @pytest.mark.asyncio
+    async def test_multi_table_response(self):
+        """Test search_table_impl with multiple tables in a section."""
+        from awslabs.aws_documentation_mcp_server.server_utils import search_table_impl
+
+        url = 'https://docs.aws.amazon.com/test.html'
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = """<html><body>
+        <h2>Service quotas</h2>
+        <h3>EC2</h3>
+        <table><thead><tr><th>Name</th><th>Default</th></tr></thead>
+        <tbody><tr><td>Instances</td><td>100</td></tr></tbody></table>
+        <h3>Lambda</h3>
+        <table><thead><tr><th>Name</th><th>Default</th></tr></thead>
+        <tbody><tr><td>Functions</td><td>1000</td></tr></tbody></table>
+        </body></html>"""
+
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client_class.return_value = mock_client
+
+            result = await search_table_impl(
+                ctx, url, 'Service quotas', 'Instances', 20, 'test-uuid'
+            )
+
+            assert result.tables_searched == 2
+            assert result.tables_with_matches == 1
+            assert result.results[0].matched_rows == 1
+
+    @pytest.mark.asyncio
+    async def test_query_id_from_cache(self):
+        """Test search_table_impl appends query_id when URL is in cache."""
+        from awslabs.aws_documentation_mcp_server.server_utils import search_table_impl
+
+        url = 'https://docs.aws.amazon.com/test.html'
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+
+        SEARCH_RESULT_CACHE.clear()
+        add_search_result_cache_item(
+            SearchResponse(
+                search_results=[SearchResult(rank_order=1, title='test', url=url)],
+                facets={},
+                query_id='cached-query-id',
+            )
+        )
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = '<html><body><h2>Sec</h2><table><thead><tr><th>A</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table></body></html>'
+
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client_class.return_value = mock_client
+
+            await search_table_impl(ctx, url, 'Sec', 'query', 20, 'test-uuid')
+
+            called_url = mock_client.get.call_args[0][0]
+            assert 'query_id=cached-query-id' in called_url
+
+    @pytest.mark.asyncio
+    async def test_empty_section_title_treated_as_none(self):
+        """Test that empty string section_title searches all tables."""
+        from awslabs.aws_documentation_mcp_server.server_utils import search_table_impl
+
+        url = 'https://docs.aws.amazon.com/test.html'
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = """<html><body>
+        <h2>Sec</h2>
+        <table><thead><tr><th>Name</th></tr></thead>
+        <tbody><tr><td>foo</td></tr></tbody></table>
+        </body></html>"""
+
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client_class.return_value = mock_client
+
+            result = await search_table_impl(ctx, url, '', 'foo', 20, 'test-uuid')
+
+            assert result.tables_searched == 1
+            assert result.tables_with_matches == 1

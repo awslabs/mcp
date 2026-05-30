@@ -13,12 +13,17 @@
 # limitations under the License.
 import httpx
 import os
-from awslabs.aws_documentation_mcp_server.models import SearchResponse
+from awslabs.aws_documentation_mcp_server.models import (
+    SearchResponse,
+    SearchTableResponse,
+    TableResult,
+)
 from awslabs.aws_documentation_mcp_server.util import (
     extract_content_from_html,
     extract_sections_from_html,
     format_documentation_result,
     is_html_content,
+    truncate_large_tables,
 )
 from collections import deque
 from importlib.metadata import version
@@ -89,6 +94,7 @@ async def read_documentation_impl(
 
     if is_html_content(page_raw, content_type):
         content = extract_content_from_html(page_raw)
+        content = truncate_large_tables(content, url=url_str)
     else:
         content = page_raw
 
@@ -202,6 +208,7 @@ async def read_sections_impl(
 
     try:
         markdown = extract_content_from_html(filtered_content)
+        markdown = truncate_large_tables(markdown, url=url_str)
 
         # detect tagged error responses
         if markdown.startswith('<e>') and markdown.endswith('</e>'):
@@ -216,3 +223,138 @@ async def read_sections_impl(
         raise
 
     return markdown
+
+
+async def search_table_impl(
+    ctx: Context,
+    url_str: str,
+    section_title: str,
+    query: str,
+    max_rows: int,
+    session_uuid: str,
+) -> SearchTableResponse:
+    """The implementation of the search_table tool."""
+    from awslabs.aws_documentation_mcp_server.table_utils import (
+        filter_table_rows,
+        parse_html_tables,
+    )
+
+    logger.debug(f'Searching tables in section "{section_title}" of {url_str} for "{query}"')
+
+    url_with_session = (
+        f'{url_str}?session={session_uuid}&tool=search_table&query={quote(query, safe="")}'
+    )
+    if section_title:
+        url_with_session += f'&section={quote(section_title, safe="")}'
+
+    query_id = get_query_id_from_cache(url_str)
+    if query_id:
+        url_with_session += f'&query_id={query_id}'
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(
+                url_with_session,
+                follow_redirects=True,
+                headers={
+                    'User-Agent': DEFAULT_USER_AGENT,
+                    'X-MCP-Session-Id': session_uuid,
+                },
+                timeout=30,
+            )
+        except httpx.HTTPError as e:
+            error_msg = f'Failed to fetch {url_str}: {str(e)}'
+            logger.error(error_msg)
+            await ctx.error(error_msg)
+            return SearchTableResponse(
+                url=url_str,
+                section_title=section_title or '',
+                query=query,
+                tables_searched=0,
+                tables_with_matches=0,
+                results=[],
+                hint=error_msg,
+            )
+
+        if response.status_code >= 400:
+            error_msg = f'Failed to fetch {url_str} - status code {response.status_code}'
+            logger.error(error_msg)
+            await ctx.error(error_msg)
+            return SearchTableResponse(
+                url=url_str,
+                section_title=section_title or '',
+                query=query,
+                tables_searched=0,
+                tables_with_matches=0,
+                results=[],
+                hint=error_msg,
+            )
+
+        page_raw = response.text
+
+    table_data = parse_html_tables(page_raw, section_title if section_title else None)
+
+    if table_data is None:
+        return SearchTableResponse(
+            url=url_str,
+            section_title=section_title or '',
+            query=query,
+            tables_searched=0,
+            tables_with_matches=0,
+            results=[],
+            hint='No tables found on this page.',
+        )
+
+    if 'error' in table_data:
+        sections_list = ', '.join(f'"{s}"' for s in table_data.get('available_sections', []))
+        return SearchTableResponse(
+            url=url_str,
+            section_title=section_title or '',
+            query=query,
+            tables_searched=0,
+            tables_with_matches=0,
+            results=[],
+            hint=f'{table_data["error"]}. Available sections: {sections_list}',
+        )
+
+    # Handle multi-table response (multiple tables in section or page)
+    if 'tables' in table_data:
+        tables_list = table_data['tables']
+        detected_section = table_data.get('detected_section')
+    else:
+        # Single table — wrap it in the same format
+        tables_list = [table_data]
+        detected_section = table_data.get('detected_section')
+
+    effective_section = section_title or detected_section or '(all tables)'
+    results_per_table = []
+    for t in tables_list:
+        matches = filter_table_rows(t['rows'], query)
+        if matches:
+            results_per_table.append(
+                TableResult(
+                    table_heading=t.get('table_heading'),
+                    columns=t['columns'],
+                    total_rows=len(t['rows']),
+                    matched_rows=len(matches),
+                    showing=min(len(matches), max_rows),
+                    rows=matches[:max_rows],
+                )
+            )
+
+    hint = None
+    if not results_per_table:
+        hint = (
+            'No rows matched all query words. Try fewer or broader terms, '
+            'or check spelling. Each word must appear somewhere in the row.'
+        )
+
+    return SearchTableResponse(
+        url=url_str,
+        section_title=effective_section,
+        query=query,
+        tables_searched=len(tables_list),
+        tables_with_matches=len(results_per_table),
+        results=results_per_table,
+        hint=hint,
+    )

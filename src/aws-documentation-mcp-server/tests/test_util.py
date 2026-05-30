@@ -243,6 +243,24 @@ class TestExtractContentFromHtml:
             assert '<e>' in result
             mock_bs.assert_called_once()
 
+    def test_extract_content_exception_during_conversion(self):
+        """Test that exceptions during markdownify are caught and returned as error."""
+        html = '<html><body><p>Test</p></body></html>'
+        with patch('markdownify.markdownify', side_effect=Exception('conversion failed')):
+            result = extract_content_from_html(html)
+            assert '<e>Error converting HTML to Markdown: conversion failed</e>' == result
+
+
+class TestFormatDocumentationResultEdgeCases:
+    """Tests for edge cases in format_documentation_result."""
+
+    def test_zero_max_length_returns_no_content(self):
+        """When max_length is 0, truncated_content is empty, returns no-content message."""
+        url = 'https://docs.aws.amazon.com/test'
+        content = 'Some content here'
+        result = format_documentation_result(url, content, 0, 0)
+        assert '<e>No more content available.</e>' in result
+
 
 class TestParseRecommendationResults:
     """Tests for parse_recommendation_results function."""

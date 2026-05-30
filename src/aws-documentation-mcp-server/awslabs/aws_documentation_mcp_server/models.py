@@ -14,7 +14,7 @@
 """Data models for AWS Documentation MCP Server."""
 
 from pydantic import BaseModel
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 class SearchResult(BaseModel):
@@ -41,3 +41,26 @@ class RecommendationResult(BaseModel):
     url: str
     title: str
     context: Optional[str] = None
+
+
+class TableResult(BaseModel):
+    """A single table's filtered results."""
+
+    table_heading: Optional[str] = None
+    columns: List[str]
+    total_rows: int
+    matched_rows: int
+    showing: int
+    rows: List[Dict[str, Any]]
+
+
+class SearchTableResponse(BaseModel):
+    """Response from the search_table tool."""
+
+    url: str
+    section_title: str
+    query: str
+    tables_searched: int
+    tables_with_matches: int
+    results: List[TableResult]
+    hint: Optional[str] = None
