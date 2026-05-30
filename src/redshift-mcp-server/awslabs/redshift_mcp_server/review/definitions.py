@@ -237,15 +237,6 @@ Even though a filter may be redundant, the query planner can skip scanning large
 See also:
 - https://docs.aws.amazon.com/redshift/latest/dg/c_designing-queries-best-practices.html
 """,
-    'REC_025': """\
-## To reduce compile overhead, avoid drop/create operations in favor of delete/copy/insert
-
-High compile count can be caused by queries executed against new tables.
-
-See also:
-- https://docs.aws.amazon.com/redshift/latest/dg/c-query-performance.html
-- https://aws.amazon.com/blogs/big-data/fast-and-predictable-performance-with-serverless-compilation-using-amazon-redshift/
-""",
     'REC_026': """\
 ## For additional scalability, isolate your workloads using data sharing
 
@@ -988,16 +979,6 @@ SELECT count(*), 'REC_029'
 FROM data
 WHERE small_insert_count > 100
 UNION ALL
--- Signal: high count of DDL command
-SELECT count(*), 'REC_025'
-FROM data
-WHERE ddl_count > 10
-UNION ALL
--- Signal: high count of CTAS command
-SELECT count(*), 'REC_025'
-FROM data
-WHERE ctas_count > 10
-UNION ALL
 -- Signal: high count of WLM queuing
 SELECT count(*), 'REC_019'
 FROM data
@@ -1027,11 +1008,6 @@ UNION ALL
 SELECT count(*), 'REC_024'
 FROM data
 WHERE total_disk_spill_count > 100
-UNION ALL
--- Signal: high count of compiled
-SELECT count(*), 'REC_025'
-FROM data
-WHERE compiled_queries > 100
 UNION ALL
 -- Signal: high concurrency scaling usage
 SELECT count(*), 'REC_033'
