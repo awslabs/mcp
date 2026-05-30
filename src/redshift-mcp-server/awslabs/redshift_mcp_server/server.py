@@ -37,6 +37,8 @@ from awslabs.redshift_mcp_server.redshift import (
     discover_tables,
     execute_query,
 )
+from awslabs.redshift_mcp_server.review.executor import review_cluster
+from awslabs.redshift_mcp_server.review.models import ReviewResult
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
@@ -82,6 +84,11 @@ This tool queries the SVV_ALL_COLUMNS system view to discover available columns.
 ### execute_query
 Executes SQL queries against a Redshift cluster or serverless workgroup.
 This tool uses the Redshift Data API to run queries and return results.
+
+### review_cluster
+Runs a diagnostic review of a Redshift cluster or serverless workgroup.
+Returns identified potential issues and respective recommendations ordered by required mitigation effort.
+Requires superuser privileges.
 
 ## Getting Started
 
@@ -620,6 +627,86 @@ async def execute_query_tool(
         await ctx.error(
             f'Failed to execute query on cluster {cluster_identifier} in database {database_name}: {str(e)}'
         )
+        raise
+
+
+@mcp.tool(name='review_cluster')
+async def review_cluster_tool(
+    ctx: Context,
+    cluster_identifier: str = Field(
+        ...,
+        description='The cluster identifier to run the review on. Must be a valid cluster identifier from the list_clusters tool.',
+    ),
+    database_name: str = Field(
+        'dev',
+        description='The database to connect to for querying system views. Defaults to "dev".',
+    ),
+) -> ReviewResult:
+    """Run a diagnostic review of a Redshift cluster or serverless workgroup.
+
+    Returns identified potential issues and respective recommendations
+    ordered by required mitigation effort.
+
+    ## Usage Requirements
+
+    - Ensure your AWS credentials are properly configured (via AWS_PROFILE or default credentials).
+    - The cluster must be available and accessible.
+    - Required IAM permissions: redshift-data:ExecuteStatement, redshift-data:DescribeStatement, redshift-data:GetStatementResult.
+    - The connected user must have superuser privileges to access the required system views.
+
+    ## Parameters
+
+    - cluster_identifier: The unique identifier of the Redshift cluster to review.
+                         IMPORTANT: Use a valid cluster identifier from the list_clusters tool.
+    - database_name: The database to connect to for querying system views. Defaults to "dev".
+
+    ## Response Structure
+
+    Returns a ReviewResult object with the following structure:
+
+    - signals_evaluated: Total number of diagnostic signals evaluated.
+    - findings: List of triggered findings, each containing:
+        - signal_name: Name of the signal that was triggered.
+        - section: The diagnostic query section this finding belongs to.
+        - affected_row_count: Number of rows matching the signal criteria.
+        - recommendation_ids: List of recommendation IDs associated with this finding.
+    - recommendations: Deduplicated list of recommendations ordered by effort, each containing:
+        - id: Unique identifier for the recommendation.
+        - text: Markdown text with description and documentation links.
+        - triggered_by_signals: Names of signals that triggered this recommendation.
+    - queries_executed: Names of diagnostic queries that were executed.
+
+    ## Usage Tips
+
+    1. First use list_clusters to get valid cluster identifiers.
+    2. Then use list_databases to get valid database names for the cluster.
+    3. Ensure the cluster status is 'available' before running the review.
+    4. Provisioned-only diagnostics are automatically skipped for serverless workgroups.
+    5. Review runs read-only diagnostic queries against system views and tables.
+
+    ## Interpretation Best Practices
+
+    1. Focus on findings with the highest affected_row_count first.
+    2. Each recommendation includes documentation links — always follow these links for detailed guidance.
+    3. Use triggered_by_signals to understand which diagnostics surfaced each recommendation.
+    4. A review with zero findings indicates the cluster is healthy across all evaluated signals.
+    """
+    try:
+        logger.info(f'Running review on cluster {cluster_identifier}, database {database_name}')
+
+        result = await review_cluster(
+            cluster_identifier=cluster_identifier,
+            execute_query_func=execute_query,
+            discover_clusters_func=discover_clusters,
+            database_name=database_name,
+            progress_reporter_func=ctx.report_progress,
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error(f'Error in review_cluster_tool: {str(e)}')
+        await ctx.error(f'Failed to review cluster {cluster_identifier}: {str(e)}')
         raise
 
 
