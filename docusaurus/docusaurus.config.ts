@@ -34,7 +34,14 @@ const config: Config = {
   },
 
   // Add plugins
-  plugins: [],
+  plugins: [
+    [
+      require.resolve("@cmfcmf/docusaurus-search-local"),
+      {
+        indexDocs: true,
+      },
+    ],
+  ],
 
   // Add scripts to be loaded in the client
   scripts: [],
