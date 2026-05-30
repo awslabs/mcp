@@ -218,3 +218,27 @@ async def test_get_metric_statistics_engine_cpu_utilization():
             'Label': 'EngineCPUUtilization',
             'Datapoints': mock_response['Datapoints'],
         }
+
+
+@pytest.mark.asyncio
+async def test_get_metric_statistics_works_in_readonly_mode():
+    """Test that get_metric_statistics works in readonly mode."""
+    from awslabs.elasticache_mcp_server.context import Context
+
+    mock_client = MagicMock()
+    mock_client.get_metric_statistics.return_value = {'Datapoints': []}
+    with (
+        patch.object(Context, 'readonly_mode', return_value=True),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.CloudWatchConnectionManager.get_connection',
+            return_value=mock_client,
+        ),
+    ):
+        result = await get_metric_statistics(
+            metric_name='CPUUtilization',
+            start_time='2026-01-01T00:00:00Z',
+            end_time='2026-01-02T00:00:00Z',
+            period=300,
+            statistics=['Average'],
+        )
+        assert 'error' not in result

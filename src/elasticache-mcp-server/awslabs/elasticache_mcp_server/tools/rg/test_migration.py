@@ -15,7 +15,7 @@
 """Test migration tool for ElastiCache MCP server."""
 
 from ...common.connection import ElastiCacheConnectionManager
-from ...common.decorators import handle_exceptions
+from ...common.decorators import handle_exceptions, readonly_safe
 from ...common.server import mcp
 from pydantic import BaseModel, ConfigDict, Field
 from typing import Any, Dict, List, Union
@@ -112,6 +112,7 @@ def prepare_request_dict(request: MigrationTestRequest) -> Dict[str, Any]:
 
 @mcp.tool(name='test-migration')
 @handle_exceptions
+@readonly_safe
 async def test_migration(request: MigrationTestRequest) -> Dict:
     """Test migration to an Amazon ElastiCache replication group.
 

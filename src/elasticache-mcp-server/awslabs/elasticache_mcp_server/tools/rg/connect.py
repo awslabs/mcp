@@ -15,7 +15,7 @@
 """Connect module for creating and configuring jump host EC2 instances to access ElastiCache replication groups."""
 
 from ...common.connection import EC2ConnectionManager, ElastiCacheConnectionManager
-from ...common.decorators import handle_exceptions
+from ...common.decorators import handle_exceptions, readonly_safe
 from ...common.server import mcp
 from ...context import Context
 from botocore.exceptions import ClientError
@@ -200,6 +200,7 @@ async def connect_jump_host_rg(replication_group_id: str, instance_id: str) -> D
 
 @mcp.tool(name='get-ssh-tunnel-command-replication-group')
 @handle_exceptions
+@readonly_safe
 async def get_ssh_tunnel_command_rg(
     replication_group_id: str, instance_id: str
 ) -> Dict[str, Union[str, int]]:

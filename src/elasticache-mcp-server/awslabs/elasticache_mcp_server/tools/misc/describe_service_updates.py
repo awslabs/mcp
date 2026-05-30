@@ -15,13 +15,14 @@
 """Describe service updates tool for ElastiCache MCP server."""
 
 from ...common.connection import ElastiCacheConnectionManager
-from ...common.decorators import handle_exceptions
+from ...common.decorators import handle_exceptions, readonly_safe
 from ...common.server import mcp
 from typing import Dict, List, Optional
 
 
 @mcp.tool(name='describe-service-updates')
 @handle_exceptions
+@readonly_safe
 async def describe_service_updates(
     service_update_name: Optional[str] = None,
     service_update_status: Optional[List[str]] = None,

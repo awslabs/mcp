@@ -15,13 +15,14 @@
 """Tool for describing CloudWatch Logs log streams."""
 
 from ...common.connection import CloudWatchLogsConnectionManager
-from ...common.decorators import handle_exceptions
+from ...common.decorators import handle_exceptions, readonly_safe
 from ...common.server import mcp
 from typing import Any, Dict, Optional
 
 
 @mcp.tool(name='describe-log-streams')
 @handle_exceptions
+@readonly_safe
 async def describe_log_streams(
     log_group_name: Optional[str] = None,
     log_group_identifier: Optional[str] = None,

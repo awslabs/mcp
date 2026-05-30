@@ -15,13 +15,14 @@
 """Describe cache clusters tool for ElastiCache MCP server."""
 
 from ...common.connection import ElastiCacheConnectionManager
-from ...common.decorators import handle_exceptions
+from ...common.decorators import handle_exceptions, readonly_safe
 from ...common.server import mcp
 from typing import Dict, Optional
 
 
 @mcp.tool(name='describe-cache-clusters')
 @handle_exceptions
+@readonly_safe
 async def describe_cache_clusters(
     cache_cluster_id: Optional[str] = None,
     max_records: Optional[int] = None,

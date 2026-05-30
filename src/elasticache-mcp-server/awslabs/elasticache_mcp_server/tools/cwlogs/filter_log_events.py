@@ -15,7 +15,7 @@
 """Tool for filtering log events from CloudWatch Logs."""
 
 from ...common.connection import CloudWatchLogsConnectionManager
-from ...common.decorators import handle_exceptions
+from ...common.decorators import handle_exceptions, readonly_safe
 from ...common.server import mcp
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -23,6 +23,7 @@ from typing import Any, Dict, List, Optional
 
 @mcp.tool(name='filter-log-events')
 @handle_exceptions
+@readonly_safe
 async def filter_log_events(
     log_group_name: Optional[str] = None,
     log_group_identifier: Optional[str] = None,

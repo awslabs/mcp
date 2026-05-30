@@ -15,7 +15,7 @@
 """Connect module for creating and configuring jump host EC2 instances to access ElastiCache serverless caches."""
 
 from ...common.connection import EC2ConnectionManager, ElastiCacheConnectionManager
-from ...common.decorators import handle_exceptions
+from ...common.decorators import handle_exceptions, readonly_safe
 from ...common.server import mcp
 from ...context import Context
 from botocore.exceptions import ClientError
@@ -186,6 +186,7 @@ async def connect_jump_host_serverless(
 
 @mcp.tool(name='get-ssh-tunnel-command-serverless-cache')
 @handle_exceptions
+@readonly_safe
 async def get_ssh_tunnel_command_serverless(
     serverless_cache_name: str, instance_id: str
 ) -> Dict[str, Union[str, int]]:

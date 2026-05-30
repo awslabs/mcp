@@ -201,3 +201,21 @@ async def test_describe_events_invalid_parameter_combination():
         result = await describe_events(duration=60, start_time=datetime(2025, 1, 1, 12, 0, 0))
         assert 'error' in result
         assert error_message in result['error']
+
+
+@pytest.mark.asyncio
+async def test_describe_events_works_in_readonly_mode():
+    """Test that describe_events works in readonly mode."""
+    from awslabs.elasticache_mcp_server.context import Context
+
+    mock_client = MagicMock()
+    mock_client.describe_events.return_value = {'Events': []}
+    with (
+        patch.object(Context, 'readonly_mode', return_value=True),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+            return_value=mock_client,
+        ),
+    ):
+        result = await describe_events()
+        assert 'error' not in result

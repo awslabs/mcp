@@ -1,6 +1,7 @@
 """Tests for the create serverless tool."""
 
 import pytest  # type: ignore
+from awslabs.elasticache_mcp_server.context import Context
 from awslabs.elasticache_mcp_server.tools.serverless.create import create_serverless_cache
 from awslabs.elasticache_mcp_server.tools.serverless.models import (
     CacheUsageLimits,
@@ -10,6 +11,30 @@ from awslabs.elasticache_mcp_server.tools.serverless.models import (
     Tag,
 )
 from unittest.mock import MagicMock, patch
+
+
+@pytest.mark.asyncio
+async def test_create_serverless_cache_readonly_mode():
+    """Test creating a serverless cache in readonly mode."""
+    with patch.object(Context, 'readonly_mode', return_value=True):
+        request = CreateServerlessCacheRequest(
+            serverless_cache_name='test-cache',
+            engine='redis',
+            description=None,
+            kms_key_id=None,
+            major_engine_version=None,
+            snapshot_arns_to_restore=None,
+            subnet_ids=None,
+            tags=None,
+            security_group_ids=None,
+            cache_usage_limits=None,
+            user_group_id=None,
+            snapshot_retention_limit=None,
+            daily_snapshot_time=None,
+        )
+        result = await create_serverless_cache(request)
+        assert 'error' in result
+        assert 'readonly mode' in result['error']
 
 
 @pytest.mark.asyncio

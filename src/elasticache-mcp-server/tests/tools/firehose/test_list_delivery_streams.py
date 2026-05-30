@@ -166,3 +166,22 @@ async def test_list_delivery_streams_missing_fields():
         # Verify response with default values
         assert result['DeliveryStreamNames'] == []
         assert result['HasMoreDeliveryStreams'] is False
+
+
+@pytest.mark.asyncio
+async def test_list_delivery_streams_works_in_readonly_mode():
+    """Test that list_delivery_streams works in readonly mode."""
+    from awslabs.elasticache_mcp_server.context import Context
+    from unittest.mock import MagicMock, patch
+
+    mock_client = MagicMock()
+    mock_client.list_delivery_streams.return_value = {'DeliveryStreamNames': []}
+    with (
+        patch.object(Context, 'readonly_mode', return_value=True),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.FirehoseConnectionManager.get_connection',
+            return_value=mock_client,
+        ),
+    ):
+        result = await list_delivery_streams()
+        assert 'error' not in result

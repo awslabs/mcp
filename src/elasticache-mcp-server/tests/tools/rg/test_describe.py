@@ -120,3 +120,25 @@ async def test_describe_replication_groups_invalid_parameter():
 
         assert 'error' in result
         assert error_message in result['error']
+
+
+@pytest.mark.asyncio
+async def test_describe_replication_groups_works_in_readonly_mode():
+    """Test that describe works even when readonly mode is enabled."""
+    from awslabs.elasticache_mcp_server.context import Context
+
+    mock_client = MagicMock()
+    mock_client.describe_replication_groups.return_value = {
+        'ReplicationGroups': [{'ReplicationGroupId': 'test-rg'}]
+    }
+
+    with (
+        patch.object(Context, 'readonly_mode', return_value=True),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+            return_value=mock_client,
+        ),
+    ):
+        result = await describe_replication_groups()
+        assert 'error' not in result
+        assert 'ReplicationGroups' in result

@@ -15,13 +15,14 @@
 """Describe serverless cache operations."""
 
 from ...common.connection import ElastiCacheConnectionManager
-from ...common.decorators import handle_exceptions
+from ...common.decorators import handle_exceptions, readonly_safe
 from ...common.server import mcp
 from typing import Dict, Optional
 
 
 @mcp.tool(name='describe-serverless-caches')
 @handle_exceptions
+@readonly_safe
 async def describe_serverless_caches(
     serverless_cache_name: Optional[str] = None,
     max_items: Optional[int] = None,

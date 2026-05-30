@@ -823,3 +823,53 @@ async def test_create_jump_host_cc_general_exception():
 
         assert 'error' in result
         assert 'General error' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_get_ssh_tunnel_command_cc_works_in_readonly_mode():
+    """Test that get_ssh_tunnel_command works in readonly mode."""
+    from awslabs.elasticache_mcp_server.context import Context
+    from awslabs.elasticache_mcp_server.tools.cc.connect import get_ssh_tunnel_command_cc
+    from unittest.mock import MagicMock, patch
+
+    mock_ec2 = MagicMock()
+    mock_ec2.describe_instances.return_value = {
+        'Reservations': [
+            {
+                'Instances': [
+                    {
+                        'KeyName': 'mykey',
+                        'PublicDnsName': 'ec2.example.com',
+                        'Platform': '',
+                        'ImageId': 'ami-123',
+                    }
+                ]
+            }
+        ]
+    }
+    mock_elasticache = MagicMock()
+    mock_elasticache.describe_cache_clusters.return_value = {
+        'CacheClusters': [
+            {
+                'CacheNodes': [{'Endpoint': {'Address': 'cache.example.com', 'Port': 6379}}],
+                'Engine': 'redis',
+            }
+        ]
+    }
+
+    with (
+        patch.object(Context, 'readonly_mode', return_value=True),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.EC2ConnectionManager.get_connection',
+            return_value=mock_ec2,
+        ),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+            return_value=mock_elasticache,
+        ),
+    ):
+        result = await get_ssh_tunnel_command_cc(
+            cache_cluster_id='test-cluster', instance_id='i-123'
+        )
+        assert 'error' not in result
+        assert 'command' in result

@@ -709,3 +709,52 @@ async def test_connect_jump_host_serverless_no_subnet_ids():
         # Should fail with appropriate error message
         assert 'error' in result
         assert 'No subnet IDs found for serverless cache cache-1' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_get_ssh_tunnel_command_serverless_works_in_readonly_mode():
+    """Test that get_ssh_tunnel_command works in readonly mode."""
+    from awslabs.elasticache_mcp_server.context import Context
+    from awslabs.elasticache_mcp_server.tools.serverless.connect import (
+        get_ssh_tunnel_command_serverless,
+    )
+    from unittest.mock import MagicMock, patch
+
+    mock_ec2 = MagicMock()
+    mock_ec2.describe_instances.return_value = {
+        'Reservations': [
+            {
+                'Instances': [
+                    {
+                        'KeyName': 'mykey',
+                        'PublicDnsName': 'ec2.example.com',
+                        'Platform': '',
+                        'ImageId': 'ami-123',
+                    }
+                ]
+            }
+        ]
+    }
+    mock_elasticache = MagicMock()
+    mock_elasticache.describe_serverless_caches.return_value = {
+        'ServerlessCaches': [
+            {'Endpoint': {'Address': 'cache.example.com', 'Port': 6379}, 'Engine': 'redis'}
+        ]
+    }
+
+    with (
+        patch.object(Context, 'readonly_mode', return_value=True),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.EC2ConnectionManager.get_connection',
+            return_value=mock_ec2,
+        ),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+            return_value=mock_elasticache,
+        ),
+    ):
+        result = await get_ssh_tunnel_command_serverless(
+            serverless_cache_name='test-cache', instance_id='i-123'
+        )
+        assert 'error' not in result
+        assert 'command' in result

@@ -210,3 +210,25 @@ class TestGetCostAndUsage:
         response = await get_cost_and_usage(request)
         assert 'error' in response
         assert error_message in response['error']
+
+
+@pytest.mark.asyncio
+async def test_get_cost_and_usage_works_in_readonly_mode():
+    """Test that get_cost_and_usage works in readonly mode."""
+    from awslabs.elasticache_mcp_server.context import Context
+
+    mock_client = MagicMock()
+    mock_client.get_cost_and_usage.return_value = {'ResultsByTime': []}
+    with (
+        patch.object(Context, 'readonly_mode', return_value=True),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.CostExplorerConnectionManager.get_connection',
+            return_value=mock_client,
+        ),
+    ):
+        request = GetCostAndUsageRequest(
+            time_period='2026-01-01/2026-01-31',
+            granularity='MONTHLY',
+        )
+        result = await get_cost_and_usage(request)
+        assert 'error' not in result
