@@ -15,7 +15,7 @@
 """Tool for getting CloudWatch metric statistics."""
 
 from ...common.connection import CloudWatchConnectionManager
-from ...common.decorators import handle_exceptions
+from ...common.decorators import handle_exceptions, readonly_safe
 from ...common.server import mcp
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -23,6 +23,7 @@ from typing import Any, Dict, List, Optional
 
 @mcp.tool(name='get-metric-statistics')
 @handle_exceptions
+@readonly_safe
 async def get_metric_statistics(
     metric_name: str,
     start_time: str,
