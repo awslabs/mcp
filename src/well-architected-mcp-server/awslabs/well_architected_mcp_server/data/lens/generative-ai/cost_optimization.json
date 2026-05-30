@@ -1,0 +1,275 @@
+[
+  {
+    "area": [
+      "Model selection and cost optimization"
+    ],
+    "benefits": "Measure overall efficiency - It is helpful to understand inference and hosting costs associated with the performance requirements of foundation model.",
+    "description": "Foundation model costs vary greatly across the various foundation model providers, model families and sizes, and model hosting paradigms. It can be advantageous to use cost as a factor when selecting models. Understand the models available to you, as well as the requirements of your workload, to make an informed, cost-aware decision. Foundation models have several cost-dimensions, some of which change depending on the hosting paradigm (managed or self-hosted). When optimizing for cost, consider testing with a smaller model first, and gradually increase model size and capabilities until an acceptable model is selected.",
+    "desired_outcome": [
+      "When implemented, this best practice helps you manage spend on foundation model inference without guessing at the capacity requirements for a foundation model."
+    ],
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gencost01-bp01.html",
+    "id": "GENCOST01-BP01",
+    "implementation_guidance": [
+      "Identify the minimum performance requirements for a foundation model.",
+      "Determine the models available which meet that minimum performance bar.",
+      "Select the most cost-efficient model based on the prioritized cost dimensions (like hosting paradigm, model size, or token cost).",
+      "Continuously evaluate model selection to validate the highest performance is being achieved at the lowest possible price-point."
+    ],
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice helps you manage spend on foundation model inference without guessing at the capacity requirements for a foundation model.",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [
+      "COST02-BP01",
+      "COST02-BP02"
+    ],
+    "resources": [
+      "COST01-BP02: https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_cloud_financial_management_partnership.html",
+      "COST05-BP01: https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_select_service_requirements.html",
+      "COST06-BP01: https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_type_size_number_resources_cost_modeling.html",
+      "COST07-BP03: https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_pricing_model_third_party.html",
+      "COST09-BP01: https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_manage_demand_resources_cost_analysis.html",
+      "Tagging Amazon Bedrock resources: https://docs.aws.amazon.com/bedrock/latest/userguide/tagging.html",
+      "Track, allocate and manage your generative AI cost and usage with Amazon Bedrock: https://aws.amazon.com/blogs/machine-learning/track-allocate-and-manage-your-generative-ai-cost-and-usage-with-amazon-bedrock/",
+      "Optimizing costs of generative AI applications on AWS: https://aws.amazon.com/blogs/machine-learning/optimizing-costs-of-generative-ai-applications-on-aws/"
+    ],
+    "risk": "MEDIUM",
+    "title": "Right-size model selection to optimize inference costs",
+    "title_full": "GENCOST01-BP01 Right-size model selection to optimize inference costs"
+  },
+  {
+    "area": [
+      "Generative AI pricing model"
+    ],
+    "benefits": [
+      "Measure overall efficiency - It is helpful to understand inference and hosting costs associated with the performance requirements of foundation model.",
+      "Lower spend on undifferentiated heavy lifting - More often than not, it is beneficial to opt for a managed or serverless hosting paradigm, due to the intractability of the total cost of ownership for foundation model hosting."
+    ],
+    "description": "Foundation model hosting and inference can be conducted in a variety of ways. Some workloads demand immediate responses, while some can be done in batch. Some are hosted on unmanaged infrastructure, and some are hosted using serverless technologies. The inference and hosting paradigm selected influences total cost and should be done with cost in mind. Balancing cost and performance when selecting inference paradigms helps optimize the total cost of ownership while meeting performance requirements.",
+    "desired_outcome": [
+      "When implemented, this best practice describes a relationship between cost and performance contextualized against model hosting and inference paradigms. This relationship helps you evaluate cost-benefit choices associated with the selection of an inference paradigm."
+    ],
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gencost02-bp01.html",
+    "id": "GENCOST02-BP01",
+    "implementation_guidance": [
+      "Identify the nature of the demand for this workload.",
+      "Compare the demand to the available hosting options, and remove the high-cost options that do not satisfy the workloads hosting requirements.",
+      "Select and test the available optinos that satisfy the workload requirements for latency, throughput, and response quality.",
+      "Implement the most appropriate, lower-cost hosting option for your model serving paradigm (for example, managed or self-hosted)."
+    ],
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice helps select cost-effective pricing models that balance cost and performance requirements for your specific use case.",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [
+      "COST07-BP01",
+      "COST07-BP02"
+    ],
+    "resources": [
+      "COST06-BP01: https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_type_size_number_resources_cost_modeling.html",
+      "COST06-BP02: https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_type_size_number_resources_data.html",
+      "COST09-BP01: https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_manage_demand_resources_cost_analysis.html",
+      "Tagging Amazon Bedrock resources: https://docs.aws.amazon.com/bedrock/latest/userguide/tagging.html",
+      "Inference cost optimization best practices: https://docs.aws.amazon.com/sagemaker/latest/dg/inference-cost-optimization.html",
+      "Track, allocate and manage your generative AI cost and usage with Amazon Bedrock: https://aws.amazon.com/blogs/machine-learning/track-allocate-and-manage-your-generative-ai-cost-and-usage-with-amazon-bedrock/",
+      "Optimizing costs of generative AI applications on AWS: https://aws.amazon.com/blogs/machine-learning/optimizing-costs-of-generative-ai-applications-on-aws/",
+      "Analyze Amazon SageMaker AI spend and determine cost optimization opportunities based on usage, Part 1: https://aws.amazon.com/blogs/machine-learning/part-1-analyze-amazon-sagemaker-spend-and-determine-cost-optimization-opportunities-based-on-usage-part-1/"
+    ],
+    "risk": "HIGH",
+    "title": "Balance cost and performance when selecting inference paradigms",
+    "title_full": "GENCOST02-BP01 Balance cost and performance when selecting inference paradigms"
+  },
+  {
+    "area": [
+      "Generative AI pricing model"
+    ],
+    "benefits": [
+      "Measure overall efficiency - It is helpful to understand inference and hosting costs associated with the performance requirements of foundation model.",
+      "Stop spending money on undifferentiated heavy lifting - More often than not, it is beneficial to opt for a managed or serverless hosting paradigm, due to the intractability of the total cost of ownership for foundation model hosting."
+    ],
+    "description": "Resource consumption optimization is crucial for minimizing hosting costs in generative AI workloads. This includes right-sizing compute resources, implementing auto-scaling policies, using spot instances where appropriate, and optimizing storage and network usage. For managed services, this involves selecting appropriate throughput levels and utilizing features like provisioned throughput only when necessary.",
+    "desired_outcome": [
+      "When implemented, this best practice describes a relationship between cost and performance contextualized in self-hosted foundation model hosting."
+    ],
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gencost02-bp02.html",
+    "id": "GENCOST02-BP02",
+    "implementation_guidance": [
+      "Identify the nature of the demand for this workload.",
+      "Deploy selected foundation model on acceptable infrastructure, even if it may be over-provisioned.",
+      "Establish an inference or demand profile for the hosted workload.",
+      "Optimize the hosting infrastructure in accordance with the workload's demands, and select the most cost optimized infrastructure that meets performance requirements."
+    ],
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice minimizes hosting costs by optimizing resource consumption while maintaining required performance levels.",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [
+      "COST06-BP01",
+      "COST06-BP02"
+    ],
+    "resources": [
+      "COST06-BP01: https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_type_size_number_resources_cost_modeling.html",
+      "COST06-BP02: https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_type_size_number_resources_data.html",
+      "COST09-BP01: https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_manage_demand_resources_cost_analysis.html",
+      "Tagging Amazon Bedrock resources: https://docs.aws.amazon.com/bedrock/latest/userguide/tagging.html",
+      "Inference cost optimization best practices: https://docs.aws.amazon.com/sagemaker/latest/dg/inference-cost-optimization.html",
+      "Get Started with Amazon SageMaker AI HyperPod Flexible Training Plans: https://www.youtube.com/watch?v=Itcw8zhdArY",
+      "Easily deploy and manage hundreds of LoRA adapters with SageMaker AI efficient multi-adapter inference: https://aws.amazon.com/blogs/machine-learning/easily-deploy-and-manage-hundreds-of-lora-adapters-with-sagemaker-efficient-multi-adapter-inference/",
+      "Track, allocate and manage your generative AI cost and usage with Amazon Bedrock: https://aws.amazon.com/blogs/machine-learning/track-allocate-and-manage-your-generative-ai-cost-and-usage-with-amazon-bedrock/",
+      "Optimizing costs of generative AI applications on AWS: https://aws.amazon.com/blogs/machine-learning/optimizing-costs-of-generative-ai-applications-on-aws/",
+      "SageMaker AI Inference Recommender for HuggingFace BERT Sentiment Analysis: https://github.com/aws/amazon-sagemaker-examples/blob/main/sagemaker-inference-recommender/huggingface-inference-recommender/huggingface-inference-recommender.ipynb",
+      "Analyze Amazon SageMaker AI spend and determine cost optimization opportunities based on usage, Part 1: https://aws.amazon.com/blogs/machine-learning/part-1-analyze-amazon-sagemaker-spend-and-determine-cost-optimization-opportunities-based-on-usage-part-1/",
+      "Maximize Accelerator Utilization for Model Development with New Amazon SageMaker AI HyperPod Task Governance: https://aws.amazon.com/blogs/aws/maximize-accelerator-utilization-for-model-development-with-new-amazon-sagemaker-hyperpod-task-governance/",
+      "Introducing Amazon SageMaker AI HyperPod to train foundation models at scale: https://aws.amazon.com/blogs/machine-learning/introducing-amazon-sagemaker-hyperpod-to-train-foundation-models-at-scale/",
+      "Best practices for Amazon SageMaker AI HyperPod task governance: https://aws.amazon.com/blogs/machine-learning/best-practices-for-amazon-sagemaker-hyperpod-task-governance/",
+      "Get started with Amazon SageMaker AI HyperPod task governance: https://www.youtube.com/watch?v=_wDhBAPwhoM",
+      "Usage reporting for cost attribution in SageMaker AI HyperPod: https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-usage-reporting.html"
+    ],
+    "risk": "MEDIUM",
+    "title": "Optimize resource consumption to minimize hosting costs",
+    "title_full": "GENCOST02-BP02 Optimize resource consumption to minimize hosting costs"
+  },
+  {
+    "area": [
+      "Cost-aware prompting"
+    ],
+    "benefits": "Adopt a consumption model - Foundation models on a consumption based pricing model charge by the token. Reducing prompt length has the effect of reducing the cost of processing the prompt.",
+    "description": "Prompts are engineered to optimize workloads cost as well as workload performance. Reducing prompt token length directly impacts inference costs since most foundation models charge based on the number of input and output tokens processed. This involves optimizing prompt engineering techniques, removing unnecessary context, using more concise language, and implementing prompt caching strategies where appropriate.",
+    "desired_outcome": [
+      "When implemented, this best practices encourages prompts to be as short as possible while meeting performance requirements."
+    ],
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gencost03-bp01.html",
+    "id": "GENCOST03-BP01",
+    "implementation_guidance": [
+      "Identify a verbose prompt which could be optimized.",
+      "Engineer the prompt to reduce the token count, trimming as many unnecessary words as possible.",
+      "Consider using a separate LLM to offer a shortened prompt that satisfies the end goal. Amazon Bedrock Prompt Optimization can typically optimize prompt language to help provide consistent results.",
+      "Continue testing and optimizing the prompt to validate it meets the workload requirements. Experiment with zero-shot prompting techniques for common knowledge tasks.",
+      "Consider chain-of-thought or tree-of-thought for logical reasoning.",
+      "Evaluate the benefits of least-to-most prompting for complex problems with nuanced solutions.",
+      "Research prompt engineering techniques to find the most cost-effective approach to your problem."
+    ],
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice reduces inference costs by minimizing the number of input tokens required while maintaining prompt effectiveness.",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [
+      "COST01-BP01"
+    ],
+    "resources": [
+      "COST10-BP01: https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_evaluate_new_services_review_process.html",
+      "AWS re:Invent 2023 - Prompt Engineering Best Practices for LLMs on Amazon Bedrock (AIM377): https://www.youtube.com/watch?v=jlqgGkh1wzY",
+      "Improve the performance of your Generative AI applications with Prompt Optimization on Amazon Bedrock: https://aws.amazon.com/blogs/machine-learning/improve-the-performance-of-your-generative-ai-applications-with-prompt-optimization-on-amazon-bedrock/",
+      "Amazon Bedrock Prompt Optimization Drives LLM Applications Innovation for Yuewen Group: https://aws.amazon.com/blogs/machine-learning/amazon-bedrock-prompt-optimization-drives-llm-applications-innovation-for-yuewen-group/",
+      "Amazon Bedrock Prompt Management is now Available in GA: https://aws.amazon.com/blogs/machine-learning/amazon-bedrock-prompt-management-is-now-available-in-ga/",
+      "Prompt Engineering Guide: https://www.promptingguide.ai/"
+    ],
+    "risk": "MEDIUM",
+    "title": "Reduce prompt token length",
+    "title_full": "GENCOST03-BP01 Reduce prompt token length"
+  },
+  {
+    "area": [
+      "Cost-aware prompting"
+    ],
+    "benefits": "Adopt a consumption model - Foundation models on a consumption based pricing model charge by the token. Reducing model response length has the effect of reducing the cost of inference.",
+    "description": "Controlling model response length is essential for cost optimization since output tokens typically cost more than input tokens. This involves setting appropriate max_tokens parameters, using prompt engineering techniques to encourage concise responses, and implementing response truncation strategies when full responses are not needed. Balancing response completeness with cost efficiency is key to effective cost-aware prompting.",
+    "desired_outcome": [
+      "When implemented, this best practices encourages model responses to be as short as possible without sacrificing usability."
+    ],
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gencost03-bp02.html",
+    "id": "GENCOST03-BP02",
+    "implementation_guidance": [
+      "Understand how the model response is to be used, defined a minimalist response scheme (for example, 0 for affirmative and 1 for rejection).",
+      "Inform the model in the prompt of the requested model response scheme, and ask the model to respond in kind.",
+      "Introduce a response length control to limit response tokens. Set a hard limit on the response length by configuring the response length hyperparameter accordingly.",
+      "Extend the prompt template to encourage deterministic responses.",
+      "Set a hard limit on the response length by configuring the response length hyperparameter accordingly.",
+      "Continue testing and optimizing the model's response to verify it satisfies the workload requirements."
+    ],
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice reduces inference costs by controlling output token generation while maintaining response quality and completeness.",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [
+      "COST01-BP01"
+    ],
+    "resources": [
+      "COST10-BP01: https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_evaluate_new_services_review_process.html",
+      "AWS re:Invent 2023 - Prompt Engineering Best Practices for LLMs on Amazon Bedrock (AIM377): https://www.youtube.com/watch?v=jlqgGkh1wzY",
+      "Amazon Bedrock Prompt Management is now Available in GA: https://aws.amazon.com/blogs/machine-learning/amazon-bedrock-prompt-management-is-now-available-in-ga/"
+    ],
+    "risk": "MEDIUM",
+    "title": "Control model response length",
+    "title_full": "GENCOST03-BP02 Control model response length"
+  },
+  {
+    "area": [
+      "Cost-informed vector stores"
+    ],
+    "benefits": [
+      "Measure overall efficiency - Vector stores introduce a new component for cost optimization into a generative AI application. By increasing the efficiency of a vector store, you also optimize the cost of running your application.",
+      "Analyze and attribute expenditure - Reducing vector length can help to lower the costs attributed to a vector store."
+    ],
+    "description": "Generative AI architectures like Retrieval Augmented Generation (RAG) require a robust data backend to remain effective. Vector stores can add to the overall cost of running your application and should be optimized. Reducing vector length on embedded tokens helps optimize vector store costs by decreasing storage requirements and improving query performance. This involves selecting appropriate embedding models, implementing dimensionality reduction techniques, and balancing vector precision with cost efficiency.",
+    "desired_outcome": [
+      "A reduced total cost of ownership for embeddings and data-driven generative AI workflows."
+    ],
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gencost04-bp01.html",
+    "id": "GENCOST04-BP01",
+    "implementation_guidance": [
+      "Identify the smallest vector length supported by the selected embedding foundation model.",
+      "Embed data using the smallest vector length. You may have to modify the chunk size of the document or introduce overlapping chunks to maintain high relevance on output.",
+      "Perform latency and load testing on your data retrieval workloads to verify that model response quality is still sufficient.",
+      "Re-test with increased vector size or modified document chunking strategy to improve model response quality. In some cases, changing the search algorithm may improve model response quality as well."
+    ],
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice optimizes vector store costs by reducing storage and compute requirements while maintaining search accuracy and relevance.",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [
+      "COST06-BP03"
+    ],
+    "resources": [
+      "COST08-BP01: https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_data_transfer_modeling.html",
+      "COST08-BP02: https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_data_transfer_optimized_components.html",
+      "COST08-BP03: https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_data_transfer_implement_services.html",
+      "AWS re:Invent 2023 - Prompt Engineering Best Practices for LLMs on Amazon Bedrock (AIM377): https://www.youtube.com/watch?v=jlqgGkh1wzY",
+      "Amazon Bedrock Prompt Management is now Available in GA: https://aws.amazon.com/blogs/machine-learning/amazon-bedrock-prompt-management-is-now-available-in-ga/"
+    ],
+    "risk": "MEDIUM",
+    "title": "Reduce vector length on embedded tokens",
+    "title_full": "GENCOST04-BP01 Reduce vector length on embedded tokens"
+  },
+  {
+    "area": [
+      "Cost-informed agents"
+    ],
+    "benefits": "Measure overall efficiency - Agentic workflows can be long-running, which can add additional cost to your workload. By establishing stopping conditions for long-running agentic workflows, you can optimize resources, improve user experience, and optimize workload costs.",
+    "description": "Agentic architectures promise significant automation potential across all domains. However, they can incur necessary additional cost if misconfigured. Creating stopping conditions to control long-running workflows is essential for cost optimization in agent-based systems. This includes implementing timeout mechanisms, iteration limits, cost thresholds, and circuit breakers to prevent runaway processes that could result in unexpected costs.",
+    "desired_outcome": [
+      "Maximum costs for an agent's runtime can be predicted based on the implemented stopping conditions."
+    ],
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gencost05-bp01.html",
+    "id": "GENCOST05-BP01",
+    "implementation_guidance": [
+      "Estimate the maximum time needed for an agent to complete its runtime. Include model response times, tool execution times, and network latency in the estimation.",
+      "Implement stopping conditions that enable an agent to run to the maximum duration. Stopping conditions may be a timeout mechanism like the one in Amazon Bedrock.",
+      "Alternatively, stopping conditions may be implemented in the prompt flow layer or within a software abstraction layer.",
+      "Re-architect your workflows to facilitate stopping conditions. Set timeouts on external tools such as Lambda functions or API endpoints, verify that your prompts understand how to handle timeout responses.",
+      "Set token limits on model responses to simulate timeout functionality by stopping models from printing long-running responses."
+    ],
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice prevents runaway agent workflows from incurring unexpected costs while maintaining automation capabilities.",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [
+      "COST01-BP02",
+      "COST01-BP03"
+    ],
+    "resources": [
+      "COST01-BP06: https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_cloud_financial_management_proactive_process.html",
+      "AWS re:Invent 2023 - Simplify generative AI app development with Agents for Amazon Bedrock (AIM353): https://www.youtube.com/watch?v=JNZPW82uv7w",
+      "User Guide: Amazon Bedrock Agents: https://docs.aws.amazon.com/bedrock/latest/userguide/agents.html",
+      "Best practices for building robust generative AI applications with Amazon Bedrock Agents - Part 1: https://aws.amazon.com/blogs/machine-learning/best-practices-for-building-robust-generative-ai-applications-with-amazon-bedrock-agents-part-1/",
+      "Best practices for building robust generative AI applications with Amazon Bedrock Agents - Part 2: https://aws.amazon.com/blogs/machine-learning/best-practices-for-building-robust-generative-ai-applications-with-amazon-bedrock-agents-part-2/"
+    ],
+    "risk": "HIGH",
+    "title": "Create stopping conditions to control long-running workflows",
+    "title_full": "GENCOST05-BP01 Create stopping conditions to control long-running workflows"
+  }
+]
