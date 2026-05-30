@@ -37,7 +37,7 @@ See also:
     'REC_003': """\
 ## For busy clusters, schedule ANALYZE commands
 
-Stale or missing table statistics reduce sort key effectiveness and may cause the optimizer not to use the optimal query path for the affected queries. A higher value of the stats_off column in SVV_TABLE_INFO means that statistics is more out of date hence it is recommended to check tables with >= 10. While Redshift automatically analyzes your data, this occurs when the cluster is not busy. If you have a busy cluster or if there are significant write operations/changes on the table (e.g. DDL change) and access to the data is immediately required, explicitly execute or schedule ANALYZE commands. Consider ANALYZE PREDICATE COLUMNS or sp_analyze_minimal if you have a wide table (100s of columns) for a faster execution.
+Stale or missing table statistics reduce sort key effectiveness and may cause the optimizer not to use the optimal query path for the affected queries. A higher value of the stats_off column in SVV_TABLE_INFO means that statistics is more out of date hence it is recommended to check tables with >= 10. While Redshift automatically analyzes your data, this occurs when the cluster is not busy. If you have a busy cluster or if there are significant write operations/changes on the table (e.g. DML operations) and access to the data is immediately required, explicitly execute or schedule ANALYZE commands. Consider ANALYZE PREDICATE COLUMNS or sp_analyze_minimal if you have a wide table (100s of columns) for a faster execution.
 
 See also:
 - https://docs.aws.amazon.com/redshift/latest/dg/t_Analyzing_tables.html
