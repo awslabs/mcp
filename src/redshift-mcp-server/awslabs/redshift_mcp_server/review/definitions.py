@@ -772,7 +772,7 @@ UNION ALL
 -- Signal: large tables without a sort key
 SELECT count(*), 'REC_007'
 FROM data
-WHERE tbl_rows > 5000000 and sortkey1 != 'AUTO(SORTKEY%' AND (sortkey1 = '')
+WHERE tbl_rows > 5000000 and sortkey1 NOT LIKE 'AUTO(SORTKEY%' AND (sortkey1 = '')
 UNION ALL
 -- Signal: large tables with skew
 SELECT count(*), 'REC_008'
