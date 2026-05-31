@@ -101,10 +101,23 @@ def _base_config(**overrides):
 
 async def _create_server(config, spec=None, extra_spec=None):
     spec = spec or PETSTORE_SPEC
+
     with (
         patch('awslabs.openapi_mcp_server.server.load_openapi_spec') as mock_load,
         patch('awslabs.openapi_mcp_server.server.validate_openapi_spec', return_value=True),
         patch('awslabs.openapi_mcp_server.server.HttpClientFactory.create_client') as mock_client,
+        patch(
+            'awslabs.openapi_mcp_server.utils.url_validator.resolve_hostname',
+            return_value=['93.184.216.34'],
+        ),
+        patch(
+            'awslabs.openapi_mcp_server.utils.url_validator.Path.resolve',
+            return_value=MagicMock(
+                suffix='.json',
+                exists=MagicMock(return_value=True),
+                __str__=lambda self: '/fake/spec.json',
+            ),
+        ),
     ):
 
         def load_side_effect(url='', path=''):
@@ -505,7 +518,7 @@ async def test_additional_specs_validation_failure_continues():
         [
             {
                 'name': 'payments',
-                'spec_url': 'http://payments/spec',
+                'spec_url': 'https://payments.example.com/spec',
                 'base_url': 'https://payments.example.com',
             }
         ]
@@ -514,10 +527,14 @@ async def test_additional_specs_validation_failure_continues():
         patch('awslabs.openapi_mcp_server.server.load_openapi_spec') as mock_load,
         patch('awslabs.openapi_mcp_server.server.validate_openapi_spec') as mock_validate,
         patch('awslabs.openapi_mcp_server.server.HttpClientFactory.create_client') as mock_client,
+        patch(
+            'awslabs.openapi_mcp_server.utils.url_validator.resolve_hostname',
+            return_value=['93.184.216.34'],
+        ),
     ):
 
         def load_side_effect(url='', path=''):
-            return PETSTORE_SPEC if url != 'http://payments/spec' else EXTRA_SPEC
+            return PETSTORE_SPEC if url != 'https://payments.example.com/spec' else EXTRA_SPEC
 
         def validate_side_effect(spec):
             # Primary passes, extra fails
