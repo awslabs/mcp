@@ -73,7 +73,7 @@ class TestTruncateLargeTables:
     def test_empty_input(self):
         """Empty string returns empty string."""
         assert truncate_large_tables('') == ''
-        assert truncate_large_tables(None) is None
+        assert truncate_large_tables(None) is None  # type: ignore[arg-type]
 
     def test_large_table_truncated_no_url(self):
         """Truncated table hint works without a URL (no Example line)."""
@@ -390,6 +390,7 @@ class TestMultiTableParsing:
         <tbody><tr><td>ImportImage tasks</td><td>20</td></tr></tbody></table>
         </body></html>"""
         result = parse_html_tables(html, 'Service quotas')
+        assert result is not None
         assert 'tables' in result
         assert len(result['tables']) == 2
         assert result['tables'][0]['columns'] == ['Name', 'Default']
@@ -403,6 +404,7 @@ class TestMultiTableParsing:
         <tbody><tr><td>foo</td></tr></tbody></table>
         </body></html>"""
         result = parse_html_tables(html, 'Quotas')
+        assert result is not None
         assert 'tables' not in result
         assert 'rows' in result
         assert result['rows'][0] == {'Name': 'foo'}
@@ -425,6 +427,7 @@ class TestMultiTableParsing:
         <table><thead><tr><th>Col2</th></tr></thead><tbody><tr><td>b</td></tr></tbody></table>
         </body></html>"""
         result = parse_html_tables(html, None)
+        assert result is not None
         assert 'tables' in result
         assert len(result['tables']) == 2
         assert result['tables'][0]['columns'] == ['Col1']
@@ -441,6 +444,7 @@ class TestCellToText:
         <tbody><tr><td><a>plain link</a></td></tr></tbody>
         </table></body></html>"""
         result = parse_html_tables(html, 'Sec')
+        assert result is not None
         assert result['rows'][0]['Name'] == 'plain link'
 
     def test_nested_tag_with_link(self):
@@ -450,6 +454,7 @@ class TestCellToText:
         <tbody><tr><td><span><a href="/docs/foo">Foo Link</a></span></td></tr></tbody>
         </table></body></html>"""
         result = parse_html_tables(html, 'Sec')
+        assert result is not None
         assert result['rows'][0]['Name'] == '[Foo Link](/docs/foo)'
 
     def test_nested_tag_with_link_no_href(self):
@@ -459,6 +464,7 @@ class TestCellToText:
         <tbody><tr><td><span><a>Just Text</a></span></td></tr></tbody>
         </table></body></html>"""
         result = parse_html_tables(html, 'Sec')
+        assert result is not None
         assert result['rows'][0]['Name'] == 'Just Text'
 
     def test_nested_tag_without_link(self):
@@ -468,6 +474,7 @@ class TestCellToText:
         <tbody><tr><td><a href="/x">link</a></td><td><span>some info</span></td></tr></tbody>
         </table></body></html>"""
         result = parse_html_tables(html, 'Sec')
+        assert result is not None
         assert result['rows'][0]['Info'] == 'some info'
 
     def test_mixed_text_and_link(self):
@@ -477,6 +484,7 @@ class TestCellToText:
         <tbody><tr><td>See <a href="/doc">docs</a> for details</td></tr></tbody>
         </table></body></html>"""
         result = parse_html_tables(html, 'Sec')
+        assert result is not None
         cell_val = result['rows'][0]['Name']
         assert '[docs](/doc)' in cell_val
         assert 'See' in cell_val
@@ -489,6 +497,7 @@ class TestCellToText:
         <tbody><tr><td><a href="/x">Link</a><span>extra info</span></td></tr></tbody>
         </table></body></html>"""
         result = parse_html_tables(html, 'Sec')
+        assert result is not None
         cell_val = result['rows'][0]['Name']
         assert '[Link](/x)' in cell_val
         assert 'extra info' in cell_val
@@ -500,6 +509,7 @@ class TestCellToText:
         <tbody><tr><td><a href="/x">Link</a><span></span></td></tr></tbody>
         </table></body></html>"""
         result = parse_html_tables(html, 'Sec')
+        assert result is not None
         cell_val = result['rows'][0]['Name']
         assert cell_val == '[Link](/x)'
 
@@ -510,6 +520,7 @@ class TestCellToText:
         <tbody><tr><td><a href="/x">visible</a><a href="/y"></a></td></tr></tbody>
         </table></body></html>"""
         result = parse_html_tables(html, 'Sec')
+        assert result is not None
         cell_val = result['rows'][0]['Name']
         assert cell_val == '[visible](/x)'
         assert '/y' not in cell_val
@@ -521,6 +532,7 @@ class TestCellToText:
         <tbody><tr><td><a href="/x">visible</a><div><a href="/empty"></a></div></td></tr></tbody>
         </table></body></html>"""
         result = parse_html_tables(html, 'Sec')
+        assert result is not None
         cell_val = result['rows'][0]['Name']
         assert cell_val == '[visible](/x)'
         assert '/empty' not in cell_val
@@ -532,6 +544,7 @@ class TestCellToText:
         <tbody><tr><td>  <a href="/x">Link</a>  </td></tr></tbody>
         </table></body></html>"""
         result = parse_html_tables(html, 'Sec')
+        assert result is not None
         cell_val = result['rows'][0]['Name']
         assert cell_val == '[Link](/x)'
 
@@ -562,6 +575,7 @@ class TestExtractTableDataEdgeCases:
         <tbody></tbody>
         </table></body></html>"""
         result = parse_html_tables(html, 'Sec')
+        assert result is not None
         assert 'error' in result
         assert 'No parseable table data' in result['error']
 
@@ -572,6 +586,7 @@ class TestExtractTableDataEdgeCases:
         <tbody><tr></tr><tr><td>valid</td></tr></tbody>
         </table></body></html>"""
         result = parse_html_tables(html, 'Sec')
+        assert result is not None
         assert len(result['rows']) == 1
         assert result['rows'][0]['Name'] == 'valid'
 
@@ -582,6 +597,7 @@ class TestExtractTableDataEdgeCases:
         <tbody></tbody>
         </table></body></html>"""
         result = parse_html_tables(html, 'Sec')
+        assert result is not None
         assert 'error' in result
 
     def test_row_with_fewer_cells_than_headers(self):
@@ -594,6 +610,7 @@ class TestExtractTableDataEdgeCases:
         </tbody>
         </table></body></html>"""
         result = parse_html_tables(html, 'Sec')
+        assert result is not None
         assert len(result['rows']) == 1
         assert result['rows'][0] == {'A': '1', 'B': '2', 'C': '3'}
 
@@ -612,6 +629,7 @@ class TestFindAllTablesEdgeCases:
         </tbody></table>
         </body></html>"""
         result = parse_html_tables(html, None)
+        assert result is not None
         assert result['detected_section'] == 'Big Section'
 
     def test_detected_section_no_heading(self):
@@ -620,6 +638,7 @@ class TestFindAllTablesEdgeCases:
         <table><thead><tr><th>A</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table>
         </body></html>"""
         result = parse_html_tables(html, None)
+        assert result is not None
         assert result['detected_section'] == '(all tables)'
 
     def test_table_heading_uses_nearest_subheading(self):
@@ -632,6 +651,7 @@ class TestFindAllTablesEdgeCases:
         <table><thead><tr><th>Y</th></tr></thead><tbody><tr><td>2</td></tr></tbody></table>
         </body></html>"""
         result = parse_html_tables(html, None)
+        assert result is not None
         assert result['tables'][0]['table_heading'] == 'Sub A'
         assert result['tables'][1]['table_heading'] == 'Sub B'
 
@@ -645,6 +665,7 @@ class TestSectionBoundary:
         <h2>Lonely Section</h2>
         </body></html>"""
         result = parse_html_tables(html, 'Lonely Section')
+        assert result is not None
         assert 'error' in result
         assert 'No table found' in result['error']
 
@@ -655,6 +676,7 @@ class TestSectionBoundary:
         Just some text, no elements.
         </body></html>"""
         result = parse_html_tables(html, 'Text Only')
+        assert result is not None
         assert 'error' in result
         assert 'No table found' in result['error']
 
@@ -667,6 +689,7 @@ class TestSectionBoundary:
         <table><thead><tr><th>B</th></tr></thead><tbody><tr><td>2</td></tr></tbody></table>
         </body></html>"""
         result = parse_html_tables(html, 'First')
+        assert result is not None
         assert 'tables' not in result
         assert result['columns'] == ['A']
         assert result['rows'][0] == {'A': '1'}
@@ -680,6 +703,7 @@ class TestSectionBoundary:
         </div>
         </body></html>"""
         result = parse_html_tables(html, 'My Section')
+        assert result is not None
         assert result['columns'] == ['X']
         assert result['rows'][0] == {'X': 'val'}
 
@@ -690,6 +714,7 @@ class TestSectionBoundary:
         <table><tbody><tr></tr><tr></tr></tbody></table>
         </body></html>"""
         result = parse_html_tables(html, 'Bad Tables')
+        assert result is not None
         assert 'error' in result
 
     def test_no_tables_on_page_returns_none(self):

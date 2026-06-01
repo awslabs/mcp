@@ -228,7 +228,7 @@ async def read_sections_impl(
 async def search_table_impl(
     ctx: Context,
     url_str: str,
-    section_title: str,
+    section_title: Optional[str],
     query: str,
     max_rows: int,
     session_uuid: str,

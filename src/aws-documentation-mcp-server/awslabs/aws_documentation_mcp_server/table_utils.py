@@ -97,7 +97,7 @@ def parse_html_tables(html: str, section_title: Optional[str] = None) -> Optiona
 
 def _find_all_tables(soup: BeautifulSoup) -> Optional[dict]:
     """Parse all tables on the page and return them separately."""
-    tables = soup.find_all('table')
+    tables = [t for t in soup.find_all('table') if isinstance(t, Tag)]
     if not tables:
         return None
 
@@ -131,14 +131,14 @@ def _extract_table_data(table: Tag) -> Optional[dict]:
 
     Preserves links as markdown: text with <a href> becomes [text](url).
     """
-    headers = []
+    headers: list[str] = []
     thead = table.find('thead')
-    if thead:
+    if thead and isinstance(thead, Tag):
         for th in thead.find_all(['th', 'td']):
             headers.append(th.get_text(strip=True))
     else:
         first_row = table.find('tr')
-        if first_row:
+        if first_row and isinstance(first_row, Tag):
             for cell in first_row.find_all(['th', 'td']):
                 headers.append(cell.get_text(strip=True))
 
@@ -146,17 +146,21 @@ def _extract_table_data(table: Tag) -> Optional[dict]:
         return None
 
     # Parse all rows, tracking rowspan state
-    active_rowspans = {}  # {col_index: (value, remaining_count)}
+    active_rowspans: dict[int, tuple[str, int]] = {}
     parsed_rows = []
 
     tbody = table.find('tbody') or table
+    if not isinstance(tbody, Tag):
+        return None
     for tr in tbody.find_all('tr'):
-        cells = tr.find_all(['td', 'th'])
+        if not isinstance(tr, Tag):
+            continue
+        cells = [c for c in tr.find_all(['td', 'th']) if isinstance(c, Tag)]
         if not cells:
             continue
 
-        row = {}
-        rowspan_cols = set()
+        row: dict[str, object] = {}
+        rowspan_cols: set[int] = set()
         cell_idx = 0
 
         for col_idx in range(len(headers)):
@@ -172,7 +176,7 @@ def _extract_table_data(table: Tag) -> Optional[dict]:
                 cell = cells[cell_idx]
                 value = _cell_to_text(cell)
                 row[headers[col_idx]] = value
-                rowspan = int(cell.get('rowspan', 1))
+                rowspan = int(str(cell.get('rowspan', '1')))
                 if rowspan > 1:
                     active_rowspans[col_idx] = (value, rowspan - 1)
                     rowspan_cols.add(col_idx)
@@ -198,24 +202,25 @@ def _extract_table_data(table: Tag) -> Optional[dict]:
     # Nested table — group by parent columns
     # Parent columns = columns that had rowspan on their first appearance in a group
     # Detect parent columns from the first row that starts a group
-    parent_cols = set()
+    parent_cols: set[int] = set()
     for row in parsed_rows:
-        if row.get('_rowspan_cols'):
-            parent_cols.update(row['_rowspan_cols'])
+        rowspan_set = row.get('_rowspan_cols')
+        if rowspan_set and isinstance(rowspan_set, set):
+            parent_cols.update(rowspan_set)
             break
 
     parent_headers = [h for i, h in enumerate(headers) if i in parent_cols]
     child_headers = [h for i, h in enumerate(headers) if i not in parent_cols]
 
     # Group rows: a new group starts when a row has fresh rowspan values
-    groups = []
-    current_group = None
+    groups: list[dict[str, object]] = []
+    current_group: dict[str, object] | None = None
 
     for row in parsed_rows:
         # A new group starts when the parent column values change
         parent_values = tuple(row.get(h, '') for h in parent_headers)
 
-        if current_group is None or current_group['_key'] != parent_values:
+        if current_group is None or current_group.get('_key') != parent_values:
             current_group = {h: row[h] for h in parent_headers}
             current_group['_key'] = parent_values
             current_group['rows'] = []
@@ -223,7 +228,9 @@ def _extract_table_data(table: Tag) -> Optional[dict]:
 
         child_row = {h: row[h] for h in child_headers if row.get(h)}
         if child_row:
-            current_group['rows'].append(child_row)
+            rows_list = current_group['rows']
+            if isinstance(rows_list, list):
+                rows_list.append(child_row)
 
     # Clean up internal keys
     for group in groups:
@@ -253,10 +260,10 @@ def _cell_to_text(cell: Tag) -> str:
         return cell.get_text(strip=True)
 
     # Build text with markdown links
-    parts = []
+    parts: list[str] = []
     for child in cell.children:
         if isinstance(child, Tag) and child.name == 'a':
-            href = child.get('href', '')
+            href = str(child.get('href', ''))
             text = child.get_text(strip=True)
             if href and text:
                 # Make relative URLs absolute-ish (keep fragment refs as-is)
@@ -265,10 +272,10 @@ def _cell_to_text(cell: Tag) -> str:
                 parts.append(text)
         elif isinstance(child, Tag):
             # Recurse for nested tags that might contain links
-            inner_links = child.find_all('a')
+            inner_links = [a for a in child.find_all('a') if isinstance(a, Tag)]
             if inner_links:
                 for a in inner_links:
-                    href = a.get('href', '')
+                    href = str(a.get('href', ''))
                     text = a.get_text(strip=True)
                     if href and text:
                         parts.append(f'[{text}]({href})')
