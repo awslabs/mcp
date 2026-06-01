@@ -68,7 +68,7 @@ Set timeouts on external tools such as Lambda functions or API endpoints, verify
 
 **Related best practices:**
 
-- [COST01-BP06](https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_cloud_financial_management_proactive_process.html)
+- COST01-BP06
 
 **Related documents:**
 

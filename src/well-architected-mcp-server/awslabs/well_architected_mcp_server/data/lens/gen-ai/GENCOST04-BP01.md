@@ -69,9 +69,9 @@ In some cases, changing the search algorithm may improve model response quality 
 
 **Related best practices:**
 
-- [COST08-BP01](https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_data_transfer_modeling.html)
-- [COST08-BP02](https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_data_transfer_optimized_components.html)
-- [COST08-BP03](https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_data_transfer_implement_services.html)
+- COST08-BP01
+- COST08-BP02
+- COST08-BP03
 
 **Related documents:**
 

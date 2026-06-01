@@ -94,10 +94,10 @@ embedding model for this scenario.
 
 **Related best practices:**
 
-- [PERF03-BP01](https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_data_use_purpose_built_data_store.html)
-- [PERF03-BP02](https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_data_evaluate_configuration_options_data_store.html)
-- [PERF03-BP03](https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_data_collect_record_data_store_performance_metrics.html)
-- [PERF03-BP04](https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_data_implement_strategies_to_improve_query_performance.html)
+- PERF03-BP01
+- PERF03-BP02
+- PERF03-BP03
+- PERF03-BP04
 
 **Related documents:**
 

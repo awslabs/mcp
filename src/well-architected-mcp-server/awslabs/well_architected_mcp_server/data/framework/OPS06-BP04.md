@@ -72,8 +72,8 @@ Develop test result reports that help you make quick decisions on whether or not
 
 **Related best practices:**
 
-- [OPS06-BP01 Plan for unsuccessful changes](./ops_mit_deploy_risks_plan_for_unsucessful_changes.html)
-- [OPS06-BP02 Test deployments](./ops_mit_deploy_risks_test_val_chg.html)
+- OPS06-BP01 Plan for unsuccessful changes
+- OPS06-BP02 Test deployments
 
 **Related documents:**
 

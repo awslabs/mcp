@@ -173,9 +173,9 @@ these tools access to your data.
 
 **Related best practices:**
 
-- [SEC01-BP01 Separate workloads using accounts](https://docs.aws.amazon.com/wellarchitected/latest/framework/sec_securely_operate_multi_accounts.html)
-- [SEC07-BP04 Define data lifecycle management](https://docs.aws.amazon.com/wellarchitected/latest/framework/sec_data_classification_lifecycle_management.html)
-- [SEC08-BP04 Enforce access control](https://docs.aws.amazon.com/wellarchitected/latest/framework/sec_protect_data_rest_access_control.html)
+- SEC01-BP01 Separate workloads using accounts
+- SEC07-BP04 Define data lifecycle management
+- SEC08-BP04 Enforce access control
 - [OPS08-BP02
 Analyze workload logs](https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_workload_observability_analyze_workload_logs.html)
 

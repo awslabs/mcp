@@ -206,11 +206,11 @@ for more information on building an incident response strategy for your AWS acco
 
 **Related best practices:**
 
-- [SEC01-BP01 Separate workloads using accounts](./sec_securely_operate_multi_accounts.html)
-- [SEC02-BP01 Use strong sign-in mechanisms](./sec_identities_enforce_mechanisms.html)
-- [SEC03-BP02 Grant least privilege access](./sec_permissions_least_privileges.html)
-- [SEC03-BP03 Establish emergency access process](./sec_permissions_emergency_process.html)
-- [SEC10-BP05 Pre-provision access](./sec_incident_response_pre_provision_access.html)
+- SEC01-BP01 Separate workloads using accounts
+- SEC02-BP01 Use strong sign-in mechanisms
+- SEC03-BP02 Grant least privilege access
+- SEC03-BP03 Establish emergency access process
+- SEC10-BP05 Pre-provision access
 
 **Related documents:**
 

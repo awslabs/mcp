@@ -86,7 +86,7 @@ verifies that your team knows what to do when there is a production issue.
 
 **Related best practices:**
 
-- [OPS02-BP02 Processes and procedures have identified owners](./ops_ops_model_def_proc_owners.html)
+- OPS02-BP02 Processes and procedures have identified owners
 
 **Related documents:**
 

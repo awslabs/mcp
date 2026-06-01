@@ -42,7 +42,7 @@ Organizations should tag shared costs effectively and verify that they do not ha
 
 **Related best practices:**
 
-- [SEC03-BP08 Share resources securely within your organization](https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_permissions_share_securely.html)
+- SEC03-BP08 Share resources securely within your organization
 
 **Related documents:**
 

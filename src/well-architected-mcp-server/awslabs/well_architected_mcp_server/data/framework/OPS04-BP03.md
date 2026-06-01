@@ -62,10 +62,10 @@ Define critical application workflows and paths.
 
 **Related best practices:**
 
-- [OPS04-BP01 Identify key performance indicators](./ops_observability_identify_kpis.html)
-- [OPS04-BP02 Implement application telemetry](./ops_observability_application_telemetry.html)
-- [OPS04-BP04 Implement dependency telemetry](./ops_observability_dependency_telemetry.html)
-- [OPS04-BP05 Implement distributed tracing](./ops_observability_dist_trace.html)
+- OPS04-BP01 Identify key performance indicators
+- OPS04-BP02 Implement application telemetry
+- OPS04-BP04 Implement dependency telemetry
+- OPS04-BP05 Implement distributed tracing
 
 **Related documents:**
 

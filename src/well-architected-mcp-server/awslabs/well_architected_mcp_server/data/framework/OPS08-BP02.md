@@ -110,9 +110,9 @@ plan:** Medium
 
 **Related best practices:**
 
-- [OPS04-BP01 Identify key performance indicators](./ops_observability_identify_kpis.html)
-- [OPS04-BP02 Implement application telemetry](./ops_observability_application_telemetry.html)
-- [OPS08-BP01 Analyze workload metrics](./ops_workload_observability_analyze_workload_metrics.html)
+- OPS04-BP01 Identify key performance indicators
+- OPS04-BP02 Implement application telemetry
+- OPS08-BP01 Analyze workload metrics
 
 **Related documents:**
 

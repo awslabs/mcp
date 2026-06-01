@@ -57,12 +57,12 @@ Where are control planes used in the workload?
 
 **Related best practices:**
 
-- [REL03-BP01 Choose how to segment your workload](./rel_service_architecture_monolith_soa_microservice.html)
-- [REL10-BP01 Deploy the workload to multiple locations](./rel_fault_isolation_multiaz_region_system.html)
-- [REL11-BP01 Monitor all components of the workload to detect failures](./rel_withstand_component_failures_monitoring_health.html)
-- [REL11-BP03 Automate healing on all layers](./rel_withstand_component_failures_auto_healing_system.html)
-- [REL12-BP04 Test resiliency using chaos engineering](./rel_testing_resiliency_failure_injection_resiliency.html)
-- [REL13-BP01 Define recovery objectives for downtime and data loss](./rel_planning_for_recovery_objective_defined_recovery.html)
+- REL03-BP01 Choose how to segment your workload
+- REL10-BP01 Deploy the workload to multiple locations
+- REL11-BP01 Monitor all components of the workload to detect failures
+- REL11-BP03 Automate healing on all layers
+- REL12-BP04 Test resiliency using chaos engineering
+- REL13-BP01 Define recovery objectives for downtime and data loss
 - [Understanding workload health](https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/understanding-workload-health.html)
 
 **Related documents:**

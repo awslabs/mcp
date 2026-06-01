@@ -149,7 +149,7 @@ Integrate evaluation processes into CI/CD pipelines
 
 **Related best practices:**
 
-- [OPS11-BP11](https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_evolve_ops_metrics_review.html)
+- OPS11-BP11
 
 **Related documents:**
 

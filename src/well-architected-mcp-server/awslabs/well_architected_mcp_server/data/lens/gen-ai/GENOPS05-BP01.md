@@ -129,7 +129,7 @@ Evaluate the cost for each approach
 
 **Related best practices:**
 
-- [OPS04-BP01](https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_observability_identify_kpis.html)
+- OPS04-BP01
 
 **Related documents:**
 

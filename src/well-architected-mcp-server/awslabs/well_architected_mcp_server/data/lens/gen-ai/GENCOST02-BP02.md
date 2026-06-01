@@ -107,9 +107,9 @@ infrastructure that meets performance requirements.
 
 **Related best practices:**
 
-- [COST06-BP01](https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_type_size_number_resources_cost_modeling.html)
-- [COST06-BP02](https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_type_size_number_resources_data.html)
-- [COST09-BP01](https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_manage_demand_resources_cost_analysis.html)
+- COST06-BP01
+- COST06-BP02
+- COST09-BP01
 
 **Related videos and documents:**
 

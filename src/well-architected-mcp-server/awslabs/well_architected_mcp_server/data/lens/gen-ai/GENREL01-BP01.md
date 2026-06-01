@@ -114,9 +114,9 @@ Regular review of utilization patterns
 
 **Related best practices:**
 
-- [REL01-BP01](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_manage_service_limits_aware_quotas_and_constraints.html)
-- [REL01-BP02](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_manage_service_limits_limits_considered.html)
-- [REL01-BP03](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_manage_service_limits_aware_fixed_limits.html)
+- REL01-BP01
+- REL01-BP02
+- REL01-BP03
 
 **Related documents:**
 

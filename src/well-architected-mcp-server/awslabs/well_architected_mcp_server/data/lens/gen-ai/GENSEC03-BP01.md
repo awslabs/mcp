@@ -113,7 +113,7 @@ Track data retention compliance
 
 **Related best practices:**
 
-- [SEC04-BP01](https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_detect_investigate_events_app_service_logging.html)
+- SEC04-BP01
 
 **Related documents:**
 

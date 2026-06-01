@@ -56,9 +56,9 @@ Where applicable, [integrate AWS CodeDeploy with other AWS services](https://doc
 
 **Related best practices:**
 
-- [OPS05-BP02 Test and validate changes](./ops_dev_integ_test_val_chg.html)
-- [OPS05-BP09 Make frequent, small, reversible changes](./ops_dev_integ_freq_sm_rev_chg.html)
-- [OPS05-BP10 Fully automate integration and deployment](./ops_dev_integ_auto_integ_deploy.html)
+- OPS05-BP02 Test and validate changes
+- OPS05-BP09 Make frequent, small, reversible changes
+- OPS05-BP10 Fully automate integration and deployment
 
 **Related documents:**
 

@@ -285,8 +285,8 @@ can be part of this data capture.
 
 **Related best practices:**
 
-- [REL08-BP03 Integrate resiliency testing as part of your deployment](./rel_tracking_change_management_resiliency_testing.html)
-- [REL13-BP03 Test disaster recovery implementation to validate the implementation](./rel_planning_for_recovery_dr_tested.html)
+- REL08-BP03 Integrate resiliency testing as part of your deployment
+- REL13-BP03 Test disaster recovery implementation to validate the implementation
 
 **Related documents:**
 

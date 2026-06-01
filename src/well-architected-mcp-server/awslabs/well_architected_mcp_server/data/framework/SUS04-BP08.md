@@ -56,7 +56,7 @@ hands-on guidance on how to create automated backups using AWS Backup, see [Well
 
 - [REL09-BP01 Identify and back up all data that needs to be backed up, or reproduce the
 data from sources](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_backing_up_data_identified_backups_data.html)
-- [REL09-BP03 Perform data backup automatically](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_backing_up_data_automated_backups_data.html)
+- REL09-BP03 Perform data backup automatically
 - [REL13-BP02 Use defined recovery strategies to meet the recovery
 objectives](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_for_recovery_disaster_recovery.html)
 

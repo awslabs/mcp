@@ -160,9 +160,9 @@ improvements
 
 **Related best practices:**
 
-- [SUS04-BP04](https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_data_a5.html)
-- [SUS04-BP03](https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_data_a4.html)
-- [SUS04-BP02](https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_data_a3.html)
+- SUS04-BP04
+- SUS04-BP03
+- SUS04-BP02
 
 **Related documents:**
 

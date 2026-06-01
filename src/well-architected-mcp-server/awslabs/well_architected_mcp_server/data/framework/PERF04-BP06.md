@@ -96,13 +96,13 @@ Use to run local compute, messaging, and data caching for connected devices.
 
 **Related best practices:**
 
-- [COST07-BP02 Implement Regions based on cost](https://docs.aws.amazon.com/wellarchitected/latest/framework/cost_pricing_model_region_cost.html)
-- [COST08-BP03 Implement services to reduce data transfer costs](https://docs.aws.amazon.com/wellarchitected/latest/framework/cost_data_transfer_implement_services.html)
-- [REL10-BP01 Deploy the workload to multiple locations](https://docs.aws.amazon.com/wellarchitected/latest/framework/rel_fault_isolation_multiaz_region_system.html)
-- [REL10-BP02 Select the appropriate locations for your multi-location deployment](https://docs.aws.amazon.com/wellarchitected/latest/framework/rel_fault_isolation_select_location.html)
-- [SUS01-BP01 Choose Region based on both business requirements and sustainability goals](https://docs.aws.amazon.com/wellarchitected/latest/framework/sus_sus_region_a2.html)
-- [SUS02-BP04 Optimize geographic placement of workloads based on their networking requirements](https://docs.aws.amazon.com/wellarchitected/latest/framework/sus_sus_user_a5.html)
-- [SUS04-BP07 Minimize data movement across networks](https://docs.aws.amazon.com/wellarchitected/latest/framework/sus_sus_data_a8.html)
+- COST07-BP02 Implement Regions based on cost
+- COST08-BP03 Implement services to reduce data transfer costs
+- REL10-BP01 Deploy the workload to multiple locations
+- REL10-BP02 Select the appropriate locations for your multi-location deployment
+- SUS01-BP01 Choose Region based on both business requirements and sustainability goals
+- SUS02-BP04 Optimize geographic placement of workloads based on their networking requirements
+- SUS04-BP07 Minimize data movement across networks
 
 **Related documents:**
 

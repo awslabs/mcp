@@ -95,7 +95,7 @@ Excellence Pillar.
 
 **Related best practices:**
 
-- [SEC01-BP07 Identify threats and prioritize mitigations using a threat model](https://docs.aws.amazon.com/wellarchitected/latest/framework/sec_securely_operate_threat_model.html)
+- SEC01-BP07 Identify threats and prioritize mitigations using a threat model
 - [OPS01-BP05
 Evaluate threat landscape](https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_priorities_eval_threat_landscape.html)
 - [OPS11-BP01

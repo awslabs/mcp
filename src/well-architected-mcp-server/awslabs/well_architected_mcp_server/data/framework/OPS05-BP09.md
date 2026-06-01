@@ -31,9 +31,9 @@ Use frequent, small, and reversible changes to reduce the scope and impact of a 
 
 **Related best practices:**
 
-- [OPS05-BP03 Use configuration management systems](./ops_dev_integ_conf_mgmt_sys.html)
-- [OPS05-BP04 Use build and deployment management systems](./ops_dev_integ_build_mgmt_sys.html)
-- [OPS06-BP04 Automate testing and rollback](./ops_mit_deploy_risks_auto_testing_and_rollback.html)
+- OPS05-BP03 Use configuration management systems
+- OPS05-BP04 Use build and deployment management systems
+- OPS06-BP04 Automate testing and rollback
 
 **Related documents:**
 

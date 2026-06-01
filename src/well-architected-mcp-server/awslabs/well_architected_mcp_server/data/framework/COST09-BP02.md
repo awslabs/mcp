@@ -55,8 +55,8 @@ your workload components. Amazon API Gateway can provide throttling for your wor
 
 **Related best practices:**
 
-- [SUS02-BP06 Implement buffering or throttling to flatten the demand curve](https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_user_a7.html)
-- [REL05-BP02 Throttle requests](https://docs.aws.amazon.com/wellarchitected/latest/framework/rel_mitigate_interaction_failure_throttle_requests.html)
+- SUS02-BP06 Implement buffering or throttling to flatten the demand curve
+- REL05-BP02 Throttle requests
 
 **Related documents:**
 

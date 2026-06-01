@@ -60,7 +60,7 @@ Measure success of this practice using visible change data and identify iterativ
 
 **Related best practices:**
 
-- [OPS06-BP04 Automate testing and rollback](./ops_mit_deploy_risks_auto_testing_and_rollback.html)
+- OPS06-BP04 Automate testing and rollback
 
 **Related documents:**
 

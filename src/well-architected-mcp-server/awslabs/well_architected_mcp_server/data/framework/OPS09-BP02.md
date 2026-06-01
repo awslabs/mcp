@@ -47,7 +47,7 @@ Use [AWS Health](https://docs.aws.amazon.com/health/latest/ug/what-is-aws-health
 
 **Related best practices:**
 
-- [OPS09-BP01 Measure operations goals and KPIs with metrics](https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_operations_health_measure_ops_goals_kpis.html)
+- OPS09-BP01 Measure operations goals and KPIs with metrics
 
 **Related documents:**
 

@@ -101,9 +101,9 @@ If using VPC Lattice to manage access to your services, consider enabling and mo
 
 **Related best practices:**
 
-- [SEC03-BP07 Analyze public and cross-account access](https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_permissions_analyze_cross_account.html)
-- [SEC02-BP02 Use temporary credentials](https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_identities_unique.html)
-- [SEC01-BP07 Identify threats and prioritize mitigations using a threat model](https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_securely_operate_threat_model.html)
+- SEC03-BP07 Analyze public and cross-account access
+- SEC02-BP02 Use temporary credentials
+- SEC01-BP07 Identify threats and prioritize mitigations using a threat model
 
 **Related documents:**
 

@@ -137,9 +137,9 @@ Gather user feedback and model performance data
 
 **Related best practices:**
 
-- [OPS05-BP10](https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_dev_integ_auto_integ_deploy.html)
-- [OPS05-BP07](https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_dev_integ_code_quality.html)
-- [OPS05-BP01](https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_dev_integ_version_control.html)
+- OPS05-BP10
+- OPS05-BP07
+- OPS05-BP01
 
 **Related documents:**
 

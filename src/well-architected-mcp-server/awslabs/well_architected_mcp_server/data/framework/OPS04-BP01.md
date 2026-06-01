@@ -47,10 +47,10 @@ plan:** Medium
 
 **Related best practices:**
 
-- [OPS04-BP02 Implement application telemetry](./ops_observability_application_telemetry.html)
-- [OPS04-BP03 Implement user experience telemetry](./ops_observability_customer_telemetry.html)
-- [OPS04-BP04 Implement dependency telemetry](./ops_observability_dependency_telemetry.html)
-- [OPS04-BP05 Implement distributed tracing](./ops_observability_dist_trace.html)
+- OPS04-BP02 Implement application telemetry
+- OPS04-BP03 Implement user experience telemetry
+- OPS04-BP04 Implement dependency telemetry
+- OPS04-BP05 Implement distributed tracing
 
 **Related documents:**
 

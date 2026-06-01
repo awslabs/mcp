@@ -113,12 +113,12 @@ Use AWS support resources, such as [AWS Trusted Advisor](https://aws.amazon.com/
 
 **Related best practices:**
 
-- [OPS04-BP01 Identify key performance indicators](./ops_observability_identify_kpis.html)
-- [OPS04-BP02 Implement application telemetry](./ops_observability_application_telemetry.html)
-- [OPS07-BP03 Use runbooks to perform procedures](./ops_ready_to_support_use_runbooks.html)
-- [OPS07-BP04 Use playbooks to investigate issues](./ops_ready_to_support_use_playbooks.html)
-- [OPS08-BP01 Analyze workload metrics](./ops_workload_observability_analyze_workload_metrics.html)
-- [OPS11-BP02 Perform post-incident analysis](./ops_evolve_ops_perform_rca_process.html)
+- OPS04-BP01 Identify key performance indicators
+- OPS04-BP02 Implement application telemetry
+- OPS07-BP03 Use runbooks to perform procedures
+- OPS07-BP04 Use playbooks to investigate issues
+- OPS08-BP01 Analyze workload metrics
+- OPS11-BP02 Perform post-incident analysis
 
 **Related documents:**
 

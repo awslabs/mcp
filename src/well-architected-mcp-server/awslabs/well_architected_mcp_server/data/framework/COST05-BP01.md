@@ -33,8 +33,8 @@ For example, accelerating speed to market for new features may be emphasized ove
 
 **Related best practices:**
 
-- [REL11-BP07 Architect your product to meet availability targets and uptime service level agreements (SLAs)](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_withstand_component_failures_service_level_agreements.html)
-- [OPS01-BP06 Evaluate tradeoffs](https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_priorities_eval_tradeoffs.html)
+- REL11-BP07 Architect your product to meet availability targets and uptime service level agreements (SLAs)
+- OPS01-BP06 Evaluate tradeoffs
 
 **Related documents:**
 

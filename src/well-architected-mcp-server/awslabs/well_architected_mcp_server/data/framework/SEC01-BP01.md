@@ -145,7 +145,7 @@ template.
 
 **Related best practices:**
 
-- [SEC02-BP04 Rely on a centralized identity provider](./sec_identities_identity_provider.html)
+- SEC02-BP04 Rely on a centralized identity provider
 
 **Related documents:**
 

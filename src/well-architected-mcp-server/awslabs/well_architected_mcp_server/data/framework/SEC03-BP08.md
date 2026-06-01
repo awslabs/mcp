@@ -132,9 +132,9 @@ to share an encrypted snapshot, you need to [share a AWS KMS key](https://docs.a
 
 **Related best practices:**
 
-- [SEC03-BP07 Analyze public and cross-account access](./sec_permissions_analyze_cross_account.html)
-- [SEC03-BP09 Share resources securely with a third party](./sec_permissions_share_securely_third_party.html)
-- [SEC05-BP01 Create network layers](./sec_network_protection_create_layers.html)
+- SEC03-BP07 Analyze public and cross-account access
+- SEC03-BP09 Share resources securely with a third party
+- SEC05-BP01 Create network layers
 
 **Related documents:**
 

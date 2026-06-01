@@ -99,8 +99,8 @@ using security groups and policy documents.
 
 **Related best practices:**
 
-- [SEC05-BP01](https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_network_protection_create_layers.html)
-- [SEC05-BP02](https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_network_protection_layered.html)
+- SEC05-BP01
+- SEC05-BP02
 
 **Related documents:**
 

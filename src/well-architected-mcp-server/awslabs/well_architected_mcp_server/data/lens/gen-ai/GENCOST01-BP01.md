@@ -86,11 +86,11 @@ price-point.
 
 **Related best practices:**
 
-- [COST01-BP02](https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_cloud_financial_management_partnership.html)
-- [COST05-BP01](https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_select_service_requirements.html)
-- [COST06-BP01](https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_type_size_number_resources_cost_modeling.html)
-- [COST07-BP03](https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_pricing_model_third_party.html)
-- [COST09-BP01](https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_manage_demand_resources_cost_analysis.html)
+- COST01-BP02
+- COST05-BP01
+- COST06-BP01
+- COST07-BP03
+- COST09-BP01
 
 **Related documents:**
 

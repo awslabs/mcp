@@ -150,11 +150,11 @@ needs.
 
 **Related best practices:**
 
-- [SEC02-BP01](https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_identities_enforce_mechanisms.html)
-- [SEC02-BP02](https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_identities_unique.html)
-- [SEC02-BP06](https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_identities_groups_attributes.html)
-- [SEC03-BP01](https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_permissions_define.html)
-- [SEC03-BP02](https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_permissions_least_privileges.html)
+- SEC02-BP01
+- SEC02-BP02
+- SEC02-BP06
+- SEC03-BP01
+- SEC03-BP02
 
 **Related documents:**
 

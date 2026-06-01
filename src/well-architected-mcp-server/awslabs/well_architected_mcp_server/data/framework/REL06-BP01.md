@@ -130,7 +130,7 @@ customers do.
 
 **Related best practices:**
 
-- [REL11-BP03 Automate healing on all layers](./rel_withstand_component_failures_auto_healing_system.html)
+- REL11-BP03 Automate healing on all layers
 
 **Related documents:**
 

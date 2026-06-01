@@ -67,7 +67,7 @@ Build and deployment management systems are used to track and implement change, 
 
 **Related best practices:**
 
-- [OPS06-BP04 Automate testing and rollback](./ops_mit_deploy_risks_auto_testing_and_rollback.html)
+- OPS06-BP04 Automate testing and rollback
 
 **Related documents:**
 

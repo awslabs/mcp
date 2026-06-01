@@ -94,9 +94,9 @@ Define approval workflows
 
 **Related best practices:**
 
-- [REL07-BP01](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_adapt_to_changes_autoscale_adapt.html)
-- [REL08-BP02](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_tracking_change_management_functional_testing.html)
-- [REL08-BP04](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_tracking_change_management_immutable_infrastructure.html)
+- REL07-BP01
+- REL08-BP02
+- REL08-BP04
 
 **Related documents:**
 

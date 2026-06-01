@@ -107,7 +107,7 @@ Analyze failure patterns
 
 **Related best practices:**
 
-- [REL05-BP01](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_graceful_degradation.html)
+- REL05-BP01
 
 **Related documents:**
 

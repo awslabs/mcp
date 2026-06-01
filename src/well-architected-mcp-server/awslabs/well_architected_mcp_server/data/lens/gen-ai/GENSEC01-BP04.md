@@ -96,7 +96,7 @@ specific workload.
 
 **Related best practices:**
 
-- [SEC03-BP08](https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_permissions_share_securely.html)
+- SEC03-BP08
 
 **Related documents:**
 

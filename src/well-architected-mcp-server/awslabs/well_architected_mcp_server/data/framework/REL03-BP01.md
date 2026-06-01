@@ -91,7 +91,7 @@ with a relational or non-relational (NoSQL) type of database. For more details, 
 
 **Related best practices:**
 
-- [REL03-BP02 Build services focused on specific business domains and functionality](./rel_service_architecture_business_domains.html)
+- REL03-BP02 Build services focused on specific business domains and functionality
 
 **Related documents:**
 

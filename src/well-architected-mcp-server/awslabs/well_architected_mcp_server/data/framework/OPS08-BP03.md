@@ -123,8 +123,8 @@ plan:** Medium
 
 **Related best practices:**
 
-- [OPS08-BP01 Analyze workload metrics](./ops_workload_observability_analyze_workload_metrics.html)
-- [OPS08-BP02 Analyze workload logs](./ops_workload_observability_analyze_workload_logs.html)
+- OPS08-BP01 Analyze workload metrics
+- OPS08-BP02 Analyze workload logs
 
 **Related documents:**
 

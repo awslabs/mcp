@@ -135,7 +135,7 @@ inference paradigm.
 
 **Related best practices:**
 
-- [PERF05-BP04](https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_load_test.html)
+- PERF05-BP04
 - [MLPER-01](https://docs.aws.amazon.com/wellarchitected/latest/machine-learning-lens/mlper-01.html)
 - [MLPER-03](https://docs.aws.amazon.com/wellarchitected/latest/machine-learning-lens/mlper-03.html)
 - [MLPER-05](https://docs.aws.amazon.com/wellarchitected/latest/machine-learning-lens/mlper-05.html)

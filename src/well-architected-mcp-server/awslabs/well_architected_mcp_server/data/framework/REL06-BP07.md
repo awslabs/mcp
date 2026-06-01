@@ -43,8 +43,8 @@ You can use [AWS X-Ray](https://docs.aws.amazon.com/xray/latest/devguide/aws-xra
 
 **Related best practices:**
 
-- [REL06-BP01 Monitor all components for the workload (Generation)](./rel_monitor_aws_resources_monitor_resources.html)
-- [REL11-BP01 Monitor all components of the workload to detect failures](./rel_withstand_component_failures_monitoring_health.html)
+- REL06-BP01 Monitor all components for the workload (Generation)
+- REL11-BP01 Monitor all components of the workload to detect failures
 
 **Related documents:**
 

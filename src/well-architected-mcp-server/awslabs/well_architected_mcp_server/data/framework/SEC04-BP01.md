@@ -81,9 +81,9 @@ You can also use custom alert generation engines for security alerts not covered
 
 **Related best practices:**
 
-- [SEC04-BP02 Capture logs, findings, and metrics in standardized locations](./sec_detect_investigate_events_logs.html)
-- [SEC07-BP04 Define scalable data lifecycle management](./sec_data_classification_lifecycle_management.html)
-- [SEC10-BP06 Pre-deploy tools](./sec_incident_response_pre_deploy_tools.html)
+- SEC04-BP02 Capture logs, findings, and metrics in standardized locations
+- SEC07-BP04 Define scalable data lifecycle management
+- SEC10-BP06 Pre-deploy tools
 
 **Related documents:**
 

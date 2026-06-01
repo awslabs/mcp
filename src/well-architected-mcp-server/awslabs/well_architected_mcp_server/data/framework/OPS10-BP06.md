@@ -69,7 +69,7 @@ Continually update and refine dashboards to align with evolving business needs a
 
 **Related best practices:**
 
-- [OPS08-BP05 Create dashboards](./ops_workload_observability_create_dashboards.html)
+- OPS08-BP05 Create dashboards
 
 **Related documents:**
 

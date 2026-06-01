@@ -65,9 +65,9 @@ Document third-party service-level agreements (SLAs), and align them with intern
 
 **Related best practices:**
 
-- [OPS08-BP04 Create actionable alerts](./ops_workload_observability_create_alerts.html)
-- [OPS10-BP02 Have a process per alert](./ops_event_response_process_per_alert.html)
-- [OPS11-BP02 Perform post-incident analysis](./ops_evolve_ops_perform_rca_process.html)
+- OPS08-BP04 Create actionable alerts
+- OPS10-BP02 Have a process per alert
+- OPS11-BP02 Perform post-incident analysis
 
 **Related documents:**
 

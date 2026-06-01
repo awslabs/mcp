@@ -77,9 +77,9 @@ Conduct training on the use of communication tools and strategies. Empower teams
 
 **Related best practices:**
 
-- [OPS07-BP03 Use runbooks to perform procedures](./ops_ready_to_support_use_runbooks.html)
-- [OPS10-BP06 Communicate status through dashboards](./ops_event_response_dashboards.html)
-- [OPS11-BP02 Perform post-incident analysis](./ops_evolve_ops_perform_rca_process.html)
+- OPS07-BP03 Use runbooks to perform procedures
+- OPS10-BP06 Communicate status through dashboards
+- OPS11-BP02 Perform post-incident analysis
 
 **Related documents:**
 

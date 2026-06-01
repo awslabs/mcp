@@ -62,8 +62,8 @@ Establish detailed [response plans](https://docs.aws.amazon.com/incident-manager
 
 **Related best practices:**
 
-- [OPS04-BP01 Identify key performance indicators](./ops_observability_identify_kpis.html)
-- [OPS08-BP04 Create actionable alerts](./ops_workload_observability_create_alerts.html)
+- OPS04-BP01 Identify key performance indicators
+- OPS08-BP04 Create actionable alerts
 
 **Related documents:**
 

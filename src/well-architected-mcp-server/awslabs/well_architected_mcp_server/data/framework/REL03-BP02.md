@@ -59,8 +59,8 @@ After teams have performed domain analysis and defined entities and service cont
 
 **Related best practices:**
 
-- [REL03-BP01 Choose how to segment your workload](./rel_service_architecture_monolith_soa_microservice.html)
-- [REL03-BP03 Provide service contracts per API](./rel_service_architecture_api_contracts.html)
+- REL03-BP01 Choose how to segment your workload
+- REL03-BP03 Provide service contracts per API
 
 **Related documents:**
 

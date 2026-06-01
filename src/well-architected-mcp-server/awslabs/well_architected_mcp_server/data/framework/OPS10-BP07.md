@@ -66,8 +66,8 @@ Implement [automated security responses](https://aws.amazon.com/solutions/implem
 
 **Related best practices:**
 
-- [OPS08-BP04 Create actionable alerts](./ops_workload_observability_create_alerts.html)
-- [OPS10-BP02 Have a process per alert](./ops_event_response_process_per_alert.html)
+- OPS08-BP04 Create actionable alerts
+- OPS10-BP02 Have a process per alert
 
 **Related documents:**
 

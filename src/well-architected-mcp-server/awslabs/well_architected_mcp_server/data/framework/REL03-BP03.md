@@ -57,11 +57,11 @@ With API Gateway you can use [request and response mappings](https://docs.aws.am
 
 **Related best practices:**
 
-- [REL03-BP01 Choose how to segment your workload](./rel_service_architecture_monolith_soa_microservice.html)
-- [REL03-BP02 Build services focused on specific business domains and functionality](./rel_service_architecture_business_domains.html)
-- [REL04-BP02 Implement loosely coupled dependencies](./rel_prevent_interaction_failure_loosely_coupled_system.html)
-- [REL05-BP03 Control and limit retry calls](./rel_mitigate_interaction_failure_limit_retries.html)
-- [REL05-BP05 Set client timeouts](./rel_mitigate_interaction_failure_client_timeouts.html)
+- REL03-BP01 Choose how to segment your workload
+- REL03-BP02 Build services focused on specific business domains and functionality
+- REL04-BP02 Implement loosely coupled dependencies
+- REL05-BP03 Control and limit retry calls
+- REL05-BP05 Set client timeouts
 
 **Related documents:**
 

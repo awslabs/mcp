@@ -116,9 +116,9 @@ Incorporate the prioritization matrix into your incident response plans and tool
 
 **Related best practices:**
 
-- [OPS03-BP03 Escalation is encouraged](./ops_org_culture_team_enc_escalation.html)
-- [OPS08-BP04 Create actionable alerts](./ops_workload_observability_create_alerts.html)
-- [OPS09-BP01 Measure operations goals and KPIs with metrics](./ops_operations_health_measure_ops_goals_kpis.html)
+- OPS03-BP03 Escalation is encouraged
+- OPS08-BP04 Create actionable alerts
+- OPS09-BP01 Measure operations goals and KPIs with metrics
 
 **Related documents:**
 

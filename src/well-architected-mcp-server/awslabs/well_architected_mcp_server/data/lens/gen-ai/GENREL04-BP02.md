@@ -105,8 +105,8 @@ Create model testing procedures
 
 **Related best practices:**
 
-- [REL04-BP02](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_prevent_interaction_failure_loosely_coupled_system.html)
-- [REL07-BP01](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_adapt_to_changes_autoscale_adapt.html)
+- REL04-BP02
+- REL07-BP01
 
 **Related documents:**
 

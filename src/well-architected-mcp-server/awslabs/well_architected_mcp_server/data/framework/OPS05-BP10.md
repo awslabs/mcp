@@ -50,8 +50,8 @@ You use build and deployment management systems to track and implement change, t
 
 **Related best practices:**
 
-- [OPS05-BP03 Use configuration management systems](./ops_dev_integ_conf_mgmt_sys.html)
-- [OPS05-BP04 Use build and deployment management systems](./ops_dev_integ_build_mgmt_sys.html)
+- OPS05-BP03 Use configuration management systems
+- OPS05-BP04 Use build and deployment management systems
 
 **Related documents:**
 

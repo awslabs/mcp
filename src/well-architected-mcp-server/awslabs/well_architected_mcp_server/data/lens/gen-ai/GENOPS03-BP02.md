@@ -193,7 +193,7 @@ multi-agent system designs
 
 **Related best practices:**
 
-- [OPS08-BP03](https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_workload_observability_analyze_workload_traces.html)
+- OPS08-BP03
 
 **Related documents:**
 

@@ -95,9 +95,9 @@ functionality taking edge cases into considerations
 
 **Related best practices:**
 
-- [SUS02-BP01](https://docs.aws.amazon.com/wellarchitected/latest/framework/sus_sus_user_a2.html)
-- [SUS05-BP02](https://docs.aws.amazon.com/wellarchitected/latest/framework/sus_sus_hardware_a3.html)
-- [SUS02-BP03](https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_user_a4.html)
+- SUS02-BP01
+- SUS05-BP02
+- SUS02-BP03
 
 **Related documents:**
 

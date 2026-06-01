@@ -210,7 +210,7 @@ deployment process.
 
 **Related best practices:**
 
-- [SEC11-BP02 Automate testing throughout the development and release lifecycle](./sec_appsec_automate_testing_throughout_lifecycle.html)
+- SEC11-BP02 Automate testing throughout the development and release lifecycle
 - [DL.CI.2
 Trigger builds automatically upon source code
 modifications](https://docs.aws.amazon.com/wellarchitected/latest/devops-guidance/dl.ci.2-trigger-builds-automatically-upon-source-code-modifications.html)

@@ -172,11 +172,11 @@ data lake, separate from a compute engine.
 
 **Related best practices:**
 
-- [SEC03-BP01](https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_permissions_define.html)
-- [SEC03-BP02](https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_permissions_least_privileges.html)
-- [SEC07-BP01](https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_data_classification_identify_data.html)
-- [SEC07-BP02](https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_data_classification_define_protection.html)
-- [SEC08-BP04](https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_protect_data_rest_access_control.html)
+- SEC03-BP01
+- SEC03-BP02
+- SEC07-BP01
+- SEC07-BP02
+- SEC08-BP04
 
 **Related documents:**
 

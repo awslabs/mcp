@@ -118,8 +118,8 @@ patterns.
 
 **Related best practices:**
 
-- [PERF05-BP02](https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_use_monitoring_solutions.html)
-- [PERF05-BP03](https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_workload_performance.html)
+- PERF05-BP02
+- PERF05-BP03
 
 **Related documents:**
 

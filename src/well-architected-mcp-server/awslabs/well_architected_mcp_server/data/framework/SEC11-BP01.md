@@ -159,7 +159,7 @@ landscape and best practices.
 
 **Related best practices:**
 
-- [SEC11-BP08 Build a program that embeds security ownership in workload teams](./sec_appsec_build_program_that_embeds_security_ownership_in_teams.html)
+- SEC11-BP08 Build a program that embeds security ownership in workload teams
 
 **Related documents:**
 

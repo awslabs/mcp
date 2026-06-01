@@ -67,7 +67,7 @@ cost-effective approach to your problem.
 
 **Related best practices:**
 
-- [COST10-BP01](https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_evaluate_new_services_review_process.html)
+- COST10-BP01
 
 **Related documents:**
 

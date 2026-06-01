@@ -157,8 +157,8 @@ resources that no longer need to be shared.
 
 **Related best practices:**
 
-- [SEC03-BP01 Define access requirements](./sec_permissions_define.html)
-- [SEC03-BP02 Grant least privilege access](./sec_permissions_least_privileges.html)
+- SEC03-BP01 Define access requirements
+- SEC03-BP02 Grant least privilege access
 
 **Related documents:**
 

@@ -48,11 +48,11 @@ Fail fast strategies can be coded into software solutions as well as configured 
 
 **Related best practices:**
 
-- [REL04-BP02 Implement loosely coupled dependencies](./rel_prevent_interaction_failure_loosely_coupled_system.html)
-- [REL05-BP02 Throttle requests](./rel_mitigate_interaction_failure_throttle_requests.html)
-- [REL05-BP03 Control and limit retry calls](./rel_mitigate_interaction_failure_limit_retries.html)
-- [REL06-BP02 Define and calculate metrics (Aggregation)](./rel_monitor_aws_resources_notification_aggregation.html)
-- [REL06-BP07 Monitor end-to-end tracing of requests through your system](./rel_monitor_aws_resources_end_to_end.html)
+- REL04-BP02 Implement loosely coupled dependencies
+- REL05-BP02 Throttle requests
+- REL05-BP03 Control and limit retry calls
+- REL06-BP02 Define and calculate metrics (Aggregation)
+- REL06-BP07 Monitor end-to-end tracing of requests through your system
 
 **Related documents:**
 

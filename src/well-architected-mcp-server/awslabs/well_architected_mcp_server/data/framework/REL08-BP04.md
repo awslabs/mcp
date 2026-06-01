@@ -116,7 +116,7 @@ Canary deployments:
 
 **Related best practices:**
 
-- [REL08-BP05 Deploy changes with automation](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_tracking_change_management_automated_changemgmt.html)
+- REL08-BP05 Deploy changes with automation
 
 **Related documents:**
 

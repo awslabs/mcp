@@ -51,7 +51,7 @@ Maintain assets in version controlled repositories. Doing so supports tracking c
 
 **Related best practices:**
 
-- [OPS05-BP04 Use build and deployment management systems](./ops_dev_integ_build_mgmt_sys.html)
+- OPS05-BP04 Use build and deployment management systems
 
 **Related videos:**
 

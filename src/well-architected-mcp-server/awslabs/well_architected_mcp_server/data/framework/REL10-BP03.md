@@ -78,8 +78,8 @@ This helps minimize potential failure to multiple cells due to a bad deployment 
 
 **Related best practices:**
 
-- [REL07-BP04 Load test your workload](./rel_adapt_to_changes_load_tested_adapt.html)
-- [REL10-BP01 Deploy the workload to multiple locations](./rel_fault_isolation_multiaz_region_system.html)
+- REL07-BP04 Load test your workload
+- REL10-BP01 Deploy the workload to multiple locations
 
 **Related documents:**
 

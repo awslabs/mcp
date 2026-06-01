@@ -47,11 +47,11 @@ Some AWS SDKs implement retries and exponential backoff by default. Use these bu
 
 **Related best practices:**
 
-- [REL04-BP04 Make mutating operations idempotent](./rel_prevent_interaction_failure_idempotent.html)
-- [REL05-BP02 Throttle requests](./rel_mitigate_interaction_failure_throttle_requests.html)
-- [REL05-BP04 Fail fast and limit queues](./rel_mitigate_interaction_failure_fail_fast.html)
-- [REL05-BP05 Set client timeouts](./rel_mitigate_interaction_failure_client_timeouts.html)
-- [REL11-BP01 Monitor all components of the workload to detect failures](./rel_withstand_component_failures_monitoring_health.html)
+- REL04-BP04 Make mutating operations idempotent
+- REL05-BP02 Throttle requests
+- REL05-BP04 Fail fast and limit queues
+- REL05-BP05 Set client timeouts
+- REL11-BP01 Monitor all components of the workload to detect failures
 
 **Related documents:**
 

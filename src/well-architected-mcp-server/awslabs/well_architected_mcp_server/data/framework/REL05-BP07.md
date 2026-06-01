@@ -62,9 +62,9 @@ This may include mechanisms such as [load shedding](https://aws.amazon.com/build
 
 **Related best practices:**
 
-- [REL05-BP01 Implement graceful degradation to transform applicable hard dependencies into soft dependencies](https://docs.aws.amazon.com/wellarchitected/latest/framework/rel_mitigate_interaction_failure_graceful_degradation.html)
-- [REL05-BP02 Throttle requests](https://docs.aws.amazon.com/wellarchitected/latest/framework/rel_mitigate_interaction_failure_throttle_requests.html)
-- [REL11-BP05 Use static stability to prevent bimodal behavior](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_withstand_component_failures_static_stability.html)
+- REL05-BP01 Implement graceful degradation to transform applicable hard dependencies into soft dependencies
+- REL05-BP02 Throttle requests
+- REL11-BP05 Use static stability to prevent bimodal behavior
 
 **Related documents:**
 

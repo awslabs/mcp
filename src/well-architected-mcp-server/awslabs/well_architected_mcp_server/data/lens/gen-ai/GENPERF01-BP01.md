@@ -145,8 +145,8 @@ models.
 
 **Related best practices:**
 
-- [PERF05-BP01](https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_establish_key_performance_indicators.html)
-- [PERF05-BP03](https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_workload_performance.html)
+- PERF05-BP01
+- PERF05-BP03
 - [MLPER03](https://docs.aws.amazon.com/wellarchitected/latest/machine-learning-lens/mlper-03.html)
 - [MLPER04](https://docs.aws.amazon.com/wellarchitected/latest/machine-learning-lens/mlper-04.html)
 - [MLPER16](https://docs.aws.amazon.com/wellarchitected/latest/machine-learning-lens/mlper-16.html)

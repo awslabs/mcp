@@ -104,10 +104,10 @@ plan:** Medium
 
 **Related best practices:**
 
-- [OPS03-BP06 Team members are encouraged to maintain and grow their skill sets](https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_org_culture_team_enc_learn.html)
-- [OPS09-BP03 Review operations metrics and prioritize improvement](https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_operations_health_review_ops_metrics_prioritize_improvement.html)
-- [OPS10-BP01 Use a process for event, incident, and problem management](https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_event_response_event_incident_problem_process.html)
-- [OPS10-BP07 Automate responses to events](https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_event_response_auto_event_response.html)
+- OPS03-BP06 Team members are encouraged to maintain and grow their skill sets
+- OPS09-BP03 Review operations metrics and prioritize improvement
+- OPS10-BP01 Use a process for event, incident, and problem management
+- OPS10-BP07 Automate responses to events
 
 **Related documents:**
 

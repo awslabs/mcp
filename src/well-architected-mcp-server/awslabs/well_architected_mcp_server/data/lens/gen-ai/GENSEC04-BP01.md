@@ -77,7 +77,7 @@ engineering.
 
 **Related best practices:**
 
-- [SEC08-BP03](https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_protect_data_rest_automate_protection.html)
+- SEC08-BP03
 
 **Related documents:**
 

@@ -91,7 +91,7 @@ high-performance of your applications.
 
 **Related best practices:**
 
-- [PERF05-BP01](https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_establish_key_performance_indicators.html)
+- PERF05-BP01
 - [MLPER-03](https://docs.aws.amazon.com/wellarchitected/latest/machine-learning-lens/mlper-03.html)
 
 **Related documents:**

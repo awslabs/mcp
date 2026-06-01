@@ -47,8 +47,8 @@ Components using AWS Auto Scaling can use scaling plans to configure a set of in
 
 **Related best practices:**
 
-- [REL07-BP01 Use automation when obtaining or scaling resources](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_adapt_to_changes_autoscale_adapt.html)
-- [REL11-BP01 Monitor all components of the workload to detect failures](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_withstand_component_failures_monitoring_health.html)
+- REL07-BP01 Use automation when obtaining or scaling resources
+- REL11-BP01 Monitor all components of the workload to detect failures
 
 **Related documents:**
 

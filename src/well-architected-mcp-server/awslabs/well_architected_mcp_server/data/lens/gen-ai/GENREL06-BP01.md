@@ -145,9 +145,9 @@ to optimize the distributed architecture.
 
 **Related best practices:**
 
-- [REL10-BP02](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_fault_isolation_single_az_system.html)
-- [REL11-BP01](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_withstand_component_failures_monitoring_health.html)
-- [REL11-BP03](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_withstand_component_failures_auto_healing_system.html)
+- REL10-BP02
+- REL11-BP01
+- REL11-BP03
 
 **Related documents:**
 

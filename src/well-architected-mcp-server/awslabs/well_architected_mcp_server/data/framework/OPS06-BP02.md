@@ -57,7 +57,7 @@ Use [drift detection](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserG
 
 **Related best practices:**
 
-- [OPS05-BP02 Test and validate changes](./ops_dev_integ_test_val_chg.html)
+- OPS05-BP02 Test and validate changes
 
 **Related documents:**
 

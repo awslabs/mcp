@@ -144,7 +144,7 @@ feedback.
 
 **Related best practices:**
 
-- [SEC11-BP02 Automate testing throughout the development and release lifecycle](./sec_appsec_automate_testing_throughout_lifecycle.html)
+- SEC11-BP02 Automate testing throughout the development and release lifecycle
 
 **Related documents:**
 

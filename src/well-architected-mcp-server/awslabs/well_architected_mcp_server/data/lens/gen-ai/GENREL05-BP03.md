@@ -71,9 +71,9 @@ across Regions.
 
 **Related best practices:**
 
-- [REL04-BP01](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_prevent_interaction_failure_identify.html)
-- [REL07-BP01](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_adapt_to_changes_autoscale_adapt.html)
-- [REL10-BP01](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_fault_isolation_multiaz_region_system.html)
+- REL04-BP01
+- REL07-BP01
+- REL10-BP01
 
 **Related documents:**
 

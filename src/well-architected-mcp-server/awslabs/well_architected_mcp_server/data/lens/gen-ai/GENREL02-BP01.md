@@ -105,8 +105,8 @@ Conduct failure simulations to verify failover effectiveness
 
 **Related best practices:**
 
-- [REL02-BP01](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_network_topology_ha_conn_users.html)
-- [REL02-BP02](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_manage_service_limits_limits_considered.html)
+- REL02-BP01
+- REL02-BP02
 
 **Related documents:**
 

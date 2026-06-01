@@ -140,7 +140,7 @@ Plan:** Medium
 
 **Related best practices:**
 
-- [OPS02-BP05 Mechanisms exist to request additions, changes, and exceptions](./ops_ops_model_req_add_chg_exception.html)
+- OPS02-BP05 Mechanisms exist to request additions, changes, and exceptions
 
 **Related documents:**
 

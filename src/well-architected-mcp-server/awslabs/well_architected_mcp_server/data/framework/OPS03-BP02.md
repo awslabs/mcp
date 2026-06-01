@@ -116,7 +116,7 @@ plan:** Medium
 
 **Related best practices:**
 
-- [OPS01-BP06 Evaluate tradeoffs while managing benefits and risks](https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_priorities_eval_tradeoffs.html)
+- OPS01-BP06 Evaluate tradeoffs while managing benefits and risks
 - [OPS02-BP05
 Mechanisms exist to identify responsibility and
 ownership](https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ops_model_req_add_chg_exception.html)

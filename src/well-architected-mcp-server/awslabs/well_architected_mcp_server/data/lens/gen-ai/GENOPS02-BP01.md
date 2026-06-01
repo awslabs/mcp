@@ -164,11 +164,11 @@ stored in Amazon S3
 
 Related best practices:
 
-- [OPS08-BP01](https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_workload_observability_analyze_workload_metrics.html)
-- [OPS08-BP02](https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_workload_observability_analyze_workload_logs.html)
-- [OPS08-BP03](https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_workload_observability_analyze_workload_traces.html)
-- [OPS08-BP04](https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_workload_observability_create_alerts.html)
-- [OPS08-BP05](https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_workload_observability_create_dashboards.html)
+- OPS08-BP01
+- OPS08-BP02
+- OPS08-BP03
+- OPS08-BP04
+- OPS08-BP05
 
 **Related documents:**
 

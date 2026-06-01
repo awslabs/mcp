@@ -70,16 +70,16 @@ For management:
 
 **Related best practices:**
 
-- [REL01-BP01 Aware of service quotas and constraints](./rel_manage_service_limits_aware_quotas_and_constraints.html)
-- [REL01-BP02 Manage service quotas across accounts and regions](./rel_manage_service_limits_limits_considered.html)
-- [REL01-BP03 Accommodate fixed service quotas and constraints through architecture](./rel_manage_service_limits_aware_fixed_limits.html)
-- [REL01-BP05 Automate quota management](./rel_manage_service_limits_automated_monitor_limits.html)
-- [REL01-BP06 Ensure that a sufficient gap exists between the current quotas and the maximum usage to accommodate failover](./rel_manage_service_limits_suff_buffer_limits.html)
-- [REL03-BP01 Choose how to segment your workload](./rel_service_architecture_monolith_soa_microservice.html)
-- [REL10-BP01 Deploy the workload to multiple locations](./rel_fault_isolation_multiaz_region_system.html)
-- [REL11-BP01 Monitor all components of the workload to detect failures](./rel_withstand_component_failures_monitoring_health.html)
-- [REL11-BP03 Automate healing on all layers](./rel_withstand_component_failures_auto_healing_system.html)
-- [REL12-BP04 Test resiliency using chaos engineering](./rel_testing_resiliency_failure_injection_resiliency.html)
+- REL01-BP01 Aware of service quotas and constraints
+- REL01-BP02 Manage service quotas across accounts and regions
+- REL01-BP03 Accommodate fixed service quotas and constraints through architecture
+- REL01-BP05 Automate quota management
+- REL01-BP06 Ensure that a sufficient gap exists between the current quotas and the maximum usage to accommodate failover
+- REL03-BP01 Choose how to segment your workload
+- REL10-BP01 Deploy the workload to multiple locations
+- REL11-BP01 Monitor all components of the workload to detect failures
+- REL11-BP03 Automate healing on all layers
+- REL12-BP04 Test resiliency using chaos engineering
 
 **Related documents:**
 

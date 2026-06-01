@@ -143,11 +143,11 @@ Focus on security best practices
 
 **Related best practices:**
 
-- [OPS05-BP10](https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_dev_integ_auto_integ_deploy.html)
-- [OPS06-BP03](https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_mit_deploy_risks_deploy_mgmt_sys.html)
-- [OPS06-BP04](https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_mit_deploy_risks_auto_testing_and_rollback.html)
-- [OPS05-BP08](https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_dev_integ_multi_env.html)
-- [OPS05-BP01](https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_dev_integ_version_control.html)
+- OPS05-BP10
+- OPS06-BP03
+- OPS06-BP04
+- OPS05-BP08
+- OPS05-BP01
 
 **Related documents:**
 

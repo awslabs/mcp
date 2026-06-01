@@ -96,7 +96,7 @@ Create graceful termination processes
 
 **Related best practices:**
 
-- [REL05-BP05](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_client_timeouts.html)
+- REL05-BP05
 
 **Related documents:**
 

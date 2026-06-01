@@ -333,9 +333,9 @@ failback process. For more details, see [Performing a failback](https://docs.aws
 
 **Related best practices:**
 
-- [REL09-BP01 Identify and back up all data that needs to be backed up, or reproduce the data from sources](./rel_backing_up_data_identified_backups_data.html)
-- [REL11-BP04 Rely on the data plane and not the control plane during recovery](./rel_withstand_component_failures_avoid_control_plane.html)
-- [REL13-BP01 Define recovery objectives for downtime and data loss](./rel_planning_for_recovery_objective_defined_recovery.html)
+- REL09-BP01 Identify and back up all data that needs to be backed up, or reproduce the data from sources
+- REL11-BP04 Rely on the data plane and not the control plane during recovery
+- REL13-BP01 Define recovery objectives for downtime and data loss
 
 **Related documents:**
 

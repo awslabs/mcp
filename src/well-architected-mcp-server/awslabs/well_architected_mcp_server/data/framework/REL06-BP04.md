@@ -53,10 +53,10 @@ You can use [Amazon DevOps Guru](https://aws.amazon.com/devops-guru/) to automa
 
 **Related best practices:**
 
-- [REL06-BP01 Monitor all components for the workload (Generation)](./rel_monitor_aws_resources_monitor_resources.html)
-- [REL06-BP02 Define and calculate metrics (Aggregation)](./rel_monitor_aws_resources_notification_aggregation.html)
-- [REL06-BP03 Send notifications (Real-time processing and alarming)](./rel_monitor_aws_resources_notification_monitor.html)
-- [REL08-BP01 Use runbooks for standard activities such as deployment](./rel_tracking_change_management_planned_changemgmt.html)
+- REL06-BP01 Monitor all components for the workload (Generation)
+- REL06-BP02 Define and calculate metrics (Aggregation)
+- REL06-BP03 Send notifications (Real-time processing and alarming)
+- REL08-BP01 Use runbooks for standard activities such as deployment
 
 **Related documents:**
 

@@ -119,7 +119,7 @@ patterns, or model capabilities
 
 **Related best practices:**
 
-- [OPS04-BP03](https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_observability_customer_telemetry.html)
+- OPS04-BP03
 
 **Related documents:**
 

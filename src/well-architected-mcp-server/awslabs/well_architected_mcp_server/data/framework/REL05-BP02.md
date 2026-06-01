@@ -60,8 +60,8 @@ While API Gateway provides a managed implementation of the token bucket, in case
 
 **Related best practices:**
 
-- [REL04-BP03 Do constant work](./rel_prevent_interaction_failure_constant_work.html)
-- [REL05-BP03 Control and limit retry calls](./rel_mitigate_interaction_failure_limit_retries.html)
+- REL04-BP03 Do constant work
+- REL05-BP03 Control and limit retry calls
 
 **Related documents:**
 

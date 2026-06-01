@@ -93,7 +93,7 @@ plan:** Medium
 
 **Related best practices:**
 
-- [OPS11-BP01 Have a process for continuous improvement](./ops_evolve_ops_process_cont_imp.html)
+- OPS11-BP01 Have a process for continuous improvement
 - [OPS 4 - Implement observability](https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/implement-observability.html)
 
 **Related documents:**

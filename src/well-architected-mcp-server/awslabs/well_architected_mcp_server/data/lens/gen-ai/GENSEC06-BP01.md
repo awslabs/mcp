@@ -103,7 +103,7 @@ discovered.
 
 **Related best practices:**
 
-- [SEC07-BP02](https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_data_classification_define_protection.html)
+- SEC07-BP02
 
 **Related documents:**
 

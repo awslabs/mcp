@@ -76,10 +76,10 @@ Configuration items are all application and environmental configurations affecte
 
 **Related best practices:**
 
-- [OPS06-BP01 Plan for unsuccessful changes](./ops_mit_deploy_risks_plan_for_unsucessful_changes.html)
-- [OPS06-BP02 Test deployments](./ops_mit_deploy_risks_test_val_chg.html)
-- [OPS06-BP03 Employ safe deployment strategies](./ops_mit_deploy_risks_deploy_mgmt_sys.html)
-- [OPS06-BP04 Automate testing and rollback](./ops_mit_deploy_risks_auto_testing_and_rollback.html)
+- OPS06-BP01 Plan for unsuccessful changes
+- OPS06-BP02 Test deployments
+- OPS06-BP03 Employ safe deployment strategies
+- OPS06-BP04 Automate testing and rollback
 
 **Related documents:**
 

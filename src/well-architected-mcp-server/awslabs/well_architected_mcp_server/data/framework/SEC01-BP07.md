@@ -72,10 +72,10 @@ For further reference, visit Threat Composer and switch to the system-defined **
 
 **Related best practices:**
 
-- [SEC01-BP03 Identify and validate control objectives](./sec_securely_operate_control_objectives.html)
-- [SEC01-BP04 Stay up to date with security threats and recommendations](./sec_securely_operate_updated_threats.html)
-- [SEC01-BP05 Reduce security management scope](./sec_securely_operate_reduce_management_scope.html)
-- [SEC01-BP08 Evaluate and implement new security services and features regularly](./sec_securely_operate_implement_services_features.html)
+- SEC01-BP03 Identify and validate control objectives
+- SEC01-BP04 Stay up to date with security threats and recommendations
+- SEC01-BP05 Reduce security management scope
+- SEC01-BP08 Evaluate and implement new security services and features regularly
 
 **Related documents:**
 

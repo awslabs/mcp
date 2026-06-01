@@ -59,8 +59,8 @@ Configure CloudWatch dashboards to visualize your metrics and compare them over 
 
 **Related best practices:**
 
-- [OPS04-BP01 Identify key performance indicators](./ops_observability_identify_kpis.html)
-- [OPS04-BP02 Implement application telemetry](./ops_observability_application_telemetry.html)
+- OPS04-BP01 Identify key performance indicators
+- OPS04-BP02 Implement application telemetry
 
 **Related documents:**
 

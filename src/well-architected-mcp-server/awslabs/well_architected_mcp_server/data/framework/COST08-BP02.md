@@ -39,8 +39,8 @@ When planning or reviewing your workload architecture, consider the following:
 
 **Related best practices:**
 
-- [COST08-BP01 Perform data transfer modeling](./cost_data_transfer_modeling.html)
-- [COST08-BP03 Implement services to reduce data transfer costs](./cost_data_transfer_implement_services.html)
+- COST08-BP01 Perform data transfer modeling
+- COST08-BP03 Implement services to reduce data transfer costs
 
 **Related documents:**
 

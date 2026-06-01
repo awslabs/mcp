@@ -78,9 +78,9 @@ For delivering content using edge locations closer to the user, start by underst
 
 **Related best practices:**
 
-- [REL10-BP01 Deploy the workload to multiple locations](./rel_fault_isolation_multiaz_region_system.html)
-- [REL11-BP04 Rely on the data plane and not the control plane during recovery](./rel_withstand_component_failures_avoid_control_plane.html)
-- [REL11-BP06 Send notifications when events impact availability](./rel_withstand_component_failures_notifications_sent_system.html)
+- REL10-BP01 Deploy the workload to multiple locations
+- REL11-BP04 Rely on the data plane and not the control plane during recovery
+- REL11-BP06 Send notifications when events impact availability
 
 **Related documents:**
 

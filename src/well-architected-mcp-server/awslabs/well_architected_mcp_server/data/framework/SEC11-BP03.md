@@ -91,8 +91,8 @@ automated testing and ongoing builder education.
 
 **Related best practices:**
 
-- [SEC11-BP01 Train for application security](./sec_appsec_train_for_application_security.html)
-- [SEC11-BP02 Automate testing throughout the development and release lifecycle](./sec_appsec_automate_testing_throughout_lifecycle.html)
+- SEC11-BP01 Train for application security
+- SEC11-BP02 Automate testing throughout the development and release lifecycle
 
 **Related documents:**
 

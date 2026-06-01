@@ -199,8 +199,8 @@ performance
 
 **Related best practices:**
 
-- [OPS10-BP02](https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_event_response_process_per_alert.html)
-- [OPS08-BP04](https://docs.aws.amazon.com/wellarchitected/latest/framework/ops_workload_observability_create_alerts.html)
+- OPS10-BP02
+- OPS08-BP04
 
 **Related documents:**
 
