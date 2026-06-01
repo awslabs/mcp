@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "HIGH"
 capability: "How do you implement observability in your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_observability_identify_kpis.html"
+description: "Implementing observability in your workload starts with understanding its state and making data-driven decisions based on business requirements. One of the most effective ways to ensure alignment between monitoring activities and business objectives is by defining and monitoring key performance indicators (KPIs)."
+area: ["Prepare", "Implement observability"]
+relatedIds: ["OPS04-BP02", "OPS04-BP03", "OPS04-BP04", "OPS04-BP05"]
 ---
 
 # OPS04-BP01 Identify key performance indicators

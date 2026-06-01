@@ -5,6 +5,8 @@ pillar: "Cost Optimization"
 risk_level: "HIGH"
 capability: "How do you govern usage?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_govern_usage_goal_target.html"
+description: "Implement both cost and usage goals and targets for your workload. Goals provide direction to your organization on expected outcomes, and targets provide specific measurable outcomes to be achieved for your workloads."
+area: ["Expenditure and usage awareness", "Governance"]
 ---
 
 # COST02-BP02 Implement goals and targets

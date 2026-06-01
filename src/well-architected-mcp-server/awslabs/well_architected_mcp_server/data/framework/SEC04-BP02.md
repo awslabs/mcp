@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "MEDIUM"
 capability: "How do you detect and investigate security events?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_detect_investigate_events_logs.html"
+description: "Security teams rely on logs and findings to analyze events that may indicate unauthorized activity or unintentional changes. To streamline this analysis, capture security logs and findings in standardized locations.  This makes data points of interest available for correlation and can simplify tool integrations."
+area: ["Detection"]
+relatedIds: ["SEC01-BP01", "SEC07-BP04", "SEC08-BP04", "OPS08-BP02"]
 ---
 
 # SEC04-BP02 Capture logs, findings, and metrics in standardized locations

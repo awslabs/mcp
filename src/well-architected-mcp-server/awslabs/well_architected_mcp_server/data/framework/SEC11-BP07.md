@@ -5,6 +5,8 @@ pillar: "Security"
 risk_level: "HIGH"
 capability: "How do you incorporate and validate the security properties of applications throughout the design, development, and deployment lifecycle?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_appsec_regularly_assess_security_properties_of_pipelines.html"
+description: "Apply the principles of the Well-Architected Security Pillar to your pipelines, with particular attention to the separation of permissions. Regularly assess the security properties of your pipeline infrastructure. Effectively managing the security of the pipelines allows you to deliver the security of the software that passes through the pipelines."
+area: ["Application security"]
 ---
 
 # SEC11-BP07 Regularly assess security properties of the pipelines

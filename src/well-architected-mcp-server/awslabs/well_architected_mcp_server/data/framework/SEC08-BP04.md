@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "HIGH"
 capability: "How do you protect your data at rest?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_protect_data_rest_access_control.html"
+description: "To help protect your data at rest, enforce access control using mechanisms such as isolation and versioning. Apply least privilege and conditional access controls. Prevent granting public access to your data."
+area: ["Data protection", "Protecting data at rest"]
+relatedIds: ["SEC03-BP01", "SEC03-BP02"]
 ---
 
 # SEC08-BP04 Enforce access control

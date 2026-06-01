@@ -5,6 +5,8 @@ pillar: "Cost Optimization"
 risk_level: "LOW"
 capability: "How do you monitor your cost and usage?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_monitor_usage_allocate_outcome.html"
+description: "Allocate the workload's costs based on usage metrics or business outcomes to measure workload cost efficiency. Implement a process to analyze the cost and usage data with analytics services, which can provide insight and charge back capability."
+area: ["Expenditure and usage awareness", "Monitor cost and usage"]
 ---
 
 # COST03-BP06 Allocate costs based on workload metrics

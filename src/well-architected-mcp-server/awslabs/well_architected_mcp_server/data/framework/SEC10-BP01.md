@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "HIGH"
 capability: "How do you anticipate, respond to, and recover from incidents?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_incident_response_identify_personnel.html"
+description: "Identify internal and external personnel, resources, and legal obligations to help your organization respond to an incident."
+area: ["Incident response", "Preparation"]
+relatedIds: ["OPS02-BP03"]
 ---
 
 # SEC10-BP01 Identify key personnel and external resources

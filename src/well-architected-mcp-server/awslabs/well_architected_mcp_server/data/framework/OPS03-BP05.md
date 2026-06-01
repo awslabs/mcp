@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "MEDIUM"
 capability: "How does your organizational culture support your business outcomes?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_org_culture_team_enc_experiment.html"
+description: "Experimentation is a catalyst for turning new ideas into products and features. It accelerates learning and keeps team members interested and engaged. Team members are encouraged to experiment often to drive innovation. Even when an undesired result occurs, there is value in knowing what not to do. Team members are not punished for successful experiments with undesired results."
+area: ["Organization", "Operating model", "Organizational culture"]
+relatedIds: ["OPS11-BP02", "OPS11-BP03"]
 ---
 
 # OPS03-BP05 Experimentation is encouraged

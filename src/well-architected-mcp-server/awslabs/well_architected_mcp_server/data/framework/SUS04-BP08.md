@@ -5,6 +5,9 @@ pillar: "Sustainability"
 risk_level: "MEDIUM"
 capability: "How do you take advantage of data management policies and patterns to support your sustainability goals?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_data_a9.html"
+description: "Avoid backing up data that has no business value to minimize storage resources requirements for your workload."
+area: ["Data management"]
+relatedIds: ["REL09-BP01", "REL09-BP03", "REL13-BP02"]
 ---
 
 # SUS04-BP08 Back up data only when difficult to recreate

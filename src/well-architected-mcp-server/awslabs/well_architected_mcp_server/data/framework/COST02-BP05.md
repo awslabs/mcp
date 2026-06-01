@@ -5,6 +5,8 @@ pillar: "Cost Optimization"
 risk_level: "MEDIUM"
 capability: "How do you govern usage?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_govern_usage_controls.html"
+description: "Implement controls based on organization policies and defined groups and roles. These certify that costs are only incurred as defined by organization requirements such as control access to regions or resource types."
+area: ["Expenditure and usage awareness", "Governance"]
 ---
 
 # COST02-BP05 Implement cost controls

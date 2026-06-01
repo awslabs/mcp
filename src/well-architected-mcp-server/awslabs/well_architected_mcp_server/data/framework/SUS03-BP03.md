@@ -5,6 +5,8 @@ pillar: "Sustainability"
 risk_level: "MEDIUM"
 capability: "How do you take advantage of software and architecture patterns to support your sustainability goals?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_software_a4.html"
+description: "Optimize your code that runs within different components of your architecture to minimize resource usage while maximizing performance."
+area: ["Software and architecture"]
 ---
 
 # SUS03-BP03 Optimize areas of code that consume the most time or resources

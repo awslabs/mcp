@@ -5,6 +5,8 @@ pillar: "Reliability"
 risk_level: "HIGH"
 capability: "How do you plan for disaster recovery (DR)?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_for_recovery_dr_tested.html"
+description: "Regularly test failover to your recovery site to verify that it operates properly and that RTO and RPO are met."
+area: ["Failure management", "Plan for Disaster Recovery (DR)"]
 ---
 
 # REL13-BP03 Test disaster recovery implementation to validate the implementation

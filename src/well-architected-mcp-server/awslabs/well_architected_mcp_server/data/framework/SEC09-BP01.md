@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "HIGH"
 capability: "How do you protect your data in transit?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_protect_data_transit_key_cert_mgmt.html"
+description: "Transport Layer Security (TLS) certificates are used to secure network communications and establish the identity of websites, resources, and workloads over the internet, as well as private networks."
+area: ["Data protection", "Protecting data in transit"]
+relatedIds: ["SEC02-BP02", "SEC08-BP01", "SEC09-BP03"]
 ---
 
 # SEC09-BP01 Implement secure key and certificate management

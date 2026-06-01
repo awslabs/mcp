@@ -5,6 +5,8 @@ pillar: "Performance Efficiency"
 risk_level: "MEDIUM"
 capability: "How do your organizational practices and culture contribute to performance efficiency in your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_workload_performance.html"
+description: "Define a process to evaluate new services, design patterns, resource types, and configurations as they become available. For example, run existing performance tests on new instance offerings to determine their potential to improve your workload."
+area: ["Process and culture"]
 ---
 
 # PERF05-BP03 Define a process to improve workload performance

@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "MEDIUM"
 capability: "How do you know that you are ready to support a workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ready_to_support_use_playbooks.html"
+description: "Playbooks are step-by-step guides used to investigate an incident. When incidents happen, playbooks are used to investigate, scope impact, and identify a root cause. Playbooks are used for a variety of scenarios, from failed deployments to security incidents. In many cases, playbooks identify the root cause that a runbook is used to mitigate. Playbooks are an essential component of your organization's incident response plans."
+area: ["Prepare", "Operational readiness and change management"]
+relatedIds: ["OPS02-BP02", "OPS07-BP03", "OPS10-BP01", "OPS10-BP02", "OPS11-BP04"]
 ---
 
 # OPS07-BP04 Use playbooks to investigate issues

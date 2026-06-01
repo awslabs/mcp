@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "MEDIUM"
 capability: "How do you reduce defects, ease remediation, and improve flow into production?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_share_design_stds.html"
+description: "Share best practices across teams to increase awareness and maximize the benefits of development efforts. Document them and keep them up to date as your architecture evolves. If shared standards are enforced in your organization, it’s critical that mechanisms exist to request additions, changes, and exceptions to standards. Without this option, standards become a constraint on innovation."
+area: ["Prepare", "Design for operations"]
+relatedIds: ["OPS01-BP03", "OPS01-BP04", "OPS07-BP02", "OPS11-BP01", "OPS11-BP04"]
 ---
 
 # OPS05-BP06 Share design standards

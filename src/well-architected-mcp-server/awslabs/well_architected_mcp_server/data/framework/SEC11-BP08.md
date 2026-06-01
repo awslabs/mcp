@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "LOW"
 capability: "How do you incorporate and validate the security properties of applications throughout the design, development, and deployment lifecycle?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_appsec_build_program_that_embeds_security_ownership_in_teams.html"
+description: "Build a program or mechanism that empowers builder teams to make security decisions about the software that they create. Your security team still needs to validate these decisions during a review, but embedding security ownership in builder teams allows for faster, more secure workloads to be built. This mechanism also promotes a culture of ownership that positively impacts the operation of the systems you build."
+area: ["Application security"]
+relatedIds: ["SEC11-BP01", "SEC11-BP02"]
 ---
 
 # SEC11-BP08 Build a program that embeds security ownership in workload teams

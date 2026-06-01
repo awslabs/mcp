@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "HIGH"
 capability: "How do you implement observability in your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_observability_dependency_telemetry.html"
+description: "Dependency telemetry is essential for monitoring the health and performance of the external services and components your workload relies on. It provides valuable insights into reachability, timeouts, and other critical events related to dependencies such as DNS, databases, or third-party APIs. When you instrument your application to emit metrics, logs, and traces about these dependencies, you gain a clearer understanding of potential bottlenecks, performance issues, or failures that might impact your workload."
+area: ["Prepare", "Implement observability"]
+relatedIds: ["OPS04-BP01", "OPS04-BP02", "OPS04-BP03", "OPS04-BP05", "OPS08-BP04"]
 ---
 
 # OPS04-BP04 Implement dependency telemetry

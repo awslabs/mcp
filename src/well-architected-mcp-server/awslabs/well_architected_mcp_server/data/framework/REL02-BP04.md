@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "MEDIUM"
 capability: "How do you plan your network topology?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_network_topology_prefer_hub_and_spoke.html"
+description: "When connecting multiple private networks, such as Virtual Private Clouds (VPCs) and on-premises networks, opt for a hub-and-spoke topology over a meshed one. Unlike meshed topologies, where each network connects directly to the others and increases the complexity and management overhead, the hub-and-spoke architecture centralizes connections through a single hub. This centralization simplifies the network structure and enhances its operability, scalability, and control."
+area: ["Foundations", "Plan your network topology"]
+relatedIds: ["REL02-BP03", "REL02-BP05"]
 ---
 
 # REL02-BP04 Prefer hub-and-spoke topologies over many-to-many mesh

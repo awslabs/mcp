@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "MEDIUM"
 capability: "How do you manage Service Quotas and constraints?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_manage_service_limits_suff_buffer_limits.html"
+description: "This article explains how to maintain space between the resource quota and your usage, and how it can benefit your organization. After you finish using a resource, the usage quota may continue to account for that resource. This can result in a failing or inaccessible resource. Prevent resource failure by verifying that your quotas cover the overlap of inaccessible resources and their replacements. Consider cases like network failure, Availability Zone failure, or Region failures when calculating this gap."
+area: ["Foundations", "Manage service quotas and constraints"]
+relatedIds: ["REL01-BP01", "REL01-BP02", "REL01-BP03", "REL01-BP04", "REL01-BP05", "REL03-BP01", "REL10-BP01", "REL11-BP01", "REL11-BP03", "REL12-BP04"]
 ---
 
 # REL01-BP06 Ensure that a sufficient gap exists between the current quotas and the maximum usage to accommodate failover

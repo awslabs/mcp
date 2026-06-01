@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "HIGH"
 capability: "How do you implement change?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_tracking_change_management_functional_testing.html"
+description: "Use techniques such as unit tests and integration tests that validate required functionality."
+area: ["Change management", "Implement change"]
+relatedIds: ["REL07-BP04", "REL08-BP03", "REL12-BP04"]
 ---
 
 # REL08-BP02 Integrate functional testing as part of your deployment

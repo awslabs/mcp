@@ -5,6 +5,8 @@ pillar: "Cost Optimization"
 risk_level: "LOW"
 capability: "How do you evaluate cost when you select services?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_select_service_licensing.html"
+description: "Open-source software eliminates software licensing costs, which can contribute significant costs to workloads. Where licensed software is required, avoid licenses bound to arbitrary attributes such as CPUs, look for licenses that are bound to output or outcomes. The cost of these licenses scales more closely to the benefit they provide."
+area: ["Cost effective resources", "Evaluate cost when selecting services"]
 ---
 
 # COST05-BP04 Select software with cost-effective licensing

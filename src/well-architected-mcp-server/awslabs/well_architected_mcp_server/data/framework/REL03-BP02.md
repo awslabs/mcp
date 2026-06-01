@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "HIGH"
 capability: "How do you design your workload service architecture?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_service_architecture_business_domains.html"
+description: "Service-oriented architectures (SOA) define services with well-delineated functions defined by business needs. Microservices use domain models and bounded context to draw service boundaries along business context boundaries. Focusing on business domains and functionality helps teams define independent reliability requirements for their services. Bounded contexts isolate and encapsulate business logic, allowing teams to better reason about how to handle failures."
+area: ["Workload architecture", "Design your workload service architecture"]
+relatedIds: ["REL03-BP01", "REL03-BP03"]
 ---
 
 # REL03-BP02 Build services focused on specific business domains and functionality

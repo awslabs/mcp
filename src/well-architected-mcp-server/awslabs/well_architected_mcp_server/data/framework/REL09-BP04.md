@@ -5,6 +5,8 @@ pillar: "Reliability"
 risk_level: "MEDIUM"
 capability: "How do you back up data?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_backing_up_data_periodic_recovery_testing_data.html"
+description: "Validate that your backup process implementation meets your Recovery Time Objectives (RTO) and Recovery Point Objectives (RPO) by performing a recovery test."
+area: ["Failure management", "Back up data"]
 ---
 
 # REL09-BP04 Perform periodic recovery of the data to verify backup integrity and processes

@@ -5,6 +5,8 @@ pillar: "Performance Efficiency"
 risk_level: "LOW"
 capability: "How do you select and configure networking resources in your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_networking_optimize_network_configuration_based_on_metrics.html"
+description: "Use collected and analyzed data to make informed decisions about optimizing your network configuration."
+area: ["Networking and content delivery"]
 ---
 
 # PERF04-BP07 Optimize network configuration based on metrics

@@ -5,6 +5,8 @@ pillar: "Sustainability"
 risk_level: "LOW"
 capability: "How do you align cloud resources to your demand?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_user_a7.html"
+description: "Buffering and throttling flatten the demand curve and reduce the provisioned capacity required for your workload."
+area: ["Alignment to demand"]
 ---
 
 # SUS02-BP06 Implement buffering or throttling to flatten the demand curve

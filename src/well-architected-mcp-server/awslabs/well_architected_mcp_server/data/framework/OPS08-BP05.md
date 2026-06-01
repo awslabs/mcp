@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "MEDIUM"
 capability: "How do you utilize workload observability in your organization?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_workload_observability_create_dashboards.html"
+description: "Dashboards are the human-centric view into the telemetry data of your workloads. While they provide a vital visual interface, they should not replace alerting mechanisms, but complement them. When crafted with care, not only can they offer rapid insights into system health and performance, but they can also present stakeholders with real-time information on business outcomes and the impact of issues."
+area: ["Operate", "Utilizing workload observability"]
+relatedIds: ["OPS04-BP01", "OPS08-BP01", "OPS08-BP02", "OPS08-BP03", "OPS08-BP04"]
 ---
 
 # OPS08-BP05 Create dashboards

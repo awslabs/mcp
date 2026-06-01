@@ -5,6 +5,8 @@ pillar: "Reliability"
 risk_level: "HIGH"
 capability: "How do you design interactions in a distributed system to mitigate or withstand failures?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_graceful_degradation.html"
+description: "Application components should continue to perform their core function even if dependencies become unavailable. They might be serving slightly stale data, alternate data, or even no data. This ensures overall system function is only minimally impeded by localized failures while delivering the central business value."
+area: ["Workload architecture", "Design interactions in a distributed system to mitigate or withstand failures"]
 ---
 
 # REL05-BP01 Implement graceful degradation to transform applicable hard dependencies into soft dependencies

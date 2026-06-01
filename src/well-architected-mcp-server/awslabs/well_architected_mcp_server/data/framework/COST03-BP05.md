@@ -5,6 +5,8 @@ pillar: "Cost Optimization"
 risk_level: "HIGH"
 capability: "How do you monitor your cost and usage?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_monitor_usage_config_tools.html"
+description: "Configure cost management tools that meet your organization's policies to manage and optimize cloud spending. This includes services, tools, and resources to organize and track cost and usage data, enhance control through consolidated billing and access permission, improve planning through budgeting and forecasts, receive notifications or alerts, and lower cost with resources and pricing optimizations."
+area: ["Expenditure and usage awareness", "Monitor cost and usage"]
 ---
 
 # COST03-BP05 Configure billing and cost management tools

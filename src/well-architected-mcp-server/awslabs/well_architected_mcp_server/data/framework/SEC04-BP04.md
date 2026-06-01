@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "MEDIUM"
 capability: "How do you detect and investigate security events?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_detect_investigate_events_noncompliant_resources.html"
+description: "Your detective controls may alert on resources that are out of compliance with your configuration requirements. You can initiate programmatically-defined remediations, either manually or automatically, to fix these resources and help minimize potential impacts. When you define remediations programmatically, you can take prompt and consistent action."
+area: ["Detection"]
+relatedIds: ["SEC06-BP03"]
 ---
 
 # SEC04-BP04 Initiate remediation for non-compliant resources

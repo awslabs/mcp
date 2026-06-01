@@ -5,6 +5,8 @@ pillar: "Performance Efficiency"
 risk_level: "MEDIUM"
 capability: "How do you select and use compute resources in your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_compute_hardware_compute_accelerators.html"
+description: "Use hardware accelerators to perform certain functions more efficiently than CPU-based alternatives."
+area: ["Compute and hardware"]
 ---
 
 # PERF02-BP06 Use optimized hardware-based compute accelerators

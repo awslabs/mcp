@@ -5,6 +5,8 @@ pillar: "Performance Efficiency"
 risk_level: "MEDIUM"
 capability: "How do you select and configure networking resources in your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_networking_choose_network_protocols_improve_performance.html"
+description: "Make decisions about protocols for communication between systems and networks based on the impact to the workload’s performance."
+area: ["Networking and content delivery"]
 ---
 
 # PERF04-BP05 Choose network protocols to improve performance

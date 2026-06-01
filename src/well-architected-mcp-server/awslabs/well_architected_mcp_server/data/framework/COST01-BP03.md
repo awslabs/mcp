@@ -5,6 +5,8 @@ pillar: "Cost Optimization"
 risk_level: "HIGH"
 capability: "How do you implement cloud financial management?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_cloud_financial_management_budget_forecast.html"
+description: "Adjust existing organizational budgeting and forecasting processes to be compatible with the highly variable nature of cloud costs and usage. Processes must be dynamic, using trend-based or business driver-based algorithms or a combination of both."
+area: ["Practice Cloud Financial Management"]
 ---
 
 # COST01-BP03 Establish cloud budgets and forecasts

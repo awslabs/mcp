@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "MEDIUM"
 capability: "How do you evolve operations?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_evolve_ops_metrics_review.html"
+description: "Regularly perform retrospective analysis of operations metrics with cross-team participants from different areas of the business. Use these reviews to identify opportunities for improvement, potential courses of action, and to share lessons learned. Look for opportunities to improve in all of your environments (for example, development, test, and production)."
+area: ["Evolve", "Learn, share, and improve"]
+relatedIds: ["OPS08-BP05", "OPS09-BP03", "OPS10-BP01"]
 ---
 
 # OPS11-BP07 Perform operations metrics reviews

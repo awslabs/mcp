@@ -5,6 +5,8 @@ pillar: "Sustainability"
 risk_level: "MEDIUM"
 capability: "How do you take advantage of software and architecture patterns to support your sustainability goals?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_software_a3.html"
+description: "Remove components that are unused and no longer required, and refactor components with little utilization to minimize waste in your workload."
+area: ["Software and architecture"]
 ---
 
 # SUS03-BP02 Remove or refactor workload components with low or no use

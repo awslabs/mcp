@@ -5,6 +5,8 @@ pillar: "Performance Efficiency"
 risk_level: "MEDIUM"
 capability: "How do you store, manage, and access data in your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_data_access_patterns_caching.html"
+description: "Implement access patterns that can benefit from caching data for fast retrieval of frequently accessed data."
+area: ["Data management"]
 ---
 
 # PERF03-BP05 Implement data access patterns that utilize caching

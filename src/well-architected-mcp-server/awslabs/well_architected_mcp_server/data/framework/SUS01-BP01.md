@@ -5,6 +5,8 @@ pillar: "Sustainability"
 risk_level: "MEDIUM"
 capability: "How do you select Regions for your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_region_a2.html"
+description: "Choose a Region for your workload based on both your business requirements and sustainability goals to optimize its KPIs, including performance, cost, and carbon footprint."
+area: ["Region selection"]
 ---
 
 # SUS01-BP01 Choose Region based on both business requirements and sustainability goals

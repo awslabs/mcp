@@ -5,6 +5,8 @@ pillar: "Cost Optimization"
 risk_level: "LOW"
 capability: "How do you use pricing models to reduce cost?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_pricing_model_master_analysis.html"
+description: "Check billing and cost management tools and see recommended discounts with commitments and reservations to perform regular analysis at the management account level."
+area: ["Cost effective resources", "Select the best pricing model"]
 ---
 
 # COST07-BP05 Perform pricing model analysis at the management account level

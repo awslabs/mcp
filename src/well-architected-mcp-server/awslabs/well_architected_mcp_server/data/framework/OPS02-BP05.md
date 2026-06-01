@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "MEDIUM"
 capability: "How do you structure your organization to support your business outcomes?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ops_model_req_add_chg_exception.html"
+description: "You can make requests to owners of processes, procedures, and resources. Requests include additions, changes, and exceptions. These requests go through a change management process. Make informed decisions to approve requests where viable and determined to be appropriate after an evaluation of benefits and risks."
+area: ["Organization", "Operating model", "Relationships and ownership"]
+relatedIds: ["OPS02-BP01", "OPS02-BP02", "OPS02-BP03"]
 ---
 
 # OPS02-BP05 Mechanisms exist to request additions, changes, and exceptions

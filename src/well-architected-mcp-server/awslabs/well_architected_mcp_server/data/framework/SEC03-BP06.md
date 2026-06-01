@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "MEDIUM"
 capability: "How do you manage permissions for people and machines?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_permissions_lifecycle.html"
+description: "Monitor and adjust the permissions granted to your principals (users, roles, and groups) throughout their lifecycle within your organization. Adjust group memberships as users change roles, and remove access when a user leaves the organization."
+area: ["Identity and access management", "Permissions management"]
+relatedIds: ["SEC02-BP04"]
 ---
 
 # SEC03-BP06 Manage access based on lifecycle

@@ -5,6 +5,8 @@ pillar: "Sustainability"
 risk_level: "MEDIUM"
 capability: "How do you select and use cloud hardware and services in your architecture to support your sustainability goals?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_hardware_a4.html"
+description: "Use managed services to operate more efficiently in the cloud."
+area: ["Hardware and services"]
 ---
 
 # SUS05-BP03 Use managed services

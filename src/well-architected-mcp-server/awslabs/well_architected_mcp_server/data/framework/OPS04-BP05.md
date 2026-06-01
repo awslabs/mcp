@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "HIGH"
 capability: "How do you implement observability in your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_observability_dist_trace.html"
+description: "Distributed tracing offers a way to monitor and visualize requests as they traverse through various components of a distributed system. By capturing trace data from multiple sources and analyzing it in a unified view, teams can better understand how requests flow, where bottlenecks exist, and where optimization efforts should focus."
+area: ["Prepare", "Implement observability"]
+relatedIds: ["OPS04-BP01", "OPS04-BP02", "OPS04-BP03", "OPS04-BP04"]
 ---
 
 # OPS04-BP05 Implement distributed tracing

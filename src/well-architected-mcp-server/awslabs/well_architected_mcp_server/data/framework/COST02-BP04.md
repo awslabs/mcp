@@ -5,6 +5,8 @@ pillar: "Cost Optimization"
 risk_level: "LOW"
 capability: "How do you govern usage?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_govern_usage_groups_roles.html"
+description: "Implement groups and roles that align to your policies and control who can create, modify, or decommission instances and resources in each group. For example, implement development, test, and production groups. This applies to AWS services and third-party solutions."
+area: ["Expenditure and usage awareness", "Governance"]
 ---
 
 # COST02-BP04 Implement groups and roles

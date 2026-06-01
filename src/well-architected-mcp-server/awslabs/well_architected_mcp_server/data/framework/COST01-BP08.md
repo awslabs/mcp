@@ -5,6 +5,8 @@ pillar: "Cost Optimization"
 risk_level: "LOW"
 capability: "How do you implement cloud financial management?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_cloud_financial_management_culture.html"
+description: "Implement changes or programs across your organization to create a cost-aware culture. It is recommended to start small, then as your capabilities increase and your organization’s use of the cloud increases, implement large and wide ranging programs."
+area: ["Practice Cloud Financial Management"]
 ---
 
 # COST01-BP08 Create a cost-aware culture

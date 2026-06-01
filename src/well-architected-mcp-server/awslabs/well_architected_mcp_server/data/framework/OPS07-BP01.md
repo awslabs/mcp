@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "HIGH"
 capability: "How do you know that you are ready to support a workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ready_to_support_personnel_capability.html"
+description: "Have a mechanism to validate that you have the appropriate number of trained personnel to support the workload. They must be trained on the platform and services that make up your workload. Provide them with the knowledge necessary to operate the workload. You must have enough trained personnel to support the normal operation of the workload and troubleshoot any incidents that occur. Have enough personnel so that you can rotate during on-call and vacations to avoid burnout."
+area: ["Prepare", "Operational readiness and change management"]
+relatedIds: ["OPS11-BP04"]
 ---
 
 # OPS07-BP01 Ensure personnel capability

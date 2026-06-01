@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "HIGH"
 capability: "How do you evolve operations?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_evolve_ops_process_cont_imp.html"
+description: "Evaluate your workload against internal and external architecture best practices. Conduct frequent, intentional workload reviews. Prioritize improvement opportunities into your software development cadence."
+area: ["Evolve", "Learn, share, and improve"]
+relatedIds: ["OPS11-BP02", "OPS11-BP08", "OPS04"]
 ---
 
 # OPS11-BP01 Have a process for continuous improvement

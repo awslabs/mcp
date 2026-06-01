@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "HIGH"
 capability: "How do you protect your compute resources?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_protect_compute_hardened_images.html"
+description: "Provide fewer opportunities for unintended access to your runtime environments by deploying them from hardened images. Only acquire runtime dependencies, such as container images and application libraries, from trusted registries and verify their signatures. Create your own private registries to store trusted images and libraries for use in your build and deploy processes."
+area: ["Infrastructure protection", "Protecting compute"]
+relatedIds: ["OPS05-BP05"]
 ---
 
 # SEC06-BP02 Provision compute from hardened images

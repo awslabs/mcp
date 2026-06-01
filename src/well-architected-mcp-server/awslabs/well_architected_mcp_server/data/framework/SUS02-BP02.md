@@ -5,6 +5,8 @@ pillar: "Sustainability"
 risk_level: "LOW"
 capability: "How do you align cloud resources to your demand?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_user_a3.html"
+description: "Review and optimize workload service-level agreements (SLA) based on your sustainability goals to minimize the resources required to support your workload while continuing to meet business needs."
+area: ["Alignment to demand"]
 ---
 
 # SUS02-BP02 Align SLAs with sustainability goals

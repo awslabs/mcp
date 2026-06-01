@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "MEDIUM"
 capability: "How do you design your workload to adapt to changes in demand?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_adapt_to_changes_reactive_adapt_auto.html"
+description: "Scale resources reactively when necessary if availability is impacted, to restore workload availability."
+area: ["Change management", "Design your workload to adapt to changes in demand"]
+relatedIds: ["REL07-BP01", "REL11-BP01"]
 ---
 
 # REL07-BP02 Obtain resources upon detection of impairment to a workload

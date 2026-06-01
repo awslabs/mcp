@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "HIGH"
 capability: "How do you structure your organization to support your business outcomes?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ops_model_def_resource_owners.html"
+description: "Resources for your workload must have identified owners for change control, troubleshooting, and other functions. Owners are assigned for workloads, accounts, infrastructure, platforms, and applications. Ownership is recorded using tools like a central register or metadata attached to resources. The business value of components informs the processes and procedures applied to them."
+area: ["Organization", "Operating model", "Relationships and ownership"]
+relatedIds: ["OPS02-BP02", "OPS02-BP04"]
 ---
 
 # OPS02-BP01 Resources have identified owners

@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "MEDIUM"
 capability: "How do you reduce defects, ease remediation, and improve flow into production?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_patch_mgmt.html"
+description: "Perform patch management to gain features, address issues, and remain compliant with governance. Automate patch management to reduce errors caused by manual processes, scale, and reduce the level of effort to patch."
+area: ["Prepare", "Design for operations"]
+relatedIds: ["OPS06-BP04"]
 ---
 
 # OPS05-BP05 Perform patch management

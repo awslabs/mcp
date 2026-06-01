@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "MEDIUM"
 capability: "How do you monitor workload resources?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_monitor_aws_resources_end_to_end.html"
+description: "Trace requests as they process through service components so product teams can more easily analyze and debug issues and improve performance."
+area: ["Change management", "Monitor workload resources"]
+relatedIds: ["REL06-BP01", "REL11-BP01"]
 ---
 
 # REL06-BP07 Monitor end-to-end tracing of requests through your system

@@ -5,6 +5,8 @@ pillar: "Sustainability"
 risk_level: "MEDIUM"
 capability: "How do you take advantage of data management policies and patterns to support your sustainability goals?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_data_a2.html"
+description: "Classify data to understand its criticality to business outcomes and choose the right energy-efficient storage tier to store the data."
+area: ["Data management"]
 ---
 
 # SUS04-BP01 Implement a data classification policy

@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "HIGH"
 capability: "How do you manage authentication for people and machines?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_identities_identity_provider.html"
+description: "For workforce identities (employees and contractors), rely on an identity provider that allows you to manage identities in a centralized place. This makes it easier to manage access across multiple applications and systems, because you are creating, assigning, managing, revoking, and auditing access from a single location."
+area: ["Identity and access management", "Identity management"]
+relatedIds: ["SEC02-BP06", "SEC03-BP02", "SEC03-BP06"]
 ---
 
 # SEC02-BP04 Rely on a centralized identity provider

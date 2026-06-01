@@ -5,6 +5,8 @@ pillar: "Sustainability"
 risk_level: "LOW"
 capability: "How do you align cloud resources to your demand?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_user_a4.html"
+description: "Decommission unused assets in your workload to reduce the number of cloud resources required to support your demand and minimize waste."
+area: ["Alignment to demand"]
 ---
 
 # SUS02-BP03 Stop the creation and maintenance of unused assets

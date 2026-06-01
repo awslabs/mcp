@@ -5,6 +5,8 @@ pillar: "Sustainability"
 risk_level: "MEDIUM"
 capability: "How do you take advantage of data management policies and patterns to support your sustainability goals?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_data_a6.html"
+description: "Remove unneeded or redundant data to minimize the storage resources required to store your datasets."
+area: ["Data management"]
 ---
 
 # SUS04-BP05 Remove unneeded or redundant data

@@ -5,6 +5,8 @@ pillar: "Performance Efficiency"
 risk_level: "HIGH"
 capability: "How do you select and use compute resources in your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_compute_hardware_collect_compute_related_metrics.html"
+description: "Record and track compute-related metrics to better understand how your compute resources are performing and improve their performance and their utilization."
+area: ["Compute and hardware"]
 ---
 
 # PERF02-BP03 Collect compute-related metrics

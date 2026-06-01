@@ -5,6 +5,8 @@ pillar: "Reliability"
 risk_level: "HIGH"
 capability: "How do you plan your network topology?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_network_topology_ha_conn_private_networks.html"
+description: "Implement redundancy in your connections between private networks in the cloud and on-premises environments to achieve connectivity resilience. This can be accomplished by deploying two or more links and traffic paths, preserving connectivity in the event of network failures."
+area: ["Foundations", "Plan your network topology"]
 ---
 
 # REL02-BP02 Provision redundant connectivity between private networks in the cloud and on-premises environments

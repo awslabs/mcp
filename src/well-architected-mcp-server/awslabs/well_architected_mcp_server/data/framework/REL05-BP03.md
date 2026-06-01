@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "HIGH"
 capability: "How do you design interactions in a distributed system to mitigate or withstand failures?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_limit_retries.html"
+description: "Use exponential backoff to retry requests at progressively longer intervals between each retry. Introduce jitter between retries to randomize retry intervals. Limit the maximum number of retries."
+area: ["Workload architecture", "Design interactions in a distributed system to mitigate or withstand failures"]
+relatedIds: ["REL04-BP04", "REL05-BP02", "REL05-BP04", "REL05-BP05", "REL11-BP01"]
 ---
 
 # REL05-BP03 Control and limit retry calls

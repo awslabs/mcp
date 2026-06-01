@@ -5,6 +5,8 @@ pillar: "Cost Optimization"
 risk_level: "MEDIUM"
 capability: "How do you plan for data transfer charges?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_data_transfer_optimized_components.html"
+description: "All components are selected, and architecture is designed to reduce data transfer costs. This includes using components such as wide-area-network (WAN) optimization and Multi-Availability Zone (AZ) configurations."
+area: ["Cost effective resources", "Plan for data transfer"]
 ---
 
 # COST08-BP02 Select components to optimize data transfer cost

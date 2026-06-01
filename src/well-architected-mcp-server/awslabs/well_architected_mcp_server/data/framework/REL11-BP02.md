@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "HIGH"
 capability: "How do you design your workload to withstand component failures?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_withstand_component_failures_failover2good.html"
+description: "If a resource failure occurs, healthy resources should continue to serve requests. For location impairments (such as Availability Zone or AWS Region), ensure that you have systems in place to fail over to healthy resources in unimpaired locations."
+area: ["Failure management", "Design your workload to withstand component failures"]
+relatedIds: ["REL10", "REL13"]
 ---
 
 # REL11-BP02 Fail over to healthy resources

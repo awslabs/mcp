@@ -5,6 +5,8 @@ pillar: "Cost Optimization"
 risk_level: "HIGH"
 capability: "How do you plan for data transfer charges?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_data_transfer_modeling.html"
+description: "Gather organization requirements and perform data transfer modeling of the workload and each of its components. This identifies the lowest cost point for its current data transfer requirements."
+area: ["Cost effective resources", "Plan for data transfer"]
 ---
 
 # COST08-BP01 Perform data transfer modeling

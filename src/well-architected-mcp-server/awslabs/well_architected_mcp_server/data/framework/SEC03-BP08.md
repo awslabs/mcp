@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "MEDIUM"
 capability: "How do you manage permissions for people and machines?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_permissions_share_securely.html"
+description: "As the number of workloads grows, you might need to share access to resources in those workloads or provision the resources multiple times across multiple accounts. You might have constructs to compartmentalize your environment, such as having development, testing, and production environments. However, having separation constructs does not limit you from being able to share securely. By sharing components that overlap, you can reduce operational overhead and allow for a consistent experience without guessing what you might have missed while creating the same resource multiple times."
+area: ["Identity and access management", "Permissions management"]
+relatedIds: ["SEC03-BP07", "SEC03-BP09", "SEC05-BP01"]
 ---
 
 # SEC03-BP08 Share resources securely within your organization

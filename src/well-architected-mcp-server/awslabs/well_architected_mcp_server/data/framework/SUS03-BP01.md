@@ -5,6 +5,8 @@ pillar: "Sustainability"
 risk_level: "MEDIUM"
 capability: "How do you take advantage of software and architecture patterns to support your sustainability goals?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_software_a2.html"
+description: "Use efficient software and architecture patterns such as queue-driven to maintain consistent high utilization of deployed resources."
+area: ["Software and architecture"]
 ---
 
 # SUS03-BP01 Optimize software and architecture for asynchronous and scheduled jobs

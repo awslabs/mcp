@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "MEDIUM"
 capability: "How do you anticipate, respond to, and recover from incidents?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_incident_response_pre_deploy_tools.html"
+description: "Verify that security personnel have the right tools pre-deployed to reduce the time for investigation through to recovery."
+area: ["Incident response", "Preparation"]
+relatedIds: ["SEC04-BP01", "SEC04-BP02"]
 ---
 
 # SEC10-BP06 Pre-deploy tools

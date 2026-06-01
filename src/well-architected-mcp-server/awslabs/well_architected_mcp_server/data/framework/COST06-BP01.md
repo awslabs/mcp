@@ -5,6 +5,8 @@ pillar: "Cost Optimization"
 risk_level: "HIGH"
 capability: "How do you meet cost targets when you select resource type, size and number?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_type_size_number_resources_cost_modeling.html"
+description: "Identify organization requirements (such as business needs and existing commitments) and perform cost modeling (overall costs) of the workload and each of its components. Perform benchmark activities for the workload under different predicted loads and compare the costs. The modeling effort should reflect the potential benefit. For example, time spent is proportional to component cost."
+area: ["Cost effective resources", "Select the correct resource type, size, and number"]
 ---
 
 # COST06-BP01 Perform cost modeling

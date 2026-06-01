@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "HIGH"
 capability: "How do you utilize workload observability in your organization?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_workload_observability_create_alerts.html"
+description: "Promptly detecting and responding to deviations in your application's behavior is crucial. Especially vital is recognizing when outcomes based on key performance indicators (KPIs) are at risk or when unexpected anomalies arise. Basing alerts on KPIs ensures that the signals you receive are directly tied to business or operational impact. This approach to actionable alerts promotes proactive responses and helps maintain system performance and reliability."
+area: ["Operate", "Utilizing workload observability"]
+relatedIds: ["OPS04-BP01", "OPS04-BP02", "OPS04-BP03", "OPS04-BP04", "OPS04-BP05", "OPS08-BP01", "OPS08-BP02", "OPS08-BP03"]
 ---
 
 # OPS08-BP04 Create actionable alerts

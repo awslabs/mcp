@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "HIGH"
 capability: "How do you manage authentication for people and machines?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_identities_unique.html"
+description: "When doing any type of authentication, it's best to use temporary credentials instead of long-term credentials to reduce or eliminate risks, such as credentials being inadvertently disclosed, shared, or stolen."
+area: ["Identity and access management", "Identity management"]
+relatedIds: ["SEC02-BP03", "SEC02-BP04", "SEC03-BP08"]
 ---
 
 # SEC02-BP02 Use temporary credentials

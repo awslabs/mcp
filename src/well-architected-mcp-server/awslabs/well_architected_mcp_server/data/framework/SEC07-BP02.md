@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "HIGH"
 capability: "How do you classify your data?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_data_classification_define_protection.html"
+description: "Apply data protection controls that provide an appropriate level of control for each class of data defined in your classification policy.  This practice can allow you to protect sensitive data from unauthorized access and use, while preserving the availability and use of data."
+area: ["Data protection", "Data classification"]
+relatedIds: ["PERF03-BP01", "COST04-BP05"]
 ---
 
 # SEC07-BP02 Apply data protection controls based on data sensitivity

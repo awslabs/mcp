@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "MEDIUM"
 capability: "How do you manage authentication for people and machines?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_identities_groups_attributes.html"
+description: "Defining permissions according to user groups and attributes helps reduce the number and complexity of policies, making it simpler to achieve the principle of least privilege. You can use user groups to manage the permissions for many people in one place based on the function they perform in your organization. Attributes, such as department, project, or location, can provide an additional layer of permission scope when people perform a similar function but for different subsets of resources."
+area: ["Identity and access management", "Identity management"]
+relatedIds: ["SEC02-BP04", "SEC03-BP04", "COST02-BP04"]
 ---
 
 # SEC02-BP06 Employ user groups and attributes

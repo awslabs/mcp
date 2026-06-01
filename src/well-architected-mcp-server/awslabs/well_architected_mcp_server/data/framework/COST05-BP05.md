@@ -5,6 +5,8 @@ pillar: "Cost Optimization"
 risk_level: "MEDIUM"
 capability: "How do you evaluate cost when you select services?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_select_service_select_for_cost.html"
+description: "Factor in cost when selecting all components for your workload. This includes using application-level and managed services or serverless, containers, or event-driven architecture to reduce overall cost. Minimize license costs by using open-source software, software that does not have license fees, or alternatives to reduce spending."
+area: ["Cost effective resources", "Evaluate cost when selecting services"]
 ---
 
 # COST05-BP05 Select components of this workload to optimize cost in line with organization priorities

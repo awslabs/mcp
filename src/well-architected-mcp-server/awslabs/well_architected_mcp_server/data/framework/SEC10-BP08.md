@@ -5,6 +5,8 @@ pillar: "Security"
 risk_level: "MEDIUM"
 capability: "How do you anticipate, respond to, and recover from incidents?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_incident_response_establish_incident_framework.html"
+description: "Implementing a lessons learned framework and root cause analysis capability can not only help improve incident response capabilities, but also help prevent the incident from recurring. By learning from each incident, you can help avoid repeating the same mistakes, exposures, or misconfigurations, not only improving your security posture, but also minimizing time lost to preventable situations."
+area: ["Incident response", "Post-incident activity"]
 ---
 
 # SEC10-BP08 Establish a framework for learning from incidents

@@ -5,6 +5,8 @@ pillar: "Cost Optimization"
 risk_level: "MEDIUM"
 capability: "How do you use pricing models to reduce cost?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_pricing_model_region_cost.html"
+description: "Resource pricing may be different in each Region. Identify Regional cost differences and only deploy in Regions with higher costs to meet latency, data residency and data sovereignty requirements. Factoring in Region cost helps you pay the lowest overall price for this workload."
+area: ["Cost effective resources", "Select the best pricing model"]
 ---
 
 # COST07-BP02 Choose Regions based on cost

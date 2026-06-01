@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "HIGH"
 capability: "How does your organizational culture support your business outcomes?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_org_culture_executive_sponsor.html"
+description: "At the highest level, senior leadership acts as the executive sponsor to clearly set expectations and direction for the organization's outcomes, including evaluating its success. The sponsor advocates and drives adoption of best practices and evolution of the organization."
+area: ["Organization", "Operating model", "Organizational culture"]
+relatedIds: ["OPS03-BP04", "OPS11-BP01"]
 ---
 
 # OPS03-BP01 Provide executive sponsorship

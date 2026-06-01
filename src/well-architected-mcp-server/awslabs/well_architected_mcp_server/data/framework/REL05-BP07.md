@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "MEDIUM"
 capability: "How do you design interactions in a distributed system to mitigate or withstand failures?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_emergency_levers.html"
+description: "Emergency levers are rapid processes that can mitigate availability impact on your workload."
+area: ["Workload architecture", "Design interactions in a distributed system to mitigate or withstand failures"]
+relatedIds: ["REL05-BP01", "REL05-BP02", "REL11-BP05"]
 ---
 
 # REL05-BP07 Implement emergency levers

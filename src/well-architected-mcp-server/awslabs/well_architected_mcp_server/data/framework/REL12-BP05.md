@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "MEDIUM"
 capability: "How do you test reliability?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_testing_resiliency_game_days_resiliency.html"
+description: "Conduct game days to regularly exercise your procedures for responding to workload-impacting events and impairments. Involve the same teams who would be responsible for handling production scenarios. These exercises help enforce measures to prevent user impact caused by production events. When you practice your response procedures in realistic conditions, you can identify and address any gaps or weaknesses before a real event occurs."
+area: ["Failure management", "Test reliability"]
+relatedIds: ["REL12-BP01", "REL12-BP04", "OPS04-BP01", "OPS07-BP03", "OPS10-BP01"]
 ---
 
 # REL12-BP05 Conduct game days regularly

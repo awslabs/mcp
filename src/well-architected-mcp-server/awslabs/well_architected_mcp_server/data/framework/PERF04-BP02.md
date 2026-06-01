@@ -5,6 +5,8 @@ pillar: "Performance Efficiency"
 risk_level: "HIGH"
 capability: "How do you select and configure networking resources in your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_networking_evaluate_networking_features.html"
+description: "Evaluate networking features in the cloud that may increase performance. Measure the impact of these features through testing, metrics, and analysis. For example, take advantage of network-level features that are available to reduce latency, network distance, or jitter."
+area: ["Networking and content delivery"]
 ---
 
 # PERF04-BP02 Evaluate available networking features

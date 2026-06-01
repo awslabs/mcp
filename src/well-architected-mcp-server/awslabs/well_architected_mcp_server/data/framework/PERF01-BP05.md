@@ -5,6 +5,8 @@ pillar: "Performance Efficiency"
 risk_level: "HIGH"
 capability: "How do you select appropriate cloud resources and architecture for your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_architecture_use_policies_and_reference_architectures.html"
+description: "Use internal policies and existing reference architectures when selecting services and configurations to be more efficient when designing and implementing your workload."
+area: ["Architecture selection"]
 ---
 
 # PERF01-BP05 Use policies and reference architectures

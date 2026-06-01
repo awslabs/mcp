@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "MEDIUM"
 capability: "How do you manage permissions for people and machines?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_permissions_emergency_process.html"
+description: "Create a process that allows for emergency access to your workloads in the unlikely event of an issue with your centralized identity provider."
+area: ["Identity and access management", "Permissions management"]
+relatedIds: ["SEC02-BP04", "SEC03-BP02", "SEC10-BP02", "SEC10-BP07"]
 ---
 
 # SEC03-BP03 Establish emergency access process

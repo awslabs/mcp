@@ -5,6 +5,8 @@ pillar: "Performance Efficiency"
 risk_level: "MEDIUM"
 capability: "How do your organizational practices and culture contribute to performance efficiency in your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_review_metrics.html"
+description: "As part of routine maintenance or in response to events or incidents, review which metrics are collected. Use these reviews to identify which metrics were essential in addressing issues and which additional metrics, if they were being tracked, could help identify, address, or prevent issues."
+area: ["Process and culture"]
 ---
 
 # PERF05-BP07 Review metrics at regular intervals

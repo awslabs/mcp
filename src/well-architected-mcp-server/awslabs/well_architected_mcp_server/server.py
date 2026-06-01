@@ -164,22 +164,57 @@ def _build_framework_index() -> None:
                 QUESTIONS_INDEX[capability]['bp_ids'].append(bp_id)
 
 
+PILLAR_KEY_MAP = {
+    'Operational Excellence': 'operational_excellence',
+    'Security': 'security',
+    'Reliability': 'reliability',
+    'Performance Efficiency': 'performance_efficiency',
+    'Cost Optimization': 'cost_optimization',
+    'Sustainability': 'sustainability',
+}
+
+PILLAR_DISPLAY_TO_CONST = {v: k for k, v in PILLAR_DISPLAY_NAMES.items()}
+
+
+def _parse_json_field(value: str) -> Any:
+    """Parse a JSON array/object string from frontmatter, or return as-is."""
+    if value.startswith('[') or value.startswith('{'):
+        try:
+            return json.loads(value)
+        except (json.JSONDecodeError, ValueError):
+            pass
+    return value
+
+
+def _bp_from_metadata(metadata: dict[str, str], lens: str = 'FRAMEWORK') -> dict[str, Any]:
+    """Build a best practice dict from parsed frontmatter metadata."""
+    pillar_display = metadata.get('pillar', '')
+    return {
+        'id': metadata.get('id', ''),
+        'title': metadata.get('title', ''),
+        'pillar': PILLAR_DISPLAY_TO_CONST.get(pillar_display, pillar_display),
+        'risk': metadata.get('risk_level', 'MEDIUM'),
+        'lens': lens,
+        'href': metadata.get('url', ''),
+        'area': _parse_json_field(metadata.get('area', '[]')),
+        'relatedIds': _parse_json_field(metadata.get('relatedIds', '[]')),
+        'description': metadata.get('description', ''),
+    }
+
+
 def load_data() -> None:
-    """Load all best practices from JSON files."""
+    """Load all best practices from framework markdown files."""
     global BEST_PRACTICES, BP_BY_ID
 
-    for pillar_file in [
-        'operational_excellence',
-        'security',
-        'reliability',
-        'performance_efficiency',
-        'cost_optimization',
-        'sustainability',
-    ]:
-        file_path = DATA_DIR / f'{pillar_file}.json'
-        if file_path.exists():
-            with open(file_path) as f:
-                BEST_PRACTICES[pillar_file] = json.load(f)
+    if FRAMEWORK_DIR.exists():
+        for md_file in sorted(FRAMEWORK_DIR.glob('*.md')):
+            metadata, _ = _parse_framework_file(md_file)
+            bp_id = metadata.get('id')
+            if not bp_id:
+                continue
+            bp = _bp_from_metadata(metadata)
+            pillar_key = PILLAR_KEY_MAP.get(metadata.get('pillar', ''), 'other')
+            BEST_PRACTICES.setdefault(pillar_key, []).append(bp)
 
     lens_dir = DATA_DIR / 'lens' / 'gen-ai'
     if lens_dir.exists():
@@ -187,17 +222,7 @@ def load_data() -> None:
         for md_file in sorted(lens_dir.glob('*.md')):
             metadata, _ = _parse_framework_file(md_file)
             if metadata.get('id'):
-                bp: dict[str, Any] = {
-                    'id': metadata['id'],
-                    'title': metadata.get('title', ''),
-                    'pillar': metadata.get('pillar', ''),
-                    'risk': metadata.get('risk_level', 'MEDIUM'),
-                    'lens': 'GENERATIVE_AI',
-                    'href': metadata.get('url', ''),
-                    'area': [],
-                    'relatedIds': [],
-                    'description': '',
-                }
+                bp = _bp_from_metadata(metadata, lens='GENERATIVE_AI')
                 lens_practices.append(bp)
         if lens_practices:
             BEST_PRACTICES['genai'] = lens_practices

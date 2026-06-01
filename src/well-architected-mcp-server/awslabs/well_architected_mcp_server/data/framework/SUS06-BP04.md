@@ -5,6 +5,8 @@ pillar: "Sustainability"
 risk_level: "LOW"
 capability: "How do your organizational processes support your sustainability goals?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_dev_a4.html"
+description: "Increase the utilization of resources to develop, test, and build your workloads."
+area: ["Process and culture"]
 ---
 
 # SUS06-BP04 Increase utilization of build environments

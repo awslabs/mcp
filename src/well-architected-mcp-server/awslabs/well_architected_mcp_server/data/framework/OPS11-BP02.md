@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "HIGH"
 capability: "How do you evolve operations?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_evolve_ops_perform_rca_process.html"
+description: "Review customer-impacting events and identify the contributing factors and preventative actions. Use this information to develop mitigations to limit or prevent recurrence. Develop procedures for prompt and effective responses. Communicate contributing factors and corrective actions as appropriate, tailored to target audiences."
+area: ["Evolve", "Learn, share, and improve"]
+relatedIds: ["OPS11-BP01", "OPS04"]
 ---
 
 # OPS11-BP02 Perform post-incident analysis

@@ -5,6 +5,8 @@ pillar: "Performance Efficiency"
 risk_level: "HIGH"
 capability: "How do you select appropriate cloud resources and architecture for your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_architecture_evaluate_trade_offs.html"
+description: "When evaluating performance-related improvements, determine which choices impact your customers and workload efficiency. For example, if using a key-value data store increases system performance, it is important to evaluate how the eventually consistent nature of this change will impact customers."
+area: ["Architecture selection"]
 ---
 
 # PERF01-BP04 Evaluate how trade-offs impact customers and architecture efficiency

@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "MEDIUM"
 capability: "How do you design interactions in a distributed system to mitigate or withstand failures?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_stateless.html"
+description: "Systems should either not require state, or should offload state such that between different client requests, there is no dependence on locally stored data on disk and in memory. This allows servers to be replaced at will without causing an availability impact."
+area: ["Workload architecture", "Design interactions in a distributed system to mitigate or withstand failures"]
+relatedIds: ["REL11-BP03"]
 ---
 
 # REL05-BP06 Make systems stateless where possible

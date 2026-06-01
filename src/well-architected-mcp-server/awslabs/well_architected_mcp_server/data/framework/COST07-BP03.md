@@ -5,6 +5,8 @@ pillar: "Cost Optimization"
 risk_level: "MEDIUM"
 capability: "How do you use pricing models to reduce cost?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_pricing_model_third_party.html"
+description: "Cost efficient agreements and terms ensure the cost of these services scales with the benefits they provide. Select agreements and pricing that scale when they provide additional benefits to your organization."
+area: ["Cost effective resources", "Select the best pricing model"]
 ---
 
 # COST07-BP03 Select third-party agreements with cost-efficient terms

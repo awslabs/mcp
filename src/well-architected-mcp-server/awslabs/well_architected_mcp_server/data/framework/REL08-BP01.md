@@ -5,6 +5,8 @@ pillar: "Reliability"
 risk_level: "HIGH"
 capability: "How do you implement change?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_tracking_change_management_planned_changemgmt.html"
+description: "Runbooks are the predefined procedures to achieve specific outcomes. Use runbooks to perform standard activities, whether done manually or automatically. Examples include deploying a workload, patching a workload, or making DNS modifications."
+area: ["Change management", "Implement change"]
 ---
 
 # REL08-BP01 Use runbooks for standard activities such as deployment

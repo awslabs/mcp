@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "HIGH"
 capability: "How do you monitor workload resources?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_monitor_aws_resources_notification_aggregation.html"
+description: "Collect metrics and logs from your workload components and calculate relevant aggregate metrics from them. These metrics provide broad and deep observability of your workload and can significantly improve your resilience posture."
+area: ["Change management", "Monitor workload resources"]
+relatedIds: ["REL06-BP01", "REL06-BP03", "REL06-BP04", "REL06-BP05", "REL06-BP06", "REL06-BP07"]
 ---
 
 # REL06-BP02 Define and calculate metrics (Aggregation)

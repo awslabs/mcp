@@ -5,6 +5,8 @@ pillar: "Reliability"
 risk_level: "MEDIUM"
 capability: "How do you design your workload to withstand component failures?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_withstand_component_failures_notifications_sent_system.html"
+description: "Notifications are sent upon the detection of thresholds breached, even if the event causing the issue was automatically resolved."
+area: ["Failure management", "Design your workload to withstand component failures"]
 ---
 
 # REL11-BP06 Send notifications when events impact availability

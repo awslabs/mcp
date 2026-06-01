@@ -5,6 +5,8 @@ pillar: "Performance Efficiency"
 risk_level: "HIGH"
 capability: "How do you select and configure networking resources in your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_networking_choose_appropriate_dedicated_connectivity_or_vpn.html"
+description: "When hybrid connectivity is required to connect on-premises and cloud resources, provision adequate bandwidth to meet your performance requirements. Estimate the bandwidth and latency requirements for your hybrid workload. These numbers will drive your sizing requirements."
+area: ["Networking and content delivery"]
 ---
 
 # PERF04-BP03 Choose appropriate dedicated connectivity or VPN for your workload

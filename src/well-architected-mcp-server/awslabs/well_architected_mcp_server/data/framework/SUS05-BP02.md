@@ -5,6 +5,8 @@ pillar: "Sustainability"
 risk_level: "MEDIUM"
 capability: "How do you select and use cloud hardware and services in your architecture to support your sustainability goals?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_hardware_a3.html"
+description: "Continually monitor and use new instance types to take advantage of energy efficiency improvements."
+area: ["Hardware and services"]
 ---
 
 # SUS05-BP02 Use instance types with the least impact

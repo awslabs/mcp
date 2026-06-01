@@ -5,6 +5,8 @@ pillar: "Cost Optimization"
 risk_level: "HIGH"
 capability: "How do you decommission resources?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_decomissioning_resources_implement_process.html"
+description: "Implement a process to identify and decommission unused resources."
+area: ["Expenditure and usage awareness", "Decommission resources"]
 ---
 
 # COST04-BP02 Implement a decommissioning process

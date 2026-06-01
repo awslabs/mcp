@@ -5,6 +5,8 @@ pillar: "Cost Optimization"
 risk_level: "MEDIUM"
 capability: "How do you evaluate cost when you select services?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_select_service_analyze_over_time.html"
+description: "Workloads can change over time. Some services or features are more cost effective at different usage levels. By performing the analysis on each component over time and at projected usage, the workload remains cost-effective over its lifetime."
+area: ["Cost effective resources", "Evaluate cost when selecting services"]
 ---
 
 # COST05-BP06 Perform cost analysis for different usage over time

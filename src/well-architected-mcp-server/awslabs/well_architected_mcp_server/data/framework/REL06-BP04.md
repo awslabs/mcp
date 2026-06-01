@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "MEDIUM"
 capability: "How do you monitor workload resources?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_monitor_aws_resources_automate_response_monitor.html"
+description: "Use automation to take action when an event is detected, for example, to replace failed components."
+area: ["Change management", "Monitor workload resources"]
+relatedIds: ["REL06-BP01", "REL06-BP02", "REL06-BP03", "REL08-BP01"]
 ---
 
 # REL06-BP04 Automate responses (Real-time processing and alarming)

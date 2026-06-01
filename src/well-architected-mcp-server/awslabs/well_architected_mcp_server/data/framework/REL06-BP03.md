@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "HIGH"
 capability: "How do you monitor workload resources?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_monitor_aws_resources_notification_monitor.html"
+description: "When organizations detect potential issues, they send real-time notifications and alerts to the appropriate personnel and systems in order to respond quickly and effectively to these issues."
+area: ["Change management", "Monitor workload resources"]
+relatedIds: ["REL06-BP01", "REL06-BP02", "REL12-BP01"]
 ---
 
 # REL06-BP03 Send notifications (Real-time processing and alarming)

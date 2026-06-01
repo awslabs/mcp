@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "HIGH"
 capability: "How do you design interactions in a distributed system to mitigate or withstand failures?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_client_timeouts.html"
+description: "Set timeouts appropriately on connections and requests, verify them systematically, and do not rely on default values as they are not aware of workload specifics."
+area: ["Workload architecture", "Design interactions in a distributed system to mitigate or withstand failures"]
+relatedIds: ["REL05-BP03", "REL05-BP04", "REL06-BP07"]
 ---
 
 # REL05-BP05 Set client timeouts

@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "HIGH"
 capability: "How do you use fault isolation to protect your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_fault_isolation_multiaz_region_system.html"
+description: "Distribute workload data and resources across multiple Availability Zones or, where necessary, across AWS Regions."
+area: ["Failure management", "Use fault isolation to protect your workload"]
+relatedIds: ["REL02-BP03", "REL13-BP01", "REL11-BP05"]
 ---
 
 # REL10-BP01 Deploy the workload to multiple locations

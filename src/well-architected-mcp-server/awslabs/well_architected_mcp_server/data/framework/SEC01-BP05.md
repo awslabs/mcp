@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "MEDIUM"
 capability: "How do you securely operate your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_securely_operate_reduce_management_scope.html"
+description: "Determine if you can reduce your security scope by using AWS services that shift management of certain controls to AWS (managed services). These services can help reduce your security maintenance tasks, such as infrastructure provisioning, software setup, patching, or backups."
+area: ["Security Foundations", "Operating your workloads securely"]
+relatedIds: ["PERF02-BP01", "PERF03-BP01", "SUS05-BP03"]
 ---
 
 # SEC01-BP05 Reduce security management scope

@@ -5,6 +5,8 @@ pillar: "Performance Efficiency"
 risk_level: "MEDIUM"
 capability: "How do you select appropriate cloud resources and architecture for your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_architecture_use_benchmarking.html"
+description: "Benchmark the performance of an existing workload to understand how it performs on the cloud and drive architectural decisions based on that data."
+area: ["Architecture selection"]
 ---
 
 # PERF01-BP06 Use benchmarking to drive architectural decisions

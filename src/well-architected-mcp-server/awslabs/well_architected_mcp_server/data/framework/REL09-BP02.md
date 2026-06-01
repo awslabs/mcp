@@ -5,6 +5,8 @@ pillar: "Reliability"
 risk_level: "HIGH"
 capability: "How do you back up data?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_backing_up_data_secured_backups_data.html"
+description: "Control and detect access to backups using authentication and authorization. Prevent and detect if data integrity of backups is compromised using encryption."
+area: ["Failure management", "Back up data"]
 ---
 
 # REL09-BP02 Secure and encrypt backups

@@ -5,6 +5,8 @@ pillar: "Performance Efficiency"
 risk_level: "MEDIUM"
 capability: "How do you store, manage, and access data in your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_data_evaluate_configuration_options_data_store.html"
+description: "Understand and evaluate the various features and configuration options available for your data stores to optimize storage space and performance for your workload."
+area: ["Data management"]
 ---
 
 # PERF03-BP02 Evaluate available configuration options for data store

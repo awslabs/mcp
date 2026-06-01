@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "HIGH"
 capability: "How do you protect your network resources?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_network_protection_create_layers.html"
+description: "Segment your network topology into different layers based on logical groupings of your workload components according to their data sensitivity and access requirements. Distinguish between components that require inbound access from the internet, such as public web endpoints, and those that only need internal access, such as databases."
+area: ["Infrastructure protection", "Protecting networks"]
+relatedIds: ["REL02", "PERF04-BP01"]
 ---
 
 # SEC05-BP01 Create network layers

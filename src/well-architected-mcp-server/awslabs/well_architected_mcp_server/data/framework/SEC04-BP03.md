@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "LOW"
 capability: "How do you detect and investigate security events?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_detect_investigate_events_security_alerts.html"
+description: "Unexpected activity can generate multiple security alerts by different sources, requiring further correlation and enrichment to understand the full context. Implement automated correlation and enrichment of security alerts to help achieve more accurate incident identification and response."
+area: ["Detection"]
+relatedIds: ["SEC10-BP03", "OPS08-BP04", "REL06-BP03"]
 ---
 
 # SEC04-BP03 Correlate and enrich security alerts

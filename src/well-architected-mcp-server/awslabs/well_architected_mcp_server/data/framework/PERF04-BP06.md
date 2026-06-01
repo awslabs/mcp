@@ -5,6 +5,9 @@ pillar: "Performance Efficiency"
 risk_level: "MEDIUM"
 capability: "How do you select and configure networking resources in your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_networking_choose_workload_location_network_requirements.html"
+description: "Evaluate options for resource placement to reduce network latency and improve throughput, providing an optimal user experience by reducing page load and data transfer times."
+area: ["Networking and content delivery"]
+relatedIds: ["COST07-BP02", "COST08-BP03", "REL10-BP01", "REL10-BP02", "SUS01-BP01", "SUS02-BP04", "SUS04-BP07"]
 ---
 
 # PERF04-BP06 Choose your workload's location based on network requirements

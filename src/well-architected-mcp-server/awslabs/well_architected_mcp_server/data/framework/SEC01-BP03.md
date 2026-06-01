@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "HIGH"
 capability: "How do you securely operate your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_securely_operate_control_objectives.html"
+description: "Based on your compliance requirements and risks identified from your threat model, derive and validate the control objectives and controls that you need to apply to your workload. Ongoing validation of control objectives and controls help you measure the effectiveness of risk mitigation."
+area: ["Security Foundations", "Operating your workloads securely"]
+relatedIds: ["SEC03-BP01", "SEC04-BP01", "SEC07-BP01", "OPS01-BP03", "OPS01-BP04", "PERF1-BP05", "COST02-BP01"]
 ---
 
 # SEC01-BP03 Identify and validate control objectives

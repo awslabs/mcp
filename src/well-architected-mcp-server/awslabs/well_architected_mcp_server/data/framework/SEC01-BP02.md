@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "HIGH"
 capability: "How do you securely operate your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_securely_operate_aws_account.html"
+description: "The root user is the most privileged user in an AWS account, with full administrative access to all resources within the account, and in some cases cannot be constrained by security policies. Deactivating programmatic access to the root user, establishing appropriate controls for the root user, and avoiding routine use of the root user helps reduce the risk of inadvertent exposure of the root credentials and subsequent compromise of the cloud environment."
+area: ["Security Foundations", "AWS account management and separation"]
+relatedIds: ["SEC01-BP01", "SEC02-BP01", "SEC03-BP02", "SEC03-BP03", "SEC10-BP05"]
 ---
 
 # SEC01-BP02 Secure account root user and properties

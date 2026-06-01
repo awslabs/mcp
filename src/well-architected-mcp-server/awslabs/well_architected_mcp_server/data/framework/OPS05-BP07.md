@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "MEDIUM"
 capability: "How do you reduce defects, ease remediation, and improve flow into production?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_code_quality.html"
+description: "Implement practices to improve code quality and minimize defects. Some examples include test-driven development, code reviews, standards adoption, and pair programming. Incorporate these practices into your continuous integration and delivery process."
+area: ["Prepare", "Design for operations"]
+relatedIds: ["OPS05-BP02", "OPS05-BP06"]
 ---
 
 # OPS05-BP07 Implement practices to improve code quality

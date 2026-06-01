@@ -5,6 +5,8 @@ pillar: "Security"
 risk_level: "MEDIUM"
 capability: "How do you anticipate, respond to, and recover from incidents?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_incident_response_prepare_forensic.html"
+description: "Ahead of a security incident, consider developing forensics capabilities to support security event investigations."
+area: ["Incident response", "Preparation"]
 ---
 
 # SEC10-BP03 Prepare forensic capabilities

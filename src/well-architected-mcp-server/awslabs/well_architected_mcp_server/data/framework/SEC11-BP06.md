@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "HIGH"
 capability: "How do you incorporate and validate the security properties of applications throughout the design, development, and deployment lifecycle?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_appsec_deploy_software_programmatically.html"
+description: "Perform software deployments programmatically where possible. This approach reduces the likelihood that a deployment fails or an unexpected issue is introduced due to human error."
+area: ["Application security"]
+relatedIds: ["SEC11-BP02"]
 ---
 
 # SEC11-BP06 Deploy software programmatically

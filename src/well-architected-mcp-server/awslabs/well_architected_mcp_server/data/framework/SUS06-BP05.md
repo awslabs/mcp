@@ -5,6 +5,8 @@ pillar: "Sustainability"
 risk_level: "LOW"
 capability: "How do your organizational processes support your sustainability goals?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_dev_a5.html"
+description: "Use managed device farms to efficiently test a new feature on a representative set of hardware."
+area: ["Process and culture"]
 ---
 
 # SUS06-BP05 Use managed device farms for testing

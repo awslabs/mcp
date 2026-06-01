@@ -5,6 +5,8 @@ pillar: "Sustainability"
 risk_level: "LOW"
 capability: "How do your organizational processes support your sustainability goals?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_dev_a3.html"
+description: "Keep your workload up-to-date to adopt efficient features, remove issues, and improve the overall efficiency of your workload."
+area: ["Process and culture"]
 ---
 
 # SUS06-BP03 Keep your workload up-to-date

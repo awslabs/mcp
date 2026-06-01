@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "MEDIUM"
 capability: "How do you plan for disaster recovery (DR)?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_for_recovery_auto_recovery.html"
+description: "Implement tested and automated recovery mechanisms that are reliable, observable, and reproducible to reduce the risk and business impact of failure."
+area: ["Failure management", "Plan for Disaster Recovery (DR)"]
+relatedIds: ["REL07-BP01", "REL11-BP01", "REL13-BP02", "REL13-BP03", "REL13-BP04"]
 ---
 
 # REL13-BP05 Automate recovery

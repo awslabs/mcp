@@ -5,6 +5,8 @@ pillar: "Security"
 risk_level: "MEDIUM"
 capability: "How do you protect your compute resources?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_protect_compute_validate_software_integrity.html"
+description: "Use cryptographic verification to validate the integrity of software artifacts (including images) your workload uses.  Cryptographically sign your software as a safeguard against unauthorized changes run within your compute environments."
+area: ["Infrastructure protection", "Protecting compute"]
 ---
 
 # SEC06-BP04 Validate software integrity

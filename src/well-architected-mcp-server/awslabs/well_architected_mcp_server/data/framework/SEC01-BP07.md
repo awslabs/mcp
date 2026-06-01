@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "HIGH"
 capability: "How do you securely operate your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_securely_operate_threat_model.html"
+description: "Perform threat modeling to identify and maintain an up-to-date register of potential threats and associated mitigations for your workload. Prioritize your threats and adapt your security control mitigations to prevent, detect, and respond. Revisit and maintain this in the context of your workload, and the evolving security landscape."
+area: ["Security Foundations", "Operating your workloads securely"]
+relatedIds: ["SEC01-BP03", "SEC01-BP04", "SEC01-BP05", "SEC01-BP08"]
 ---
 
 # SEC01-BP07 Identify threats and prioritize mitigations using a threat model

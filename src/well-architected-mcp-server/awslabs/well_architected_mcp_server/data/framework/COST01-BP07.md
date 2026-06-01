@@ -5,6 +5,8 @@ pillar: "Cost Optimization"
 risk_level: "MEDIUM"
 capability: "How do you implement cloud financial management?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_cloud_financial_management_scheduled.html"
+description: "Consult regularly with experts or AWS Partners to consider which services and features provide lower cost. Review AWS blogs and other information sources."
+area: ["Practice Cloud Financial Management"]
 ---
 
 # COST01-BP07 Keep up-to-date with new service releases

@@ -5,6 +5,8 @@ pillar: "Security"
 risk_level: "HIGH"
 capability: "How do you manage permissions for people and machines?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_permissions_least_privileges.html"
+description: "Grant only the access that users require to perform specific actions on specific resources under specific conditions. Use group and identity attributes to dynamically set permissions at scale, rather than defining permissions for individual users. For example, you can allow a group of developers access to manage only resources for their project. This way, if a developer leaves the project, their access is automatically revoked without changing the underlying access policies."
+area: ["Identity and access management", "Permissions management"]
 ---
 
 # SEC03-BP02 Grant least privilege access

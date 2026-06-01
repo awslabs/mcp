@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "HIGH"
 capability: "How do you manage authentication for people and machines?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_identities_audit.html"
+description: "Audit and rotate credentials periodically to limit how long the credentials can be used to access your resources. Long-term credentials create many risks, and these risks can be reduced by rotating long-term credentials regularly."
+area: ["Identity and access management", "Identity management"]
+relatedIds: ["SEC02-BP02", "SEC02-BP03"]
 ---
 
 # SEC02-BP05 Audit and rotate credentials periodically

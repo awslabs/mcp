@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "HIGH"
 capability: "How do you plan for disaster recovery (DR)?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_for_recovery_objective_defined_recovery.html"
+description: "Failures can impact your business in several ways. First, failures can cause service interruption (downtime). Second, failures can cause data to become lost, inconsistent, or stale. In order to guide how you respond and recover from failures, define a Recovery Time Objective (RTO) and Recovery Point Objective (RPO) for each workload. Recovery Time Objective (RTO) is the maximum acceptable delay between the interruption of service and restoration of service. Recovery Point Objective (RPO)  is the maximum acceptable time after the last data recovery point."
+area: ["Failure management", "Plan for Disaster Recovery (DR)"]
+relatedIds: ["REL09-BP04", "REL12-BP01", "OPS13-BP02", "OPS13-BP03"]
 ---
 
 # REL13-BP01 Define recovery objectives for downtime and data loss

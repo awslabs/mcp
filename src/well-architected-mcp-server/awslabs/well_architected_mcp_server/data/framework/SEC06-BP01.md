@@ -5,6 +5,8 @@ pillar: "Security"
 risk_level: "HIGH"
 capability: "How do you protect your compute resources?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_protect_compute_vulnerability_management.html"
+description: "Frequently scan and patch for vulnerabilities in your code, dependencies, and in your infrastructure to help protect against new threats."
+area: ["Infrastructure protection", "Protecting compute"]
 ---
 
 # SEC06-BP01 Perform vulnerability management

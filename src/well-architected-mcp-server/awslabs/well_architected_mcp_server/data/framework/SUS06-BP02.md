@@ -5,6 +5,8 @@ pillar: "Sustainability"
 risk_level: "MEDIUM"
 capability: "How do your organizational processes support your sustainability goals?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_dev_a2.html"
+description: "Adopt methods and processes to validate potential improvements, minimize testing costs, and deliver small improvements."
+area: ["Process and culture"]
 ---
 
 # SUS06-BP02 Adopt methods that can rapidly introduce sustainability improvements

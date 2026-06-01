@@ -5,6 +5,8 @@ pillar: "Cost Optimization"
 risk_level: "MEDIUM"
 capability: "How do you meet cost targets when you select resource type, size and number?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_type_size_number_resources_data.html"
+description: "Select resource size or type based on data about the workload and resource characteristics. For example, compute, memory, throughput, or write intensive. This selection is typically made using a previous (on-premises) version of the workload, using documentation, or using other sources of information about the workload."
+area: ["Cost effective resources", "Select the correct resource type, size, and number"]
 ---
 
 # COST06-BP02 Select resource type, size, and number based on data

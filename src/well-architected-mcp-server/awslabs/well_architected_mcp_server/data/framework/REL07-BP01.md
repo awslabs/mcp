@@ -5,6 +5,8 @@ pillar: "Reliability"
 risk_level: "HIGH"
 capability: "How do you design your workload to adapt to changes in demand?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_adapt_to_changes_autoscale_adapt.html"
+description: "A cornerstone of reliability in the cloud is the programmatic definition, provisioning, and management of your infrastructure and resources. Automation helps you streamline resource provisioning, facilitate consistent and secure deployments, and scale resources across your entire infrastructure."
+area: ["Change management", "Design your workload to adapt to changes in demand"]
 ---
 
 # REL07-BP01 Use automation when obtaining or scaling resources

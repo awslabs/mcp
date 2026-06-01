@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "HIGH"
 capability: "How do you structure your organization to support your business outcomes?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ops_model_def_proc_owners.html"
+description: "Understand who has ownership of the definition of individual processes and procedures, why those specific process and procedures are used, and why that ownership exists. Understanding the reasons that specific processes and procedures are used aids in identification of improvement opportunities."
+area: ["Organization", "Operating model", "Relationships and ownership"]
+relatedIds: ["OPS02-BP01", "OPS02-BP04", "OPS11-BP04"]
 ---
 
 # OPS02-BP02 Processes and procedures have identified owners

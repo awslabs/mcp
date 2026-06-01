@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "HIGH"
 capability: "How do you plan for disaster recovery (DR)?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_for_recovery_disaster_recovery.html"
+description: "Define a disaster recovery (DR) strategy that meets your workload's recovery objectives. Choose a strategy such as backup and restore, standby (active/passive), or active/active."
+area: ["Failure management", "Plan for Disaster Recovery (DR)"]
+relatedIds: ["REL09-BP01", "REL11-BP04", "OPS13-BP01"]
 ---
 
 # REL13-BP02 Use defined recovery strategies to meet the recovery objectives

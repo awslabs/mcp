@@ -5,6 +5,8 @@ pillar: "Performance Efficiency"
 risk_level: "MEDIUM"
 capability: "How do you select and use compute resources in your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_compute_hardware_understand_compute_configuration_features.html"
+description: "Understand the available configuration options and features for your compute service to help you provision the right amount of resources and improve performance efficiency."
+area: ["Compute and hardware"]
 ---
 
 # PERF02-BP02 Understand the available compute configuration and features

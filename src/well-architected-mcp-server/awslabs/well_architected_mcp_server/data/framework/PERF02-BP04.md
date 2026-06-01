@@ -5,6 +5,8 @@ pillar: "Performance Efficiency"
 risk_level: "MEDIUM"
 capability: "How do you select and use compute resources in your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_compute_hardware_configure_and_right_size_compute_resources.html"
+description: "Configure and right-size compute resources to match your workload’s performance requirements and avoid under- or over-utilized resources."
+area: ["Compute and hardware"]
 ---
 
 # PERF02-BP04 Configure and right-size compute resources

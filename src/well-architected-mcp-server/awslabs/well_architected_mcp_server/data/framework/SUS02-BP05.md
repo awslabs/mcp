@@ -5,6 +5,8 @@ pillar: "Sustainability"
 risk_level: "LOW"
 capability: "How do you align cloud resources to your demand?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_user_a6.html"
+description: "Optimize resources provided to team members to minimize the environmental sustainability impact while supporting their needs."
+area: ["Alignment to demand"]
 ---
 
 # SUS02-BP05 Optimize team member resources for activities performed

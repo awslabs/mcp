@@ -5,6 +5,8 @@ pillar: "Security"
 risk_level: "HIGH"
 capability: "How do you protect your data in transit?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_protect_data_transit_encrypt.html"
+description: "Enforce your defined encryption requirements based on your organization’s policies, regulatory obligations and standards to help meet organizational, legal, and compliance requirements. Only use protocols with encryption when transmitting sensitive data outside of your virtual private cloud (VPC). Encryption helps maintain data confidentiality even when the data transits untrusted networks."
+area: ["Data protection", "Protecting data in transit"]
 ---
 
 # SEC09-BP02 Enforce encryption in transit

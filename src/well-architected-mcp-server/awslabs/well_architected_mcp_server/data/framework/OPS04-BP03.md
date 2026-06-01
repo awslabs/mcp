@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "HIGH"
 capability: "How do you implement observability in your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_observability_customer_telemetry.html"
+description: "Gaining deep insights into customer experiences and interactions with your application is crucial. Real user monitoring (RUM) and synthetic transactions serve as powerful tools for this purpose. RUM provides data about real user interactions granting an unfiltered perspective of user satisfaction, while synthetic transactions simulate user interactions, helping in detecting potential issues even before they impact real users."
+area: ["Prepare", "Implement observability"]
+relatedIds: ["OPS04-BP01", "OPS04-BP02", "OPS04-BP04", "OPS04-BP05"]
 ---
 
 # OPS04-BP03 Implement user experience telemetry

@@ -5,6 +5,8 @@ pillar: "Performance Efficiency"
 risk_level: "MEDIUM"
 capability: "How do you store, manage, and access data in your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_data_implement_strategies_to_improve_query_performance.html"
+description: "Implement strategies to optimize data and improve data query to enable more scalability and efficient performance for your workload."
+area: ["Data management"]
 ---
 
 # PERF03-BP04 Implement strategies to improve query performance in data store

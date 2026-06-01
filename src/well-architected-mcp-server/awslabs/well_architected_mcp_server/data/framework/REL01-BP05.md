@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "MEDIUM"
 capability: "How do you manage Service Quotas and constraints?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_manage_service_limits_automated_monitor_limits.html"
+description: "Service quotas, also referred to as limits in AWS services, are the maximum values for the resources in your AWS account. Each AWS service defines a set of quotas and their default values. To provide your workload access to all the resources it needs, you might need to increase your service quota values."
+area: ["Foundations", "Manage service quotas and constraints"]
+relatedIds: ["REL10-BP07"]
 ---
 
 # REL01-BP05 Automate quota management

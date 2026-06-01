@@ -5,6 +5,9 @@ pillar: "Cost Optimization"
 risk_level: "HIGH"
 capability: "How do you evaluate cost when you select services?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_select_service_requirements.html"
+description: "Work with team members to define the balance between cost optimization and other pillars, such as performance and reliability, for this workload."
+area: ["Cost effective resources", "Evaluate cost when selecting services"]
+relatedIds: ["REL11-BP07", "OPS01-BP06"]
 ---
 
 # COST05-BP01 Identify organization requirements for cost

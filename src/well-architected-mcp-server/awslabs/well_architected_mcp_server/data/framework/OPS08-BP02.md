@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "MEDIUM"
 capability: "How do you utilize workload observability in your organization?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_workload_observability_analyze_workload_logs.html"
+description: "Regularly analyzing workload logs is essential for gaining a deeper understanding of the operational aspects of your application. By efficiently sifting through, visualizing, and interpreting log data, you can continually optimize application performance and security."
+area: ["Operate", "Utilizing workload observability"]
+relatedIds: ["OPS04-BP01", "OPS04-BP02", "OPS08-BP01"]
 ---
 
 # OPS08-BP02 Analyze workload logs

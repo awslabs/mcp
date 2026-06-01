@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "HIGH"
 capability: "How do you determine what your priorities are?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_priorities_compliance_reqs.html"
+description: "Regulatory, industry, and internal compliance requirements are an important driver for defining your organization’s priorities. Your compliance framework may preclude you from using specific technologies or geographic locations. Apply due diligence if no external compliance frameworks are identified. Generate audits or reports that validate compliance."
+area: ["Organization", "Organization priorities"]
+relatedIds: ["SEC01-BP03", "SEC01-BP06", "SEC07-BP02", "SEC10-BP03"]
 ---
 
 # OPS01-BP04 Evaluate compliance requirements

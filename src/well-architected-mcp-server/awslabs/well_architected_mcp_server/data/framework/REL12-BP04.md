@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "MEDIUM"
 capability: "How do you test reliability?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_testing_resiliency_failure_injection_resiliency.html"
+description: "Run chaos experiments regularly in environments that are in or as close to production as possible to understand how your system responds to adverse conditions."
+area: ["Failure management", "Test reliability"]
+relatedIds: ["REL08-BP03", "REL13-BP03"]
 ---
 
 # REL12-BP04 Test resiliency using chaos engineering

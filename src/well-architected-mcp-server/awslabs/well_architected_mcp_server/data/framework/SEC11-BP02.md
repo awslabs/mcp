@@ -5,6 +5,8 @@ pillar: "Security"
 risk_level: "MEDIUM"
 capability: "How do you incorporate and validate the security properties of applications throughout the design, development, and deployment lifecycle?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_appsec_automate_testing_throughout_lifecycle.html"
+description: "Automate the testing for security properties throughout the development and release lifecycle. Automation makes it easier to consistently and repeatably identify potential issues in software prior to release, which reduces the risk of security issues in the software being provided."
+area: ["Application security"]
 ---
 
 # SEC11-BP02 Automate testing throughout the development and release lifecycle

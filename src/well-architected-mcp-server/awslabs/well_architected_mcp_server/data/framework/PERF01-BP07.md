@@ -5,6 +5,8 @@ pillar: "Performance Efficiency"
 risk_level: "MEDIUM"
 capability: "How do you select appropriate cloud resources and architecture for your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_architecture_use_data_driven_approach.html"
+description: "Define a clear, data-driven approach for architectural choices to verify that the right cloud services and configurations are used to meet your specific business needs."
+area: ["Architecture selection"]
 ---
 
 # PERF01-BP07 Use a data-driven approach for architectural choices

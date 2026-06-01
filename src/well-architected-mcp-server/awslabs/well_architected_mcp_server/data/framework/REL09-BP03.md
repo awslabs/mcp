@@ -5,6 +5,8 @@ pillar: "Reliability"
 risk_level: "MEDIUM"
 capability: "How do you back up data?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_backing_up_data_automated_backups_data.html"
+description: "Configure backups to be taken automatically based on a periodic schedule informed by the Recovery Point Objective (RPO), or by changes in the dataset. Critical datasets with low data loss requirements need to be backed up automatically on a frequent basis, whereas less critical data where some loss is acceptable can be backed up less frequently."
+area: ["Failure management", "Back up data"]
 ---
 
 # REL09-BP03 Perform data backup automatically

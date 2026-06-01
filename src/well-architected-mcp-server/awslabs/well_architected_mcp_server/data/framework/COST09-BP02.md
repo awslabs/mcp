@@ -5,6 +5,9 @@ pillar: "Cost Optimization"
 risk_level: "MEDIUM"
 capability: "How do you manage demand, and supply resources?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_manage_demand_resources_buffer_throttle.html"
+description: "Buffering and throttling modify the demand on your workload, smoothing out any peaks. Implement throttling when your clients perform retries. Implement buffering to store the request and defer processing until a later time. Verify that your throttles and buffers are designed so clients receive a response in the required time."
+area: ["Manage demand and supply resources"]
+relatedIds: ["SUS02-BP06", "REL05-BP02"]
 ---
 
 # COST09-BP02 Implement a buffer or throttle to manage demand

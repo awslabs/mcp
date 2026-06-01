@@ -5,6 +5,8 @@ pillar: "Sustainability"
 risk_level: "MEDIUM"
 capability: "How do you take advantage of data management policies and patterns to support your sustainability goals?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_data_a5.html"
+description: "Use elasticity and automation to expand block storage or file system as data grows to minimize the total provisioned storage."
+area: ["Data management"]
 ---
 
 # SUS04-BP04 Use elasticity and automation to expand block storage or file system

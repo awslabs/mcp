@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "MEDIUM"
 capability: "How do you protect your compute resources?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_protect_compute_auto_protection.html"
+description: "Automate compute protection operations to reduce the need for human intervention. Use automated scanning to detect potential issues within your compute resources, and remediate with automated programmatic responses or fleet management operations.  Incorporate automation in your CI/CD processes to deploy trustworthy workloads with up-to-date dependencies."
+area: ["Infrastructure protection", "Protecting compute"]
+relatedIds: ["SEC01-BP06"]
 ---
 
 # SEC06-BP05 Automate compute protection

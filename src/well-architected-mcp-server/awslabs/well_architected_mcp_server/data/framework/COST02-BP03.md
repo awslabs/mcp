@@ -5,6 +5,8 @@ pillar: "Cost Optimization"
 risk_level: "HIGH"
 capability: "How do you govern usage?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_govern_usage_account_structure.html"
+description: "Implement a structure of accounts that maps to your organization. This assists in allocating and managing costs throughout your organization."
+area: ["Expenditure and usage awareness", "Governance"]
 ---
 
 # COST02-BP03 Implement an account structure

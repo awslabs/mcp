@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "HIGH"
 capability: "How do you test reliability?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_testing_resiliency_test_non_functional.html"
+description: "Use techniques such as load testing to validate that the workload meets scaling and performance requirements."
+area: ["Failure management", "Test reliability"]
+relatedIds: ["REL01-BP04", "REL06-BP01", "REL06-BP03"]
 ---
 
 # REL12-BP03 Test scalability and performance requirements

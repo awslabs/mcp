@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "MEDIUM"
 capability: "How do you protect your data at rest?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_protect_data_rest_automate_protection.html"
+description: "Use automation to validate and enforce data at rest controls.  Use automated scanning to detect misconfiguration of your data storage solutions, and perform remediations through automated programmatic response where possible."
+area: ["Data protection", "Protecting data at rest"]
+relatedIds: ["SEC01-BP06", "SEC03-BP02", "SEC03-BP04", "SEC04-BP04", "SEC07-BP03", "REL09-BP02", "REL09-BP03"]
 ---
 
 # SEC08-BP03 Automate data at rest protection

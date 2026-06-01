@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "MEDIUM"
 capability: "How do you manage workload and operations events?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_event_response_define_escalation_paths.html"
+description: "Establish clear escalation paths within your incident response protocols to facilitate timely and effective action. This includes specifying prompts for escalation, detailing the escalation process, and pre-approving actions to expedite decision-making and reduce mean time to resolution (MTTR)."
+area: ["Operate", "Responding to events"]
+relatedIds: ["OPS08-BP04", "OPS10-BP02", "OPS11-BP02"]
 ---
 
 # OPS10-BP04 Define escalation paths

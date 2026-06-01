@@ -5,6 +5,8 @@ pillar: "Reliability"
 risk_level: "LOW"
 capability: "How do you design interactions in a distributed system to prevent failures?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_prevent_interaction_failure_constant_work.html"
+description: "Systems can fail when there are large, rapid changes in load. For example, if your workload is doing a health check that monitors the health of thousands of servers, it should send the same size payload (a full snapshot of the current state) each time. Whether no servers are failing, or all of them, the health check system is doing constant work with no large, rapid changes."
+area: ["Workload architecture", "Design interactions in a distributed system to prevent failures"]
 ---
 
 # REL04-BP03 Do constant work

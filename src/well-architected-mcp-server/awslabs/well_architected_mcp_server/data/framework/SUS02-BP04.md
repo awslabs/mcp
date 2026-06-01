@@ -5,6 +5,8 @@ pillar: "Sustainability"
 risk_level: "MEDIUM"
 capability: "How do you align cloud resources to your demand?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_user_a5.html"
+description: "Select cloud location and services for your workload that reduce the distance network traffic must travel and decrease the total network resources required to support your workload."
+area: ["Alignment to demand"]
 ---
 
 # SUS02-BP04 Optimize geographic placement of workloads based on their networking requirements

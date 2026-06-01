@@ -5,6 +5,8 @@ pillar: "Security"
 risk_level: "MEDIUM"
 capability: "How do you manage permissions for people and machines?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_permissions_define_guardrails.html"
+description: "Use permission guardrails to reduce the scope of available permissions that can be granted to principals. The permission policy evaluation chain includes your guardrails to determine the effective permissions of a principal when making authorization decisions.  You can define guardrails using a layer-based approach. Apply some guardrails broadly across your entire organization and apply others granularly to temporary access sessions."
+area: ["Identity and access management", "Permissions management"]
 ---
 
 # SEC03-BP05 Define permission guardrails for your organization

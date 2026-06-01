@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "HIGH"
 capability: "How do you manage workload and operations events?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_event_response_event_incident_problem_process.html"
+description: "The ability to efficiently manage events, incidents, and problems is key to maintaining workload health and performance. It's crucial to recognize and understand the differences between these elements to develop an effective response and resolution strategy. Establishing and following a well-defined process for each aspect helps your team swiftly and effectively handle any operational challenges that arise."
+area: ["Operate", "Responding to events"]
+relatedIds: ["OPS04-BP01", "OPS04-BP02", "OPS07-BP03", "OPS07-BP04", "OPS08-BP01", "OPS11-BP02"]
 ---
 
 # OPS10-BP01 Use a process for event, incident, and problem management

@@ -5,6 +5,8 @@ pillar: "Operational Excellence"
 risk_level: "MEDIUM"
 capability: "How do you understand the health of your operations?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_operations_health_review_ops_metrics_prioritize_improvement.html"
+description: "Setting aside dedicated time and resources for reviewing the state of operations ensures that serving the day-to-day line of business remains a priority. Pull together operations leaders and stakeholders to regularly review metrics, reaffirm or modify goals and objectives, and prioritize improvements."
+area: ["Operate", "Understanding operational health"]
 ---
 
 # OPS09-BP03 Review operations metrics and prioritize improvement

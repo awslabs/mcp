@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "HIGH"
 capability: "How do you plan your network topology?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_network_topology_ha_conn_users.html"
+description: "Building highly available network connectivity to public endpoints of your workloads can help you reduce downtime due to loss of connectivity and improve the availability and SLA of your workload. To achieve this, use highly available DNS, content delivery networks (CDNs), API gateways, load balancing, or reverse proxies."
+area: ["Foundations", "Plan your network topology"]
+relatedIds: ["REL10-BP01", "REL11-BP04", "REL11-BP06"]
 ---
 
 # REL02-BP01 Use highly available network connectivity for your workload public endpoints

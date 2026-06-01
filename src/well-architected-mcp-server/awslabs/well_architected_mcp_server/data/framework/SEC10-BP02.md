@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "HIGH"
 capability: "How do you anticipate, respond to, and recover from incidents?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_incident_response_develop_management_plans.html"
+description: "The first document to develop for incident response is the incident response plan. The incident response plan is designed to be the foundation for your incident response program and strategy."
+area: ["Incident response", "Preparation"]
+relatedIds: ["SEC04"]
 ---
 
 # SEC10-BP02 Develop incident management plans

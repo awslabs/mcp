@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "HIGH"
 capability: "How do you design interactions in a distributed system to mitigate or withstand failures?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_throttle_requests.html"
+description: "Throttle requests to mitigate resource exhaustion due to unexpected increases in demand. Requests below throttling rates are processed while those over the defined limit are rejected with a return message indicating the request was throttled."
+area: ["Workload architecture", "Design interactions in a distributed system to mitigate or withstand failures"]
+relatedIds: ["REL04-BP03", "REL05-BP03"]
 ---
 
 # REL05-BP02 Throttle requests

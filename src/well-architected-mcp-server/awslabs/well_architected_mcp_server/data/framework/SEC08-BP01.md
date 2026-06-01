@@ -5,6 +5,8 @@ pillar: "Security"
 risk_level: "HIGH"
 capability: "How do you protect your data at rest?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_protect_data_rest_key_mgmt.html"
+description: "Secure key management includes the storage, rotation, access control, and monitoring of key material required to secure data at rest for your workload."
+area: ["Data protection", "Protecting data at rest"]
 ---
 
 # SEC08-BP01 Implement secure key management

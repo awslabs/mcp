@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "HIGH"
 capability: "How do you reduce defects, ease remediation, and improve flow into production?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_test_val_chg.html"
+description: "Every change deployed must be tested to avoid errors in production. This best practice is focused on testing changes from version control to artifact build. Besides application code changes, testing should include infrastructure, configuration, security controls, and operations procedures. Testing takes many forms, from unit tests to software component analysis (SCA). Move tests further to the left in the software integration and delivery process results in higher certainty of artifact quality."
+area: ["Prepare", "Design for operations"]
+relatedIds: ["OPS05-BP01", "OPS05-BP06", "OPS05-BP07", "OPS05-BP10"]
 ---
 
 # OPS05-BP02 Test and validate changes

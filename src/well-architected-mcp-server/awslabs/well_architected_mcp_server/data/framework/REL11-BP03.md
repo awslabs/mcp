@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "HIGH"
 capability: "How do you design your workload to withstand component failures?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_withstand_component_failures_auto_healing_system.html"
+description: "Upon detection of a failure, use automated capabilities to perform actions to remediate. Degradations may be automatically healed through internal service mechanisms or require resources to be restarted or removed through remediation actions."
+area: ["Failure management", "Design your workload to withstand component failures"]
+relatedIds: ["REL11-BP01"]
 ---
 
 # REL11-BP03 Automate healing on all layers

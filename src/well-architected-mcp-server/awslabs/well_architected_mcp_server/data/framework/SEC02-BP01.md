@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "HIGH"
 capability: "How do you manage authentication for people and machines?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_identities_enforce_mechanisms.html"
+description: "Sign-ins (authentication using sign-in credentials) can present risks when not using mechanisms like multi-factor authentication (MFA), especially in situations where sign-in credentials have been inadvertently disclosed or are easily guessed. Use strong sign-in mechanisms to reduce these risks by requiring MFA and strong password policies."
+area: ["Identity and access management", "Identity management"]
+relatedIds: ["SEC02-BP03", "SEC02-BP04", "SEC03-BP08"]
 ---
 
 # SEC02-BP01 Use strong sign-in mechanisms

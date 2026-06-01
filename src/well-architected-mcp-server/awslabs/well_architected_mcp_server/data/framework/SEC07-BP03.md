@@ -5,6 +5,8 @@ pillar: "Security"
 risk_level: "MEDIUM"
 capability: "How do you classify your data?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_data_classification_auto_classification.html"
+description: "Automating the identification and classification of data can help you implement the correct controls. Using automation to augment manual determination reduces the risk of human error and exposure."
+area: ["Data protection", "Data classification"]
 ---
 
 # SEC07-BP03 Automate identification and classification

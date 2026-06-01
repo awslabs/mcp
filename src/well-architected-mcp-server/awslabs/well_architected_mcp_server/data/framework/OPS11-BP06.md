@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "MEDIUM"
 capability: "How do you evolve operations?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_evolve_ops_validate_insights.html"
+description: "Review your analysis results and responses with cross-functional teams and business owners. Use these reviews to establish common understanding, identify additional impacts, and determine courses of action. Adjust responses as appropriate."
+area: ["Evolve", "Learn, share, and improve"]
+relatedIds: ["OPS01-BP06", "OPS02-BP06", "OPS11-BP03"]
 ---
 
 # OPS11-BP06 Validate insights

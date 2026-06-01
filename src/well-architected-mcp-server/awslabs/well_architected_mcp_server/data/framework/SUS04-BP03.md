@@ -5,6 +5,8 @@ pillar: "Sustainability"
 risk_level: "MEDIUM"
 capability: "How do you take advantage of data management policies and patterns to support your sustainability goals?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_data_a4.html"
+description: "Manage the lifecycle of all of your data and automatically enforce deletion to minimize the total storage required for your workload."
+area: ["Data management"]
 ---
 
 # SUS04-BP03 Use policies to manage the lifecycle of your datasets

@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "MEDIUM"
 capability: "How does your organizational culture support your business outcomes?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_org_culture_team_emp_take_action.html"
+description: "A cultural behavior of ownership instilled by leadership results in any employee feeling empowered to act on behalf of the entire company beyond their defined scope of role and accountability. Employees can act to proactively identify risks as they emerge and take appropriate action. Such a culture allows employees to make high value decisions with situational awareness."
+area: ["Organization", "Operating model", "Organizational culture"]
+relatedIds: ["OPS01-BP06", "OPS01-BP05"]
 ---
 
 # OPS03-BP02 Team members are empowered to take action when outcomes are at risk

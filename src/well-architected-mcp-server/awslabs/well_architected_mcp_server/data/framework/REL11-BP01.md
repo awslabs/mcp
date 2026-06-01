@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "HIGH"
 capability: "How do you design your workload to withstand component failures?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_withstand_component_failures_monitoring_health.html"
+description: "Continually monitor the health of your workload so that you and your automated systems are aware of failures or degradations as soon as they occur. Monitor for key performance indicators (KPIs) based on business value."
+area: ["Failure management", "Design your workload to withstand component failures"]
+relatedIds: ["REL11-BP06"]
 ---
 
 # REL11-BP01 Monitor all components of the workload to detect failures

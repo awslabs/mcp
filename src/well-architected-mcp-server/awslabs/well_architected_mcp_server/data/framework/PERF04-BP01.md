@@ -5,6 +5,8 @@ pillar: "Performance Efficiency"
 risk_level: "HIGH"
 capability: "How do you select and configure networking resources in your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_networking_understand_how_networking_impacts_performance.html"
+description: "Analyze and understand how network-related decisions impact your workload to provide efficient performance and improved user experience."
+area: ["Networking and content delivery"]
 ---
 
 # PERF04-BP01 Understand how networking impacts performance

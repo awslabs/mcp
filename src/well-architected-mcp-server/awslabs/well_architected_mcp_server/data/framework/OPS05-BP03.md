@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "MEDIUM"
 capability: "How do you reduce defects, ease remediation, and improve flow into production?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_conf_mgmt_sys.html"
+description: "Use configuration management systems to make and track configuration changes. These systems reduce errors caused by manual processes and reduce the level of effort to deploy changes."
+area: ["Prepare", "Design for operations"]
+relatedIds: ["OPS06-BP01", "OPS06-BP02", "OPS06-BP03", "OPS06-BP04"]
 ---
 
 # OPS05-BP03 Use configuration management systems

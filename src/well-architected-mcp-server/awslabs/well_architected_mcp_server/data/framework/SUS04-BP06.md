@@ -5,6 +5,8 @@ pillar: "Sustainability"
 risk_level: "MEDIUM"
 capability: "How do you take advantage of data management policies and patterns to support your sustainability goals?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_data_a7.html"
+description: "Adopt shared file systems or storage to avoid data duplication and allow for more efficient infrastructure for your workload."
+area: ["Data management"]
 ---
 
 # SUS04-BP06 Use shared file systems or storage to access common data

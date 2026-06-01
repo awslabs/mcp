@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "HIGH"
 capability: "How do you securely operate your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_securely_operate_multi_accounts.html"
+description: "Establish common guardrails and isolation between environments (such as production, development, and test) and workloads through a multi-account strategy. Account-level separation is strongly recommended, as it provides a strong isolation boundary for security, billing, and access."
+area: ["Security Foundations", "AWS account management and separation"]
+relatedIds: ["SEC02-BP04"]
 ---
 
 # SEC01-BP01 Separate workloads using accounts

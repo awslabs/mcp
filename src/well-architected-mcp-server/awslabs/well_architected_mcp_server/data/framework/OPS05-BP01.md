@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "HIGH"
 capability: "How do you reduce defects, ease remediation, and improve flow into production?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_version_control.html"
+description: "Use version control to activate tracking of changes and releases."
+area: ["Prepare", "Design for operations"]
+relatedIds: ["OPS05-BP04"]
 ---
 
 # OPS05-BP01 Use version control

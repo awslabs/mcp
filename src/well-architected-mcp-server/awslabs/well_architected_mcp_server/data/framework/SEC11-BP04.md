@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "MEDIUM"
 capability: "How do you incorporate and validate the security properties of applications throughout the design, development, and deployment lifecycle?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_appsec_manual_code_reviews.html"
+description: "Implement code reviews to help verify the quality and security of software being developed. Code reviews involve having team members other than the original code author review the code for potential issues, vulnerabilities, and adherence to coding standards and best practices. This process helps catch errors, inconsistencies, and security flaws that might have been overlooked by the original developer. Use automated tools to assist with code reviews."
+area: ["Application security"]
+relatedIds: ["SEC11-BP02"]
 ---
 
 # SEC11-BP04 Conduct code reviews

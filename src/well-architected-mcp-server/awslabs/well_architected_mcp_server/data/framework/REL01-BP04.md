@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "MEDIUM"
 capability: "How do you manage Service Quotas and constraints?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_manage_service_limits_monitor_manage_limits.html"
+description: "Evaluate your potential usage and increase your quotas appropriately, allowing for planned growth in usage."
+area: ["Foundations", "Manage service quotas and constraints"]
+relatedIds: ["REL01-BP01", "REL01-BP02", "REL01-BP03", "REL01-BP05", "REL01-BP06", "REL03-BP01", "REL10-BP01", "REL11-BP01", "REL11-BP03", "REL12-BP04"]
 ---
 
 # REL01-BP04 Monitor and manage quotas

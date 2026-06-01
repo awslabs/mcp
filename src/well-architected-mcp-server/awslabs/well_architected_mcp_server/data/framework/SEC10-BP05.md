@@ -5,6 +5,8 @@ pillar: "Security"
 risk_level: "MEDIUM"
 capability: "How do you anticipate, respond to, and recover from incidents?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_incident_response_pre_provision_access.html"
+description: "Verify that incident responders have the correct access pre-provisioned in AWS to reduce the time needed for investigation through to recovery."
+area: ["Incident response", "Preparation"]
 ---
 
 # SEC10-BP05 Pre-provision access

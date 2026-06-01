@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "HIGH"
 capability: "How do you manage Service Quotas and constraints?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_manage_service_limits_limits_considered.html"
+description: "If you are using multiple accounts or Regions, request the appropriate quotas in all environments in which your production workloads run."
+area: ["Foundations", "Manage service quotas and constraints"]
+relatedIds: ["REL01-BP01", "REL01-BP03", "REL01-BP04", "REL01-BP05", "REL01-BP06", "REL03-BP01", "REL10-BP01", "REL11-BP01", "REL11-BP03", "REL12-BP04"]
 ---
 
 # REL01-BP02 Manage service quotas across accounts and regions

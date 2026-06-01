@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "MEDIUM"
 capability: "How do you design interactions in a distributed system to prevent failures?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_prevent_interaction_failure_idempotent.html"
+description: "An idempotent service promises that each request is processed exactly once, such that making multiple identical requests has the same effect as making a single request. This makes it easier for a client to implement retries without fear that a request is erroneously processed multiple times. To do this, clients can issue API requests with an idempotency token, which is used whenever the request is repeated. An idempotent service API uses the token to return a response identical to the response that was returned the first time that the request was completed, even if the underlying state of the system has changed."
+area: ["Workload architecture", "Design interactions in a distributed system to prevent failures"]
+relatedIds: ["REL05-BP03", "REL06-BP01", "REL06-BP03", "REL08-BP02"]
 ---
 
 # REL04-BP04 Make mutating operations idempotent

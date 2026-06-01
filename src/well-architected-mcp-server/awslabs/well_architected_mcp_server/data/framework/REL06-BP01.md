@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "HIGH"
 capability: "How do you monitor workload resources?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_monitor_aws_resources_monitor_resources.html"
+description: "Monitor the components of the workload with Amazon CloudWatch or third-party tools. Monitor AWS services with AWS Health Dashboard."
+area: ["Change management", "Monitor workload resources"]
+relatedIds: ["REL11-BP03"]
 ---
 
 # REL06-BP01 Monitor all components for the workload (Generation)

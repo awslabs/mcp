@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "MEDIUM"
 capability: "How do you manage workload and operations events?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_event_response_auto_event_response.html"
+description: "Automating event responses is key for fast, consistent, and error-free operational handling. Create streamlined processes and use tools to automatically manage and respond to events, minimizing manual interventions and enhancing operational effectiveness."
+area: ["Operate", "Responding to events"]
+relatedIds: ["OPS08-BP04", "OPS10-BP02"]
 ---
 
 # OPS10-BP07 Automate responses to events

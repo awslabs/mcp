@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "MEDIUM"
 capability: "How do you monitor workload resources?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_monitor_aws_resources_review_monitoring.html"
+description: "Frequently review how workload monitoring is implemented, and update it as your workload and its architecture evolves. Regular audits of your monitoring helps reduce the risk of missed or overlooked trouble indicators and further helps your workload meet its availability goals."
+area: ["Change management", "Monitor workload resources"]
+relatedIds: ["REL06-BP01", "REL06-BP02", "REL06-BP07", "REL12-BP02", "REL12-BP06"]
 ---
 
 # REL06-BP06 Regularly review monitoring scope and metrics

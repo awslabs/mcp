@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "MEDIUM"
 capability: "How do you know that you are ready to support a workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ready_to_support_use_runbooks.html"
+description: "A runbook is a documented process to achieve a specific outcome. Runbooks consist of a series of steps that someone follows to get something done. Runbooks have been used in operations going back to the early days of aviation. In cloud operations, we use runbooks to reduce risk and achieve desired outcomes. At its simplest, a runbook is a checklist to complete a task."
+area: ["Prepare", "Operational readiness and change management"]
+relatedIds: ["OPS02-BP02", "OPS07-BP04", "OPS10-BP01", "OPS10-BP02", "OPS11-BP04"]
 ---
 
 # OPS07-BP03 Use runbooks to perform procedures

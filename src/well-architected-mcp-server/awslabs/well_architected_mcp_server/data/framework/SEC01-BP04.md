@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "HIGH"
 capability: "How do you securely operate your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_securely_operate_updated_threats.html"
+description: "Stay up to date with the latest threats and mitigations by monitoring industry threat intelligence publications and data feeds for updates. Evaluate managed service offerings that automatically update based on the latest threat data."
+area: ["Security Foundations", "Operating your workloads securely"]
+relatedIds: ["SEC01-BP07", "OPS01-BP05", "OPS11-BP01"]
 ---
 
 # SEC01-BP04 Stay up to date with security threats and recommendations

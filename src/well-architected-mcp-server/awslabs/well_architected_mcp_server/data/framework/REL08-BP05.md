@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "MEDIUM"
 capability: "How do you implement change?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_tracking_change_management_automated_changemgmt.html"
+description: "Deployments and patching are automated to eliminate negative impact."
+area: ["Change management", "Implement change"]
+relatedIds: ["OPS05-BP04", "OPS05-BP10", "OPS06-BP02", "OPS06-BP04"]
 ---
 
 # REL08-BP05 Deploy changes with automation

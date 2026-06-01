@@ -5,6 +5,8 @@ pillar: "Reliability"
 risk_level: "MEDIUM"
 capability: "How do you monitor workload resources?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_monitor_aws_resources_storage_analytics.html"
+description: "Collect log files and metrics histories and analyze these for broader trends and workload insights."
+area: ["Change management", "Monitor workload resources"]
 ---
 
 # REL06-BP05 Analyze logs

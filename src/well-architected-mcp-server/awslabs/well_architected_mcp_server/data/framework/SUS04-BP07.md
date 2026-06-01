@@ -5,6 +5,8 @@ pillar: "Sustainability"
 risk_level: "MEDIUM"
 capability: "How do you take advantage of data management policies and patterns to support your sustainability goals?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_data_a8.html"
+description: "Use shared file systems or object storage to access common data and minimize the total networking resources required to support data movement for your workload."
+area: ["Data management"]
 ---
 
 # SUS04-BP07 Minimize data movement across networks

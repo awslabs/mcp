@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "MEDIUM"
 capability: "How do you use fault isolation to protect your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_fault_isolation_single_az_system.html"
+description: "If components of the workload can only run in a single Availability Zone or in an on-premises data center, implement the capability to do a complete rebuild of the workload within your defined recovery objectives."
+area: ["Failure management", "Use fault isolation to protect your workload"]
+relatedIds: ["REL02-BP03", "REL13-BP01", "REL11-BP05"]
 ---
 
 # REL10-BP02 Automate recovery for components constrained to a single location

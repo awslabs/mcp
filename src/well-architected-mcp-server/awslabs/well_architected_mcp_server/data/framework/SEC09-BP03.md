@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "LOW"
 capability: "How do you protect your data in transit?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_protect_data_transit_authentication.html"
+description: "Verify the identity of communications by using protocols that support authentication, such as Transport Layer Security (TLS) or IPsec."
+area: ["Data protection", "Protecting data in transit"]
+relatedIds: ["SEC01-BP07", "SEC02-BP02", "SEC03-BP07"]
 ---
 
 # SEC09-BP03 Authenticate network communications

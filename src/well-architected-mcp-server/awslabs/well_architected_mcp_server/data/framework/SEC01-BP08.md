@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "LOW"
 capability: "How do you securely operate your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_securely_operate_implement_services_features.html"
+description: "Evaluate and implement security services and features from AWS and AWS Partners that help you evolve the security posture of your workload."
+area: ["Security Foundations", "Operating your workloads securely"]
+relatedIds: ["PERF01-BP01", "COST01-BP07"]
 ---
 
 # SEC01-BP08 Evaluate and implement new security services and features regularly

@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "LOW"
 capability: "How do you evolve operations?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_evolve_ops_allocate_time_for_imp.html"
+description: "Dedicate time and resources within your processes to make continuous incremental improvements possible."
+area: ["Evolve", "Learn, share, and improve"]
+relatedIds: ["OPS05-BP08"]
 ---
 
 # OPS11-BP09 Allocate time to make improvements

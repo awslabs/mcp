@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "MEDIUM"
 capability: "How do you securely operate your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_securely_operate_automate_security_controls.html"
+description: "Apply modern DevOps practices as you develop and deploy security controls that are standard across your AWS environments.  Define standard security controls and configurations using Infrastructure as Code (IaC) templates, capture changes in a version control system, test changes as part of a CI/CD pipeline, and automate the deployment of changes to your AWS environments."
+area: ["Security Foundations", "Operating your workloads securely"]
+relatedIds: ["OPS05-BP01", "OPS05-BP04", "REL08-BP05", "SUS06-BP01"]
 ---
 
 # SEC01-BP06 Automate deployment of standard security controls

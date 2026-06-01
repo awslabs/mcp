@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "HIGH"
 capability: "How do you back up data?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_backing_up_data_identified_backups_data.html"
+description: "Understand and use the backup capabilities of the data services and resources used by the workload. Most services provide capabilities to back up workload data."
+area: ["Failure management", "Back up data"]
+relatedIds: ["REL13-BP01", "REL13-BP02"]
 ---
 
 # REL09-BP01 Identify and back up all data that needs to be backed up, or reproduce the data from sources

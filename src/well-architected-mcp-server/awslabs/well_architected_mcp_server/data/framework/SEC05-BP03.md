@@ -5,6 +5,8 @@ pillar: "Security"
 risk_level: "MEDIUM"
 capability: "How do you protect your network resources?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_network_protection_inspection.html"
+description: "Set up traffic inspection points between your network layers to make sure data in transit matches the expected categories and patterns.  Analyze traffic flows, metadata, and patterns to help identify, detect, and respond to events more effectively."
+area: ["Infrastructure protection", "Protecting networks"]
 ---
 
 # SEC05-BP03 Implement inspection-based protection

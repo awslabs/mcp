@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "MEDIUM"
 capability: "How do you manage permissions for people and machines?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_permissions_share_securely_third_party.html"
+description: "The security of your cloud environment doesn't stop at your organization. Your organization might rely on a third party to manage a portion of your data. The permission management for the third-party managed system should follow the practice of just-in-time access using the principle of least privilege with temporary credentials. By working closely with a third party, you can reduce the scope of impact and risk of unintended access together."
+area: ["Identity and access management", "Permissions management"]
+relatedIds: ["SEC02-BP02", "SEC03-BP05", "SEC03-BP06", "SEC03-BP07", "SEC04"]
 ---
 
 # SEC03-BP09 Share resources securely with a third party

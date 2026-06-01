@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "HIGH"
 capability: "How do you classify your data?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_data_classification_lifecycle_management.html"
+description: "Understand your data lifecycle requirements as they relate to your different levels of data classification and handling.  This can include how data is handled when it first enters your environment, how data is transformed, and the rules for its destruction. Consider factors such as retention periods, access, auditing, and tracking provenance."
+area: ["Data protection", "Data classification"]
+relatedIds: ["COST04-BP05", "SUS04-BP03"]
 ---
 
 # SEC07-BP04 Define scalable data lifecycle management

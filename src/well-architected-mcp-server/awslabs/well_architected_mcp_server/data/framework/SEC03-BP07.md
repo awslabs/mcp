@@ -5,6 +5,8 @@ pillar: "Security"
 risk_level: "LOW"
 capability: "How do you manage permissions for people and machines?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_permissions_analyze_cross_account.html"
+description: "Continually monitor findings that highlight public and cross-account access. Reduce public access and cross-account access to only the specific resources that require this access."
+area: ["Identity and access management", "Permissions management"]
 ---
 
 # SEC03-BP07 Analyze public and cross-account access

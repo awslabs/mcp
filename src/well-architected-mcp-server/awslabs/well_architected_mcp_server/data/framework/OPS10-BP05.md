@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "MEDIUM"
 capability: "How do you manage workload and operations events?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_event_response_push_notify.html"
+description: "Effective communication during service impacting events is critical to maintain trust and transparency with customers. A well-defined communication plan helps your organization quickly and clearly share information, both internally and externally, during incidents."
+area: ["Operate", "Responding to events"]
+relatedIds: ["OPS07-BP03", "OPS10-BP06", "OPS11-BP02"]
 ---
 
 # OPS10-BP05 Define a customer communication plan for service-impacting events

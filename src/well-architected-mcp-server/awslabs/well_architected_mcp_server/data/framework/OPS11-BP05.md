@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "MEDIUM"
 capability: "How do you evolve operations?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_evolve_ops_drivers_for_imp.html"
+description: "Identify drivers for improvement to help you evaluate and prioritize opportunities based on data and feedback loops. Explore improvement opportunities in your systems and processes, and automate where appropriate."
+area: ["Evolve", "Learn, share, and improve"]
+relatedIds: ["OPS01", "OPS02", "OPS04-BP01", "OPS08", "OPS09", "OPS11-BP03"]
 ---
 
 # OPS11-BP05 Define drivers for improvement

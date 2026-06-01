@@ -5,6 +5,8 @@ pillar: "Cost Optimization"
 risk_level: "LOW"
 capability: "How do you meet cost targets when you select resource type, size and number?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_type_size_number_resources_metrics.html"
+description: "Use metrics from the currently running workload to select the right size and type to optimize for cost. Appropriately provision throughput, sizing, and storage for compute, storage, data, and networking services. This can be done with a feedback loop such as automatic scaling or by custom code in the workload."
+area: ["Cost effective resources", "Select the correct resource type, size, and number"]
 ---
 
 # COST06-BP03 Select resource type, size, and number automatically based on metrics

@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "MEDIUM"
 capability: "How do you design your workload service architecture?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_service_architecture_api_contracts.html"
+description: "Service contracts are documented agreements between API producers and consumers defined in a machine-readable API definition. A contract versioning strategy allows consumers to continue using the existing API and migrate their applications to a newer API when they are ready. Producer deployment can happen any time as long as the contract is followed. Service teams can use the technology stack of their choice to satisfy the API contract."
+area: ["Workload architecture", "Design your workload service architecture"]
+relatedIds: ["REL03-BP01", "REL03-BP02", "REL04-BP02", "REL05-BP03", "REL05-BP05"]
 ---
 
 # REL03-BP03 Provide service contracts per API

@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "LOW"
 capability: "How do you evolve operations?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_evolve_ops_share_lessons_learned.html"
+description: "Document and share lessons learned from the operations activities so that you can use them internally and across teams. You should share what your teams learn to increase the benefit across your organization. Share information and resources to prevent avoidable errors and ease development efforts, and focus on delivery of desired features."
+area: ["Evolve", "Learn, share, and improve"]
+relatedIds: ["OPS02-BP06", "OPS05-BP01", "OPS05-BP06", "OPS11-BP03", "OPS11-BP07"]
 ---
 
 # OPS11-BP08 Document and share lessons learned

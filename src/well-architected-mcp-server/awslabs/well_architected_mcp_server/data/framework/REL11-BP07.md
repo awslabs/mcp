@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "MEDIUM"
 capability: "How do you design your workload to withstand component failures?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_withstand_component_failures_service_level_agreements.html"
+description: "Architect your product to meet availability targets and uptime service level agreements (SLAs). If you publish or privately agree to availability targets or uptime SLAs, verify that your architecture and operational processes are designed to support them."
+area: ["Failure management", "Design your workload to withstand component failures"]
+relatedIds: ["REL03-BP01", "REL10-BP01", "REL11-BP01", "REL11-BP03", "REL12-BP04", "REL13-BP01"]
 ---
 
 # REL11-BP07 Architect your product to meet availability targets and uptime service level agreements (SLAs)

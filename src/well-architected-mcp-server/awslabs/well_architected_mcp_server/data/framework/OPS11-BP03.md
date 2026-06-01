@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "HIGH"
 capability: "How do you evolve operations?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_evolve_ops_feedback_loops.html"
+description: "Feedback loops provide actionable insights that drive decision making. Build feedback loops into your procedures and workloads. This helps you identify issues and areas that need improvement. They also validate investments made in improvements. These feedback loops are the foundation for continuously improving your workload."
+area: ["Evolve", "Learn, share, and improve"]
+relatedIds: ["OPS01-BP01", "OPS01-BP02", "OPS11-BP02", "OPS11-BP07"]
 ---
 
 # OPS11-BP03 Implement feedback loops

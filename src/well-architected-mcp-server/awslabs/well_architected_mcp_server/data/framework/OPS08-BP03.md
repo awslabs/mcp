@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "MEDIUM"
 capability: "How do you utilize workload observability in your organization?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_workload_observability_analyze_workload_traces.html"
+description: "Analyzing trace data is crucial for achieving a comprehensive view of an application's operational journey. By visualizing and understanding the interactions between various components, performance can be fine-tuned, bottlenecks identified, and user experiences enhanced."
+area: ["Operate", "Utilizing workload observability"]
+relatedIds: ["OPS08-BP01", "OPS08-BP02"]
 ---
 
 # OPS08-BP03 Analyze workload traces

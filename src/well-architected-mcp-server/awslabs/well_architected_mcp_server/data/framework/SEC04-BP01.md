@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "HIGH"
 capability: "How do you detect and investigate security events?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_detect_investigate_events_app_service_logging.html"
+description: "Retain security event logs from services and applications. This is a fundamental principle of security for audit, investigations, and operational use cases, and a common security requirement driven by governance, risk, and compliance (GRC) standards, policies, and procedures."
+area: ["Detection"]
+relatedIds: ["SEC04-BP02", "SEC07-BP04", "SEC10-BP06"]
 ---
 
 # SEC04-BP01 Configure service and application logging

@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "HIGH"
 capability: "How do you manage Service Quotas and constraints?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_manage_service_limits_aware_quotas_and_constraints.html"
+description: "Be aware of your default quotas and manage your quota increase requests for your workload architecture. Know which cloud resource constraints, such as disk or network, are potentially impactful."
+area: ["Foundations", "Manage service quotas and constraints"]
+relatedIds: ["REL01-BP02", "REL01-BP03", "REL01-BP04", "REL01-BP05", "REL01-BP06", "REL03-BP01", "REL10-BP01", "REL11-BP01", "REL11-BP03", "REL12-BP04"]
 ---
 
 # REL01-BP01 Aware of service quotas and constraints

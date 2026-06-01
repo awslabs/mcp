@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "MEDIUM"
 capability: "How do you determine what your priorities are?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_priorities_eval_threat_landscape.html"
+description: "Evaluate threats to the business (for example, competition, business risk and liabilities, operational risks, and information security threats) and maintain current information in a risk registry. Include the impact of risks when determining where to focus efforts."
+area: ["Organization", "Organization priorities"]
+relatedIds: ["SEC01-BP07"]
 ---
 
 # OPS01-BP05 Evaluate threat landscape

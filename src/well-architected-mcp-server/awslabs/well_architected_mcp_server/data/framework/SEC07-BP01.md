@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "HIGH"
 capability: "How do you classify your data?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_data_classification_identify_data.html"
+description: "Understand the classification of data your workload is processing, its handling requirements, the associated business processes, where the data is stored, and who the data owner is.  Your data classification and handling scheme should consider the applicable legal and compliance requirements of your workload and what data controls are needed. Understanding the data is the first step in the data classification journey."
+area: ["Data protection", "Data classification"]
+relatedIds: ["SUS04-BP01"]
 ---
 
 # SEC07-BP01 Understand your data classification scheme

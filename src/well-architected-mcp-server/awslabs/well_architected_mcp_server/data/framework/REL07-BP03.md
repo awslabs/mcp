@@ -5,6 +5,8 @@ pillar: "Reliability"
 risk_level: "MEDIUM"
 capability: "How do you design your workload to adapt to changes in demand?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_adapt_to_changes_proactive_adapt_auto.html"
+description: "One of the most valuable features of cloud computing is the ability to provision resources dynamically."
+area: ["Change management", "Design your workload to adapt to changes in demand"]
 ---
 
 # REL07-BP03 Obtain resources upon detection that more resources are needed for a workload

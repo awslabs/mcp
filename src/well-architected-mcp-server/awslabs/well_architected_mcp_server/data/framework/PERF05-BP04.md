@@ -5,6 +5,8 @@ pillar: "Performance Efficiency"
 risk_level: "LOW"
 capability: "How do your organizational practices and culture contribute to performance efficiency in your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_load_test.html"
+description: "Load test your workload to verify it can handle production load and identify any performance bottleneck."
+area: ["Process and culture"]
 ---
 
 # PERF05-BP04 Load test your workload

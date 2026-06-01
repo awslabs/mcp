@@ -5,6 +5,8 @@ pillar: "Sustainability"
 risk_level: "MEDIUM"
 capability: "How do you select and use cloud hardware and services in your architecture to support your sustainability goals?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_hardware_a2.html"
+description: "Use the minimum amount of hardware for your workload to efficiently meet your business needs."
+area: ["Hardware and services"]
 ---
 
 # SUS05-BP01 Use the minimum amount of hardware to meet your needs

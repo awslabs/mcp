@@ -1,23 +1,26 @@
 """Tests for the well-architected-bp-mcp-server."""
 
-import json
 import unittest.mock
 from pathlib import Path
 
 
 def test_data_files_exist():
-    """Test that data files exist and are valid JSON."""
+    """Test that framework markdown data files exist."""
     data_dir = Path(__file__).parent.parent / 'awslabs' / 'well_architected_mcp_server' / 'data'
 
     assert data_dir.exists(), f'Data directory not found: {data_dir}'
 
-    json_files = list(data_dir.glob('*.json'))
-    assert len(json_files) > 0, 'No JSON data files found'
+    framework_dir = data_dir / 'framework'
+    assert framework_dir.exists(), 'Framework directory not found'
 
-    for json_file in json_files:
-        with open(json_file) as f:
-            data = json.load(f)
-            assert isinstance(data, (list, dict)), f'Invalid JSON structure in {json_file}'
+    md_files = list(framework_dir.glob('*.md'))
+    assert len(md_files) == 307, f'Expected 307 framework files, got {len(md_files)}'
+
+    lens_dir = data_dir / 'lens' / 'gen-ai'
+    assert lens_dir.exists(), 'Gen-AI lens directory not found'
+
+    lens_files = list(lens_dir.glob('*.md'))
+    assert len(lens_files) == 49, f'Expected 49 gen-ai files, got {len(lens_files)}'
 
 
 def test_best_practices_data_structure():

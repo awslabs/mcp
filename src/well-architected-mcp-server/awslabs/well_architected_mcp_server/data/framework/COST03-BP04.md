@@ -5,6 +5,8 @@ pillar: "Cost Optimization"
 risk_level: "HIGH"
 capability: "How do you monitor your cost and usage?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_monitor_usage_define_kpi.html"
+description: "Establish the organization metrics that are required for this workload. Example metrics of a workload are customer reports produced, or web pages served to customers."
+area: ["Expenditure and usage awareness", "Monitor cost and usage"]
 ---
 
 # COST03-BP04 Establish organization metrics

@@ -5,6 +5,8 @@ pillar: "Cost Optimization"
 risk_level: "HIGH"
 capability: "How do you decommission resources?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_decomissioning_resources_track.html"
+description: "Define and implement a method to track resources and their associations with systems over their lifetime. You can use tagging to identify the workload or function of the resource."
+area: ["Expenditure and usage awareness", "Decommission resources"]
 ---
 
 # COST04-BP01 Track resources over their lifetime

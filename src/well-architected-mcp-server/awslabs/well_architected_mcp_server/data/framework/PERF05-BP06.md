@@ -5,6 +5,8 @@ pillar: "Performance Efficiency"
 risk_level: "LOW"
 capability: "How do your organizational practices and culture contribute to performance efficiency in your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_keep_workload_and_services_up_to_date.html"
+description: "Stay up-to-date on new cloud services and features to adopt efficient features, remove issues, and improve the overall performance efficiency of your workload."
+area: ["Process and culture"]
 ---
 
 # PERF05-BP06 Keep your workload and services up-to-date

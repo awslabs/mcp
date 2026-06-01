@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "MEDIUM"
 capability: "How do you manage Service Quotas and constraints?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_manage_service_limits_aware_fixed_limits.html"
+description: "Be aware of unchangeable service quotas, service constraints, and physical resource limits. Design architectures for applications and services to prevent these limits from impacting reliability."
+area: ["Foundations", "Manage service quotas and constraints"]
+relatedIds: ["REL01-BP01", "REL01-BP02", "REL01-BP04", "REL01-BP05", "REL01-BP06", "REL03-BP01", "REL10-BP01", "REL11-BP01", "REL11-BP03", "REL12-BP04"]
 ---
 
 # REL01-BP03 Accommodate fixed service quotas and constraints through architecture

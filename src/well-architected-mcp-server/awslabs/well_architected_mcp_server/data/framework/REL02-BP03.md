@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "MEDIUM"
 capability: "How do you plan your network topology?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_network_topology_ip_subnet_allocation.html"
+description: "Amazon VPC IP address ranges must be large enough to accommodate workload requirements, including factoring in future expansion and allocation of IP addresses to subnets across Availability Zones. This includes load balancers, EC2 instances, and container-based applications."
+area: ["Foundations", "Plan your network topology"]
+relatedIds: ["REL02-BP05"]
 ---
 
 # REL02-BP03 Ensure IP subnet allocation accounts for expansion and availability

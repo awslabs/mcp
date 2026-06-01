@@ -5,6 +5,8 @@ pillar: "Reliability"
 risk_level: "MEDIUM"
 capability: "How do you design your workload to adapt to changes in demand?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_adapt_to_changes_load_tested_adapt.html"
+description: "Adopt a load testing methodology to measure if scaling activity meets workload requirements."
+area: ["Change management", "Design your workload to adapt to changes in demand"]
 ---
 
 # REL07-BP04 Load test your workload

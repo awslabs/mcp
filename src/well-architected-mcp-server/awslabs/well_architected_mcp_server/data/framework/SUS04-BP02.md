@@ -5,6 +5,8 @@ pillar: "Sustainability"
 risk_level: "LOW"
 capability: "How do you take advantage of data management policies and patterns to support your sustainability goals?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_data_a3.html"
+description: "Use storage technologies that best support how your data is accessed and stored to minimize the resources provisioned while supporting your workload."
+area: ["Data management"]
 ---
 
 # SUS04-BP02 Use technologies that support data access and storage patterns

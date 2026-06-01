@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "MEDIUM"
 capability: "How do you design your workload to withstand component failures?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_withstand_component_failures_static_stability.html"
+description: "Workloads should be statically stable and only operate in a single normal mode. Bimodal behavior is when your workload exhibits different behavior under normal and failure modes."
+area: ["Failure management", "Design your workload to withstand component failures"]
+relatedIds: ["REL11-BP01", "REL11-BP04"]
 ---
 
 # REL11-BP05 Use static stability to prevent bimodal behavior

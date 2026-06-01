@@ -5,6 +5,8 @@ pillar: "Performance Efficiency"
 risk_level: "LOW"
 capability: "How do your organizational practices and culture contribute to performance efficiency in your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_automation_remediate_issues.html"
+description: "Use key performance indicators (KPIs), combined with monitoring and alerting systems, to proactively address performance-related issues."
+area: ["Process and culture"]
 ---
 
 # PERF05-BP05 Use automation to proactively remediate performance-related issues

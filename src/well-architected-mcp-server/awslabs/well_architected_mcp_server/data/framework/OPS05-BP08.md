@@ -5,6 +5,8 @@ pillar: "Operational Excellence"
 risk_level: "MEDIUM"
 capability: "How do you reduce defects, ease remediation, and improve flow into production?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_multi_env.html"
+description: "Use multiple environments to experiment, develop, and test your workload. Use increasing levels of controls as environments approach production to gain confidence your workload operates as intended when deployed."
+area: ["Prepare", "Design for operations"]
 ---
 
 # OPS05-BP08 Use multiple environments

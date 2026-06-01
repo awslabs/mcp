@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "MEDIUM"
 capability: "How do you implement change?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_tracking_change_management_immutable_infrastructure.html"
+description: "Immutable infrastructure is a model that mandates that no updates, security patches, or configuration changes happen in-place on production workloads. When a change is needed, the architecture is built onto new infrastructure and deployed into production."
+area: ["Change management", "Implement change"]
+relatedIds: ["REL08-BP05"]
 ---
 
 # REL08-BP04 Deploy using immutable infrastructure

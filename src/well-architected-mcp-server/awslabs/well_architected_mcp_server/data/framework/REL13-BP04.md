@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "HIGH"
 capability: "How do you plan for disaster recovery (DR)?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_for_recovery_config_drift.html"
+description: "To perform a successful disaster recovery (DR) procedure, your workload must be able to resume normal operations in a timely manner with no relevant loss of functionality or data once the DR environment has been brought online. To achieve this goal, it's essential to maintain consistent infrastructure, data, and configurations between your DR environment and the primary environment."
+area: ["Failure management", "Plan for Disaster Recovery (DR)"]
+relatedIds: ["REL01-BP01", "REL01-BP02", "REL01-BP04", "REL13-BP03"]
 ---
 
 # REL13-BP04 Manage configuration drift at the DR site or Region

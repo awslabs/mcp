@@ -5,6 +5,8 @@ pillar: "Sustainability"
 risk_level: "MEDIUM"
 capability: "How do you select and use cloud hardware and services in your architecture to support your sustainability goals?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_hardware_a5.html"
+description: "Optimize your use of accelerated computing instances to reduce the physical infrastructure demands of your workload."
+area: ["Hardware and services"]
 ---
 
 # SUS05-BP04 Optimize your use of hardware-based compute accelerators

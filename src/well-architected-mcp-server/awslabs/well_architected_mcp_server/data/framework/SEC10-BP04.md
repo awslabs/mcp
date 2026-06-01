@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "MEDIUM"
 capability: "How do you anticipate, respond to, and recover from incidents?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_incident_response_playbooks.html"
+description: "A key part of preparing your incident response processes is developing playbooks. Incident response playbooks provide prescriptive guidance and steps to follow when a security event occurs. Having clear structure and steps simplifies the response and reduces the likelihood for human error."
+area: ["Incident response", "Preparation"]
+relatedIds: ["SEC10-BP02"]
 ---
 
 # SEC10-BP04 Develop and test security incident response playbooks

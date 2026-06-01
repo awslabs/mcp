@@ -5,6 +5,9 @@ pillar: "Reliability"
 risk_level: "HIGH"
 capability: "How do you use fault isolation to protect your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_fault_isolation_use_bulkhead.html"
+description: "Implement bulkhead architectures (also known as cell-based architectures) to restrict the effect of failure within a workload to a limited number of components."
+area: ["Failure management", "Use fault isolation to protect your workload"]
+relatedIds: ["REL07-BP04", "REL10-BP01"]
 ---
 
 # REL10-BP03 Use bulkhead architectures to limit scope of impact

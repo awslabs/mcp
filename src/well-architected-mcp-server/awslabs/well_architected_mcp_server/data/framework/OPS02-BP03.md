@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "HIGH"
 capability: "How do you structure your organization to support your business outcomes?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ops_model_def_activity_owners.html"
+description: "Understand who has responsibility to perform specific activities on defined workloads and why that responsibility exists. Understanding who has responsibility to perform activities informs who will conduct the activity, validate the result, and provide feedback to the owner of the activity."
+area: ["Organization", "Operating model", "Relationships and ownership"]
+relatedIds: ["OPS02-BP01", "OPS02-BP02", "OPS02-BP04", "OPS02-BP05", "OPS11-BP04"]
 ---
 
 # OPS02-BP03 Operations activities have identified owners responsible for their performance

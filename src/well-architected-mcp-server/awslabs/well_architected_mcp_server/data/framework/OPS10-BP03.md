@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "HIGH"
 capability: "How do you manage workload and operations events?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_event_response_prioritize_events.html"
+description: "Responding promptly to operational events is critical, but not all events are equal. When you prioritize based on business impact, you also prioritize addressing events with the potential for significant consequences, such as safety, financial loss, regulatory violations, or damage to reputation."
+area: ["Operate", "Responding to events"]
+relatedIds: ["OPS03-BP03", "OPS08-BP04", "OPS09-BP01"]
 ---
 
 # OPS10-BP03 Prioritize operational events based on business impact

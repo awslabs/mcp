@@ -5,6 +5,8 @@ pillar: "Cost Optimization"
 risk_level: "LOW"
 capability: "How do you govern usage?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_govern_usage_track_lifecycle.html"
+description: "Track, measure, and audit the lifecycle of projects, teams, and environments to avoid using and paying for unnecessary resources."
+area: ["Expenditure and usage awareness", "Governance"]
 ---
 
 # COST02-BP06 Track project lifecycle

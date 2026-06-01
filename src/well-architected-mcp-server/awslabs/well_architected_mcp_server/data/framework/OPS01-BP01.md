@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "HIGH"
 capability: "How do you determine what your priorities are?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_priorities_ext_cust_needs.html"
+description: "Involve key stakeholders, including business, development, and operations teams, to determine where to focus efforts on external customer needs. This verifies that you have a thorough understanding of the operations support that is required to achieve your desired business outcomes."
+area: ["Organization", "Organization priorities"]
+relatedIds: ["OPS11-BP03"]
 ---
 
 # OPS01-BP01 Evaluate external customer needs

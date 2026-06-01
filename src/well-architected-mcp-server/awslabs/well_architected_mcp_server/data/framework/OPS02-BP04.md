@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "HIGH"
 capability: "How do you structure your organization to support your business outcomes?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ops_model_def_responsibilities_ownership.html"
+description: "Understand the responsibilities of your role and how you contribute to business outcomes, as this understanding informs the prioritization of your tasks and why your role is important. This helps team members recognize needs and respond appropriately. When team members know their role, they can establish ownership, identify improvement opportunities, and understand how to influence or make appropriate changes."
+area: ["Organization", "Operating model", "Relationships and ownership"]
+relatedIds: ["OPS02-BP06", "OPS03-BP02", "OPS03-BP03", "OPS03-BP07", "OPS09-BP01", "OPS09-BP03", "OPS11-BP01"]
 ---
 
 # OPS02-BP04 Mechanisms exist to manage responsibilities and ownership

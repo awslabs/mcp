@@ -5,6 +5,8 @@ pillar: "Cost Optimization"
 risk_level: "MEDIUM"
 capability: "How do you evaluate new services?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_evaluate_new_services_review_workload.html"
+description: "Existing workloads are regularly reviewed based on each defined process to find out if new services can be adopted, existing services can be replaced, or workloads can be re-architected."
+area: ["Optimize over time", "Define a review process and analyze your workload regularly"]
 ---
 
 # COST10-BP02 Review and analyze this workload regularly

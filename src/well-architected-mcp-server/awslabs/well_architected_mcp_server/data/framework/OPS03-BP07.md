@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "MEDIUM"
 capability: "How does your organizational culture support your business outcomes?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_org_culture_team_res_appro.html"
+description: "Provision the right amount of proficient team members, and provide tools and resources to support your workload needs. Overburdening team members increases the risk of human error. Investments in tools and resources, such as automation, can scale the effectiveness of your team and help them support a greater number of workloads without requiring additional capacity."
+area: ["Organization", "Operating model", "Organizational culture"]
+relatedIds: ["OPS03-BP06", "OPS09-BP04", "OPS10-BP01", "OPS10-BP07"]
 ---
 
 # OPS03-BP07 Resource teams appropriately

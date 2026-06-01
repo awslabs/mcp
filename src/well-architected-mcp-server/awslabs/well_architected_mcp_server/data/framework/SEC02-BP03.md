@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "HIGH"
 capability: "How do you manage authentication for people and machines?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_identities_secrets.html"
+description: "A workload requires an automated capability to prove its identity to databases, resources, and third-party services. This is accomplished using secret access credentials, such as API access keys, passwords, and OAuth tokens. Using a purpose-built service to store, manage, and rotate these credentials helps reduce the likelihood that those credentials become compromised."
+area: ["Identity and access management", "Identity management"]
+relatedIds: ["SEC02-BP02", "SEC02-BP05"]
 ---
 
 # SEC02-BP03 Store and use secrets securely

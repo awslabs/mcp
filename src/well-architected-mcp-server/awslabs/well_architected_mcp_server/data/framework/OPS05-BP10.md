@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "LOW"
 capability: "How do you reduce defects, ease remediation, and improve flow into production?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_auto_integ_deploy.html"
+description: "Automate build, deployment, and testing of the workload. This reduces errors caused by manual processes and reduces the effort to deploy changes."
+area: ["Prepare", "Design for operations"]
+relatedIds: ["OPS05-BP03", "OPS05-BP04"]
 ---
 
 # OPS05-BP10 Fully automate integration and deployment

@@ -5,6 +5,8 @@ pillar: "Performance Efficiency"
 risk_level: "HIGH"
 capability: "How do you select appropriate cloud resources and architecture for your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_architecture_understand_cloud_services_and_features.html"
+description: "Continually learn about and discover available services and configurations that help you make better architectural decisions and improve performance efficiency in your workload architecture."
+area: ["Architecture selection"]
 ---
 
 # PERF01-BP01 Learn about and understand available cloud services and features

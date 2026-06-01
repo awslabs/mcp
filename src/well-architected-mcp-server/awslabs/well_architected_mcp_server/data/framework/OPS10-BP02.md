@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "HIGH"
 capability: "How do you manage workload and operations events?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_event_response_process_per_alert.html"
+description: "Establishing a clear and defined process for each alert in your system is essential for effective and efficient incident management. This practice ensures that every alert leads to a specific, actionable response, improving the reliability and responsiveness of your operations."
+area: ["Operate", "Responding to events"]
+relatedIds: ["OPS04-BP01", "OPS04-BP04"]
 ---
 
 # OPS10-BP02 Have a process per alert

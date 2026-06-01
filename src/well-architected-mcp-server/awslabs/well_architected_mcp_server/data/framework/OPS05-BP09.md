@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "LOW"
 capability: "How do you reduce defects, ease remediation, and improve flow into production?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_freq_sm_rev_chg.html"
+description: "Frequent, small, and reversible changes reduce the scope and impact of a change. When used in conjunction with change management systems, configuration management systems, and build and delivery systems frequent, small, and reversible changes reduce the scope and impact of a change. This results in more effective troubleshooting and faster remediation with the option to roll back changes."
+area: ["Prepare", "Design for operations"]
+relatedIds: ["OPS05-BP03", "OPS05-BP04", "OPS06-BP04"]
 ---
 
 # OPS05-BP09 Make frequent, small, reversible changes

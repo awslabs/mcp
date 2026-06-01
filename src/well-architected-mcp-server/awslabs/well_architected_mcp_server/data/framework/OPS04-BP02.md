@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "HIGH"
 capability: "How do you implement observability in your workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_observability_application_telemetry.html"
+description: "Application telemetry serves as the foundation for observability of your workload. It's crucial to emit telemetry that offers actionable insights into the state of your application and the achievement of both technical and business outcomes. From troubleshooting to measuring the impact of a new feature or ensuring alignment with business key performance indicators (KPIs), application telemetry informs the way you build, operate, and evolve your workload."
+area: ["Prepare", "Implement observability"]
+relatedIds: ["OPS04-BP01", "OPS04-BP03", "OPS04-BP04", "OPS04-BP05"]
 ---
 
 # OPS04-BP02 Implement application telemetry

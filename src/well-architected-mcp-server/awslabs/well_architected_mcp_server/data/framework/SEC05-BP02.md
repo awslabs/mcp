@@ -5,6 +5,9 @@ pillar: "Security"
 risk_level: "HIGH"
 capability: "How do you protect your network resources?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_network_protection_layered.html"
+description: "Within the layers of your network, use further segmentation to restrict traffic only to the flows necessary for each workload. First, focus on controlling traffic between the internet or other external systems to a workload and your environment (north-south traffic). Afterwards, look at flows between different components and systems (east-west traffic)."
+area: ["Infrastructure protection", "Protecting networks"]
+relatedIds: ["REL03-BP01", "SEC09-BP02"]
 ---
 
 # SEC05-BP02 Control traffic flow within your network layers

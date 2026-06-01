@@ -5,6 +5,9 @@ pillar: "Operational Excellence"
 risk_level: "HIGH"
 capability: "How do you know that you are ready to support a workload?"
 url: "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ready_to_support_const_orr.html"
+description: "Use Operational Readiness Reviews (ORRs) to validate that you can operate your workload. ORR is a mechanism developed at Amazon to validate that teams can safely operate their workloads. An ORR is a review and inspection process using a checklist of requirements. An ORR is a self-service experience that teams use to certify their workloads. ORRs include best practices from lessons learned from our years of building software."
+area: ["Prepare", "Operational readiness and change management"]
+relatedIds: ["OPS01-BP03", "OPS01-BP04", "OPS03-BP07", "OPS06-BP01", "OPS07-BP01", "SEC01-BP03", "REL13-BP01", "COST02-BP01"]
 ---
 
 # OPS07-BP02 Ensure a consistent review of operational readiness
