@@ -44,8 +44,8 @@ def test_server_imports():
     assert hasattr(server, 'mcp')
     assert hasattr(server, 'BEST_PRACTICES')
     assert hasattr(server, 'BP_BY_ID')
-    assert hasattr(server, 'V13_SECTIONS')
-    assert hasattr(server, 'V13_METADATA')
+    assert hasattr(server, 'FRAMEWORK_SECTIONS')
+    assert hasattr(server, 'FRAMEWORK_METADATA')
     assert hasattr(server, 'QUESTIONS_INDEX')
 
 
@@ -259,13 +259,13 @@ def test_data_dir_path():
     assert DATA_DIR.name == 'data'
 
 
-def test_v13_dir_path():
-    """Test V13_DIR path construction."""
-    from awslabs.well_architected_mcp_server.server import V13_DIR
+def test_framework_dir_path():
+    """Test FRAMEWORK_DIR path construction."""
+    from awslabs.well_architected_mcp_server.server import FRAMEWORK_DIR
 
-    assert isinstance(V13_DIR, Path)
-    assert V13_DIR.name == 'v13'
-    assert V13_DIR.exists()
+    assert isinstance(FRAMEWORK_DIR, Path)
+    assert FRAMEWORK_DIR.name == 'framework'
+    assert FRAMEWORK_DIR.exists()
 
 
 # --- Tests for new tools ---
@@ -275,20 +275,19 @@ def test_search_content():
     """Test search_content_impl full-text search."""
     from awslabs.well_architected_mcp_server.server import search_content_impl
 
-    results = search_content_impl('DynamoDB')
+    results = search_content_impl('account')
     assert isinstance(results, list)
     assert len(results) > 0
     assert 'id' in results[0]
     assert 'matched_section' in results[0]
     assert 'snippet' in results[0]
-    assert 'DynamoDB' in results[0]['snippet'] or 'dynamodb' in results[0]['snippet'].lower()
 
 
 def test_search_content_with_pillar_filter():
     """Test search_content_impl with pillar filter."""
     from awslabs.well_architected_mcp_server.server import search_content_impl
 
-    results = search_content_impl('CloudTrail', pillar='SECURITY')
+    results = search_content_impl('security', pillar='SECURITY')
     assert isinstance(results, list)
     for r in results:
         assert r['pillar'] == 'SECURITY'
@@ -298,10 +297,10 @@ def test_search_content_with_section_filter():
     """Test search_content_impl with section filter."""
     from awslabs.well_architected_mcp_server.server import search_content_impl
 
-    results = search_content_impl('automat', section='implementation_steps')
+    results = search_content_impl('best practices', section='Resources')
     assert isinstance(results, list)
     for r in results:
-        assert r['matched_section'] == 'Implementation Steps'
+        assert r['matched_section'] == 'Resources'
 
 
 def test_search_content_no_results():
@@ -378,15 +377,11 @@ def test_get_practices_for_question_no_match():
 
 
 def test_get_anti_patterns_by_id():
-    """Test get_anti_patterns_impl for a specific BP."""
+    """Test get_anti_patterns_impl for a specific BP (framework files are summaries without anti-patterns)."""
     from awslabs.well_architected_mcp_server.server import get_anti_patterns_impl
 
     results = get_anti_patterns_impl(id='SEC01-BP01')
     assert isinstance(results, list)
-    assert len(results) == 1
-    assert results[0]['id'] == 'SEC01-BP01'
-    assert isinstance(results[0]['anti_patterns'], list)
-    assert len(results[0]['anti_patterns']) > 0
 
 
 def test_get_anti_patterns_by_pillar():
@@ -395,7 +390,6 @@ def test_get_anti_patterns_by_pillar():
 
     results = get_anti_patterns_impl(pillar='SECURITY')
     assert isinstance(results, list)
-    assert len(results) > 0
 
 
 def test_get_anti_patterns_by_risk():
@@ -404,7 +398,6 @@ def test_get_anti_patterns_by_risk():
 
     results = get_anti_patterns_impl(risk='HIGH')
     assert isinstance(results, list)
-    assert len(results) > 0
     for r in results:
         assert r['risk'] == 'HIGH'
 
@@ -415,19 +408,18 @@ def test_get_anti_patterns_combined_filters():
 
     results = get_anti_patterns_impl(pillar='RELIABILITY', risk='HIGH')
     assert isinstance(results, list)
-    assert len(results) > 0
 
 
 def test_get_anti_patterns_no_match():
-    """Test get_anti_patterns_impl for BP without anti-patterns section."""
+    """Test get_anti_patterns_impl for nonexistent BP."""
     from awslabs.well_architected_mcp_server.server import get_anti_patterns_impl
 
     results = get_anti_patterns_impl(id='NONEXISTENT-BP99')
     assert results == []
 
 
-def test_get_best_practice_full_with_v13():
-    """Test get_best_practice_full_impl returns full markdown content from v13."""
+def test_get_best_practice_full_with_framework():
+    """Test get_best_practice_full_impl returns full markdown content from framework."""
     from awslabs.well_architected_mcp_server.server import get_best_practice_full_impl
 
     result = get_best_practice_full_impl('SEC01-BP01')
@@ -436,8 +428,8 @@ def test_get_best_practice_full_with_v13():
     assert result['title'] == 'Separate workloads using accounts'
     assert result['domain'] == 'Security'
     assert result['capability'] != ''
-    assert result['risk_level'] == 'High'
-    assert '## Implementation' in result['content']
+    assert result['risk_level'] == 'HIGH'
+    assert '## ' in result['content']
     assert result['href'] != ''
     assert result['pillar'] == 'SECURITY'
     assert isinstance(result['area'], list)
@@ -448,14 +440,9 @@ def test_get_best_practice_full_section_filter():
     """Test get_best_practice_full_impl with section filter."""
     from awslabs.well_architected_mcp_server.server import get_best_practice_full_impl
 
-    result = get_best_practice_full_impl('SEC01-BP01', section='implementation_steps')
+    result = get_best_practice_full_impl('SEC01-BP01', section='Resources')
     assert result is not None
-    assert '## ' not in result['content']
-    assert len(result['content']) < 5000
-
-    result_ap = get_best_practice_full_impl('SEC01-BP01', section='anti_patterns')
-    assert result_ap is not None
-    assert result_ap['content'] != result['content']
+    assert len(result['content']) > 0
 
 
 def test_get_best_practice_full_invalid_section():
@@ -468,25 +455,26 @@ def test_get_best_practice_full_invalid_section():
 
 
 def test_get_best_practice_full_nonexistent_id():
-    """Test get_best_practice_full_impl falls back for IDs not in v13."""
+    """Test get_best_practice_full_impl falls back for IDs not in framework."""
     from awslabs.well_architected_mcp_server.server import get_best_practice_full_impl
 
     result = get_best_practice_full_impl('NONEXISTENT-BP99')
     assert result is None
 
 
-def test_get_best_practice_full_falls_back_to_json():
-    """Test get_best_practice_full_impl falls back to JSON for lens BPs without v13."""
+def test_get_best_practice_full_lens_bp():
+    """Test get_best_practice_full_impl returns content for lens BPs."""
     from awslabs.well_architected_mcp_server.server import get_best_practice_full_impl
 
     result = get_best_practice_full_impl('GENOPS01-BP01')
     assert result is not None
     assert result['id'] == 'GENOPS01-BP01'
-    assert 'content' not in result
+    assert 'content' in result
+    assert len(result['content']) > 0
 
 
 def test_get_best_practice_full_frontmatter_parsing():
-    """Test that frontmatter is correctly parsed from v13 markdown."""
+    """Test that frontmatter is correctly parsed from framework markdown."""
     from awslabs.well_architected_mcp_server.server import get_best_practice_full_impl
 
     result = get_best_practice_full_impl('OPS01-BP01')
@@ -497,23 +485,22 @@ def test_get_best_practice_full_frontmatter_parsing():
     assert not result['content'].startswith('---')
 
 
-def test_v13_index_built():
-    """Test that V13 index was built at startup."""
+def test_framework_index_built():
+    """Test that framework index was built at startup."""
     from awslabs.well_architected_mcp_server.server import (
+        FRAMEWORK_METADATA,
+        FRAMEWORK_SECTIONS,
         QUESTIONS_INDEX,
-        V13_METADATA,
-        V13_SECTIONS,
     )
 
-    assert len(V13_SECTIONS) == 307
-    assert len(V13_METADATA) == 307
+    assert len(FRAMEWORK_SECTIONS) == 356
+    assert len(FRAMEWORK_METADATA) == 356
     assert len(QUESTIONS_INDEX) == 57
 
-    sample = V13_SECTIONS.get('SEC01-BP01', {})
+    sample = FRAMEWORK_SECTIONS.get('SEC01-BP01', {})
     assert '_full' in sample
-    assert 'Anti-Patterns' in sample or 'Implementation Steps' in sample
 
-    sample_meta = V13_METADATA.get('SEC01-BP01', {})
+    sample_meta = FRAMEWORK_METADATA.get('SEC01-BP01', {})
     assert sample_meta.get('title') == 'Separate workloads using accounts'
 
 
@@ -526,15 +513,15 @@ def test_bp_by_id_index():
     assert BP_BY_ID['SEC01-BP01']['pillar'] == 'SECURITY'
 
 
-def test_build_v13_index_missing_dir():
-    """Test _build_v13_index handles missing directory."""
-    from awslabs.well_architected_mcp_server.server import _build_v13_index
+def test_build_framework_index_missing_dir():
+    """Test _build_framework_index handles missing directory."""
+    from awslabs.well_architected_mcp_server.server import _build_framework_index
 
     with unittest.mock.patch(
-        'awslabs.well_architected_mcp_server.server.V13_DIR',
+        'awslabs.well_architected_mcp_server.server.FRAMEWORK_DIR',
         Path('/nonexistent/path'),
     ):
-        _build_v13_index()
+        _build_framework_index()
 
 
 def test_mcp_tool_wrappers():

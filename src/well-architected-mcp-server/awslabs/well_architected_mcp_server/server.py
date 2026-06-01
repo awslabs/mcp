@@ -84,20 +84,20 @@ mcp = FastMCP(
 # --- Data stores ---
 
 DATA_DIR = Path(__file__).parent / 'data'
-V13_DIR = DATA_DIR / 'v13'
+FRAMEWORK_DIR = DATA_DIR / 'framework'
 
 BEST_PRACTICES: dict[str, list[dict[str, Any]]] = {}
 BP_BY_ID: dict[str, dict[str, Any]] = {}
-V13_SECTIONS: dict[str, dict[str, str]] = {}
-V13_METADATA: dict[str, dict[str, str]] = {}
+FRAMEWORK_SECTIONS: dict[str, dict[str, str]] = {}
+FRAMEWORK_METADATA: dict[str, dict[str, str]] = {}
 QUESTIONS_INDEX: dict[str, dict[str, Any]] = {}
 
 
 # --- Data loading ---
 
 
-def _parse_v13_file(filepath: Path) -> tuple[dict[str, str], dict[str, str]]:
-    """Parse a v13 markdown file into frontmatter metadata and sections."""
+def _parse_framework_file(filepath: Path) -> tuple[dict[str, str], dict[str, str]]:
+    """Parse a framework markdown file into frontmatter metadata and sections."""
     content = filepath.read_text(encoding='utf-8')
 
     metadata: dict[str, str] = {}
@@ -130,27 +130,30 @@ def _parse_v13_file(filepath: Path) -> tuple[dict[str, str], dict[str, str]]:
     return metadata, sections
 
 
-def _build_v13_index() -> None:
-    """Build in-memory indexes from all v13 markdown files."""
-    global V13_SECTIONS, V13_METADATA, QUESTIONS_INDEX
+def _build_framework_index() -> None:
+    """Build in-memory indexes from all framework markdown files."""
+    global FRAMEWORK_SECTIONS, FRAMEWORK_METADATA, QUESTIONS_INDEX
 
-    if not V13_DIR.exists():
-        return
+    md_dirs = [FRAMEWORK_DIR, DATA_DIR / 'lens' / 'gen-ai']
 
-    for md_file in V13_DIR.glob('*.md'):
-        bp_id = md_file.stem
-        metadata, sections = _parse_v13_file(md_file)
-        V13_SECTIONS[bp_id] = sections
-        V13_METADATA[bp_id] = metadata
+    for md_dir in md_dirs:
+        if not md_dir.exists():
+            continue
 
-        capability = metadata.get('capability', '')
-        if capability:
-            if capability not in QUESTIONS_INDEX:
-                QUESTIONS_INDEX[capability] = {
-                    'domain': metadata.get('domain', ''),
-                    'bp_ids': [],
-                }
-            QUESTIONS_INDEX[capability]['bp_ids'].append(bp_id)
+        for md_file in md_dir.glob('*.md'):
+            bp_id = md_file.stem
+            metadata, sections = _parse_framework_file(md_file)
+            FRAMEWORK_SECTIONS[bp_id] = sections
+            FRAMEWORK_METADATA[bp_id] = metadata
+
+            capability = metadata.get('capability', '')
+            if capability:
+                if capability not in QUESTIONS_INDEX:
+                    QUESTIONS_INDEX[capability] = {
+                        'domain': metadata.get('domain', '') or metadata.get('pillar', ''),
+                        'bp_ids': [],
+                    }
+                QUESTIONS_INDEX[capability]['bp_ids'].append(bp_id)
 
 
 def load_data() -> None:
@@ -170,12 +173,26 @@ def load_data() -> None:
             with open(file_path) as f:
                 BEST_PRACTICES[pillar_file] = json.load(f)
 
-    lens_dir = DATA_DIR / 'lens' / 'generative-ai'
+    lens_dir = DATA_DIR / 'lens' / 'gen-ai'
     if lens_dir.exists():
-        for lens_file in lens_dir.glob('*.json'):
-            key = f'genai_{lens_file.stem}'
-            with open(lens_file) as f:
-                BEST_PRACTICES[key] = json.load(f)
+        lens_practices: list[dict[str, Any]] = []
+        for md_file in sorted(lens_dir.glob('*.md')):
+            metadata, _ = _parse_framework_file(md_file)
+            if metadata.get('id'):
+                bp: dict[str, Any] = {
+                    'id': metadata['id'],
+                    'title': metadata.get('title', ''),
+                    'pillar': metadata.get('pillar', ''),
+                    'risk': metadata.get('risk_level', 'MEDIUM'),
+                    'lens': 'GENERATIVE_AI',
+                    'href': metadata.get('url', ''),
+                    'area': [],
+                    'relatedIds': [],
+                    'description': '',
+                }
+                lens_practices.append(bp)
+        if lens_practices:
+            BEST_PRACTICES['genai'] = lens_practices
 
     BP_BY_ID = {}
     for practices in BEST_PRACTICES.values():
@@ -186,7 +203,7 @@ def load_data() -> None:
 
 
 load_data()
-_build_v13_index()
+_build_framework_index()
 
 
 # --- Implementation functions ---
@@ -242,12 +259,12 @@ def get_best_practice_impl(id: str) -> dict[str, Any] | None:
 
 
 def get_best_practice_full_impl(id: str, section: str | None = None) -> dict[str, Any] | None:
-    """Get the full markdown content for a best practice from the v13 reference."""
-    metadata = V13_METADATA.get(id)
+    """Get the full markdown content for a best practice from the framework reference."""
+    metadata = FRAMEWORK_METADATA.get(id)
     if metadata is None:
         return get_best_practice_impl(id)
 
-    sections = V13_SECTIONS.get(id, {})
+    sections = FRAMEWORK_SECTIONS.get(id, {})
 
     if section:
         section_key = SECTION_NAME_MAP.get(section, section)
@@ -260,7 +277,7 @@ def get_best_practice_full_impl(id: str, section: str | None = None) -> dict[str
     result: dict[str, Any] = {
         'id': id,
         'title': metadata.get('title', bp_summary.get('title', '') if bp_summary else ''),
-        'domain': metadata.get('domain', ''),
+        'domain': metadata.get('domain', '') or metadata.get('pillar', ''),
         'capability': metadata.get('capability', ''),
         'risk_level': metadata.get('risk_level', ''),
         'content': body,
@@ -281,13 +298,13 @@ def search_content_impl(
     section: str | None = None,
     max_results: int = 10,
 ) -> list[dict[str, Any]]:
-    """Full-text search across all v13 markdown content."""
+    """Full-text search across all framework markdown content."""
     results = []
     query_lower = query.lower()
     clamped_max = min(max(max_results, 1), 50)
     target_section = SECTION_NAME_MAP.get(section, section) if section else None
 
-    for bp_id, sections in V13_SECTIONS.items():
+    for bp_id, sections in FRAMEWORK_SECTIONS.items():
         bp_summary = BP_BY_ID.get(bp_id)
         if pillar:
             if not bp_summary or bp_summary.get('pillar') != pillar:
@@ -381,7 +398,7 @@ def get_anti_patterns_impl(
 ) -> list[dict[str, Any]]:
     """Get anti-patterns for best practices."""
     results = []
-    bp_ids = [id] if id else list(V13_SECTIONS.keys())
+    bp_ids = [id] if id else list(FRAMEWORK_SECTIONS.keys())
 
     for bp_id in bp_ids:
         bp_summary = BP_BY_ID.get(bp_id)
@@ -393,7 +410,7 @@ def get_anti_patterns_impl(
             if risk and bp_summary.get('risk') != risk:
                 continue
 
-        sections = V13_SECTIONS.get(bp_id, {})
+        sections = FRAMEWORK_SECTIONS.get(bp_id, {})
         anti_patterns_text = sections.get('Anti-Patterns', '')
         if not anti_patterns_text:
             continue
