@@ -43,8 +43,8 @@ PILLAR_FILE_TO_DISPLAY = {
 SECTION_NAME_MAP = {
     'desired_outcome': 'Desired Outcome',
     'anti_patterns': 'Anti-Patterns',
-    'implementation_guidance': 'Implementation Guidance',
-    'implementation_steps': 'Implementation Steps',
+    'implementation_guidance': 'Implementation guidance',
+    'implementation_steps': 'Implementation steps',
     'resources': 'Resources',
 }
 
