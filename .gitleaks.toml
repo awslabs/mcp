@@ -1,0 +1,4 @@
+[allowlist]
+paths = [
+    ".secrets.baseline",
+]

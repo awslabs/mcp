@@ -10,6 +10,7 @@ from awslabs.cloudwatch_applicationsignals_mcp_server.service_tools import (
 )
 from awslabs.cloudwatch_applicationsignals_mcp_server.slo_tools import get_slo
 from awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools import (
+    _compose_spans_query,
     check_transaction_search_enabled,
     get_trace_summaries_paginated,
     list_slis,
@@ -1091,7 +1092,7 @@ async def test_get_slo_client_error(mock_aws_clients):
 
 @pytest.mark.asyncio
 async def test_search_transaction_spans_empty_log_group(mock_aws_clients):
-    """Test search transaction spans with empty log group defaults to aws/spans."""
+    """Empty log_group_name triggers SOURCE logGroups() + @data_format filterIndex."""
     with patch(
         'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
     ) as mock_check:
@@ -1104,7 +1105,7 @@ async def test_search_transaction_spans_empty_log_group(mock_aws_clients):
         }
 
         await search_transaction_spans(
-            log_group_name='',  # Empty string should default to 'aws/spans'
+            log_group_name='',
             start_time='2024-01-01T00:00:00+00:00',
             end_time='2024-01-01T01:00:00+00:00',
             query_string='fields @timestamp',
@@ -1112,10 +1113,12 @@ async def test_search_transaction_spans_empty_log_group(mock_aws_clients):
             max_timeout=30,
         )
 
-        # Verify start_query was called with default 'aws/spans'
         mock_aws_clients['logs_client'].start_query.assert_called()
         call_args = mock_aws_clients['logs_client'].start_query.call_args[1]
-        assert 'aws/spans' in call_args['logGroupNames']
+        assert 'logGroupNames' not in call_args
+        assert 'SOURCE logGroups()' in call_args['queryString']
+        assert 'filterIndex @data_format = "AWS-OTEL-TRACE-V1"' in call_args['queryString']
+        assert 'fields @timestamp' in call_args['queryString']
 
 
 @pytest.mark.asyncio
@@ -1483,7 +1486,7 @@ async def test_get_slo_general_exception(mock_aws_clients):
 
 @pytest.mark.asyncio
 async def test_search_transaction_spans_with_none_log_group(mock_aws_clients):
-    """Test search_transaction_spans when log_group_name is None."""
+    """None log_group_name is treated the same as empty: cross-log-group index query."""
     with patch(
         'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
     ) as mock_check:
@@ -1495,7 +1498,6 @@ async def test_search_transaction_spans_with_none_log_group(mock_aws_clients):
             'results': [],
         }
 
-        # Pass None for log_group_name to test the default handling
         await search_transaction_spans(
             log_group_name=None,  # type: ignore
             start_time='2024-01-01T00:00:00+00:00',
@@ -1505,9 +1507,396 @@ async def test_search_transaction_spans_with_none_log_group(mock_aws_clients):
             max_timeout=30,
         )
 
-        # Verify it used the default log group
         call_args = mock_aws_clients['logs_client'].start_query.call_args[1]
-        assert 'aws/spans' in call_args['logGroupNames']
+        assert 'logGroupNames' not in call_args
+        assert 'SOURCE logGroups()' in call_args['queryString']
+        assert 'filterIndex @data_format = "AWS-OTEL-TRACE-V1"' in call_args['queryString']
+
+
+@pytest.mark.asyncio
+async def test_search_transaction_spans_explicit_log_group_injects_filter_index(
+    mock_aws_clients,
+):
+    """Explicit log_group_name scopes via logGroupNames and still injects the @data_format filterIndex."""
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+        mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
+        mock_aws_clients['logs_client'].get_query_results.return_value = {
+            'queryId': 'test-query-id',
+            'status': 'Complete',
+            'results': [],
+        }
+
+        await search_transaction_spans(
+            log_group_name='custom-spans-lg',
+            start_time='2024-01-01T00:00:00+00:00',
+            end_time='2024-01-01T01:00:00+00:00',
+            query_string='fields @timestamp',
+            limit=None,
+            max_timeout=30,
+        )
+
+        call_args = mock_aws_clients['logs_client'].start_query.call_args[1]
+        assert call_args['logGroupNames'] == ['custom-spans-lg']
+        assert 'SOURCE logGroups()' not in call_args['queryString']
+        assert 'filterIndex @data_format = "AWS-OTEL-TRACE-V1"' in call_args['queryString']
+
+
+@pytest.mark.asyncio
+async def test_search_transaction_spans_user_source_clause_left_alone(mock_aws_clients):
+    """A user-supplied SOURCE clause suppresses all automatic injection."""
+    user_query = (
+        'SOURCE logGroups(namePrefix: ["my/spans"]) '
+        '| filterIndex @data_format = "AWS-OTEL-TRACE-V1" '
+        '| fields @timestamp'
+    )
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+        mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
+        mock_aws_clients['logs_client'].get_query_results.return_value = {
+            'queryId': 'test-query-id',
+            'status': 'Complete',
+            'results': [],
+        }
+
+        await search_transaction_spans(
+            log_group_name='',
+            start_time='2024-01-01T00:00:00+00:00',
+            end_time='2024-01-01T01:00:00+00:00',
+            query_string=user_query,
+            limit=None,
+            max_timeout=30,
+        )
+
+        call_args = mock_aws_clients['logs_client'].start_query.call_args[1]
+        assert call_args['queryString'] == user_query
+        # Exactly one SOURCE clause: the user's.
+        assert call_args['queryString'].lower().count('source ') == 1
+
+
+@pytest.mark.asyncio
+async def test_search_transaction_spans_explicit_log_group_with_user_data_format(
+    mock_aws_clients,
+):
+    """Explicit log_group_name + user-supplied @data_format: no injection at all."""
+    user_query = 'filter @data_format = "AWS-OTEL-TRACE-V1" | fields @timestamp'
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+        mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
+        mock_aws_clients['logs_client'].get_query_results.return_value = {
+            'queryId': 'test-query-id',
+            'status': 'Complete',
+            'results': [],
+        }
+
+        await search_transaction_spans(
+            log_group_name='custom-spans-lg',
+            start_time='2024-01-01T00:00:00+00:00',
+            end_time='2024-01-01T01:00:00+00:00',
+            query_string=user_query,
+            limit=None,
+            max_timeout=30,
+        )
+
+        call_args = mock_aws_clients['logs_client'].start_query.call_args[1]
+        assert call_args['logGroupNames'] == ['custom-spans-lg']
+        # Neither SOURCE nor a second filterIndex should be prepended.
+        assert call_args['queryString'] == user_query
+
+
+@pytest.mark.asyncio
+async def test_search_transaction_spans_user_source_wins_over_log_group_name(
+    mock_aws_clients,
+):
+    """If the user supplies a SOURCE clause, log_group_name is dropped (not both)."""
+    user_query = (
+        'SOURCE logGroups(namePrefix: ["my/spans"]) '
+        '| filterIndex @data_format = "AWS-OTEL-TRACE-V1" '
+        '| fields @timestamp'
+    )
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+        mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
+        mock_aws_clients['logs_client'].get_query_results.return_value = {
+            'queryId': 'test-query-id',
+            'status': 'Complete',
+            'results': [],
+        }
+
+        await search_transaction_spans(
+            log_group_name='ignored-log-group',
+            start_time='2024-01-01T00:00:00+00:00',
+            end_time='2024-01-01T01:00:00+00:00',
+            query_string=user_query,
+            limit=None,
+            max_timeout=30,
+        )
+
+        call_args = mock_aws_clients['logs_client'].start_query.call_args[1]
+        assert call_args['queryString'] == user_query
+        # logGroupNames must NOT be sent when SOURCE is present — CloudWatch rejects
+        # that combination.
+        assert 'logGroupNames' not in call_args
+
+
+@pytest.mark.asyncio
+async def test_search_transaction_spans_user_data_format_filter_preserved(mock_aws_clients):
+    """If the user already references @data_format, the tool does not double-inject the filter."""
+    user_query = 'filter @data_format = "AWS-VENDED-LOG-V1" | fields @timestamp'
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+        mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
+        mock_aws_clients['logs_client'].get_query_results.return_value = {
+            'queryId': 'test-query-id',
+            'status': 'Complete',
+            'results': [],
+        }
+
+        await search_transaction_spans(
+            log_group_name='',
+            start_time='2024-01-01T00:00:00+00:00',
+            end_time='2024-01-01T01:00:00+00:00',
+            query_string=user_query,
+            limit=None,
+            max_timeout=30,
+        )
+
+        call_args = mock_aws_clients['logs_client'].start_query.call_args[1]
+        # SOURCE logGroups() still added (no explicit log group).
+        assert 'SOURCE logGroups()' in call_args['queryString']
+        # But the AWS-OTEL-TRACE-V1 filter is NOT injected — user's @data_format filter wins.
+        assert 'AWS-OTEL-TRACE-V1' not in call_args['queryString']
+        assert 'AWS-VENDED-LOG-V1' in call_args['queryString']
+
+
+def test_compose_spans_query_never_ends_with_pipe():
+    """Guard against regressions of the empty-query trailing-pipe bug."""
+    # Valid inputs: final query must not end with '|' or '| '.
+    for q in ('fields @timestamp', '   fields @timestamp   ', 'filter x = "y"'):
+        for lg in ('', 'my-lg'):
+            out = _compose_spans_query(q, lg)
+            assert not out.rstrip().endswith('|'), f'trailing pipe for q={q!r} lg={lg!r}: {out!r}'
+    # Empty / whitespace-only queries: helper must not emit trailing pipes even
+    # though the tool entry point rejects these before reaching the helper.
+    for q in ('', '   '):
+        out = _compose_spans_query(q, '')
+        assert not out.rstrip().endswith('|'), f'trailing pipe for empty q={q!r}: {out!r}'
+
+
+@pytest.mark.asyncio
+async def test_search_transaction_spans_empty_query_string_rejected(mock_aws_clients):
+    """Empty query_string returns an Invalid Input error without calling StartQuery."""
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+
+        result = await search_transaction_spans(
+            log_group_name='',
+            start_time='2024-01-01T00:00:00+00:00',
+            end_time='2024-01-01T01:00:00+00:00',
+            query_string='',
+            limit=None,
+            max_timeout=30,
+        )
+
+        assert result['status'] == 'Invalid Input'
+        assert 'query_string' in result['message']
+        mock_aws_clients['logs_client'].start_query.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_search_transaction_spans_whitespace_query_string_rejected(mock_aws_clients):
+    """Whitespace-only query_string also returns Invalid Input (not a bare SOURCE that would error in CWL)."""
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+
+        result = await search_transaction_spans(
+            log_group_name='',
+            start_time='2024-01-01T00:00:00+00:00',
+            end_time='2024-01-01T01:00:00+00:00',
+            query_string='   \n\t  ',
+            limit=None,
+            max_timeout=30,
+        )
+
+        assert result['status'] == 'Invalid Input'
+        mock_aws_clients['logs_client'].start_query.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_search_transaction_spans_log_group_name_ignored_surfaced_in_response(
+    mock_aws_clients,
+):
+    """When log_group_name is dropped because of a user SOURCE clause, the response says so."""
+    user_query = (
+        'SOURCE logGroups(namePrefix: ["my/spans"]) '
+        '| filterIndex @data_format = "AWS-OTEL-TRACE-V1" '
+        '| fields @timestamp'
+    )
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+        mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
+        mock_aws_clients['logs_client'].get_query_results.return_value = {
+            'queryId': 'test-query-id',
+            'status': 'Complete',
+            'statistics': {'recordsMatched': 0},
+            'results': [],
+        }
+
+        result = await search_transaction_spans(
+            log_group_name='ignored-log-group',
+            start_time='2024-01-01T00:00:00+00:00',
+            end_time='2024-01-01T01:00:00+00:00',
+            query_string=user_query,
+            limit=None,
+            max_timeout=30,
+        )
+
+        assert result['log_group_name_ignored'] is True
+        assert 'SOURCE' in result['log_group_name_ignored_reason']
+
+
+@pytest.mark.asyncio
+async def test_search_transaction_spans_log_group_name_ignored_absent_in_normal_response(
+    mock_aws_clients,
+):
+    """The ignored flag must NOT leak into responses where log_group_name was actually used."""
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+        mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
+        mock_aws_clients['logs_client'].get_query_results.return_value = {
+            'queryId': 'test-query-id',
+            'status': 'Complete',
+            'statistics': {'recordsMatched': 0},
+            'results': [],
+        }
+
+        result = await search_transaction_spans(
+            log_group_name='my-lg',
+            start_time='2024-01-01T00:00:00+00:00',
+            end_time='2024-01-01T01:00:00+00:00',
+            query_string='fields @timestamp',
+            limit=None,
+            max_timeout=30,
+        )
+
+        assert 'log_group_name_ignored' not in result
+
+
+@pytest.mark.asyncio
+async def test_search_transaction_spans_log_group_name_ignored_surfaced_on_timeout(
+    mock_aws_clients,
+):
+    """On Polling Timeout, the ignored flag and reason are still surfaced in the response."""
+    user_query = 'SOURCE logGroups(namePrefix: ["my/spans"]) | fields @timestamp'
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        with patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.timer'
+        ) as mock_timer:
+            with patch('asyncio.sleep', new_callable=AsyncMock):
+                mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+                mock_aws_clients['logs_client'].start_query.return_value = {
+                    'queryId': 'test-query-id'
+                }
+                mock_aws_clients['logs_client'].get_query_results.return_value = {
+                    'status': 'Running'
+                }
+                mock_timer.side_effect = [0, 0, 0, 31, 31]
+
+                result = await search_transaction_spans(
+                    log_group_name='ignored-log-group',
+                    start_time='2024-01-01T00:00:00+00:00',
+                    end_time='2024-01-01T01:00:00+00:00',
+                    query_string=user_query,
+                    limit=None,
+                    max_timeout=30,
+                )
+
+                assert result['status'] == 'Polling Timeout'
+                assert result['log_group_name_ignored'] is True
+                assert 'SOURCE' in result['log_group_name_ignored_reason']
+
+
+@pytest.mark.asyncio
+async def test_search_transaction_spans_injection_not_confused_by_data_format_prefix(
+    mock_aws_clients,
+):
+    """A field like @data_format_version should NOT suppress the @data_format filterIndex."""
+    user_query = 'fields @data_format_version, @timestamp'
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+        mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
+        mock_aws_clients['logs_client'].get_query_results.return_value = {
+            'queryId': 'test-query-id',
+            'status': 'Complete',
+            'results': [],
+        }
+
+        await search_transaction_spans(
+            log_group_name='',
+            start_time='2024-01-01T00:00:00+00:00',
+            end_time='2024-01-01T01:00:00+00:00',
+            query_string=user_query,
+            limit=None,
+            max_timeout=30,
+        )
+
+        call_args = mock_aws_clients['logs_client'].start_query.call_args[1]
+        assert 'filterIndex @data_format = "AWS-OTEL-TRACE-V1"' in call_args['queryString']
+
+
+@pytest.mark.asyncio
+async def test_search_transaction_spans_source_check_not_confused_by_identifier_prefix(
+    mock_aws_clients,
+):
+    """A leading token like `sourced` must not be mistaken for a SOURCE clause."""
+    # `sourced` isn't a real CWLI keyword, but it's a worst-case prefix collision test.
+    user_query = 'sourced_spans | fields @timestamp'
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+        mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
+        mock_aws_clients['logs_client'].get_query_results.return_value = {
+            'queryId': 'test-query-id',
+            'status': 'Complete',
+            'results': [],
+        }
+
+        await search_transaction_spans(
+            log_group_name='',
+            start_time='2024-01-01T00:00:00+00:00',
+            end_time='2024-01-01T01:00:00+00:00',
+            query_string=user_query,
+            limit=None,
+            max_timeout=30,
+        )
+
+        call_args = mock_aws_clients['logs_client'].start_query.call_args[1]
+        # Because the token isn't actually SOURCE, both injections should fire.
+        assert 'SOURCE logGroups()' in call_args['queryString']
+        assert 'filterIndex @data_format = "AWS-OTEL-TRACE-V1"' in call_args['queryString']
 
 
 @pytest.mark.asyncio
@@ -3302,3 +3691,554 @@ def test_filter_operation_targets_case_sensitive():
     assert operation_targets[0]['Data']['ServiceOperation']['MetricType'] == 'fault'  # unchanged
     assert operation_targets[1]['Data']['ServiceOperation']['MetricType'] == 'FAULT'  # unchanged
     assert has_wildcards is False
+
+
+@pytest.mark.asyncio
+async def test_list_canaries_success(mock_aws_clients):
+    """Test list_canaries returns formatted canary list."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import list_canaries
+
+    mock_aws_clients['synthetics_client'].describe_canaries.return_value = {
+        'Canaries': [
+            {
+                'Name': 'my-canary',
+                'Status': {'State': 'RUNNING', 'StateReason': ''},
+                'Schedule': {'Expression': 'rate(5 minutes)'},
+                'RuntimeVersion': 'syn-nodejs-puppeteer-13.0',
+            },
+            {
+                'Name': 'stopped-canary',
+                'Status': {'State': 'STOPPED', 'StateReason': ''},
+                'Schedule': {'Expression': 'rate(1 hour)'},
+                'RuntimeVersion': 'syn-nodejs-playwright-5.0',
+            },
+        ],
+        'NextToken': None,
+    }
+
+    result = await list_canaries('us-east-1')
+
+    assert 'Found 2 canaries' in result
+    assert 'my-canary' in result
+    assert 'stopped-canary' in result
+    assert 'RUNNING' in result
+    assert 'STOPPED' in result
+    assert 'syn-nodejs-puppeteer-13.0' in result
+    assert 'syn-nodejs-playwright-5.0' in result
+
+
+@pytest.mark.asyncio
+async def test_list_canaries_empty(mock_aws_clients):
+    """Test list_canaries when no canaries exist."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import list_canaries
+
+    mock_aws_clients['synthetics_client'].describe_canaries.return_value = {
+        'Canaries': [],
+    }
+
+    result = await list_canaries('us-east-1')
+    assert 'No canaries found' in result
+
+
+@pytest.mark.asyncio
+async def test_list_canaries_api_error(mock_aws_clients):
+    """Test list_canaries handles API errors."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import list_canaries
+
+    mock_aws_clients['synthetics_client'].describe_canaries.side_effect = ClientError(
+        {'Error': {'Code': 'AccessDeniedException', 'Message': 'Access denied'}},
+        'DescribeCanaries',
+    )
+
+    result = await list_canaries('us-east-1')
+    assert 'Error listing canaries' in result
+
+
+@pytest.mark.asyncio
+async def test_list_canaries_pagination(mock_aws_clients):
+    """Test list_canaries handles pagination."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import list_canaries
+
+    mock_aws_clients['synthetics_client'].describe_canaries.side_effect = [
+        {
+            'Canaries': [
+                {
+                    'Name': 'canary-1',
+                    'Status': {'State': 'RUNNING'},
+                    'Schedule': {'Expression': 'rate(5 minutes)'},
+                    'RuntimeVersion': 'syn-nodejs-puppeteer-13.0',
+                }
+            ],
+            'NextToken': 'token123',
+        },
+        {
+            'Canaries': [
+                {
+                    'Name': 'canary-2',
+                    'Status': {'State': 'RUNNING'},
+                    'Schedule': {'Expression': 'rate(5 minutes)'},
+                    'RuntimeVersion': 'syn-nodejs-puppeteer-13.0',
+                }
+            ],
+        },
+    ]
+
+    result = await list_canaries('us-east-1')
+    assert 'Found 2 canaries' in result
+    assert 'canary-1' in result
+    assert 'canary-2' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_kb_recommendations_on_failure(mock_aws_clients):
+    """Test analyze_canary_failures produces KB recommendations for matching errors."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import analyze_canary_failures
+
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
+        'CanaryRuns': [
+            {
+                'Id': 'run-failed-1',
+                'Status': {
+                    'State': 'FAILED',
+                    'StateReason': 'page.goto: Timeout 60000ms exceeded. waiting until "load"',
+                },
+                'Timeline': {'Started': datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)},
+            }
+        ]
+    }
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {
+        'Canary': {
+            'Name': 'test-canary',
+            'RuntimeVersion': 'syn-nodejs-playwright-2.0',
+            'ArtifactS3Location': '',
+        }
+    }
+    mock_aws_clients['s3_client'].list_objects_v2.return_value = {'Contents': []}
+
+    with (
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+        ) as mock_insights,
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.analyze_canary_logs_with_time_window'
+        ) as mock_cw_logs,
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_canary_code'
+        ) as mock_code,
+    ):
+        mock_insights.return_value = ''
+        mock_cw_logs.return_value = {
+            'status': 'success',
+            'time_window': '11:55-12:05',
+            'total_events': 3,
+            'error_events': [
+                {
+                    'timestamp': datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+                    'message': 'page.goto: Timeout 60000ms exceeded. waiting until "load"',
+                }
+            ],
+            'insights': [],
+        }
+        mock_code.return_value = {'error': 'no code'}
+
+        result = await analyze_canary_failures('test-canary', 'us-east-1')
+
+        assert '🔍 Comprehensive Failure Analysis for test-canary' in result
+        # The KB should match RUNTIME-001 based on the error message
+        assert 'Knowledge Base Recommendations' in result or 'Timeout 60000ms exceeded' in result
+
+
+@pytest.mark.asyncio
+async def test_list_canaries_max_results_truncation(mock_aws_clients):
+    """Test list_canaries truncates output when more canaries exist than max_results."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import list_canaries
+
+    # Return 20 canaries on first page with a next token (more exist)
+    canaries_page1 = [
+        {
+            'Name': f'canary-{i}',
+            'Status': {'State': 'RUNNING'},
+            'Schedule': {'Expression': 'rate(5 minutes)'},
+            'RuntimeVersion': 'syn-nodejs-puppeteer-13.0',
+        }
+        for i in range(20)
+    ]
+    mock_aws_clients['synthetics_client'].describe_canaries.return_value = {
+        'Canaries': canaries_page1,
+        'NextToken': 'more-exist',
+    }
+
+    # max_results=5 should stop after first page and only display 5
+    result = await list_canaries('us-east-1', max_results=5)
+
+    assert 'showing first 5' in result
+    assert 'canary-0' in result
+    assert 'canary-4' in result
+
+
+@pytest.mark.asyncio
+async def test_list_canaries_max_results_clamped(mock_aws_clients):
+    """Test list_canaries clamps max_results to valid range."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import list_canaries
+
+    mock_aws_clients['synthetics_client'].describe_canaries.return_value = {
+        'Canaries': [
+            {
+                'Name': 'canary-1',
+                'Status': {'State': 'RUNNING'},
+                'Schedule': {'Expression': 'rate(5 minutes)'},
+                'RuntimeVersion': 'syn-nodejs-puppeteer-13.0',
+            }
+        ],
+    }
+
+    # max_results=0 should be clamped to 1
+    result = await list_canaries('us-east-1', max_results=0)
+    assert 'canary-1' in result
+
+    # max_results=999 should be clamped to 200
+    result = await list_canaries('us-east-1', max_results=999)
+    assert 'canary-1' in result
+
+
+@pytest.mark.asyncio
+async def test_list_canaries_error_and_stopped_states(mock_aws_clients):
+    """Test list_canaries displays correct emojis for different states."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import list_canaries
+
+    mock_aws_clients['synthetics_client'].describe_canaries.return_value = {
+        'Canaries': [
+            {
+                'Name': 'error-canary',
+                'Status': {'State': 'ERROR', 'StateReason': 'Lambda error'},
+                'Schedule': {'Expression': 'rate(5 minutes)'},
+                'RuntimeVersion': 'syn-nodejs-puppeteer-13.0',
+            },
+            {
+                'Name': 'unknown-canary',
+                'Status': {'State': 'CREATING'},
+                'Schedule': {'Expression': 'rate(1 hour)'},
+                'RuntimeVersion': 'syn-nodejs-puppeteer-13.0',
+            },
+        ],
+    }
+
+    result = await list_canaries('us-east-1')
+
+    assert '🟠 error-canary' in result
+    assert 'Lambda error' in result
+    assert '⚪ unknown-canary' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_healthy_with_description(mock_aws_clients):
+    """Test analyze_canary_failures runs KB lookup on healthy canary when description is provided."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import analyze_canary_failures
+
+    # All runs passed — no failures
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
+        'CanaryRuns': [
+            {
+                'Id': 'run-1',
+                'Status': {'State': 'PASSED', 'StateReason': ''},
+                'Timeline': {'Started': datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)},
+            }
+        ]
+    }
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {
+        'Canary': {
+            'Name': 'healthy-canary',
+            'RuntimeVersion': 'syn-nodejs-puppeteer-10.0',
+            'ArtifactS3Location': '',
+        }
+    }
+
+    result = await analyze_canary_failures(
+        'healthy-canary', 'us-east-1', description='visual monitoring baseline keeps resetting'
+    )
+
+    assert 'recovering or healthy' in result
+    # KB should match RUNTIME-005 based on the description
+    assert 'Knowledge Base Recommendations' in result or 'baseline' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_healthy_no_description(mock_aws_clients):
+    """Test analyze_canary_failures skips KB on healthy canary without description."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import analyze_canary_failures
+
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
+        'CanaryRuns': [
+            {
+                'Id': 'run-1',
+                'Status': {'State': 'PASSED', 'StateReason': ''},
+                'Timeline': {'Started': datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)},
+            }
+        ]
+    }
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {
+        'Canary': {
+            'Name': 'healthy-canary',
+            'RuntimeVersion': 'syn-nodejs-puppeteer-10.0',
+            'ArtifactS3Location': '',
+        }
+    }
+
+    result = await analyze_canary_failures('healthy-canary', 'us-east-1')
+
+    assert 'recovering or healthy' in result
+    assert 'Knowledge Base Recommendations' not in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_kb_with_cw_logs_enrichment(mock_aws_clients):
+    """Test analyze_canary_failures enriches KB context from CW logs when S3 artifacts are available."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import analyze_canary_failures
+
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
+        'CanaryRuns': [
+            {
+                'Id': 'run-failed-1',
+                'Status': {
+                    'State': 'FAILED',
+                    'StateReason': 'Canary failed',
+                },
+                'Timeline': {'Started': datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)},
+            }
+        ]
+    }
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {
+        'Canary': {
+            'Name': 'test-canary',
+            'RuntimeVersion': 'syn-nodejs-puppeteer-11.0',
+            'ArtifactS3Location': 'cw-syn-results-123/canary/test-canary',
+        }
+    }
+    # S3 artifacts available
+    mock_aws_clients['s3_client'].list_objects_v2.return_value = {
+        'Contents': [
+            {'Key': 'canary/test-canary/run-failed-1/logs/log.txt', 'Size': 100},
+        ]
+    }
+
+    with (
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+        ) as mock_insights,
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.analyze_canary_logs_with_time_window'
+        ) as mock_cw_logs,
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_canary_code'
+        ) as mock_code,
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.analyze_log_files'
+        ) as mock_log_files,
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.analyze_screenshots'
+        ) as mock_screenshots,
+    ):
+        mock_insights.return_value = ''
+        mock_cw_logs.return_value = {
+            'status': 'success',
+            'time_window': '11:55-12:05',
+            'total_events': 2,
+            'error_events': [
+                {
+                    'timestamp': datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+                    'message': 'panic: runtime error: goroutine stack overflow',
+                }
+            ],
+            'insights': ['Golang panic detected'],
+        }
+        mock_log_files.return_value = {
+            'insights': ['panic detected in runtime'],
+            'error_events': [{'message': 'fatal error: goroutine'}],
+        }
+        mock_screenshots.return_value = {'screenshots': [], 'insights': []}
+        mock_code.return_value = {'error': 'no code'}
+
+        result = await analyze_canary_failures('test-canary', 'us-east-1')
+
+        assert '🔍 Comprehensive Failure Analysis for test-canary' in result
+
+
+@pytest.mark.asyncio
+async def test_list_canaries_unknown_state(mock_aws_clients):
+    """Test list_canaries displays ⚪ for unknown canary states."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import list_canaries
+
+    mock_aws_clients['synthetics_client'].describe_canaries.return_value = {
+        'Canaries': [
+            {
+                'Name': 'weird-canary',
+                'Status': {'State': 'CREATING', 'StateReason': ''},
+                'Schedule': {'Expression': 'rate(5 minutes)'},
+                'RuntimeVersion': 'syn-nodejs-puppeteer-10.0',
+                'Timeline': {'LastStarted': 'Never'},
+            }
+        ]
+    }
+
+    result = await list_canaries('us-east-1')
+    assert '⚪ weird-canary' in result
+
+
+@pytest.mark.asyncio
+async def test_list_canaries_generic_exception(mock_aws_clients):
+    """Test list_canaries handles non-ClientError exceptions."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import list_canaries
+
+    mock_aws_clients['synthetics_client'].describe_canaries.side_effect = RuntimeError(
+        'Unexpected failure'
+    )
+
+    result = await list_canaries('us-east-1')
+    assert 'Error listing canaries' in result
+    assert 'Unexpected failure' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_tags_as_list(mock_aws_clients):
+    """Test analyze_canary_failures handles canary tags as list of dicts."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import analyze_canary_failures
+
+    mock_runs = [
+        {
+            'Id': 'failed-run-1',
+            'Status': {'State': 'FAILED', 'StateReason': 'Navigation timeout'},
+            'Timeline': {'Started': '2024-01-01T01:00:00Z'},
+        },
+        {
+            'Id': 'success-run',
+            'Status': {'State': 'PASSED'},
+            'Timeline': {'Started': '2024-01-01T00:00:00Z'},
+        },
+    ]
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {
+        'Canary': {
+            'Name': 'test-canary',
+            'RuntimeVersion': 'syn-nodejs-puppeteer-10.0',
+            'ArtifactS3Location': '',
+            'Tags': [
+                {'Key': 'env', 'Value': 'production'},
+                {'Key': 'team', 'Value': 'platform'},
+            ],
+        }
+    }
+
+    with (
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+        ) as mock_insights,
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_canary_code'
+        ) as mock_code,
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.analyze_canary_logs_with_time_window'
+        ) as mock_cw_logs,
+    ):
+        mock_insights.return_value = ''
+        mock_code.return_value = {'error': 'no code'}
+        mock_cw_logs.return_value = {'status': 'no_logs', 'insights': ['No log group found']}
+
+        result = await analyze_canary_failures('test-canary', 'us-east-1')
+        assert 'Comprehensive Failure Analysis' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_with_description(mock_aws_clients):
+    """Test analyze_canary_failures passes description to KB (line 1577)."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import analyze_canary_failures
+
+    mock_runs = [
+        {
+            'Id': 'failed-run-1',
+            'Status': {'State': 'FAILED', 'StateReason': 'Navigation timeout'},
+            'Timeline': {'Started': '2024-01-01T01:00:00Z'},
+        },
+        {
+            'Id': 'success-run',
+            'Status': {'State': 'PASSED'},
+            'Timeline': {'Started': '2024-01-01T00:00:00Z'},
+        },
+    ]
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {
+        'Canary': {
+            'Name': 'test-canary',
+            'RuntimeVersion': 'syn-nodejs-puppeteer-10.0',
+            'ArtifactS3Location': '',
+        }
+    }
+
+    with (
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+        ) as mock_insights,
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_canary_code'
+        ) as mock_code,
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.analyze_canary_logs_with_time_window'
+        ) as mock_cw_logs,
+    ):
+        mock_insights.return_value = ''
+        mock_code.return_value = {'error': 'no code'}
+        mock_cw_logs.return_value = {'status': 'no_logs', 'insights': ['No log group found']}
+
+        result = await analyze_canary_failures(
+            'test-canary', 'us-east-1', description='canary keeps timing out on login page'
+        )
+        assert 'Comprehensive Failure Analysis' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_kb_exception(mock_aws_clients):
+    """Test analyze_canary_failures handles KB recommendation exception."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.server import analyze_canary_failures
+
+    mock_runs = [
+        {
+            'Id': 'failed-run-1',
+            'Status': {'State': 'FAILED', 'StateReason': 'Navigation timeout'},
+            'Timeline': {'Started': '2024-01-01T01:00:00Z'},
+        },
+        {
+            'Id': 'success-run',
+            'Status': {'State': 'PASSED'},
+            'Timeline': {'Started': '2024-01-01T00:00:00Z'},
+        },
+    ]
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {
+        'Canary': {
+            'Name': 'test-canary',
+            'RuntimeVersion': 'syn-nodejs-puppeteer-10.0',
+            'ArtifactS3Location': '',
+        }
+    }
+
+    with (
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+        ) as mock_insights,
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_canary_code'
+        ) as mock_code,
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.analyze_canary_logs_with_time_window'
+        ) as mock_cw_logs,
+        patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.CanaryKnowledgeBaseLoader'
+        ) as mock_kb_loader,
+    ):
+        mock_insights.return_value = ''
+        mock_code.return_value = {'error': 'no code'}
+        mock_cw_logs.return_value = {'status': 'no_logs', 'insights': ['No log group found']}
+        mock_kb_loader.get_instance.side_effect = Exception('KB load failed')
+
+        result = await analyze_canary_failures('test-canary', 'us-east-1')
+        # Should still return a result despite KB failure
+        assert 'Comprehensive Failure Analysis' in result

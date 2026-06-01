@@ -312,7 +312,7 @@ class GlueEtlJobsHandler:
 
                 # Verify that the job is managed by MCP before deleting
                 # Construct the ARN for the job
-                region = AwsHelper.get_aws_region() or 'us-east-1'
+                region = AwsHelper.get_or_default_aws_region() or 'us-east-1'
                 account_id = AwsHelper.get_aws_account_id()
                 job_arn = f'arn:aws:glue:{region}:{account_id}:job/{job_name}'
 
@@ -414,7 +414,7 @@ class GlueEtlJobsHandler:
                     parameters = job.get('Parameters', {})
 
                     # Construct the ARN for the job
-                    region = AwsHelper.get_aws_region() or 'us-east-1'
+                    region = AwsHelper.get_or_default_aws_region() or 'us-east-1'
                     account_id = AwsHelper.get_aws_account_id()
                     job_arn = f'arn:aws:glue:{region}:{account_id}:job/{job_name}'
 
