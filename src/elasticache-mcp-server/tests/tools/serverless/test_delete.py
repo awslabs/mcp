@@ -1,8 +1,18 @@
 """Tests for the delete serverless tool."""
 
 import pytest
+from awslabs.elasticache_mcp_server.context import Context
 from awslabs.elasticache_mcp_server.tools.serverless.delete import delete_serverless_cache
 from unittest.mock import MagicMock, patch
+
+
+@pytest.mark.asyncio
+async def test_delete_serverless_cache_readonly_mode():
+    """Test deleting a serverless cache in readonly mode."""
+    with patch.object(Context, 'readonly_mode', return_value=True):
+        result = await delete_serverless_cache(serverless_cache_name='test-cache')
+        assert 'error' in result
+        assert 'readonly mode' in result['error']
 
 
 @pytest.mark.asyncio

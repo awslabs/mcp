@@ -124,3 +124,22 @@ async def test_get_log_events_error(mock_logs_client):
 
     assert 'error' in result
     assert 'Log stream not found' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_get_log_events_works_in_readonly_mode():
+    """Test that get_log_events works in readonly mode."""
+    from awslabs.elasticache_mcp_server.context import Context
+    from unittest.mock import MagicMock, patch
+
+    mock_client = MagicMock()
+    mock_client.get_log_events.return_value = {'events': []}
+    with (
+        patch.object(Context, 'readonly_mode', return_value=True),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.CloudWatchLogsConnectionManager.get_connection',
+            return_value=mock_client,
+        ),
+    ):
+        result = await get_log_events(log_group_name='test-group', log_stream_name='test-stream')
+        assert 'error' not in result
