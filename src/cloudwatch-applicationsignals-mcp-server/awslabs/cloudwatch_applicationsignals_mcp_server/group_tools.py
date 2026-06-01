@@ -26,6 +26,7 @@ Tools:
 """
 
 from .aws_clients import get_client, get_region
+from .canary_utils import check_canaries_for_service
 from .sli_report_client import AWSConfig, SLIReportClient
 from .utils import (
     ERROR_THRESHOLD_CRITICAL,
@@ -740,7 +741,7 @@ async def audit_group_health(
             unix_start = int(start_dt.timestamp())
             unix_end = int(end_dt.timestamp())
             canary_result = await check_canaries_for_service(
-                normalized_targets, unix_start, unix_end, AWS_REGION
+                normalized_targets, unix_start, unix_end, get_region()
             )
             if canary_result:
                 result += '\n' + '=' * 50 + '\n'

@@ -912,7 +912,7 @@ async def check_canaries_for_service(
                     }
                     if next_token:
                         kwargs['NextToken'] = next_token
-                    resp = applicationsignals_client.list_service_dependents(**kwargs)
+                    resp = get_client('application-signals').list_service_dependents(**kwargs)
                     for dep in resp.get('ServiceDependents', []):
                         dep_attrs = dep.get('DependentKeyAttributes', {})
                         if dep_attrs.get('ResourceType') == 'AWS::Synthetics::Canary':
@@ -932,7 +932,7 @@ async def check_canaries_for_service(
             if not name:
                 continue
             try:
-                runs_resp = synthetics_client.get_canary_runs(Name=name, MaxResults=5)
+                runs_resp = get_client('synthetics').get_canary_runs(Name=name, MaxResults=5)
                 runs = runs_resp.get('CanaryRuns', [])
                 if not runs:
                     canary_statuses.append((name, 'no_data', 0, 0))

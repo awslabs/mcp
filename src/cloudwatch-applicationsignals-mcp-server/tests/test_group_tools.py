@@ -56,6 +56,8 @@ def mock_aws_clients():
             return mock_applicationsignals_client
         if service_name == 'cloudwatch':
             return mock_cloudwatch_client
+        if service_name == 'synthetics':
+            return mock_synthetics_client
         return MagicMock()
 
     patches = [
@@ -64,12 +66,8 @@ def mock_aws_clients():
             side_effect=_get_client,
         ),
         patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.applicationsignals_client',
-            mock_applicationsignals_client,
-        ),
-        patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.synthetics_client',
-            mock_synthetics_client,
+            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.get_client',
+            side_effect=_get_client,
         ),
     ]
 

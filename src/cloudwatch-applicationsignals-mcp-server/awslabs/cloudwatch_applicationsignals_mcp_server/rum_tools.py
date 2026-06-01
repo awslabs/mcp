@@ -184,7 +184,7 @@ async def query_rum_events(
 @lru_cache(maxsize=1)
 def _get_account_id() -> str:
     """Return the caller's account ID (cached for the process lifetime)."""
-    return get_client("sts").get_caller_identity()['Account']
+    return get_client('sts').get_caller_identity()['Account']
 
 
 @lru_cache(maxsize=1)
@@ -199,9 +199,7 @@ def _get_partition() -> str:
 
 def _log_group_arn(log_group_name: str) -> str:
     """Compose a CloudWatch Logs log group ARN from its name."""
-    return (
-        f'arn:{_get_partition()}:logs:{get_region()}:{_get_account_id()}:log-group:{log_group_name}'
-    )
+    return f'arn:{_get_partition()}:logs:{get_region()}:{_get_account_id()}:log-group:{log_group_name}'
 
 
 def _clear_module_caches() -> None:
@@ -227,7 +225,7 @@ def _get_rum_app_info_confident_cached(app_monitor_name: str) -> tuple[str, str,
     when we fell back to log sampling (in which case the caller must not
     use the cached ``platform`` value).
     """
-    resp = get_client("rum").get_app_monitor(Name=app_monitor_name)
+    resp = get_client('rum').get_app_monitor(Name=app_monitor_name)
     app_monitor = resp['AppMonitor']
     cw_log = app_monitor.get('DataStorage', {}).get('CwLog', {})
     if not cw_log.get('CwLogEnabled', False):
@@ -272,7 +270,7 @@ def _detect_platform_from_logs(log_group: str) -> str:
     try:
         end_ms = int(time.time() * 1000)
         start_ms = end_ms - _PLATFORM_DETECT_WINDOW_MS
-        resp = get_client("logs").filter_log_events(
+        resp = get_client('logs').filter_log_events(
             logGroupName=log_group,
             startTime=start_ms,
             endTime=end_ms,
@@ -347,7 +345,7 @@ def _run_logs_insights_query_sync(
     max_poll_seconds: float = 60.0,
 ) -> dict:
     """Run a CW Logs Insights query and poll for results (synchronous)."""
-    resp = get_client("logs").start_query(
+    resp = get_client('logs').start_query(
         logGroupName=log_group,
         startTime=int(start_time.timestamp()),
         endTime=int(end_time.timestamp()),
@@ -361,7 +359,7 @@ def _run_logs_insights_query_sync(
     result = None
     timed_out = True
     while time.monotonic() < deadline:
-        result = get_client("logs").get_query_results(queryId=query_id)
+        result = get_client('logs').get_query_results(queryId=query_id)
         status = result['status']
         if status in ('Complete', 'Failed', 'Cancelled'):
             timed_out = False
@@ -371,7 +369,7 @@ def _run_logs_insights_query_sync(
     if timed_out or result is None:
         # Free the concurrency slot — otherwise the query keeps running server-side.
         try:
-            get_client("logs").stop_query(queryId=query_id)
+            get_client('logs').stop_query(queryId=query_id)
         except Exception as e:
             logger.debug(f'stop_query failed for {query_id}: {e}')
         return {'status': 'Timeout', 'results': [], 'statistics': {}, 'queryId': query_id}
@@ -447,8 +445,8 @@ def _platform_mismatch(requested: str, monitor_platform: str) -> Optional[str]:
 async def check_rum_data_access(app_monitor_name: str) -> str:
     """Check an app monitor's configuration and data access capabilities."""
     try:
-        resp = await asyncio.to_thread(get_client("rum").get_app_monitor, Name=app_monitor_name)
-    except get_client("rum").exceptions.ResourceNotFoundException:
+        resp = await asyncio.to_thread(get_client('rum').get_app_monitor, Name=app_monitor_name)
+    except get_client('rum').exceptions.ResourceNotFoundException:
         return json.dumps(
             {'error': f"App monitor '{app_monitor_name}' not found.", 'error_type': 'bad_request'}
         )
@@ -564,7 +562,7 @@ async def list_rum_app_monitors(max_results: int = 25) -> str:
 
     def _list() -> list:
         out = []
-        paginator = get_client("rum").get_paginator('list_app_monitors')
+        paginator = get_client('rum').get_paginator('list_app_monitors')
         for page in paginator.paginate(PaginationConfig={'MaxItems': max_results}):
             for m in page.get('AppMonitorSummaries', []):
                 out.append(remove_null_values(m))
@@ -577,7 +575,7 @@ async def list_rum_app_monitors(max_results: int = 25) -> str:
 async def get_rum_app_monitor(app_monitor_name: str) -> str:
     """Get full configuration of a CloudWatch RUM app monitor."""
     try:
-        resp = await asyncio.to_thread(get_client("rum").get_app_monitor, Name=app_monitor_name)
+        resp = await asyncio.to_thread(get_client('rum').get_app_monitor, Name=app_monitor_name)
         return json.dumps(remove_null_values(resp['AppMonitor']), default=str)
     except Exception as e:
         return json.dumps({'error': str(e), 'error_type': 'service_error'})
@@ -586,7 +584,9 @@ async def get_rum_app_monitor(app_monitor_name: str) -> str:
 async def list_rum_tags(resource_arn: str) -> str:
     """List tags for a RUM resource (app monitor)."""
     try:
-        resp = await asyncio.to_thread(get_client("rum").list_tags_for_resource, ResourceArn=resource_arn)
+        resp = await asyncio.to_thread(
+            get_client('rum').list_tags_for_resource, ResourceArn=resource_arn
+        )
         return json.dumps({'tags': resp.get('Tags', {})})
     except Exception as e:
         return json.dumps({'error': str(e), 'error_type': 'service_error'})
@@ -595,7 +595,9 @@ async def list_rum_tags(resource_arn: str) -> str:
 async def get_rum_resource_policy(app_monitor_name: str) -> str:
     """Get the resource-based policy for a RUM app monitor."""
     try:
-        resp = await asyncio.to_thread(get_client("rum").get_resource_policy, Name=app_monitor_name)
+        resp = await asyncio.to_thread(
+            get_client('rum').get_resource_policy, Name=app_monitor_name
+        )
         policy = resp.get('PolicyDocument', '{}')
         return json.dumps({'policy': json.loads(policy) if policy else None})
     except Exception as e:
@@ -1228,7 +1230,7 @@ async def analyze_rum_log_group(
 
     def _fetch_anomaly_detectors() -> tuple[list, Optional[str]]:
         try:
-            resp = get_client("logs").list_log_anomaly_detectors(filterLogGroupArn=log_group_arn)
+            resp = get_client('logs').list_log_anomaly_detectors(filterLogGroupArn=log_group_arn)
             return resp.get('anomalyDetectors', []), None
         except Exception as e:
             return [], str(e)
@@ -1239,9 +1241,11 @@ async def analyze_rum_log_group(
             token: Optional[str] = None
             for _ in range(_ANOMALY_PAGE_CAP):
                 if token:
-                    resp = get_client("logs").list_anomalies(anomalyDetectorArn=arn, nextToken=token)
+                    resp = get_client('logs').list_anomalies(
+                        anomalyDetectorArn=arn, nextToken=token
+                    )
                 else:
-                    resp = get_client("logs").list_anomalies(anomalyDetectorArn=arn)
+                    resp = get_client('logs').list_anomalies(anomalyDetectorArn=arn)
                 out.extend(resp.get('anomalies', []))
                 token = resp.get('nextToken')
                 if not token:
@@ -1362,7 +1366,7 @@ async def correlate_rum_to_backend(
 
     def _get_batch(batch):
         try:
-            return get_client("xray").batch_get_traces(TraceIds=batch).get('Traces', []), None
+            return get_client('xray').batch_get_traces(TraceIds=batch).get('Traces', []), None
         except Exception as e:
             logger.warning(f'Failed to get traces {batch}: {e}')
             return [], str(e)
@@ -1491,7 +1495,7 @@ async def get_rum_metrics(
             }
             if token:
                 kwargs['NextToken'] = token
-            page = get_client("cloudwatch").get_metric_data(**kwargs)
+            page = get_client('cloudwatch').get_metric_data(**kwargs)
             pages.append(page)
             token = page.get('NextToken')
             if not token:
@@ -1568,7 +1572,9 @@ async def get_rum_slo_health(
 
     def _list_slos() -> list:
         out = []
-        paginator = get_client("application-signals").get_paginator('list_service_level_objectives')
+        paginator = get_client('application-signals').get_paginator(
+            'list_service_level_objectives'
+        )
         for page in paginator.paginate(
             KeyAttributes={
                 'Type': 'AWS::Resource',
@@ -1615,7 +1621,7 @@ async def get_rum_slo_health(
         slo_id = slo_arn or slo_name
         try:
             resp = await asyncio.to_thread(
-                get_client("application-signals").get_service_level_objective,
+                get_client('application-signals').get_service_level_objective,
                 Id=slo_id,
             )
             slo_detail = resp.get('Slo', {})
@@ -1623,7 +1629,7 @@ async def get_rum_slo_health(
             attainment = goal.get('AttainmentGoal')
 
             budget_resp = await asyncio.to_thread(
-                get_client("application-signals").batch_get_service_level_objective_budget_report,
+                get_client('application-signals').batch_get_service_level_objective_budget_report,
                 Timestamp=et,
                 SloIds=[slo_id],
             )

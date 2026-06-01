@@ -191,7 +191,7 @@ def _initialize_aws_clients() -> Dict[str, Any]:
 
     for svc, url in endpoints.items():
         if url:
-            logger.debug(f'Using {svc} endpoint override: {url}')
+            logger.debug(f'Using {svc.upper()} endpoint override: {url}')
 
     if aws_profile := os.environ.get('AWS_PROFILE'):
         logger.debug(f'Using AWS profile: {aws_profile}')
