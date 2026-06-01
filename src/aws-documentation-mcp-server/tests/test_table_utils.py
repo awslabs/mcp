@@ -172,6 +172,24 @@ class TestParseHtmlTables:
         assert run_group['rows'][0]['Resource'] == 'image*'
         assert run_group['rows'][2]['Resource'] == 'subnet*'
 
+    def test_rowspan_with_flat_row_first(self):
+        """Rowspan detection works when a flat row precedes the rowspan row."""
+        html = """<html><body><h2>Actions</h2><table>
+        <thead><tr><th>Action</th><th>Level</th><th>Resource</th></tr></thead>
+        <tbody>
+            <tr><td>DescribeInstances</td><td>Read</td><td>instance*</td></tr>
+            <tr><td rowspan="2">RunInstances</td><td rowspan="2">Write</td><td>image*</td></tr>
+            <tr><td>subnet*</td></tr>
+        </tbody></table></body></html>"""
+        result = parse_html_tables(html, 'Actions')
+        assert result is not None
+        assert 'parent_columns' in result
+        assert 'Action' in result['parent_columns']
+        # Should have 2 groups: DescribeInstances and RunInstances
+        assert len(result['rows']) == 2
+        run_group = next(r for r in result['rows'] if r.get('Action') == 'RunInstances')
+        assert len(run_group['rows']) == 2
+
     def test_link_preservation(self):
         """Links in cells are preserved as markdown."""
         html = """<html><body><h2>Quotas</h2><table>
@@ -485,6 +503,38 @@ class TestCellToText:
         cell_val = result['rows'][0]['Name']
         assert cell_val == '[Link](/x)'
 
+    def test_link_with_href_but_no_text(self):
+        """A link tag with href but empty text is skipped."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>Name</th></tr></thead>
+        <tbody><tr><td><a href="/x">visible</a><a href="/y"></a></td></tr></tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        cell_val = result['rows'][0]['Name']
+        assert cell_val == '[visible](/x)'
+        assert '/y' not in cell_val
+
+    def test_nested_tag_link_with_href_but_no_text(self):
+        """A nested tag containing a link with href but no text is skipped."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>Name</th></tr></thead>
+        <tbody><tr><td><a href="/x">visible</a><div><a href="/empty"></a></div></td></tr></tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        cell_val = result['rows'][0]['Name']
+        assert cell_val == '[visible](/x)'
+        assert '/empty' not in cell_val
+
+    def test_empty_text_node_between_links(self):
+        """Empty whitespace-only text nodes between elements are skipped."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>Name</th></tr></thead>
+        <tbody><tr><td>  <a href="/x">Link</a>  </td></tr></tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        cell_val = result['rows'][0]['Name']
+        assert cell_val == '[Link](/x)'
+
 
 class TestExtractTableDataEdgeCases:
     """Tests for _extract_table_data edge cases."""
@@ -588,6 +638,25 @@ class TestFindAllTablesEdgeCases:
 
 class TestSectionBoundary:
     """Tests for section boundary detection in parse_html_tables."""
+
+    def test_section_heading_with_no_siblings(self):
+        """Section heading that is the last element has no siblings to iterate."""
+        html = """<html><body>
+        <h2>Lonely Section</h2>
+        </body></html>"""
+        result = parse_html_tables(html, 'Lonely Section')
+        assert 'error' in result
+        assert 'No table found' in result['error']
+
+    def test_section_heading_only_non_tag_siblings(self):
+        """Section heading followed only by text (non-Tag) siblings."""
+        html = """<html><body>
+        <h2>Text Only</h2>
+        Just some text, no elements.
+        </body></html>"""
+        result = parse_html_tables(html, 'Text Only')
+        assert 'error' in result
+        assert 'No table found' in result['error']
 
     def test_stops_at_next_h2(self):
         """Table search stops at the next h2 heading."""
