@@ -50,8 +50,9 @@ SECTION_NAME_MAP = {
 
 RISK_ORDER = {'HIGH': 0, 'MEDIUM': 1, 'LOW': 2}
 
-SERVER_INSTRUCTIONS = """AWS Well-Architected MCP Server provides offline access to 356 AWS best practices
-across 6 pillars and the Generative AI lens.
+SERVER_INSTRUCTIONS = """AWS Well-Architected MCP Server provides access to 356 AWS best practices
+across 6 pillars and the Generative AI lens. Use it to optimize, improve, review, and
+validate AWS architectures against proven best practices.
 
 ## Tool Selection Guide
 
@@ -66,18 +67,25 @@ across 6 pillars and the Generative AI lens.
 - **get_related_practices**: Explore cross-pillar connections from a specific BP
 - **well_architected_framework_review**: Get full framework overview with all pillars
 
-## Recommended Workflow for Architecture Reviews
+## Recommended Workflows
+
+### Architecture Review
 1. Start with `list_questions` to see WAR questions organized by pillar
 2. For each relevant question, use `get_practices_for_question` to find applicable BPs
 3. Use `get_best_practice_full` for deep-dive implementation guidance
 4. Use `get_anti_patterns` to quickly check what to avoid
 5. Use `get_related_practices` to discover cross-pillar connections
-6. Use `search_content` to find practices mentioning specific AWS services or patterns
+
+### Optimization & Improvement
+1. Use `search_best_practices` with `risk="HIGH"` for highest-impact improvements
+2. Use `search_content` with the AWS service name for targeted guidance
+3. Use `get_best_practice_full` for implementation steps
+4. Use `get_related_practices` to find connected improvements across pillars
 """
 
 # Initialize MCP server
 mcp = FastMCP(
-    'AWS Well-Architected Framework Best Practices - Architecture Review, Design Principles, WAF, WAFR, Well-Architected Assessment, AWS Best Practices Validation, Architecture Audit',
+    'AWS Well-Architected Framework - Architecture Review, Optimization, Improvement, Best Practices, Security Assessment, Cost Optimization, Performance Tuning, Reliability, Sustainability, WAF, WAFR',
     instructions=SERVER_INSTRUCTIONS,
 )
 

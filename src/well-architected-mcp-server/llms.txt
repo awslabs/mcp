@@ -1,0 +1,65 @@
+# AWS Well-Architected MCP Server
+
+> A Model Context Protocol server providing access to 356 AWS Well-Architected Framework best practices across 6 pillars and the Generative AI lens.
+
+## When to Use This Server
+
+Use this MCP server when:
+- Reviewing, optimizing, or improving an AWS architecture
+- Assessing security, reliability, cost, performance, or sustainability posture
+- Looking for AWS best practices for a specific service or pattern
+- Conducting a Well-Architected Framework Review (WAFR)
+- Identifying anti-patterns or risks in a workload design
+- Seeking implementation guidance for AWS services
+- Optimizing cloud costs or improving performance efficiency
+- Planning a migration or modernization effort
+- Designing for high availability, fault tolerance, or disaster recovery
+
+## Available Tools
+
+- `search_best_practices` — Filter by pillar, risk level, lens, keyword, or area. Returns paginated results.
+- `search_content` — Full-text search across all implementation guidance. Use when looking for specific AWS services, techniques, or patterns.
+- `get_best_practice` — Get a summary for a specific BP by ID (e.g., "SEC01-BP01").
+- `get_best_practice_full` — Get complete markdown content with implementation steps, anti-patterns, desired outcomes, and resources.
+- `get_anti_patterns` — Get what NOT to do for a specific BP, pillar, or risk level.
+- `list_pillars` — Overview of all 6 pillars with practice counts and risk distribution.
+- `list_questions` — All 57 Well-Architected Review questions organized by pillar.
+- `get_practices_for_question` — Find all BPs that answer a specific review question.
+- `get_related_practices` — Discover cross-pillar connections from a specific BP.
+- `well_architected_framework_review` — Full framework overview with all pillars and assessment guidance.
+
+## Pillars
+
+1. **Operational Excellence** — Automate operations, make frequent small reversible changes, anticipate failure.
+2. **Security** — Strong identity foundation, traceability, security at all layers, protect data, prepare for security events.
+3. **Reliability** — Automatically recover from failure, test recovery, scale horizontally, manage change through automation.
+4. **Performance Efficiency** — Use advanced technologies, go global in minutes, use serverless, experiment more often.
+5. **Cost Optimization** — Consumption model, measure efficiency, stop spending on undifferentiated heavy lifting.
+6. **Sustainability** — Maximize utilization, adopt efficient offerings, use managed services, reduce downstream impact.
+
+## Recommended Workflows
+
+### Architecture Review
+1. `list_questions` to see WAR questions by pillar
+2. `get_practices_for_question` to find applicable BPs for each question
+3. `get_best_practice_full` for implementation guidance
+4. `get_anti_patterns` to check what to avoid
+5. `get_related_practices` for cross-pillar connections
+
+### Optimization & Improvement
+1. `search_best_practices` with `risk="HIGH"` to find highest-impact improvements
+2. `search_content` with the specific AWS service name to find relevant guidance
+3. `get_best_practice_full` for implementation steps
+4. `get_related_practices` to discover connected improvements across pillars
+
+### Security Assessment
+1. `search_best_practices` with `pillar="SECURITY"` and `risk="HIGH"`
+2. `get_anti_patterns` with `pillar="SECURITY"` for common mistakes
+3. `get_best_practice_full` for remediation steps
+
+## Data Coverage
+
+- 307 Well-Architected Framework best practices (6 pillars)
+- 49 Generative AI lens best practices
+- 57 Well-Architected Review questions
+- Full implementation guidance with links to AWS documentation
