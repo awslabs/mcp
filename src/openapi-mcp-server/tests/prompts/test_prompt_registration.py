@@ -58,9 +58,9 @@ def test_operation_prompt_registration():
     messages = prompt.fn()
     assert isinstance(messages, list)
     assert len(messages) > 0
-    assert messages[0]['role'] == 'user'
-    assert messages[0]['content']['type'] == 'text'
-    assert 'testOperation' in messages[0]['content']['text']
+    assert messages[0].role == 'user'
+    assert messages[0].content.type == 'text'
+    assert 'testOperation' in messages[0].content.text
 
 
 def test_workflow_prompt_registration():
@@ -101,9 +101,9 @@ def test_workflow_prompt_registration():
     messages = prompt.fn()
     assert isinstance(messages, list)
     assert len(messages) > 0
-    assert messages[0]['role'] == 'user'
-    assert messages[0]['content']['type'] == 'text'
-    assert 'Test List Get Update Workflow' in messages[0]['content']['text']
+    assert messages[0].role == 'user'
+    assert messages[0].content.type == 'text'
+    assert 'Test List Get Update Workflow' in messages[0].content.text
 
 
 def test_missing_add_prompt_method():
