@@ -643,7 +643,6 @@ class TestInternalCreateConnection:
 
         Both fallbacks must fail before we refuse the connection.
         """
-        import awslabs.postgres_mcp_server.server as server_module
 
         prev_default = server_module.configured_default_secret_arn
         prev_map = dict(server_module.configured_secret_arns)
