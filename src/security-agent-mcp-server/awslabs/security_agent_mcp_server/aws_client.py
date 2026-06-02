@@ -37,7 +37,7 @@ class SecurityAgentClient:
 
     def call(self, operation: str, params: dict) -> dict:
         """Call any SecurityAgent API operation generically."""
-        if not re.match(r'^[A-Za-z]+$', operation):
+        if not re.match(r'^[A-Za-z][A-Za-z0-9]*$', operation):
             raise ValueError(f'Invalid operation name: {operation}')
         client = self._client()
         if operation not in client.meta.service_model.operation_names:

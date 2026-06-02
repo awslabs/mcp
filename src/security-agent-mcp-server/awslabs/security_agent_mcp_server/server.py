@@ -194,14 +194,8 @@ async def setup(
                 service_role = service_role_arn
             else:
                 role_name = 'SecurityAgentScanRole'
-                try:
-                    service_role = _client.create_service_role(role_name, account_id, '')
-                    logger.info(f'Created service role: {service_role}')
-                except ClientError as e:
-                    if e.response.get('Error', {}).get('Code') == 'EntityAlreadyExists':
-                        service_role = f'arn:aws:iam::{account_id}:role/{role_name}'
-                    else:
-                        raise
+                service_role = _client.create_service_role(role_name, account_id, '')
+                logger.info(f'Created or updated service role: {service_role}')
             _state.update_config(service_role=service_role)
 
         # Resolve agent space
@@ -420,7 +414,7 @@ async def call_api(
     try:
         import re
 
-        if not re.match(r'^[A-Za-z]+$', operation):
+        if not re.match(r'^[A-Za-z][A-Za-z0-9]*$', operation):
             return json.dumps(
                 {'error': f'Invalid operation name: {operation}'}, default=_json_serial
             )

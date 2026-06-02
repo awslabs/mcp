@@ -342,29 +342,6 @@ class TestSetupErrorPaths:
     @pytest.mark.asyncio
     @patch('awslabs.security_agent_mcp_server.server._state')
     @patch('awslabs.security_agent_mcp_server.server._client')
-    async def test_role_already_exists_falls_through(self, mock_client, mock_state):
-        """When create_service_role throws EntityAlreadyExists, derive ARN locally."""
-        from botocore.exceptions import ClientError
-
-        mock_client.get_caller_identity.return_value = {'Account': '123'}
-        mock_client.create_service_role.side_effect = ClientError(
-            {'Error': {'Code': 'EntityAlreadyExists', 'Message': 'exists'}},
-            'CreateRole',
-        )
-        mock_client.create_agent_space.return_value = {'agentSpaceId': 'as-x'}
-        mock_state.get_config.return_value = {}
-        mock_state.update_config = MagicMock()
-        ctx = MagicMock()
-        ctx.error = AsyncMock()
-
-        from awslabs.security_agent_mcp_server.server import setup
-
-        result = await setup(ctx, name='n', agent_space_id=None, service_role_arn=None)
-        assert 'arn:aws:iam::123:role/SecurityAgentScanRole' in result
-
-    @pytest.mark.asyncio
-    @patch('awslabs.security_agent_mcp_server.server._state')
-    @patch('awslabs.security_agent_mcp_server.server._client')
     async def test_role_create_unrelated_error_propagates(self, mock_client, mock_state):
         """Any other exception from create_service_role surfaces via ctx.error."""
         mock_client.get_caller_identity.return_value = {'Account': '123'}
