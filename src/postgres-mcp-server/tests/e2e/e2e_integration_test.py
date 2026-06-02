@@ -530,8 +530,10 @@ def create_e2e_test_security_group(
         # If we can't authorize the rule, the SG is useless — clean up.
         try:
             ec2.delete_security_group(GroupId=sg_id)
-        except Exception:
-            pass
+        except Exception as cleanup_err:
+            logger.warning(
+                f'best-effort cleanup failed: could not delete test SG {sg_id}: {cleanup_err}'
+            )
         raise
 
     logger.info(
