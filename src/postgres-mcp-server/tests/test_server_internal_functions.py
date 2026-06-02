@@ -15,6 +15,7 @@
 
 import json
 import pytest
+import awslabs.postgres_mcp_server.server as server_module
 from awslabs.postgres_mcp_server.connection.db_connection_map import ConnectionMethod, DatabaseType
 from awslabs.postgres_mcp_server.server import (
     DEFAULT_POSTGRES_PORT,
@@ -38,8 +39,6 @@ class TestInternalCreateConnection:
         for per-target scenarios; both globals are restored in
         teardown_method.
         """
-        import awslabs.postgres_mcp_server.server as server_module
-
         self._prev_secret_arns = dict(server_module.configured_secret_arns)
         self._prev_default_secret_arn = server_module.configured_default_secret_arn
         server_module.configured_secret_arns.clear()
@@ -47,8 +46,6 @@ class TestInternalCreateConnection:
 
     def teardown_method(self, method):
         """Restore the original Secrets Manager ARN configuration."""
-        import awslabs.postgres_mcp_server.server as server_module
-
         server_module.configured_secret_arns.clear()
         server_module.configured_secret_arns.update(self._prev_secret_arns)
         server_module.configured_default_secret_arn = self._prev_default_secret_arn
