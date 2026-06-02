@@ -17,14 +17,6 @@ import json
 import pytest
 import awslabs.postgres_mcp_server.server as server_module
 from awslabs.postgres_mcp_server.connection.db_connection_map import ConnectionMethod, DatabaseType
-from awslabs.postgres_mcp_server.server import (
-    DEFAULT_POSTGRES_PORT,
-    MAX_IDENTIFIER_BYTES,
-    _parse_identifier_parts,
-    create_cluster_worker,
-    internal_create_connection,
-    validate_table_name,
-)
 from unittest.mock import MagicMock, patch
 
 
@@ -53,7 +45,7 @@ class TestInternalCreateConnection:
     def test_missing_region_raises_error(self):
         """Test that missing region raises ValueError."""
         with pytest.raises(ValueError, match="region can't be none or empty"):
-            internal_create_connection(
+            server_module.internal_create_connection(
                 region='',
                 database_type=DatabaseType.APG,
                 connection_method=ConnectionMethod.RDS_API,
