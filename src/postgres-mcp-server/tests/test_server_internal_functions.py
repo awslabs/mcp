@@ -716,7 +716,6 @@ class TestInternalCreateConnection:
 
     def test_cluster_metadata_secret_used_when_no_override(self):
         """Without any configured override, the cluster's MasterUserSecret drives auth."""
-        import awslabs.postgres_mcp_server.server as server_module
 
         cluster_metadata_arn = 'arn:aws:secretsmanager:us-east-1:123456789012:secret:cluster-managed'  # pragma: allowlist secret
         prev_default = server_module.configured_default_secret_arn
