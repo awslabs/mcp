@@ -200,7 +200,6 @@ class TestInternalCreateConnection:
         password, no Secrets Manager secret, but MasterUsername is still
         advertised by AWS.
         """
-        import awslabs.postgres_mcp_server.server as server_module
 
         prev_default = server_module.configured_default_secret_arn
         prev_map = dict(server_module.configured_secret_arns)
