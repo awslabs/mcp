@@ -240,3 +240,43 @@ class TestListDnsFirewallRules:
 
         with pytest.raises(ToolError, match='Error listing DNS Firewall rules.*AccessDenied'):
             await firewall_module.list_dns_firewall_rules(region='us-east-1')
+
+    @patch.object(firewall_module, 'get_aws_client')
+    async def test_list_dns_firewall_rules_associations_failure_logs_and_continues(
+        self, mock_get_client, sample_rule_groups, caplog
+    ):
+        """When list_firewall_rule_group_associations fails, function logs and continues with empty associations."""
+        import logging
+
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+
+        groups_paginator = MagicMock()
+        assoc_paginator = MagicMock()
+
+        def get_paginator_side_effect(api_name):
+            if api_name == 'list_firewall_rule_groups':
+                return groups_paginator
+            elif api_name == 'list_firewall_rule_group_associations':
+                return assoc_paginator
+
+        mock_client.get_paginator.side_effect = get_paginator_side_effect
+        groups_paginator.paginate.return_value = [{'FirewallRuleGroups': sample_rule_groups}]
+        assoc_paginator.paginate.side_effect = Exception('AssociationsAccessDenied')
+
+        with caplog.at_level(
+            logging.DEBUG,
+            logger='awslabs.aws_network_mcp_server.tools.route53.list_dns_firewall_rules',
+        ):
+            result = await firewall_module.list_dns_firewall_rules(region='us-east-1')
+
+        # Function returns groups with empty vpc_associations
+        assert result['count'] == 2
+        for group in result['firewall_rule_groups']:
+            assert group['vpc_associations'] == []
+
+        # Verify the failure was logged at debug level
+        assert any(
+            'Failed to list firewall rule group associations' in record.message
+            for record in caplog.records
+        )

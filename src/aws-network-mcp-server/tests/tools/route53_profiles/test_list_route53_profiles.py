@@ -229,3 +229,43 @@ class TestListRoute53Profiles:
 
         with pytest.raises(ToolError, match='Error listing Route 53 Profiles.*AccessDenied'):
             await profiles_module.list_route53_profiles(region='us-east-1')
+
+    @patch.object(profiles_module, 'get_aws_client')
+    async def test_list_route53_profiles_associations_failure_logs_and_continues(
+        self, mock_get_client, sample_profiles, caplog
+    ):
+        """When list_profile_associations fails, function logs and continues with empty associations."""
+        import logging
+
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+
+        profiles_paginator = MagicMock()
+        assoc_paginator = MagicMock()
+
+        def get_paginator_side_effect(api_name):
+            if api_name == 'list_profiles':
+                return profiles_paginator
+            elif api_name == 'list_profile_associations':
+                return assoc_paginator
+
+        mock_client.get_paginator.side_effect = get_paginator_side_effect
+        profiles_paginator.paginate.return_value = [{'ProfileSummaries': sample_profiles}]
+        assoc_paginator.paginate.side_effect = Exception('AssociationsAccessDenied')
+
+        with caplog.at_level(
+            logging.DEBUG,
+            logger='awslabs.aws_network_mcp_server.tools.route53_profiles.list_route53_profiles',
+        ):
+            result = await profiles_module.list_route53_profiles(region='us-east-1')
+
+        # Function returns profiles with empty vpc_associations
+        assert result['count'] == 2
+        for profile in result['profiles']:
+            assert profile['vpc_associations'] == []
+
+        # Verify the failure was logged at debug level
+        assert any(
+            'Failed to list Route 53 Profile associations' in record.message
+            for record in caplog.records
+        )

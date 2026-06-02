@@ -203,3 +203,95 @@ class TestListResolverRules:
 
         with pytest.raises(ToolError, match='Error listing resolver rules.*AccessDenied'):
             await resolver_module.list_resolver_rules(region='us-east-1')
+
+    @patch.object(resolver_module, 'get_aws_client')
+    async def test_list_resolver_rules_associations_failure_logs_and_continues(
+        self, mock_get_client, sample_rules, caplog
+    ):
+        """When list_resolver_rule_associations fails, function logs and continues with empty associations."""
+        import logging
+
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+
+        rules_paginator = MagicMock()
+        assoc_paginator = MagicMock()
+        endpoints_paginator = MagicMock()
+
+        def get_paginator_side_effect(api_name):
+            if api_name == 'list_resolver_rules':
+                return rules_paginator
+            elif api_name == 'list_resolver_rule_associations':
+                return assoc_paginator
+            elif api_name == 'list_resolver_endpoints':
+                return endpoints_paginator
+            return MagicMock()
+
+        mock_client.get_paginator.side_effect = get_paginator_side_effect
+        rules_paginator.paginate.return_value = [{'ResolverRules': sample_rules}]
+        assoc_paginator.paginate.side_effect = Exception('AssociationsAccessDenied')
+        endpoints_paginator.paginate.return_value = [{'ResolverEndpoints': []}]
+
+        with caplog.at_level(
+            logging.DEBUG,
+            logger='awslabs.aws_network_mcp_server.tools.route53.list_resolver_rules',
+        ):
+            result = await resolver_module.list_resolver_rules(region='us-east-1')
+
+        # Function returns rules with empty vpc_associations
+        for rule in result['resolver_rules']:
+            assert rule['vpc_associations'] == []
+
+        # Verify the failure was logged at debug level
+        assert any(
+            'Failed to list resolver rule associations' in record.message
+            for record in caplog.records
+        )
+
+    @patch.object(resolver_module, 'get_aws_client')
+    async def test_list_resolver_rules_endpoint_ip_failure_logs_and_continues(
+        self, mock_get_client, sample_endpoints, caplog
+    ):
+        """When list_resolver_endpoint_ip_addresses fails for an endpoint, function logs and continues with empty IPs for that endpoint."""
+        import logging
+
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+
+        rules_paginator = MagicMock()
+        assoc_paginator = MagicMock()
+        endpoints_paginator = MagicMock()
+        ip_paginator = MagicMock()
+
+        def get_paginator_side_effect(api_name):
+            if api_name == 'list_resolver_rules':
+                return rules_paginator
+            elif api_name == 'list_resolver_rule_associations':
+                return assoc_paginator
+            elif api_name == 'list_resolver_endpoints':
+                return endpoints_paginator
+            elif api_name == 'list_resolver_endpoint_ip_addresses':
+                return ip_paginator
+            return MagicMock()
+
+        mock_client.get_paginator.side_effect = get_paginator_side_effect
+        rules_paginator.paginate.return_value = [{'ResolverRules': []}]
+        assoc_paginator.paginate.return_value = [{'ResolverRuleAssociations': []}]
+        endpoints_paginator.paginate.return_value = [{'ResolverEndpoints': sample_endpoints}]
+        ip_paginator.paginate.side_effect = Exception('EndpointIpsAccessDenied')
+
+        with caplog.at_level(
+            logging.DEBUG,
+            logger='awslabs.aws_network_mcp_server.tools.route53.list_resolver_rules',
+        ):
+            result = await resolver_module.list_resolver_rules(region='us-east-1')
+
+        # Endpoint is still returned but with empty ip_addresses
+        assert len(result['resolver_endpoints']) == 1
+        assert result['resolver_endpoints'][0]['ip_addresses'] == []
+
+        # Verify the failure was logged at debug level with endpoint id context
+        assert any(
+            'Failed to list IP addresses for resolver endpoint rslvr-out-111' in record.message
+            for record in caplog.records
+        )

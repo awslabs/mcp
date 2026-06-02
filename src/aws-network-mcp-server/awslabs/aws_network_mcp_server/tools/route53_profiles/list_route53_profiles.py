@@ -12,10 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from awslabs.aws_network_mcp_server.utils.aws_common import get_aws_client
 from fastmcp.exceptions import ToolError
 from pydantic import Field
 from typing import Annotated, Any, Dict, Optional
+
+
+logger = logging.getLogger(__name__)
 
 
 async def list_route53_profiles(
@@ -74,8 +78,9 @@ async def list_route53_profiles(
             assoc_paginator = client.get_paginator('list_profile_associations')
             for assoc_page in assoc_paginator.paginate():
                 all_associations.extend(assoc_page.get('ProfileAssociations', []))
-        except Exception:
-            pass
+        except Exception as e:
+            # Non-fatal: continue without VPC association data
+            logger.debug('Failed to list Route 53 Profile associations: %s', e)
 
         profile_vpc_map: Dict[str, list] = {}
         for assoc in all_associations:
