@@ -29,6 +29,8 @@ from awslabs.postgres_mcp_server.server import (
     async_job_status,
     async_job_status_lock,
     client_error_code_key,
+    configured_default_secret_arn,
+    configured_secret_arns,
     create_cluster,
     db_connection_map,
     get_database_connection_info,
@@ -1029,7 +1031,6 @@ def test_main_verifies_secret_before_mcp_run(monkeypatch, capsys):
     No --db_type is supplied (lazy-connect mode), so the only work done
     between argument parsing and mcp.run is the secret-ARN verification.
     """
-    import awslabs.postgres_mcp_server.server as server_module
 
     monkeypatch.setattr(
         sys,
@@ -1059,7 +1060,7 @@ def test_main_verifies_secret_before_mcp_run(monkeypatch, capsys):
         _record_secret,
     )
 
-    server_module.main()
+    main()
 
     # Verification must happen before mcp.run, not after.
     assert call_order == ['get_credentials_from_secret', 'mcp.run']
@@ -1071,7 +1072,6 @@ def test_main_skips_secret_probe_when_arg_omitted(monkeypatch, capsys):
     The cluster's managed secret will be discovered lazily on the first
     connection attempt; there's nothing to probe at startup.
     """
-    import awslabs.postgres_mcp_server.server as server_module
 
     monkeypatch.setattr(
         sys,
@@ -1095,14 +1095,14 @@ def test_main_skips_secret_probe_when_arg_omitted(monkeypatch, capsys):
         _record_secret,
     )
 
-    server_module.main()
+    main()
 
     # No --secret_arn → no probe.
     assert secret_probe_calls['count'] == 0
     # And the override map plus default ARN are both empty so the
     # cluster-metadata fallback kicks in on the first connection attempt.
-    assert server_module.configured_secret_arns == {}
-    assert server_module.configured_default_secret_arn is None
+    assert configured_secret_arns == {}
+    assert configured_default_secret_arn is None
 
 
 def test_main_parses_per_target_and_default_secret_arn(monkeypatch, capsys):
