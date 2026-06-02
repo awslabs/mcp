@@ -759,7 +759,6 @@ class TestInternalCreateConnection:
 
     def test_per_cluster_arn_overrides_default_and_metadata(self):
         """Per-target ARN keyed by cluster_identifier wins over default and metadata."""
-        import awslabs.postgres_mcp_server.server as server_module
 
         per_target_arn = 'arn:aws:secretsmanager:us-east-1:123456789012:secret:per-target'  # pragma: allowlist secret
         cluster_metadata_arn = 'arn:aws:secretsmanager:us-east-1:123456789012:secret:cluster-managed'  # pragma: allowlist secret
