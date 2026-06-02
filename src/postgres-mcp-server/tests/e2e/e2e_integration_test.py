@@ -436,7 +436,7 @@ def gc_e2e_test_security_groups(
         # doesn't reliably return). The ts format is YYYYMMDDHHMMSS.
         sg_id = sg['GroupId']
         name = sg.get('GroupName', '')
-        ts_str = name[len(name_prefix):]
+        ts_str = name[len(name_prefix) :]
         try:
             sg_created = datetime.strptime(ts_str, '%Y%m%d%H%M%S')
             age_s = (now - sg_created).total_seconds()
@@ -459,14 +459,10 @@ def gc_e2e_test_security_groups(
         except Exception as e:
             # Common: DependencyViolation if the cluster ENI hasn't been
             # released yet. Leave it for the next GC pass.
-            logger.warning(
-                f'gc_e2e_test_security_groups: could not delete {name} ({sg_id}): {e}'
-            )
+            logger.warning(f'gc_e2e_test_security_groups: could not delete {name} ({sg_id}): {e}')
 
     if deleted or skipped:
-        logger.info(
-            f'gc_e2e_test_security_groups: deleted {deleted}, skipped {skipped}'
-        )
+        logger.info(f'gc_e2e_test_security_groups: deleted {deleted}, skipped {skipped}')
 
 
 def create_e2e_test_security_group(
@@ -537,8 +533,7 @@ def create_e2e_test_security_group(
         raise
 
     logger.info(
-        f'created test SG {sg_name} ({sg_id}) authorizing {", ".join(prefix_list_ids)} '
-        'on tcp:5432'
+        f'created test SG {sg_name} ({sg_id}) authorizing {", ".join(prefix_list_ids)} on tcp:5432'
     )
     return sg_id
 
@@ -636,9 +631,7 @@ def gc_aurora_iam_policy(region: str, policy_name: str = 'AuroraIAMAuth-postgres
 
     new_doc = {
         'Version': doc.get('Version', '2012-10-17'),
-        'Statement': [
-            {'Effect': 'Allow', 'Action': 'rds-db:connect', 'Resource': [sentinel]}
-        ],
+        'Statement': [{'Effect': 'Allow', 'Action': 'rds-db:connect', 'Resource': [sentinel]}],
     }
 
     # Free up a slot if we're at the 5-version cap.
@@ -1160,9 +1153,7 @@ async def run_secret_arn_validation_suite(
             # PG Wire methods on express must target the 'postgres' database
             # since express clusters don't auto-create the user-supplied DB.
             # RDS_API on serverless uses the user-supplied database.
-            db_for_method = (
-                pg_wire_database if cluster_kind == 'express' else database
-            )
+            db_for_method = pg_wire_database if cluster_kind == 'express' else database
             clear_cached_connection(method, db_for_method)
             internal_create_connection(
                 region=region,
@@ -1289,9 +1280,7 @@ async def run_secret_arn_validation_suite(
         else:
             try:
                 reset_to_real_secret()
-                clear_cached_connection(
-                    ConnectionMethod.PG_WIRE_IAM_PROTOCOL, pg_wire_database
-                )
+                clear_cached_connection(ConnectionMethod.PG_WIRE_IAM_PROTOCOL, pg_wire_database)
                 internal_create_connection(
                     region=region,
                     database_type=DatabaseType.APG,
@@ -1418,7 +1407,7 @@ async def run_secret_arn_validation_suite(
                 # configured (real) ARN must win, so SELECT 1 still works.
                 tampered_props = dict(cluster_props)
                 tampered_props['MasterUserSecret'] = {
-                    'SecretArn': 'arn:aws:secretsmanager:us-east-1:000000000000:secret:attacker-owned-MNOPQR',
+                    'SecretArn': 'arn:aws:secretsmanager:us-east-1:000000000000:secret:attacker-owned-MNOPQR',  # pragma: allowlist secret
                 }
 
                 with patch(
@@ -1836,9 +1825,7 @@ async def run_query_enforcement_suite(
                 connection_method, cluster_identifier, valid_endpoint, test_database, port
             )
         except Exception as e:
-            logger.warning(
-                'Non-fatal cleanup failure removing test DB connection: %s', e
-            )
+            logger.warning('Non-fatal cleanup failure removing test DB connection: %s', e)
 
     return result
 
@@ -2155,9 +2142,33 @@ async def main_async(args):
         phase3_kinds = ['express']
         if args.test_serverless_cluster:
             phase3_kinds.append('serverless')
+
+        # Suite names planned per cluster, used to emit skip placeholders
+        # when a cluster's endpoint is unavailable (creation failed).
+        phase3_suite_names = (
+            'endpoint_validation',
+            'secret_arn_validation',
+            'query_enforcement',
+            'startup_secret_arn_validation',
+        )
         for kind in phase3_kinds:
             cid = cluster_ids[kind]
             endpoint = endpoints[kind]
+
+            # Guard up front so the rest of the loop body sees a non-None
+            # endpoint (also lets the runner lambdas below close over a
+            # narrowed `str`). If creation failed, record every planned
+            # suite as skipped rather than silently dropping them.
+            if endpoint is None:
+                for suite_name in phase3_suite_names:
+                    _record(
+                        skipped_result(
+                            cid, f'{suite_name}_{kind}', f'{kind} cluster creation failed'
+                        )
+                    )
+                continue
+
+            valid_endpoint: str = endpoint
 
             # The query-enforcement suite needs a connection method that
             # actually works against this cluster kind from the test
@@ -2172,74 +2183,66 @@ async def main_async(args):
                 enforce_method = ConnectionMethod.RDS_API
                 enforce_method_name = 'RDS_API'
 
-            # Each entry: (suite_name, is_async_runner, runner_fn).
-            # Most suites are sync; run_secret_arn_validation_suite issues
-            # SQL via run_query which is a coroutine, so it must be awaited.
-            for suite_name, is_async, runner in (
-                (
-                    'endpoint_validation',
-                    False,
-                    lambda c=cid, e=endpoint, k=kind: run_endpoint_validation_suite(
-                        cluster_identifier=c,
-                        region=args.region,
-                        database=args.database,
-                        valid_endpoint=e,
-                        port=args.port,
-                        cluster_kind=k,
-                    ),
-                ),
-                (
-                    'secret_arn_validation',
-                    True,
-                    lambda c=cid, e=endpoint, k=kind: run_secret_arn_validation_suite(
-                        cluster_identifier=c,
-                        region=args.region,
-                        database=args.database,
-                        valid_endpoint=e,
-                        port=args.port,
-                        cluster_kind=k,
-                        test_non_express_cluster=args.test_non_express_cluster,
-                    ),
-                ),
-                (
-                    'query_enforcement',
-                    True,
-                    lambda c=cid,
-                    e=endpoint,
-                    k=kind,
-                    m=enforce_method,
-                    mn=enforce_method_name: run_query_enforcement_suite(
-                        cluster_identifier=c,
-                        region=args.region,
-                        database=args.database,
-                        valid_endpoint=e,
-                        port=args.port,
-                        cluster_kind=k,
-                        connection_method=m,
-                        connection_method_name=mn,
-                    ),
-                ),
-                (
-                    'startup_secret_arn_validation',
-                    False,
-                    lambda c=cid: run_startup_secret_arn_validation_suite(
-                        cluster_identifier=c,
-                        region=args.region,
-                    ),
-                ),
+            # Each entry: (suite_name, runner_coro_factory). Every runner
+            # is an async callable returning Awaitable[TestResult] so the
+            # dispatch below can uniformly `await` it. The two synchronous
+            # suites are wrapped in async shims.
+            async def _run_endpoint_validation(c=cid, e=valid_endpoint, k=kind):
+                return run_endpoint_validation_suite(
+                    cluster_identifier=c,
+                    region=args.region,
+                    database=args.database,
+                    valid_endpoint=e,
+                    port=args.port,
+                    cluster_kind=k,
+                )
+
+            async def _run_secret_arn_validation(c=cid, e=valid_endpoint, k=kind):
+                return await run_secret_arn_validation_suite(
+                    cluster_identifier=c,
+                    region=args.region,
+                    database=args.database,
+                    valid_endpoint=e,
+                    port=args.port,
+                    cluster_kind=k,
+                    test_non_express_cluster=args.test_non_express_cluster,
+                )
+
+            async def _run_query_enforcement(
+                c=cid,
+                e=valid_endpoint,
+                k=kind,
+                m=enforce_method,
+                mn=enforce_method_name,
+            ):
+                return await run_query_enforcement_suite(
+                    cluster_identifier=c,
+                    region=args.region,
+                    database=args.database,
+                    valid_endpoint=e,
+                    port=args.port,
+                    cluster_kind=k,
+                    connection_method=m,
+                    connection_method_name=mn,
+                )
+
+            async def _run_startup_secret_arn_validation(c=cid):
+                return run_startup_secret_arn_validation_suite(
+                    cluster_identifier=c,
+                    region=args.region,
+                )
+
+            for suite_name, runner in (
+                ('endpoint_validation', _run_endpoint_validation),
+                ('secret_arn_validation', _run_secret_arn_validation),
+                ('query_enforcement', _run_query_enforcement),
+                ('startup_secret_arn_validation', _run_startup_secret_arn_validation),
             ):
                 phase_label = f'{suite_name}_{kind}'
 
-                if endpoint is None:
-                    _record(skipped_result(cid, phase_label, f'{kind} cluster creation failed'))
-                    continue
-
                 try:
                     configure_server_secret_for_cluster(cid, args.region)
-                    if is_async:
-                        _record(await runner())
-                    else:
-                        _record(runner())
+                    _record(await runner())
                 except Exception as e:
                     logger.exception(f'{phase_label} aborted unexpectedly')
                     _record(

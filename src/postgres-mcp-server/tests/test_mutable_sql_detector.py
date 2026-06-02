@@ -54,8 +54,8 @@ class TestAllMutatingKeywords:
     @pytest.mark.parametrize(
         'sql,expected_keyword',
         [
-            ("INSERT INTO t (a) VALUES (1)", 'INSERT'),
-            ("UPDATE t SET a = 1 WHERE id = 2", 'UPDATE'),
+            ('INSERT INTO t (a) VALUES (1)', 'INSERT'),
+            ('UPDATE t SET a = 1 WHERE id = 2', 'UPDATE'),
             ('DELETE FROM t WHERE id = 1', 'DELETE'),
             ('MERGE INTO t USING s ON t.id = s.id', 'MERGE'),
             ('TRUNCATE TABLE t', 'TRUNCATE'),
@@ -96,9 +96,7 @@ class TestAllMutatingKeywords:
     def test_representative_sql_detected(self, sql, expected_keyword):
         """Realistic statements for each verb are detected."""
         matches = detect_mutating_keywords(sql)
-        assert expected_keyword in matches, (
-            f'expected {expected_keyword} in {matches} for {sql!r}'
-        )
+        assert expected_keyword in matches, f'expected {expected_keyword} in {matches} for {sql!r}'
 
     def test_benign_select_has_no_mutating_keyword(self):
         """A plain SELECT must not match any mutating keyword."""
@@ -171,7 +169,7 @@ class TestSessionStateKeywords:
             ('DISCARD ALL', 'DISCARD'),
             ('discard temp', 'DISCARD'),
             ("LOAD '/tmp/lib.so'", 'LOAD'),
-            ('load \'auto_explain\'', 'LOAD'),
+            ("load 'auto_explain'", 'LOAD'),
         ],
     )
     def test_session_state_keyword_detected(self, sql, expected_keyword):
@@ -227,10 +225,7 @@ class TestImportForeignSchemaCommaFix:
 
     def test_import_foreign_schema_detected(self):
         """IMPORT FOREIGN SCHEMA is matched as a single multi-word keyword."""
-        sql = (
-            'IMPORT FOREIGN SCHEMA public LIMIT TO (t1) '
-            'FROM SERVER fs INTO local_schema'
-        )
+        sql = 'IMPORT FOREIGN SCHEMA public LIMIT TO (t1) FROM SERVER fs INTO local_schema'
         matches = detect_mutating_keywords(sql)
         assert 'IMPORT FOREIGN SCHEMA' in matches
 
@@ -330,9 +325,7 @@ class TestDangerousFunctions:
 
     def test_schema_qualified_call_rejected(self):
         """Schema-qualified calls (pg_catalog.pg_terminate_backend) match."""
-        issues = check_sql_injection_risk(
-            'SELECT pg_catalog.pg_terminate_backend(123)'
-        )
+        issues = check_sql_injection_risk('SELECT pg_catalog.pg_terminate_backend(123)')
         assert len(issues) == 1
         assert 'pg_terminate_backend' in issues[0]['message']
 
@@ -575,7 +568,5 @@ class TestKnownFalsePositives:
         The regex can't distinguish a real trailing comment from '--'
         appearing inside a quoted string. Accepted limitation.
         """
-        issues = check_sql_injection_risk(
-            "SELECT * FROM t WHERE note = 'see comment -- here'"
-        )
+        issues = check_sql_injection_risk("SELECT * FROM t WHERE note = 'see comment -- here'")
         assert len(issues) >= 1

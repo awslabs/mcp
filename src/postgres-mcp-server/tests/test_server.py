@@ -1195,6 +1195,90 @@ def test_main_rejects_duplicate_per_target_key(monkeypatch, capsys):
     assert excinfo.value.code == 2
 
 
+def test_main_rejects_secret_arn_with_empty_key(monkeypatch, capsys):
+    """'=arn' (key=arn syntax with an empty key) → exit 2."""
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--region',
+            'us-west-2',
+            '--secret_arn',
+            '=arn:aws:secretsmanager:us-west-2:1:secret:s1',
+        ],
+    )
+
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+
+    with pytest.raises(SystemExit) as excinfo:
+        from awslabs.postgres_mcp_server.server import main as main_fn
+
+        main_fn()
+    assert excinfo.value.code == 2
+
+
+def test_main_rejects_secret_arn_with_empty_arn(monkeypatch, capsys):
+    """'key=' (key=arn syntax with an empty ARN) → exit 2."""
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--region',
+            'us-west-2',
+            '--secret_arn',
+            'cluster-a=',
+        ],
+    )
+
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+
+    with pytest.raises(SystemExit) as excinfo:
+        from awslabs.postgres_mcp_server.server import main as main_fn
+
+        main_fn()
+    assert excinfo.value.code == 2
+
+
+def test_main_skips_empty_bare_secret_arn(monkeypatch, capsys):
+    """A bare --secret_arn that is blank/whitespace is ignored, not treated as a default.
+
+    The empty value is skipped (``continue``) so it neither populates the
+    map nor sets the default, and startup proceeds normally.
+    """
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--region',
+            'us-west-2',
+            '--secret_arn',
+            '   ',
+        ],
+    )
+
+    secret_probe_calls = {'count': 0}
+
+    def _record_secret(secret_arn, region, is_test=False):
+        secret_probe_calls['count'] += 1
+        return ('test_user', 'test_password')
+
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
+        _record_secret,
+    )
+
+    main()
+
+    # Blank bare ARN skipped → nothing probed, nothing configured.
+    assert secret_probe_calls['count'] == 0
+    assert configured_secret_arns == {}
+    assert server_module.configured_default_secret_arn is None
+
+
 # =============================================================================
 # Tool Handler Tests
 # =============================================================================

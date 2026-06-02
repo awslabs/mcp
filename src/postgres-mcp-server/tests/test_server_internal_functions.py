@@ -813,7 +813,7 @@ class TestInternalCreateConnection:
                 mock_props.return_value = {
                     'MasterUsername': 'postgres',
                     'MasterUserSecret': {
-                        'SecretArn': 'arn:aws:secretsmanager:us-east-1:123456789012:secret:metadata'
+                        'SecretArn': 'arn:aws:secretsmanager:us-east-1:123456789012:secret:metadata'  # pragma: allowlist secret
                     },
                     'Endpoint': {'Address': resolved_host, 'Port': 5432},
                 }

@@ -233,4 +233,3 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public
 -- Force read-only transactions
 ALTER ROLE postgres_mcp_server_readonly SET default_transaction_read_only = on;
 ```
-
