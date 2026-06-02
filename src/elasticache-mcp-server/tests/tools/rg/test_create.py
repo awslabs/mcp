@@ -492,3 +492,46 @@ class TestCreateReplicationGroup:
         response = await create_replication_group(request)
         assert 'error' in response
         assert error_message in response['error']
+
+
+@pytest.mark.asyncio
+async def test_create_replication_group_readonly_mode():
+    """Test creating a replication group in readonly mode."""
+    from awslabs.elasticache_mcp_server.context import Context
+    from unittest.mock import patch
+
+    with patch.object(Context, 'readonly_mode', return_value=True):
+        request = CreateReplicationGroupRequest(
+            replication_group_id='test-rg',
+            replication_group_description='test',
+            cache_node_type=None,
+            engine=None,
+            engine_version=None,
+            num_cache_clusters=None,
+            preferred_cache_cluster_azs=None,
+            num_node_groups=None,
+            replicas_per_node_group=None,
+            node_group_configuration=None,
+            cache_parameter_group_name=None,
+            cache_subnet_group_name=None,
+            cache_security_group_names=None,
+            security_group_ids=None,
+            tags=None,
+            snapshot_arns=None,
+            snapshot_name=None,
+            preferred_maintenance_window=None,
+            port=None,
+            notification_topic_arn=None,
+            auto_minor_version_upgrade=None,
+            snapshot_retention_limit=None,
+            snapshot_window=None,
+            auth_token=None,
+            transit_encryption_enabled=None,
+            at_rest_encryption_enabled=None,
+            kms_key_id=None,
+            user_group_ids=None,
+            log_delivery_configurations=None,
+        )
+        result = await create_replication_group(request)
+        assert 'error' in result
+        assert 'readonly mode' in result['error']

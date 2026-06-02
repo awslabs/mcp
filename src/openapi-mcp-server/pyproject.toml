@@ -7,7 +7,7 @@ allow-direct-references = true
 
 [project]
 name = "awslabs.openapi-mcp-server"
-version = "1.0.2"
+version = "1.0.9223372036854775807"
 description = "An AWS Labs Model Context Protocol (MCP) server for OpenAPI"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -28,19 +28,19 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "fastmcp>=3.2.2,<4",
+    "fastmcp>=3.3.1,<4",
     "httpx>=0.28.1,<1",
     "pydantic>=2.12.5,<3",
-    "typing-extensions>=4.14.1,<5",
-    "boto3>=1.42.87,<2",
-    "cachetools>=6.1.0,<7",
+    "typing-extensions>=4.15.0,<5",
+    "boto3>=1.43.0,<2",
+    "cachetools>=6.1.0,<8",
     "loguru>=0.7.3,<1",
     "uvicorn>=0.35.0,<1",
     "tenacity>=9.1.2,<10",
     "prance>=25.4.8.0,<26",
     "pyyaml>=6.0.3,<7",
     "openapi-spec-validator>=0.7.2,<1",
-    "bcrypt>=4.3.0,<5",
+    "bcrypt>=4.3.0,<6",
 ]
 
 
