@@ -1107,7 +1107,6 @@ def test_main_skips_secret_probe_when_arg_omitted(monkeypatch, capsys):
 
 def test_main_parses_per_target_and_default_secret_arn(monkeypatch, capsys):
     """Multiple --secret_arn flags populate the per-target map plus the default."""
-    import awslabs.postgres_mcp_server.server as server_module
 
     cluster_a_arn = 'arn:aws:secretsmanager:us-west-2:123456789012:secret:cluster-a'  # pragma: allowlist secret
     cluster_b_arn = 'arn:aws:secretsmanager:us-west-2:123456789012:secret:cluster-b'  # pragma: allowlist secret
@@ -1140,14 +1139,14 @@ def test_main_parses_per_target_and_default_secret_arn(monkeypatch, capsys):
         lambda secret_arn, region, is_test=False: ('test_user', 'test_password'),
     )
 
-    server_module.main()
+    main()
 
-    assert server_module.configured_secret_arns == {
+    assert configured_secret_arns == {
         'cluster-a': cluster_a_arn,
         'cluster-b': cluster_b_arn,
         'mydb-instance.abc.us-west-2.rds.amazonaws.com': instance_arn,
     }
-    assert server_module.configured_default_secret_arn == default_arn
+    assert configured_default_secret_arn == default_arn
 
 
 def test_main_rejects_two_default_secret_arns(monkeypatch, capsys):
