@@ -985,7 +985,6 @@ def test_main_exits_when_secret_arn_unreadable(monkeypatch, capsys):
     underlying error, log a clear startup-failure message, and exit(1)
     before mcp.run() is ever reached.
     """
-    import awslabs.postgres_mcp_server.server as server_module
 
     monkeypatch.setattr(
         sys,
@@ -1018,7 +1017,7 @@ def test_main_exits_when_secret_arn_unreadable(monkeypatch, capsys):
     )
 
     with pytest.raises(SystemExit) as excinfo:
-        server_module.main()
+        main()
 
     assert excinfo.value.code == 1
     assert mcp_run_called['count'] == 0
