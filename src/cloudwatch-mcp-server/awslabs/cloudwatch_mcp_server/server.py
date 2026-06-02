@@ -17,6 +17,7 @@
 from awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools import CloudWatchAlarmsTools
 from awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools import CloudWatchLogsTools
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools import CloudWatchMetricsTools
+from awslabs.cloudwatch_mcp_server.contributor_insights.tools import ContributorInsightsTools
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
 
@@ -41,6 +42,9 @@ try:
     cloudwatch_alarms_tools = CloudWatchAlarmsTools()
     cloudwatch_alarms_tools.register(mcp)
     logger.info('CloudWatch Alarms tools registered successfully')
+    contributor_insights_tools = ContributorInsightsTools()
+    contributor_insights_tools.register(mcp)
+    logger.info('Contributor Insights tools registered successfully')
 except Exception as e:
     logger.error(f'Error initializing CloudWatch tools: {str(e)}')
     raise
