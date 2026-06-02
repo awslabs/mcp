@@ -14,6 +14,7 @@
 """Tests for the postgres MCP Server."""
 
 import asyncio
+import awslabs.postgres_mcp_server.server as server_module
 import datetime
 import decimal
 import json
@@ -29,7 +30,6 @@ from awslabs.postgres_mcp_server.server import (
     async_job_status,
     async_job_status_lock,
     client_error_code_key,
-    configured_default_secret_arn,
     configured_secret_arns,
     create_cluster,
     db_connection_map,
@@ -987,7 +987,6 @@ def test_main_exits_when_secret_arn_unreadable(monkeypatch, capsys):
     underlying error, log a clear startup-failure message, and exit(1)
     before mcp.run() is ever reached.
     """
-
     monkeypatch.setattr(
         sys,
         'argv',
@@ -1031,7 +1030,6 @@ def test_main_verifies_secret_before_mcp_run(monkeypatch, capsys):
     No --db_type is supplied (lazy-connect mode), so the only work done
     between argument parsing and mcp.run is the secret-ARN verification.
     """
-
     monkeypatch.setattr(
         sys,
         'argv',
@@ -1072,7 +1070,6 @@ def test_main_skips_secret_probe_when_arg_omitted(monkeypatch, capsys):
     The cluster's managed secret will be discovered lazily on the first
     connection attempt; there's nothing to probe at startup.
     """
-
     monkeypatch.setattr(
         sys,
         'argv',
@@ -1102,12 +1099,11 @@ def test_main_skips_secret_probe_when_arg_omitted(monkeypatch, capsys):
     # And the override map plus default ARN are both empty so the
     # cluster-metadata fallback kicks in on the first connection attempt.
     assert configured_secret_arns == {}
-    assert configured_default_secret_arn is None
+    assert server_module.configured_default_secret_arn is None
 
 
 def test_main_parses_per_target_and_default_secret_arn(monkeypatch, capsys):
     """Multiple --secret_arn flags populate the per-target map plus the default."""
-
     cluster_a_arn = 'arn:aws:secretsmanager:us-west-2:123456789012:secret:cluster-a'  # pragma: allowlist secret
     cluster_b_arn = 'arn:aws:secretsmanager:us-west-2:123456789012:secret:cluster-b'  # pragma: allowlist secret
     instance_arn = 'arn:aws:secretsmanager:us-west-2:123456789012:secret:instance-x'  # pragma: allowlist secret
@@ -1146,7 +1142,7 @@ def test_main_parses_per_target_and_default_secret_arn(monkeypatch, capsys):
         'cluster-b': cluster_b_arn,
         'mydb-instance.abc.us-west-2.rds.amazonaws.com': instance_arn,
     }
-    assert configured_default_secret_arn == default_arn
+    assert server_module.configured_default_secret_arn == default_arn
 
 
 def test_main_rejects_two_default_secret_arns(monkeypatch, capsys):
