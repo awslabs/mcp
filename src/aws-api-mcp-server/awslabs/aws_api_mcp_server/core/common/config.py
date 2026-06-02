@@ -103,7 +103,7 @@ def get_user_agent_extra() -> str:
         ctx = get_context()
         user_agent_extra += f' md/via/{ctx.fastmcp.name}'
 
-        if client_params := ctx.session.client_params:
+        if OPT_IN_TELEMETRY and (client_params := ctx.session.client_params):
             user_agent_extra += f' MCPClient/{client_params.clientInfo.name.replace(" ", "-")}#{client_params.clientInfo.version}'
     except RuntimeError:
         pass  # get_context throws a RuntimeError when called outside of a server request, we can safely ingore that
@@ -113,6 +113,7 @@ def get_user_agent_extra() -> str:
     user_agent_extra += f' cfg/ro#{"1" if READ_OPERATIONS_ONLY_MODE else "0"}'
     user_agent_extra += f' cfg/consent#{"1" if REQUIRE_MUTATION_CONSENT else "0"}'
     user_agent_extra += f' cfg/scripts#{"1" if ENABLE_AGENT_SCRIPTS else "0"}'
+    user_agent_extra += f' cfg/file-access#{FILE_ACCESS_MODE.value}'
     return user_agent_extra
 
 

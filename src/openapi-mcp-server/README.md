@@ -9,6 +9,16 @@ This project is a server that dynamically creates Model Context Protocol (MCP) t
   - Makes API operations with query parameters easier for LLMs to understand and use
   - Improves usability of search and filtering endpoints
   - Configurable via the route_patch module
+- **Tag-based Filtering**: Control which operations are exposed to LLMs
+  - Include only specific tags: `--include-tags pet,store`
+  - Exclude specific tags: `--exclude-tags admin,internal`
+  - Configurable via CLI args or `INCLUDE_TAGS` / `EXCLUDE_TAGS` env vars
+- **Enriched Tool Descriptions**: Automatically appends response codes and parameter examples from the OpenAPI spec to tool descriptions, helping LLMs make better tool selections
+- **Multi-spec Composition**: Combine multiple OpenAPI specs into a single MCP server
+  - Configure via `--additional-specs` CLI arg or `ADDITIONAL_SPECS` env var
+  - Each spec gets its own HTTP client with independent authentication (per-entry `auth_type`, `auth_token`, etc.)
+  - SSRF-protected: URLs are validated against DNS resolution and IP allowlisting before fetching
+- **Output Validation Toggle**: Disable response schema validation for APIs with loose specs via `--no-validate-output` or `VALIDATE_OUTPUT=false`
 - **Dynamic Prompt Generation**: Creates helpful prompts based on API structure
   - **Operation-Specific Prompts**: Generates natural language prompts for each API operation
   - **API Documentation Prompts**: Creates comprehensive API documentation prompts
@@ -162,6 +172,42 @@ For detailed information about authentication methods, configuration options, an
 awslabs.openapi-mcp-server --spec-path ./openapi.json
 ```
 
+### Tag Filtering
+
+```bash
+# Only expose pet-related operations
+awslabs.openapi-mcp-server --api-url https://petstore3.swagger.io/api/v3 --spec-url https://petstore3.swagger.io/api/v3/openapi.json --include-tags pet
+
+# Hide admin and internal operations
+awslabs.openapi-mcp-server --api-url https://api.example.com --spec-url https://api.example.com/openapi.json --exclude-tags admin,internal
+```
+
+### Multi-spec Composition
+
+```bash
+# Combine multiple APIs into one MCP server (each with its own auth)
+awslabs.openapi-mcp-server --api-url https://api.example.com --spec-url https://api.example.com/openapi.json \
+  --additional-specs '[{"name":"payments","spec_url":"https://payments.example.com/openapi.json","base_url":"https://payments.example.com","auth_type":"bearer","auth_token":"your-payments-bearer-token"}]'
+
+# Additional specs may also use a local OpenAPI file via spec_path
+awslabs.openapi-mcp-server --api-url https://api.example.com --spec-url https://api.example.com/openapi.json \
+  --additional-specs '[{"name":"payments","spec_path":"./specs/payments-openapi.json","base_url":"https://payments.example.com"}]'
+
+# Allow HTTP URLs and private networks (for internal/development APIs)
+awslabs.openapi-mcp-server --api-url https://api.example.com --spec-url https://api.example.com/openapi.json \
+  --allow-insecure-http --allow-private-networks \
+  --additional-specs '[{"name":"internal","spec_url":"http://10.0.0.5:8080/openapi.json","base_url":"http://10.0.0.5:8080"}]'
+```
+
+> **Note:** Additional specs do not inherit the primary API's credentials. Each entry must declare its own `auth_type`/`auth_token`/`auth_api_key` or defaults to no authentication. See the [Security](#security) section for details.
+
+### Disable Output Validation
+
+```bash
+# For APIs with loose specs that don't match their own response schemas
+awslabs.openapi-mcp-server --api-url https://api.example.com --spec-url https://api.example.com/openapi.json --no-validate-output
+```
+
 ### YAML OpenAPI Specification
 
 ```bash
@@ -232,6 +278,23 @@ export AUTH_TOKEN="PLACEHOLDER_TOKEN"  # For bearer token authentication # pragm
 export AUTH_API_KEY="PLACEHOLDER_API_KEY"  # For API key authentication # pragma: allowlist secret
 export AUTH_API_KEY_NAME="X-API-Key"  # Name of the API key (default: api_key)
 export AUTH_API_KEY_IN="header"  # Where to place the API key (options: header, query, cookie)
+
+# Tag filtering
+export INCLUDE_TAGS="pet,store"  # Only expose operations with these tags
+export EXCLUDE_TAGS="admin,internal"  # Hide operations with these tags
+
+# Output validation
+export VALIDATE_OUTPUT="true"  # Set to "false" to disable response schema validation
+
+# Multi-spec composition
+# Each additional spec requires base_url and either spec_url or spec_path
+# Each entry can optionally include auth_type, auth_token, auth_api_key, auth_api_key_name, auth_username, auth_password
+export ADDITIONAL_SPECS='[{"name":"payments","spec_url":"https://payments.example.com/openapi.json","base_url":"https://payments.example.com","auth_type":"api_key","auth_api_key":"PLACEHOLDER_API_KEY","auth_api_key_name":"X-API-Key"}]' # pragma: allowlist secret
+
+# Security settings
+export ALLOW_INSECURE_HTTP="false"       # Set to "true" to permit http:// URLs
+export ALLOW_PRIVATE_NETWORKS="false"    # Set to "true" to permit private/loopback/link-local IPs
+export ALLOWED_SPEC_DIRS="/app/specs:/data/api"  # OS path-separated list of allowed directories for spec_path (use ; on Windows)
 ```
 
 ## Documentation
@@ -253,6 +316,32 @@ The OpenAPI MCP Server implements AWS best practices for building resilient, obs
 - **Observability**: Comprehensive monitoring, metrics, and logging features
 
 For detailed information about these features, including implementation details and configuration options, see [AWS_BEST_PRACTICES.md](https://github.com/awslabs/mcp/blob/main/src/openapi-mcp-server/AWS_BEST_PRACTICES.md).
+
+## Security
+
+The server validates all URLs in `additional_specs` entries before fetching:
+
+| Blocked by default | Examples |
+|-------------------|----------|
+| Private networks (RFC 1918) | `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16` |
+| Loopback / link-local | `127.0.0.0/8`, `169.254.0.0/16` (AWS IMDS) |
+| HTTP scheme | `http://...` (HTTPS required) |
+
+**Credential isolation**: Additional specs never inherit the primary API's credentials. Each entry must declare its own `auth_type`/`auth_token` or defaults to no auth.
+
+**Path traversal protection**: `spec_path` is canonicalized, restricted to spec file extensions (`.json`, `.yaml`, `.yml`), and checked against a best-effort system directory blocklist. For production deployments, use `--allowed-spec-dirs` to explicitly restrict allowed paths.
+
+**Escape hatches** for development/internal use:
+
+| Flag | Env Var | Effect |
+|------|---------|--------|
+| `--allow-insecure-http` | `ALLOW_INSECURE_HTTP=true` | Permits `http://` URLs |
+| `--allow-private-networks` | `ALLOW_PRIVATE_NETWORKS=true` | Permits private/loopback IPs |
+| `--allowed-spec-dirs` | `ALLOWED_SPEC_DIRS=/path1:/path2` | Restricts `spec_path` to listed directories |
+
+> **Note**: DNS validation confirms hostnames resolve to public IPs at check time. For environments requiring full DNS pinning, deploy behind an egress proxy or use `spec_path` with local files.
+
+To report security issues, see the [Contributing Guidelines](https://github.com/awslabs/mcp/blob/main/CONTRIBUTING.md#security-issue-notifications).
 
 ## Docker Deployment
 

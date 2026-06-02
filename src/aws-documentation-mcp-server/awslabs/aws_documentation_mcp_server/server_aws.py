@@ -43,7 +43,7 @@ from typing import List, Optional
 
 
 SEARCH_API_URL = 'https://proxy.search.docs.aws.com/search'
-RECOMMENDATIONS_API_URL = 'https://contentrecs-api.docs.aws.amazon.com/v1/recommendations'
+RECOMMENDATIONS_API_URL = 'https://api.contentrecs.docs.aws.com/v1/recommendations'
 SESSION_UUID = str(uuid.uuid4())
 
 
@@ -408,13 +408,11 @@ async def search_documentation(
                 text_suggestion = suggestion['textExcerptSuggestion']
                 context = None
 
-                # Use SEO abstract if available, as it is designed for this task explicitly. If that is not available,
-                # Try using Intelligent Summary Abstract, then fallback to authored summary and finally content body
+                # Use SEO abstract if available, as it is designed for this task explicitly.
+                # Fallback to authored summary and finally content body
                 metadata = text_suggestion.get('metadata', {})
                 if 'seo_abstract' in metadata:
                     context = metadata['seo_abstract']
-                elif 'abstract' in metadata:
-                    context = metadata['abstract']
                 elif 'summary' in text_suggestion:
                     context = text_suggestion['summary']
                 elif 'suggestionBody' in text_suggestion:

@@ -16,7 +16,7 @@
 
 import pytest
 from awslabs.dynamodb_mcp_server.db_analyzer.mysql import MySQLPlugin
-from awslabs.dynamodb_mcp_server.db_analyzer.postgresql import PostgreSQLPlugin
+from awslabs.dynamodb_mcp_server.db_analyzer.oracle import OraclePlugin
 from awslabs.dynamodb_mcp_server.db_analyzer.sqlserver import SQLServerPlugin
 
 
@@ -27,9 +27,9 @@ def mysql_plugin():
 
 
 @pytest.fixture
-def postgresql_plugin():
-    """Create PostgreSQL plugin instance."""
-    return PostgreSQLPlugin()
+def oracle_plugin():
+    """Create Oracle plugin instance."""
+    return OraclePlugin()
 
 
 @pytest.fixture

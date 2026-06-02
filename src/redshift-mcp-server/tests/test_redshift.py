@@ -361,6 +361,58 @@ class TestExecuteProtectedStatement:
                 )
 
     @pytest.mark.asyncio
+    async def test_execute_protected_statement_oversized_sql_rejected(self, mocker):
+        """SQL longer than SUSPICIOUS_QUERY_MAX_LEN is rejected without invoking the regex."""
+        from awslabs.redshift_mcp_server.consts import SUSPICIOUS_QUERY_MAX_LEN
+
+        mock_discover_clusters = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_clusters'
+        )
+        mock_discover_clusters.return_value = [
+            {'identifier': 'test-cluster', 'type': 'provisioned', 'status': 'available'}
+        ]
+        mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
+        mock_session_manager.session = mocker.AsyncMock(return_value='test-session-123')
+
+        # Stand-in regex whose .search must not be called; the length cap should short-circuit.
+        sentinel_regex = mocker.Mock()
+        sentinel_regex.search.side_effect = AssertionError(
+            'regex.search should not be called for oversized SQL'
+        )
+        mocker.patch('awslabs.redshift_mcp_server.redshift._SUSPICIOUS_QUERY_RE', sentinel_regex)
+
+        oversized_sql = 'SELECT 1' + ' ' * (SUSPICIOUS_QUERY_MAX_LEN + 1)
+
+        with pytest.raises(Exception, match='SQL contains suspicious pattern, execution rejected'):
+            await _execute_protected_statement(
+                'test-cluster', 'test-db', oversized_sql, allow_read_write=False
+            )
+
+        sentinel_regex.search.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_execute_protected_statement_regex_timeout_rejected(self, mocker):
+        """A regex timeout is treated as suspicious and the SQL is rejected."""
+        mock_discover_clusters = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_clusters'
+        )
+        mock_discover_clusters.return_value = [
+            {'identifier': 'test-cluster', 'type': 'provisioned', 'status': 'available'}
+        ]
+        mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
+        mock_session_manager.session = mocker.AsyncMock(return_value='test-session-123')
+
+        # Stand-in regex that raises TimeoutError on search.
+        timing_out_regex = mocker.Mock()
+        timing_out_regex.search.side_effect = TimeoutError('timed out')
+        mocker.patch('awslabs.redshift_mcp_server.redshift._SUSPICIOUS_QUERY_RE', timing_out_regex)
+
+        with pytest.raises(Exception, match='SQL contains suspicious pattern, execution rejected'):
+            await _execute_protected_statement(
+                'test-cluster', 'test-db', 'SELECT 1', allow_read_write=False
+            )
+
+    @pytest.mark.asyncio
     async def test_execute_protected_statement_cluster_not_found(self, mocker):
         """Test error when cluster is not found."""
         # Mock discover_clusters to return empty list
@@ -786,28 +838,45 @@ class TestDiscoverFunctions:
 
     @pytest.mark.asyncio
     async def test_discover_clusters_provisioned(self, mocker):
-        """Test discover_clusters function with provisioned clusters."""
-        # Mock redshift client
+        """Test discover_clusters function with provisioned clusters.
+
+        Tests both complete cluster data and clusters with optional fields omitted
+        to ensure proper default handling (e.g., DBName defaults to 'dev').
+        Fixes: https://github.com/awslabs/mcp/issues/2331
+        """
+        # Define minimal cluster first (with defaults omitted)
+        minimal_cluster = {
+            'ClusterIdentifier': 'minimal-cluster',
+            'ClusterStatus': 'available',
+            # DBName intentionally omitted - tests .get('DBName', 'dev')
+            'Endpoint': {'Address': 'minimal.redshift.amazonaws.com', 'Port': 5439},
+            'VpcId': 'vpc-456',
+            'NodeType': 'ra3.xlplus',
+            'NumberOfNodes': 1,
+            'ClusterCreateTime': '2024-06-01T00:00:00Z',
+            'MasterUsername': 'admin',
+            'PubliclyAccessible': False,
+            'Encrypted': True,
+            'Tags': [],
+        }
+
+        # Full cluster extends minimal (avoids code duplication)
+        full_cluster = {
+            **minimal_cluster,
+            'ClusterIdentifier': 'test-cluster',
+            'DBName': 'dev',
+            'Endpoint': {'Address': 'test.redshift.amazonaws.com', 'Port': 5439},
+            'VpcId': 'vpc-123',
+            'NodeType': 'dc2.large',
+            'NumberOfNodes': 2,
+            'ClusterCreateTime': '2024-01-01T00:00:00Z',
+            'Tags': [{'Key': 'env', 'Value': 'test'}],
+        }
+
+        # Mock redshift client with both clusters
         mock_redshift_client = mocker.Mock()
         mock_redshift_client.get_paginator.return_value.paginate.return_value = [
-            {
-                'Clusters': [
-                    {
-                        'ClusterIdentifier': 'test-cluster',
-                        'ClusterStatus': 'available',
-                        'DBName': 'dev',
-                        'Endpoint': {'Address': 'test.redshift.amazonaws.com', 'Port': 5439},
-                        'VpcId': 'vpc-123',
-                        'NodeType': 'dc2.large',
-                        'NumberOfNodes': 2,
-                        'ClusterCreateTime': '2024-01-01T00:00:00Z',
-                        'MasterUsername': 'admin',
-                        'PubliclyAccessible': False,
-                        'Encrypted': True,
-                        'Tags': [{'Key': 'env', 'Value': 'test'}],
-                    }
-                ]
-            }
+            {'Clusters': [full_cluster, minimal_cluster]}
         ]
 
         # Mock serverless client (empty response)
@@ -828,7 +897,9 @@ class TestDiscoverFunctions:
 
         result = await discover_clusters()
 
-        assert len(result) == 1
+        assert len(result) == 2
+
+        # Verify full cluster (with all fields)
         cluster = result[0]
         assert cluster['identifier'] == 'test-cluster'
         assert cluster['type'] == 'provisioned'
@@ -839,6 +910,18 @@ class TestDiscoverFunctions:
         assert cluster['node_type'] == 'dc2.large'
         assert cluster['number_of_nodes'] == 2
         assert cluster['tags'] == {'env': 'test'}
+
+        # Verify minimal cluster (with defaults applied)
+        minimal = result[1]
+        assert minimal['identifier'] == 'minimal-cluster'
+        assert minimal['type'] == 'provisioned'
+        assert minimal['status'] == 'available'
+        assert minimal['database_name'] == 'dev'  # Should default to 'dev', not KeyError
+        assert minimal['endpoint'] == 'minimal.redshift.amazonaws.com'
+        assert minimal['port'] == 5439
+        assert minimal['node_type'] == 'ra3.xlplus'
+        assert minimal['number_of_nodes'] == 1
+        assert minimal['tags'] == {}
 
     @pytest.mark.asyncio
     async def test_discover_clusters_provisioned_error(self, mocker):

@@ -55,7 +55,30 @@ class Config:
     debug: bool = False
     transport: str = 'stdio'  # stdio only
     message_timeout: int = 60
-    version: str = '0.2.0'
+    version: str = ''
+
+    def __post_init__(self):
+        """Set version from package metadata if not provided."""
+        if not self.version:
+            from awslabs.openapi_mcp_server import __version__
+
+            self.version = __version__
+
+    # Tag filtering
+    include_tags: str = ''  # comma-separated list of OpenAPI tags to include
+    exclude_tags: str = ''  # comma-separated list of OpenAPI tags to exclude
+
+    # Output validation
+    validate_output: bool = True  # validate API responses against OpenAPI response schemas
+
+    # Additional API specs for multi-spec composition
+    # JSON array: [{"name": "...", "spec_url": "...", "base_url": "..."}]
+    additional_specs: str = ''
+
+    # Security settings for URL/path validation
+    allow_insecure_http: bool = False  # permit http:// URLs (default: HTTPS only)
+    allow_private_networks: bool = False  # permit private/loopback/link-local IPs
+    allowed_spec_dirs: str = ''  # colon-separated list of allowed directories for spec_path
 
 
 def load_config(args: Any = None) -> Config:
@@ -107,6 +130,21 @@ def load_config(args: Any = None) -> Config:
         'SERVER_DEBUG': (lambda v: setattr(config, 'debug', v.lower() == 'true')),
         'SERVER_TRANSPORT': (lambda v: setattr(config, 'transport', v)),
         'SERVER_MESSAGE_TIMEOUT': (lambda v: setattr(config, 'message_timeout', int(v))),
+        # Tag filtering
+        'INCLUDE_TAGS': (lambda v: setattr(config, 'include_tags', v)),
+        'EXCLUDE_TAGS': (lambda v: setattr(config, 'exclude_tags', v)),
+        # Output validation
+        'VALIDATE_OUTPUT': (lambda v: setattr(config, 'validate_output', v.lower() != 'false')),
+        # Additional specs
+        'ADDITIONAL_SPECS': (lambda v: setattr(config, 'additional_specs', v)),
+        # Security settings
+        'ALLOW_INSECURE_HTTP': (
+            lambda v: setattr(config, 'allow_insecure_http', v.lower() in ('true', '1', 'yes'))
+        ),
+        'ALLOW_PRIVATE_NETWORKS': (
+            lambda v: setattr(config, 'allow_private_networks', v.lower() in ('true', '1', 'yes'))
+        ),
+        'ALLOWED_SPEC_DIRS': (lambda v: setattr(config, 'allowed_spec_dirs', v)),
     }
 
     # Load environment variables
@@ -209,6 +247,31 @@ def load_config(args: Any = None) -> Config:
         if hasattr(args, 'auth_cognito_region') and args.auth_cognito_region:
             logger.debug(f'Setting Cognito region from arguments: {args.auth_cognito_region}')
             config.auth_cognito_region = args.auth_cognito_region
+
+        # Tag filtering arguments
+        if hasattr(args, 'include_tags') and args.include_tags:
+            config.include_tags = args.include_tags
+
+        if hasattr(args, 'exclude_tags') and args.exclude_tags:
+            config.exclude_tags = args.exclude_tags
+
+        # Output validation
+        if hasattr(args, 'no_validate_output') and args.no_validate_output:
+            config.validate_output = False
+
+        # Additional specs
+        if hasattr(args, 'additional_specs') and args.additional_specs:
+            config.additional_specs = args.additional_specs
+
+        # Security settings
+        if hasattr(args, 'allow_insecure_http') and args.allow_insecure_http:
+            config.allow_insecure_http = True
+
+        if hasattr(args, 'allow_private_networks') and args.allow_private_networks:
+            config.allow_private_networks = True
+
+        if hasattr(args, 'allowed_spec_dirs') and args.allowed_spec_dirs:
+            config.allowed_spec_dirs = args.allowed_spec_dirs
 
     # Log final configuration details
     logger.info(f'Configuration loaded: API name={config.api_name}, transport={config.transport}')

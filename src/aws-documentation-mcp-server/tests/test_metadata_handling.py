@@ -66,8 +66,8 @@ class TestMetadataHandling:
             assert results[0].context == 'SEO optimized abstract'
 
     @pytest.mark.asyncio
-    async def test_abstract_fallback(self):
-        """Test that abstract is used when seo_abstract is not available."""
+    async def test_summary_fallback_when_no_seo_abstract(self):
+        """Test that summary is used when seo_abstract is not available."""
         ctx = MockContext()
 
         mock_response = MagicMock()
@@ -82,7 +82,6 @@ class TestMetadataHandling:
                         'summary': 'Regular summary',
                         'suggestionBody': 'Suggestion body text',
                         'metadata': {
-                            'abstract': 'Regular abstract',
                             'summary': 'Metadata summary',
                         },
                     }
@@ -98,7 +97,7 @@ class TestMetadataHandling:
             )
             results = response.search_results
             assert len(results) == 1
-            assert results[0].context == 'Regular abstract'
+            assert results[0].context == 'Regular summary'
 
     @pytest.mark.asyncio
     async def test_summary_fallback(self):
@@ -247,7 +246,7 @@ class TestMetadataHandling:
                         'link': 'https://docs.aws.amazon.com/test2',
                         'title': 'Test Page 2',
                         'summary': 'Regular summary 2',
-                        'metadata': {'abstract': 'Regular abstract 2'},
+                        'metadata': {},
                     }
                 },
                 {
@@ -278,7 +277,7 @@ class TestMetadataHandling:
             results = response.search_results
             assert len(results) == 4
             assert results[0].context == 'SEO abstract 1'
-            assert results[1].context == 'Regular abstract 2'
+            assert results[1].context == 'Regular summary 2'
             assert results[2].context == 'Regular summary 3'
             assert results[3].context == 'Suggestion body 4'
 

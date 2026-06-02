@@ -60,7 +60,7 @@ This tool provides systematic methodology for creating multi-table design with
 advanced optimizations, cost analysis, and integration patterns.
 
 Use the `source_db_analyzer` tool to analyze existing databases for DynamoDB Data Modeling:
-- Supports MySQL, PostgreSQL, and SQL Server
+- Supports MySQL, PostgreSQL, SQL Server, and Oracle
 - Two execution modes:
   * SELF_SERVICE: Generate SQL queries, user runs them, tool parses results
   * MANAGED: Direct database connection (MySQL supports RDS Data API or connection-based access)
@@ -72,7 +72,7 @@ Managed Analysis Workflow:
 - Safe for production use (read-only analysis)
 
 Self-Service Mode Workflow:
-1. User selects database type (mysql/postgresql/sqlserver)
+1. User selects database type (mysql/postgresql/sqlserver/oracle)
 2. Tool generates SQL queries to file
 3. User runs queries against their database
 4. User provides result file path
@@ -331,11 +331,15 @@ async def dynamodb_data_model_schema_validator(
 @handle_exceptions
 async def source_db_analyzer(
     source_db_type: str = Field(
-        description="Database type: 'mysql', 'postgresql', or 'sqlserver'"
+        description="Database type: 'mysql', 'postgresql', 'sqlserver', or 'oracle'"
     ),
-    database_name: Optional[str] = Field(
+    source_identifier: Optional[str] = Field(
         default=None,
-        description='Database name to analyze. REQUIRED for self_service. Env: MYSQL_DATABASE.',
+        description=(
+            'Identifier for the source to analyze. Accepts a database name (MySQL, PostgreSQL, SQL Server) '
+            'or a schema/owner name (Oracle, where objects are scoped by schema rather than database). '
+            'REQUIRED for self_service mode.'
+        ),
     ),
     execution_mode: str = Field(
         default='self_service',
@@ -399,7 +403,7 @@ async def source_db_analyzer(
     - self_service: Generates SQL queries for user to run manually, then parses their results.
     - managed (MySQL only): Database connection via RDS Data API or hostname.
 
-    Supported Databases: MySQL, PostgreSQL, SQL Server
+    Supported Databases: MySQL, PostgreSQL, SQL Server, Oracle
 
     Output: Generates analysis files (schema structure, access patterns, relationships) in
     Markdown format. These files feed into the DynamoDB data modeling workflow to inform
@@ -429,7 +433,12 @@ async def source_db_analyzer(
     if execution_mode == 'self_service' and queries_file_path and not query_result_file_path:
         try:
             return analyzer_utils.generate_query_file(
-                plugin, database_name, max_results, queries_file_path, output_dir, source_db_type
+                plugin,
+                source_identifier,
+                max_results,
+                queries_file_path,
+                output_dir,
+                source_db_type,
             )
         except Exception as e:
             logger.error(f'Failed to write queries: {str(e)}')
@@ -442,7 +451,7 @@ async def source_db_analyzer(
                 plugin,
                 query_result_file_path,
                 output_dir,
-                database_name,
+                source_identifier,
                 pattern_analysis_days,
                 max_results,
                 source_db_type,
@@ -458,7 +467,7 @@ async def source_db_analyzer(
     if execution_mode == 'managed':
         connection_params = analyzer_utils.build_connection_params(
             source_db_type,
-            database_name=database_name,
+            source_identifier=source_identifier,
             pattern_analysis_days=pattern_analysis_days,
             max_query_results=max_results,
             aws_cluster_arn=aws_cluster_arn,
