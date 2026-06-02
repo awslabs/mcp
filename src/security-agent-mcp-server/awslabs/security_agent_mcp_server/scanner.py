@@ -74,11 +74,13 @@ class Scanner:
 
         if not agent_space_id or not service_role:
             return {'error': 'Not configured. Run setup_check and setup first.'}
+        if not s3_bucket:
+            return {'error': 'No S3 bucket configured. Run setup first.'}
 
         # Verify agent space still exists
         space = self._client.get_agent_space(agent_space_id)
         if not space:
-            self._state.update_config(agent_space_id=None)
+            self._state.clear_config_keys('agent_space_id')
             return {'error': f'Agent space {agent_space_id} no longer exists. Run setup again.'}
 
         abs_path = os.path.abspath(path)

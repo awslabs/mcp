@@ -40,12 +40,13 @@ class SecurityAgentClient:
         if not re.match(r'^[A-Za-z]+$', operation):
             raise ValueError(f'Invalid operation name: {operation}')
         client = self._client()
-        # Convert PascalCase operation to snake_case method name
+        if operation not in client.meta.service_model.operation_names:
+            raise ValueError(
+                f'Unknown SecurityAgent operation: {operation}. '
+                f'Use get_api_guide to list valid operations.'
+            )
         method_name = re.sub(r'(?<!^)(?=[A-Z])', '_', operation).lower()
-        method = getattr(client, method_name, None)
-        if not method:
-            raise ValueError(f'Unknown operation: {operation}')
-        return method(**params)
+        return getattr(client, method_name)(**params)
 
     def get_caller_identity(self) -> dict:
         """Get the current AWS caller identity."""
@@ -156,7 +157,10 @@ class SecurityAgentClient:
     # --- Non-SecurityAgent helpers (S3, IAM, STS) ---
 
     def create_s3_bucket(self, bucket_name: str) -> str:
-        """Create S3 bucket for code uploads with 30-day lifecycle policy."""
+        """Create S3 bucket for code uploads with full hardening applied.
+
+        Public-access block, SSE-S3, TLS-only policy, and 30-day lifecycle.
+        """
         s3 = self._get_session().client('s3')
         create_args: dict[str, Any] = {'Bucket': bucket_name}
         if self.region != 'us-east-1':
@@ -170,6 +174,38 @@ class SecurityAgentClient:
                 'BlockPublicPolicy': True,
                 'RestrictPublicBuckets': True,
             },
+        )
+        s3.put_bucket_encryption(
+            Bucket=bucket_name,
+            ServerSideEncryptionConfiguration={
+                'Rules': [
+                    {
+                        'ApplyServerSideEncryptionByDefault': {'SSEAlgorithm': 'AES256'},
+                        'BucketKeyEnabled': True,
+                    }
+                ]
+            },
+        )
+        s3.put_bucket_policy(
+            Bucket=bucket_name,
+            Policy=json.dumps(
+                {
+                    'Version': '2012-10-17',
+                    'Statement': [
+                        {
+                            'Sid': 'DenyInsecureTransport',
+                            'Effect': 'Deny',
+                            'Principal': '*',
+                            'Action': 's3:*',
+                            'Resource': [
+                                f'arn:aws:s3:::{bucket_name}',
+                                f'arn:aws:s3:::{bucket_name}/*',
+                            ],
+                            'Condition': {'Bool': {'aws:SecureTransport': 'false'}},
+                        }
+                    ],
+                }
+            ),
         )
         s3.put_bucket_lifecycle_configuration(
             Bucket=bucket_name,
@@ -198,6 +234,9 @@ class SecurityAgentClient:
                         'Effect': 'Allow',
                         'Principal': {'Service': 'securityagent.amazonaws.com'},
                         'Action': 'sts:AssumeRole',
+                        'Condition': {
+                            'StringEquals': {'aws:SourceAccount': account_id},
+                        },
                     }
                 ],
             }
@@ -231,9 +270,7 @@ class SecurityAgentClient:
         try:
             iam.create_role(RoleName=role_name, AssumeRolePolicyDocument=trust_policy)
         except iam.exceptions.EntityAlreadyExistsException:
-            iam.update_assume_role_policy(
-                RoleName=role_name, PolicyDocument=trust_policy
-            )
+            iam.update_assume_role_policy(RoleName=role_name, PolicyDocument=trust_policy)
 
         iam.put_role_policy(
             RoleName=role_name,

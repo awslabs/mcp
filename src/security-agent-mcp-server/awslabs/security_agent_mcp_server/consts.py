@@ -46,10 +46,10 @@ For pentests, target domains, integrations, and any operation beyond source code
 2. `call_api(operation, params)` → execute any SecurityAgent API
 
 Example — pentest flow:
-1. `call_api("CreateTargetDomain", {agentSpaceId, domain})` → register target
-2. `call_api("VerifyTargetDomain", {agentSpaceId, targetDomainId})` → verify ownership
-3. `call_api("CreatePentest", {agentSpaceId, title, assets: {endpoints: [...]}})` → create
+1. `call_api("CreateTargetDomain", {targetDomainName, verificationMethod})` → register target
+2. `call_api("VerifyTargetDomain", {targetDomainId})` → verify ownership
+3. `call_api("CreatePentest", {agentSpaceId, title, assets: {endpoints: [...]}, serviceRole})` → create
 4. `call_api("StartPentestJob", {agentSpaceId, pentestId})` → start
-5. Poll with `call_api("BatchGetPentestJobs", ...)` until COMPLETED
+5. Poll with `call_api("BatchGetPentestJobs", {agentSpaceId, pentestJobIds: [...]})` until COMPLETED
 6. `call_api("ListFindings", {agentSpaceId, pentestJobId})` → results
 """

@@ -15,14 +15,6 @@
 """AWS Security Agent MCP Server implementation."""
 
 import json
-from datetime import datetime
-
-
-def _json_serial(obj):
-    if isinstance(obj, datetime):
-        return obj.isoformat()
-    raise TypeError(f"Type {type(obj)} not serializable")
-
 import os
 import sys
 from awslabs.security_agent_mcp_server.aws_client import SecurityAgentClient
@@ -32,10 +24,55 @@ from awslabs.security_agent_mcp_server.consts import (
 )
 from awslabs.security_agent_mcp_server.scanner import Scanner
 from awslabs.security_agent_mcp_server.state import StateManager
+from botocore.exceptions import ClientError
+from datetime import datetime
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Optional
+
+
+def _json_serial(obj):
+    """JSON serializer for objects not serializable by default (e.g., datetime)."""
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    raise TypeError(f'Type {type(obj)} not serializable')
+
+
+# Map AWS error codes to short, user-actionable remediation strings.
+# Default fallback when the code isn't in the map is provided by _translate_client_error.
+_REMEDIATION = {
+    'AccessDeniedException': 'Check your IAM permissions for this operation.',
+    'AccessDenied': 'Check your IAM permissions for this operation.',
+    'EntityAlreadyExists': 'The resource already exists; reuse it or pick a different name.',
+    'EntityAlreadyExistsException': 'The resource already exists; reuse it or pick a different name.',
+    'ResourceNotFoundException': 'The resource does not exist or was deleted; run setup again.',
+    'NoSuchEntity': 'The IAM resource does not exist; run setup again.',
+    'BucketAlreadyExists': 'The S3 bucket name is taken globally; pick a different name.',
+    'BucketAlreadyOwnedByYou': 'You already own this bucket; reuse it.',
+    'ValidationException': 'Request parameters were invalid; check the operation inputs.',
+    'ThrottlingException': 'Request was throttled; retry with backoff.',
+    'TooManyRequestsException': 'Request was throttled; retry with backoff.',
+    'ConflictException': 'The resource is in a conflicting state; retry after the current operation finishes.',
+}
+
+
+def _translate_client_error(e: ClientError) -> dict:
+    """Translate a boto3 ClientError into the {error, error_code, remediation} contract.
+
+    The MCP server's pattern A (`{'error': '...'}`) returns are kept as-is for known
+    application-level cases. This helper is the structured shape for AWS-side failures
+    so callers (including LLMs) can branch on `error_code` and surface `remediation`
+    instead of parsing free-text boto3 messages.
+    """
+    err = e.response.get('Error', {}) if hasattr(e, 'response') else {}
+    code = err.get('Code', 'UnknownError')
+    message = err.get('Message') or str(e)
+    return {
+        'error': message,
+        'error_code': code,
+        'remediation': _REMEDIATION.get(code, 'See error message; consult AWS docs for details.'),
+    }
 
 
 # Configure logging
@@ -46,7 +83,7 @@ logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'WARNING'))
 mcp = FastMCP(
     'awslabs.security-agent-mcp-server',
     instructions=SERVER_INSTRUCTIONS,
-    dependencies=['boto3', 'gitignorefile', 'pydantic', 'loguru'],
+    dependencies=['boto3', 'filelock', 'gitignorefile', 'pydantic', 'loguru'],
 )
 
 # Initialize components
@@ -92,11 +129,16 @@ async def setup_check(ctx: Context) -> str:
                         'Show these agent spaces to the user and ask which one to use '
                         'or whether to create a new one. Wait for their response before calling setup.'
                     )
-            except Exception:
-                pass
+            except Exception as list_err:
+                logger.warning(f'Could not list existing agent spaces: {list_err}')
 
         logger.info(f'Setup check: ready={result["ready"]}')
         return json.dumps(result, default=_json_serial)
+    except ClientError as e:
+        err = _translate_client_error(e)
+        logger.error(f'Error in setup_check: {e}')
+        await ctx.error(err['error'])
+        return json.dumps(err, default=_json_serial)
     except Exception as e:
         logger.error(f'Error in setup_check: {e}')
         await ctx.error(f'Error checking setup: {e}')
@@ -155,11 +197,8 @@ async def setup(
                 try:
                     service_role = _client.create_service_role(role_name, account_id, '')
                     logger.info(f'Created service role: {service_role}')
-                except Exception as e:
-                    if (
-                        hasattr(e, 'response')
-                        and e.response.get('Error', {}).get('Code') == 'EntityAlreadyExists'
-                    ):
+                except ClientError as e:
+                    if e.response.get('Error', {}).get('Code') == 'EntityAlreadyExists':
                         service_role = f'arn:aws:iam::{account_id}:role/{role_name}'
                     else:
                         raise
@@ -195,6 +234,11 @@ async def setup(
                 'account_id': account_id,
             }
         )
+    except ClientError as e:
+        err = _translate_client_error(e)
+        logger.error(f'Error in setup: {e}')
+        await ctx.error(err['error'])
+        return json.dumps(err, default=_json_serial)
     except Exception as e:
         logger.error(f'Error in setup: {e}')
         await ctx.error(f'Setup failed: {e}')
@@ -230,11 +274,8 @@ async def start_security_scan(
             s3_bucket = f'security-agent-scans-{account_id}-{_region}'
             try:
                 _client.create_s3_bucket(s3_bucket)
-            except Exception as e:
-                if (
-                    hasattr(e, 'response')
-                    and e.response.get('Error', {}).get('Code') == 'BucketAlreadyOwnedByYou'
-                ):
+            except ClientError as e:
+                if e.response.get('Error', {}).get('Code') == 'BucketAlreadyOwnedByYou':
                     pass
                 else:
                     raise
@@ -256,6 +297,11 @@ async def start_security_scan(
         logger.info(f'Starting security scan on path: {path}')
         result = await _scanner.start_scan(path=path, title=title)
         return json.dumps(result, default=_json_serial)
+    except ClientError as e:
+        err = _translate_client_error(e)
+        logger.error(f'Error in start_security_scan: {e}')
+        await ctx.error(err['error'])
+        return json.dumps(err, default=_json_serial)
     except Exception as e:
         logger.error(f'Error in start_security_scan: {e}')
         await ctx.error(f'Scan failed: {e}')
@@ -277,6 +323,11 @@ async def get_scan_status(
     """
     try:
         return json.dumps(await _scanner.get_status(scan_id=scan_id), default=_json_serial)
+    except ClientError as e:
+        err = _translate_client_error(e)
+        logger.error(f'Error in get_scan_status: {e}')
+        await ctx.error(err['error'])
+        return json.dumps(err, default=_json_serial)
     except Exception as e:
         logger.error(f'Error in get_scan_status: {e}')
         await ctx.error(f'Error checking status: {e}')
@@ -300,7 +351,14 @@ async def get_scan_findings(
     Returns findings with title, severity, confidence, file location, and description.
     """
     try:
-        return json.dumps(await _scanner.get_findings(scan_id=scan_id, severity=severity), default=_json_serial)
+        return json.dumps(
+            await _scanner.get_findings(scan_id=scan_id, severity=severity), default=_json_serial
+        )
+    except ClientError as e:
+        err = _translate_client_error(e)
+        logger.error(f'Error in get_scan_findings: {e}')
+        await ctx.error(err['error'])
+        return json.dumps(err, default=_json_serial)
     except Exception as e:
         logger.error(f'Error in get_scan_findings: {e}')
         await ctx.error(f'Error getting findings: {e}')
@@ -312,6 +370,11 @@ async def list_scans(ctx: Context) -> str:
     """List all recent security scans tracked locally with their status."""
     try:
         return json.dumps({'scans': _state.list_scans()}, default=_json_serial)
+    except ClientError as e:
+        err = _translate_client_error(e)
+        logger.error(f'Error in list_scans: {e}')
+        await ctx.error(err['error'])
+        return json.dumps(err, default=_json_serial)
     except Exception as e:
         logger.error(f'Error in list_scans: {e}')
         await ctx.error(f'Error listing scans: {e}')
@@ -327,6 +390,11 @@ async def stop_scan(
     try:
         logger.info(f'Stopping scan: {scan_id}')
         return json.dumps(await _scanner.stop_scan(scan_id=scan_id), default=_json_serial)
+    except ClientError as e:
+        err = _translate_client_error(e)
+        logger.error(f'Error in stop_scan: {e}')
+        await ctx.error(err['error'])
+        return json.dumps(err, default=_json_serial)
     except Exception as e:
         logger.error(f'Error in stop_scan: {e}')
         await ctx.error(f'Error stopping scan: {e}')
@@ -353,10 +421,17 @@ async def call_api(
         import re
 
         if not re.match(r'^[A-Za-z]+$', operation):
-            return json.dumps({'error': f'Invalid operation name: {operation}'}, default=_json_serial)
+            return json.dumps(
+                {'error': f'Invalid operation name: {operation}'}, default=_json_serial
+            )
         logger.info(f'call_api: {operation}')
         result = _client.call(operation, params)
         return json.dumps(result, default=_json_serial)
+    except ClientError as e:
+        err = _translate_client_error(e)
+        logger.error(f'Error in call_api ({operation}): {e}')
+        await ctx.error(err['error'])
+        return json.dumps(err, default=_json_serial)
     except Exception as e:
         logger.error(f'Error in call_api ({operation}): {e}')
         await ctx.error(f'{operation} failed: {e}')
@@ -381,7 +456,8 @@ async def get_api_guide(ctx: Context) -> str:
             session = boto3.Session(region_name=_region)
             client = session.client('securityagent')
             _cached_operations = sorted(client.meta.service_model.operation_names)
-        except Exception:
+        except Exception as load_err:
+            logger.warning(f'Could not load SecurityAgent service model: {load_err}')
             _cached_operations = ['(Could not load service model — use documentation link)']
 
     return json.dumps(
@@ -391,17 +467,31 @@ async def get_api_guide(ctx: Context) -> str:
             'usage': 'Call call_api(operation="OperationName", params={...}). See documentation link for parameter details.',
             'examples': {
                 'ListAgentSpaces': {},
-                'CreatePentest': {'agentSpaceId': '...', 'title': '...'},
+                'CreatePentest': {
+                    'agentSpaceId': '...',
+                    'title': '...',
+                    'assets': {'endpoints': [{'uri': 'https://example.com/api'}]},
+                    'serviceRole': 'arn:aws:iam::...:role/...',
+                },
                 'StartPentestJob': {'agentSpaceId': '...', 'pentestId': '...'},
-                'ListFindings': {'agentSpaceId': '...', 'codeReviewJobId': '...'},
-                'CreateTargetDomain': {'agentSpaceId': '...', 'domain': 'https://...'},
+                'ListFindings': {
+                    'agentSpaceId': '...',
+                    '_note': 'Pass exactly ONE of codeReviewJobId or pentestJobId.',
+                    'codeReviewJobId': '... (for code review findings)',
+                    'pentestJobId': '... (for pentest findings)',
+                },
+                'CreateTargetDomain': {
+                    'targetDomainName': 'example.com',
+                    'verificationMethod': 'HTTP_ROUTE',
+                },
+                'VerifyTargetDomain': {'targetDomainId': '...'},
             },
         }
     )
 
 
 def main():
-    """Run the MCP server with CLI argument support."""
+    """Run the MCP server."""
     mcp.run()
 
 

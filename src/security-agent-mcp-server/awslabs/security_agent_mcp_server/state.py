@@ -15,7 +15,11 @@
 """State persistence — config and scan tracking in ~/.securityagent/."""
 
 import json
+import os
+import time
 from contextlib import contextmanager
+from filelock import FileLock
+from loguru import logger
 from pathlib import Path
 from typing import Optional
 
@@ -26,23 +30,61 @@ SCANS_FILE = STATE_DIR / 'scans.json'
 MAX_SCANS = 50
 
 
+def _atomic_write_json(path: Path, payload: dict, mode: int = 0o600) -> None:
+    """Write JSON atomically: serialize to a sibling tmp file, fsync, then rename.
+
+    Either the new contents are visible or the old contents are; never partial.
+    Mitigates corruption from crashes / OOM / out-of-disk mid-write.
+    """
+    tmp = path.with_suffix(path.suffix + '.tmp')
+    data = json.dumps(payload, indent=2)
+    with open(tmp, 'w') as f:
+        f.write(data)
+        f.flush()
+        os.fsync(f.fileno())
+    os.chmod(tmp, mode)
+    os.replace(tmp, path)
+
+
+def _read_json_safely(path: Path) -> dict:
+    """Read JSON, quarantining the file if it's corrupt and returning {} instead.
+
+    A corrupt file should not brick every tool call; instead, rename it to
+    `<path>.corrupt-<unix-ts>` so the user can recover it manually, log a
+    warning, and let the next write rebuild a clean file.
+    """
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text())
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        quarantine = path.with_suffix(path.suffix + f'.corrupt-{int(time.time())}')
+        try:
+            path.rename(quarantine)
+        except OSError:
+            # If we can't rename, at least don't crash. Next write will overwrite.
+            quarantine = None
+        logger.warning(
+            f'Corrupt state file at {path}: {e}. '
+            f'Quarantined to {quarantine}; starting from empty state.'
+            if quarantine
+            else f'Corrupt state file at {path}: {e}. Starting from empty state.'
+        )
+        return {}
+
+
 @contextmanager
 def _file_lock():
-    """Cross-platform file lock. Falls back to no-op on Windows."""
-    STATE_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
-    lock_file = STATE_DIR / '.lock'
-    try:
-        import fcntl
+    """Cross-platform exclusive file lock for state read-modify-write cycles.
 
-        f = open(lock_file, 'w')
-        fcntl.flock(f, fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(f, fcntl.LOCK_UN)
-            f.close()
-    except ImportError:
-        yield  # No locking on Windows
+    Uses `filelock`, which is `fcntl` on POSIX and `msvcrt` on Windows under the
+    hood. Serializes concurrent writers from separate MCP processes against the
+    same `~/.securityagent/`.
+    """
+    STATE_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+    lock_path = STATE_DIR / '.lock'
+    with FileLock(str(lock_path)):
+        yield
 
 
 class StateManager:
@@ -59,29 +101,40 @@ class StateManager:
         return all_config.get(self._region, {})
 
     def update_config(self, **kwargs) -> None:
-        """Update config for the current region."""
+        """Update config for the current region. None values are ignored.
+
+        Use clear_config_keys() to explicitly remove keys.
+        """
         with _file_lock():
             all_config = self._load_config()
             region_config = all_config.get(self._region, {})
             region_config.update({k: v for k, v in kwargs.items() if v is not None})
             all_config[self._region] = region_config
-            CONFIG_FILE.write_text(json.dumps(all_config, indent=2))
-            CONFIG_FILE.chmod(0o600)
+            _atomic_write_json(CONFIG_FILE, all_config)
+
+    def clear_config_keys(self, *keys: str) -> None:
+        """Remove the given keys from the current region's config (no-op if absent)."""
+        with _file_lock():
+            all_config = self._load_config()
+            region_config = all_config.get(self._region, {})
+            changed = False
+            for k in keys:
+                if k in region_config:
+                    del region_config[k]
+                    changed = True
+            if changed:
+                all_config[self._region] = region_config
+                _atomic_write_json(CONFIG_FILE, all_config)
 
     def _load_config(self) -> dict:
-        """Load full config file."""
-        if CONFIG_FILE.exists():
-            return json.loads(CONFIG_FILE.read_text())
-        return {}
+        """Load full config file. Quarantines + recovers from corruption."""
+        return _read_json_safely(CONFIG_FILE)
 
     def _load_scans(self) -> dict:
-        if SCANS_FILE.exists():
-            return json.loads(SCANS_FILE.read_text())
-        return {}
+        return _read_json_safely(SCANS_FILE)
 
     def _save_scans(self, scans: dict) -> None:
-        SCANS_FILE.write_text(json.dumps(scans, indent=2))
-        SCANS_FILE.chmod(0o600)
+        _atomic_write_json(SCANS_FILE, scans)
 
     def save_scan(self, scan_id: str, data: dict) -> None:
         """Save scan state to local storage. Keeps last 50 scans."""

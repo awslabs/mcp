@@ -63,7 +63,9 @@ class TestIntegSetupFlow:
         mock_client.create_agent_space.return_value = {'agentSpaceId': 'as-new-space-id'}
         mock_state.update_config = MagicMock()
 
-        result = await setup(mock_context, name='my-scans', agent_space_id=None, service_role_arn=None)
+        result = await setup(
+            mock_context, name='my-scans', agent_space_id=None, service_role_arn=None
+        )
         assert 'ready' in result
         assert 'as-new-space-id' in result
         mock_client.create_service_role.assert_called_once()
@@ -89,7 +91,10 @@ class TestIntegSetupFlow:
         mock_state.update_config = MagicMock()
 
         result = await setup(
-            mock_context, name=None, agent_space_id='as-existing', service_role_arn='arn:aws:iam::123456789012:role/ExistingRole'
+            mock_context,
+            name=None,
+            agent_space_id='as-existing',
+            service_role_arn='arn:aws:iam::123456789012:role/ExistingRole',
         )
         assert 'ready' in result
 
@@ -115,41 +120,45 @@ class TestIntegScanFlow:
         }
 
         # 1. Start scan — returns immediately
-        mock_scanner.start_scan = AsyncMock(return_value={
-            'scan_id': 'scan-abc123',
-            'job_id': 'cj-def456',
-            'status': 'STARTED',
-        })
-
-        result = await start_security_scan(
-            mock_context, path='/app', title='pre-cr-main'
+        mock_scanner.start_scan = AsyncMock(
+            return_value={
+                'scan_id': 'scan-abc123',
+                'job_id': 'cj-def456',
+                'status': 'STARTED',
+            }
         )
+
+        result = await start_security_scan(mock_context, path='/app', title='pre-cr-main')
         assert 'scan-abc123' in result
         assert 'STARTED' in result
         mock_scanner.start_scan.assert_called_once()
 
         # 2. Poll status
-        mock_scanner.get_status = AsyncMock(return_value={
-            'status': 'COMPLETED',
-            'steps': [
-                {'name': 'PREFLIGHT', 'status': 'COMPLETED'},
-                {'name': 'STATIC_ANALYSIS', 'status': 'COMPLETED'},
-            ],
-            'elapsed': '180s',
-        })
+        mock_scanner.get_status = AsyncMock(
+            return_value={
+                'status': 'COMPLETED',
+                'steps': [
+                    {'name': 'PREFLIGHT', 'status': 'COMPLETED'},
+                    {'name': 'STATIC_ANALYSIS', 'status': 'COMPLETED'},
+                ],
+                'elapsed': '180s',
+            }
+        )
 
         status_result = await get_scan_status(mock_context, scan_id='scan-abc123')
         assert 'COMPLETED' in status_result
 
         # 3. Get findings
-        mock_scanner.get_findings = AsyncMock(return_value={
-            'total_findings': 3,
-            'findings': [
-                {'findingId': 'f-1', 'title': 'SQL Injection', 'riskLevel': 'CRITICAL'},
-                {'findingId': 'f-2', 'title': 'Hardcoded Credentials', 'riskLevel': 'HIGH'},
-                {'findingId': 'f-3', 'title': 'Path Traversal', 'riskLevel': 'HIGH'},
-            ],
-        })
+        mock_scanner.get_findings = AsyncMock(
+            return_value={
+                'total_findings': 3,
+                'findings': [
+                    {'findingId': 'f-1', 'title': 'SQL Injection', 'riskLevel': 'CRITICAL'},
+                    {'findingId': 'f-2', 'title': 'Hardcoded Credentials', 'riskLevel': 'HIGH'},
+                    {'findingId': 'f-3', 'title': 'Path Traversal', 'riskLevel': 'HIGH'},
+                ],
+            }
+        )
 
         findings_result = await get_scan_findings(mock_context, scan_id='scan-abc123')
         assert 'total_findings' in findings_result
@@ -164,10 +173,6 @@ class TestIntegScanFlow:
 
         mock_state.get_config.return_value = {'agent_space_id': 'as-1'}  # missing role and bucket
 
-        result = await start_security_scan(
-            mock_context, path='.', title='test'
-        )
+        result = await start_security_scan(mock_context, path='.', title='test')
         assert 'error' in result
         assert 'Not configured' in result
-
-

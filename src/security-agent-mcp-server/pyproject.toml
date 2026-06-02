@@ -6,10 +6,13 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "boto3>=1.35.0",
+    "filelock>=3.0.0",
     "loguru>=0.7.0",
     "mcp[cli]>=1.6.0",
     "pydantic>=2.10.6",
     "gitignorefile>=1.1.0",
+    # Pinned to address GHSA-65pc-fj4g-8rjx (CVE-2024-3651 bypass in idna <3.15)
+    "idna>=3.15",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE"]

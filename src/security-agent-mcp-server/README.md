@@ -120,12 +120,12 @@ See [AWS documentation](https://docs.aws.amazon.com/securityagent/latest/usergui
 
 ```
 1. setup_check() → setup()   → one-time
-2. call_api("CreateTargetDomain", {agentSpaceId, domain})
-3. call_api("VerifyTargetDomain", {agentSpaceId, targetDomainId})
-4. call_api("CreatePentest", {agentSpaceId, title, assets: {endpoints: [...]}})
+2. call_api("CreateTargetDomain", {targetDomainName, verificationMethod})
+3. call_api("VerifyTargetDomain", {targetDomainId})
+4. call_api("CreatePentest", {agentSpaceId, title, assets: {endpoints: [...]}, serviceRole})
 5. call_api("StartPentestJob", {agentSpaceId, pentestId})
 6. Poll: call_api("BatchGetPentestJobs", {agentSpaceId, pentestJobIds})
-7. call_api("ListFindings", {agentSpaceId, codeReviewJobId})
+7. call_api("ListFindings", {agentSpaceId, pentestJobId})
 ```
 
 ### Any Operation
@@ -170,8 +170,8 @@ The service role is assumed by the SecurityAgent service to read your uploaded c
 
 ## Contributing
 
-See [CONTRIBUTING.md](../../CONTRIBUTING.md) for guidelines.
+Contributions are welcome! Please see the main repository's [CONTRIBUTING.md](https://github.com/awslabs/mcp/blob/main/CONTRIBUTING.md) for guidelines.
 
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE).
+This project is licensed under the Apache License 2.0. See the [LICENSE](https://github.com/awslabs/mcp/blob/main/src/security-agent-mcp-server/LICENSE) file for details.
