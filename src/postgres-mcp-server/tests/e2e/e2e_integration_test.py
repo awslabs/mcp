@@ -1835,8 +1835,10 @@ async def run_query_enforcement_suite(
             server.db_connection_map.remove(
                 connection_method, cluster_identifier, valid_endpoint, test_database, port
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(
+                'Non-fatal cleanup failure removing test DB connection: %s', e
+            )
 
     return result
 
