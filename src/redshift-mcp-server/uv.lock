@@ -46,7 +46,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-redshift-mcp-server"
-version = "0.0.23"
+version = "0.0.24"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },
