@@ -46,6 +46,9 @@ SQL_CONVERSION_THRESHOLD = int(
     os.getenv('MCP_SQL_THRESHOLD', 25 * 1024)
 )  # 25KB default (lowered from 50KB)
 FORCE_SQL_CONVERSION = os.getenv('MCP_FORCE_SQL', 'false').lower() == 'true'
+BUSY_TIMEOUT_MS = int(
+    os.getenv('BCM_MCP_SQLITE_TIMEOUT_MS', 30000)
+)  # 30s default — handles concurrent subagent writes
 
 # Session database path singleton
 _SESSION_DB_PATH = None
@@ -129,7 +132,7 @@ def get_db_connection() -> Tuple[sqlite3.Connection, sqlite3.Cursor]:
     # Create connection and cursor
     conn = sqlite3.connect(db_path)
     conn.execute('PRAGMA journal_mode=WAL')
-    conn.execute('PRAGMA busy_timeout=5000')
+    conn.execute(f'PRAGMA busy_timeout={BUSY_TIMEOUT_MS}')
     cursor = conn.cursor()
 
     # Create schema_info table to track created tables if it doesn't exist
