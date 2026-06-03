@@ -155,6 +155,16 @@ The MCP server supports connecting to multiple database endpoints using differen
 - RDS Data API must be enabled on the Aurora PostgreSQL cluster
 - Appropriate IAM permissions for Data API access
 
+#### RDS Proxy auto-detection (RPG only)
+
+For standalone RDS PostgreSQL instances (`database_type: RPG` without a `cluster_identifier`), the server automatically checks whether an RDS Proxy fronts the target instance and routes the connection through the proxy endpoint when one is found. The proxy uses the same Secrets Manager secret on its backend, so no additional configuration is required.
+
+This lookup is best-effort: if the IAM permissions below are missing or the API call fails, the server logs a warning and falls back to a direct instance connection.
+
+Optional IAM permissions for proxy auto-detection:
+- `rds:DescribeDBProxies`
+- `rds:DescribeDBProxyTargets`
+
 ### AWS Authentication
 
 The MCP server uses the AWS profile specified in the `AWS_PROFILE` environment variable. If not provided, it defaults to the "default" profile in your AWS configuration file.
