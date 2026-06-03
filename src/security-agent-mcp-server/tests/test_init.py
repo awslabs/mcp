@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""awslabs.redshift-mcp-server"""
+"""Tests for package initialization."""
 
-__version__ = '0.0.24'
+from awslabs.security_agent_mcp_server import __version__
+
+
+def test_version():
+    """Verify version is set."""
+    assert __version__ == '0.1.0'

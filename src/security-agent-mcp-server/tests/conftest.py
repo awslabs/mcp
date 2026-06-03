@@ -12,6 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""awslabs.redshift-mcp-server"""
+"""Pytest configuration and fixtures."""
 
-__version__ = '0.0.24'
+import pytest
+
+
+@pytest.fixture
+def mock_state(tmp_path, monkeypatch):
+    """Create a StateManager with a temporary directory."""
+    monkeypatch.setenv('HOME', str(tmp_path))
+    from awslabs.security_agent_mcp_server.state import StateManager
+
+    return StateManager()

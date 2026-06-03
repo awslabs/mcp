@@ -1,3 +1,4 @@
+#!/bin/sh
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,6 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""awslabs.redshift-mcp-server"""
+SERVER="security-agent-mcp-server"
 
-__version__ = '0.0.24'
+# Check if the server process is running
+if pgrep -P 0 -a -l -x -f "/app/.venv/bin/python3? /app/.venv/bin/awslabs.$SERVER" > /dev/null; then
+  echo -n "$SERVER is running";
+  exit 0;
+fi;
+
+# Unhealthy
+exit 1;
