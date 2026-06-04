@@ -135,6 +135,12 @@ async def read_documentation(
     - Code blocks for examples
     - Lists and tables converted to markdown format
 
+    ## Large Tables
+
+    Tables with more than 20 rows are automatically truncated to show only the header and 5 sample rows,
+    along with a hint to use the `search_table` tool. Use `search_table` to filter and retrieve specific
+    rows from large tables (e.g., service quotas, IAM actions).
+
     ## Handling Long Documents
 
     If the response indicates the document was truncated, you have several options:
@@ -183,6 +189,12 @@ async def read_sections(
 
     ## URL Requirements
     - Must end with .html
+
+    ## Large Tables
+
+    Tables with more than 20 rows are automatically truncated to show only the header and 5 sample rows,
+    along with a hint to use the `search_table` tool. Use `search_table` to filter and retrieve specific
+    rows from large tables (e.g., service quotas, IAM actions).
 
     ## Read Sections Tips
 

@@ -19,7 +19,11 @@ from typing import Optional
 
 
 def parse_html_tables(html: str, section_title: Optional[str] = None) -> Optional[dict]:
-    """Extract a table from an HTML section as structured data.
+    """Extract tables from an HTML section as structured data.
+
+    Matches section_title against h1/h2/h3 headings (case-insensitive).
+    Collects all tables until the next heading at the same or higher level,
+    including tables under deeper nested headings (e.g., h4 under an h3).
 
     Args:
         html: Raw HTML content of the page
@@ -53,12 +57,14 @@ def parse_html_tables(html: str, section_title: Optional[str] = None) -> Optiona
             'available_sections': available_sections,
         }
 
-    # Find ALL tables after this heading until the next same-level heading
+    # Find ALL tables until the next heading at the same or higher level
+    heading_level = int(section_element.name[1])
     tables = []
     for sibling in section_element.find_next_siblings():
         if isinstance(sibling, Tag):
-            if sibling.name in ['h1', 'h2'] and sibling != section_element:
-                break
+            if sibling.name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
+                if int(sibling.name[1]) <= heading_level:
+                    break
             if sibling.name == 'table':
                 tables.append(sibling)
             else:

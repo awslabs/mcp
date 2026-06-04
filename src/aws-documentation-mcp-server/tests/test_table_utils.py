@@ -694,6 +694,54 @@ class TestSectionBoundary:
         assert result['columns'] == ['A']
         assert result['rows'][0] == {'A': '1'}
 
+    def test_h3_stops_at_next_h3(self):
+        """When targeting an h3, stops at the next h3 sibling."""
+        html = """<html><body>
+        <h2>Service quotas</h2>
+        <h3>Amazon EC2</h3>
+        <table><thead><tr><th>Name</th></tr></thead><tbody><tr><td>Instances</td></tr></tbody></table>
+        <h3>VM Import/Export</h3>
+        <table><thead><tr><th>Name</th></tr></thead><tbody><tr><td>ImportImage</td></tr></tbody></table>
+        </body></html>"""
+        result = parse_html_tables(html, 'Amazon EC2')
+        assert result is not None
+        assert 'tables' not in result
+        assert result['rows'][0] == {'Name': 'Instances'}
+
+    def test_h3_includes_nested_h4(self):
+        """When targeting an h3, includes tables under nested h4 headings."""
+        html = """<html><body>
+        <h2>Service quotas</h2>
+        <h3>Amazon EC2</h3>
+        <table><thead><tr><th>Name</th></tr></thead><tbody><tr><td>Main</td></tr></tbody></table>
+        <h4>On-Demand limits</h4>
+        <table><thead><tr><th>Name</th></tr></thead><tbody><tr><td>OnDemand</td></tr></tbody></table>
+        <h4>Spot limits</h4>
+        <table><thead><tr><th>Name</th></tr></thead><tbody><tr><td>Spot</td></tr></tbody></table>
+        <h3>VM Import/Export</h3>
+        <table><thead><tr><th>Name</th></tr></thead><tbody><tr><td>ImportImage</td></tr></tbody></table>
+        </body></html>"""
+        result = parse_html_tables(html, 'Amazon EC2')
+        assert result is not None
+        assert 'tables' in result
+        assert len(result['tables']) == 3
+
+    def test_h2_includes_all_nested_h3_tables(self):
+        """When targeting an h2, includes all h3 and h4 tables beneath it."""
+        html = """<html><body>
+        <h2>Service quotas</h2>
+        <h3>Amazon EC2</h3>
+        <table><thead><tr><th>Name</th></tr></thead><tbody><tr><td>EC2</td></tr></tbody></table>
+        <h3>VM Import</h3>
+        <table><thead><tr><th>Name</th></tr></thead><tbody><tr><td>VM</td></tr></tbody></table>
+        <h2>Endpoints</h2>
+        <table><thead><tr><th>Name</th></tr></thead><tbody><tr><td>endpoint</td></tr></tbody></table>
+        </body></html>"""
+        result = parse_html_tables(html, 'Service quotas')
+        assert result is not None
+        assert 'tables' in result
+        assert len(result['tables']) == 2
+
     def test_finds_table_nested_in_div(self):
         """Table nested in a div after the heading is still found."""
         html = """<html><body>

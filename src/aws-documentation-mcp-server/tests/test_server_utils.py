@@ -617,10 +617,9 @@ class TestSearchTableImpl:
 
             result = await search_table_impl(ctx, url, 'Sec', 'query', 20, 'test-uuid')
 
-            assert result.tables_searched == 0
-            assert result.hint is not None
-            assert 'Failed to fetch' in result.hint
-            assert 'Connection error' in result.hint
+            assert isinstance(result, str)
+            assert 'Failed to fetch' in result
+            assert 'Connection error' in result
             ctx.error.assert_called_once()
 
     @pytest.mark.asyncio
@@ -644,10 +643,9 @@ class TestSearchTableImpl:
 
             result = await search_table_impl(ctx, url, 'Sec', 'query', 20, 'test-uuid')
 
-            assert result.tables_searched == 0
-            assert result.hint is not None
-            assert 'Failed to fetch' in result.hint
-            assert 'status code 404' in result.hint
+            assert isinstance(result, str)
+            assert 'Failed to fetch' in result
+            assert 'status code 404' in result
 
     @pytest.mark.asyncio
     async def test_no_tables_on_page(self):
