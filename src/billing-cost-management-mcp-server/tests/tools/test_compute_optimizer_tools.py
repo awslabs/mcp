@@ -806,6 +806,37 @@ class TestComputeOptimizerFastMCP:
             assert res['error_type'] == 'validation_error'
             assert 'Invalid parameter' in res['message']
 
+    async def test_co_region_parameter_passed_to_client(self, mock_context):
+        """Test that the region parameter is passed to create_aws_client."""
+        co_mod = _reload_compute_optimizer_with_identity_decorator()
+        real_fn = co_mod.compute_optimizer
+
+        with (
+            patch.object(co_mod, 'create_aws_client') as mock_create_client,
+            patch.object(co_mod, 'get_context_logger') as mock_get_logger,
+            patch.object(
+                co_mod, 'get_ec2_instance_recommendations', new_callable=AsyncMock
+            ) as mock_get,
+        ):
+            mock_logger = AsyncMock()
+            mock_get_logger.return_value = mock_logger
+            mock_client = MagicMock()
+            mock_client.get_enrollment_status.return_value = {
+                'status': 'ACTIVE',
+                'resourceTypes': ['ec2Instance'],
+            }
+            mock_create_client.return_value = mock_client
+            mock_get.return_value = {'status': 'success', 'data': {'recommendations': []}}
+
+            await real_fn(
+                mock_context,
+                operation='get_ec2_instance_recommendations',
+                region='eu-west-1',
+            )
+            mock_create_client.assert_called_once_with(
+                'compute-optimizer', region_name='eu-west-1'
+            )
+
 
 @pytest.mark.asyncio
 class TestComputeOptimizerCoverageGaps:
