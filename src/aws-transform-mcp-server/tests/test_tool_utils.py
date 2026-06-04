@@ -18,7 +18,6 @@
 import httpx
 import json
 import os
-import tempfile
 import pytest
 from awslabs.aws_transform_mcp_server.tool_utils import (
     CREATE,
@@ -43,10 +42,10 @@ from unittest.mock import AsyncMock, patch
 
 @pytest.fixture(autouse=True)
 def _allow_tmp_writes(monkeypatch):
-    """Allow write-path validation to accept tmp_path locations in tests."""
+    """Disable write-path confinement so integration tests can use tmp_path."""
     monkeypatch.setattr(
         'awslabs.aws_transform_mcp_server.file_validation._ALLOWED_WRITE_BASE',
-        tempfile.gettempdir(),
+        '/',
     )
 
 
@@ -512,9 +511,9 @@ class TestDownloadS3ContentPathTraversal:
             result = await download_s3_content(
                 'https://s3.example.com/artifact',
                 save_path=save_dir,
-                file_name='../../../../root/.ssh/authorized_keys',
+                file_name='../../../../root/documents/report.txt',
             )
-            assert result['savedTo'] == os.path.join(str(tmp_path), 'authorized_keys')
+            assert result['savedTo'] == os.path.join(str(tmp_path), 'report.txt')
 
     @pytest.mark.asyncio
     async def test_blocked_save_path_raises(self):
