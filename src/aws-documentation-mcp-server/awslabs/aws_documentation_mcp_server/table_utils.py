@@ -13,7 +13,6 @@
 # limitations under the License.
 """Table parsing and filtering utilities for AWS Documentation MCP Server."""
 
-import json
 from bs4 import BeautifulSoup, Tag
 from typing import Optional
 
@@ -58,7 +57,8 @@ def parse_html_tables(html: str, section_title: Optional[str] = None) -> Optiona
         }
 
     # Find ALL tables until the next heading at the same or higher level
-    assert isinstance(section_element, Tag)
+    if not isinstance(section_element, Tag):
+        return None
     heading_level = int(section_element.name[1])
     tables = []
     for sibling in section_element.find_next_siblings():
@@ -342,31 +342,3 @@ def filter_table_rows(rows: list[dict], query: str) -> list[dict]:
         return sum(1 for w in words if w in first_val)
 
     return sorted(matches, key=relevance, reverse=True)
-
-
-def format_search_table_response(
-    url: str,
-    section_title: str,
-    query: str,
-    columns: list[str],
-    matches: list[dict],
-    total_rows: int,
-    max_rows: int,
-) -> str:
-    """Format filtered table results as a JSON string."""
-    response = {
-        'url': url,
-        'section_title': section_title,
-        'query': query,
-        'total_rows': total_rows,
-        'matched_rows': len(matches),
-        'showing': min(len(matches), max_rows),
-        'columns': columns,
-        'rows': matches[:max_rows],
-    }
-    if not matches:
-        response['hint'] = (
-            'No rows matched all query words. Try fewer or broader terms, '
-            'or check spelling. Each word must appear somewhere in the row.'
-        )
-    return json.dumps(response, indent=2)

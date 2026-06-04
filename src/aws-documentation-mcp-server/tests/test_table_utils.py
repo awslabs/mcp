@@ -13,10 +13,8 @@
 # limitations under the License.
 """Tests for large table handling in the AWS Documentation MCP Server."""
 
-import json
 from awslabs.aws_documentation_mcp_server.table_utils import (
     filter_table_rows,
-    format_search_table_response,
     parse_html_tables,
 )
 from awslabs.aws_documentation_mcp_server.util import truncate_large_tables
@@ -316,63 +314,6 @@ class TestFilterTableRows:
         # Both score equally, so document order preserved
         assert matches[0]['Name'] == 'Alpha requests per minute'
         assert matches[1]['Name'] == 'Beta requests per minute'
-
-
-class TestFormatSearchTableResponse:
-    """Tests for format_search_table_response function."""
-
-    def test_valid_json_output(self):
-        """Output is valid JSON with expected fields."""
-        result = format_search_table_response(
-            url='https://docs.aws.amazon.com/test.html',
-            section_title='Test Section',
-            query='foo',
-            columns=['A', 'B'],
-            matches=[{'A': '1', 'B': '2'}],
-            total_rows=100,
-            max_rows=20,
-        )
-        data = json.loads(result)
-        assert data['url'] == 'https://docs.aws.amazon.com/test.html'
-        assert data['query'] == 'foo'
-        assert data['total_rows'] == 100
-        assert data['matched_rows'] == 1
-        assert data['showing'] == 1
-        assert data['columns'] == ['A', 'B']
-        assert len(data['rows']) == 1
-
-    def test_respects_max_rows(self):
-        """Output is capped at max_rows."""
-        matches = [{'A': str(i)} for i in range(50)]
-        result = format_search_table_response(
-            url='u',
-            section_title='s',
-            query='q',
-            columns=['A'],
-            matches=matches,
-            total_rows=100,
-            max_rows=5,
-        )
-        data = json.loads(result)
-        assert data['showing'] == 5
-        assert len(data['rows']) == 5
-        assert data['matched_rows'] == 50
-
-    def test_zero_match_includes_hint(self):
-        """Zero matches includes a hint field."""
-        result = format_search_table_response(
-            url='u',
-            section_title='s',
-            query='nothing',
-            columns=['A'],
-            matches=[],
-            total_rows=100,
-            max_rows=20,
-        )
-        data = json.loads(result)
-        assert data['matched_rows'] == 0
-        assert data['rows'] == []
-        assert 'hint' in data
 
 
 class TestMultiTableParsing:
