@@ -17,14 +17,21 @@
 import asyncio
 import json
 import re
-from .aws_clients import applicationsignals_client, logs_client, xray_client
+from .aws_clients import (
+    AWS_REGION,
+    applicationsignals_client,
+    cloudwatch_client,
+    get_aws_client,
+    logs_client,
+    xray_client,
+)
 from .sli_report_client import AWSConfig, SLIReportClient
 from .utils import remove_null_values
 from datetime import datetime, timedelta, timezone
 from loguru import logger
 from pydantic import Field
 from time import perf_counter as timer
-from typing import Dict, Optional
+from typing import Annotated, Dict, Optional
 
 
 OTEL_TRACE_DATA_FORMAT = 'AWS-OTEL-TRACE-V1'
@@ -37,6 +44,48 @@ _LOG_GROUP_IGNORED_REASON = (
     "not accept a separate logGroupNames parameter. The user's SOURCE scope was used "
     'instead. Remove log_group_name or the SOURCE clause to eliminate this ambiguity.'
 )
+
+
+def _profile_name_field():
+    """Create the shared profile_name field used by profile-aware tools."""
+    return Field(
+        default=None,
+        description='Optional AWS CLI profile name to use for this tool call. Defaults to AWS_PROFILE or the default credential chain.',
+    )
+
+
+def _get_applicationsignals_client(
+    profile_name: Optional[str] = None, region: Optional[str] = None
+):
+    """Return the default or profile-scoped Application Signals client."""
+    if profile_name is None:
+        return applicationsignals_client
+    return get_aws_client(
+        'application-signals', region_name=region or AWS_REGION, profile_name=profile_name
+    )
+
+
+def _get_logs_client(profile_name: Optional[str] = None, region: Optional[str] = None):
+    """Return the default or profile-scoped CloudWatch Logs client."""
+    if profile_name is None:
+        return logs_client
+    return get_aws_client('logs', region_name=region or AWS_REGION, profile_name=profile_name)
+
+
+def _get_xray_client(profile_name: Optional[str] = None, region: Optional[str] = None):
+    """Return the default or profile-scoped X-Ray client."""
+    if profile_name is None:
+        return xray_client
+    return get_aws_client('xray', region_name=region or AWS_REGION, profile_name=profile_name)
+
+
+def _get_cloudwatch_client(profile_name: Optional[str] = None, region: Optional[str] = None):
+    """Return the profile-scoped CloudWatch client used by SLI reports."""
+    if profile_name is None:
+        return cloudwatch_client
+    return get_aws_client(
+        'cloudwatch', region_name=region or AWS_REGION, profile_name=profile_name
+    )
 
 
 def _user_query_has_source_clause(user_query: str) -> bool:
@@ -141,14 +190,17 @@ def get_trace_summaries_paginated(
         return all_traces
 
 
-def check_transaction_search_enabled(region: str = 'us-east-1') -> tuple[bool, str, str]:
+def check_transaction_search_enabled(
+    region: str = 'us-east-1', xray_client_override=None
+) -> tuple[bool, str, str]:
     """Internal function to check if AWS X-Ray Transaction Search is enabled.
 
     Returns:
         tuple: (is_enabled: bool, destination: str, status: str)
     """
     try:
-        response = xray_client.get_trace_segment_destination()
+        xray = xray_client_override or xray_client
+        response = xray.get_trace_segment_destination()
 
         destination = response.get('Destination', 'Unknown')
         status = response.get('Status', 'Unknown')
@@ -187,6 +239,7 @@ async def search_transaction_spans(
     max_timeout: int = Field(
         default=30, description='Maximum time in seconds to wait for query completion'
     ),
+    profile_name: Annotated[Optional[str], _profile_name_field()] = None,
 ) -> Dict:
     """Executes a CloudWatch Logs Insights query against trace span records stored in CloudWatch Logs with the OpenTelemetry semantic-convention schema (@data_format = "AWS-OTEL-TRACE-V1").
 
@@ -250,8 +303,13 @@ async def search_transaction_spans(
             ),
         }
 
+    profile_logs_client = _get_logs_client(profile_name)
+    profile_xray_client = _get_xray_client(profile_name)
+
     # Check if transaction search is enabled
-    is_enabled, destination, status = check_transaction_search_enabled()
+    is_enabled, destination, status = check_transaction_search_enabled(
+        xray_client_override=profile_xray_client
+    )
 
     if not is_enabled:
         logger.warning(
@@ -297,14 +355,14 @@ async def search_transaction_spans(
             )
 
         logger.debug(f'Starting CloudWatch Logs query with limit: {limit}')
-        start_response = logs_client.start_query(**remove_null_values(kwargs))
+        start_response = profile_logs_client.start_query(**remove_null_values(kwargs))
         query_id = start_response['queryId']
         logger.info(f'Started CloudWatch Logs query with ID: {query_id}')
 
         # Seconds
         poll_start = timer()
         while poll_start + max_timeout > timer():
-            response = logs_client.get_query_results(queryId=query_id)
+            response = profile_logs_client.get_query_results(queryId=query_id)
             status = response['status']
 
             if status in {'Complete', 'Failed', 'Cancelled'}:
@@ -439,6 +497,7 @@ async def query_sampled_traces(
     region: Optional[str] = Field(
         default=None, description='AWS region (defaults to AWS_REGION environment variable)'
     ),
+    profile_name: Annotated[Optional[str], _profile_name_field()] = None,
 ) -> str:
     """SECONDARY TRACE TOOL - Query AWS X-Ray traces (5% sampled data) for trace investigation.
 
@@ -517,9 +576,8 @@ async def query_sampled_traces(
 
     # Use AWS_REGION environment variable if region not provided
     if not region:
-        from .aws_clients import AWS_REGION
-
         region = AWS_REGION
+    profile_xray_client = _get_xray_client(profile_name, region)
 
     logger.info(f'Starting query_sampled_traces - region: {region}, filter: {filter_expression}')
 
@@ -554,7 +612,7 @@ async def query_sampled_traces(
 
         # Use pagination helper with a reasonable limit
         traces = get_trace_summaries_paginated(
-            xray_client,
+            profile_xray_client,
             start_datetime,
             end_datetime,
             filter_expression or '',
@@ -663,7 +721,9 @@ async def query_sampled_traces(
                     seen_faults[fault_msg] = {'count': 1}
 
         # Check transaction search status
-        is_tx_search_enabled, tx_destination, tx_status = check_transaction_search_enabled(region)
+        is_tx_search_enabled, tx_destination, tx_status = check_transaction_search_enabled(
+            region, profile_xray_client
+        )
 
         # Build response with original format but deduplicated traces
         result_data = {
@@ -706,6 +766,7 @@ async def list_slis(
         default=24,
         description='Number of hours to look back (default 24, typically use 24 for daily checks)',
     ),
+    profile_name: Annotated[Optional[str], _profile_name_field()] = None,
 ) -> str:
     """SPECIALIZED TOOL - Use audit_service_health() as the PRIMARY tool for service auditing.
 
@@ -737,13 +798,16 @@ async def list_slis(
     logger.info(f'Starting get_sli_status request for last {hours} hours')
 
     try:
+        appsignals_client = _get_applicationsignals_client(profile_name)
+        profile_xray_client = _get_xray_client(profile_name)
+
         # Calculate time range
         end_time = datetime.now(timezone.utc)
         start_time = end_time - timedelta(hours=hours)
         logger.debug(f'Time range: {start_time} to {end_time}')
 
         # Get all services
-        services_response = applicationsignals_client.list_services(
+        services_response = appsignals_client.list_services(
             StartTime=start_time,  # type: ignore
             EndTime=end_time,  # type: ignore
             MaxResults=100,
@@ -769,7 +833,14 @@ async def list_slis(
                 )
 
                 # Generate SLI report
-                client = SLIReportClient(config)
+                if profile_name is None:
+                    client = SLIReportClient(config)
+                else:
+                    client = SLIReportClient(
+                        config,
+                        signals_client=appsignals_client,
+                        cloudwatch_client_override=_get_cloudwatch_client(profile_name),
+                    )
                 sli_report = client.generate_sli_report()
 
                 # Convert to expected format
@@ -806,7 +877,9 @@ async def list_slis(
                 reports.append(report)
 
         # Check transaction search status
-        is_tx_search_enabled, tx_destination, tx_status = check_transaction_search_enabled()
+        is_tx_search_enabled, tx_destination, tx_status = check_transaction_search_enabled(
+            xray_client_override=profile_xray_client
+        )
 
         # Build response
         result = f'SLI Status Report - Last {hours} hours\n'

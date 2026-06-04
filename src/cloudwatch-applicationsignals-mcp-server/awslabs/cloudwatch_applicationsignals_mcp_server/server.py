@@ -30,6 +30,7 @@ from .audit_utils import (
 from .aws_clients import (
     AWS_REGION,
     applicationsignals_client,
+    get_aws_client,
     iam_client,
     s3_client,
     synthetics_client,
@@ -74,7 +75,7 @@ from loguru import logger
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 from time import perf_counter as timer
-from typing import Optional
+from typing import Annotated, Optional
 
 
 # Constants
@@ -118,6 +119,58 @@ logger.debug(f'CloudWatch applicationsignals MCP Server initialized with log lev
 logger.debug(f'File logging enabled: {aws_cli_log_path}')
 
 logger.debug(f'Using AWS region: {AWS_REGION}')
+
+
+def _profile_name_field():
+    """Create the shared profile_name field used by profile-aware tools."""
+    return Field(
+        default=None,
+        description='Optional AWS CLI profile name to use for this tool call. Defaults to AWS_PROFILE or the default credential chain.',
+    )
+
+
+def _get_applicationsignals_client(profile_name: Optional[str] = None):
+    """Return the default or profile-scoped Application Signals client."""
+    if profile_name is None:
+        return applicationsignals_client
+    return get_aws_client('application-signals', region_name=AWS_REGION, profile_name=profile_name)
+
+
+def _get_synthetics_client(profile_name: Optional[str] = None, region: Optional[str] = None):
+    """Return the default or profile-scoped Synthetics client."""
+    if profile_name is None:
+        return synthetics_client
+    return get_aws_client(
+        'synthetics', region_name=region or AWS_REGION, profile_name=profile_name
+    )
+
+
+def _get_s3_client(profile_name: Optional[str] = None, region: Optional[str] = None):
+    """Return the default or profile-scoped S3 client."""
+    if profile_name is None:
+        return s3_client
+    return get_aws_client('s3', region_name=region or AWS_REGION, profile_name=profile_name)
+
+
+def _get_iam_client(profile_name: Optional[str] = None, region: Optional[str] = None):
+    """Return the default or profile-scoped IAM client."""
+    if profile_name is None:
+        return iam_client
+    return get_aws_client('iam', region_name=region or AWS_REGION, profile_name=profile_name)
+
+
+def _get_logs_client(profile_name: Optional[str] = None, region: Optional[str] = None):
+    """Return the profile-scoped CloudWatch Logs client."""
+    if profile_name is None:
+        return None
+    return get_aws_client('logs', region_name=region or AWS_REGION, profile_name=profile_name)
+
+
+def _get_lambda_client(profile_name: Optional[str] = None, region: Optional[str] = None):
+    """Return the profile-scoped Lambda client."""
+    if profile_name is None:
+        return None
+    return get_aws_client('lambda', region_name=region or AWS_REGION, profile_name=profile_name)
 
 
 def _filter_operation_targets(provided):
@@ -186,6 +239,7 @@ async def audit_services(
         default=5,
         description='Optional. Maximum number of services to process per call when using wildcard patterns (default: 5, max: 10). This controls pagination size for service discovery.',
     ),
+    profile_name: Annotated[Optional[str], _profile_name_field()] = None,
 ) -> str:
     """PRIMARY SERVICE AUDIT TOOL - The #1 tool for comprehensive AWS service health auditing and monitoring.
 
@@ -334,6 +388,8 @@ async def audit_services(
     try:
         # Region defaults
         region = AWS_REGION.strip()
+        appsignals_client = _get_applicationsignals_client(profile_name)
+        profile_synthetics_client = _get_synthetics_client(profile_name)
 
         # Time range (fill missing with defaults)
         start_dt = (
@@ -398,7 +454,7 @@ async def audit_services(
                     unix_end,
                     next_token,
                     max_services,
-                    applicationsignals_client,
+                    appsignals_client,
                 )
             )
             logger.debug(f'Paginated wildcard expansion completed - {len(provided)} total targets')
@@ -416,7 +472,7 @@ async def audit_services(
 
         # Validate and enrich targets using shared utility
         normalized_targets = validate_and_enrich_service_targets(
-            normalized_targets, applicationsignals_client, unix_start, unix_end
+            normalized_targets, appsignals_client, unix_start, unix_end
         )
 
         # Parse auditors with service-specific defaults
@@ -448,12 +504,27 @@ async def audit_services(
             input_obj['Auditors'] = auditors_list
 
         # Execute audit API using shared utility
-        result = await execute_audit_api(input_obj, region, banner)
+        result = await execute_audit_api(
+            input_obj,
+            region,
+            banner,
+            appsignals_client if profile_name is not None else None,
+        )
 
         # Check Synthetics canaries linked to the audited services
-        canary_result = await check_canaries_for_service(
-            normalized_targets, unix_start, unix_end, region
-        )
+        if profile_name is None:
+            canary_result = await check_canaries_for_service(
+                normalized_targets, unix_start, unix_end, region
+            )
+        else:
+            canary_result = await check_canaries_for_service(
+                normalized_targets,
+                unix_start,
+                unix_end,
+                region,
+                appsignals_client,
+                profile_synthetics_client,
+            )
         if canary_result:
             result += canary_result
 
@@ -505,6 +576,7 @@ async def audit_slos(
         default=5,
         description='Optional. Maximum number of SLOs to process per call when using wildcard patterns (default: 5, max: 10). This controls pagination size for SLO discovery.',
     ),
+    profile_name: Annotated[Optional[str], _profile_name_field()] = None,
 ) -> str:
     """PRIMARY SLO AUDIT TOOL - The #1 tool for comprehensive SLO compliance monitoring and breach analysis.
 
@@ -609,6 +681,7 @@ async def audit_slos(
     try:
         # Region defaults
         region = AWS_REGION.strip()
+        appsignals_client = _get_applicationsignals_client(profile_name)
 
         # Time range (fill missing with defaults)
         start_dt = (
@@ -663,9 +736,7 @@ async def audit_slos(
             try:
                 # Use the paginated utility function
                 expanded_slo_targets, returned_next_token, slo_names_in_batch = (
-                    expand_slo_wildcard_patterns(
-                        provided, next_token, max_slos, applicationsignals_client
-                    )
+                    expand_slo_wildcard_patterns(provided, next_token, max_slos, appsignals_client)
                 )
                 # Filter to get only SLO targets
                 slo_only_targets = [
@@ -709,7 +780,12 @@ async def audit_slos(
             input_obj['Auditors'] = auditors_list
 
         # Execute audit API using shared utility
-        result = await execute_audit_api(input_obj, region, banner)
+        result = await execute_audit_api(
+            input_obj,
+            region,
+            banner,
+            appsignals_client if profile_name is not None else None,
+        )
 
         # Add prominent pagination information when wildcards were used
         result += format_pagination_info(
@@ -759,6 +835,7 @@ async def audit_service_operations(
         default=5,
         description='Optional. Maximum number of services to process per call when using wildcard patterns (default: 5, max: 10). This controls pagination size for service discovery.',
     ),
+    profile_name: Annotated[Optional[str], _profile_name_field()] = None,
 ) -> str:
     """🥇 PRIMARY OPERATION AUDIT TOOL - The #1 RECOMMENDED tool for operation-specific analysis and performance investigation.
 
@@ -874,6 +951,7 @@ async def audit_service_operations(
     try:
         # Region defaults
         region = AWS_REGION.strip()
+        appsignals_client = _get_applicationsignals_client(profile_name)
 
         # Time range (fill missing with defaults)
         start_dt = (
@@ -922,7 +1000,7 @@ async def audit_service_operations(
                 unix_end,
                 next_token,
                 max_services,
-                applicationsignals_client,
+                appsignals_client,
             )
             logger.debug(
                 f'Paginated wildcard expansion completed - {len(operation_only_targets)} total targets'
@@ -965,7 +1043,12 @@ async def audit_service_operations(
             input_obj['Auditors'] = auditors_list
 
         # Execute audit API using shared utility
-        result = await execute_audit_api(input_obj, region, banner)
+        result = await execute_audit_api(
+            input_obj,
+            region,
+            banner,
+            appsignals_client if profile_name is not None else None,
+        )
 
         # Add prominent pagination information when wildcards were used
         result += format_pagination_info(
@@ -991,7 +1074,10 @@ async def audit_service_operations(
 
 @mcp.tool()
 async def analyze_canary_failures(
-    canary_name: str, region: str = AWS_REGION, description: str = ''
+    canary_name: str,
+    region: str = AWS_REGION,
+    description: str = '',
+    profile_name: Annotated[Optional[str], _profile_name_field()] = None,
 ) -> str:
     """Comprehensive canary failure analysis with deep dive into issues.
 
@@ -1033,6 +1119,7 @@ async def analyze_canary_failures(
             even when the canary error logs alone may not contain enough context.
             Examples: "missing runs in console", "visual monitoring baseline keeps resetting",
             "CloudFormation rollback failed after runtime upgrade".
+        profile_name (str, optional): AWS CLI profile name to use for this tool call.
 
     Returns:
         dict: Comprehensive failure analysis containing:
@@ -1043,6 +1130,13 @@ async def analyze_canary_failures(
             - Historical pattern analysis and trend insights
     """
     try:
+        synthetics_client = _get_synthetics_client(profile_name, region)
+        s3_client = _get_s3_client(profile_name, region)
+        iam_client = _get_iam_client(profile_name, region)
+        appsignals_client = _get_applicationsignals_client(profile_name)
+        logs_client_override = _get_logs_client(profile_name, region)
+        lambda_client_override = _get_lambda_client(profile_name, region)
+
         # Get recent canary runs
         response = synthetics_client.get_canary_runs(Name=canary_name, MaxResults=5)
         runs = response.get('CanaryRuns', [])
@@ -1053,7 +1147,11 @@ async def analyze_canary_failures(
 
         # Get telemetry and service insights
         try:
-            telemetry_insights = await get_canary_metrics_and_service_insights(canary_name, region)
+            telemetry_insights = await get_canary_metrics_and_service_insights(
+                canary_name,
+                region,
+                appsignals_client if profile_name is not None else None,
+            )
         except Exception as e:
             telemetry_insights = f'Telemetry API unavailable: {str(e)}'
 
@@ -1338,7 +1436,12 @@ async def analyze_canary_failures(
             failure_time = selected_failure.get('Timeline', {}).get('Started')
             if failure_time:
                 cw_log_analysis = await analyze_canary_logs_with_time_window(
-                    canary_name, failure_time, canary, window_minutes=5, region=region
+                    canary_name,
+                    failure_time,
+                    canary,
+                    window_minutes=5,
+                    region=region,
+                    logs_client_override=logs_client_override,
                 )
 
                 if cw_log_analysis.get('status') == 'success':
@@ -1365,7 +1468,12 @@ async def analyze_canary_failures(
             if failure_time:
                 try:
                     cw_log_analysis = await analyze_canary_logs_with_time_window(
-                        canary_name, failure_time, canary, window_minutes=5, region=region
+                        canary_name,
+                        failure_time,
+                        canary,
+                        window_minutes=5,
+                        region=region,
+                        logs_client_override=logs_client_override,
                     )
                     if cw_log_analysis.get('status') == 'success':
                         for evt in cw_log_analysis.get('error_events', []):
@@ -1456,7 +1564,14 @@ async def analyze_canary_failures(
             for pattern in ['enospc', 'no space left on device']
         ):
             try:
-                telemetry_data = await extract_disk_memory_usage_metrics(canary_name, region)
+                telemetry_data = await extract_disk_memory_usage_metrics(
+                    canary_name,
+                    region,
+                    synthetics_client_override=synthetics_client
+                    if profile_name is not None
+                    else None,
+                    logs_client_override=logs_client_override,
+                )
                 if 'error' not in telemetry_data:
                     result += '\n🔍 DISK USAGE ROOT CAUSE ANALYSIS:\n'
                     result += f'• Storage: {telemetry_data.get("maxEphemeralStorageUsageInMb", 0):.1f} MB peak\n'
@@ -1478,7 +1593,14 @@ async def analyze_canary_failures(
             ]
         ):
             try:
-                telemetry_data = await extract_disk_memory_usage_metrics(canary_name, region)
+                telemetry_data = await extract_disk_memory_usage_metrics(
+                    canary_name,
+                    region,
+                    synthetics_client_override=synthetics_client
+                    if profile_name is not None
+                    else None,
+                    logs_client_override=logs_client_override,
+                )
                 if 'error' not in telemetry_data:
                     result += '\n🔍 MEMORY USAGE ROOT CAUSE ANALYSIS:\n'
                     result += f'• Memory: {telemetry_data.get("maxSyntheticsMemoryUsageInMB", 0):.1f} MB peak\n'
@@ -1553,7 +1675,9 @@ async def analyze_canary_failures(
 
         # Add canary code if available
         try:
-            code_analysis = await get_canary_code(canary, region)
+            code_analysis = await get_canary_code(
+                canary, region, lambda_client_override=lambda_client_override
+            )
             if 'error' not in code_analysis and code_analysis.get('code_content'):
                 result += f'\ncanary code:\n{code_analysis["code_content"]}\n'
         except Exception as e:
@@ -1604,7 +1728,11 @@ async def analyze_canary_failures(
 
 
 @mcp.tool()
-async def list_canaries(region: str = AWS_REGION, max_results: int = 20) -> str:
+async def list_canaries(
+    region: str = AWS_REGION,
+    max_results: int = 20,
+    profile_name: Annotated[Optional[str], _profile_name_field()] = None,
+) -> str:
     """List all CloudWatch Synthetics canaries in the account.
 
     Use this tool to discover canaries before analyzing them with analyze_canary_failures().
@@ -1613,6 +1741,7 @@ async def list_canaries(region: str = AWS_REGION, max_results: int = 20) -> str:
     Args:
         region: AWS region to query (defaults to configured region).
         max_results: Maximum number of canaries to display (default: 20, max: 200).
+        profile_name: Optional AWS CLI profile name for this tool call.
 
     Returns:
         Formatted list of all canaries with their current status and configuration.
@@ -1622,6 +1751,8 @@ async def list_canaries(region: str = AWS_REGION, max_results: int = 20) -> str:
     max_results = min(max(max_results, 1), 200)
 
     try:
+        synthetics_client = _get_synthetics_client(profile_name, region)
+
         canaries: list = []
         paginator_token = None
 
@@ -1714,7 +1845,8 @@ def main():
     """Run the MCP server."""
     logger.debug('Starting CloudWatch Application Signals MCP server')
     try:
-        mcp.run(transport='stdio')
+        current_mcp = getattr(sys.modules.get(__name__), 'mcp', mcp)
+        current_mcp.run(transport='stdio')
     except KeyboardInterrupt:
         logger.debug('Server shutdown by user')
     except Exception as e:

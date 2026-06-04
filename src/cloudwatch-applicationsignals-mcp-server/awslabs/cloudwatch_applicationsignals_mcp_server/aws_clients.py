@@ -19,6 +19,7 @@ import os
 from . import __version__
 from botocore.config import Config
 from loguru import logger
+from typing import Any, Optional, cast
 
 
 # Get AWS region from environment variable or use default
@@ -26,15 +27,70 @@ AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
 logger.debug(f'Using AWS region: {AWS_REGION}')
 
 
-def _initialize_aws_clients():
-    """Initialize AWS clients with proper configuration."""
-    # Add caller suffix if MCP_RUN_FROM is set
+ENDPOINT_ENV_BY_SERVICE = {
+    'application-signals': 'MCP_APPLICATIONSIGNALS_ENDPOINT',
+    'logs': 'MCP_LOGS_ENDPOINT',
+    'cloudwatch': 'MCP_CLOUDWATCH_ENDPOINT',
+    'xray': 'MCP_XRAY_ENDPOINT',
+    'synthetics': 'MCP_SYNTHETICS_ENDPOINT',
+    'rum': 'MCP_RUM_ENDPOINT',
+}
+
+
+def _get_config():
+    """Create the shared botocore Config used for AppSignals AWS clients."""
     mcp_source = os.environ.get('MCP_RUN_FROM')
     user_agent_suffix = f'/{mcp_source}' if mcp_source else ''
 
-    config = Config(
+    return Config(
         user_agent_extra=f'awslabs.cloudwatch-applicationsignals-mcp-server/{__version__}{user_agent_suffix}'
     )
+
+
+def get_aws_client(
+    service_name: str,
+    region_name: Optional[str] = None,
+    profile_name: Optional[str] = None,
+    endpoint_url: Optional[str] = None,
+):
+    """Create an AWS client with optional per-call profile support.
+
+    Args:
+        service_name: AWS service name, for example 'application-signals' or 'cloudwatch'.
+        region_name: AWS region. Defaults to AWS_REGION or us-east-1.
+        profile_name: AWS CLI profile name. Falls back to AWS_PROFILE when not specified.
+        endpoint_url: Optional endpoint override. Falls back to service-specific MCP_* env vars.
+
+    Returns:
+        boto3 client for the requested service.
+    """
+    if profile_name is None:
+        profile_name = os.environ.get('AWS_PROFILE')
+
+    region = region_name or AWS_REGION
+    config = _get_config()
+
+    if endpoint_url is None:
+        endpoint_env = ENDPOINT_ENV_BY_SERVICE.get(service_name)
+        endpoint_url = os.environ.get(endpoint_env) if endpoint_env else None
+
+    if profile_name:
+        logger.debug(f'Using AWS profile: {profile_name}')
+        session = boto3.Session(profile_name=profile_name, region_name=region)
+    else:
+        session = boto3.Session(region_name=region)
+
+    return session.client(
+        cast(Any, service_name),
+        region_name=region,
+        config=config,
+        endpoint_url=endpoint_url,
+    )
+
+
+def _initialize_aws_clients():
+    """Initialize AWS clients with proper configuration."""
+    config = _get_config()
 
     # Get endpoint URLs from environment variables
     applicationsignals_endpoint = os.environ.get('MCP_APPLICATIONSIGNALS_ENDPOINT')
