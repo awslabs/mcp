@@ -39,8 +39,8 @@ class K8sApis:
             ca_data: CA certificate data (base64 encoded) - required for SSL verification
         """
         try:
-            from kubernetes import client, dynamic
             import kubernetes
+            from kubernetes import client, dynamic
 
             configuration = client.Configuration()
             configuration.host = endpoint
