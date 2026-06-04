@@ -167,15 +167,21 @@ async def update_resource_impl(request: UpdateResourceRequest, workflow_store: d
     security_scanning_enabled, security_warning = check_security_scanning()
 
     # Validate security scan token if security scanning is enabled
-    if security_scanning_enabled and not request.security_scan_token:
-        raise ClientError('Security scan token required (run run_checkov() first)')
+    if security_scanning_enabled:
+        if not request.security_scan_token:
+            raise ClientError(
+                'Security scanning is enabled but no security_scan_token provided: '
+                'run run_checkov() first and get user approval'
+            )
+        _validate_token_chain(request.explained_token, request.security_scan_token, workflow_store)
+    elif not security_scanning_enabled and not request.skip_security_check:
+        raise ClientError(
+            'Security scanning is disabled. You must set skip_security_check=True '
+            'to proceed without security validation.'
+        )
 
-    # CRITICAL SECURITY: Validate explained token (already validated in token chain if security enabled)
-    if not security_scanning_enabled or request.skip_security_check:
-        validate_workflow_token(request.explained_token, 'explained_properties', workflow_store)
-    else:
-        # Token already validated in chain
-        pass
+    # Always validate explained_token exists and has correct type
+    validate_workflow_token(request.explained_token, 'explained_properties', workflow_store)
 
     validate_patch(request.patch_document)
     # Use MCP env region or session region, no hardcoded fallback
