@@ -58,6 +58,7 @@ def parse_html_tables(html: str, section_title: Optional[str] = None) -> Optiona
         }
 
     # Find ALL tables until the next heading at the same or higher level
+    assert isinstance(section_element, Tag)
     heading_level = int(section_element.name[1])
     tables = []
     for sibling in section_element.find_next_siblings():
