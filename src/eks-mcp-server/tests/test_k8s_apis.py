@@ -134,11 +134,16 @@ class TestK8sApisInitialization:
             # Verify dynamic client was set
             assert apis.dynamic_client == mock_dynamic_client
 
-    @pytest.mark.parametrize('mock_version,expected_api_key,expected_prefix', [
-        ('36.0.0', {'BearerToken': 'test-token'}, {'BearerToken': 'Bearer'}),
-        ('35.0.0', {'authorization': 'Bearer test-token'}, None),
-    ])
-    def test_init_api_key_by_version(self, mock_kubernetes_client, mock_version, expected_api_key, expected_prefix):
+    @pytest.mark.parametrize(
+        'mock_version,expected_api_key,expected_prefix',
+        [
+            ('36.0.0', {'BearerToken': 'test-token'}, {'BearerToken': 'Bearer'}),
+            ('35.0.0', {'authorization': 'Bearer test-token'}, None),
+        ],
+    )
+    def test_init_api_key_by_version(
+        self, mock_kubernetes_client, mock_version, expected_api_key, expected_prefix
+    ):
         """Test api_key configuration for different kubernetes client versions."""
         _, mock_config, _ = mock_kubernetes_client
 
