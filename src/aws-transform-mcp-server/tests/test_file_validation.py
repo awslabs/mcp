@@ -227,7 +227,7 @@ class TestValidateWritePath:
         mock_logger.warning.assert_called_once()
 
     def test_write_outside_allowed_base_raises_valueerror(self):
-        """savePath outside CWD must be rejected — prevents arbitrary file write."""
+        """SavePath outside CWD must be rejected — prevents arbitrary file write."""
         from awslabs.aws_transform_mcp_server.file_validation import validate_write_path
 
         with pytest.raises(ValueError, match='working directory'):

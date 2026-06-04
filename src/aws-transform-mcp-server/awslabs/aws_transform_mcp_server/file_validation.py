@@ -136,8 +136,6 @@ def validate_write_path(save_path: str, file_name: Optional[str] = None) -> str:
         logger.warning(
             '[security] Blocked write of sensitive filename: {}', os.path.basename(final_path)
         )
-        raise ValueError(
-            f'Blocked filename: {os.path.basename(final_path)} cannot be written.'
-        )
+        raise ValueError(f'Blocked filename: {os.path.basename(final_path)} cannot be written.')
 
     return final_path

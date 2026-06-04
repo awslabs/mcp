@@ -18,6 +18,7 @@
 import httpx
 import json
 import os
+import tempfile
 import pytest
 from awslabs.aws_transform_mcp_server.tool_utils import (
     CREATE,
@@ -38,6 +39,15 @@ from awslabs.aws_transform_mcp_server.tool_utils import (
     text_result,
 )
 from unittest.mock import AsyncMock, patch
+
+
+@pytest.fixture(autouse=True)
+def _allow_tmp_writes(monkeypatch):
+    """Allow write-path validation to accept tmp_path locations in tests."""
+    monkeypatch.setattr(
+        'awslabs.aws_transform_mcp_server.file_validation._ALLOWED_WRITE_BASE',
+        tempfile.gettempdir(),
+    )
 
 
 # ── Annotation dicts ─────────────────────────────────────────────────────
