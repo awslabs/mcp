@@ -334,14 +334,14 @@ async def search_cdk_documentation(query: str) -> str:
         - results: Array with single result containing:
             - rank: Search relevance ranking (1 = most relevant, higher is less relevant)
             - title: Document title or filename
-            - url: Source URL of the document
+            - url: Source URL of the document, if present
             - context: Full or paginated document content
     - next_step_guidance: If present, suggested next actions to take for answering user query
 
 
     Use rank to prioritize results. Check error field first - if not null, the search failed.
 
-    If a content snippet is relevant to your query but doesn't show all necessary information, use `read_iac_documentation_page` with the URL to get the complete content.
+    If a result includes a URL and the content snippet doesn't show all necessary information, use `read_iac_documentation_page` with that URL to get the complete content.
 
     Args:
         query: Search query for CDK documentation (required)
@@ -391,7 +391,7 @@ async def search_cloudformation_documentation(query: str) -> str:
       - results: Array with single result containing:
         - rank: Search relevance ranking (1 = most relevant, higher is less relevant)
         - title: Document title or filename
-        - url: Source URL of the document
+        - url: Source URL of the document, if present
         - context: Full or paginated document content
     - next_step_guidance: If present, suggested next actions to take for answering user query
 
@@ -459,7 +459,7 @@ async def search_cdk_samples_and_constructs(
       - results: Array with single result containing:
         - rank: Search relevance ranking (1 = most relevant, higher is less relevant)
         - title: Document title or filename
-        - url: Source URL of the document
+        - url: Source URL of the document, if present
         - context: Full or paginated document content
     - next_step_guidance: If present, suggested next actions to take for answering user query
 
