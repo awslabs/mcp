@@ -74,7 +74,7 @@ logger.add(log_file, rotation='10 MB', retention='7 days')
 
 server = FastMCP(
     name='AWS-API-MCP',
-    instructions="""Run AWS CLI commands against the user's AWS account, with validation, security checks, and result handling.
+    instructions="""Run AWS CLI commands against the AWS account reachable via the configured credentials, with validation, security checks, and result handling.
 
 Use this server for any task involving AWS resources or services (inspecting, querying, creating, modifying, or deleting them).
 
@@ -152,7 +152,7 @@ async def suggest_aws_commands(
 
     Rules:
     - The command MUST start with "aws" and follow AWS CLI syntax.
-    - Runs in {DEFAULT_REGION} by default; pass --region for other regions, or `--region *` to run across all enabled regions (do NOT emit one command per region).
+    - Runs in {DEFAULT_REGION} by default; pass --region for other regions, or the server extension `--region *` (not standard AWS CLI) to run across all enabled regions (do NOT emit one command per region).
     - No shell features: no pipes (|), redirects (>, <), substitution ($()), env vars, or tools like grep/awk/sed.
     - Use --query/--filters/--prefix only when needed or explicitly requested.
     - When writing files, use the working directory unless the user specified another.
