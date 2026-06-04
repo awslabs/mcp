@@ -148,6 +148,10 @@ async def generate_infrastructure_code(
         'supports_tagging': supports_tagging,
     }
 
+    if is_update:
+        result['effective_patch_document'] = patch_document
+        result['identifier'] = identifier
+
     if patch_document_with_tags:
         result['recommended_patch_document'] = patch_document_with_tags
 

@@ -181,9 +181,45 @@ async def update_resource_impl(request: UpdateResourceRequest, workflow_store: d
         )
 
     # Always validate explained_token exists and has correct type
-    validate_workflow_token(request.explained_token, 'explained_properties', workflow_store)
+    workflow_data = validate_workflow_token(
+        request.explained_token, 'explained_properties', workflow_store
+    )
 
-    validate_patch(request.patch_document)
+    # Verify the token was generated for an update operation and matches the target resource
+    token_data = workflow_data.get('data', {})
+    stored_operation = token_data.get('operation')
+    if stored_operation and stored_operation != 'update':
+        raise ClientError(
+            f'Invalid explained_token: token was generated for {stored_operation}, not update'
+        )
+
+    stored_resource_type = token_data.get('resource_type', '')
+    if stored_resource_type and stored_resource_type != request.resource_type:
+        raise ClientError(
+            f'Resource type mismatch: token is for {stored_resource_type}, '
+            f'but update targets {request.resource_type}'
+        )
+
+    stored_identifier = token_data.get('identifier', '')
+    if stored_identifier and stored_identifier != request.identifier:
+        raise ClientError(
+            f'Identifier mismatch: token is for {stored_identifier}, '
+            f'but update targets {request.identifier}'
+        )
+
+    # Use stored patch if available; reject if caller tries to override
+    stored_patch = token_data.get('patch_document')
+    if stored_patch is not None:
+        if request.patch_document and request.patch_document != stored_patch:
+            raise ClientError(
+                'Patch document mismatch: the submitted patch differs from '
+                'what was explained and scanned. Generate and explain a new patch.'
+            )
+        patch_to_use = stored_patch
+    else:
+        patch_to_use = request.patch_document
+
+    validate_patch(patch_to_use)
     # Use MCP env region or session region, no hardcoded fallback
     env_vars = aws_session_data.get('environment_variables', {})
     region_str = env_vars.get('AWS_REGION') or aws_session_data.get('region')
@@ -192,7 +228,7 @@ async def update_resource_impl(request: UpdateResourceRequest, workflow_store: d
     cloudcontrol_client = get_aws_client('cloudcontrol', region_str)
 
     # Convert patch document to JSON string for the API
-    patch_document_str = json.dumps(request.patch_document)
+    patch_document_str = json.dumps(patch_to_use)
 
     # Update the resource
     try:
