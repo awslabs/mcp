@@ -203,6 +203,7 @@ class TestResourceOperations:
             'ProgressEvent': {'OperationStatus': 'SUCCESS'}
         }
 
+        patch_doc = [{'op': 'replace', 'path': '/BucketName', 'value': 'new-name'}]
         workflow_store = {
             'creds': {
                 'type': 'credentials',
@@ -214,14 +215,20 @@ class TestResourceOperations:
             },
             'explained': {
                 'type': 'explained_properties',
-                'data': {'properties': {'test': 'value'}},
+                'data': {
+                    'properties': {'test': 'value'},
+                    'operation': 'update',
+                    'patch_document': patch_doc,
+                    'resource_type': 'AWS::S3::Bucket',
+                    'identifier': 'test-bucket',
+                },
             },
         }
 
         request = UpdateResourceRequest(
             resource_type='AWS::S3::Bucket',
             identifier='test-bucket',
-            patch_document=[{'op': 'replace', 'path': '/BucketName', 'value': 'new-name'}],
+            patch_document=patch_doc,
             credentials_token='creds',
             explained_token='explained',
             skip_security_check=True,
@@ -512,6 +519,7 @@ class TestResourceOperations:
             'ProgressEvent': {'OperationStatus': 'SUCCESS'}
         }
 
+        patch_doc = [{'op': 'replace', 'path': '/test', 'value': 'new'}]
         workflow_store = {
             'creds': {
                 'type': 'credentials',
@@ -523,14 +531,20 @@ class TestResourceOperations:
             },
             'explained': {
                 'type': 'explained_properties',
-                'data': {'properties': {'test': 'value'}},
+                'data': {
+                    'properties': {'test': 'value'},
+                    'operation': 'update',
+                    'patch_document': patch_doc,
+                    'resource_type': 'AWS::S3::Bucket',
+                    'identifier': 'test-bucket',
+                },
             },
         }
 
         request = UpdateResourceRequest(
             resource_type='AWS::S3::Bucket',
             identifier='test-bucket',
-            patch_document=[{'op': 'replace', 'path': '/test', 'value': 'new'}],
+            patch_document=patch_doc,
             credentials_token='creds',
             explained_token='explained',
             skip_security_check=True,
@@ -675,6 +689,7 @@ class TestResourceOperations:
             'ProgressEvent': {'OperationStatus': 'SUCCESS'}
         }
 
+        patch_doc = [{'op': 'replace', 'path': '/test', 'value': 'new'}]
         workflow_store = {
             'creds': {
                 'type': 'credentials',
@@ -686,7 +701,13 @@ class TestResourceOperations:
             },
             'explained': {
                 'type': 'explained_properties',
-                'data': {'properties': {'test': 'value'}},
+                'data': {
+                    'properties': {'test': 'value'},
+                    'operation': 'update',
+                    'patch_document': patch_doc,
+                    'resource_type': 'AWS::S3::Bucket',
+                    'identifier': 'test-bucket',
+                },
             },
             'security': {'type': 'security_scan', 'data': {'passed': True}},
         }
@@ -694,7 +715,7 @@ class TestResourceOperations:
         request = UpdateResourceRequest(
             resource_type='AWS::S3::Bucket',
             identifier='test-bucket',
-            patch_document=[{'op': 'replace', 'path': '/test', 'value': 'new'}],
+            patch_document=patch_doc,
             credentials_token='creds',
             explained_token='explained',
             security_scan_token='security',
@@ -750,21 +771,32 @@ class TestResourceOperations:
         """Test update_resource_impl with API error."""
         mock_client.return_value.update_resource.side_effect = Exception('API Error')
 
+        patch_doc = [{'op': 'replace', 'path': '/test', 'value': 'new'}]
         workflow_store = {
             'creds': {
                 'type': 'credentials',
-                'data': {'credentials_valid': True, 'readonly_mode': False},
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'environment_variables': {'AWS_REGION': 'us-east-1'},
+                },
             },
             'explained': {
                 'type': 'explained_properties',
-                'data': {'properties': {'test': 'value'}},
+                'data': {
+                    'properties': {'test': 'value'},
+                    'operation': 'update',
+                    'patch_document': patch_doc,
+                    'resource_type': 'AWS::S3::Bucket',
+                    'identifier': 'test-bucket',
+                },
             },
         }
 
         request = UpdateResourceRequest(
             resource_type='AWS::S3::Bucket',
             identifier='test-bucket',
-            patch_document=[{'op': 'replace', 'path': '/test', 'value': 'new'}],
+            patch_document=patch_doc,
             credentials_token='creds',
             explained_token='explained',
             skip_security_check=True,
@@ -772,10 +804,9 @@ class TestResourceOperations:
         )
 
         with patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.environ') as mock_env:
-            with patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.validate_patch'):
-                mock_env.get.return_value = 'disabled'
-                with pytest.raises(Exception):
-                    await update_resource_impl(request, workflow_store)
+            mock_env.get.return_value = 'disabled'
+            with pytest.raises(Exception):
+                await update_resource_impl(request, workflow_store)
 
     @pytest.mark.asyncio
     @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.get_aws_client')
@@ -840,6 +871,7 @@ class TestResourceOperations:
             'ProgressEvent': {'OperationStatus': 'SUCCESS'}
         }
 
+        patch_doc = [{'op': 'replace', 'path': '/test', 'value': 'new'}]
         workflow_store = {
             'creds': {
                 'type': 'credentials',
@@ -851,14 +883,20 @@ class TestResourceOperations:
             },
             'explained': {
                 'type': 'explained_properties',
-                'data': {'properties': {'test': 'value'}},
+                'data': {
+                    'properties': {'test': 'value'},
+                    'operation': 'update',
+                    'patch_document': patch_doc,
+                    'resource_type': 'AWS::S3::Bucket',
+                    'identifier': 'test-bucket',
+                },
             },
         }
 
         request = UpdateResourceRequest(
             resource_type='AWS::S3::Bucket',
             identifier='test-bucket',
-            patch_document=[{'op': 'replace', 'path': '/test', 'value': 'new'}],
+            patch_document=patch_doc,
             credentials_token='creds',
             explained_token='explained',
             skip_security_check=True,
@@ -1018,6 +1056,7 @@ class TestResourceOperations:
     @pytest.mark.asyncio
     async def test_update_resource_impl_no_region_configured(self):
         """Test update_resource_impl with no region configured."""
+        patch_doc = [{'op': 'replace', 'path': '/test', 'value': 'new'}]
         workflow_store = {
             'creds': {
                 'type': 'credentials',
@@ -1029,14 +1068,20 @@ class TestResourceOperations:
             },
             'explained': {
                 'type': 'explained_properties',
-                'data': {'properties': {'test': 'value'}},
+                'data': {
+                    'properties': {'test': 'value'},
+                    'operation': 'update',
+                    'patch_document': patch_doc,
+                    'resource_type': 'AWS::S3::Bucket',
+                    'identifier': 'test-bucket',
+                },
             },
         }
 
         request = UpdateResourceRequest(
             resource_type='AWS::S3::Bucket',
             identifier='test-bucket',
-            patch_document=[{'op': 'replace', 'path': '/test', 'value': 'new'}],
+            patch_document=patch_doc,
             credentials_token='creds',
             explained_token='explained',
             skip_security_check=True,
@@ -1471,4 +1516,46 @@ class TestResourceOperations:
         )
 
         with pytest.raises(ClientError, match='Identifier mismatch'):
+            await update_resource_impl(request, workflow_store)
+
+    @pytest.mark.asyncio
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.environ')
+    async def test_update_resource_impl_rejects_missing_patch_in_token(self, mock_environ):
+        """Token without stored patch_document is rejected."""
+        mock_environ.get.return_value = 'enabled'
+
+        workflow_store = {
+            'creds': {
+                'type': 'credentials',
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'environment_variables': {'AWS_REGION': 'us-east-1'},
+                },
+            },
+            'explained': {
+                'type': 'explained_properties',
+                'data': {
+                    'properties': {'BucketName': 'test'},
+                    'operation': 'update',
+                    'resource_type': 'AWS::S3::Bucket',
+                    'identifier': 'my-bucket',
+                    # patch_document intentionally omitted
+                },
+            },
+            'security': {'type': 'security_scan', 'data': {'passed': True}},
+        }
+
+        request = UpdateResourceRequest(
+            resource_type='AWS::S3::Bucket',
+            identifier='my-bucket',
+            patch_document=[{'op': 'replace', 'path': '/test', 'value': 'x'}],
+            credentials_token='creds',
+            explained_token='explained',
+            security_scan_token='security',
+            region='us-east-1',
+            skip_security_check=False,
+        )
+
+        with pytest.raises(ClientError, match='does not contain a patch_document'):
             await update_resource_impl(request, workflow_store)
