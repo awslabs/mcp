@@ -49,7 +49,7 @@ from .core.common.models import (
     AwsCliAliasResponse,
     CallAWSResponse,
     Credentials,
-    ProgramInterpretationResponse,
+    InterpretationResponse,
 )
 from .core.metadata.read_only_operations_list import ReadOnlyOperations, get_read_only_operations
 from .core.security.policy import PolicyDecision
@@ -292,7 +292,7 @@ async def call_aws_helper(
     ] = None,
     credentials: Credentials | None = None,
     default_region: str | None = None,
-) -> ProgramInterpretationResponse | AwsCliAliasResponse:
+) -> InterpretationResponse | AwsCliAliasResponse:
     """Helper function that actually calls aws."""
     try:
         ir = translate_cli_to_ir(cli_command)
