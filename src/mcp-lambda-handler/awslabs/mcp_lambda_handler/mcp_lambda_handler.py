@@ -268,9 +268,8 @@ class MCPLambdaHandler:
                 # Determine if the parameter is required:
                 # - Not required if type is Optional (Union[X, None])
                 # - Not required if it has a default value in the signature
-                is_optional_type = (
-                    get_origin(param_type) is Union
-                    and type(None) in get_args(param_type)
+                is_optional_type = get_origin(param_type) is Union and type(None) in get_args(
+                    param_type
                 )
                 has_default = (
                     param_name in sig.parameters

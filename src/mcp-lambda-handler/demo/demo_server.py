@@ -5,8 +5,8 @@ Run directly to inspect the tool schemas that would be sent to MCP clients:
     uv run python demo/demo_server.py
 """
 
-from typing import Optional
 from awslabs.mcp_lambda_handler import MCPLambdaHandler
+from typing import Optional
 
 
 mcp = MCPLambdaHandler(name='demo-server', version='1.0.0')
@@ -77,6 +77,6 @@ if __name__ == '__main__':
         print(f'Tool: {name}')
         print(f'  Required params : {required}')
         print(f'  Optional params : {optional}')
-        print(f'  Full inputSchema:')
+        print('  Full inputSchema:')
         print(json.dumps(input_schema, indent=4))
         print()
