@@ -217,7 +217,7 @@ async def update_resource_impl(request: UpdateResourceRequest, workflow_store: d
             'Invalid explained_token: token does not contain a patch_document. '
             'Generate and explain the update via generate_infrastructure_code() first.'
         )
-    if request.patch_document and request.patch_document != stored_patch:
+    if request.patch_document is not None and request.patch_document != stored_patch:
         raise ClientError(
             'Patch document mismatch: the submitted patch differs from '
             'what was explained and scanned. Generate and explain a new patch.'
