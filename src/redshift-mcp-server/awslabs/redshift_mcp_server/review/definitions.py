@@ -237,7 +237,7 @@ Even though a filter may be redundant, the query planner can skip scanning large
 See also:
 - https://docs.aws.amazon.com/redshift/latest/dg/c_designing-queries-best-practices.html
 """,
-    'REC_026': """\
+    'REC_025': """\
 ## For additional scalability, isolate your workloads using data sharing
 
 Amazon Redshift data sharing provides workload isolation by allowing multiple consumers to share data seamlessly without the need to unload and load data. Implementing workload isolation allows for agility, allows sizing of clusters independently, and creates a simple cost charge-back model.
@@ -251,7 +251,7 @@ See also:
 - https://aws.amazon.com/blogs/big-data/security-considerations-for-amazon-redshift-cross-account-data-sharing/
 - https://aws.amazon.com/blogs/big-data/share-data-securely-across-regions-using-amazon-redshift-data-sharing/
 """,
-    'REC_027': """\
+    'REC_026': """\
 ## Increase read performance from Spectrum tables, by optimizing your partitioning strategy
 
 When you partition your data, you can restrict the amount of data that Redshift Spectrum scans by filtering on the partition key. Amazon Redshift Spectrum can take advantage of partition pruning and skip scanning unneeded partitions and files by defining the S3 prefix based on the columns (e.g. transaction_date) frequently used in SQL predicates. A common practice is to partition the data based on time. For example, you might choose to partition by year, month, date, and hour. If you have data coming from multiple sources, you might partition by a data source identifier and date.
@@ -261,7 +261,7 @@ See also:
 - https://docs.aws.amazon.com/redshift/latest/dg/c-spectrum-external-tables.html#c-spectrum-external-tables-partitioning
 - https://aws.amazon.com/blogs/big-data/10-best-practices-for-amazon-redshift-spectrum/
 """,
-    'REC_028': """\
+    'REC_027': """\
 ## To improve query performance, redesign the large table to a time series table
 
 If your data has a fixed retention period, you can organize your data as a sequence of time-series tables. In such a sequence, each table is identical but contains data for different time ranges. You can easily remove old data simply by running a DROP TABLE command on the corresponding tables. This approach is much faster than running a large-scale DELETE process and saves you from having to run a subsequent VACUUM process to reclaim space. To hide the fact that the data is stored in different tables, you can create a UNION ALL view. When you delete old data, simply refine your UNION ALL view to remove the dropped tables. Similarly, as you load new time periods into new tables, add the new tables to the view. To signal the optimizer to skip the scan on tables that don't match the query filter, your view definition filters for the date range that corresponds to each table. If your data requires processing of different time ranges, you can follow a similar approach but instead of a time range make use of another criteria for data segregation based on data access pattern such as geography (e.g. region). A sample conversion process: create multiple tables based on how the data needs to be accessed (e.g. by week, month, quarter, geography, account), create a view that consolidates all the time series tables (may include external tables queried using Redshift Spectrum), replace the query on the table with the query on the view. If a query filters on the sort key, the query planner can efficiently skip all the tables that are not used.
@@ -269,7 +269,7 @@ If your data has a fixed retention period, you can organize your data as a seque
 See also:
 - https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-time-series-tables.html
 """,
-    'REC_029': """\
+    'REC_028': """\
 ## Increase load performance by avoiding or minimizing multiple single row insert statements
 
 A data ingestion / loading process that runs a single row insert or multi row insert statement uses only the leader node for each execution and is slow when used to load large amounts of data compared to other data ingestion / loading options like a COPY command which engages compute nodes in parallel. Data compression is also inefficient when you add data only one row or a few rows at a time. Redesign the data ingestion process to replace multiple single row insert statements to either use: COPY command, COPY command with column mapping, ALTER TABLE APPEND, Bulk Insert, or Multi Row Insert.
@@ -283,7 +283,7 @@ See also:
 - https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-bulk-inserts.html
 - https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-multi-row-inserts.html
 """,
-    'REC_030': """\
+    'REC_029': """\
 ## To improve query performance, create a materialized view to use incremental refresh
 
 A materialized view contains a precomputed result set, based on an SQL query over one or more base tables. Materialized views are especially useful for speeding up queries that are predictable and repeated. Instead of performing resource-intensive queries against large tables (such as aggregates or multiple joins), applications can query a materialized view and retrieve a precomputed result set. From the user standpoint, the query results are returned much faster compared to when retrieving the same data from the base tables. To complete refresh of the materialized views with minimal impact to active workloads in your cluster, create a materialized view that can perform an incremental refresh in order to quickly identify the changes to the data in the base tables since the last refresh and update the data in the materialized view.
@@ -293,7 +293,7 @@ See also:
 - https://aws.amazon.com/blogs/big-data/speed-up-your-elt-and-bi-queries-with-amazon-redshift-materialized-views/
 - https://aws.amazon.com/blogs/big-data/optimize-your-analytical-workloads-using-the-automatic-query-rewrite-feature-of-amazon-redshift-materialized-views/
 """,
-    'REC_031': """\
+    'REC_030': """\
 ## To keep the data accurate and up to date, recreate the materialized view
 
 Due to underlying DDL changes on the base tables used in the materialized view, the materialized view can no longer be refreshed.
@@ -301,7 +301,7 @@ Due to underlying DDL changes on the base tables used in the materialized view, 
 See also:
 - https://docs.aws.amazon.com/redshift/latest/dg/r_SVV_MV_INFO.html
 """,
-    'REC_033': """\
+    'REC_031': """\
 ## To save cost, apply the necessary concurrency scaling usage limit
 
 You can define limits to monitor and control your usage and associated cost of some Amazon Redshift features. You can create daily, weekly, and monthly usage limits, and define actions that Amazon Redshift automatically takes if those limits are reached. Actions include logging an event to a system table, raising alerts with Amazon SNS and Amazon CloudWatch to notify an administrator, and disabling further usage to control costs. A concurrency scaling limit specifies the threshold of the total amount of time used by concurrency scaling in 1-minute increments.
@@ -310,7 +310,7 @@ See also:
 - https://docs.aws.amazon.com/redshift/latest/mgmt/managing-cluster-usage-limits.html
 - https://aws.amazon.com/blogs/big-data/manage-and-control-your-cost-with-amazon-redshift-concurrency-scaling-and-spectrum/
 """,
-    'REC_034': """\
+    'REC_032': """\
 ## To improve query performance, create a materialized view to use incremental refresh in the producer cluster and share the materialized view to the consumer cluster(s)
 
 Materialized views (MVs) provide a powerful route to precompute complex aggregations for use cases where high throughput is needed, and you can directly share a materialized view object via data sharing as well. For materialized views built on tables where there are frequent write operations, it is ideal to create the materialized view object on the producer itself and share the view. This method gives us the opportunity to centralize the management of the view on the producer cluster itself. For slowly changing data tables, you can share the table objects directly and build the materialized view on the shared objects directly on the consumer. This method gives us the flexibility of creating a customized view of data on each consumer according to your use case. This can help optimize the block metadata download and caching times in the data sharing query lifecycle. This also helps in materialized view refreshes because Redshift does not support incremental refresh for MVs built on shared objects.
@@ -319,7 +319,7 @@ See also:
 - https://aws.amazon.com/blogs/big-data/speed-up-your-elt-and-bi-queries-with-amazon-redshift-materialized-views/
 - https://aws.amazon.com/blogs/big-data/amazon-redshift-data-sharing-best-practices-and-considerations/
 """,
-    'REC_035': """\
+    'REC_033': """\
 ## For better price performance, leverage Redshift serverless
 
 Redshift serverless provides the same or better price performance when compared to on demand especially with intermittent workloads. This is possible because of its ability to auto pause and resume so you only pay for the times the cluster is running.
@@ -330,31 +330,7 @@ See also:
 - https://www.youtube.com/watch?v=XcRJjXudIf8
 - https://www.youtube.com/watch?v=JBPpmMq9OS8
 """,
-    'REC_036': """\
-## To avoid 'connection limit' errors and release unused resources, set idle session timeout and clean up idle sessions when needed
-
-Idle connections consume cluster connection slots and hold resources unnecessarily. Configuring idle session timeouts and periodically cleaning up stale sessions prevents connection limit errors and frees resources for active workloads.
-
-See also:
-- https://docs.aws.amazon.com/redshift/latest/mgmt/connecting-drop-issues.html
-""",
-    'REC_037': """\
-## For increased stability, use the 'trailing' track for production workloads
-
-The trailing maintenance track applies cluster patches after they have been validated on the current track for several weeks. Using the trailing track for production clusters reduces the risk of encountering issues from newly released patches.
-
-See also:
-- https://docs.aws.amazon.com/redshift/latest/mgmt/working-with-clusters.html#rs-maintenance-tracks
-""",
-    'REC_038': """\
-## To reduce processing skew, perform a classic resize to rebalance your data
-
-Data distribution skew across slices can develop over time, especially after multiple elastic resizes. A classic resize redistributes all data evenly across the new slice configuration, eliminating processing skew and restoring balanced query execution.
-
-See also:
-- https://docs.aws.amazon.com/redshift/latest/mgmt/managing-cluster-operations.html#rs-resize-tutorial
-""",
-    'REC_039': """\
+    'REC_034': """\
 ## Ensure materialized views are not stale for data accuracy and query rewrite
 
 A materialized view contains a pre-computed result set, based on an SQL query over one or more base tables. Materialized views are especially useful for speeding up queries that are predictable and repeated. In addition, materialized views can be useful for accessing data using an alternate distribution or sort key. From the user standpoint, they don't have to re-write their queries; the re-writer will determine and use the appropriate MV and the query results are returned much faster compared to when retrieving the same data from the base tables. A stale MV does not have up-to-date data and will not be used by autorewrite.
@@ -529,11 +505,11 @@ FROM usage join perc using(request_date, database_name, user_name)
 GROUP BY 1,2,3
 )
 -- Signal: long running metadata sync
-SELECT count(*), 'REC_028'
+SELECT count(*), 'REC_027'
 FROM data
 WHERE avg_request_duration_secs > 60
 UNION ALL
-SELECT count(*), 'REC_034'
+SELECT count(*), 'REC_032'
 FROM data
 WHERE avg_request_duration_secs > 60
 """,
@@ -568,7 +544,7 @@ WHERE share_type = 'OUTBOUND' and object_type = 'table'
 ORDER BY 2,3,5,4
 )
 -- Signal: materialized view shared by a producer is doing a full refresh
-SELECT count(*), 'REC_034'
+SELECT count(*), 'REC_032'
 FROM data
 WHERE is_mv_incremental_refresh = 'N'
 """,
@@ -604,7 +580,7 @@ WHERE table_name != '..' and table_name != '' and duration > 0
 group by 1,2,3,4,5,6,7
 )
 -- Signal: high count of long queries not using partition pruning
-SELECT count(*), 'REC_027'
+SELECT count(*), 'REC_026'
 FROM data
 WHERE avg_qualified_partitions > 100 and avg_elapsed_sec > 60 AND (pct_of_query_using_partition_pruning < 95)
 """,
@@ -643,17 +619,17 @@ LEFT JOIN (SELECT database_name, schema_name, mv_name name, user_name refresh_db
 ) USING (database_name, schema_name, name) WHERE SVV_MV_INFO.schema_name <> 'pg_automv'
 )
 -- Signal: materialized view is doing a full refresh
-SELECT count(*), 'REC_030'
+SELECT count(*), 'REC_029'
 FROM data
 WHERE state=0
 UNION ALL
 -- Signal: materialized view cannot be auto refreshed
-SELECT count(*), 'REC_031'
+SELECT count(*), 'REC_030'
 FROM data
 WHERE state > 1 and is_stale = 't' and autorefresh = 't'
 UNION ALL
 -- Signal: materialized view is stale
-SELECT count(*), 'REC_039'
+SELECT count(*), 'REC_034'
 FROM data
 WHERE is_stale = 't'
 """,
@@ -975,7 +951,7 @@ FROM data
 WHERE copy_count > 100
 UNION ALL
 -- Signal: high count of small_insert statements
-SELECT count(*), 'REC_029'
+SELECT count(*), 'REC_028'
 FROM data
 WHERE small_insert_count > 100
 UNION ALL
@@ -988,7 +964,7 @@ SELECT count(*), 'REC_020'
 FROM data
 WHERE pct_wlm_queue_time > 5
 UNION ALL
-SELECT count(*), 'REC_026'
+SELECT count(*), 'REC_025'
 FROM data
 WHERE pct_wlm_queue_time > 5
 UNION ALL
@@ -1010,7 +986,7 @@ FROM data
 WHERE total_disk_spill_count > 100
 UNION ALL
 -- Signal: high concurrency scaling usage
-SELECT count(*), 'REC_033'
+SELECT count(*), 'REC_031'
 FROM data
 WHERE burst_secs > 600
 """,
@@ -1184,7 +1160,7 @@ FROM summary s
 JOIN workload_breakdown b using(workloadtype)
 )
 -- Signal: Evaluate Workload for Serverless. Cluster is busy less than 75% of the time in a day.
-SELECT count(*), 'REC_035'
+SELECT count(*), 'REC_033'
 FROM data
 WHERE total_pct_busy < 75
 """,
