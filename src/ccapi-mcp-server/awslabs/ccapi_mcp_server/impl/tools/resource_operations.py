@@ -174,7 +174,7 @@ async def update_resource_impl(request: UpdateResourceRequest, workflow_store: d
                 'run run_checkov() first and get user approval'
             )
         _validate_token_chain(request.explained_token, request.security_scan_token, workflow_store)
-    elif not security_scanning_enabled and not request.skip_security_check:
+    elif not request.skip_security_check:
         raise ClientError(
             'Security scanning is disabled. You must set skip_security_check=True '
             'to proceed without security validation.'
