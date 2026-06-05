@@ -65,10 +65,22 @@ class TestResourceOperations:
         """Test _validate_token_chain with valid tokens."""
         workflow_store = {
             'explained': {'type': 'explained_properties', 'data': {}},
-            'security': {'type': 'security_scan', 'data': {}},
+            'security': {'type': 'security_scan', 'data': {}, 'parent_token': 'explained'},
         }
         _validate_token_chain('explained', 'security', workflow_store)
-        assert workflow_store['security']['parent_token'] == 'explained'
+
+    def test_validate_token_chain_rejects_cross_workflow(self):
+        """Test _validate_token_chain rejects tokens from different workflows."""
+        workflow_store = {
+            'explained_b': {'type': 'explained_properties', 'data': {}},
+            'security_a': {
+                'type': 'security_scan',
+                'data': {},
+                'parent_token': 'explained_a',
+            },
+        }
+        with pytest.raises(ClientError, match='Token chain mismatch'):
+            _validate_token_chain('explained_b', 'security_a', workflow_store)
 
     def test_validate_token_chain_invalid_explained(self):
         """Test _validate_token_chain with invalid explained token."""
@@ -1558,4 +1570,50 @@ class TestResourceOperations:
         )
 
         with pytest.raises(ClientError, match='does not contain a patch_document'):
+            await update_resource_impl(request, workflow_store)
+
+    @pytest.mark.asyncio
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.environ')
+    async def test_update_resource_impl_rejects_cross_workflow_tokens(self, mock_environ):
+        """Security scan from workflow A cannot be used with explained token from workflow B."""
+        mock_environ.get.return_value = 'enabled'
+
+        workflow_store = {
+            'creds': {
+                'type': 'credentials',
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'environment_variables': {'AWS_REGION': 'us-east-1'},
+                },
+            },
+            'explained_b': {
+                'type': 'explained_properties',
+                'data': {
+                    'properties': {'BucketName': 'test'},
+                    'operation': 'update',
+                    'patch_document': [{'op': 'replace', 'path': '/test', 'value': 'x'}],
+                    'resource_type': 'AWS::S3::Bucket',
+                    'identifier': 'my-bucket',
+                },
+            },
+            'security_a': {
+                'type': 'security_scan',
+                'data': {'passed': True},
+                'parent_token': 'explained_a',
+            },
+        }
+
+        request = UpdateResourceRequest(
+            resource_type='AWS::S3::Bucket',
+            identifier='my-bucket',
+            patch_document=[{'op': 'replace', 'path': '/test', 'value': 'x'}],
+            credentials_token='creds',
+            explained_token='explained_b',
+            security_scan_token='security_a',
+            region='us-east-1',
+            skip_security_check=False,
+        )
+
+        with pytest.raises(ClientError, match='Token chain mismatch'):
             await update_resource_impl(request, workflow_store)

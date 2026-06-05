@@ -151,6 +151,7 @@ async def run_checkov_impl(request: RunCheckovRequest, workflow_store: dict) -> 
                     'resource_type': resource_type,
                     'timestamp': str(datetime.datetime.now()),
                 },
+                'parent_token': request.explained_token,
                 'timestamp': datetime.datetime.now().isoformat(),
             }
 
@@ -187,6 +188,7 @@ async def run_checkov_impl(request: RunCheckovRequest, workflow_store: dict) -> 
                         'resource_type': resource_type,
                         'timestamp': str(datetime.datetime.now()),
                     },
+                    'parent_token': request.explained_token,
                     'timestamp': datetime.datetime.now().isoformat(),
                 }
 

@@ -61,19 +61,21 @@ def _validate_token_chain(
     if not security_scan_token or security_scan_token not in workflow_store:
         raise ClientError('Invalid security_scan_token')
 
-    # Security scan token must be created after explain token in same workflow
     explained_data = workflow_store[explained_token]
     security_data = workflow_store[security_scan_token]
 
-    # For now, just ensure both tokens exist and are valid types
     if explained_data.get('type') != 'explained_properties':
         raise ClientError('Invalid explained_token type')
 
     if security_data.get('type') != 'security_scan':
         raise ClientError('Invalid security_scan_token type')
 
-    # Set the parent relationship (security scan derives from explained token)
-    workflow_store[security_scan_token]['parent_token'] = explained_token
+    stored_parent = security_data.get('parent_token')
+    if stored_parent and stored_parent != explained_token:
+        raise ClientError(
+            'Token chain mismatch: security_scan_token was not derived from '
+            'the provided explained_token'
+        )
 
 
 async def create_resource_impl(request: CreateResourceRequest, workflow_store: dict) -> dict:
