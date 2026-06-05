@@ -627,6 +627,63 @@ def test_tool_decorator_optional_type_hints():
     assert props['d']['type'] == 'boolean'
     assert props['e']['type'] == 'array'
     assert props['e']['items'] == {'type': 'string'}
+    # Optional parameters should NOT appear in required list
+    assert schema['inputSchema']['required'] == []
+
+
+def test_tool_decorator_required_vs_optional_params():
+    """Test tool decorator correctly distinguishes required from optional parameters."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def search(
+        query: str,
+        filter_type: str,
+        limit: Optional[int] = 10,
+        offset: int = 0,
+        include_deleted: Optional[bool] = None,
+    ) -> str:
+        """Search for items.
+
+        Args:
+            query: The search query (required)
+            filter_type: Type of filter to apply (required)
+            limit: Max results to return
+            offset: Pagination offset
+            include_deleted: Whether to include deleted items
+        """
+        return 'ok'
+
+    schema = handler.tools['search']
+    required = schema['inputSchema']['required']
+    # Only params without Optional type AND without default values are required
+    assert 'query' in required
+    assert 'filter_type' in required
+    # These have defaults or are Optional, so should NOT be required
+    assert 'limit' not in required
+    assert 'offset' not in required
+    assert 'include_deleted' not in required
+
+
+def test_tool_decorator_all_required_params():
+    """Test tool decorator marks all params as required when none are optional."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def add(a: int, b: int) -> int:
+        """Add two numbers.
+
+        Args:
+            a: First number
+            b: Second number
+        """
+        return a + b
+
+    schema = handler.tools['add']
+    required = schema['inputSchema']['required']
+    assert 'a' in required
+    assert 'b' in required
+    assert len(required) == 2
 
 
 def test_tool_decorator_union_type_hints():
