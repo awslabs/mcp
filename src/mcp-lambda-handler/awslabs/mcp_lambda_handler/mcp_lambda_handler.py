@@ -253,6 +253,9 @@ class MCPLambdaHandler:
                 # Default for unknown complex types
                 return {'type': 'string'}
 
+            # Get function signature to check for default values
+            sig = inspect.signature(func)
+
             # Build properties from type hints
             for param_name, param_type in hints.items():
                 param_schema = get_type_schema(param_type)
@@ -261,7 +264,20 @@ class MCPLambdaHandler:
                     param_schema['description'] = arg_descriptions[param_name]
 
                 properties[param_name] = param_schema
-                required.append(param_name)
+
+                # Determine if the parameter is required:
+                # - Not required if type is Optional (Union[X, None])
+                # - Not required if it has a default value in the signature
+                is_optional_type = (
+                    get_origin(param_type) is Union
+                    and type(None) in get_args(param_type)
+                )
+                has_default = (
+                    param_name in sig.parameters
+                    and sig.parameters[param_name].default is not inspect.Parameter.empty
+                )
+                if not is_optional_type and not has_default:
+                    required.append(param_name)
 
             # Create tool schema
             tool_schema = {
