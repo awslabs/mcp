@@ -149,7 +149,7 @@ async def generate_infrastructure_code(
     }
 
     if is_update:
-        result['effective_patch_document'] = patch_document
+        result['effective_patch_document'] = patch_document_with_tags or patch_document
         result['identifier'] = identifier
 
     if patch_document_with_tags:
