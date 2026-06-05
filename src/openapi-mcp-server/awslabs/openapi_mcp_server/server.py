@@ -16,6 +16,7 @@
 import argparse
 import asyncio
 import httpx
+import os
 import re
 import signal
 import sys
@@ -250,6 +251,17 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
         # Load additional specs for multi-spec composition
         if config.additional_specs:
             import json
+            from awslabs.openapi_mcp_server.utils.url_validator import (
+                validate_spec_path,
+                validate_url_for_spec,
+            )
+            from fastmcp.server.auth.ssrf import SSRFError
+
+            allowed_dirs = (
+                [d.strip() for d in config.allowed_spec_dirs.split(os.pathsep) if d.strip()]
+                if config.allowed_spec_dirs
+                else None
+            )
 
             try:
                 extra_specs = json.loads(config.additional_specs)
@@ -269,11 +281,52 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
                             f'Skipping additional spec {extra_name}: base_url is required'
                         )
                         continue
+
+                    # Validate base_url against SSRF
+                    try:
+                        await validate_url_for_spec(
+                            extra_base_url,
+                            allow_http=config.allow_insecure_http,
+                            allow_private_networks=config.allow_private_networks,
+                        )
+                    except SSRFError as e:
+                        logger.warning(
+                            f'Skipping additional spec {extra_name}: '
+                            f'base_url failed security validation: {e}'
+                        )
+                        continue
+
+                    # Validate spec_url or spec_path
+                    spec_url = entry.get('spec_url', '')
+                    spec_path = entry.get('spec_path', '')
+
+                    if spec_url:
+                        try:
+                            await validate_url_for_spec(
+                                spec_url,
+                                allow_http=config.allow_insecure_http,
+                                allow_private_networks=config.allow_private_networks,
+                            )
+                        except SSRFError as e:
+                            logger.warning(
+                                f'Skipping additional spec {extra_name}: '
+                                f'spec_url failed security validation: {e}'
+                            )
+                            continue
+
+                    if spec_path:
+                        try:
+                            spec_path = validate_spec_path(spec_path, allowed_dirs=allowed_dirs)
+                        except (SSRFError, FileNotFoundError) as e:
+                            logger.warning(
+                                f'Skipping additional spec {extra_name}: '
+                                f'spec_path failed security validation: {e}'
+                            )
+                            continue
+
                     logger.info(f'Loading additional spec: {extra_name}')
                     try:
-                        extra_spec = load_openapi_spec(
-                            url=entry.get('spec_url', ''), path=entry.get('spec_path', '')
-                        )
+                        extra_spec = load_openapi_spec(url=spec_url, path=spec_path)
                     except Exception as e:
                         logger.warning(f'Failed to load additional spec {extra_name}: {e}')
                         continue
@@ -282,11 +335,48 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
                         logger.warning(
                             f'Additional spec {extra_name} validation failed, continuing anyway'
                         )
+
+                    # Build per-entry auth — never inherit primary API credentials
+                    extra_headers = {}
+                    extra_auth = None
+                    extra_cookies = None
+
+                    entry_auth_type = entry.get('auth_type', 'none')
+                    if entry_auth_type == 'bearer':
+                        token = entry.get('auth_token', '')
+                        if token:
+                            extra_headers['Authorization'] = f'Bearer {token}'
+                    elif entry_auth_type == 'api_key':
+                        key = entry.get('auth_api_key', '')
+                        key_name = entry.get('auth_api_key_name', 'X-API-Key')
+                        key_in = entry.get('auth_api_key_in', 'header')
+                        if key and key_in == 'header':
+                            extra_headers[key_name] = key
+                        elif key and key_in == 'cookie':
+                            extra_cookies = {key_name: key}
+                        elif key and key_in == 'query':
+                            logger.warning(
+                                f'Additional spec {extra_name}: auth_api_key_in=query is not '
+                                f'supported for additional specs (use header or cookie). '
+                                f'The API key will NOT be sent.'
+                            )
+                    elif entry_auth_type == 'basic':
+                        username = entry.get('auth_username', '')
+                        password = entry.get('auth_password', '')
+                        if username and password:
+                            extra_auth = httpx.BasicAuth(username, password)
+                    elif entry_auth_type != 'none':
+                        logger.warning(
+                            f'Additional spec {extra_name}: unrecognized auth_type '
+                            f'"{entry_auth_type}", requests will be unauthenticated'
+                        )
+
                     extra_client = HttpClientFactory.create_client(
                         base_url=extra_base_url,
-                        headers=auth_headers,
-                        auth=httpx_auth,
-                        cookies=auth_cookies,
+                        headers=extra_headers if extra_headers else None,
+                        auth=extra_auth,
+                        cookies=extra_cookies,
+                        follow_redirects=False,
                     )
                     providers.append(
                         OpenAPIProvider(
@@ -585,6 +675,22 @@ def main():
     parser.add_argument(
         '--additional-specs',
         help='JSON array of additional API specs. Each entry requires base_url and either spec_url or spec_path: [{"name":"...","spec_url":"...","base_url":"..."}]',
+    )
+
+    # Security settings
+    parser.add_argument(
+        '--allow-insecure-http',
+        action='store_true',
+        help='Allow http:// URLs for spec and base URLs (default: HTTPS only)',
+    )
+    parser.add_argument(
+        '--allow-private-networks',
+        action='store_true',
+        help='Allow private/loopback/link-local IP addresses for spec and base URLs',
+    )
+    parser.add_argument(
+        '--allowed-spec-dirs',
+        help='OS path-separated list of directories allowed for spec_path (colon on Unix, semicolon on Windows)',
     )
 
     args = parser.parse_args()

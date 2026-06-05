@@ -75,6 +75,11 @@ class Config:
     # JSON array: [{"name": "...", "spec_url": "...", "base_url": "..."}]
     additional_specs: str = ''
 
+    # Security settings for URL/path validation
+    allow_insecure_http: bool = False  # permit http:// URLs (default: HTTPS only)
+    allow_private_networks: bool = False  # permit private/loopback/link-local IPs
+    allowed_spec_dirs: str = ''  # colon-separated list of allowed directories for spec_path
+
 
 def load_config(args: Any = None) -> Config:
     """Load configuration from arguments and environment variables.
@@ -132,6 +137,14 @@ def load_config(args: Any = None) -> Config:
         'VALIDATE_OUTPUT': (lambda v: setattr(config, 'validate_output', v.lower() != 'false')),
         # Additional specs
         'ADDITIONAL_SPECS': (lambda v: setattr(config, 'additional_specs', v)),
+        # Security settings
+        'ALLOW_INSECURE_HTTP': (
+            lambda v: setattr(config, 'allow_insecure_http', v.lower() in ('true', '1', 'yes'))
+        ),
+        'ALLOW_PRIVATE_NETWORKS': (
+            lambda v: setattr(config, 'allow_private_networks', v.lower() in ('true', '1', 'yes'))
+        ),
+        'ALLOWED_SPEC_DIRS': (lambda v: setattr(config, 'allowed_spec_dirs', v)),
     }
 
     # Load environment variables
@@ -249,6 +262,16 @@ def load_config(args: Any = None) -> Config:
         # Additional specs
         if hasattr(args, 'additional_specs') and args.additional_specs:
             config.additional_specs = args.additional_specs
+
+        # Security settings
+        if hasattr(args, 'allow_insecure_http') and args.allow_insecure_http:
+            config.allow_insecure_http = True
+
+        if hasattr(args, 'allow_private_networks') and args.allow_private_networks:
+            config.allow_private_networks = True
+
+        if hasattr(args, 'allowed_spec_dirs') and args.allowed_spec_dirs:
+            config.allowed_spec_dirs = args.allowed_spec_dirs
 
     # Log final configuration details
     logger.info(f'Configuration loaded: API name={config.api_name}, transport={config.transport}')

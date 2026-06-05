@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Bump `dsql-lint` dependency to `>=0.2.1,<0.3`. The 0.2.x line accepts the `JSON` data type (DSQL-supported) and continues to flag `JSONB` (not supported as a storage type in DSQL).
+
 ### Added
 
 - `dsql_lint` tool: validates SQL for Aurora DSQL compatibility via the `dsql-lint` binary, with optional auto-fix
