@@ -49,7 +49,7 @@
       "name": "Cost & Operations"
     },
     {
-      "description": "Interact with AWS HealthAI services",
+      "description": "Interact with AWS healthcare AI services",
       "icon": "\ud83e\uddc0",
       "id": "healthcare-lifesciences",
       "name": "Healthcare & Lifesciences"
@@ -1020,7 +1020,7 @@
     },
     {
       "category": "Healthcare & Lifesciences",
-      "description": "Generate, run, debug and optimize lifescience workflows on AWS HealthOmics",
+      "description": "Generate, run, debug, and optimize life science workflows on AWS HealthOmics",
       "icon": "\ud83e\uddc0",
       "id": "aws-healthomics-mcp-server",
       "name": "AWS HealthOmics MCP Server",
