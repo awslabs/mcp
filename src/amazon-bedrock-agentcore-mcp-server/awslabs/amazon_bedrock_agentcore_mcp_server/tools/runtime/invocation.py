@@ -16,7 +16,12 @@
 
 import asyncio
 from .error_handler import handle_runtime_error
-from .models import ErrorResponse, InvokeRuntimeResponse, StopSessionResponse
+from .models import (
+    ErrorResponse,
+    InvokeCommandResponse,
+    InvokeRuntimeResponse,
+    StopSessionResponse,
+)
 from mcp.server.fastmcp import Context
 from pydantic import Field
 from typing import Annotated, Callable, Optional, Union
@@ -60,6 +65,85 @@ def _read_response_body(resp: dict) -> str:
     return ''
 
 
+_STREAM_EXCEPTION_KEYS = (
+    'accessDeniedException',
+    'internalServerException',
+    'resourceNotFoundException',
+    'serviceQuotaExceededException',
+    'throttlingException',
+    'validationException',
+    'runtimeClientError',
+)
+
+
+def _parse_command_event_stream(stream) -> dict:
+    """Walk an InvokeAgentRuntimeCommand EventStream and aggregate output.
+
+    The stream yields events shaped like::
+
+        {"chunk": {"contentStart": {}}}
+        {"chunk": {"contentDelta": {"stdout": "..."}}}
+        {"chunk": {"contentDelta": {"stderr": "..."}}}
+        {"chunk": {"contentStop": {"exitCode": 0, "status": "COMPLETED"}}}
+
+    Or a typed-exception member (validationException, throttlingException, ...)
+    in lieu of further chunks.
+    """
+    out = {
+        'stdout': '',
+        'stderr': '',
+        'exit_code': None,
+        'command_status': '',
+        'error': None,
+    }
+    if stream is None:
+        return out
+
+    stdout_parts: list[str] = []
+    stderr_parts: list[str] = []
+    for event in stream:
+        if not isinstance(event, dict):
+            continue
+
+        for ex_key in _STREAM_EXCEPTION_KEYS:
+            if ex_key in event:
+                ex = event[ex_key] or {}
+                out['error'] = {
+                    'type': ex_key,
+                    'message': ex.get('message', ''),
+                    'http_status': ex.get('httpStatusCode', ''),
+                }
+                out['stdout'] = ''.join(stdout_parts)
+                out['stderr'] = ''.join(stderr_parts)
+                return out
+
+        chunk = event.get('chunk')
+        if not isinstance(chunk, dict):
+            continue
+        delta = chunk.get('contentDelta')
+        if isinstance(delta, dict):
+            if 'stdout' in delta:
+                stdout_parts.append(_decode_chunk(delta['stdout']))
+            if 'stderr' in delta:
+                stderr_parts.append(_decode_chunk(delta['stderr']))
+        stop = chunk.get('contentStop')
+        if isinstance(stop, dict):
+            out['exit_code'] = stop.get('exitCode')
+            out['command_status'] = stop.get('status', '')
+
+    out['stdout'] = ''.join(stdout_parts)
+    out['stderr'] = ''.join(stderr_parts)
+    return out
+
+
+def _decode_chunk(value) -> str:
+    if isinstance(value, bytes):
+        return value.decode('utf-8', errors='replace')
+    if isinstance(value, str):
+        return value
+    return str(value)
+
+
 class InvocationTools:
     """Tools for invoking agents and managing runtime sessions."""
 
@@ -74,6 +158,7 @@ class InvocationTools:
     def register(self, mcp) -> None:
         """Register invocation tools with the MCP server."""
         mcp.tool(name='invoke_agent_runtime')(self.invoke_agent_runtime)
+        mcp.tool(name='invoke_agent_runtime_command')(self.invoke_agent_runtime_command)
         mcp.tool(name='stop_runtime_session')(self.stop_runtime_session)
 
     async def invoke_agent_runtime(
@@ -150,6 +235,85 @@ class InvocationTools:
             )
         except Exception as e:
             return handle_runtime_error('InvokeAgentRuntime', e)
+
+    async def invoke_agent_runtime_command(
+        self,
+        ctx: Context,
+        agent_runtime_arn: Annotated[
+            str,
+            Field(
+                description=(
+                    'ARN of the agent runtime, e.g. '
+                    '"arn:aws:bedrock-agentcore:us-west-2:123:runtime/my-agent".'
+                )
+            ),
+        ],
+        command: Annotated[
+            str,
+            Field(description='Shell command to run inside the runtime, e.g. "ls -la /tmp".'),
+        ],
+        timeout: Annotated[
+            int,
+            Field(description='Per-command timeout in seconds. Server-side bounds apply.', ge=1),
+        ] = 30,
+        runtime_session_id: Annotated[
+            Optional[str],
+            Field(
+                description=(
+                    'Session ID (33-256 chars). Reuse to share state across commands. '
+                    'Auto-generated if omitted.'
+                )
+            ),
+        ] = None,
+        qualifier: Annotated[
+            str, Field(description='Endpoint qualifier. Defaults to DEFAULT.')
+        ] = 'DEFAULT',
+    ) -> Union[InvokeCommandResponse, ErrorResponse]:
+        """Run a shell command in an AgentCore Runtime via InvokeAgentRuntimeCommand.
+
+        This is the HTTP EventStream variant — runs a single command, streams
+        stdout/stderr chunks, and returns the aggregated output once the
+        command finishes (or the timeout fires).
+
+        **BILLABLE OPERATION:** Reuses or creates a microVM session that
+        incurs compute charges. Reuse ``runtime_session_id`` across calls
+        to avoid cold-start cost; call ``stop_runtime_session`` when done.
+
+        """
+        try:
+            client = self._get_client()
+            kwargs: dict = {
+                'agentRuntimeArn': agent_runtime_arn,
+                'qualifier': qualifier,
+                'body': {'command': command, 'timeout': timeout},
+            }
+            if runtime_session_id is not None:
+                kwargs['runtimeSessionId'] = runtime_session_id
+
+            resp = await asyncio.to_thread(client.invoke_agent_runtime_command, **kwargs)
+            parsed = await asyncio.to_thread(_parse_command_event_stream, resp.get('stream'))
+
+            if parsed.get('error') is not None:
+                err = parsed['error']
+                return ErrorResponse(
+                    message=f'InvokeAgentRuntimeCommand failed: {err.get("message", "")}',
+                    error_type=err.get('type', 'UnknownStreamError'),
+                    error_code=str(err.get('http_status', '')),
+                )
+
+            return InvokeCommandResponse(
+                status='success',
+                runtime_session_id=resp.get('runtimeSessionId', ''),
+                content_type=resp.get('contentType', ''),
+                http_status_code=resp.get('statusCode'),
+                stdout=parsed['stdout'],
+                stderr=parsed['stderr'],
+                exit_code=parsed.get('exit_code'),
+                command_status=parsed.get('command_status', ''),
+                message='Command completed.',
+            )
+        except Exception as e:
+            return handle_runtime_error('InvokeAgentRuntimeCommand', e)
 
     async def stop_runtime_session(
         self,
