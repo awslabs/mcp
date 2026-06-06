@@ -19,9 +19,13 @@ import sys
 from awslabs.aws_network_mcp_server.tools import (
     cloud_wan,
     general,
+    load_balancer,
     network_firewall,
+    route53,
+    route53_profiles,
     transit_gateway,
     vpc,
+    vpc_endpoints,
     vpn,
 )
 from fastmcp import FastMCP
@@ -49,6 +53,9 @@ mcp = FastMCP(
     - VPC: Network configuration, flow logs, ENI details
     - Network Firewall: Rules and flow logs
     - VPN: Connection details
+    - Load Balancer: ALB/NLB/GLB listing, details, target health
+    - Route 53 / DNS: Hosted zones, DNS records, health checks, Resolver rules and endpoints
+    - VPC Endpoints / PrivateLink: Detailed endpoint listing, connectivity diagnostics
     - General: IP lookup, ENI analysis
 
     ## Troubleshooting Workflow
@@ -64,6 +71,10 @@ mcp = FastMCP(
     - Transit Gateway routing: list_transit_gateways → get_tgw_details → get_all_tgw_routes
     - Firewall analysis: detect_tgw_inspection → get_firewall_rules → get_network_firewall_flow_logs
     - Traffic verification: get_vpc_flow_logs / get_tgw_flow_logs (filter by srcaddr, dstaddr, ports)
+    - Load balancer health: list_load_balancers → get_lb_details → get_lb_target_health
+    - VPC endpoint diagnostics: list_vpc_endpoints_detailed → check_endpoint_connectivity
+    - DNS troubleshooting: list_hosted_zones → query_dns_records → check_health_checks
+    - Hybrid DNS: list_resolver_rules → Verify forwarding rules and endpoint IPs
 
     ## Key Capabilities
     - Multi-region IP address search with find_ip_address(all_regions=True)
@@ -85,7 +96,18 @@ mcp = FastMCP(
 
 # Register tools at module level
 logger.info('Registering tools...')
-for module in (general, cloud_wan, network_firewall, transit_gateway, vpc, vpn):
+for module in (
+    general,
+    cloud_wan,
+    load_balancer,
+    network_firewall,
+    route53,
+    route53_profiles,
+    transit_gateway,
+    vpc,
+    vpc_endpoints,
+    vpn,
+):
     for tool_name in module.__all__:
         mcp.tool(getattr(module, tool_name))
 logger.info('Tools registered successfully')
