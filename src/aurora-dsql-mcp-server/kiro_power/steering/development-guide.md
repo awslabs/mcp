@@ -13,7 +13,7 @@ effortless scaling, multi-region viability, among other advantages.
 - **REQUIRED: Follow DDL Guidelines** - Refer to [DDL Rules](#schema-ddl-rules)
 - **SHALL repeatedly generate fresh tokens** - Refer to [Connection Limits](auth/authentication-guide.md#connection-rules)
 - **ALWAYS use ASYNC indexes** - `CREATE INDEX ASYNC` is mandatory
-- **MUST Serialize arrays/JSON as TEXT** - Store arrays/JSON as TEXT (comma separated, JSON.stringify)
+- **MUST serialize arrays as JSONB** - DSQL supports JSON and JSONB columns natively; arrays must still be serialized (use JSONB)
 - **ALWAYS Batch within row limit** - maintain transaction limits (verify via `awsknowledge`: `aurora dsql transaction limits`)
 - **REQUIRED: Sanitize SQL inputs with allowlists, regex, and quote escaping** - See [Input Validation](../mcp/tools/input-validation.md#input-validation-critical)
 - **MUST follow correct Application Layer Patterns** - when multi-tenant isolation or application referential integrity are required; refer to [Application Layer Patterns](#application-layer-patterns)
@@ -53,9 +53,8 @@ effortless scaling, multi-region viability, among other advantages.
 
 ### Schema Design Rules
 
-- MUST use **simple PostgreSQL types:** VARCHAR, TEXT, INTEGER, BOOLEAN, TIMESTAMP
-- MUST store arrays as TEXT (comma-separated is recommended)
-- MUST store JSON objects as TEXT (JSON.stringify)
+- MUST use **simple PostgreSQL types:** VARCHAR, TEXT, INTEGER, BOOLEAN, TIMESTAMP, JSON, JSONB
+- MUST serialize arrays as JSONB (DSQL does not support array column types)
 - ALWAYS include tenant_id in tables for multi-tenant isolation
 - SHOULD create async indexes for tenant_id and common query patterns
 

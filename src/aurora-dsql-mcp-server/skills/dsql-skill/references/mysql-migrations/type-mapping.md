@@ -97,7 +97,7 @@ Map MySQL data types to their DSQL equivalents.
 
 | MySQL Type     | DSQL Equivalent                                           | Notes                                                                                            |
 | -------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| JSON           | TEXT                                                      | MUST store as TEXT                                                                               |
+| JSON           | JSONB                                                     | DSQL supports `JSON` and `JSONB` natively; prefer `JSONB` for queryable structured data          |
 | AUTO_INCREMENT | UUID with gen_random_uuid(), IDENTITY column, or SEQUENCE | See [AUTO_INCREMENT Migration](ddl-auto-increment.md#auto_increment-migration) for all three options |
 
 ---

@@ -16,7 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Bump `dsql-lint` dependency to `>=0.2.1,<0.3`. The 0.2.x line accepts the `JSON` data type (DSQL-supported) and continues to flag `JSONB` (not supported as a storage type in DSQL).
+- Bump `dsql-lint` dependency to `>=0.2.1,<0.3`. The 0.2.x line accepts the `JSON` and `JSONB` data types (both supported by DSQL).
+- Update steering, skill, and migration guides to reflect that DSQL supports `JSON` and `JSONB` columns natively. Array column types are still unsupported; arrays must be serialized as JSONB.
 
 ### Added
 

@@ -172,7 +172,7 @@ Authorize the caller against the tenant **before** validating format or calling 
 - **MUST** include `tenant_id` in all tables
 - **MUST** use `CREATE INDEX ASYNC` exclusively
 - **MUST** issue each DDL in its own `transact` call
-- **MUST** store arrays/JSON as TEXT
+- **MUST** serialize arrays as JSONB
 
 ### Workflow 2: Safe Data Migration
 
