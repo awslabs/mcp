@@ -45,7 +45,7 @@ def _allow_tmp_writes(monkeypatch):
     """Disable write-path confinement so integration tests can use tmp_path."""
     monkeypatch.setattr(
         'awslabs.aws_transform_mcp_server.file_validation._ALLOWED_WRITE_BASE',
-        '/',
+        '',
     )
 
 
