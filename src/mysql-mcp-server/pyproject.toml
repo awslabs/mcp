@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.mysql-mcp-server"
-version = "1.0.20"
+version = "1.0.21"
 description = "An AWS Labs Model Context Protocol (MCP) server for mysql"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -10,7 +10,8 @@ dependencies = [
     "loguru>=0.7.0",
     "mcp[cli]>=1.23.0",
     "pydantic>=2.10.6",
-    "asyncmy>=0.2.10"
+    "asyncmy>=0.2.10",
+    "aiorwlock>=1.5.0",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
@@ -113,6 +114,20 @@ update_changelog_on_bump = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["awslabs"]
+
+# SECURITY-CRITICAL: this custom hook fetches the Amazon RDS global CA bundle
+# from AWS's public truststore at build time and verifies it against the
+# SHA-256 pinned in hatch_build.py. The bundle is required for Aurora MySQL
+# IAM authentication (mysqlwire_iam connection method) to succeed without
+# CERTIFICATE_VERIFY_FAILED on hosts whose system trust store does not
+# include the Amazon RDS CAs. The hook fails the build on any hash mismatch,
+# so AWS CA rotations require a reviewed pin bump rather than silently
+# changing what the package trusts. See hatch_build.py module docstring.
+[tool.hatch.build.targets.wheel.hooks.custom]
+path = "hatch_build.py"
+
+[tool.hatch.build.targets.sdist.hooks.custom]
+path = "hatch_build.py"
 
 [tool.bandit]
 exclude_dirs = ["venv", ".venv", "tests"]

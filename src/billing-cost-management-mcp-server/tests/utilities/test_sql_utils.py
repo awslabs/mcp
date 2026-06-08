@@ -1407,6 +1407,27 @@ class TestEnvironmentVariables:
         assert should_convert_to_sql(15000) is True  # 15KB > 10KB
         assert should_convert_to_sql(5000) is False  # 5KB < 10KB
 
+    @patch('os.getenv')
+    def test_busy_timeout_custom(self, mock_getenv):
+        """Test custom SQLite busy timeout via environment variable."""
+        import sys
+
+        def mock_env_side_effect(key, default=None):
+            if key == 'BCM_MCP_SQLITE_TIMEOUT_MS':
+                return '60000'
+            return default
+
+        mock_getenv.side_effect = mock_env_side_effect
+
+        if 'awslabs.billing_cost_management_mcp_server.utilities.sql_utils' in sys.modules:
+            del sys.modules['awslabs.billing_cost_management_mcp_server.utilities.sql_utils']
+
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            BUSY_TIMEOUT_MS,
+        )
+
+        assert BUSY_TIMEOUT_MS == 60000
+
 
 @pytest.mark.asyncio
 async def test_get_context_logger_import():

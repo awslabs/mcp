@@ -12,10 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from awslabs.mysql_mcp_server import __version__
-from botocore.config import Config
+"""Tests for the main entry point."""
+
+from unittest.mock import patch
 
 
-# User agent configuration for AWS service calls
-USER_AGENT_EXTRA = f'md/awslabs#mcp#mysql-mcp-server#{__version__}'
-USER_AGENT_CONFIG = Config(user_agent_extra=USER_AGENT_EXTRA)
+def test_main_calls_mcp_run():
+    """Verify main() calls mcp.run()."""
+    with patch('awslabs.security_agent_mcp_server.server.mcp') as mock_mcp:
+        from awslabs.security_agent_mcp_server.server import main
+
+        main()
+        mock_mcp.run.assert_called_once()
