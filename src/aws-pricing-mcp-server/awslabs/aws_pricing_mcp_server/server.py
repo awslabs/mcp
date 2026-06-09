@@ -698,7 +698,7 @@ Example usage:
 }
 ```
 """,
-    annotations=ToolAnnotations(readOnlyHint=True),
+    annotations=ToolAnnotations(readOnlyHint=False),
 )
 async def generate_cost_report_wrapper(
     ctx: Context,
