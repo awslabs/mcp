@@ -13,7 +13,7 @@ effortless scaling, multi-region viability, among other advantages.
 - **REQUIRED: Follow DDL Guidelines** - Refer to [DDL Rules](#schema-ddl-rules)
 - **SHALL repeatedly generate fresh tokens** - Refer to [Connection Limits](auth/authentication-guide.md#connection-rules)
 - **ALWAYS use ASYNC indexes** - `CREATE INDEX ASYNC` is mandatory
-- **MUST serialize arrays as JSONB** - DSQL does not support array column types (e.g. `TEXT[]`)
+- **MUST serialize arrays** - array column types (e.g. `TEXT[]`) are not available; **SHOULD** pick `JSONB`, `JSON`, or `TEXT` by access pattern (**ASK** the user — see [Schema Design Rules](#schema-design-rules))
 - **ALWAYS Batch within row limit** - maintain transaction limits (verify via `awsknowledge`: `aurora dsql transaction limits`)
 - **REQUIRED: Sanitize SQL inputs with allowlists, regex, and quote escaping** - See [Input Validation](../mcp/tools/input-validation.md#input-validation-critical)
 - **MUST follow correct Application Layer Patterns** - when multi-tenant isolation or application referential integrity are required; refer to [Application Layer Patterns](#application-layer-patterns)
@@ -54,7 +54,11 @@ effortless scaling, multi-region viability, among other advantages.
 ### Schema Design Rules
 
 - MUST use **simple PostgreSQL types:** VARCHAR, TEXT, INTEGER, BOOLEAN, TIMESTAMP, JSON, JSONB
-- MUST serialize arrays as JSONB (DSQL does not support array column types)
+- MUST serialize arrays — array column types (e.g. `TEXT[]`) are not available
+- SHOULD pick the array/document column type by access pattern, and ASK the user before defaulting:
+  - **JSONB** — queried with `@>`, `?`, `?|`, `?&`, or `jsonb_array_elements_text`; values validated and normalized at write
+  - **JSON** — write-heavy or rarely-queried paths (no parse/sort overhead on write); preserves byte-exact input, key order, duplicate keys; `->`/`->>` still work
+  - **TEXT** — non-JSON serialization (e.g. comma-separated) or columns the database never inspects
 - ALWAYS include tenant_id in tables for multi-tenant isolation
 - SHOULD create async indexes for tenant_id and common query patterns
 

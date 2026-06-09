@@ -50,18 +50,41 @@ CREATE TABLE user_preferences (
 );
 ```
 
-**DSQL equivalent using JSONB:**
+**DSQL equivalent — pick by access pattern (ASK the user):**
 
 ```sql
+-- JSONB: queried with @>, ?, or jsonb_array_elements_text; values normalized at write
 transact([
   "CREATE TABLE user_preferences (
      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-     permissions JSONB  -- Stored as JSON array: '[\"read\",\"write\",\"admin\"]'
+     permissions JSONB  -- '[\"read\",\"write\",\"admin\"]'
+   )"
+])
+
+-- JSON: write-heavy or rarely-queried paths; preserves byte-exact input; ->/->> still work
+transact([
+  "CREATE TABLE user_preferences (
+     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+     permissions JSON
+   )"
+])
+
+-- TEXT: opaque to the database (app-side parse only)
+transact([
+  "CREATE TABLE user_preferences (
+     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+     permissions TEXT  -- e.g. 'read,write,admin'; app validates and parses
    )"
 ])
 ```
 
-**Note:** Application layer MUST validate `permissions` against the allowed value set on write. DSQL does not support array column types, so SET values are stored as a JSONB array (expand at query time with `jsonb_array_elements_text(permissions)`).
+**Choosing:**
+
+- **JSONB** when the application filters with `permissions @> '[\"admin\"]'`, expands with `jsonb_array_elements_text`, or wants invalid input rejected at write
+- **JSON** when writes dominate, when byte-exact input matters (audit, replay), or when only `->`/`->>` is needed
+- **TEXT** when the column is opaque to the database — application reads the whole value, parses it, never queries inside
+
+**Note:** Application layer MUST validate `permissions` against the allowed value set on write regardless of the column type — DSQL has no native enum-of-values constraint.
 
 ---
 

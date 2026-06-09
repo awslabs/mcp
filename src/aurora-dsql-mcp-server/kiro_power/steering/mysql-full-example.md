@@ -44,8 +44,8 @@ transact([
      description TEXT,
      price DECIMAL(10,2) NOT NULL,
      category VARCHAR(255) DEFAULT 'other' CHECK (category IN ('electronics', 'clothing', 'food', 'other')),
-     tags JSONB,
-     metadata JSONB,
+     tags JSONB,         -- queried with @>; use JSON for write-heavy paths or TEXT for opaque blobs
+     metadata JSONB,     -- same trade-off as tags; ask the user about access pattern
      stock INTEGER DEFAULT 0 CHECK (stock >= 0),
      is_active BOOLEAN DEFAULT true,
      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -69,8 +69,8 @@ transact(["CREATE INDEX ASYNC idx_products_category ON products(tenant_id, categ
 | `INT` tenant_id               | `VARCHAR(255)` for multi-tenant pattern                                                                                                                |
 | `MEDIUMTEXT`                  | `TEXT`                                                                                                                                                 |
 | `ENUM(...)`                   | `VARCHAR(255)` with `CHECK` constraint                                                                                                                 |
-| `SET(...)`                    | `JSONB` (DSQL does not support array column types)                                                                                                     |
-| `JSON`                        | `JSONB` (`JSON` also supported; prefer `JSONB` for queryable structured data)                                                                          |
+| `SET(...)`                    | `JSONB` / `JSON` / `TEXT` — choose by access pattern; ASK the user (array column types are not available)                                              |
+| `JSON`                        | `JSON` or `JSONB` — `JSON` preserves bytes and is faster on write; `JSONB` is preferred when querying with `@>`, `?`, or indexed paths                 |
 | `UNSIGNED`                    | `CHECK (col >= 0)`                                                                                                                                     |
 | `TINYINT(1)`                  | `BOOLEAN`                                                                                                                                              |
 | `DATETIME`                    | `TIMESTAMP`                                                                                                                                            |
@@ -98,8 +98,8 @@ transact(["CREATE INDEX ASYNC idx_products_category ON products(tenant_id, categ
 - **MUST map** all MySQL data types to DSQL equivalents before creating tables
 - **MUST convert** AUTO_INCREMENT to UUID with gen_random_uuid(), IDENTITY column with `GENERATED AS IDENTITY (CACHE ...)`, or explicit SEQUENCE -- ALWAYS use `GENERATED AS IDENTITY` for auto-incrementing columns (see [AUTO_INCREMENT Migration](ddl-auto-increment.md#auto_increment-migration))
 - **MUST replace** ENUM with VARCHAR and CHECK constraint
-- **MUST replace** SET with JSONB (DSQL does not support array column types)
-- **MUST map** JSON columns to `JSONB` (preferred) or `JSON`
+- **MUST replace** SET — array column types are not available; **SHOULD** pick `JSONB`, `JSON`, or `TEXT` based on access pattern, and **ASK** the user before defaulting
+- **SHOULD map** JSON columns to `JSON` (write-heavy or byte-exact) or `JSONB` (queried with `@>`, `?`, or indexed paths); **ASK** the user about query patterns
 - **MUST replace** FOREIGN KEY constraints with application-layer referential integrity
 - **MUST replace** ON UPDATE CURRENT_TIMESTAMP with application-layer updates
 - **MUST convert** all index creation to use CREATE INDEX ASYNC

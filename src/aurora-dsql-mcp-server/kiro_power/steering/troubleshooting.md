@@ -81,11 +81,11 @@ See [full list of unsupported features](https://docs.aws.amazon.com/aurora-dsql/
 ### Error: "Datatype array not supported"
 
 **Cause:** Using TEXT[] or other array column types
-**Solution:**
+**Solution:** Pick a serialized representation by access pattern (ASK the user):
 
-1. Change column to JSONB
-2. Pass `JSON.stringify(arr)` and cast on insert: `INSERT INTO t (tags) VALUES ($1::jsonb)`
-3. Expand at query time with `jsonb_array_elements_text(tags)`
+- **JSONB** — application filters with `@>`/`?`/`?|`/`?&` or expands with `jsonb_array_elements_text`. Insert: `INSERT INTO t (tags) VALUES ($1::jsonb)` with `JSON.stringify(arr)`. Query: `jsonb_array_elements_text(tags)`.
+- **JSON** — write-heavy paths or byte-exact preservation matters; only `->`/`->>` needed. Insert: `INSERT INTO t (tags) VALUES ($1)` with `JSON.stringify(arr)` (no cast — column is JSON).
+- **TEXT** — column is opaque to the database (app-side parse only). Insert raw: `INSERT INTO t (tags_csv) VALUES ($1)` with `arr.join(',')`.
 
 ### Error: "Please use CREATE INDEX ASYNC"
 
