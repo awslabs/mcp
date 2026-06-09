@@ -5,6 +5,7 @@ description = "An AWS Labs Model Context Protocol (MCP) server for AWS Documenta
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "awslabs.mcp-common>=0.1.0",
     "markdownify>=1.1.0",
     "mcp[cli]>=1.23.0",
     "pydantic>=2.10.6",
@@ -35,6 +36,12 @@ classifiers = [
 #  "virtualenv>=20.36.1", # Temporary forced a higher version because 20.33.1 from CVE-2026-22702
 #]
 
+# Resolve awslabs.mcp-common from the in-repo sibling package for local dev.
+# Once awslabs.mcp-common is published to PyPI, this block can be removed and
+# the PyPI release will satisfy the dependency automatically.
+[tool.uv.sources]
+"awslabs.mcp-common" = { path = "../awslabs-mcp-common", editable = true }
+
 [project.scripts]
 "awslabs.aws-documentation-mcp-server" = "awslabs.aws_documentation_mcp_server.server:main"
 
@@ -55,6 +62,7 @@ dev = [
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.11.1",
     "pytest-asyncio>=0.26.0",
+    "hypothesis>=6.151.6",
 ]
 
 [build-system]
@@ -118,6 +126,7 @@ packages = ["awslabs"]
 [tool.pytest.ini_options]
 markers = [
     "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
+    "slow: marks tests that are slow or timing-sensitive (deselect with '-m \"not slow\"')",
     "asyncio: marks tests that use asyncio"
 ]
 asyncio_mode = "strict"
