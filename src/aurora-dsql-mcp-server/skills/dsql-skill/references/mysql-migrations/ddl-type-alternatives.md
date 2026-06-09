@@ -50,18 +50,18 @@ CREATE TABLE user_preferences (
 );
 ```
 
-**DSQL equivalent using TEXT (comma-separated):**
+**DSQL equivalent using JSONB:**
 
 ```sql
 transact([
   "CREATE TABLE user_preferences (
      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-     permissions TEXT  -- Stored as comma-separated: 'read,write,admin'
+     permissions JSONB  -- Stored as JSON array: '[\"read\",\"write\",\"admin\"]'
    )"
 ])
 ```
 
-**Note:** Application layer MUST validate and parse SET values. MySQL stores SET values as comma-separated strings internally, so direct migration preserves the format.
+**Note:** Application layer MUST validate `permissions` against the allowed value set on write. DSQL does not support array column types, so SET values are stored as a JSONB array (expand at query time with `jsonb_array_elements_text(permissions)`).
 
 ---
 

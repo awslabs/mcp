@@ -13,7 +13,7 @@ effortless scaling, multi-region viability, among other advantages.
 - **REQUIRED: Follow DDL Guidelines** - Refer to [DDL Rules](#schema-ddl-rules)
 - **SHALL repeatedly generate fresh tokens** - Refer to [Connection Limits](auth/authentication-guide.md#connection-rules)
 - **ALWAYS use ASYNC indexes** - `CREATE INDEX ASYNC` is mandatory
-- **MUST serialize arrays as JSONB** - DSQL supports JSON and JSONB columns natively; arrays must still be serialized (use JSONB)
+- **MUST serialize arrays as JSONB** - DSQL does not support array column types (e.g. `TEXT[]`)
 - **ALWAYS Batch within row limit** - maintain transaction limits (verify via `awsknowledge`: `aurora dsql transaction limits`)
 - **REQUIRED: Sanitize SQL inputs with allowlists, regex, and quote escaping** - See [Input Validation](../mcp/tools/input-validation.md#input-validation-critical)
 - **MUST follow correct Application Layer Patterns** - when multi-tenant isolation or application referential integrity are required; refer to [Application Layer Patterns](#application-layer-patterns)
@@ -124,7 +124,7 @@ UPDATE table SET c = 'default' WHERE c IS NULL;        ← AFTER ADD COLUMN
 ### Supported Data Types
 
 ```
-VARCHAR, TEXT, INTEGER, DECIMAL, BOOLEAN, TIMESTAMP, UUID
+VARCHAR, TEXT, INTEGER, DECIMAL, BOOLEAN, TIMESTAMP, UUID, JSON, JSONB
 ```
 
 ### Supported Key

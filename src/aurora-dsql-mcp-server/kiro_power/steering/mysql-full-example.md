@@ -99,7 +99,7 @@ transact(["CREATE INDEX ASYNC idx_products_category ON products(tenant_id, categ
 - **MUST convert** AUTO_INCREMENT to UUID with gen_random_uuid(), IDENTITY column with `GENERATED AS IDENTITY (CACHE ...)`, or explicit SEQUENCE -- ALWAYS use `GENERATED AS IDENTITY` for auto-incrementing columns (see [AUTO_INCREMENT Migration](ddl-auto-increment.md#auto_increment-migration))
 - **MUST replace** ENUM with VARCHAR and CHECK constraint
 - **MUST replace** SET with JSONB (DSQL does not support array column types)
-- **MAY keep** JSON columns as `JSONB` (preferred) or `JSON` — DSQL supports both natively
+- **MUST map** JSON columns to `JSONB` (preferred) or `JSON`
 - **MUST replace** FOREIGN KEY constraints with application-layer referential integrity
 - **MUST replace** ON UPDATE CURRENT_TIMESTAMP with application-layer updates
 - **MUST convert** all index creation to use CREATE INDEX ASYNC

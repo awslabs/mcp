@@ -20,8 +20,8 @@ CREATE TABLE IF NOT EXISTS orders (
   order_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id VARCHAR(255) NOT NULL,
   status VARCHAR(50) NOT NULL,
-  tags TEXT,
-  metadata TEXT,
+  tags JSONB,
+  metadata JSONB,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```

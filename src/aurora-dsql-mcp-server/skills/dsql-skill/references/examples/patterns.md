@@ -131,7 +131,7 @@ INSERT INTO distributors VALUES (nextval('order_seq'), 'nothing');
 
 ## Data Serialization
 
-**Pattern:** Use JSONB for objects and for arrays. DSQL supports `JSON` and `JSONB` columns natively; array column types (e.g. `TEXT[]`) are NOT supported, so arrays must be stored as JSONB. See [supported data types](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/working-with-postgresql-compatibility-supported-data-types.html).
+**Pattern:** Use JSONB for objects and for arrays. Array column types (e.g. `TEXT[]`) are not supported in DSQL, so arrays must be stored as JSONB. See [supported data types](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/working-with-postgresql-compatibility-supported-data-types.html).
 
 ```javascript
 const categories = ['backend', 'api', 'database'];
