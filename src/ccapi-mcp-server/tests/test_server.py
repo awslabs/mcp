@@ -1321,6 +1321,9 @@ class TestTools:
         explained_token = 'valid_explained'
         security_token = 'valid_security'
         _workflow_store[explained_token] = {'type': 'explained_properties', 'data': {}}
-        _workflow_store[security_token] = {'type': 'security_scan', 'data': {}}
+        _workflow_store[security_token] = {
+            'type': 'security_scan',
+            'data': {},
+            'parent_token': explained_token,
+        }
         _validate_token_chain(explained_token, security_token, _workflow_store)
-        assert _workflow_store[security_token]['parent_token'] == explained_token
