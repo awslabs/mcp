@@ -131,19 +131,7 @@ INSERT INTO distributors VALUES (nextval('order_seq'), 'nothing');
 
 ## Data Serialization
 
-Arrays must be serialized into a single-column representation. The format choice is access-pattern-dependent. See [supported data types](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/working-with-postgresql-compatibility-supported-data-types.html).
-
-**For arrays:**
-
-- **PREFER `JSONB`** when the application filters with `@>`/`?`/`?|`/`?&` or expands with `jsonb_array_elements_text`; values validated and normalized at write
-- **MAY use `TEXT`** when the column is opaque to the database — application reads the whole value, parses it, never queries inside (e.g. comma-separated tags handled entirely in app code)
-
-**For document columns:**
-
-- **`JSONB`** when querying with `@>`, `?`, or indexed JSONB paths
-- **`JSON`** when writes dominate (no parse/sort overhead), when byte-exact input matters (audit, replay, payloads with duplicate keys), or when only `->`/`->>` is needed; if migrating an existing `JSON` column, default to keeping it as `JSON`
-
-ASK the user about query patterns and read/write ratio before defaulting.
+**Pattern:** Arrays must be serialized into a single-column representation. PREFER `JSONB` for queryable arrays; MAY use `TEXT` when opaque to the database. For document columns, choose `JSONB` (queryable with `@>`/`?`/indexed paths) or `JSON` (write-heavy or byte-exact). Per [DSQL docs](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/working-with-postgresql-compatibility-supported-data-types.html).
 
 **JSONB (write + query with operators):**
 

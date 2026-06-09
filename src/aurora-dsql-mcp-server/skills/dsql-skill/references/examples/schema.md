@@ -20,13 +20,13 @@ CREATE TABLE IF NOT EXISTS orders (
   order_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id VARCHAR(255) NOT NULL,
   status VARCHAR(50) NOT NULL,
-  tags JSONB,         -- array; JSONB lets the queries below use @> directly (MAY use TEXT for opaque columns)
-  metadata JSONB,     -- document; JSONB chosen because queries below filter with `@>`/`?` (MAY keep `JSON` if writes dominate or byte-exact preservation matters)
+  tags JSONB,
+  metadata JSON,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
-Column-type choices for arrays and documents are access-pattern-dependent — see Schema Design Rules in `development-guide.md`.
+Both `JSONB` and `JSON` are valid; pick by access pattern (see Schema Design Rules in `development-guide.md`).
 
 ---
 

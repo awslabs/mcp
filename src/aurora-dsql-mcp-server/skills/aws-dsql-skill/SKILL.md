@@ -194,7 +194,7 @@ See [scripts/README.md](scripts/README.md) for usage and hook configuration.
 - MUST include tenant_id in all tables
 - MUST use `CREATE INDEX ASYNC` exclusively
 - MUST issue each DDL in its own transact call: `transact(["CREATE TABLE ..."])`
-- MUST serialize arrays into a single-column representation; PREFER `JSONB` (operators work directly), with `TEXT` as a MAY for opaque columns; ASK the user. For `JSONB` arrays, expand at query time with `jsonb_array_elements_text(data)`
+- MUST serialize arrays into a single-column representation; PREFER `JSONB` (operators work directly); MAY use `TEXT` when the column is opaque to the database; ASK the user. For `JSONB` arrays, expand at query time with `jsonb_array_elements_text(data)`
 
 ### Workflow 2: Safe Data Migration
 

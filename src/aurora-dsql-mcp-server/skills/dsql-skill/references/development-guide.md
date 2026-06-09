@@ -13,7 +13,7 @@ effortless scaling, multi-region viability, among other advantages.
 - **REQUIRED: Follow DDL Guidelines** - Refer to [DDL Rules](#schema-ddl-rules)
 - **SHALL repeatedly generate fresh tokens** - Refer to [Connection Limits](auth/authentication-guide.md#connection-rules)
 - **ALWAYS use ASYNC indexes** - `CREATE INDEX ASYNC` is mandatory
-- **MUST serialize arrays** into a single-column representation; **PREFER `JSONB`** (operators work directly), with **`TEXT`** as a MAY for opaque columns — **ASK** the user (see [Schema Design Rules](#schema-design-rules))
+- **MUST serialize arrays** into a single-column representation; **PREFER `JSONB`** (operators work directly); **MAY use `TEXT`** when the column is opaque to the database; **ASK** the user (see [Schema Design Rules](#schema-design-rules))
 - **ALWAYS Batch within row limit** - maintain transaction limits (verify via `awsknowledge`: `aurora dsql transaction limits`)
 - **REQUIRED: Sanitize SQL inputs with allowlists, regex, and quote escaping** - See [Input Validation](../mcp/tools/input-validation.md#input-validation-critical)
 - **MUST follow correct Application Layer Patterns** - when multi-tenant isolation or application referential integrity are required; refer to [Application Layer Patterns](#application-layer-patterns)
@@ -60,7 +60,7 @@ effortless scaling, multi-region viability, among other advantages.
 - For document columns:
   - **`JSONB`** when querying with `@>`, `?`, or indexed JSONB paths
   - **`JSON`** when writes dominate (no parse/sort overhead), when byte-exact input matters (audit, replay, payloads with duplicate keys), or when only `->`/`->>` is needed
-  - When migrating an existing `JSON` column, **SHOULD keep `JSON`**; **MAY upgrade to `JSONB`** if the application needs JSONB-only operators or indexed paths
+  - **SHOULD keep** existing `JSON` columns as `JSON` when migrating; **MAY upgrade to `JSONB`** if the application needs JSONB-only operators or indexed paths
   - ASK the user about query patterns and read/write ratio before defaulting
 - ALWAYS include tenant_id in tables for multi-tenant isolation
 - SHOULD create async indexes for tenant_id and common query patterns
