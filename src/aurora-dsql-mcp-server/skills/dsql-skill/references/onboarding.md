@@ -35,7 +35,7 @@ These guidelines apply when users say "Get started with DSQL" or similar phrases
   - Example:
     - "What column names would you like in this table?"
     - "What is the column name of the primary key?"
-    - "Should this column be JSON, JSONB, or TEXT? (JSONB for `@>`/`?` queries; JSON for write-heavy or byte-exact paths; TEXT for opaque blobs.)"
+    - "Should this column be JSON, JSONB, or TEXT? (PREFER JSONB for `@>`/`?` queries; JSON for write-heavy or byte-exact paths; TEXT for columns the database never inspects.)"
 
 **Examples:**
 
@@ -252,7 +252,7 @@ cargo add aws-sdk-dsql tokio --features full
 - If yes, MUST verify DSQL compatibility:
   - No SERIAL types (use `GENERATED AS IDENTITY` with sequences, or UUID)
   - No foreign keys (implement in application)
-  - No array column types (serialize arrays as JSONB, JSON, or TEXT — pick by access pattern; ASK the user)
+  - Arrays must be serialized (PREFER `JSONB`; MAY use `TEXT` for columns the database never inspects)
   - Reference [`./development-guide.md`](./development-guide.md) for full constraints
 
 **If no schema found:**
@@ -349,7 +349,7 @@ Let them know you're ready to help with more:
 **ALWAYS follow these rules:**
 
 1. **Indexes:** Use `CREATE INDEX ASYNC` - synchronous index creation not supported
-2. **Serialization:** Arrays must be serialized — array column types are not available. Pick `JSONB` (queried with `@>`/`?`), `JSON` (write-heavy or byte-exact), or `TEXT` (opaque) by access pattern; ASK the user.
+2. **Serialization:** Arrays must be serialized into a single column — PREFER `JSONB` (operators work directly); MAY use `TEXT` for columns the database never inspects. For document columns, `JSON` is also a valid choice (write-heavy or byte-exact paths). ASK the user.
 3. **Referential Integrity:** Implement foreign key validation in application code
 4. **DDL Operations:** Execute one DDL per transaction, no mixing with DML
 5. **Transaction Limits:** Maximum 3,000 row modifications, 10 MiB data size per transaction

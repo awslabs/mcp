@@ -50,10 +50,11 @@ CREATE TABLE user_preferences (
 );
 ```
 
-**DSQL equivalent — pick by access pattern (ASK the user):**
+**DSQL equivalent — PREFER JSONB; MAY use TEXT for opaque columns. ASK the user.**
 
 ```sql
--- JSONB: queried with @>, ?, or jsonb_array_elements_text; values normalized at write
+-- PREFERRED: JSONB. Filter with `@>`, expand with `jsonb_array_elements_text`,
+-- and let the database validate JSON shape on write.
 transact([
   "CREATE TABLE user_preferences (
      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -61,15 +62,8 @@ transact([
    )"
 ])
 
--- JSON: write-heavy or rarely-queried paths; preserves byte-exact input; ->/->> still work
-transact([
-  "CREATE TABLE user_preferences (
-     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-     permissions JSON
-   )"
-])
-
--- TEXT: opaque to the database (app-side parse only)
+-- MAY: TEXT, when the column is opaque to the database (application
+-- reads the whole value, parses it, never queries inside).
 transact([
   "CREATE TABLE user_preferences (
      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -80,11 +74,10 @@ transact([
 
 **Choosing:**
 
-- **JSONB** when the application filters with `permissions @> '[\"admin\"]'`, expands with `jsonb_array_elements_text`, or wants invalid input rejected at write
-- **JSON** when writes dominate, when byte-exact input matters (audit, replay), or when only `->`/`->>` is needed
+- **JSONB** when the application filters with `permissions @> '[\"admin\"]'`, expands with `jsonb_array_elements_text`, or wants JSON shape validated at write
 - **TEXT** when the column is opaque to the database — application reads the whole value, parses it, never queries inside
 
-**Note:** Application layer MUST validate `permissions` against the allowed value set on write regardless of the column type — DSQL has no native enum-of-values constraint.
+**Note:** Application layer MUST validate `permissions` against the allowed value set on write regardless of the column type. Enum-of-values constraints belong in the application or as a `CHECK` against a derived column.
 
 ---
 
