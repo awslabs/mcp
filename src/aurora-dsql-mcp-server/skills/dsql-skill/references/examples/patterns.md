@@ -164,7 +164,7 @@ FROM user_settings WHERE preferences->>'notifications' = 'true';
 ```javascript
 const auditPayload = { event: 'login', ts: 1717890000, user_id: '...' };
 await pool.query(
-  'INSERT INTO audit_log (id, payload) VALUES ($1, $2)',  -- no cast: column is JSON
+  'INSERT INTO audit_log (id, payload) VALUES ($1, $2)',  // no cast: column is JSON
   [eventId, JSON.stringify(auditPayload)]
 );
 ```
