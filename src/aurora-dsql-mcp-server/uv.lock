@@ -477,14 +477,14 @@ wheels = [
 
 [[package]]
 name = "dsql-lint"
-version = "0.2.1"
+version = "0.2.6"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8e/f2/1b474e957091794973af7d604410ad46653836861e76573a1df45152facd/dsql_lint-0.2.1-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:22cf40bb058ddf683930f4e79653d1da9ce102ba985dfc52c2d0bd22fb915d37", size = 2585678, upload-time = "2026-06-02T00:00:39.45Z" },
-    { url = "https://files.pythonhosted.org/packages/3e/c5/89e962d0cb91fe983096d974be26a3b06fba6a64e312abbe8a0a6683f742/dsql_lint-0.2.1-py3-none-macosx_11_0_arm64.whl", hash = "sha256:daefd9403fc056b661a6c97a13046b96149a3c195775708cc1cc0132d4b60cdb", size = 2449069, upload-time = "2026-06-02T00:00:41.206Z" },
-    { url = "https://files.pythonhosted.org/packages/7b/d0/5d164a5b50ce1c3ca801dac16c2e8ae00bddb191108f878a6aa42378dcf4/dsql_lint-0.2.1-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:86c17564e7d8c510cb72f55f27c4135138f2da14b452d319f401775d2a815958", size = 2467564, upload-time = "2026-06-02T00:00:42.831Z" },
-    { url = "https://files.pythonhosted.org/packages/ff/8d/5795c874f6ff7ac3c73e63547cd2f334725bdc9e133cec4c233151662baa/dsql_lint-0.2.1-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:1e13e80e0bb02dc0d98e5dfd4d18e5f66356f286a6d862a358e491c6ac921071", size = 2659368, upload-time = "2026-06-02T00:00:44.319Z" },
-    { url = "https://files.pythonhosted.org/packages/fb/2a/7f7f1215878aaf59189c3106314256dbf16c63726dcee53b01e9617ccf11/dsql_lint-0.2.1-py3-none-win_amd64.whl", hash = "sha256:e718ded5fda383eb9d4dc957bdfe3c25d25f91b03e8d33fb2d7a70a884f521fe", size = 2574548, upload-time = "2026-06-02T00:00:45.631Z" },
+    { url = "https://files.pythonhosted.org/packages/66/6d/4c08d5c26733f25db054a7c8e6ab5ba700603a167c9a8d994c50e8a85f17/dsql_lint-0.2.6-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:ecfb04098e313908c0d3a3320f662cd0d182dfdbe49563c1f7acb648a1bd6567", size = 3005956, upload-time = "2026-06-09T21:13:33.378Z" },
+    { url = "https://files.pythonhosted.org/packages/7d/a5/6819cb48d7ca5132e0557584064b56627f5940c0f0f84992413d221faf09/dsql_lint-0.2.6-py3-none-macosx_11_0_arm64.whl", hash = "sha256:f474cd3f49acfa57daf0b8ac9e7965ffdeb0f1039a3e7b94c0743f2834f6258c", size = 2774003, upload-time = "2026-06-09T21:13:34.987Z" },
+    { url = "https://files.pythonhosted.org/packages/ec/8e/674c2192b26d4c469be5bb72c7522a6827c200be0fc786dd95213f522bae/dsql_lint-0.2.6-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:8d189235ba9374559059b861863301794c1994831bf85db2fa81afad1b22de0a", size = 2812388, upload-time = "2026-06-09T21:13:36.413Z" },
+    { url = "https://files.pythonhosted.org/packages/58/38/8100f7d7408df10c428a375b1abbce6c36e02c2a8467eb2e9b141dc0b505/dsql_lint-0.2.6-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:766bb622080272f24351ab5253d8eaef969ce33822a86e9d9cb4b10aa5bdac26", size = 3047435, upload-time = "2026-06-09T21:13:37.779Z" },
+    { url = "https://files.pythonhosted.org/packages/34/55/8b95327f0d8cf9c53b7eb3a2eeca2139961deddb9d214300e4319a822bd9/dsql_lint-0.2.6-py3-none-win_amd64.whl", hash = "sha256:e44cccd9d22c47e02c62b8a162e7c2d0c29373f22116e98c8a5c2a318acdcec9", size = 2964830, upload-time = "2026-06-09T21:13:39.146Z" },
 ]
 
 [[package]]

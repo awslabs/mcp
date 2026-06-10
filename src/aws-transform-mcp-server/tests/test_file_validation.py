@@ -105,66 +105,115 @@ class TestValidateReadPath:
 
 
 class TestValidateWritePath:
-    """Tests for validate_write_path — path traversal, blocked dirs, edge cases."""
+    """Tests for validate_write_path — path traversal, blocked dirs, base confinement, blocked filenames."""
 
     def test_traversal_in_filename_stripped(self):
-        from awslabs.aws_transform_mcp_server.file_validation import validate_write_path
-
-        result = validate_write_path('/tmp/downloads', '../../etc/passwd')
-        assert result == '/tmp/downloads/passwd'
-
-    def test_deep_traversal_stripped(self):
-        from awslabs.aws_transform_mcp_server.file_validation import validate_write_path
-
-        result = validate_write_path('/tmp/downloads', '../../../../root/.ssh/authorized_keys')
-        assert result == '/tmp/downloads/authorized_keys'
-
-    def test_legitimate_filename_unchanged(self):
-        from awslabs.aws_transform_mcp_server.file_validation import validate_write_path
-
-        result = validate_write_path('/tmp/downloads', 'artifact.json')
-        assert result == '/tmp/downloads/artifact.json'
-
-    def test_no_filename_returns_resolved_dir(self):
+        from awslabs.aws_transform_mcp_server import file_validation
         from awslabs.aws_transform_mcp_server.file_validation import validate_write_path
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            result = validate_write_path(tmpdir)
-            assert result == os.path.realpath(tmpdir)
+            downloads = os.path.join(tmpdir, 'downloads')
+            os.makedirs(downloads)
+            original_base = file_validation._ALLOWED_WRITE_BASE
+            try:
+                file_validation._ALLOWED_WRITE_BASE = os.path.realpath(tmpdir)
+                result = validate_write_path(downloads, '../../etc/passwd')
+                assert result == os.path.join(os.path.realpath(downloads), 'passwd')
+            finally:
+                file_validation._ALLOWED_WRITE_BASE = original_base
+
+    def test_deep_traversal_stripped(self):
+        from awslabs.aws_transform_mcp_server import file_validation
+        from awslabs.aws_transform_mcp_server.file_validation import validate_write_path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            downloads = os.path.join(tmpdir, 'downloads')
+            os.makedirs(downloads)
+            original_base = file_validation._ALLOWED_WRITE_BASE
+            try:
+                file_validation._ALLOWED_WRITE_BASE = os.path.realpath(tmpdir)
+                # 'authorized_keys' is in BLOCKED_FILENAMES, so this should now raise
+                with pytest.raises(ValueError, match='Blocked filename'):
+                    validate_write_path(downloads, '../../../../root/.ssh/authorized_keys')
+                # Non-blocked filename with deep traversal should still work (basename stripped)
+                result = validate_write_path(downloads, '../../../../tmp/safe_file.txt')
+                assert result == os.path.join(os.path.realpath(downloads), 'safe_file.txt')
+            finally:
+                file_validation._ALLOWED_WRITE_BASE = original_base
+
+    def test_legitimate_filename_unchanged(self):
+        from awslabs.aws_transform_mcp_server import file_validation
+        from awslabs.aws_transform_mcp_server.file_validation import validate_write_path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            downloads = os.path.join(tmpdir, 'downloads')
+            os.makedirs(downloads)
+            original_base = file_validation._ALLOWED_WRITE_BASE
+            try:
+                file_validation._ALLOWED_WRITE_BASE = os.path.realpath(tmpdir)
+                result = validate_write_path(downloads, 'artifact.json')
+                assert result == os.path.join(os.path.realpath(downloads), 'artifact.json')
+            finally:
+                file_validation._ALLOWED_WRITE_BASE = original_base
+
+    def test_no_filename_returns_resolved_dir(self):
+        from awslabs.aws_transform_mcp_server import file_validation
+        from awslabs.aws_transform_mcp_server.file_validation import validate_write_path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            original_base = file_validation._ALLOWED_WRITE_BASE
+            try:
+                file_validation._ALLOWED_WRITE_BASE = os.path.realpath(tmpdir)
+                result = validate_write_path(tmpdir)
+                assert result == os.path.realpath(tmpdir)
+            finally:
+                file_validation._ALLOWED_WRITE_BASE = original_base
 
     def test_blocked_dir_raises_valueerror(self):
         from awslabs.aws_transform_mcp_server.file_validation import validate_write_path
 
         home = os.path.expanduser('~')
-        with pytest.raises(ValueError, match='sensitive directory'):
+        with pytest.raises(ValueError):
             validate_write_path(os.path.join(home, '.ssh'), 'authorized_keys')
 
     def test_blocked_dir_aws_raises_valueerror(self):
         from awslabs.aws_transform_mcp_server.file_validation import validate_write_path
 
         home = os.path.expanduser('~')
-        with pytest.raises(ValueError, match='sensitive directory'):
+        with pytest.raises(ValueError):
             validate_write_path(os.path.join(home, '.aws'), 'credentials')
 
     def test_dotdot_filename_raises_valueerror(self):
+        from awslabs.aws_transform_mcp_server import file_validation
         from awslabs.aws_transform_mcp_server.file_validation import validate_write_path
 
-        with pytest.raises(ValueError, match='Invalid file name'):
-            validate_write_path('/tmp', '..')
+        with tempfile.TemporaryDirectory() as tmpdir:
+            original_base = file_validation._ALLOWED_WRITE_BASE
+            try:
+                file_validation._ALLOWED_WRITE_BASE = os.path.realpath(tmpdir)
+                with pytest.raises(ValueError, match='Invalid file name'):
+                    validate_write_path(tmpdir, '..')
+            finally:
+                file_validation._ALLOWED_WRITE_BASE = original_base
 
     def test_slash_filename_raises_valueerror(self):
+        from awslabs.aws_transform_mcp_server import file_validation
         from awslabs.aws_transform_mcp_server.file_validation import validate_write_path
 
-        with pytest.raises(ValueError, match='Invalid file name'):
-            validate_write_path('/tmp', '/')
+        with tempfile.TemporaryDirectory() as tmpdir:
+            original_base = file_validation._ALLOWED_WRITE_BASE
+            try:
+                file_validation._ALLOWED_WRITE_BASE = os.path.realpath(tmpdir)
+                with pytest.raises(ValueError, match='Invalid file name'):
+                    validate_write_path(tmpdir, '/')
+            finally:
+                file_validation._ALLOWED_WRITE_BASE = original_base
 
     def test_tilde_expansion_in_save_path(self):
         from awslabs.aws_transform_mcp_server.file_validation import validate_write_path
 
-        with pytest.raises(ValueError, match='sensitive directory'):
+        with pytest.raises(ValueError, match='working directory'):
             validate_write_path('~/.ssh', 'key')
-        result = validate_write_path('/tmp', 'file.txt')
-        assert result == '/tmp/file.txt'
 
     def test_blocked_dir_logs_warning(self):
         from awslabs.aws_transform_mcp_server.file_validation import validate_write_path
@@ -176,3 +225,72 @@ class TestValidateWritePath:
         ):
             validate_write_path(os.path.join(home, '.ssh'), 'authorized_keys')
         mock_logger.warning.assert_called_once()
+
+    def test_write_outside_allowed_base_raises_valueerror(self):
+        """SavePath outside CWD must be rejected — prevents arbitrary file write."""
+        from awslabs.aws_transform_mcp_server.file_validation import validate_write_path
+
+        with pytest.raises(ValueError, match='working directory'):
+            validate_write_path('/etc/cron.d', 'backdoor')
+
+    def test_write_to_home_dir_raises_valueerror(self):
+        """Writing to ~ (home directory) must be blocked — not within CWD."""
+        from awslabs.aws_transform_mcp_server.file_validation import validate_write_path
+
+        with pytest.raises(ValueError, match='working directory'):
+            validate_write_path('~', '.bashrc')
+
+    def test_write_to_autostart_raises_valueerror(self):
+        """Writing to autostart folder must be blocked."""
+        from awslabs.aws_transform_mcp_server.file_validation import validate_write_path
+
+        with pytest.raises(ValueError, match='working directory'):
+            validate_write_path(os.path.expanduser('~/.config/autostart'), 'evil.desktop')
+
+    def test_blocked_filename_on_write_raises_valueerror(self):
+        """Sensitive filenames must be blocked on writes, not just reads."""
+        from awslabs.aws_transform_mcp_server import file_validation
+        from awslabs.aws_transform_mcp_server.file_validation import validate_write_path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            original_base = file_validation._ALLOWED_WRITE_BASE
+            try:
+                file_validation._ALLOWED_WRITE_BASE = os.path.realpath(tmpdir)
+                with pytest.raises(ValueError, match='Blocked filename'):
+                    validate_write_path(tmpdir, '.bashrc')
+                with pytest.raises(ValueError, match='Blocked filename'):
+                    validate_write_path(tmpdir, '.env')
+                with pytest.raises(ValueError, match='Blocked filename'):
+                    validate_write_path(tmpdir, 'credentials')
+            finally:
+                file_validation._ALLOWED_WRITE_BASE = original_base
+
+    def test_write_within_cwd_allowed(self):
+        """Writes within CWD should succeed."""
+        from awslabs.aws_transform_mcp_server import file_validation
+        from awslabs.aws_transform_mcp_server.file_validation import validate_write_path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            original_base = file_validation._ALLOWED_WRITE_BASE
+            try:
+                file_validation._ALLOWED_WRITE_BASE = os.path.realpath(tmpdir)
+                result = validate_write_path(tmpdir, 'artifact.json')
+                assert result == os.path.join(os.path.realpath(tmpdir), 'artifact.json')
+            finally:
+                file_validation._ALLOWED_WRITE_BASE = original_base
+
+    def test_write_within_cwd_subdir_allowed(self):
+        """Writes to subdirectories of CWD should succeed."""
+        from awslabs.aws_transform_mcp_server import file_validation
+        from awslabs.aws_transform_mcp_server.file_validation import validate_write_path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            subdir = os.path.join(tmpdir, 'downloads')
+            os.makedirs(subdir)
+            original_base = file_validation._ALLOWED_WRITE_BASE
+            try:
+                file_validation._ALLOWED_WRITE_BASE = os.path.realpath(tmpdir)
+                result = validate_write_path(subdir, 'output.zip')
+                assert result == os.path.join(os.path.realpath(subdir), 'output.zip')
+            finally:
+                file_validation._ALLOWED_WRITE_BASE = original_base
