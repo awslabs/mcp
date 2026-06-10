@@ -1338,38 +1338,40 @@ class TestEksStackHandlerPathValidation:
     """Tests that path validation is wired up in EksStackHandler methods."""
 
     @pytest.mark.asyncio
-    async def test_deploy_stack_validates_template_file(self):
-        import os
-
+    async def test_deploy_stack_calls_validate_file_path(self):
         mock_mcp = MagicMock()
         handler = EksStackHandler(mock_mcp, allow_write=True)
         mock_ctx = MagicMock(spec=Context)
 
-        home = os.path.expanduser('~')
-        result = await handler._deploy_stack(
-            ctx=mock_ctx,
-            template_file=os.path.join(home, '.aws', 'template.yaml'),
-            stack_name='test-stack',
-            cluster_name='test-cluster',
-        )
+        with patch(
+            'awslabs.eks_mcp_server.eks_stack_handler.validate_file_path',
+            side_effect=ValueError('blocked'),
+        ) as mock_validate:
+            result = await handler._deploy_stack(
+                ctx=mock_ctx,
+                template_file='/some/template.yaml',
+                stack_name='test-stack',
+                cluster_name='test-cluster',
+            )
 
-        assert result.isError
-        assert 'sensitive directory' in result.content[0].text
+            mock_validate.assert_called_once_with('/some/template.yaml')
+            assert result.isError
 
     @pytest.mark.asyncio
-    async def test_generate_template_validates_template_path(self):
-        import os
-
+    async def test_generate_template_calls_validate_file_path(self):
         mock_mcp = MagicMock()
         handler = EksStackHandler(mock_mcp, allow_write=True)
         mock_ctx = MagicMock(spec=Context)
 
-        home = os.path.expanduser('~')
-        result = await handler._generate_template(
-            ctx=mock_ctx,
-            template_path=os.path.join(home, '.ssh', 'template.yaml'),
-            cluster_name='test-cluster',
-        )
+        with patch(
+            'awslabs.eks_mcp_server.eks_stack_handler.validate_file_path',
+            side_effect=ValueError('blocked'),
+        ) as mock_validate:
+            result = await handler._generate_template(
+                ctx=mock_ctx,
+                template_path='/some/template.yaml',
+                cluster_name='test-cluster',
+            )
 
-        assert result.isError
-        assert 'sensitive directory' in result.content[0].text
+            mock_validate.assert_called_once_with('/some/template.yaml')
+            assert result.isError

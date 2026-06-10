@@ -2015,7 +2015,7 @@ class TestK8sHandlerPathValidation:
     """Tests that path validation is wired up in K8sHandler methods."""
 
     @pytest.mark.asyncio
-    async def test_generate_app_manifest_validates_output_dir(
+    async def test_generate_app_manifest_calls_validate_directory_path(
         self, mock_context, mock_mcp, mock_client_cache
     ):
         with patch(
@@ -2023,30 +2023,38 @@ class TestK8sHandlerPathValidation:
         ):
             handler = K8sHandler(mock_mcp, allow_write=True)
 
-        home = os.path.expanduser('~')
-        result = await handler.generate_app_manifest(
-            mock_context,
-            app_name='test-app',
-            image_uri='123456789012.dkr.ecr.region.amazonaws.com/repo:tag',
-            output_dir=os.path.join(home, '.aws'),
-        )
+        with patch(
+            'awslabs.eks_mcp_server.k8s_handler.validate_directory_path',
+            side_effect=ValueError('blocked'),
+        ) as mock_validate:
+            result = await handler.generate_app_manifest(
+                mock_context,
+                app_name='test-app',
+                image_uri='123456789012.dkr.ecr.region.amazonaws.com/repo:tag',
+                output_dir='/some/path',
+            )
 
-        assert result.isError
-        assert 'sensitive directory' in result.content[0].text
+            mock_validate.assert_called_once_with('/some/path')
+            assert result.isError
 
     @pytest.mark.asyncio
-    async def test_apply_yaml_validates_yaml_path(self, mock_context, mock_mcp, mock_client_cache):
+    async def test_apply_yaml_calls_validate_file_path(
+        self, mock_context, mock_mcp, mock_client_cache
+    ):
         with patch(
             'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
         ):
             handler = K8sHandler(mock_mcp, allow_write=True)
 
-        home = os.path.expanduser('~')
-        result = await handler.apply_yaml(
-            mock_context,
-            yaml_path=os.path.join(home, '.aws', 'credentials.yaml'),
-            cluster_name='test-cluster',
-        )
+        with patch(
+            'awslabs.eks_mcp_server.k8s_handler.validate_file_path',
+            side_effect=ValueError('blocked'),
+        ) as mock_validate:
+            result = await handler.apply_yaml(
+                mock_context,
+                yaml_path='/some/file.yaml',
+                cluster_name='test-cluster',
+            )
 
-        assert result.isError
-        assert 'sensitive directory' in result.content[0].text
+            mock_validate.assert_called_once_with('/some/file.yaml')
+            assert result.isError
