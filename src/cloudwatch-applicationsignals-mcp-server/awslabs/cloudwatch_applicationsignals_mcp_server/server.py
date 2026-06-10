@@ -50,6 +50,9 @@ from .canary_utils import (
     get_canary_metrics_and_service_insights,
 )
 from .change_tools import list_change_events
+from .dynamic_instrumentation.registration import (
+    register_tools as register_dynamic_instrumentation_tools,
+)
 from .enablement_tools import get_enablement_guide
 from .group_tools import (
     audit_group_health,
@@ -1708,6 +1711,9 @@ mcp.tool()(list_grouping_attribute_definitions)
 
 # RUM tools
 mcp.tool()(query_rum_events)
+
+# Dynamic instrumentation tools (preview - see dynamic_instrumentation/aws_data/README.md)
+register_dynamic_instrumentation_tools(mcp)
 
 
 def main():
