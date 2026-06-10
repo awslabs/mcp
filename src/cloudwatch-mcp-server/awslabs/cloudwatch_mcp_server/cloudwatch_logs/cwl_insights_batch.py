@@ -470,6 +470,7 @@ async def execute_cwl_insights_batch(
                 'Max log events per chunk. Use this or a `| limit N` clause in the query '
                 'to avoid overwhelming the agent context window.'
             ),
+            json_schema_extra={'type': 'integer'},
         ),
     ] = None,
     max_timeout: Annotated[
@@ -486,6 +487,7 @@ async def execute_cwl_insights_batch(
                 '(e.g., "prod-123456789012"). Useful for cross-account queries '
                 'from a monitoring account to label which source account the data came from.'
             ),
+            json_schema_extra={'type': 'string'},
         ),
     ] = None,
     profile_name: Annotated[
@@ -495,6 +497,7 @@ async def execute_cwl_insights_batch(
                 'AWS CLI profile name (e.g., "prod-readonly", "default"). '
                 'Falls back to AWS_PROFILE env var or default credential chain.'
             ),
+            json_schema_extra={'type': 'string'},
         ),
     ] = None,
 ) -> MultiRegionQueryResult:
