@@ -18,7 +18,7 @@ import pytest
 from awslabs.security_agent_mcp_server.scanner import Scanner
 from awslabs.security_agent_mcp_server.state import StateManager
 from botocore.exceptions import ClientError
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 
 @pytest.fixture
@@ -56,6 +56,34 @@ def mock_client():
         }
     )
     client.stop_code_review_job = MagicMock(return_value={})
+    client.start_code_review_job_with_diff = MagicMock(
+        return_value={'codeReviewJobId': 'cj-diff-789'}
+    )
+    client.create_threat_model = MagicMock(return_value={'threatModelId': 'tm-123'})
+    client.start_threat_model_job = MagicMock(return_value={'threatModelJobId': 'tmj-456'})
+    client.batch_get_threat_model_jobs = MagicMock(
+        return_value={'threatModelJobs': [{'status': 'COMPLETED'}]}
+    )
+    client.list_threats = MagicMock(
+        return_value={'threats': [{'threatId': 't-1', 'severity': 'HIGH'}]}
+    )
+    client.batch_get_threats = MagicMock(
+        return_value={
+            'threats': [
+                {
+                    'threatId': 't-1',
+                    'statement': 'Unauthenticated access to admin API',
+                    'severity': 'HIGH',
+                    'status': 'OPEN',
+                    'stride': ['SPOOFING'],
+                    'threatImpact': 'Account takeover',
+                    'recommendation': 'Require authentication',
+                    'impactedAssets': ['admin-api'],
+                }
+            ]
+        }
+    )
+    client.get_agent_space = MagicMock(return_value={'agentSpaceId': 'as-test'})
     return client
 
 
@@ -74,6 +102,7 @@ def mock_state(tmp_path, monkeypatch):
         agent_space_id='as-test',
         service_role='arn:aws:iam::123:role/TestRole',
         s3_bucket='test-bucket',
+        threat_model_s3_bucket='test-tm-bucket',
     )
     return sm
 
@@ -215,6 +244,32 @@ class TestScanner:
         scanner = Scanner(client=mock_client, state=mock_state)
         result = await scanner.stop_scan('nonexistent')
         assert 'error' in result
+
+    @pytest.mark.asyncio
+    async def test_stop_scan_threat_model(self, mock_client, mock_state):
+        """Stops a threat model scan via StopThreatModelJob."""
+        scanner = Scanner(client=mock_client, state=mock_state)
+        mock_state.save_scan(
+            'scan-tm',
+            {
+                'scan_id': 'scan-tm',
+                'job_id': 'tj-123',
+                'agent_space_id': 'as-test',
+                'scan_type': 'THREAT_MODEL',
+                'started_at': '2026-01-01T00:00:00+00:00',
+            },
+        )
+        mock_client.call = MagicMock(return_value={})
+        result = await scanner.stop_scan('scan-tm')
+        assert result['status'] == 'STOPPED'
+        mock_client.call.assert_called_once_with(
+            'StopThreatModelJob',
+            {
+                'agentSpaceId': 'as-test',
+                'threatModelJobId': 'tj-123',
+            },
+        )
+        mock_client.stop_code_review_job.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_start_scan_not_configured(self, mock_client, tmp_path, monkeypatch):
@@ -466,3 +521,452 @@ class TestScanner:
         result = await scanner.get_findings('scan-1')
         assert 'note' in result
         assert 'in progress' in result['note'].lower()
+
+
+class TestDiffScan:
+    """Tests for start_diff_scan."""
+
+    @pytest.mark.asyncio
+    async def test_diff_scan_success_no_prior_review(self, mock_client, mock_state, tmp_path):
+        """Creates a CodeReview on first diff scan and starts the job."""
+        code_dir = tmp_path / 'code'
+        code_dir.mkdir()
+        (code_dir / 'app.py').write_text('print("hello")')
+
+        scanner = Scanner(client=mock_client, state=mock_state)
+
+        with patch('awslabs.security_agent_mcp_server.scanner.subprocess.run') as mock_run:
+            mock_run.return_value = MagicMock(
+                returncode=0,
+                stdout='diff --git a/app.py b/app.py\n+new line\n',
+                stderr='',
+            )
+            result = await scanner.start_diff_scan(path=str(code_dir), base_ref='HEAD')
+
+        assert result['scan_type'] == 'DIFF'
+        assert result['status'] == 'STARTED'
+        assert result['job_id'] == 'cj-diff-789'
+        assert result['base_ref'] == 'HEAD'
+        mock_client.upload_to_s3.assert_called()
+        mock_client.create_code_review.assert_called_once()
+        mock_client.start_code_review_job_with_diff.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_diff_scan_reuses_existing_code_review(self, mock_client, mock_state, tmp_path):
+        """Reuses existing CodeReview when one exists for the workspace."""
+        code_dir = tmp_path / 'code'
+        code_dir.mkdir()
+        (code_dir / 'app.py').write_text('print("hello")')
+        mock_state.set_code_review_id(str(code_dir), 'cr-existing')
+
+        scanner = Scanner(client=mock_client, state=mock_state)
+
+        with patch('awslabs.security_agent_mcp_server.scanner.subprocess.run') as mock_run:
+            mock_run.return_value = MagicMock(
+                returncode=0,
+                stdout='diff --git a/app.py b/app.py\n+new line\n',
+                stderr='',
+            )
+            result = await scanner.start_diff_scan(path=str(code_dir))
+
+        assert result['code_review_id'] == 'cr-existing'
+        mock_client.create_code_review.assert_not_called()
+        mock_client.start_code_review_job_with_diff.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_diff_scan_empty_diff(self, mock_client, mock_state, tmp_path):
+        """Returns error when there are no changes to scan."""
+        code_dir = tmp_path / 'code'
+        code_dir.mkdir()
+        scanner = Scanner(client=mock_client, state=mock_state)
+
+        with patch('awslabs.security_agent_mcp_server.scanner.subprocess.run') as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout='', stderr='')
+            result = await scanner.start_diff_scan(path=str(code_dir))
+
+        assert 'error' in result
+        assert 'No diff' in result['error']
+        mock_client.upload_to_s3.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_diff_scan_git_failure(self, mock_client, mock_state, tmp_path):
+        """Returns error when git diff fails (e.g., bad ref)."""
+        code_dir = tmp_path / 'code'
+        code_dir.mkdir()
+        scanner = Scanner(client=mock_client, state=mock_state)
+
+        with patch('awslabs.security_agent_mcp_server.scanner.subprocess.run') as mock_run:
+            mock_run.return_value = MagicMock(
+                returncode=128, stdout='', stderr='fatal: bad revision'
+            )
+            result = await scanner.start_diff_scan(path=str(code_dir), base_ref='nonexistent')
+
+        assert 'error' in result
+        assert 'git diff failed' in result['error']
+
+    @pytest.mark.asyncio
+    async def test_diff_scan_git_not_installed(self, mock_client, mock_state, tmp_path):
+        """Returns error when git binary is missing."""
+        code_dir = tmp_path / 'code'
+        code_dir.mkdir()
+        scanner = Scanner(client=mock_client, state=mock_state)
+
+        with patch('awslabs.security_agent_mcp_server.scanner.subprocess.run') as mock_run:
+            mock_run.side_effect = FileNotFoundError()
+            result = await scanner.start_diff_scan(path=str(code_dir))
+
+        assert 'error' in result
+        assert 'git is not installed' in result['error']
+
+    @pytest.mark.asyncio
+    async def test_diff_scan_not_configured(self, mock_client, mock_state, tmp_path):
+        """Returns error when setup is not complete."""
+        mock_state.clear()
+        scanner = Scanner(client=mock_client, state=mock_state)
+        result = await scanner.start_diff_scan(path=str(tmp_path))
+        assert 'error' in result
+        assert 'Not configured' in result['error']
+
+    @pytest.mark.asyncio
+    async def test_diff_scan_branch_ref(self, mock_client, mock_state, tmp_path):
+        """Uses 'git diff base_ref' and 'git archive base_ref' for branch mode."""
+        code_dir = tmp_path / 'code'
+        code_dir.mkdir()
+        (code_dir / 'app.py').write_text('print("hello")')
+        scanner = Scanner(client=mock_client, state=mock_state)
+
+        with patch('awslabs.security_agent_mcp_server.scanner.subprocess.run') as mock_run:
+            mock_run.return_value = MagicMock(
+                returncode=0,
+                stdout='diff --git a/app.py b/app.py\n+new line\n',
+                stderr='',
+            )
+            await scanner.start_diff_scan(path=str(code_dir), base_ref='main')
+
+        # Verify calls: first is git diff, second is git archive
+        calls = mock_run.call_args_list
+        diff_args = calls[0][0][0]
+        archive_args = calls[1][0][0]
+        assert diff_args == ['git', 'diff', 'main', '--']
+        assert archive_args[:3] == ['git', 'archive', '--format=zip']
+        assert '--' in archive_args and 'main' in archive_args
+
+    @pytest.mark.asyncio
+    async def test_diff_scan_uploads_repo_and_diff(self, mock_client, mock_state, tmp_path):
+        """Uploads both the source repo zip and the diff patch to S3."""
+        code_dir = tmp_path / 'code'
+        code_dir.mkdir()
+        (code_dir / 'app.py').write_text('print("hello")')
+        scanner = Scanner(client=mock_client, state=mock_state)
+
+        with patch('awslabs.security_agent_mcp_server.scanner.subprocess.run') as mock_run:
+            mock_run.return_value = MagicMock(
+                returncode=0,
+                stdout='diff --git a/app.py b/app.py\n+new line\n',
+                stderr='',
+            )
+            await scanner.start_diff_scan(path=str(code_dir))
+
+        # 2 uploads expected: source.zip and diff.patch
+        assert mock_client.upload_to_s3.call_count == 2
+        keys = [call.args[1] for call in mock_client.upload_to_s3.call_args_list]
+        assert any('source.zip' in k for k in keys)
+        assert any('diff.patch' in k for k in keys)
+
+    @pytest.mark.asyncio
+    async def test_diff_scan_recreates_code_review_if_deleted(
+        self, mock_client, mock_state, tmp_path
+    ):
+        """If StartCodeReviewJob fails with ResourceNotFoundException, recreates the CodeReview."""
+        code_dir = tmp_path / 'code'
+        code_dir.mkdir()
+        (code_dir / 'app.py').write_text('print("hello")')
+        mock_state.set_code_review_id(str(code_dir), 'cr-stale')
+
+        # First call raises ResourceNotFoundException via RuntimeError, second call succeeds
+        mock_client.start_code_review_job_with_diff = MagicMock(
+            side_effect=[
+                RuntimeError(
+                    'StartCodeReviewJob with diffSource failed (404): ResourceNotFoundException'
+                ),
+                {'codeReviewJobId': 'cj-recreated'},
+            ]
+        )
+        mock_client.create_code_review = MagicMock(return_value={'codeReviewId': 'cr-new'})
+
+        scanner = Scanner(client=mock_client, state=mock_state)
+
+        with patch('awslabs.security_agent_mcp_server.scanner.subprocess.run') as mock_run:
+            mock_run.return_value = MagicMock(
+                returncode=0,
+                stdout='diff --git a/app.py b/app.py\n+new line\n',
+                stderr='',
+            )
+            result = await scanner.start_diff_scan(path=str(code_dir))
+
+        assert result['code_review_id'] == 'cr-new'
+        assert result['job_id'] == 'cj-recreated'
+        assert mock_client.create_code_review.call_count == 1
+        assert mock_client.start_code_review_job_with_diff.call_count == 2
+
+
+class TestThreatModelReview:
+    """Tests for start_threat_model_review and threat-model status/findings."""
+
+    def _make_specs(self, tmp_path):
+        design = tmp_path / 'design.md'
+        reqs = tmp_path / 'requirements.md'
+        design.write_text('# Design')
+        reqs.write_text('# Requirements')
+        return [str(design), str(reqs)]
+
+    @pytest.mark.asyncio
+    async def test_threat_model_review_success(self, mock_client, mock_state, tmp_path):
+        """Creates a threat model with specs as scope docs and starts a job."""
+        code_dir = tmp_path / 'code'
+        code_dir.mkdir()
+        (code_dir / 'app.py').write_text('print("hello")')
+        specs = self._make_specs(tmp_path)
+
+        scanner = Scanner(client=mock_client, state=mock_state)
+        result = await scanner.start_threat_model_review(path=str(code_dir), specs=specs)
+
+        assert result['scan_type'] == 'THREAT_MODEL'
+        assert result['status'] == 'STARTED'
+        assert result['threat_model_id'] == 'tm-123'
+        assert result['job_id'] == 'tmj-456'
+        assert result['spec_count'] == 2
+        mock_client.create_threat_model.assert_called_once()
+        mock_client.start_threat_model_job.assert_called_once()
+
+        # source is sent as an asset, specs as scope docs
+        kwargs = mock_client.create_threat_model.call_args.kwargs
+        assert kwargs['assets']['sourceCode'][0]['s3Location']
+        assert len(kwargs['scope_docs']) == 2
+        assert all('s3Location' in d for d in kwargs['scope_docs'])
+
+    @pytest.mark.asyncio
+    async def test_threat_model_review_uploads_source_and_specs(
+        self, mock_client, mock_state, tmp_path
+    ):
+        """Uploads the source zip plus one object per spec."""
+        code_dir = tmp_path / 'code'
+        code_dir.mkdir()
+        (code_dir / 'app.py').write_text('print("hello")')
+        specs = self._make_specs(tmp_path)
+
+        scanner = Scanner(client=mock_client, state=mock_state)
+        await scanner.start_threat_model_review(path=str(code_dir), specs=specs)
+
+        # 1 source zip + 2 specs
+        assert mock_client.upload_to_s3.call_count == 3
+        keys = [call.args[1] for call in mock_client.upload_to_s3.call_args_list]
+        assert any('source.zip' in k for k in keys)
+        assert any(k.endswith('design.md') for k in keys)
+        assert any(k.endswith('requirements.md') for k in keys)
+
+    @pytest.mark.asyncio
+    async def test_threat_model_review_no_specs(self, mock_client, mock_state, tmp_path):
+        """Returns error when no specs are provided."""
+        code_dir = tmp_path / 'code'
+        code_dir.mkdir()
+        scanner = Scanner(client=mock_client, state=mock_state)
+        result = await scanner.start_threat_model_review(path=str(code_dir), specs=[])
+        assert 'error' in result
+        assert 'No specs' in result['error']
+        mock_client.create_threat_model.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_threat_model_review_missing_spec_file(self, mock_client, mock_state, tmp_path):
+        """Returns error when a spec path does not exist."""
+        code_dir = tmp_path / 'code'
+        code_dir.mkdir()
+        scanner = Scanner(client=mock_client, state=mock_state)
+        result = await scanner.start_threat_model_review(
+            path=str(code_dir), specs=[str(tmp_path / 'missing.md')]
+        )
+        assert 'error' in result
+        assert 'not found' in result['error']
+        mock_client.upload_to_s3.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_threat_model_review_not_configured(self, mock_client, mock_state, tmp_path):
+        """Returns error when setup is not complete."""
+        mock_state.clear()
+        scanner = Scanner(client=mock_client, state=mock_state)
+        result = await scanner.start_threat_model_review(path=str(tmp_path), specs=[str(tmp_path)])
+        assert 'error' in result
+        assert 'Not configured' in result['error']
+
+    @pytest.mark.asyncio
+    async def test_threat_model_status_uses_threat_job_api(self, mock_client, mock_state):
+        """get_status routes THREAT_MODEL scans to batch_get_threat_model_jobs."""
+        scanner = Scanner(client=mock_client, state=mock_state)
+        mock_state.save_scan(
+            'scan-tm',
+            {
+                'scan_id': 'scan-tm',
+                'job_id': 'tmj-456',
+                'threat_model_id': 'tm-123',
+                'scan_type': 'THREAT_MODEL',
+                'started_at': '2026-01-01T00:00:00+00:00',
+                'agent_space_id': 'as-test',
+            },
+        )
+        status = await scanner.get_status('scan-tm')
+        assert status['status'] == 'COMPLETED'
+        mock_client.batch_get_threat_model_jobs.assert_called_once()
+        mock_client.batch_get_code_review_jobs.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_threat_model_findings(self, mock_client, mock_state):
+        """get_findings returns threats for a THREAT_MODEL scan."""
+        scanner = Scanner(client=mock_client, state=mock_state)
+        mock_state.save_scan(
+            'scan-tm',
+            {
+                'scan_id': 'scan-tm',
+                'job_id': 'tmj-456',
+                'threat_model_id': 'tm-123',
+                'scan_type': 'THREAT_MODEL',
+                'started_at': '2026-01-01T00:00:00+00:00',
+                'agent_space_id': 'as-test',
+            },
+        )
+        findings = await scanner.get_findings('scan-tm')
+        assert findings['total_findings'] == 1
+        assert findings['findings'][0]['threatId'] == 't-1'
+        assert findings['findings'][0]['recommendation'] == 'Require authentication'
+        mock_client.list_threats.assert_called_once()
+        mock_client.batch_get_threats.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_threat_model_findings_severity_filter(self, mock_client, mock_state):
+        """Severity filter excludes threats below the requested minimum."""
+        mock_client.list_threats.return_value = {
+            'threats': [
+                {'threatId': 't-1', 'severity': 'HIGH'},
+                {'threatId': 't-2', 'severity': 'LOW'},
+            ]
+        }
+        scanner = Scanner(client=mock_client, state=mock_state)
+        mock_state.save_scan(
+            'scan-tm',
+            {
+                'scan_id': 'scan-tm',
+                'job_id': 'tmj-456',
+                'scan_type': 'THREAT_MODEL',
+                'started_at': '2026-01-01T00:00:00+00:00',
+                'agent_space_id': 'as-test',
+            },
+        )
+        await scanner.get_findings('scan-tm', severity='HIGH')
+        # only the HIGH threat id is fetched in detail
+        threat_ids = mock_client.batch_get_threats.call_args.kwargs['threat_ids']
+        assert threat_ids == ['t-1']
+
+
+class TestThreatModelStatusAndFindings:
+    """Status + findings for threat-model scans (separate code path from code reviews)."""
+
+    @pytest.fixture
+    def tm_state_with_scan(self, tmp_path, monkeypatch):
+        """State with a saved THREAT_MODEL scan."""
+        monkeypatch.setattr('awslabs.security_agent_mcp_server.state.STATE_DIR', tmp_path)
+        monkeypatch.setattr(
+            'awslabs.security_agent_mcp_server.state.CONFIG_FILE', tmp_path / 'config.json'
+        )
+        monkeypatch.setattr(
+            'awslabs.security_agent_mcp_server.state.SCANS_FILE', tmp_path / 'scans.json'
+        )
+        sm = StateManager()
+        sm.update_config(agent_space_id='as-test', service_role='arn:role')
+        sm.save_scan(
+            'tm-scan',
+            {
+                'scan_id': 'tm-scan',
+                'job_id': 'tj-1',
+                'agent_space_id': 'as-test',
+                'scan_type': 'THREAT_MODEL',
+                'title': 'tm-test',
+                'started_at': '2026-01-01T00:00:00+00:00',
+            },
+        )
+        return sm
+
+    @pytest.mark.asyncio
+    async def test_get_status_threat_model(self, tm_state_with_scan):
+        """get_status routes to batch_get_threat_model_jobs for THREAT_MODEL scans."""
+        client = MagicMock()
+        client.batch_get_threat_model_jobs = MagicMock(
+            return_value={'threatModelJobs': [{'status': 'COMPLETED', 'steps': []}]}
+        )
+        scanner = Scanner(client=client, state=tm_state_with_scan)
+        status = await scanner.get_status('tm-scan')
+        assert status['status'] == 'COMPLETED'
+        client.batch_get_threat_model_jobs.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_findings_threat_model(self, tm_state_with_scan):
+        """get_findings routes to list_threats + batch_get_threats for THREAT_MODEL scans."""
+        client = MagicMock()
+        client.batch_get_threat_model_jobs = MagicMock(
+            return_value={'threatModelJobs': [{'status': 'COMPLETED', 'steps': []}]}
+        )
+        client.list_threats = MagicMock(
+            return_value={
+                'threats': [
+                    {'threatId': 't-1', 'severity': 'HIGH'},
+                    {'threatId': 't-2', 'severity': 'LOW'},
+                ]
+            }
+        )
+        client.batch_get_threats = MagicMock(
+            return_value={
+                'threats': [
+                    {
+                        'threatId': 't-1',
+                        'statement': 'Spoofing',
+                        'severity': 'HIGH',
+                        'stride': 'S',
+                        'threatImpact': 'high',
+                        'recommendation': 'Add MFA',
+                    },
+                    {
+                        'threatId': 't-2',
+                        'statement': 'Info disclosure',
+                        'severity': 'LOW',
+                        'stride': 'I',
+                    },
+                ]
+            }
+        )
+        scanner = Scanner(client=client, state=tm_state_with_scan)
+        findings = await scanner.get_findings('tm-scan')
+        assert findings['total_findings'] == 2
+        assert findings['findings'][0]['stride'] == 'S'
+        client.list_threats.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_findings_threat_model_severity_filter(self, tm_state_with_scan):
+        """Severity filter is applied before batch_get_threats."""
+        client = MagicMock()
+        client.batch_get_threat_model_jobs = MagicMock(
+            return_value={'threatModelJobs': [{'status': 'COMPLETED', 'steps': []}]}
+        )
+        client.list_threats = MagicMock(
+            return_value={
+                'threats': [
+                    {'threatId': 't-h', 'severity': 'HIGH'},
+                    {'threatId': 't-l', 'severity': 'LOW'},
+                ]
+            }
+        )
+        client.batch_get_threats = MagicMock(
+            return_value={'threats': [{'threatId': 't-h', 'severity': 'HIGH'}]}
+        )
+        scanner = Scanner(client=client, state=tm_state_with_scan)
+        findings = await scanner.get_findings('tm-scan', severity='HIGH')
+        called_ids = client.batch_get_threats.call_args.kwargs['threat_ids']
+        assert called_ids == ['t-h']
+        assert findings['total_findings'] == 1
