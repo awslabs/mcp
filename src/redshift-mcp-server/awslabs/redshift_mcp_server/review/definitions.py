@@ -262,14 +262,6 @@ See also:
 - https://aws.amazon.com/blogs/big-data/10-best-practices-for-amazon-redshift-spectrum/
 """,
     'REC_027': """\
-## To improve query performance, redesign the large table to a time series table
-
-If your data has a fixed retention period, you can organize your data as a sequence of time-series tables. In such a sequence, each table is identical but contains data for different time ranges. You can easily remove old data simply by running a DROP TABLE command on the corresponding tables. This approach is much faster than running a large-scale DELETE process and saves you from having to run a subsequent VACUUM process to reclaim space. To hide the fact that the data is stored in different tables, you can create a UNION ALL view. When you delete old data, simply refine your UNION ALL view to remove the dropped tables. Similarly, as you load new time periods into new tables, add the new tables to the view. To signal the optimizer to skip the scan on tables that don't match the query filter, your view definition filters for the date range that corresponds to each table. If your data requires processing of different time ranges, you can follow a similar approach but instead of a time range make use of another criteria for data segregation based on data access pattern such as geography (e.g. region). A sample conversion process: create multiple tables based on how the data needs to be accessed (e.g. by week, month, quarter, geography, account), create a view that consolidates all the time series tables (may include external tables queried using Redshift Spectrum), replace the query on the table with the query on the view. If a query filters on the sort key, the query planner can efficiently skip all the tables that are not used.
-
-See also:
-- https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-time-series-tables.html
-""",
-    'REC_028': """\
 ## Increase load performance by avoiding or minimizing multiple single row insert statements
 
 A data ingestion / loading process that runs a single row insert or multi row insert statement uses only the leader node for each execution and is slow when used to load large amounts of data compared to other data ingestion / loading options like a COPY command which engages compute nodes in parallel. Data compression is also inefficient when you add data only one row or a few rows at a time. Redesign the data ingestion process to replace multiple single row insert statements to either use: COPY command, COPY command with column mapping, ALTER TABLE APPEND, Bulk Insert, or Multi Row Insert.
@@ -283,7 +275,7 @@ See also:
 - https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-bulk-inserts.html
 - https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-multi-row-inserts.html
 """,
-    'REC_029': """\
+    'REC_028': """\
 ## To improve query performance, create a materialized view to use incremental refresh
 
 A materialized view contains a precomputed result set, based on an SQL query over one or more base tables. Materialized views are especially useful for speeding up queries that are predictable and repeated. Instead of performing resource-intensive queries against large tables (such as aggregates or multiple joins), applications can query a materialized view and retrieve a precomputed result set. From the user standpoint, the query results are returned much faster compared to when retrieving the same data from the base tables. To complete refresh of the materialized views with minimal impact to active workloads in your cluster, create a materialized view that can perform an incremental refresh in order to quickly identify the changes to the data in the base tables since the last refresh and update the data in the materialized view.
@@ -293,7 +285,7 @@ See also:
 - https://aws.amazon.com/blogs/big-data/speed-up-your-elt-and-bi-queries-with-amazon-redshift-materialized-views/
 - https://aws.amazon.com/blogs/big-data/optimize-your-analytical-workloads-using-the-automatic-query-rewrite-feature-of-amazon-redshift-materialized-views/
 """,
-    'REC_030': """\
+    'REC_029': """\
 ## To keep the data accurate and up to date, recreate the materialized view
 
 Due to underlying DDL changes on the base tables used in the materialized view, the materialized view can no longer be refreshed.
@@ -301,7 +293,7 @@ Due to underlying DDL changes on the base tables used in the materialized view, 
 See also:
 - https://docs.aws.amazon.com/redshift/latest/dg/r_SVV_MV_INFO.html
 """,
-    'REC_031': """\
+    'REC_030': """\
 ## To save cost, apply the necessary concurrency scaling usage limit
 
 You can define limits to monitor and control your usage and associated cost of some Amazon Redshift features. You can create daily, weekly, and monthly usage limits, and define actions that Amazon Redshift automatically takes if those limits are reached. Actions include logging an event to a system table, raising alerts with Amazon SNS and Amazon CloudWatch to notify an administrator, and disabling further usage to control costs. A concurrency scaling limit specifies the threshold of the total amount of time used by concurrency scaling in 1-minute increments.
@@ -310,7 +302,7 @@ See also:
 - https://docs.aws.amazon.com/redshift/latest/mgmt/managing-cluster-usage-limits.html
 - https://aws.amazon.com/blogs/big-data/manage-and-control-your-cost-with-amazon-redshift-concurrency-scaling-and-spectrum/
 """,
-    'REC_032': """\
+    'REC_031': """\
 ## To improve query performance, create a materialized view to use incremental refresh in the producer cluster and share the materialized view to the consumer cluster(s)
 
 Materialized views (MVs) provide a powerful route to precompute complex aggregations for use cases where high throughput is needed, and you can directly share a materialized view object via data sharing as well. For materialized views built on tables where there are frequent write operations, it is ideal to create the materialized view object on the producer itself and share the view. This method gives us the opportunity to centralize the management of the view on the producer cluster itself. For slowly changing data tables, you can share the table objects directly and build the materialized view on the shared objects directly on the consumer. This method gives us the flexibility of creating a customized view of data on each consumer according to your use case. This can help optimize the block metadata download and caching times in the data sharing query lifecycle. This also helps in materialized view refreshes because Redshift does not support incremental refresh for MVs built on shared objects.
@@ -319,7 +311,7 @@ See also:
 - https://aws.amazon.com/blogs/big-data/speed-up-your-elt-and-bi-queries-with-amazon-redshift-materialized-views/
 - https://aws.amazon.com/blogs/big-data/amazon-redshift-data-sharing-best-practices-and-considerations/
 """,
-    'REC_033': """\
+    'REC_032': """\
 ## For better price performance, leverage Redshift serverless
 
 Redshift serverless provides the same or better price performance when compared to on demand especially with intermittent workloads. This is possible because of its ability to auto pause and resume so you only pay for the times the cluster is running.
@@ -330,7 +322,7 @@ See also:
 - https://www.youtube.com/watch?v=XcRJjXudIf8
 - https://www.youtube.com/watch?v=JBPpmMq9OS8
 """,
-    'REC_034': """\
+    'REC_033': """\
 ## Ensure materialized views are not stale for data accuracy and query rewrite
 
 A materialized view contains a pre-computed result set, based on an SQL query over one or more base tables. Materialized views are especially useful for speeding up queries that are predictable and repeated. In addition, materialized views can be useful for accessing data using an alternate distribution or sort key. From the user standpoint, they don't have to re-write their queries; the re-writer will determine and use the appropriate MV and the query results are returned much faster compared to when retrieving the same data from the base tables. A stale MV does not have up-to-date data and will not be used by autorewrite.
@@ -451,70 +443,6 @@ WHERE no_of_copy > 24 AND (avg_file_size_mb < 10)
 """,
     ),
     (
-        'DataShareConsumerUsage',
-        'all',
-        """\
--- DataShareConsumerUsage
-WITH usage as (SELECT
-    database_name,
-    user_name,
-    transaction_id,
-    request_id,
-    query_id,
-    min(record_time) over (partition by user_id, session_id, transaction_id) request_start_date,
-    max(record_time) over (partition by user_id, session_id, transaction_id) request_end_date,
-    request_start_date::date request_date,
-    round(execution_time/1000000.0,2) query_execution_secs,
-    round(datediff('milliseconds', min(record_time) over (partition by user_id, session_id, transaction_id), max(record_time) over(partition by user_id, session_id, transaction_id))/1000.0,2) as request_duration_secs,
-    case when trim(nvl(error_message,'')) = '' then 0 else 1 end error_cnt,
-    round(datediff('milliseconds',request_end_date,start_time)/1000.0, 2)  as request_interval_secs,
-    round(datediff('milliseconds',request_start_date,end_time)/1000.0, 2)  as execution_secs
-FROM SYS_DATASHARE_USAGE_CONSUMER
-JOIN SYS_QUERY_HISTORY using (user_id, session_id, transaction_id)
-JOIN SVV_USER_INFO using (user_id)),
-perc as (SELECT
-    request_date,
-    database_name,
-    user_name,
-    percentile_cont(0.8) within GROUP ( ORDER BY request_duration_secs) AS p80_request_sec,
-    percentile_cont(0.9) within GROUP ( ORDER BY request_duration_secs) AS p90_request_sec,
-    percentile_cont(0.99) within GROUP ( ORDER BY request_duration_secs) AS p99_request_sec
-FROM usage
-group by 1,2,3),
-data as (
-select
-    request_date,
-    database_name db,
-    user_name,
-    count(distinct query_id) query_count,
-    avg(query_execution_secs) as avg_query_execution_secs,
-    sum(query_execution_secs) as total_query_execution_secs,
-    avg(execution_secs)::decimal(18,2) as avg_execution_secs,
-    sum(execution_secs)::decimal(18,2) as total_execution_secs,
-    avg(request_duration_secs) as avg_request_duration_secs,
-    min(p80_request_sec) p80_request_sec,
-    min(p90_request_sec) p90_request_sec,
-    min(p99_request_sec) p99_request_sec,
-    sum(request_duration_secs) as total_request_duration_secs,
-    avg(request_interval_secs) as avg_request_interval_secs,
-    sum(request_interval_secs) as total_request_interval_secs,
-    count(distinct transaction_id) total_unique_transaction,
-    count(distinct request_id) total_usage_consumer_count,
-    sum(error_cnt) total_request_error_count
-FROM usage join perc using(request_date, database_name, user_name)
-GROUP BY 1,2,3
-)
--- Signal: long running metadata sync
-SELECT count(*), 'REC_027'
-FROM data
-WHERE avg_request_duration_secs > 60
-UNION ALL
-SELECT count(*), 'REC_032'
-FROM data
-WHERE avg_request_duration_secs > 60
-""",
-    ),
-    (
         'DataShareProducerObject',
         'all',
         """\
@@ -544,7 +472,7 @@ WHERE share_type = 'OUTBOUND' and object_type = 'table'
 ORDER BY 2,3,5,4
 )
 -- Signal: materialized view shared by a producer is doing a full refresh
-SELECT count(*), 'REC_032'
+SELECT count(*), 'REC_031'
 FROM data
 WHERE is_mv_incremental_refresh = 'N'
 """,
@@ -619,19 +547,19 @@ LEFT JOIN (SELECT database_name, schema_name, mv_name name, user_name refresh_db
 ) USING (database_name, schema_name, name) WHERE SVV_MV_INFO.schema_name <> 'pg_automv'
 )
 -- Signal: materialized view is doing a full refresh
-SELECT count(*), 'REC_029'
+SELECT count(*), 'REC_028'
 FROM data
 WHERE state=0
 UNION ALL
 -- Signal: materialized view cannot be auto refreshed
-SELECT count(*), 'REC_030'
+SELECT count(*), 'REC_029'
 FROM data
 WHERE state > 1 and is_stale = 't' and autorefresh = 't'
 UNION ALL
--- Signal: materialized view is stale
-SELECT count(*), 'REC_034'
+-- Signal: materialized view is stale (exclude broken MVs already covered by REC_029)
+SELECT count(*), 'REC_033'
 FROM data
-WHERE is_stale = 't'
+WHERE is_stale = 't' AND state IN (0, 1)
 """,
     ),
     (
@@ -951,7 +879,7 @@ FROM data
 WHERE copy_count > 100
 UNION ALL
 -- Signal: high count of small_insert statements
-SELECT count(*), 'REC_028'
+SELECT count(*), 'REC_027'
 FROM data
 WHERE small_insert_count > 100
 UNION ALL
@@ -986,7 +914,7 @@ FROM data
 WHERE total_disk_spill_count > 100
 UNION ALL
 -- Signal: high concurrency scaling usage
-SELECT count(*), 'REC_031'
+SELECT count(*), 'REC_030'
 FROM data
 WHERE burst_secs > 600
 """,
@@ -1160,7 +1088,7 @@ FROM summary s
 JOIN workload_breakdown b using(workloadtype)
 )
 -- Signal: Evaluate Workload for Serverless. Cluster is busy less than 75% of the time in a day.
-SELECT count(*), 'REC_033'
+SELECT count(*), 'REC_032'
 FROM data
 WHERE total_pct_busy < 75
 """,
