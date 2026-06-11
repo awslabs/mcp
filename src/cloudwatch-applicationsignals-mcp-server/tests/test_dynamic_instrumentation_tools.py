@@ -17,6 +17,7 @@
 
 """Unit tests for dynamic instrumentation helper modules."""
 
+import awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients as parent_aws_clients
 import awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation.aws_clients as aws_clients
 import awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation.capture as capture
 import awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation.constants as constants
@@ -27,7 +28,9 @@ import awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation.
 import awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation.registration as registration
 import awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation.snapshot_parsing as snapshot_parsing
 import awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation.snapshot_rendering as snapshot_rendering
+import awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation.snapshot_tools as snapshot_tools
 import awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation.status_rendering as status_rendering
+import awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation.status_tools as status_tools
 import awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation.validation as validation
 import json
 import os
@@ -819,6 +822,345 @@ class TestSnapshotHelpers:
         assert parsed['sample_snapshot']['attributes']['aws.di.snapshot_id'] == 'snap-1'
         assert parsed['field_documentation']
         assert 'attributes.aws.di.location_hash' in parsed['field_documentation']
+
+
+class TestGetInstrumentationConfigurationStatusTool:
+    """Stubber-driven coverage for the get-status tool entrypoint."""
+
+    def _stub_application_signals(self) -> Stubber:
+        client = aws_clients.get_application_signals_client()
+        stubber = Stubber(client)
+        stubber.activate()
+        return stubber
+
+    def test_requires_status_argument(self):
+        """Omitting status returns the explicit-status guidance, not an API call."""
+        rendered = status_tools.get_instrumentation_configuration_status(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+            location_hash='aaaabbbbccccdddd',
+        )
+        assert 'status is required' in rendered
+
+    def test_rejects_invalid_status(self):
+        """An out-of-enum status is rejected before any API call."""
+        rendered = status_tools.get_instrumentation_configuration_status(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+            location_hash='aaaabbbbccccdddd',
+            status='WAT',
+        )
+        assert 'invalid status' in rendered
+
+    def test_requires_location_identifier(self):
+        """Without a location identifier, the tool returns usage help."""
+        rendered = status_tools.get_instrumentation_configuration_status(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+            status='READY',
+        )
+        assert 'Must provide one of' in rendered
+
+    def test_renders_confirmed_status_with_events(self):
+        """A READY response with events renders a CONFIRMED report."""
+        stubber = self._stub_application_signals()
+        stubber.add_response(
+            'get_instrumentation_configuration_status',
+            {
+                'Service': 'svc',
+                'Environment': 'env',
+                'SignalType': 'SNAPSHOT',
+                'Location': {
+                    'CodeLocation': {
+                        'Language': 'Python',
+                        'FilePath': '/app/handler.py',
+                        'MethodName': 'run',
+                    }
+                },
+                'Status': 'READY',
+                'Events': [{'Time': datetime(2026, 3, 9, 12, 0, 0, tzinfo=timezone.utc)}],
+            },
+            expected_params={
+                'InstrumentationType': 'BREAKPOINT',
+                'Service': 'svc',
+                'Environment': 'env',
+                'SignalType': 'SNAPSHOT',
+                'Status': 'READY',
+                'LocationIdentifier': {'LocationHash': 'aaaabbbbccccdddd'},
+            },
+        )
+        rendered = status_tools.get_instrumentation_configuration_status(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+            location_hash='aaaabbbbccccdddd',
+            status='READY',
+        )
+        stubber.assert_no_pending_responses()
+        assert 'INSTRUMENTATION STATUS' in rendered
+        assert 'CONFIRMED' in rendered
+        assert 'Events Returned: 1' in rendered
+
+    def test_translates_client_error_with_attempted_block(self):
+        """A backend error renders the attempted-retrieval block."""
+        stubber = self._stub_application_signals()
+        stubber.add_client_error(
+            'get_instrumentation_configuration_status',
+            service_error_code='ResourceNotFoundException',
+            service_message='no such config',
+        )
+        rendered = status_tools.get_instrumentation_configuration_status(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+            location_hash='aaaabbbbccccdddd',
+            status='READY',
+        )
+        assert 'ATTEMPTED TO RETRIEVE:' in rendered
+        assert 'ResourceNotFoundException' in rendered
+
+
+def _full_instrumentation_configuration() -> dict:
+    """A Configuration block with every field the bundled model marks required."""
+    return {
+        'InstrumentationType': 'BREAKPOINT',
+        'Service': 'svc',
+        'Environment': 'env',
+        'SignalType': 'SNAPSHOT',
+        'Location': {
+            'CodeLocation': {
+                'Language': 'Python',
+                'FilePath': '/app/handler.py',
+                'MethodName': 'run',
+            }
+        },
+        'LocationHash': 'aaaabbbbccccdddd',
+        'CaptureConfiguration': {
+            'CodeCapture': {
+                'CaptureArguments': ['order_id'],
+                'CaptureReturn': True,
+                'CaptureStackTrace': True,
+                'CaptureLimits': {},
+            }
+        },
+        'CreatedAt': datetime(2026, 3, 9, 11, 0, 0, tzinfo=timezone.utc),
+        'ARN': 'arn:demo',
+    }
+
+
+class TestCheckInstrumentationStatusTool:
+    """Stubber-driven coverage for the consolidated status-check tool."""
+
+    def _stub_application_signals(self) -> Stubber:
+        client = aws_clients.get_application_signals_client()
+        stubber = Stubber(client)
+        stubber.activate()
+        return stubber
+
+    def test_rejects_bad_location_hash_length(self):
+        """A non-16-character location hash is rejected before any API call."""
+        rendered = status_tools.check_instrumentation_status(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+            location_hash='short',
+            start_time='2026-03-09T12:00:00Z',
+            end_time='2026-03-09T12:05:00Z',
+        )
+        assert 'location_hash must be a 16-character' in rendered
+
+    def test_rejects_end_before_start(self):
+        """end_time must be later than start_time; this is caught after config fetch."""
+        stubber = self._stub_application_signals()
+        stubber.add_response(
+            'get_instrumentation_configuration',
+            {'Configuration': _full_instrumentation_configuration()},
+        )
+        rendered = status_tools.check_instrumentation_status(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+            location_hash='aaaabbbbccccdddd',
+            start_time='2026-03-09T12:05:00Z',
+            end_time='2026-03-09T12:00:00Z',
+        )
+        assert 'end_time must be later than start_time' in rendered
+
+    def test_config_fetch_error_reports_failure(self):
+        """A backend error fetching the configuration surfaces a created_at failure."""
+        stubber = self._stub_application_signals()
+        stubber.add_client_error(
+            'get_instrumentation_configuration',
+            service_error_code='ResourceNotFoundException',
+            service_message='no such config',
+        )
+        rendered = status_tools.check_instrumentation_status(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+            location_hash='aaaabbbbccccdddd',
+            start_time='2026-03-09T12:00:00Z',
+            end_time='2026-03-09T12:05:00Z',
+        )
+        assert 'Failed to fetch created_at' in rendered
+
+    def test_active_verdict_renders_when_active_events_present(self):
+        """A populated ACTIVE check yields an ACTIVE consolidated assessment."""
+        stubber = self._stub_application_signals()
+        stubber.add_response(
+            'get_instrumentation_configuration',
+            {'Configuration': _full_instrumentation_configuration()},
+        )
+        # The consolidated check queries ACTIVE first; one event short-circuits to ACTIVE.
+        stubber.add_response(
+            'get_instrumentation_configuration_status',
+            {
+                'Service': 'svc',
+                'Environment': 'env',
+                'SignalType': 'SNAPSHOT',
+                'Location': {'CodeLocation': {'Language': 'Python', 'FilePath': '/app/h.py'}},
+                'Status': 'ACTIVE',
+                'Events': [{'Time': datetime(2026, 3, 9, 12, 1, 0, tzinfo=timezone.utc)}],
+            },
+        )
+        rendered = status_tools.check_instrumentation_status(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+            location_hash='aaaabbbbccccdddd',
+            start_time='2026-03-09T12:00:00Z',
+            end_time='2026-03-09T12:05:00Z',
+        )
+        stubber.assert_no_pending_responses()
+        assert 'ACTIVE' in rendered
+
+
+class TestSnapshotToolsCloudWatchPath:
+    """Cover the snapshot tool entrypoints by stubbing the parent logs client.
+
+    The parent ``logs_client`` is a module-level singleton, so each test uses
+    ``Stubber`` as a context manager to guarantee it deactivates before the next
+    test stubs the same client.
+    """
+
+    def test_search_rejects_bad_timestamp(self):
+        """A non-ISO status_timestamp returns a usage error before querying."""
+        rendered = snapshot_tools.search_snapshots_for_status_event(
+            service_name='svc',
+            environment='env',
+            location_hash='aaaabbbbccccdddd',
+            status_timestamp='not-a-timestamp',
+        )
+        assert 'ISO 8601 format' in rendered
+
+    def test_search_renders_results_from_logs_insights(self):
+        """A completed Logs Insights query renders snapshot summaries as JSON."""
+        with Stubber(parent_aws_clients.logs_client) as stubber:
+            stubber.add_response('start_query', {'queryId': 'q-1'})
+            stubber.add_response(
+                'get_query_results',
+                {
+                    'status': 'Complete',
+                    'results': [
+                        [
+                            {'field': '@timestamp', 'value': '2026-03-09 12:00:00.000'},
+                            {
+                                'field': '@message',
+                                'value': json.dumps(
+                                    {
+                                        'traceId': 'trace-1',
+                                        'attributes': {
+                                            'aws.di.snapshot_id': 'snap-1',
+                                            'aws.di.location_hash': 'aaaabbbbccccdddd',
+                                        },
+                                    }
+                                ),
+                            },
+                        ]
+                    ],
+                },
+            )
+            rendered = snapshot_tools.search_snapshots_for_status_event(
+                service_name='svc',
+                environment='env',
+                location_hash='aaaabbbbccccdddd',
+                status_timestamp='2026-03-09T12:00:00Z',
+            )
+            stubber.assert_no_pending_responses()
+        parsed = json.loads(rendered)
+        assert parsed['status'] == 'Complete'
+        assert parsed['snapshot_summaries'][0]['snapshot_id'] == 'snap-1'
+
+    def test_search_renders_error_when_start_query_fails(self):
+        """A start_query ClientError surfaces as a structured ERROR response."""
+        with Stubber(parent_aws_clients.logs_client) as stubber:
+            stubber.add_client_error(
+                'start_query',
+                service_error_code='ResourceNotFoundException',
+                service_message='no log group',
+            )
+            rendered = snapshot_tools.search_snapshots_for_status_event(
+                service_name='svc',
+                environment='env',
+                location_hash='aaaabbbbccccdddd',
+                status_timestamp='2026-03-09T12:00:00Z',
+            )
+        parsed = json.loads(rendered)
+        assert parsed['status'] == 'ERROR'
+        assert 'Failed to start query' in parsed['error']
+
+    def test_sample_rejects_bad_timestamp(self):
+        """get_sample_snapshot_for_breakpoint validates the timestamp too."""
+        rendered = snapshot_tools.get_sample_snapshot_for_breakpoint(
+            service_name='svc',
+            environment='env',
+            location_hash='aaaabbbbccccdddd',
+            status_timestamp='nope',
+        )
+        assert 'ISO 8601 format' in rendered
+
+    def test_sample_renders_single_snapshot(self):
+        """A single completed result renders a SUCCESS sample-snapshot response."""
+        with Stubber(parent_aws_clients.logs_client) as stubber:
+            stubber.add_response('start_query', {'queryId': 'q-2'})
+            stubber.add_response(
+                'get_query_results',
+                {
+                    'status': 'Complete',
+                    'results': [
+                        [
+                            {'field': '@timestamp', 'value': '2026-03-09 12:00:00.000'},
+                            {
+                                'field': '@message',
+                                'value': json.dumps(
+                                    {
+                                        'traceId': 'trace-1',
+                                        'attributes': {
+                                            'event.name': 'aws.dynamic_instrumentation.snapshot',
+                                            'aws.di.snapshot_id': 'snap-1',
+                                            'aws.di.location_hash': 'aaaabbbbccccdddd',
+                                        },
+                                    }
+                                ),
+                            },
+                        ]
+                    ],
+                },
+            )
+            rendered = snapshot_tools.get_sample_snapshot_for_breakpoint(
+                service_name='svc',
+                environment='env',
+                location_hash='aaaabbbbccccdddd',
+                status_timestamp='2026-03-09T12:00:00Z',
+                include_raw=True,
+            )
+            stubber.assert_no_pending_responses()
+        parsed = json.loads(rendered)
+        assert parsed['status'] == 'SUCCESS'
+        assert parsed['sample_snapshot']['attributes']['aws.di.snapshot_id'] == 'snap-1'
 
 
 class TestCodeInstrumentationArgumentContract:
