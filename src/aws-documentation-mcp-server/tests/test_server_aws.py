@@ -22,6 +22,7 @@ from awslabs.aws_documentation_mcp_server.server_aws import (
     read_sections,
     recommend,
     search_documentation,
+    search_table,
 )
 from unittest.mock import AsyncMock, MagicMock, patch
 from urllib.parse import parse_qs, unquote, urlparse
@@ -927,6 +928,154 @@ class TestRecommend:
             assert results[0].url == ''
             assert 'Error parsing recommendations:' in results[0].title
             assert results[0].context is None
+
+
+class TestSearchTable:
+    """Tests for the search_table function."""
+
+    @pytest.mark.asyncio
+    async def test_search_table_success(self):
+        """Test successful table search."""
+        url = 'https://docs.aws.amazon.com/general/latest/gr/test.html'
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = """<html><body>
+            <h2>Service quotas</h2>
+            <table><thead><tr><th>Name</th><th>Value</th></tr></thead>
+            <tbody><tr><td>Foo quota</td><td>100</td></tr>
+            <tr><td>Bar quota</td><td>200</td></tr></tbody></table>
+        </body></html>"""
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+
+            result = await search_table(
+                ctx, url=url, section_title='Service quotas', query='Foo', max_rows=20
+            )
+
+            assert result.tables_with_matches == 1
+            assert result.results[0].matched_rows == 1
+            assert result.results[0].rows[0]['Name'] == 'Foo quota'
+
+    @pytest.mark.asyncio
+    async def test_search_table_invalid_url(self):
+        """Test that invalid URLs are rejected."""
+        ctx = MockContext()
+
+        with pytest.raises(ValueError, match='URL must be from list of supported domains'):
+            await search_table(
+                ctx,
+                url='https://example.com/page.html',
+                section_title='Test',
+                query='foo',
+                max_rows=20,
+            )
+
+    @pytest.mark.asyncio
+    async def test_search_table_url_must_end_with_html(self):
+        """Test that URLs must end with .html."""
+        ctx = MockContext()
+
+        with pytest.raises(ValueError, match='URL must end with .html'):
+            await search_table(
+                ctx,
+                url='https://docs.aws.amazon.com/test.json',
+                section_title='Test',
+                query='foo',
+                max_rows=20,
+            )
+
+    @pytest.mark.asyncio
+    async def test_search_table_empty_query(self):
+        """Test that empty query is rejected."""
+        ctx = MockContext()
+
+        with pytest.raises(ValueError, match='query parameter cannot be empty'):
+            await search_table(
+                ctx,
+                url='https://docs.aws.amazon.com/test.html',
+                section_title='Test',
+                query='',
+                max_rows=20,
+            )
+
+    @pytest.mark.asyncio
+    async def test_search_table_no_matches_returns_hint(self):
+        """Test that zero matches includes a hint."""
+        url = 'https://docs.aws.amazon.com/general/latest/gr/test.html'
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = """<html><body>
+            <h2>Quotas</h2>
+            <table><thead><tr><th>Name</th></tr></thead>
+            <tbody><tr><td>Something</td></tr></tbody></table>
+        </body></html>"""
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+
+            result = await search_table(
+                ctx, url=url, section_title='Quotas', query='nonexistent', max_rows=20
+            )
+
+            assert result.tables_with_matches == 0
+            assert result.results == []
+            assert result.hint is not None
+
+    @pytest.mark.asyncio
+    async def test_search_table_section_not_found_returns_available(self):
+        """Test that wrong section title returns available sections."""
+        url = 'https://docs.aws.amazon.com/general/latest/gr/test.html'
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = """<html><body>
+            <h2>Real Section</h2>
+            <table><thead><tr><th>A</th></tr></thead>
+            <tbody><tr><td>1</td></tr></tbody></table>
+        </body></html>"""
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+
+            result = await search_table(
+                ctx, url=url, section_title='Wrong Section', query='foo', max_rows=20
+            )
+
+            assert result.hint is not None
+            assert 'Real Section' in result.hint
+
+    @pytest.mark.asyncio
+    async def test_search_table_optional_section_title(self):
+        """Test that section_title can be omitted to search all tables."""
+        url = 'https://docs.aws.amazon.com/general/latest/gr/test.html'
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = """<html><body>
+            <h2>Section A</h2>
+            <table><thead><tr><th>Name</th></tr></thead>
+            <tbody><tr><td>Alpha</td></tr></tbody></table>
+            <h2>Section B</h2>
+            <table><thead><tr><th>Name</th></tr></thead>
+            <tbody><tr><td>Beta</td></tr></tbody></table>
+        </body></html>"""
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+
+            result = await search_table(
+                ctx, url=url, section_title=None, query='Beta', max_rows=20
+            )
+
+            assert result.tables_with_matches == 1
+            assert 'Beta' in str(result.results[0].rows)
 
 
 class TestMain:
