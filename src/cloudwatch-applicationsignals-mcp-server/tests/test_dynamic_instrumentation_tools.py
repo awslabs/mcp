@@ -38,7 +38,7 @@ import os
 import pytest
 from botocore.exceptions import ClientError, EndpointConnectionError, NoCredentialsError
 from botocore.stub import Stubber
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 
 class RecorderMCP:
@@ -1713,6 +1713,34 @@ class TestSnapshotParsingFields:
         )
         assert parsed['line_throwables']['5']['stacktrace_frame_count'] == 0
 
+    def test_mixed_numeric_and_non_numeric_line_keys_sort_without_crash(self):
+        """Numeric and non-numeric line keys sort with a total order, no TypeError.
+
+        A bare ``int(v) if v.isdigit() else v`` sort key would raise TypeError
+        comparing int vs str. ``'-1'.isdigit()`` is False, so a negative line
+        number is the realistic trigger. Numeric keys sort first by value
+        (so ``'9'`` before ``'10'``), non-numeric keys sort last lexically.
+        """
+        parsed = snapshot_parsing._parse_snapshot_fields(
+            {
+                '@message': json.dumps(
+                    {
+                        'body': {
+                            'captures': {
+                                'lines': {
+                                    '10': {'locals': {'a': {'type': 'int', 'value': '1'}}},
+                                    '9': {'locals': {'b': {'type': 'int', 'value': '2'}}},
+                                    '-1': {'locals': {'c': {'type': 'int', 'value': '3'}}},
+                                    'entry': {'locals': {'d': {'type': 'int', 'value': '4'}}},
+                                }
+                            }
+                        }
+                    }
+                )
+            }
+        )
+        assert parsed['line_numbers'] == ['9', '10', '-1', 'entry']
+
 
 class TestValidationLocationInputs:
     """Direct coverage for validation._validate_location_inputs and troubleshooting."""
@@ -2737,31 +2765,22 @@ os.environ.setdefault('AWS_DEFAULT_REGION', 'us-west-2')
 
 
 class TestResolveRegion:
-    """Cover the region-resolution ladder in dynamic_instrumentation.aws_clients."""
+    """Cover region resolution in dynamic_instrumentation.aws_clients.
+
+    DI deliberately matches the parent package (and every sibling MCP server):
+    AWS_REGION env var, else us-east-1. The profile region is intentionally not
+    consulted, so the DI app-signals client and the parent's logs_client always
+    resolve to the same region for a given caller.
+    """
 
     def test_env_region_wins(self, monkeypatch):
-        """AWS_REGION env var takes precedence over profile/config."""
+        """AWS_REGION env var is used when set."""
         monkeypatch.setenv('AWS_REGION', 'eu-central-1')
         assert aws_clients._resolve_region() == 'eu-central-1'
 
-    def test_session_region_used_when_no_env(self, monkeypatch):
-        """With no AWS_REGION, the boto3 session's region_name is returned."""
-        monkeypatch.delenv('AWS_REGION', raising=False)
-
-        class _FakeSession:
-            region_name = 'ap-southeast-2'
-
-        monkeypatch.setattr(aws_clients.boto3, 'Session', lambda **kwargs: _FakeSession())
-        assert aws_clients._resolve_region() == 'ap-southeast-2'
-
     def test_falls_back_to_us_east_1(self, monkeypatch):
-        """With neither env var nor session region, us-east-1 is the fallback."""
+        """With no AWS_REGION, us-east-1 is the fallback (profile region ignored)."""
         monkeypatch.delenv('AWS_REGION', raising=False)
-
-        class _FakeSession:
-            region_name = None
-
-        monkeypatch.setattr(aws_clients.boto3, 'Session', lambda **kwargs: _FakeSession())
         assert aws_clients._resolve_region() == 'us-east-1'
 
 
@@ -3238,7 +3257,7 @@ class TestSnapshotToolsNaiveTimeAndFilters:
         rendered = snapshot_tools.search_snapshots_for_status_event(
             service_name='svc',
             environment='env',
-            location_hash='h',
+            location_hash='aaaabbbbccccdddd',
             status_timestamp='2026-03-09T12:00:00',
             custom_filters=['@message like /boom/', '   ', ''],
         )
@@ -3256,11 +3275,115 @@ class TestSnapshotToolsNaiveTimeAndFilters:
         rendered = snapshot_tools.get_sample_snapshot_for_breakpoint(
             service_name='svc',
             environment='env',
-            location_hash='h',
+            location_hash='aaaabbbbccccdddd',
             status_timestamp='2026-03-09T12:00:00',
         )
         parsed = json.loads(rendered)
         assert parsed['status'] == 'NO_SNAPSHOTS_FOUND'
+
+
+class TestIsValidLocationHash:
+    """Cover the shared 16-char lowercase-hex location-hash validator."""
+
+    def test_valid_lowercase_hex(self):
+        """A 16-char lowercase hex string is valid."""
+        assert validation.is_valid_location_hash('0123456789abcdef') is True
+
+    def test_uppercase_hex_rejected(self):
+        """Uppercase hex is rejected (hashes are lowercase by API design)."""
+        assert validation.is_valid_location_hash('0123456789ABCDEF') is False
+
+    def test_wrong_length_rejected(self):
+        """A hash that is not exactly 16 characters is rejected."""
+        assert validation.is_valid_location_hash('abc') is False
+        assert validation.is_valid_location_hash('a' * 17) is False
+
+    def test_non_hex_characters_rejected(self):
+        """A 16-char string with a non-hex character is rejected."""
+        assert validation.is_valid_location_hash('zzzzzzzzzzzzzzzz') is False
+
+    def test_none_and_empty_rejected(self):
+        """None and empty input are rejected."""
+        assert validation.is_valid_location_hash(None) is False
+        assert validation.is_valid_location_hash('') is False
+
+
+class TestSnapshotToolsQueryHardening:
+    """Cover injection-hardening guards on the snapshot query tools."""
+
+    def test_search_rejects_invalid_location_hash(self):
+        """search_snapshots rejects a non-hex location_hash before querying."""
+        rendered = snapshot_tools.search_snapshots_for_status_event(
+            service_name='svc',
+            environment='env',
+            location_hash='not-a-hash',
+            status_timestamp='2026-03-09T12:00:00Z',
+        )
+        assert rendered == 'ERROR: location_hash must be a 16-character hex string'
+
+    def test_sample_rejects_invalid_location_hash(self):
+        """get_sample_snapshot rejects a non-hex location_hash before querying."""
+        rendered = snapshot_tools.get_sample_snapshot_for_breakpoint(
+            service_name='svc',
+            environment='env',
+            location_hash='not-a-hash',
+            status_timestamp='2026-03-09T12:00:00Z',
+        )
+        assert rendered == 'ERROR: location_hash must be a 16-character hex string'
+
+    def test_search_rejects_non_integer_limit(self, monkeypatch):
+        """A non-integer limit is rejected before the query runs."""
+        monkeypatch.setattr(
+            snapshot_tools,
+            '_execute_cloudwatch_query',
+            lambda **kwargs: pytest.fail('query should not run'),
+        )
+        rendered = snapshot_tools.search_snapshots_for_status_event(
+            service_name='svc',
+            environment='env',
+            location_hash='aaaabbbbccccdddd',
+            status_timestamp='2026-03-09T12:00:00Z',
+            limit='ten',  # type: ignore[arg-type]
+        )
+        assert rendered == 'ERROR: limit must be an integer'
+
+    def test_search_rejects_unbalanced_quote_in_custom_filter(self, monkeypatch):
+        """A custom filter with an unbalanced double-quote is rejected."""
+        monkeypatch.setattr(
+            snapshot_tools,
+            '_execute_cloudwatch_query',
+            lambda **kwargs: pytest.fail('query should not run'),
+        )
+        rendered = snapshot_tools.search_snapshots_for_status_event(
+            service_name='svc',
+            environment='env',
+            location_hash='aaaabbbbccccdddd',
+            status_timestamp='2026-03-09T12:00:00Z',
+            custom_filters=['service.name = "leak'],
+        )
+        assert 'unbalanced quotes' in rendered
+
+    def test_search_escapes_quotes_in_service_and_environment(self, monkeypatch):
+        """A double-quote in service_name/environment is escaped, not left raw.
+
+        Without escaping, the quote would terminate the Logs Insights string
+        literal and the rest would become caller-controlled query syntax.
+        """
+        captured = {}
+
+        def _fake_query(*, query_string, **kwargs):
+            captured['query_string'] = query_string
+            return {'status': 'Complete', 'queryId': 'q', 'results': [], 'messages': []}
+
+        monkeypatch.setattr(snapshot_tools, '_execute_cloudwatch_query', _fake_query)
+        snapshot_tools.search_snapshots_for_status_event(
+            service_name='svc" or "1"="1',
+            environment='env',
+            location_hash='aaaabbbbccccdddd',
+            status_timestamp='2026-03-09T12:00:00Z',
+        )
+        # The injected quote is backslash-escaped, so the literal is not broken.
+        assert 'service.name = "svc\\" or \\"1\\"=\\"1"' in captured['query_string']
 
 
 class TestStatusRenderingBranches:
@@ -3435,6 +3558,26 @@ class TestStatusAssessmentBranches:
             check_status=check,
         )
         assert isinstance(verdict, status_assessment.Ready)
+
+
+class TestParseIsoTimestamp:
+    """Cover naive vs tz-aware handling in status_tools._parse_iso_timestamp."""
+
+    def test_naive_input_assumed_utc(self):
+        """A naive timestamp (no Z/offset) is tagged UTC without shifting digits."""
+        parsed = status_tools._parse_iso_timestamp('2025-02-03T18:42:00')
+        assert parsed.tzinfo is timezone.utc
+        assert parsed.hour == 18  # not shifted into host-local time
+
+    def test_z_suffix_parsed_as_utc(self):
+        """A trailing Z is parsed as a UTC offset."""
+        parsed = status_tools._parse_iso_timestamp('2025-02-03T18:42:00Z')
+        assert parsed.utcoffset() == timedelta(0)
+
+    def test_explicit_offset_preserved(self):
+        """An explicit offset is preserved rather than overwritten with UTC."""
+        parsed = status_tools._parse_iso_timestamp('2025-02-03T18:42:00+05:00')
+        assert parsed.utcoffset() == timedelta(hours=5)
 
 
 class TestStatusToolsBranches:

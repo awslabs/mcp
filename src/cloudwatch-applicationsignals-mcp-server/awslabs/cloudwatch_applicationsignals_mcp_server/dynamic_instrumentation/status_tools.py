@@ -22,10 +22,11 @@ from .status_rendering import (
     render_status_assessment,
 )
 from .validation import (
+    is_valid_location_hash,
     normalize_instrumentation_type,
     validate_snapshot_signal,
 )
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 
@@ -73,8 +74,18 @@ Usage:
 
 
 def _parse_iso_timestamp(value: str) -> datetime:
-    """Parse an ISO 8601 timestamp, accepting trailing 'Z' as UTC."""
-    return datetime.fromisoformat(value.replace('Z', '+00:00'))
+    """Parse an ISO 8601 timestamp, accepting trailing 'Z' as UTC.
+
+    A naive input (no 'Z' or offset, e.g. ``2025-02-03T18:42:00``) is assumed
+    to be UTC rather than host-local. Without this, downstream ``astimezone``
+    calls in ``assess()`` would reinterpret it in the host timezone — on a
+    UTC-8 host ``18:42`` becomes ``02:42Z``, shifting the whole status query
+    window and causing ACTIVE/READY events to be missed.
+    """
+    parsed = datetime.fromisoformat(value.replace('Z', '+00:00'))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
 
 
 def get_instrumentation_configuration_status(
@@ -247,7 +258,7 @@ def check_instrumentation_status(
         service: Backend service identifier.
         environment: Backend environment identifier.
         instrumentation_type: BREAKPOINT or PROBE.
-        location_hash: Required 16-character location hash for the target configuration.
+        location_hash: Required 16-character lowercase hex location hash for the target configuration.
         start_time: Required ISO 8601 lower bound for the overall check window.
         end_time: Required ISO 8601 upper bound for the overall check window.
         signal_type: Must be SNAPSHOT.
@@ -263,7 +274,7 @@ def check_instrumentation_status(
     if signal_error:
         return signal_error
 
-    if not location_hash or len(location_hash) != 16:
+    if not is_valid_location_hash(location_hash):
         return 'ERROR: location_hash must be a 16-character hex string'
 
     try:

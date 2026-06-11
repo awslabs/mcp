@@ -13,8 +13,12 @@
 # limitations under the License.
 """Validation and normalization helpers for instrumentation inputs."""
 
+import re
 from .constants import SNAPSHOT_SIGNAL_TYPE
 from typing import List, Optional, Tuple
+
+
+_LOCATION_HASH_RE = re.compile(r'[0-9a-f]{16}')
 
 
 def normalize_instrumentation_type(
@@ -35,6 +39,18 @@ def normalize_instrumentation_type(
             f'(received: {instrumentation_type})'
         )
     return normalized, None
+
+
+def is_valid_location_hash(location_hash: Optional[str]) -> bool:
+    """Return True for a 16-character lowercase hexadecimal location hash.
+
+    Location hashes are 16 lowercase hex characters by API design. Validating
+    against this shape (rather than only checking length) lets snapshot/status
+    tools reject malformed input before it is interpolated into a CloudWatch
+    Logs Insights query — hex can never contain the double-quote that would
+    otherwise break out of a query string literal.
+    """
+    return bool(location_hash and _LOCATION_HASH_RE.fullmatch(location_hash))
 
 
 def validate_snapshot_signal(signal_type: str) -> Optional[str]:
