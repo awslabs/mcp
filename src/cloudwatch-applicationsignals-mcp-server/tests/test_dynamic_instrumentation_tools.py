@@ -27,6 +27,7 @@ import awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation.
 import awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation.location as location
 import awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation.registration as registration
 import awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation.snapshot_parsing as snapshot_parsing
+import awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation.snapshot_queries as snapshot_queries
 import awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation.snapshot_rendering as snapshot_rendering
 import awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation.snapshot_tools as snapshot_tools
 import awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation.status_rendering as status_rendering
@@ -2733,3 +2734,965 @@ class TestCrudToolsMoreEntrypoints:
 os.environ.setdefault('AWS_ACCESS_KEY_ID', 'test')
 os.environ.setdefault('AWS_SECRET_ACCESS_KEY', 'test')
 os.environ.setdefault('AWS_DEFAULT_REGION', 'us-west-2')
+
+
+class TestResolveRegion:
+    """Cover the region-resolution ladder in dynamic_instrumentation.aws_clients."""
+
+    def test_env_region_wins(self, monkeypatch):
+        """AWS_REGION env var takes precedence over profile/config."""
+        monkeypatch.setenv('AWS_REGION', 'eu-central-1')
+        assert aws_clients._resolve_region() == 'eu-central-1'
+
+    def test_session_region_used_when_no_env(self, monkeypatch):
+        """With no AWS_REGION, the boto3 session's region_name is returned."""
+        monkeypatch.delenv('AWS_REGION', raising=False)
+
+        class _FakeSession:
+            region_name = 'ap-southeast-2'
+
+        monkeypatch.setattr(aws_clients.boto3, 'Session', lambda **kwargs: _FakeSession())
+        assert aws_clients._resolve_region() == 'ap-southeast-2'
+
+    def test_falls_back_to_us_east_1(self, monkeypatch):
+        """With neither env var nor session region, us-east-1 is the fallback."""
+        monkeypatch.delenv('AWS_REGION', raising=False)
+
+        class _FakeSession:
+            region_name = None
+
+        monkeypatch.setattr(aws_clients.boto3, 'Session', lambda **kwargs: _FakeSession())
+        assert aws_clients._resolve_region() == 'us-east-1'
+
+
+class TestCaptureLimitsPayload:
+    """Cover each CaptureLimits field being emitted into the API payload."""
+
+    def test_each_limit_field_emitted(self):
+        """Every set CaptureLimits field is rendered into to_api_payload."""
+        limits = capture.CaptureLimits(
+            max_hits=1,
+            max_string_length=2,
+            max_collection_width=3,
+            max_collection_depth=4,
+            max_stack_frames=5,
+            max_stack_trace_size=6,
+            max_object_depth=7,
+            max_fields_per_object=8,
+        )
+        payload = limits.to_api_payload()
+        assert payload == {
+            'MaxHits': 1,
+            'MaxStringLength': 2,
+            'MaxCollectionWidth': 3,
+            'MaxCollectionDepth': 4,
+            'MaxStackFrames': 5,
+            'MaxStackTraceSize': 6,
+            'MaxObjectDepth': 7,
+            'MaxFieldsPerObject': 8,
+        }
+
+
+class TestCodeCapturePayloadAndParsing:
+    """Cover CodeCapture payload locals emission and capture_from_response branches."""
+
+    def test_capture_locals_emitted_in_payload(self):
+        """A non-None capture_locals is emitted as CaptureLocals in the payload."""
+        cap = capture.CodeCapture(
+            capture_return=True,
+            capture_stack_trace=False,
+            capture_arguments=['a'],
+            capture_locals=['x', 'y'],
+        )
+        payload = cap.to_api_payload()
+        assert payload['CodeCapture']['CaptureLocals'] == ['x', 'y']
+
+    def test_non_dict_input_yields_unknown_capture(self):
+        """A non-dict union value parses to UnknownCapture with empty raw."""
+        result = capture.capture_from_response(None)
+        assert isinstance(result, capture.UnknownCapture)
+        assert dict(result.raw) == {}
+
+    def test_inferred_code_capture_without_wrapper_key(self):
+        """A CodeCapture-shaped dict without the wrapper key infers a CodeCapture."""
+        result = capture.capture_from_response({'CaptureReturn': True, 'CaptureStackTrace': True})
+        assert isinstance(result, capture.CodeCapture)
+        assert result.capture_return is True
+
+    def test_capture_limits_present_but_not_a_dict_coerced(self):
+        """A non-dict CaptureLimits is coerced to an empty CaptureLimits."""
+        result = capture.capture_from_response(
+            {'CodeCapture': {'CaptureReturn': True, 'CaptureLimits': 'oops'}}
+        )
+        assert isinstance(result, capture.CodeCapture)
+        assert result.limits.is_empty()
+
+
+class TestCrudRenderingBranches:
+    """Cover the empty-arguments and locals rendering branches in crud_rendering."""
+
+    def test_create_success_renders_empty_arguments_as_none(self):
+        """An empty capture_arguments tuple renders '- Arguments: (none)'."""
+        loc = location.CodeLocation(language='Python', file_path='/app/h.py')
+        rendered = crud_rendering.render_create_success_message(
+            response={'LocationHash': 'h', 'ARN': 'arn', 'CreatedAt': None},
+            normalized_type='BREAKPOINT',
+            service='svc',
+            environment='env',
+            location=loc,
+            ttl_hours=None,
+            capture_arguments=[],
+            wildcard_removed=False,
+            code_capture_locals=None,
+            code_capture_return=True,
+            code_capture_stack_trace=True,
+            max_hits=None,
+            max_string_length=None,
+            max_collection_width=None,
+            max_collection_depth=None,
+            max_stack_frames=None,
+            max_stack_trace_size=None,
+            max_object_depth=None,
+            max_fields_per_object=None,
+            attribute_filters=None,
+        )
+        assert '- Arguments: (none)' in rendered
+
+    def test_list_output_renders_empty_arguments_as_none(self):
+        """A listed config with present-but-empty CaptureArguments renders '(none)'."""
+        data = {
+            'LatestConfigurations': [
+                {
+                    'Location': {'CodeLocation': {'Language': 'Python', 'FilePath': '/app/h.py'}},
+                    'LocationHash': 'h',
+                    'CaptureConfiguration': {
+                        'CodeCapture': {
+                            'CaptureReturn': True,
+                            'CaptureStackTrace': True,
+                            'CaptureArguments': [],
+                        }
+                    },
+                }
+            ]
+        }
+        rendered = crud_rendering.render_list_instrumentations_output(
+            data=data,
+            normalized_type='BREAKPOINT',
+            service='svc',
+            environment='env',
+        )
+        assert '- Arguments: (none)' in rendered
+
+    def test_get_instrumentation_output_renders_local_variables(self):
+        """A CodeCapture with capture_locals renders the Local Variables line."""
+        config = {
+            'InstrumentationType': 'BREAKPOINT',
+            'Location': {'CodeLocation': {'Language': 'Python', 'FilePath': '/app/h.py'}},
+            'CaptureConfiguration': {
+                'CodeCapture': {
+                    'CaptureReturn': True,
+                    'CaptureStackTrace': True,
+                    'CaptureLocals': ['counter', 'total'],
+                }
+            },
+        }
+        rendered = crud_rendering.render_get_instrumentation_output(
+            config=config, service='svc', environment='env'
+        )
+        assert '- Local Variables: counter, total' in rendered
+
+
+class TestErrorTranslationEmptyHelpers:
+    """Cover the empty-input early returns in error_translation helpers."""
+
+    def test_format_block_with_all_blank_values_returns_empty(self):
+        """A context whose values are all blank yields an empty block."""
+        assert error_translation._format_block('LABEL:', {'a': None, 'b': ''}) == ''
+
+    def test_numbered_section_with_empty_items_returns_empty(self):
+        """An empty items sequence yields an empty numbered section."""
+        assert error_translation._format_numbered_section('LABEL:', []) == ''
+
+    def test_read_timeout_renders_timeout_guidance(self):
+        """A ReadTimeoutError renders the timeout troubleshooting block."""
+        from botocore.exceptions import ReadTimeoutError
+
+        rendered = error_translation.translate_aws_error(
+            ReadTimeoutError(endpoint_url='http://x'),
+            action='create instrumentation',
+        )
+        assert 'TimeoutError' in rendered
+        assert 'did not respond within the socket timeout' in rendered
+
+
+class TestLocationBranches:
+    """Cover the describe/format/payload/parse branches in location."""
+
+    def test_describe_with_class_method_and_line(self):
+        """Describe renders class_name, method_name, and line_number segments."""
+        loc = location.CodeLocation(
+            language='Java',
+            file_path='/app/Order.java',
+            class_name='Order',
+            method_name='submit',
+            line_number=42,
+        )
+        assert loc.describe() == '/app/Order.java :: Order.submit:L42'
+
+    def test_level_line_level_when_line_number_set(self):
+        """Level reports LINE-LEVEL when a line_number is present."""
+        loc = location.CodeLocation(language='Python', file_path='/app/h.py', line_number=7)
+        assert loc.level() == 'LINE-LEVEL (L7)'
+
+    def test_format_details_with_extra_fields(self):
+        """format_details renders extra_fields after the known fields."""
+        loc = location.CodeLocation(
+            language='Python',
+            file_path='/app/h.py',
+            extra_fields={'CustomKey': 'CustomVal'},
+        )
+        rendered = loc.format_details()
+        assert '- CustomKey: CustomVal' in rendered
+
+    def test_to_api_payload_with_class_and_line(self):
+        """to_api_payload includes ClassName and LineNumber when set."""
+        loc = location.CodeLocation(
+            language='Java',
+            file_path='/app/Order.java',
+            class_name='Order',
+            line_number=42,
+        )
+        payload = loc.to_api_payload()['CodeLocation']
+        assert payload['ClassName'] == 'Order'
+        assert payload['LineNumber'] == 42
+
+    def test_parse_create_inputs_validation_error(self):
+        """An invalid line_number surfaces a validation error from parse_create_inputs."""
+        loc, err = location.parse_create_inputs(
+            normalized_type='BREAKPOINT',
+            language='Python',
+            file_path='/app/h.py',
+            line_number=0,
+        )
+        assert loc is None
+        assert err
+
+    def test_parse_lookup_inputs_disallows_code_location(self):
+        """allow_code_location_lookup=False rejects a code-location lookup."""
+        loc, err = location.parse_lookup_inputs(
+            normalized_type='BREAKPOINT',
+            language='Python',
+            file_path='/app/h.py',
+            allow_code_location_lookup=False,
+        )
+        assert loc is None
+        assert err is not None
+        assert 'not supported' in err
+
+    def test_location_from_response_bare_code_fields(self):
+        """A bare Language/FilePath dict (no wrapper) parses to a CodeLocation."""
+        result = location.location_from_response({'Language': 'Python', 'FilePath': '/app/h.py'})
+        assert isinstance(result, location.CodeLocation)
+        assert result.file_path == '/app/h.py'
+
+    def test_render_location_block_hash_location(self):
+        """A HashLocation renders the HASH location block."""
+        rendered = location.render_location_block(
+            location.HashLocation(location_hash='aaaabbbbccccdddd')
+        )
+        assert '- LocationKind: HASH' in rendered
+        assert '- LocationHash: aaaabbbbccccdddd' in rendered
+
+
+class TestSnapshotParsingCoercion:
+    """Cover the non-dict coercion branches and the regex escape helper."""
+
+    def test_escape_regex_with_slash(self):
+        """A value containing '/' is escaped for a Logs Insights /.../ regex."""
+        escaped = snapshot_parsing._escape_logs_insights_regex('a/b')
+        assert escaped == r'a\/b'
+
+    def test_non_dict_subfields_coerced_to_empty(self):
+        """Non-dict resource/captures/throwable subfields are coerced to {}."""
+        message = json.dumps(
+            {
+                'resource': {'attributes': 'not-a-dict'},
+                'body': {
+                    'captures': {
+                        'entry': {'arguments': 'x', 'locals': 1},
+                        'return': {'arguments': [], 'locals': 2, 'throwable': 'oops'},
+                    }
+                },
+            }
+        )
+        parsed = snapshot_parsing._parse_snapshot_fields({'@message': message})
+        assert parsed['entry_argument_names'] == []
+        assert parsed['entry_local_names'] == []
+        assert parsed['return_argument_names'] == []
+        assert parsed['return_local_names'] == []
+        assert parsed['throwable'] is None
+
+    def test_non_dict_captures_coerced_to_empty(self):
+        """A non-dict body.captures is coerced to {} before sub-extraction."""
+        message = json.dumps({'body': {'captures': 'not-a-dict'}})
+        parsed = snapshot_parsing._parse_snapshot_fields({'@message': message})
+        assert parsed['entry_argument_names'] == []
+        assert parsed['return_value'] is None
+
+
+class TestSnapshotRenderingCoercion:
+    """Cover the non-dict attributes coercion in snapshot search rendering."""
+
+    def test_non_dict_attributes_coerced(self):
+        """A snapshot whose attributes are not a dict is coerced to {}."""
+        query_result = {
+            'status': 'Complete',
+            'queryId': 'q-1',
+            'results': [{'@message': json.dumps({'attributes': 'nope'})}],
+            'messages': [],
+        }
+        rendered = snapshot_rendering.render_search_snapshots_for_status_event_output(
+            service_name='svc',
+            environment='env',
+            location_hash='h',
+            custom_filters=None,
+            start_time_utc='s',
+            end_time_utc='e',
+            start_epoch=0,
+            end_epoch=1,
+            query_string='q',
+            query_result=query_result,
+        )
+        parsed = json.loads(rendered)
+        assert parsed['snapshot_summaries'][0]['snapshot_id'] is None
+
+
+class TestSnapshotQueriesPolling:
+    """Cover the polling loop, terminal status, timeout, and exception paths."""
+
+    def test_terminal_status_returns_results(self, monkeypatch):
+        """A Complete status returns parsed results immediately."""
+
+        class _Logs:
+            def start_query(self, **kwargs):
+                return {'queryId': 'q-1'}
+
+            def get_query_results(self, **kwargs):
+                return {
+                    'status': 'Complete',
+                    'results': [[{'field': '@message', 'value': '{}'}]],
+                    'messages': [],
+                }
+
+        monkeypatch.setattr(snapshot_queries.aws_clients, 'logs_client', _Logs())
+        result = snapshot_queries._execute_cloudwatch_query(
+            query_string='q',
+            start_epoch=0,
+            end_epoch=1,
+            log_group_name='lg',
+        )
+        assert result['status'] == 'Complete'
+        assert result['results'] == [{'@message': '{}'}]
+
+    def test_sleep_then_complete(self, monkeypatch):
+        """A Running poll triggers time.sleep(1), then the next poll completes."""
+        sleeps = []
+        monkeypatch.setattr(snapshot_queries.time, 'sleep', lambda s: sleeps.append(s))
+
+        statuses = iter(['Running', 'Complete'])
+
+        class _Logs:
+            def start_query(self, **kwargs):
+                return {'queryId': 'q-1'}
+
+            def get_query_results(self, **kwargs):
+                return {'status': next(statuses), 'results': [], 'messages': []}
+
+        monkeypatch.setattr(snapshot_queries.aws_clients, 'logs_client', _Logs())
+        result = snapshot_queries._execute_cloudwatch_query(
+            query_string='q',
+            start_epoch=0,
+            end_epoch=1,
+            log_group_name='lg',
+        )
+        assert result['status'] == 'Complete'
+        assert sleeps == [1]
+
+    def test_missing_query_id_returns_error(self, monkeypatch):
+        """A start_query response without a queryId returns an error dict."""
+
+        class _Logs:
+            def start_query(self, **kwargs):
+                return {}
+
+        monkeypatch.setattr(snapshot_queries.aws_clients, 'logs_client', _Logs())
+        result = snapshot_queries._execute_cloudwatch_query(
+            query_string='q',
+            start_epoch=0,
+            end_epoch=1,
+            log_group_name='lg',
+        )
+        assert result['status'] == 'Error'
+        assert 'did not return a queryId' in result['error']
+
+    def test_start_query_generic_exception_handled(self, monkeypatch):
+        """A non-ClientError from start_query yields an error dict."""
+
+        class _Logs:
+            def start_query(self, **kwargs):
+                raise RuntimeError('start-boom')
+
+        monkeypatch.setattr(snapshot_queries.aws_clients, 'logs_client', _Logs())
+        result = snapshot_queries._execute_cloudwatch_query(
+            query_string='q',
+            start_epoch=0,
+            end_epoch=1,
+            log_group_name='lg',
+        )
+        assert result['status'] == 'Error'
+        assert result['error'] == 'start-boom'
+
+    def test_get_results_client_error_handled(self, monkeypatch):
+        """A ClientError from get_query_results yields a structured error dict."""
+
+        class _Logs:
+            def start_query(self, **kwargs):
+                return {'queryId': 'q-1'}
+
+            def get_query_results(self, **kwargs):
+                raise ClientError(
+                    error_response={'Error': {'Code': 'X', 'Message': 'nope'}},
+                    operation_name='GetQueryResults',
+                )
+
+        monkeypatch.setattr(snapshot_queries.aws_clients, 'logs_client', _Logs())
+        result = snapshot_queries._execute_cloudwatch_query(
+            query_string='q',
+            start_epoch=0,
+            end_epoch=1,
+            log_group_name='lg',
+        )
+        assert result['status'] == 'Error'
+        assert 'Failed to get results' in result['error']
+        assert result['queryId'] == 'q-1'
+
+    def test_polling_timeout_returns_timeout(self, monkeypatch):
+        """When the deadline passes without a terminal status, a timeout dict results."""
+        monkeypatch.setattr(snapshot_queries.time, 'sleep', lambda s: None)
+        # First time() call (poll_start) is small; subsequent calls exceed the deadline.
+        times = iter([1000.0, 1000.0, 2000.0, 2000.0])
+        monkeypatch.setattr(snapshot_queries.time, 'time', lambda: next(times))
+
+        class _Logs:
+            def start_query(self, **kwargs):
+                return {'queryId': 'q-1'}
+
+            def get_query_results(self, **kwargs):
+                return {'status': 'Running', 'results': [], 'messages': []}
+
+        monkeypatch.setattr(snapshot_queries.aws_clients, 'logs_client', _Logs())
+        result = snapshot_queries._execute_cloudwatch_query(
+            query_string='q',
+            start_epoch=0,
+            end_epoch=1,
+            log_group_name='lg',
+            max_timeout=5,
+        )
+        assert result['status'] == 'Polling Timeout'
+        assert result['queryId'] == 'q-1'
+
+    def test_get_results_generic_exception_handled(self, monkeypatch):
+        """A non-ClientError from get_query_results yields an error dict."""
+
+        class _Logs:
+            def start_query(self, **kwargs):
+                return {'queryId': 'q-1'}
+
+            def get_query_results(self, **kwargs):
+                raise RuntimeError('boom')
+
+        monkeypatch.setattr(snapshot_queries.aws_clients, 'logs_client', _Logs())
+        result = snapshot_queries._execute_cloudwatch_query(
+            query_string='q',
+            start_epoch=0,
+            end_epoch=1,
+            log_group_name='lg',
+        )
+        assert result['status'] == 'Error'
+        assert result['error'] == 'boom'
+        assert result['queryId'] == 'q-1'
+
+
+class TestSnapshotToolsNaiveTimeAndFilters:
+    """Cover naive-timestamp tz handling and custom_filters appending."""
+
+    def test_search_appends_custom_filters_with_naive_timestamp(self, monkeypatch):
+        """A naive timestamp gets UTC tzinfo and custom filters are appended."""
+        captured = {}
+
+        def _fake_query(*, query_string, **kwargs):
+            captured['query_string'] = query_string
+            return {'status': 'Complete', 'queryId': 'q', 'results': [], 'messages': []}
+
+        monkeypatch.setattr(snapshot_tools, '_execute_cloudwatch_query', _fake_query)
+        rendered = snapshot_tools.search_snapshots_for_status_event(
+            service_name='svc',
+            environment='env',
+            location_hash='h',
+            status_timestamp='2026-03-09T12:00:00',
+            custom_filters=['@message like /boom/', '   ', ''],
+        )
+        assert '@message like /boom/' in captured['query_string']
+        parsed = json.loads(rendered)
+        assert parsed['status'] == 'Complete'
+
+    def test_sample_handles_naive_timestamp(self, monkeypatch):
+        """get_sample_snapshot_for_breakpoint accepts a naive timestamp."""
+
+        def _fake_query(**kwargs):
+            return {'status': 'Complete', 'queryId': 'q', 'results': [], 'messages': []}
+
+        monkeypatch.setattr(snapshot_tools, '_execute_cloudwatch_query', _fake_query)
+        rendered = snapshot_tools.get_sample_snapshot_for_breakpoint(
+            service_name='svc',
+            environment='env',
+            location_hash='h',
+            status_timestamp='2026-03-09T12:00:00',
+        )
+        parsed = json.loads(rendered)
+        assert parsed['status'] == 'NO_SNAPSHOTS_FOUND'
+
+
+class TestStatusRenderingBranches:
+    """Cover error-cause, ACTIVE-not-confirmed, and verdict dispatch branches."""
+
+    def _result(self, has_events=False, events=None, error=None):
+        from awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation import (
+            status_assessment,
+        )
+
+        return status_assessment._StatusCheckResult(
+            has_events=has_events, events=events or [], error=error
+        )
+
+    def _time_window(self):
+        from awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation import (
+            status_assessment,
+        )
+
+        return status_assessment.TimeWindow(
+            created_at='2026-03-09T11:00:00Z',
+            requested_start='2026-03-09T12:00:00Z',
+            active_query_start='2026-03-09T12:00:00Z',
+            query_end='2026-03-09T12:05:00Z',
+        )
+
+    def test_explicit_status_renders_error_cause(self):
+        """An event with an ErrorCause appends the ErrorCause segment."""
+        data = {
+            'Status': 'ERROR',
+            'Location': {'CodeLocation': {'Language': 'Python', 'FilePath': '/app/h.py'}},
+            'Events': [
+                {
+                    'Time': datetime(2026, 3, 9, 12, 0, 0, tzinfo=timezone.utc),
+                    'ErrorCause': 'FILE_NOT_FOUND',
+                }
+            ],
+        }
+        rendered = status_rendering.render_get_instrumentation_configuration_status_output(
+            data=data,
+            normalized_type='BREAKPOINT',
+            service='svc',
+            environment='env',
+            requested_status='ERROR',
+        )
+        assert 'ErrorCause: FILE_NOT_FOUND' in rendered
+
+    def test_ready_dispatch_includes_active_not_confirmed_strip(self):
+        """A Ready verdict dispatches to the ready renderer (ACTIVE strip path)."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation import (
+            status_assessment,
+        )
+
+        verdict = status_assessment.Ready(
+            active=self._result(has_events=False),
+            ready=self._result(has_events=True, events=[{'Time': None}]),
+        )
+        rendered = status_rendering.render_status_assessment(
+            verdict,
+            location_hash='h',
+            service='svc',
+            environment='env',
+            normalized_type='BREAKPOINT',
+            time_window=self._time_window(),
+        )
+        assert 'OVERALL STATUS: READY (waiting for traffic)' in rendered
+        assert 'ACTIVE not confirmed yet' not in rendered
+
+    def test_active_dispatch_renders_active_output(self):
+        """An Active verdict dispatches to the active renderer."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation import (
+            status_assessment,
+        )
+
+        verdict = status_assessment.Active(
+            active=self._result(
+                has_events=True,
+                events=[{'Time': datetime(2026, 3, 9, 12, 1, 0, tzinfo=timezone.utc)}],
+            )
+        )
+        rendered = status_rendering.render_status_assessment(
+            verdict,
+            location_hash='h',
+            service='svc',
+            environment='env',
+            normalized_type='BREAKPOINT',
+            time_window=self._time_window(),
+        )
+        assert 'OVERALL STATUS: ACTIVE' in rendered
+
+    def test_error_or_pending_dispatch_renders_pending(self):
+        """An ErrorOrPending verdict with no events renders PENDING."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation import (
+            status_assessment,
+        )
+
+        verdict = status_assessment.ErrorOrPending(
+            active=self._result(),
+            ready=self._result(),
+            error=self._result(),
+        )
+        rendered = status_rendering.render_status_assessment(
+            verdict,
+            location_hash='h',
+            service='svc',
+            environment='env',
+            normalized_type='BREAKPOINT',
+            time_window=self._time_window(),
+        )
+        assert 'OVERALL STATUS: PENDING' in rendered
+
+    def test_unknown_verdict_raises_type_error(self):
+        """An unknown verdict type raises a TypeError from the dispatcher."""
+        with pytest.raises(TypeError):
+            status_rendering.render_status_assessment(
+                object(),  # type: ignore[arg-type]
+                location_hash='h',
+                service='svc',
+                environment='env',
+                normalized_type='BREAKPOINT',
+                time_window=self._time_window(),
+            )
+
+
+class TestStatusAssessmentBranches:
+    """Cover the empty-ACTIVE-window skip and READY/ERROR fall-through branches."""
+
+    def test_empty_active_window_skips_active_check(self):
+        """When the ACTIVE window is empty after clamping, ACTIVE is skipped."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation import (
+            status_assessment,
+        )
+
+        created = datetime(2026, 3, 9, 13, 0, 0, tzinfo=timezone.utc)
+        start = datetime(2026, 3, 9, 12, 0, 0, tzinfo=timezone.utc)
+        end = datetime(2026, 3, 9, 12, 30, 0, tzinfo=timezone.utc)
+
+        calls = []
+
+        def check(status, s, e):
+            calls.append(status)
+            return False, [], None
+
+        verdict, _window = status_assessment.assess(
+            created_at=created,
+            requested_start=start,
+            query_end=end,
+            check_status=check,
+        )
+        assert isinstance(verdict, status_assessment.ErrorOrPending)
+        assert 'ACTIVE' not in calls
+        assert verdict.active.error is not None
+        assert verdict.active.error.startswith('Skipped:')
+
+    def test_ready_has_events_returns_ready(self):
+        """When ACTIVE is empty but READY has events, a Ready verdict results."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation import (
+            status_assessment,
+        )
+
+        created = datetime(2026, 3, 9, 11, 0, 0, tzinfo=timezone.utc)
+        start = datetime(2026, 3, 9, 12, 0, 0, tzinfo=timezone.utc)
+        end = datetime(2026, 3, 9, 12, 30, 0, tzinfo=timezone.utc)
+
+        def check(status, s, e):
+            return (status == 'READY'), ([{'Time': start}] if status == 'READY' else []), None
+
+        verdict, _window = status_assessment.assess(
+            created_at=created,
+            requested_start=start,
+            query_end=end,
+            check_status=check,
+        )
+        assert isinstance(verdict, status_assessment.Ready)
+
+
+class TestStatusToolsBranches:
+    """Cover gateway-error, empty-config, and missing-CreatedAt branches."""
+
+    def _stub_application_signals(self) -> Stubber:
+        client = aws_clients.get_application_signals_client()
+        stubber = Stubber(client)
+        stubber.activate()
+        return stubber
+
+    def test_check_status_with_time_range_gateway_error(self, monkeypatch):
+        """_check_status_with_time_range maps a GatewayError to an API error string."""
+
+        def _raise(**kwargs):
+            raise status_tools.gateway.GatewayError(RuntimeError('boom'))
+
+        monkeypatch.setattr(
+            status_tools.gateway, 'get_instrumentation_configuration_status', _raise
+        )
+        has_events, events, error = status_tools._check_status_with_time_range(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+            location_identifier={'LocationHash': 'h'},
+            status='ACTIVE',
+            start_time=datetime(2026, 3, 9, 12, 0, 0, tzinfo=timezone.utc),
+            end_time=datetime(2026, 3, 9, 12, 5, 0, tzinfo=timezone.utc),
+        )
+        assert has_events is False
+        assert events == []
+        assert error is not None
+        assert 'API error: boom' in error
+
+    def test_get_status_renders_error_for_lookup_error(self, monkeypatch):
+        """A non-'missing' lookup error surfaces as an ERROR string."""
+        monkeypatch.setattr(
+            status_tools, 'parse_lookup_inputs', lambda **kwargs: (None, 'bad location')
+        )
+        rendered = status_tools.get_instrumentation_configuration_status(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+            location_hash='aaaabbbbccccdddd',
+            status='READY',
+        )
+        assert rendered == 'ERROR: bad location'
+
+    def test_get_status_defensive_location_none(self, monkeypatch):
+        """A lookup parser returning (None, None) trips the defensive internal-error path."""
+        monkeypatch.setattr(status_tools, 'parse_lookup_inputs', lambda **kwargs: (None, None))
+        rendered = status_tools.get_instrumentation_configuration_status(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+            location_hash='aaaabbbbccccdddd',
+            status='READY',
+        )
+        assert 'Internal error resolving location' in rendered
+
+    def test_check_status_empty_config_reports_not_found(self, monkeypatch):
+        """An empty Configuration block surfaces a no-instrumentation error."""
+        monkeypatch.setattr(
+            status_tools.gateway,
+            'get_instrumentation_configuration',
+            lambda **kwargs: {'Configuration': {}},
+        )
+        rendered = status_tools.check_instrumentation_status(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+            location_hash='aaaabbbbccccdddd',
+            start_time='2026-03-09T12:00:00Z',
+            end_time='2026-03-09T12:05:00Z',
+        )
+        assert 'No instrumentation found for LocationHash' in rendered
+
+    def test_check_status_missing_created_at(self, monkeypatch):
+        """A configuration lacking CreatedAt surfaces a created_at error."""
+        config = _full_instrumentation_configuration()
+        config.pop('CreatedAt')
+        monkeypatch.setattr(
+            status_tools.gateway,
+            'get_instrumentation_configuration',
+            lambda **kwargs: {'Configuration': config},
+        )
+        rendered = status_tools.check_instrumentation_status(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+            location_hash='aaaabbbbccccdddd',
+            start_time='2026-03-09T12:00:00Z',
+            end_time='2026-03-09T12:05:00Z',
+        )
+        assert 'CreatedAt not found' in rendered
+
+
+class TestCrudToolsTtlAndFilters:
+    """Cover ExpiresAt/AttributeFilters emission and code-location lookup errors."""
+
+    def _stub_application_signals(self) -> Stubber:
+        client = aws_clients.get_application_signals_client()
+        stubber = Stubber(client)
+        stubber.activate()
+        return stubber
+
+    def test_create_with_ttl_and_attribute_filters(self):
+        """ttl_hours adds ExpiresAt and attribute_filters adds AttributeFilters."""
+        stubber = self._stub_application_signals()
+        stubber.add_response(
+            'create_instrumentation_configuration',
+            {
+                'InstrumentationType': 'BREAKPOINT',
+                'Service': 'svc',
+                'Environment': 'env',
+                'SignalType': 'SNAPSHOT',
+                'Location': {
+                    'CodeLocation': {'Language': 'Python', 'FilePath': '/app/handler.py'}
+                },
+                'LocationHash': 'aaaabbbbccccdddd',
+                'Description': 'MCP dynamic instrumentation',
+                'ExpiresAt': datetime(2026, 3, 10, 12, 0, 0, tzinfo=timezone.utc),
+                'CaptureConfiguration': {
+                    'CodeCapture': {
+                        'CaptureArguments': ['order_id'],
+                        'CaptureReturn': True,
+                        'CaptureStackTrace': True,
+                        'CaptureLimits': {},
+                    }
+                },
+                'CreatedAt': datetime(2026, 3, 9, 12, 0, 0, tzinfo=timezone.utc),
+                'ARN': 'arn:demo',
+            },
+        )
+        rendered = crud_tools.create_instrumentation(
+            instrumentation_type='BREAKPOINT',
+            service='svc',
+            environment='env',
+            language='Python',
+            file_path='/app/handler.py',
+            capture_arguments=['order_id'],
+            ttl_hours=3,
+            attribute_filters=[{'Key': 'stage', 'Value': 'prod'}],
+        )
+        stubber.assert_no_pending_responses()
+        assert 'Successfully created BREAKPOINT instrumentation' in rendered
+        assert 'ATTRIBUTE FILTERS: 1 filter group(s) applied' in rendered
+
+    def test_delete_renders_error_for_lookup_error(self, monkeypatch):
+        """delete_instrumentation surfaces a non-'missing' lookup error as ERROR."""
+        monkeypatch.setattr(
+            crud_tools, 'parse_lookup_inputs', lambda **kwargs: (None, 'bad location')
+        )
+        rendered = crud_tools.delete_instrumentation(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+            location_hash='aaaabbbbccccdddd',
+        )
+        assert rendered == 'ERROR: bad location'
+
+    def test_get_renders_error_for_lookup_error(self, monkeypatch):
+        """get_instrumentation surfaces a non-'missing' lookup error as ERROR."""
+        monkeypatch.setattr(
+            crud_tools, 'parse_lookup_inputs', lambda **kwargs: (None, 'bad location')
+        )
+        rendered = crud_tools.get_instrumentation(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+            location_hash='aaaabbbbccccdddd',
+        )
+        assert rendered == 'ERROR: bad location'
+
+    def test_get_reports_no_instrumentation_for_empty_config(self, monkeypatch):
+        """get_instrumentation reports no-instrumentation when Configuration is empty."""
+        monkeypatch.setattr(
+            crud_tools.gateway,
+            'get_instrumentation_configuration',
+            lambda **kwargs: {'Configuration': {}},
+        )
+        rendered = crud_tools.get_instrumentation(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+            location_hash='aaaabbbbccccdddd',
+        )
+        assert 'No instrumentation found for' in rendered
+
+
+class TestCrudToolsTypeAndDefensiveBranches:
+    """Cover the invalid-type early returns and defensive location-None branches."""
+
+    def test_list_rejects_invalid_type(self):
+        """list_instrumentations short-circuits on an invalid instrumentation_type."""
+        rendered = crud_tools.list_instrumentations(
+            service='svc', environment='env', instrumentation_type='NOPE'
+        )
+        assert 'instrumentation_type must be one of' in rendered
+
+    def test_by_arns_rejects_invalid_type(self):
+        """batch_delete_instrumentations_by_arns short-circuits on an invalid type."""
+        rendered = crud_tools.batch_delete_instrumentations_by_arns(
+            resource_arns=['arn:demo'], instrumentation_type='NOPE'
+        )
+        assert 'instrumentation_type must be one of' in rendered
+
+    def test_delete_rejects_invalid_type(self):
+        """delete_instrumentation short-circuits on an invalid instrumentation_type."""
+        rendered = crud_tools.delete_instrumentation(
+            service='svc',
+            environment='env',
+            instrumentation_type='NOPE',
+            location_hash='aaaabbbbccccdddd',
+        )
+        assert 'instrumentation_type must be one of' in rendered
+
+    def test_get_rejects_invalid_type(self):
+        """get_instrumentation short-circuits on an invalid instrumentation_type."""
+        rendered = crud_tools.get_instrumentation(
+            service='svc',
+            environment='env',
+            instrumentation_type='NOPE',
+            location_hash='aaaabbbbccccdddd',
+        )
+        assert 'instrumentation_type must be one of' in rendered
+
+    def test_create_defensive_location_none(self, monkeypatch):
+        """A parser returning (None, None) trips the defensive internal-error path."""
+        monkeypatch.setattr(crud_tools, 'parse_create_inputs', lambda **kwargs: (None, None))
+        rendered = crud_tools.create_instrumentation(
+            instrumentation_type='BREAKPOINT',
+            service='svc',
+            environment='env',
+            language='Python',
+            file_path='/app/h.py',
+            capture_arguments=['a'],
+        )
+        assert 'Internal error resolving location' in rendered
+
+    def test_delete_defensive_location_none(self, monkeypatch):
+        """A lookup parser returning (None, None) trips delete's defensive path."""
+        monkeypatch.setattr(crud_tools, 'parse_lookup_inputs', lambda **kwargs: (None, None))
+        rendered = crud_tools.delete_instrumentation(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+            location_hash='aaaabbbbccccdddd',
+        )
+        assert 'Internal error resolving location' in rendered
+
+    def test_get_defensive_location_none(self, monkeypatch):
+        """A lookup parser returning (None, None) trips get's defensive path."""
+        monkeypatch.setattr(crud_tools, 'parse_lookup_inputs', lambda **kwargs: (None, None))
+        rendered = crud_tools.get_instrumentation(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+            location_hash='aaaabbbbccccdddd',
+        )
+        assert 'Internal error resolving location' in rendered
