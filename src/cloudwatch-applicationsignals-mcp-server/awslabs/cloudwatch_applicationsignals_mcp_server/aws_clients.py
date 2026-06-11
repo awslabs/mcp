@@ -123,3 +123,17 @@ try:
 except Exception as e:
     logger.error(f'Failed to initialize AWS clients: {str(e)}')
     raise
+
+
+def get_applicationsignals_client():
+    """Return the module-level Application Signals client.
+
+    Provided so callers (e.g. the service_events tools) can resolve the client lazily,
+    which lets ``mock.patch`` of the module attribute propagate in tests.
+    """
+    return applicationsignals_client
+
+
+def get_cloudwatch_client():
+    """Return the module-level CloudWatch client (lazy accessor; see above)."""
+    return cloudwatch_client

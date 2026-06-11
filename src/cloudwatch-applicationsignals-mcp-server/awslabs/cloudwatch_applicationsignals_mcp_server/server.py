@@ -50,6 +50,9 @@ from .canary_utils import (
     get_canary_metrics_and_service_insights,
 )
 from .change_tools import list_change_events
+from .dynamic_instrumentation.registration import (
+    register_tools as register_dynamic_instrumentation_tools,
+)
 from .enablement_tools import get_enablement_guide
 from .group_tools import (
     audit_group_health,
@@ -60,14 +63,14 @@ from .group_tools import (
 )
 from .rum_tools import query_rum_events
 from .service_audit_utils import normalize_service_targets, validate_and_enrich_service_targets
+from .service_events import state as service_events_state
+from .service_events.registration import register_tools as register_service_events_tools
 from .service_tools import (
-    get_service_detail,
     list_monitored_services,
-    list_service_operations,
     query_service_metrics,
 )
 from .slo_tools import get_slo, list_slos
-from .trace_tools import list_slis, query_sampled_traces, search_transaction_spans
+from .trace_tools import get_xray_trace, list_slis, search_transaction_spans
 from .utils import parse_timestamp
 from datetime import datetime, timedelta, timezone
 from loguru import logger
@@ -1690,13 +1693,11 @@ async def list_canaries(region: str = AWS_REGION, max_results: int = 20) -> str:
 
 # Register all imported tools with the MCP server
 mcp.tool()(list_monitored_services)
-mcp.tool()(get_service_detail)
 mcp.tool()(query_service_metrics)
-mcp.tool()(list_service_operations)
 mcp.tool()(get_slo)
 mcp.tool()(list_slos)
 mcp.tool()(search_transaction_spans)
-mcp.tool()(query_sampled_traces)
+mcp.tool()(get_xray_trace)
 mcp.tool()(list_slis)
 mcp.tool()(get_enablement_guide)
 mcp.tool()(list_change_events)
@@ -1709,10 +1710,26 @@ mcp.tool()(list_grouping_attribute_definitions)
 # RUM tools
 mcp.tool()(query_rum_events)
 
+# ServiceEvents ServiceEvents data tools (function/endpoint/incident/deployment telemetry)
+register_service_events_tools(mcp)
+
+# Dynamic instrumentation tools (preview - see dynamic_instrumentation/aws_data/README.md)
+register_dynamic_instrumentation_tools(mcp)
+
 
 def main():
     """Run the MCP server."""
     logger.debug('Starting CloudWatch Application Signals MCP server')
+
+    # This server *is* Application Signals, so service_events's integration fallback is
+    # always available. Enable it and warm the service->environment cache (a live
+    # list_services call, so it stays out of import time for test-friendliness).
+    service_events_state.set_appsignals_enabled(True)
+    try:
+        service_events_state.initialize_env_cache()
+    except Exception as e:
+        logger.warning(f'Failed to initialize service_events env cache: {e}')
+
     try:
         mcp.run(transport='stdio')
     except KeyboardInterrupt:
