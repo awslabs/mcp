@@ -922,6 +922,99 @@ class TestGetInstrumentationConfigurationStatusTool:
         assert 'ATTEMPTED TO RETRIEVE:' in rendered
         assert 'ResourceNotFoundException' in rendered
 
+    def test_rejects_invalid_instrumentation_type(self):
+        """An invalid instrumentation_type is rejected before any API call."""
+        rendered = status_tools.get_instrumentation_configuration_status(
+            service='svc',
+            environment='env',
+            instrumentation_type='WATCHER',
+            location_hash='aaaabbbbccccdddd',
+            status='READY',
+        )
+        assert 'instrumentation_type must be one of' in rendered
+
+    def test_rejects_invalid_signal_type(self):
+        """A non-SNAPSHOT signal_type is rejected before any API call."""
+        rendered = status_tools.get_instrumentation_configuration_status(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+            location_hash='aaaabbbbccccdddd',
+            status='READY',
+            signal_type='METRIC',
+        )
+        assert 'must be SNAPSHOT' in rendered
+
+    def test_rejects_invalid_start_time(self):
+        """A malformed start_time is rejected before any API call."""
+        rendered = status_tools.get_instrumentation_configuration_status(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+            location_hash='aaaabbbbccccdddd',
+            status='READY',
+            start_time='nope',
+        )
+        assert 'Invalid start_time format' in rendered
+
+    def test_rejects_invalid_end_time(self):
+        """A malformed end_time is rejected before any API call."""
+        rendered = status_tools.get_instrumentation_configuration_status(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+            location_hash='aaaabbbbccccdddd',
+            status='READY',
+            start_time='2026-03-09T12:00:00Z',
+            end_time='nope',
+        )
+        assert 'Invalid end_time format' in rendered
+
+    def test_forwards_optional_params_and_renders_pagination(self):
+        """Optional time/paging params are forwarded; a NextToken yields pagination hint."""
+        stubber = self._stub_application_signals()
+        stubber.add_response(
+            'get_instrumentation_configuration_status',
+            {
+                'Service': 'svc',
+                'Environment': 'env',
+                'SignalType': 'SNAPSHOT',
+                'Location': {
+                    'CodeLocation': {'Language': 'Python', 'FilePath': '/app/handler.py'}
+                },
+                'Status': 'ACTIVE',
+                'Events': [],
+                'NextToken': 'next-page-token',
+            },
+            expected_params={
+                'InstrumentationType': 'BREAKPOINT',
+                'Service': 'svc',
+                'Environment': 'env',
+                'SignalType': 'SNAPSHOT',
+                'Status': 'ACTIVE',
+                'LocationIdentifier': {'LocationHash': 'aaaabbbbccccdddd'},
+                'StartTime': datetime(2026, 3, 9, 12, 0, 0, tzinfo=timezone.utc),
+                'EndTime': datetime(2026, 3, 9, 12, 5, 0, tzinfo=timezone.utc),
+                'MaxResults': 5,
+                'NextToken': 'prev-token',
+            },
+        )
+        rendered = status_tools.get_instrumentation_configuration_status(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+            location_hash='aaaabbbbccccdddd',
+            status='ACTIVE',
+            start_time='2026-03-09T12:00:00Z',
+            end_time='2026-03-09T12:05:00Z',
+            max_results=5,
+            next_token='prev-token',
+        )
+        stubber.assert_no_pending_responses()
+        # ACTIVE with no events triggers the clarification block and pagination hint.
+        assert 'ACTIVE Clarification' in rendered
+        assert 'next-page-token' in rendered
+
 
 def _full_instrumentation_configuration() -> dict:
     """A Configuration block with every field the bundled model marks required."""
@@ -1036,6 +1129,65 @@ class TestCheckInstrumentationStatusTool:
         )
         stubber.assert_no_pending_responses()
         assert 'ACTIVE' in rendered
+
+    def test_rejects_invalid_instrumentation_type(self):
+        """An invalid instrumentation_type is rejected before any API call."""
+        rendered = status_tools.check_instrumentation_status(
+            service='svc',
+            environment='env',
+            instrumentation_type='WATCHER',
+            location_hash='aaaabbbbccccdddd',
+            start_time='2026-03-09T12:00:00Z',
+            end_time='2026-03-09T12:05:00Z',
+        )
+        assert 'instrumentation_type must be one of' in rendered
+
+    def test_rejects_invalid_signal_type(self):
+        """A non-SNAPSHOT signal_type is rejected before any API call."""
+        rendered = status_tools.check_instrumentation_status(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+            location_hash='aaaabbbbccccdddd',
+            start_time='2026-03-09T12:00:00Z',
+            end_time='2026-03-09T12:05:00Z',
+            signal_type='METRIC',
+        )
+        assert 'must be SNAPSHOT' in rendered
+
+    def test_rejects_invalid_start_time(self):
+        """A malformed start_time is rejected after the config fetch succeeds."""
+        stubber = self._stub_application_signals()
+        stubber.add_response(
+            'get_instrumentation_configuration',
+            {'Configuration': _full_instrumentation_configuration()},
+        )
+        rendered = status_tools.check_instrumentation_status(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+            location_hash='aaaabbbbccccdddd',
+            start_time='nope',
+            end_time='2026-03-09T12:05:00Z',
+        )
+        assert 'Invalid start_time format' in rendered
+
+    def test_rejects_invalid_end_time(self):
+        """A malformed end_time is rejected after the config fetch succeeds."""
+        stubber = self._stub_application_signals()
+        stubber.add_response(
+            'get_instrumentation_configuration',
+            {'Configuration': _full_instrumentation_configuration()},
+        )
+        rendered = status_tools.check_instrumentation_status(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+            location_hash='aaaabbbbccccdddd',
+            start_time='2026-03-09T12:00:00Z',
+            end_time='nope',
+        )
+        assert 'Invalid end_time format' in rendered
 
 
 class TestSnapshotToolsCloudWatchPath:
@@ -1277,6 +1429,1301 @@ class TestSnapshotLogGroupResolution:
             constants.resolve_snapshot_log_group('checkout-service')
             == '/aws/service-events/checkout-service'
         )
+
+
+class TestSnapshotParsingPreviewHelper:
+    """Direct coverage for snapshot_parsing._preview_captured_value."""
+
+    def test_non_dict_returns_input_unchanged(self):
+        """A non-dict captured value is returned verbatim."""
+        assert snapshot_parsing._preview_captured_value('plain') == 'plain'
+        assert snapshot_parsing._preview_captured_value(7) == 7
+
+    def test_is_null_short_circuits(self):
+        """is_null=True yields just type and is_null."""
+        preview = snapshot_parsing._preview_captured_value(
+            {'type': 'str', 'is_null': True, 'value': 'ignored'}
+        )
+        assert preview == {'type': 'str', 'is_null': True}
+
+    def test_not_captured_reason_short_circuits(self):
+        """not_captured_reason short-circuits with its reason."""
+        preview = snapshot_parsing._preview_captured_value(
+            {'type': 'obj', 'not_captured_reason': 'depth'}
+        )
+        assert preview == {'type': 'obj', 'not_captured_reason': 'depth'}
+
+    def test_value_with_truncated_and_size(self):
+        """A primitive value carries truncated and size flags."""
+        preview = snapshot_parsing._preview_captured_value(
+            {'type': 'str', 'value': 'abc', 'truncated': True, 'size': 99}
+        )
+        assert preview == {'type': 'str', 'value': 'abc', 'truncated': True, 'size': 99}
+
+    def test_fields_preview_expands_one_level(self):
+        """Fields preview expands primitives and collapses nested objects."""
+        preview = snapshot_parsing._preview_captured_value(
+            {
+                'type': 'Order',
+                'size': 4,
+                'fields': {
+                    'id': {'type': 'str', 'value': 'A-1'},
+                    'missing': {'type': 'str', 'is_null': True},
+                    'skipped': {'type': 'obj', 'not_captured_reason': 'timeout'},
+                    'nested': {'type': 'Address'},
+                    'raw': 'literal',
+                },
+            }
+        )
+        assert isinstance(preview, dict)
+        assert preview['type'] == 'Order'
+        assert preview['size'] == 4
+        fp = preview['fields_preview']
+        assert isinstance(fp, dict)
+        assert fp['id'] == 'A-1'
+        assert fp['missing'] is None
+        assert fp['skipped'] == '<timeout>'
+        assert fp['nested'] == '<Address>'
+        assert fp['raw'] == 'literal'
+
+    def test_elements_preview_summarizes_first_element(self):
+        """Elements preview reports count and previews the first element."""
+        preview = snapshot_parsing._preview_captured_value(
+            {
+                'type': 'list',
+                'elements': [
+                    {'type': 'int', 'value': '1'},
+                    {'type': 'int', 'value': '2'},
+                ],
+            }
+        )
+        assert isinstance(preview, dict)
+        assert preview['element_count'] == 2
+        assert preview['first_element'] == {'type': 'int', 'value': '1'}
+
+    def test_empty_elements_omits_first_element(self):
+        """An empty elements list reports count zero and no first_element."""
+        preview = snapshot_parsing._preview_captured_value({'type': 'list', 'elements': []})
+        assert isinstance(preview, dict)
+        assert preview['element_count'] == 0
+        assert 'first_element' not in preview
+
+    def test_entries_preview_reports_count(self):
+        """Entries preview reports the entry count."""
+        preview = snapshot_parsing._preview_captured_value(
+            {'type': 'dict', 'entries': [{'key': 1}, {'key': 2}]}
+        )
+        assert isinstance(preview, dict)
+        assert preview['entry_count'] == 2
+
+    def test_bare_type_only_returns_preview(self):
+        """A captured value with only a type returns the type preview."""
+        preview = snapshot_parsing._preview_captured_value({'type': 'CustomObject'})
+        assert preview == {'type': 'CustomObject'}
+
+    def test_empty_dict_returns_original(self):
+        """An empty dict (no type, no value) returns the original dict."""
+        assert snapshot_parsing._preview_captured_value({}) == {}
+
+
+class TestSnapshotParsingFields:
+    """Direct coverage for snapshot_parsing._parse_snapshot_fields edge cases."""
+
+    def test_invalid_json_message_degrades_to_empty(self):
+        """Non-JSON @message degrades to empty parsed output."""
+        parsed = snapshot_parsing._parse_snapshot_fields({'@message': 'not-json{'})
+        assert parsed['snapshot_id'] is None
+        assert parsed['raw_snapshot'] == {}
+        assert parsed['stack_frame_count'] == 0
+
+    def test_non_dict_json_message_degrades_to_empty(self):
+        """A JSON array @message degrades to empty parsed output."""
+        parsed = snapshot_parsing._parse_snapshot_fields({'@message': json.dumps([1, 2, 3])})
+        assert parsed['raw_snapshot'] == {}
+
+    def test_non_dict_attributes_resource_body_are_coerced(self):
+        """Non-dict attributes/resource/body fields coerce to empty dicts."""
+        parsed = snapshot_parsing._parse_snapshot_fields(
+            {
+                '@message': json.dumps(
+                    {
+                        'attributes': ['not', 'a', 'dict'],
+                        'resource': 'nope',
+                        'body': 42,
+                        'traceId': 't',
+                        'spanId': 's',
+                    }
+                )
+            }
+        )
+        assert parsed['snapshot_id'] is None
+        assert parsed['trace'] == {'traceId': 't', 'spanId': 's'}
+        assert parsed['stack_preview'] == []
+
+    def test_non_list_stack_and_non_dict_captures_coerced(self):
+        """Non-list stack and non-dict capture sub-objects coerce safely."""
+        parsed = snapshot_parsing._parse_snapshot_fields(
+            {
+                '@message': json.dumps(
+                    {
+                        'body': {
+                            'stack': 'not-a-list',
+                            'captures': {
+                                'entry': 'nope',
+                                'return': 5,
+                                'lines': [],
+                            },
+                        },
+                    }
+                )
+            }
+        )
+        assert parsed['stack_frame_count'] == 0
+        assert parsed['entry_argument_names'] == []
+        assert parsed['return_value'] is None
+
+    def test_stack_preview_skips_non_dict_frames_and_caps_at_five(self):
+        """Stack preview skips non-dict frames and previews at most five."""
+        stack: list = [
+            {'file_path': f'/f{i}.py', 'function': 'fn', 'line_number': i} for i in range(7)
+        ]
+        stack.insert(0, 'garbage')
+        parsed = snapshot_parsing._parse_snapshot_fields(
+            {'@message': json.dumps({'body': {'stack': stack}})}
+        )
+        assert parsed['stack_frame_count'] == 8
+        # stack[:5] is ['garbage', f0, f1, f2, f3]; the string frame is skipped.
+        assert len(parsed['stack_preview']) == 4
+
+    def test_entry_locals_and_return_arguments_locals(self):
+        """Entry locals and return arguments/locals are previewed."""
+        parsed = snapshot_parsing._parse_snapshot_fields(
+            {
+                '@message': json.dumps(
+                    {
+                        'body': {
+                            'captures': {
+                                'entry': {
+                                    'arguments': {'a': {'type': 'int', 'value': '1'}},
+                                    'locals': {'tmp': {'type': 'int', 'value': '2'}},
+                                },
+                                'return': {
+                                    'arguments': {'a': {'type': 'int', 'value': '1'}},
+                                    'locals': {'r': {'type': 'int', 'value': '3'}},
+                                    'return_value': {'type': 'int', 'value': '9'},
+                                    'throwable': {
+                                        'type': 'ValueError',
+                                        'message': 'boom',
+                                        'stacktrace': [{}, {}],
+                                    },
+                                },
+                            },
+                        },
+                    }
+                )
+            }
+        )
+        assert parsed['entry_local_names'] == ['tmp']
+        assert parsed['return_argument_names'] == ['a']
+        assert parsed['return_local_names'] == ['r']
+        assert parsed['return_value']['value'] == '9'
+        assert parsed['throwable']['type'] == 'ValueError'
+        assert parsed['throwable']['stacktrace_frame_count'] == 2
+
+    def test_throwable_with_non_list_stacktrace_counts_zero(self):
+        """A throwable whose stacktrace is not a list reports zero frames."""
+        parsed = snapshot_parsing._parse_snapshot_fields(
+            {
+                '@message': json.dumps(
+                    {
+                        'body': {
+                            'captures': {
+                                'return': {
+                                    'throwable': {'type': 'E', 'message': 'm', 'stacktrace': 'x'}
+                                }
+                            }
+                        }
+                    }
+                )
+            }
+        )
+        assert parsed['throwable']['stacktrace_frame_count'] == 0
+
+    def test_line_captures_with_locals_args_return_and_throwable(self):
+        """Line captures aggregate locals, arguments, return values, and throwables."""
+        parsed = snapshot_parsing._parse_snapshot_fields(
+            {
+                '@message': json.dumps(
+                    {
+                        'body': {
+                            'captures': {
+                                'lines': {
+                                    'not-a-dict-line': 'skip-me',
+                                    '10': {
+                                        'locals': {'x': {'type': 'int', 'value': '1'}},
+                                        'arguments': {'y': {'type': 'int', 'value': '2'}},
+                                        'return_value': {'type': 'int', 'value': '5'},
+                                        'throwable': {
+                                            'type': 'IOError',
+                                            'message': 'bad',
+                                            'stacktrace': [{}],
+                                        },
+                                    },
+                                    '2': {
+                                        'locals': {},
+                                        'arguments': {},
+                                    },
+                                }
+                            }
+                        }
+                    }
+                )
+            }
+        )
+        assert parsed['line_numbers'] == ['10']
+        assert parsed['line_locals']['10'] == ['x']
+        assert parsed['line_arguments']['10'] == ['y']
+        assert parsed['line_return_values']['10']['value'] == '5'
+        assert parsed['line_throwables']['10']['type'] == 'IOError'
+        assert parsed['line_throwables']['10']['stacktrace_frame_count'] == 1
+
+    def test_line_throwable_non_list_stacktrace_counts_zero(self):
+        """A line throwable with non-list stacktrace reports zero frames."""
+        parsed = snapshot_parsing._parse_snapshot_fields(
+            {
+                '@message': json.dumps(
+                    {
+                        'body': {
+                            'captures': {
+                                'lines': {
+                                    '5': {
+                                        'throwable': {
+                                            'type': 'E',
+                                            'message': 'm',
+                                            'stacktrace': 'notlist',
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                )
+            }
+        )
+        assert parsed['line_throwables']['5']['stacktrace_frame_count'] == 0
+
+
+class TestValidationLocationInputs:
+    """Direct coverage for validation._validate_location_inputs and troubleshooting."""
+
+    def test_valid_python_location_returns_none(self):
+        """A valid Python location passes validation."""
+        assert (
+            validation._validate_location_inputs(
+                language='Python',
+                file_path='/app/h.py',
+                code_unit='services.billing',
+                class_name=None,
+                method_name='run',
+                line_number=None,
+            )
+            is None
+        )
+
+    def test_missing_file_path_reports_error(self):
+        """A missing file_path produces a required-field error."""
+        message = validation._validate_location_inputs(
+            language='Python',
+            file_path='',
+            code_unit='services.billing',
+            class_name=None,
+            method_name='run',
+            line_number=None,
+        )
+        assert message is not None
+        assert 'file_path is required' in message
+
+    def test_line_number_below_one_reports_error(self):
+        """A line_number below 1 produces a range error."""
+        message = validation._validate_location_inputs(
+            language='Python',
+            file_path='/app/h.py',
+            code_unit='services.billing',
+            class_name=None,
+            method_name='run',
+            line_number=0,
+        )
+        assert message is not None
+        assert 'line_number must be >= 1' in message
+
+    def test_unsupported_language_reports_error(self):
+        """An unsupported language produces a language error."""
+        message = validation._validate_location_inputs(
+            language='Ruby',
+            file_path='/app/h.rb',
+            code_unit=None,
+            class_name=None,
+            method_name='run',
+            line_number=None,
+        )
+        assert message is not None
+        assert 'language must be Python or Java' in message
+
+    def test_java_fully_qualified_class_name_errors_with_suggestion(self):
+        """A fully qualified Java class_name errors and suggests a split."""
+        message = validation._validate_location_inputs(
+            language='Java',
+            file_path='/app/Order.java',
+            code_unit=None,
+            class_name='com.example.OrderContext',
+            method_name='run',
+            line_number=None,
+        )
+        assert message is not None
+        assert 'class_name must be simple' in message
+        assert 'code_unit="com.example"' in message
+        assert 'class_name="OrderContext"' in message
+
+    def test_java_code_unit_with_slashes_adds_suggestion(self):
+        """A Java code_unit with slashes adds a package-name suggestion."""
+        message = validation._validate_location_inputs(
+            language='Java',
+            file_path='',
+            code_unit='com/example/app',
+            class_name='com.example.Order',
+            method_name='run',
+            line_number=None,
+        )
+        assert message is not None
+        assert 'package name with dots, not a path with slashes' in message
+
+    def test_python_code_unit_with_py_extension_adds_suggestion(self):
+        """A Python code_unit ending in .py adds a module-path suggestion."""
+        message = validation._validate_location_inputs(
+            language='Python',
+            file_path='',
+            code_unit='billing.py',
+            class_name=None,
+            method_name='run',
+            line_number=None,
+        )
+        assert message is not None
+        assert 'module path (e.g., services.billing), not a .py filename' in message
+
+    def test_troubleshooting_python_branch_renders_python_rules(self):
+        """The Python troubleshooting branch renders Python-specific rules."""
+        rendered = validation._format_code_location_troubleshooting(
+            language='Python',
+            file_path='/app/h.py',
+            code_unit='services.billing',
+            class_name=None,
+            method_name='run',
+            line_number=12,
+        )
+        assert 'Python rules:' in rendered
+        assert 'LINE-LEVEL (L12)' in rendered
+        assert 'language=Python' in rendered
+
+    def test_troubleshooting_java_branch_renders_java_rules(self):
+        """The Java troubleshooting branch renders Java-specific rules."""
+        rendered = validation._format_code_location_troubleshooting(
+            language='Java',
+            file_path='/app/Order.java',
+            code_unit='com.example',
+            class_name='OrderContext',
+            method_name='run',
+            line_number=None,
+        )
+        assert 'Java rules:' in rendered
+        assert 'FUNCTION/METHOD-level' in rendered
+
+
+class TestCrudRenderingMoreHelpers:
+    """Additional coverage for crud_rendering renderers."""
+
+    def test_create_capture_limits_empty_returns_blank(self):
+        """No limits produce an empty capture-limits block."""
+        assert (
+            crud_rendering._render_create_capture_limits(
+                max_hits=None,
+                max_string_length=None,
+                max_collection_width=None,
+                max_collection_depth=None,
+                max_stack_frames=None,
+                max_stack_trace_size=None,
+                max_object_depth=None,
+                max_fields_per_object=None,
+            )
+            == ''
+        )
+
+    def test_create_capture_limits_renders_all_set_limits(self):
+        """Every populated limit renders its labeled line."""
+        rendered = crud_rendering._render_create_capture_limits(
+            max_hits=1,
+            max_string_length=2,
+            max_collection_width=3,
+            max_collection_depth=4,
+            max_stack_frames=5,
+            max_stack_trace_size=6,
+            max_object_depth=7,
+            max_fields_per_object=8,
+        )
+        assert '- Max Hits: 1' in rendered
+        assert '- Max String Length: 2' in rendered
+        assert '- Max Collection Width: 3' in rendered
+        assert '- Max Collection Depth: 4' in rendered
+        assert '- Max Stack Frames: 5' in rendered
+        assert '- Max Stack Trace Size: 6' in rendered
+        assert '- Max Object Depth: 7' in rendered
+        assert '- Max Fields Per Object: 8' in rendered
+
+    def test_render_create_success_message_full(self):
+        """A full create-success message renders expiry, locals, limits, and filters."""
+        loc = location.CodeLocation(language='Python', file_path='/app/h.py', method_name='run')
+        rendered = crud_rendering.render_create_success_message(
+            response={
+                'LocationHash': 'aaaabbbbccccdddd',
+                'ARN': 'arn:demo',
+                'CreatedAt': datetime(2026, 3, 9, 11, 0, 0, tzinfo=timezone.utc),
+                'ExpiresAt': datetime(2026, 3, 10, 11, 0, 0, tzinfo=timezone.utc),
+            },
+            normalized_type='BREAKPOINT',
+            service='svc',
+            environment='env',
+            location=loc,
+            ttl_hours=24,
+            capture_arguments=['order_id'],
+            wildcard_removed=True,
+            code_capture_locals=['result'],
+            code_capture_return=True,
+            code_capture_stack_trace=False,
+            max_hits=3,
+            max_string_length=None,
+            max_collection_width=None,
+            max_collection_depth=None,
+            max_stack_frames=None,
+            max_stack_trace_size=None,
+            max_object_depth=None,
+            max_fields_per_object=None,
+            attribute_filters=[{'Key': 'stage', 'Value': 'prod'}],
+        )
+        assert 'Successfully created BREAKPOINT instrumentation' in rendered
+        assert '- Expires: 2026-03-10T11:00:00Z (requested 24 hours)' in rendered
+        assert '- Arguments: order_id' in rendered
+        assert 'wildcard * is not supported and was ignored' in rendered
+        assert '- Local Variables: result' in rendered
+        assert '- Return Values: Enabled' in rendered
+        assert '- Stack Traces: Disabled' in rendered
+        assert '- Max Hits: 3' in rendered
+        assert 'ATTRIBUTE FILTERS: 1 filter group(s) applied' in rendered
+
+    def test_render_create_success_message_never_expires_no_args(self):
+        """No ExpiresAt and empty arguments render the never-expires/none paths."""
+        loc = location.CodeLocation(language='Python', file_path='/app/h.py', method_name='run')
+        rendered = crud_rendering.render_create_success_message(
+            response={'LocationHash': 'aaaabbbbccccdddd'},
+            normalized_type='BREAKPOINT',
+            service='svc',
+            environment='env',
+            location=loc,
+            ttl_hours=None,
+            capture_arguments=[],
+            wildcard_removed=False,
+            code_capture_locals=None,
+            code_capture_return=False,
+            code_capture_stack_trace=True,
+            max_hits=None,
+            max_string_length=None,
+            max_collection_width=None,
+            max_collection_depth=None,
+            max_stack_frames=None,
+            max_stack_trace_size=None,
+            max_object_depth=None,
+            max_fields_per_object=None,
+            attribute_filters=None,
+        )
+        assert '- Expires: Never (unless deleted)' in rendered
+        assert '- Arguments: (none)' in rendered
+        assert '- Return Values: Disabled' in rendered
+
+    def test_render_list_output_capture_payload_unparseable(self):
+        """A non-code capture payload renders the could-not-parse note."""
+        rendered = crud_rendering.render_list_instrumentations_output(
+            data={
+                'SyncedAt': '2026-03-09T12:00:00Z',
+                'NextToken': 'more',
+                'LatestConfigurations': [
+                    {
+                        'LocationHash': 'aaaabbbbccccdddd',
+                        'Location': {'CodeLocation': {'Language': 'Python', 'FilePath': '/x.py'}},
+                        'CaptureConfiguration': {},
+                        'CreatedAt': '2026-03-09T11:00:00Z',
+                    }
+                ],
+            },
+            normalized_type='BREAKPOINT',
+            service='svc',
+            environment='env',
+        )
+        assert 'Capture payload could not be parsed.' in rendered
+        assert 'next_token="more"' in rendered
+
+    def test_render_get_output_capture_payload_unparseable(self):
+        """A get-instrumentation render with no code capture notes the parse failure."""
+        rendered = crud_rendering.render_get_instrumentation_output(
+            config={
+                'InstrumentationType': 'BREAKPOINT',
+                'SignalType': 'SNAPSHOT',
+                'LocationHash': 'aaaabbbbccccdddd',
+                'Location': {'CodeLocation': {'Language': 'Python', 'FilePath': '/x.py'}},
+                'CaptureConfiguration': {},
+            },
+            service='svc',
+            environment='env',
+        )
+        assert 'Capture payload could not be parsed.' in rendered
+
+    def test_render_get_output_arguments_all_and_full_limits(self):
+        """Arguments=None renders 'All' and every populated limit renders."""
+        rendered = crud_rendering.render_get_instrumentation_output(
+            config={
+                'InstrumentationType': 'BREAKPOINT',
+                'SignalType': 'SNAPSHOT',
+                'LocationHash': 'aaaabbbbccccdddd',
+                'Location': {'CodeLocation': {'Language': 'Python', 'FilePath': '/x.py'}},
+                'CaptureConfiguration': {
+                    'CodeCapture': {
+                        'CaptureReturn': True,
+                        'CaptureStackTrace': True,
+                        'CaptureLimits': {
+                            'MaxHits': 1,
+                            'MaxStringLength': 2,
+                            'MaxCollectionWidth': 3,
+                            'MaxCollectionDepth': 4,
+                            'MaxStackFrames': 5,
+                            'MaxStackTraceSize': 6,
+                            'MaxObjectDepth': 7,
+                            'MaxFieldsPerObject': 8,
+                        },
+                    }
+                },
+            },
+            service='svc',
+            environment='env',
+        )
+        assert '- Arguments: All' in rendered
+        assert '- Max Hits: 1' in rendered
+        assert '- Max Stack Frames: 5' in rendered
+        assert '- Max Fields Per Object: 8' in rendered
+
+    def test_batch_delete_response_minimal_no_sections(self):
+        """An empty batch-delete response renders counts without item sections."""
+        rendered = crud_rendering._format_batch_delete_response(
+            mode='Scope',
+            instrumentation_type='BREAKPOINT',
+            data={},
+        )
+        assert 'DeletedCount: 0' in rendered
+        assert 'SUCCESSFUL DELETIONS:' not in rendered
+        assert 'DELETE ERRORS:' not in rendered
+
+
+class TestStatusRenderingMoreHelpers:
+    """Additional coverage for status_rendering renderers."""
+
+    def test_render_status_section_skipped_branch(self):
+        """A 'Skipped:' error renders the check-skipped line."""
+        rendered = status_rendering._render_status_section(
+            title='READY',
+            start_time='s',
+            end_time='e',
+            has_events=False,
+            events=[],
+            error='Skipped: not needed',
+        )
+        assert '- Check Skipped: Skipped: not needed' in rendered
+
+    def test_render_status_section_failed_branch(self):
+        """A non-skipped error renders the check-failed line."""
+        rendered = status_rendering._render_status_section(
+            title='READY',
+            start_time='s',
+            end_time='e',
+            has_events=False,
+            events=[],
+            error='boom',
+        )
+        assert '- Check Failed: boom' in rendered
+
+    def test_render_status_section_truncates_after_three_events(self):
+        """More than three events render a truncation note."""
+        events = [{'Time': f'2026-03-09T12:0{i}:00Z'} for i in range(5)]
+        rendered = status_rendering._render_status_section(
+            title='ERROR',
+            start_time='s',
+            end_time='e',
+            has_events=True,
+            events=events,
+            error=None,
+            include_error_cause=True,
+        )
+        assert '- Confirmed: YES (5 event(s))' in rendered
+        assert '... and 2 more' in rendered
+        assert 'ErrorCause: Unknown' in rendered
+
+    def test_render_active_status_with_events_renders_snapshot_tips(self):
+        """A confirmed ACTIVE status renders snapshot timestamp tips."""
+        rendered = status_rendering.render_consolidated_active_status_output(
+            location_hash='aaaabbbbccccdddd',
+            service='svc',
+            environment='env',
+            normalized_type='BREAKPOINT',
+            created_at='2026-03-09T11:00:00Z',
+            requested_start_str='2026-03-09T11:05:00Z',
+            active_query_start_str='2026-03-09T11:05:00Z',
+            query_end_str='2026-03-09T11:10:00Z',
+            active_has_events=True,
+            active_events=[
+                {'Time': '2026-03-09T11:06:00Z'},
+                {'Time': '2026-03-09T11:07:00Z'},
+            ],
+            active_error=None,
+        )
+        assert 'SNAPSHOT QUERY TIP' in rendered
+        assert 'OVERALL STATUS: ACTIVE' in rendered
+        assert '(oldest, try first)' in rendered
+        assert '(most recent)' in rendered
+
+    def test_render_active_status_without_events_not_confirmed(self):
+        """An ACTIVE status with no events renders the not-confirmed verdict."""
+        rendered = status_rendering.render_consolidated_active_status_output(
+            location_hash='aaaabbbbccccdddd',
+            service='svc',
+            environment='env',
+            normalized_type='BREAKPOINT',
+            created_at='2026-03-09T11:00:00Z',
+            requested_start_str='2026-03-09T11:05:00Z',
+            active_query_start_str='2026-03-09T11:05:00Z',
+            query_end_str='2026-03-09T11:10:00Z',
+            active_has_events=False,
+            active_events=[],
+            active_error=None,
+        )
+        assert 'OVERALL STATUS: ACTIVE not confirmed yet' in rendered
+
+    def test_render_ready_status_output(self):
+        """A READY consolidated render appends the READY section and verdict."""
+        rendered = status_rendering.render_consolidated_ready_status_output(
+            location_hash='aaaabbbbccccdddd',
+            service='svc',
+            environment='env',
+            normalized_type='BREAKPOINT',
+            created_at='2026-03-09T11:00:00Z',
+            requested_start_str='2026-03-09T11:05:00Z',
+            active_query_start_str='2026-03-09T11:05:00Z',
+            query_end_str='2026-03-09T11:10:00Z',
+            active_has_events=False,
+            active_events=[],
+            active_error=None,
+            ready_has_events=True,
+            ready_events=[{'Time': '2026-03-09T11:06:00Z'}],
+            ready_error=None,
+        )
+        assert 'READY STATUS:' in rendered
+        assert 'OVERALL STATUS: READY (waiting for traffic)' in rendered
+
+    def test_error_output_file_not_found_branch(self):
+        """An ERROR cause FILE_NOT_FOUND renders the file_path troubleshooting."""
+        rendered = status_rendering.render_consolidated_error_or_pending_status_output(
+            location_hash='aaaabbbbccccdddd',
+            service='svc',
+            environment='env',
+            normalized_type='BREAKPOINT',
+            created_at='2026-03-09T11:00:00Z',
+            requested_start_str='2026-03-09T11:05:00Z',
+            active_query_start_str='2026-03-09T11:05:00Z',
+            query_end_str='2026-03-09T11:10:00Z',
+            active_has_events=False,
+            active_events=[],
+            active_error=None,
+            ready_has_events=False,
+            ready_events=[],
+            ready_error=None,
+            error_has_events=True,
+            error_events=[{'Time': '2026-03-09T11:06:00Z', 'ErrorCause': 'FILE_NOT_FOUND'}],
+            error_error=None,
+        )
+        assert 'OVERALL STATUS: ERROR (FILE_NOT_FOUND)' in rendered
+        assert 'Verify file_path is correct' in rendered
+
+    def test_error_output_line_not_executable_branch(self):
+        """An ERROR cause LINE_NOT_EXECUTABLE renders the line troubleshooting."""
+        rendered = status_rendering.render_consolidated_error_or_pending_status_output(
+            location_hash='aaaabbbbccccdddd',
+            service='svc',
+            environment='env',
+            normalized_type='BREAKPOINT',
+            created_at='2026-03-09T11:00:00Z',
+            requested_start_str='2026-03-09T11:05:00Z',
+            active_query_start_str='2026-03-09T11:05:00Z',
+            query_end_str='2026-03-09T11:10:00Z',
+            active_has_events=False,
+            active_events=[],
+            active_error=None,
+            ready_has_events=False,
+            ready_events=[],
+            ready_error=None,
+            error_has_events=True,
+            error_events=[{'Time': '2026-03-09T11:06:00Z', 'ErrorCause': 'LINE_NOT_EXECUTABLE'}],
+            error_error=None,
+        )
+        assert 'OVERALL STATUS: ERROR (LINE_NOT_EXECUTABLE)' in rendered
+        assert 'executable code' in rendered
+
+    def test_error_output_other_cause_branch(self):
+        """An unrecognized ERROR cause renders the generic troubleshooting."""
+        rendered = status_rendering.render_consolidated_error_or_pending_status_output(
+            location_hash='aaaabbbbccccdddd',
+            service='svc',
+            environment='env',
+            normalized_type='BREAKPOINT',
+            created_at='2026-03-09T11:00:00Z',
+            requested_start_str='2026-03-09T11:05:00Z',
+            active_query_start_str='2026-03-09T11:05:00Z',
+            query_end_str='2026-03-09T11:10:00Z',
+            active_has_events=False,
+            active_events=[],
+            active_error=None,
+            ready_has_events=False,
+            ready_events=[],
+            ready_error=None,
+            error_has_events=True,
+            error_events=[{'Time': '2026-03-09T11:06:00Z', 'ErrorCause': 'WEIRD_CAUSE'}],
+            error_error=None,
+        )
+        assert 'OVERALL STATUS: ERROR (WEIRD_CAUSE)' in rendered
+        assert 'Check instrumentation configuration for WEIRD_CAUSE' in rendered
+
+    def test_error_output_pending_branch(self):
+        """No ACTIVE/READY/ERROR events renders the PENDING verdict."""
+        rendered = status_rendering.render_consolidated_error_or_pending_status_output(
+            location_hash='aaaabbbbccccdddd',
+            service='svc',
+            environment='env',
+            normalized_type='BREAKPOINT',
+            created_at='2026-03-09T11:00:00Z',
+            requested_start_str='2026-03-09T11:05:00Z',
+            active_query_start_str='2026-03-09T11:05:00Z',
+            query_end_str='2026-03-09T11:10:00Z',
+            active_has_events=False,
+            active_events=[],
+            active_error=None,
+            ready_has_events=False,
+            ready_events=[],
+            ready_error=None,
+            error_has_events=False,
+            error_events=[],
+            error_error=None,
+        )
+        assert 'OVERALL STATUS: PENDING' in rendered
+        assert 'can take 1-2 minutes' in rendered
+
+    def test_get_status_output_active_clarification_when_no_events(self):
+        """An ACTIVE filter with no events renders the ACTIVE clarification."""
+        rendered = status_rendering.render_get_instrumentation_configuration_status_output(
+            data={'Status': 'ACTIVE', 'Events': []},
+            normalized_type='BREAKPOINT',
+            service='svc',
+            environment='env',
+            requested_status='ACTIVE',
+        )
+        assert 'ACTIVE Clarification' in rendered
+        assert 'NOT CONFIRMED' in rendered
+        assert 'No ACTIVE status events found' in rendered
+
+
+class TestSnapshotRenderingMoreHelpers:
+    """Additional coverage for snapshot_rendering branches."""
+
+    def test_search_output_error_branch(self):
+        """An Error query_result renders the ERROR JSON envelope."""
+        rendered = snapshot_rendering.render_search_snapshots_for_status_event_output(
+            service_name='svc',
+            environment='env',
+            location_hash='aaaabbbbccccdddd',
+            custom_filters=None,
+            start_time_utc='2026-03-09T11:59:55Z',
+            end_time_utc='2026-03-09T12:01:00Z',
+            start_epoch=1,
+            end_epoch=2,
+            query_string='fields @timestamp',
+            query_result={'status': 'Error', 'error': 'kaboom'},
+        )
+        parsed = json.loads(rendered)
+        assert parsed['status'] == 'ERROR'
+        assert parsed['error'] == 'kaboom'
+
+    def test_search_output_timeout_branch(self):
+        """A Polling Timeout query_result renders the TIMEOUT envelope."""
+        rendered = snapshot_rendering.render_search_snapshots_for_status_event_output(
+            service_name='svc',
+            environment='env',
+            location_hash='aaaabbbbccccdddd',
+            custom_filters=['x'],
+            start_time_utc='2026-03-09T11:59:55Z',
+            end_time_utc='2026-03-09T12:01:00Z',
+            start_epoch=1,
+            end_epoch=2,
+            query_string='fields @timestamp',
+            query_result={'status': 'Polling Timeout', 'queryId': 'q-9'},
+        )
+        parsed = json.loads(rendered)
+        assert parsed['status'] == 'TIMEOUT'
+        assert parsed['queryId'] == 'q-9'
+        assert parsed['custom_filters'] == ['x']
+
+    def test_search_output_handles_invalid_message_json(self):
+        """A result with non-JSON @message yields a summary with null fields."""
+        rendered = snapshot_rendering.render_search_snapshots_for_status_event_output(
+            service_name='svc',
+            environment='env',
+            location_hash='aaaabbbbccccdddd',
+            custom_filters=None,
+            start_time_utc='2026-03-09T11:59:55Z',
+            end_time_utc='2026-03-09T12:01:00Z',
+            start_epoch=1,
+            end_epoch=2,
+            query_string='fields @timestamp',
+            query_result={
+                'status': 'Complete',
+                'queryId': 'q-1',
+                'results': [{'@timestamp': 't', '@message': 'not-json{'}],
+            },
+        )
+        parsed = json.loads(rendered)
+        assert parsed['status'] == 'Complete'
+        assert parsed['snapshot_summaries'][0]['snapshot_id'] is None
+
+    def test_sample_output_error_branch(self):
+        """An Error sample query renders the ERROR envelope."""
+        rendered = snapshot_rendering.render_get_sample_snapshot_for_breakpoint_output(
+            service_name='svc',
+            environment='env',
+            location_hash='aaaabbbbccccdddd',
+            start_time_utc='s',
+            end_time_utc='e',
+            max_timeout=30,
+            query_string='q',
+            query_result={'status': 'Error', 'error': 'kaboom'},
+        )
+        parsed = json.loads(rendered)
+        assert parsed['status'] == 'ERROR'
+        assert parsed['error'] == 'kaboom'
+
+    def test_sample_output_timeout_branch(self):
+        """A Polling Timeout sample query renders the TIMEOUT envelope."""
+        rendered = snapshot_rendering.render_get_sample_snapshot_for_breakpoint_output(
+            service_name='svc',
+            environment='env',
+            location_hash='aaaabbbbccccdddd',
+            start_time_utc='s',
+            end_time_utc='e',
+            max_timeout=30,
+            query_string='q',
+            query_result={'status': 'Polling Timeout', 'queryId': 'q-7'},
+        )
+        parsed = json.loads(rendered)
+        assert parsed['status'] == 'TIMEOUT'
+        assert '30 seconds' in parsed['message']
+
+    def test_sample_output_non_complete_status_branch(self):
+        """A non-Complete, non-error status renders a passthrough envelope."""
+        rendered = snapshot_rendering.render_get_sample_snapshot_for_breakpoint_output(
+            service_name='svc',
+            environment='env',
+            location_hash='aaaabbbbccccdddd',
+            start_time_utc='s',
+            end_time_utc='e',
+            max_timeout=30,
+            query_string='q',
+            query_result={'status': 'Running', 'queryId': 'q-3'},
+        )
+        parsed = json.loads(rendered)
+        assert parsed['status'] == 'Running'
+
+    def test_sample_output_no_results_branch(self):
+        """A Complete status with no results renders NO_SNAPSHOTS_FOUND."""
+        rendered = snapshot_rendering.render_get_sample_snapshot_for_breakpoint_output(
+            service_name='svc',
+            environment='env',
+            location_hash='aaaabbbbccccdddd',
+            start_time_utc='s',
+            end_time_utc='e',
+            max_timeout=30,
+            query_string='q',
+            query_result={'status': 'Complete', 'queryId': 'q-4', 'results': []},
+        )
+        parsed = json.loads(rendered)
+        assert parsed['status'] == 'NO_SNAPSHOTS_FOUND'
+
+    def test_sample_output_large_snapshot_uses_parsed_summary(self):
+        """A >10KB snapshot with include_raw=False is replaced by a parsed summary."""
+        big_value = 'x' * 11000
+        message = json.dumps(
+            {
+                'timeUnixNano': 1762689600000000000,
+                'traceId': 'trace-1',
+                'attributes': {
+                    'aws.di.snapshot_id': 'snap-big',
+                    'aws.di.location_hash': 'aaaabbbbccccdddd',
+                },
+                'body': {
+                    'captures': {
+                        'entry': {'arguments': {'blob': {'type': 'str', 'value': big_value}}}
+                    }
+                },
+            }
+        )
+        rendered = snapshot_rendering.render_get_sample_snapshot_for_breakpoint_output(
+            service_name='svc',
+            environment='env',
+            location_hash='aaaabbbbccccdddd',
+            start_time_utc='s',
+            end_time_utc='e',
+            max_timeout=30,
+            query_string='q',
+            query_result={
+                'status': 'Complete',
+                'queryId': 'q-5',
+                'results': [{'@timestamp': 't', '@message': message}],
+            },
+            include_raw=False,
+        )
+        parsed = json.loads(rendered)
+        assert parsed['status'] == 'SUCCESS'
+        assert 'note' in parsed
+        assert 'compact parsed summary' in parsed['note']
+        assert parsed['sample_snapshot']['snapshot_id'] == 'snap-big'
+        assert 'raw_snapshot' not in parsed['sample_snapshot']
+
+    def test_sample_output_invalid_message_json_yields_empty_snapshot(self):
+        """A small result with invalid JSON @message yields an empty sample snapshot."""
+        rendered = snapshot_rendering.render_get_sample_snapshot_for_breakpoint_output(
+            service_name='svc',
+            environment='env',
+            location_hash='aaaabbbbccccdddd',
+            start_time_utc='s',
+            end_time_utc='e',
+            max_timeout=30,
+            query_string='q',
+            query_result={
+                'status': 'Complete',
+                'queryId': 'q-6',
+                'results': [{'@timestamp': 't', '@message': 'not-json{'}],
+            },
+            include_raw=False,
+        )
+        parsed = json.loads(rendered)
+        assert parsed['status'] == 'SUCCESS'
+        assert parsed['sample_snapshot'] == {}
+
+
+class TestCrudToolsMoreEntrypoints:
+    """Additional Stubber-driven and validation coverage for crud_tools."""
+
+    def _stub_application_signals(self) -> Stubber:
+        client = aws_clients.get_application_signals_client()
+        stubber = Stubber(client)
+        stubber.activate()
+        return stubber
+
+    def test_create_rejects_invalid_instrumentation_type(self):
+        """An invalid instrumentation_type short-circuits create."""
+        rendered = crud_tools.create_instrumentation(
+            instrumentation_type='BOGUS',
+            service='svc',
+            environment='env',
+            language='Python',
+            file_path='/app/h.py',
+            method_name='run',
+            capture_arguments=['x'],
+        )
+        assert 'instrumentation_type must be one of' in rendered
+
+    def test_create_rejects_missing_file_path(self):
+        """A missing file_path returns the location validation error."""
+        rendered = crud_tools.create_instrumentation(
+            instrumentation_type='BREAKPOINT',
+            service='svc',
+            environment='env',
+            language='Python',
+            file_path=None,
+            method_name='run',
+            capture_arguments=['x'],
+        )
+        assert 'file_path' in rendered
+
+    def test_list_instrumentations_renders_populated_results(self):
+        """A populated list response renders configuration details."""
+        stubber = self._stub_application_signals()
+        stubber.add_response(
+            'list_instrumentation_configurations',
+            {
+                'Service': 'svc',
+                'Environment': 'env',
+                'Changed': True,
+                'LatestConfigurations': [
+                    {
+                        'InstrumentationType': 'BREAKPOINT',
+                        'SignalType': 'SNAPSHOT',
+                        'LocationHash': 'aaaabbbbccccdddd',
+                        'Location': {
+                            'CodeLocation': {
+                                'Language': 'Python',
+                                'FilePath': '/app/handler.py',
+                                'MethodName': 'run',
+                            }
+                        },
+                        'CaptureConfiguration': {
+                            'CodeCapture': {
+                                'CaptureArguments': ['order_id'],
+                                'CaptureReturn': True,
+                                'CaptureStackTrace': True,
+                                'CaptureLimits': {},
+                            }
+                        },
+                        'CreatedAt': datetime(2026, 3, 9, 11, 0, 0, tzinfo=timezone.utc),
+                        'ARN': 'arn:demo',
+                    }
+                ],
+                'SyncedAt': datetime(2026, 3, 9, 12, 0, 0, tzinfo=timezone.utc),
+                'SyncInterval': 60,
+            },
+        )
+        rendered = crud_tools.list_instrumentations(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+        )
+        stubber.assert_no_pending_responses()
+        assert 'Active BREAKPOINT Instrumentations (1 found)' in rendered
+        assert 'aaaabbbbccccdddd' in rendered
+
+    def test_list_instrumentations_forwards_optional_params(self):
+        """Optional synced_at/max_results/next_token are forwarded to the API."""
+        stubber = self._stub_application_signals()
+        stubber.add_response(
+            'list_instrumentation_configurations',
+            {
+                'Service': 'svc',
+                'Environment': 'env',
+                'Changed': False,
+                'LatestConfigurations': [],
+                'SyncedAt': datetime(2026, 3, 9, 12, 0, 0, tzinfo=timezone.utc),
+                'SyncInterval': 60,
+            },
+            expected_params={
+                'Service': 'svc',
+                'Environment': 'env',
+                'InstrumentationType': 'BREAKPOINT',
+                'SyncedAt': '2026-03-09T11:00:00Z',
+                'MaxResults': 5,
+                'NextToken': 'tok',
+            },
+        )
+        rendered = crud_tools.list_instrumentations(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+            synced_at='2026-03-09T11:00:00Z',
+            max_results=5,
+            next_token='tok',
+        )
+        stubber.assert_no_pending_responses()
+        assert 'No active BREAKPOINT instrumentations found' in rendered
+
+    def test_get_instrumentation_error_path(self):
+        """A backend error on get renders the attempted-retrieve block."""
+        stubber = self._stub_application_signals()
+        stubber.add_client_error(
+            'get_instrumentation_configuration',
+            service_error_code='ResourceNotFoundException',
+            service_message='no such config',
+        )
+        rendered = crud_tools.get_instrumentation(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+            location_hash='aaaabbbbccccdddd',
+        )
+        assert 'ATTEMPTED TO RETRIEVE:' in rendered
+        assert 'ResourceNotFoundException' in rendered
+
+    def test_get_instrumentation_requires_location_identifier(self):
+        """Get without any location identifier returns usage help."""
+        rendered = crud_tools.get_instrumentation(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+        )
+        assert 'Must provide one of' in rendered
+
+    def test_delete_instrumentation_by_code_location(self):
+        """Delete resolves a code location into a CodeLocation identifier."""
+        stubber = self._stub_application_signals()
+        stubber.add_response(
+            'delete_instrumentation_configuration',
+            {'DeletionStatus': 'DELETED'},
+            expected_params={
+                'InstrumentationType': 'BREAKPOINT',
+                'Service': 'svc',
+                'Environment': 'env',
+                'SignalType': 'SNAPSHOT',
+                'LocationIdentifier': {
+                    'CodeLocation': {
+                        'Language': 'Python',
+                        'FilePath': '/app/handler.py',
+                        'MethodName': 'run',
+                    }
+                },
+            },
+        )
+        rendered = crud_tools.delete_instrumentation(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+            language='Python',
+            file_path='/app/handler.py',
+            method_name='run',
+        )
+        stubber.assert_no_pending_responses()
+        assert 'Successfully deleted BREAKPOINT instrumentation' in rendered
+
+    def test_delete_instrumentation_requires_location_identifier(self):
+        """Delete without any location identifier returns usage help."""
+        rendered = crud_tools.delete_instrumentation(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+        )
+        assert 'Must provide one of' in rendered
+
+    def test_delete_instrumentation_error_path(self):
+        """A backend error on delete renders the attempted-delete block."""
+        stubber = self._stub_application_signals()
+        stubber.add_client_error(
+            'delete_instrumentation_configuration',
+            service_error_code='ResourceNotFoundException',
+            service_message='gone',
+        )
+        rendered = crud_tools.delete_instrumentation(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+            location_hash='aaaabbbbccccdddd',
+        )
+        assert 'ATTEMPTED TO DELETE:' in rendered
+        assert 'ResourceNotFoundException' in rendered
+
+    def test_batch_delete_by_arns_success(self):
+        """Batch delete by ARNs renders a successful summary."""
+        stubber = self._stub_application_signals()
+        arn = (
+            'arn:aws:application-signals:us-west-1:123456789012:'
+            'instrumentationConfig/svc/env/SNAPSHOT/aaaabbbbccccdddd'
+        )
+        stubber.add_response(
+            'batch_delete_instrumentation_configurations',
+            {
+                'DeletedCount': 1,
+                'SuccessfulDeletions': [{'ResourceArn': arn}],
+                'Errors': [],
+            },
+            expected_params={
+                'DeletionTarget': {
+                    'ResourceArns': {
+                        'ResourceArns': [arn],
+                        'InstrumentationType': 'BREAKPOINT',
+                    }
+                }
+            },
+        )
+        rendered = crud_tools.batch_delete_instrumentations_by_arns(
+            resource_arns=[arn],
+            instrumentation_type='BREAKPOINT',
+        )
+        stubber.assert_no_pending_responses()
+        assert 'DeletedCount: 1' in rendered
+        assert 'Mode: ResourceArns' in rendered
+
+    def test_batch_delete_by_arns_error_path(self):
+        """A backend error on ARN batch delete renders the attempted block."""
+        stubber = self._stub_application_signals()
+        arn = (
+            'arn:aws:application-signals:us-west-1:123456789012:'
+            'instrumentationConfig/svc/env/SNAPSHOT/aaaabbbbccccdddd'
+        )
+        stubber.add_client_error(
+            'batch_delete_instrumentation_configurations',
+            service_error_code='ValidationException',
+            service_message='bad arns',
+        )
+        rendered = crud_tools.batch_delete_instrumentations_by_arns(
+            resource_arns=[arn],
+            instrumentation_type='BREAKPOINT',
+        )
+        assert 'ValidationException' in rendered
+        assert 'bad arns' in rendered
+
+    def test_batch_delete_by_arns_rejects_empty_list(self):
+        """An empty ARN list is rejected before any API call."""
+        rendered = crud_tools.batch_delete_instrumentations_by_arns(
+            resource_arns=[],
+            instrumentation_type='BREAKPOINT',
+        )
+        assert 'at least one ARN' in rendered
+
+    def test_batch_delete_by_arns_rejects_too_many(self):
+        """More than 50 ARNs are rejected before any API call."""
+        rendered = crud_tools.batch_delete_instrumentations_by_arns(
+            resource_arns=['arn'] * 51,
+            instrumentation_type='BREAKPOINT',
+        )
+        assert 'at most 50 ARNs' in rendered
+
+    def test_batch_delete_by_arns_rejects_blank_arn(self):
+        """A blank ARN entry is rejected before any API call."""
+        rendered = crud_tools.batch_delete_instrumentations_by_arns(
+            resource_arns=['  '],
+            instrumentation_type='BREAKPOINT',
+        )
+        assert 'non-empty ARN strings only' in rendered
+
+    def test_batch_delete_by_scope_error_path(self):
+        """A backend error on scope batch delete renders the failure block."""
+        stubber = self._stub_application_signals()
+        stubber.add_client_error(
+            'batch_delete_instrumentation_configurations',
+            service_error_code='ValidationException',
+            service_message='bad scope',
+        )
+        rendered = crud_tools.batch_delete_instrumentations_by_scope(
+            service='svc',
+            environment='env',
+            instrumentation_type='BREAKPOINT',
+        )
+        assert 'ValidationException' in rendered
+        assert 'bad scope' in rendered
+
+    def test_batch_delete_by_scope_rejects_invalid_type(self):
+        """An invalid instrumentation_type short-circuits scope batch delete."""
+        rendered = crud_tools.batch_delete_instrumentations_by_scope(
+            service='svc',
+            environment='env',
+            instrumentation_type='NOPE',
+        )
+        assert 'instrumentation_type must be one of' in rendered
 
 
 # Ensure tests don't depend on any pre-existing AWS credentials in the env.
