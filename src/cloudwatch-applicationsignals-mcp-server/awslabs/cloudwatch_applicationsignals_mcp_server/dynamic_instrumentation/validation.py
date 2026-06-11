@@ -19,12 +19,18 @@ from typing import List, Optional, Tuple
 
 def normalize_instrumentation_type(
     instrumentation_type: str,
-) -> Tuple[Optional[str], Optional[str]]:
-    """Normalize the type to upper-case; return ``(normalized, error)``."""
+) -> Tuple[str, Optional[str]]:
+    """Normalize the type to upper-case; return ``(normalized, error)``.
+
+    The normalized value is always a ``str`` (the upper-cased received value
+    even on the error path) so callers get a non-optional type once they
+    return early on ``error``. Callers must check ``error`` before using
+    ``normalized``.
+    """
     normalized = (instrumentation_type or '').strip().upper()
     allowed = {'BREAKPOINT', 'PROBE'}
     if normalized not in allowed:
-        return None, (
+        return normalized, (
             'ERROR: instrumentation_type must be one of BREAKPOINT, PROBE '
             f'(received: {instrumentation_type})'
         )
@@ -40,14 +46,19 @@ def validate_snapshot_signal(signal_type: str) -> Optional[str]:
 
 
 def _format_code_location_troubleshooting(
-    language: str,
-    file_path: str,
+    language: Optional[str],
+    file_path: Optional[str],
     code_unit: Optional[str],
     class_name: Optional[str],
     method_name: Optional[str],
     line_number: Optional[int],
 ) -> str:
-    """Build troubleshooting guidance for code-location create failures."""
+    """Build troubleshooting guidance for code-location create failures.
+
+    ``language``/``file_path`` are ``Optional`` because callers pass raw,
+    unvalidated MCP inputs (which may be ``None``); the body renders them
+    verbatim and guards with ``(language or '')`` where it matters.
+    """
     lang = (language or '').strip().lower()
 
     lines = [

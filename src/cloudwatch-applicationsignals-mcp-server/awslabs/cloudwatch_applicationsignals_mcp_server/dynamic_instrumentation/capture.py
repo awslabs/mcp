@@ -36,7 +36,7 @@ Both shapes survive parse → payload → parse round-trips.
 
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Any, Dict, Mapping, Optional, Tuple, Union
+from typing import Any, Dict, Mapping, Optional, Sequence, Union
 
 
 @dataclass(frozen=True)
@@ -110,8 +110,11 @@ class CodeCapture:
 
     capture_return: bool
     capture_stack_trace: bool
-    capture_arguments: Optional[Tuple[str, ...]] = None
-    capture_locals: Optional[Tuple[str, ...]] = None
+    # Declared as ``Sequence[str]`` because the constructor accepts any string
+    # sequence (commonly a list); ``__post_init__`` coerces to ``tuple`` so the
+    # stored value is always an immutable tuple despite the broader input type.
+    capture_arguments: Optional[Sequence[str]] = None
+    capture_locals: Optional[Sequence[str]] = None
     limits: CaptureLimits = field(default_factory=CaptureLimits)
 
     def __post_init__(self) -> None:
