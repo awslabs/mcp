@@ -161,13 +161,15 @@ class CloudWatchMetricsTools:
         namespace: Annotated[
             str | None,
             Field(
-                description='The namespace of the metric. Required unless queries parameter is provided.'
+                description='The namespace of the metric. Required unless queries parameter is provided.',
+                json_schema_extra={'type': 'string'},
             ),
         ] = None,
         metric_name: Annotated[
             str | None,
             Field(
-                description='The name of the metric. Required unless queries parameter is provided.'
+                description='The name of the metric. Required unless queries parameter is provided.',
+                json_schema_extra={'type': 'string'},
             ),
         ] = None,
         start_time: Annotated[
@@ -207,7 +209,8 @@ class CloudWatchMetricsTools:
         group_by_dimension: Annotated[
             str | None,
             Field(
-                description='Dimension name to group by in Metrics Insights mode. Must be included in schema_dimension_keys.'
+                description='Dimension name to group by in Metrics Insights mode. Must be included in schema_dimension_keys.',
+                json_schema_extra={'type': 'string'},
             ),
         ] = None,
         schema_dimension_keys: Annotated[
@@ -219,7 +222,8 @@ class CloudWatchMetricsTools:
         limit: Annotated[
             int | None,
             Field(
-                description='Maximum number of results to return in Metrics Insights mode (used with LIMIT clause).'
+                description='Maximum number of results to return in Metrics Insights mode (used with LIMIT clause).',
+                json_schema_extra={'type': 'integer'},
             ),
         ] = None,
         sort_order: Annotated[
@@ -237,13 +241,15 @@ class CloudWatchMetricsTools:
         region: Annotated[
             str | None,
             Field(
-                description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'
+                description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.',
+                json_schema_extra={'type': 'string'},
             ),
         ] = None,
         profile_name: Annotated[
             str | None,
             Field(
-                description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.'
+                description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.',
+                json_schema_extra={'type': 'string'},
             ),
         ] = None,
         queries: Annotated[
@@ -812,13 +818,15 @@ class CloudWatchMetricsTools:
         region: Annotated[
             str | None,
             Field(
-                description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'
+                description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.',
+                json_schema_extra={'type': 'string'},
             ),
         ] = None,
         profile_name: Annotated[
             str | None,
             Field(
-                description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.'
+                description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.',
+                json_schema_extra={'type': 'string'},
             ),
         ] = None,
         statistic: Annotated[
@@ -1321,13 +1329,15 @@ class CloudWatchMetricsTools:
         region: Annotated[
             str | None,
             Field(
-                description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'
+                description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.',
+                json_schema_extra={'type': 'string'},
             ),
         ] = None,
         profile_name: Annotated[
             str | None,
             Field(
-                description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.'
+                description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.',
+                json_schema_extra={'type': 'string'},
             ),
         ] = None,
         statistic: Annotated[

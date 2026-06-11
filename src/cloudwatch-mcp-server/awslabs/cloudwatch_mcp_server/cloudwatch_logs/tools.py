@@ -232,7 +232,8 @@ class CloudWatchLogsTools:
                 description=(
                     """If the AWS account is a monitoring account, set this to True to have the tool return log groups in the accounts listed in account_identifiers.
                 If this parameter is set to true and account_identifiers contains a null value, the tool returns all log groups in the monitoring account and all log groups in all source accounts that are linked to the monitoring account."""
-                )
+                ),
+                json_schema_extra={'type': 'boolean'},
             ),
         ] = False,
         log_group_class: Annotated[
@@ -246,7 +247,8 @@ class CloudWatchLogsTools:
             Field(
                 description=(
                     'An exact prefix to filter log groups by name. IMPORTANT: Only log groups with names starting with this prefix will be returned.'
-                )
+                ),
+                json_schema_extra={'type': 'string'},
             ),
         ] = None,
         max_items: Annotated[
@@ -255,13 +257,15 @@ class CloudWatchLogsTools:
         region: Annotated[
             str | None,
             Field(
-                description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'
+                description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.',
+                json_schema_extra={'type': 'string'},
             ),
         ] = None,
         profile_name: Annotated[
             str | None,
             Field(
-                description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.'
+                description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.',
+                json_schema_extra={'type': 'string'},
             ),
         ] = None,
     ) -> LogsMetadata:
@@ -375,13 +379,15 @@ class CloudWatchLogsTools:
         region: Annotated[
             str | None,
             Field(
-                description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'
+                description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.',
+                json_schema_extra={'type': 'string'},
             ),
         ] = None,
         profile_name: Annotated[
             str | None,
             Field(
-                description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.'
+                description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.',
+                json_schema_extra={'type': 'string'},
             ),
         ] = None,
     ) -> LogsAnalysisResult:
@@ -544,7 +550,8 @@ class CloudWatchLogsTools:
         limit: Annotated[
             int | None,
             Field(
-                description='The maximum number of log events to return. It is critical to use either this parameter or a `| limit <int>` operator in the query to avoid consuming too many tokens of the agent.'
+                description='The maximum number of log events to return. It is critical to use either this parameter or a `| limit <int>` operator in the query to avoid consuming too many tokens of the agent.',
+                json_schema_extra={'type': 'integer'},
             ),
         ] = None,
         max_timeout: Annotated[
@@ -556,13 +563,15 @@ class CloudWatchLogsTools:
         region: Annotated[
             str | None,
             Field(
-                description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'
+                description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.',
+                json_schema_extra={'type': 'string'},
             ),
         ] = None,
         profile_name: Annotated[
             str | None,
             Field(
-                description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.'
+                description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.',
+                json_schema_extra={'type': 'string'},
             ),
         ] = None,
     ) -> Dict:
@@ -633,13 +642,15 @@ class CloudWatchLogsTools:
         region: Annotated[
             str | None,
             Field(
-                description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'
+                description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.',
+                json_schema_extra={'type': 'string'},
             ),
         ] = None,
         profile_name: Annotated[
             str | None,
             Field(
-                description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.'
+                description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.',
+                json_schema_extra={'type': 'string'},
             ),
         ] = None,
     ) -> Dict:
@@ -695,13 +706,15 @@ class CloudWatchLogsTools:
         region: Annotated[
             str | None,
             Field(
-                description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'
+                description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.',
+                json_schema_extra={'type': 'string'},
             ),
         ] = None,
         profile_name: Annotated[
             str | None,
             Field(
-                description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.'
+                description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.',
+                json_schema_extra={'type': 'string'},
             ),
         ] = None,
     ) -> LogsQueryCancelResult:

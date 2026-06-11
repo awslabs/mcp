@@ -54,19 +54,22 @@ class CloudWatchAlarmsTools:
         max_items: Annotated[
             int | None,
             Field(
-                description='Maximum number of alarms to return (default: 50). Large values may cause context window overflow and impact LLM performance.'
+                description='Maximum number of alarms to return (default: 50). Large values may cause context window overflow and impact LLM performance.',
+                json_schema_extra={'type': 'integer'},
             ),
         ] = 50,
         region: Annotated[
             str | None,
             Field(
-                description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'
+                description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.',
+                json_schema_extra={'type': 'string'},
             ),
         ] = None,
         profile_name: Annotated[
             str | None,
             Field(
-                description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.'
+                description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.',
+                json_schema_extra={'type': 'string'},
             ),
         ] = None,
     ) -> ActiveAlarmsResponse:
@@ -183,43 +186,50 @@ class CloudWatchAlarmsTools:
         start_time: Annotated[
             str | None,
             Field(
-                description="The start time for the history query in ISO format (e.g., '2023-01-01T00:00:00Z') or as a datetime object. Defaults to 24 hours ago."
+                description="The start time for the history query in ISO format (e.g., '2023-01-01T00:00:00Z') or as a datetime object. Defaults to 24 hours ago.",
+                json_schema_extra={'type': 'string'},
             ),
         ] = None,
         end_time: Annotated[
             str | None,
             Field(
-                description="The end time for the history query in ISO format (e.g., '2023-01-01T00:00:00Z') or as a datetime object. Defaults to current time."
+                description="The end time for the history query in ISO format (e.g., '2023-01-01T00:00:00Z') or as a datetime object. Defaults to current time.",
+                json_schema_extra={'type': 'string'},
             ),
         ] = None,
         history_item_type: Annotated[
             str | None,
             Field(
-                description="Type of history items to retrieve. Possible values: 'ConfigurationUpdate', 'StateUpdate', 'Action'. Defaults to 'StateUpdate'."
+                description="Type of history items to retrieve. Possible values: 'ConfigurationUpdate', 'StateUpdate', 'Action'. Defaults to 'StateUpdate'.",
+                json_schema_extra={'type': 'string'},
             ),
         ] = None,
         max_items: Annotated[
             int | None,
             Field(
-                description='Maximum number of history items to return (default: 50). Large values may cause context window overflow and impact LLM performance. Adjust time-range to limit responses.'
+                description='Maximum number of history items to return (default: 50). Large values may cause context window overflow and impact LLM performance. Adjust time-range to limit responses.',
+                json_schema_extra={'type': 'integer'},
             ),
         ] = 50,
         include_component_alarms: Annotated[
             bool | None,
             Field(
-                description='For composite alarms, whether to include details about component alarms. Defaults to false.'
+                description='For composite alarms, whether to include details about component alarms. Defaults to false.',
+                json_schema_extra={'type': 'boolean'},
             ),
         ] = False,
         region: Annotated[
             str | None,
             Field(
-                description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'
+                description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.',
+                json_schema_extra={'type': 'string'},
             ),
         ] = None,
         profile_name: Annotated[
             str | None,
             Field(
-                description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.'
+                description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.',
+                json_schema_extra={'type': 'string'},
             ),
         ] = None,
     ) -> Union[AlarmHistoryResponse, CompositeAlarmComponentResponse]:
