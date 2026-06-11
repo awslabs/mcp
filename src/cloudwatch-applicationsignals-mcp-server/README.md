@@ -450,7 +450,6 @@ local state, and stack traces) from CloudWatch Logs.
 - `batch_delete_instrumentations_by_arns` — Batch delete instrumentation configurations by explicit resource ARN list.
 - `get_instrumentation_configuration_status` — Get status-event history for one instrumentation configuration and one explicit status.
 - `check_instrumentation_status` — Run a consolidated READY/ACTIVE/ERROR status check over a time window.
-- `report_instrumentation_configuration_status` — Report one or more instrumentation status events to the backend.
 
 **Snapshot analysis tools**
 
@@ -1053,8 +1052,7 @@ The server requires the following AWS IAM permissions:
         "application-signals:GetInstrumentationConfiguration",
         "application-signals:DeleteInstrumentationConfiguration",
         "application-signals:BatchDeleteInstrumentationConfigurations",
-        "application-signals:GetInstrumentationConfigurationStatus",
-        "application-signals:ReportInstrumentationConfigurationStatus"
+        "application-signals:GetInstrumentationConfigurationStatus"
       ],
       "Resource": "*"
     }

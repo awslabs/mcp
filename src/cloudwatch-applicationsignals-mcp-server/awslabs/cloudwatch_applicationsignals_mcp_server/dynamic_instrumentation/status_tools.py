@@ -19,12 +19,10 @@ from .location import parse_lookup_inputs
 from .status_assessment import assess
 from .status_rendering import (
     render_get_instrumentation_configuration_status_output,
-    render_report_instrumentation_configuration_status_output,
     render_status_assessment,
 )
 from .validation import (
     normalize_instrumentation_type,
-    normalize_status_configurations,
     validate_snapshot_signal,
 )
 from datetime import datetime
@@ -333,66 +331,4 @@ def check_instrumentation_status(
         environment=environment,
         normalized_type=normalized_type,
         time_window=time_window,
-    )
-
-
-def report_instrumentation_configuration_status(
-    service: str,
-    environment: str,
-    configurations: List[Dict[str, str]],
-) -> str:
-    """Report one or more instrumentation status events to the backend.
-
-    Args:
-        service: Backend service identifier.
-        environment: Backend environment identifier.
-        configurations: List of status-event objects. Each item must normalize to:
-            InstrumentationType, SignalType, LocationHash, Status, and Time.
-            Optional ErrorCause is allowed for ERROR events.
-
-    Notes:
-        - Only BREAKPOINT and PROBE status events are accepted.
-        - SignalType must be SNAPSHOT.
-        - LocationHash must be a 16-character string.
-
-    Returns:
-        A human-readable submission summary including any unprocessed events
-        returned by the backend.
-    """
-    if not configurations:
-        return 'ERROR: configurations must contain at least one status report'
-
-    normalized, error = normalize_status_configurations(configurations)
-    if error:
-        return error
-
-    try:
-        data = gateway.report_instrumentation_configuration_status(
-            Service=service,
-            Environment=environment,
-            Configurations=normalized,
-        )
-    except gateway.GatewayError as err:
-        return gateway.render_error(
-            err,
-            action='report instrumentation status',
-            attempted_label='ATTEMPTED TO REPORT:',
-            attempted={
-                'Service': service,
-                'Environment': environment,
-                'Events': len(normalized),
-            },
-            possible_causes=[
-                'Validation error in configurations list',
-                'Invalid service or environment identifier',
-                'Throttling or service error',
-            ],
-            troubleshooting=['Verify configuration fields and retry'],
-        )
-
-    return render_report_instrumentation_configuration_status_output(
-        data=data,
-        normalized=normalized,
-        service=service,
-        environment=environment,
     )

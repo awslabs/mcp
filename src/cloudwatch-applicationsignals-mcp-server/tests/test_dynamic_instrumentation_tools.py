@@ -43,12 +43,14 @@ class RecorderMCP:
     def __init__(self):
         """Initialize the recorder."""
         self.registered = []
+        self.annotations = {}
 
-    def tool(self):
-        """Return a decorator that records the registered tool's name."""
+    def tool(self, *, annotations=None):
+        """Return a decorator that records the registered tool's name and annotations."""
 
         def _decorator(func):
             self.registered.append(func.__name__)
+            self.annotations[func.__name__] = annotations
             return func
 
         return _decorator
@@ -488,39 +490,6 @@ class TestSignalValidationAndNormalization:
         assert error is not None
         assert 'must be SNAPSHOT' in error
 
-    def test_normalize_status_defaults_signal_to_snapshot(self):
-        """Normalize status defaults signal to snapshot."""
-        normalized, error = validation.normalize_status_configurations(
-            [
-                {
-                    'InstrumentationType': 'BREAKPOINT',
-                    'LocationHash': 'aaaabbbbccccdddd',
-                    'Status': 'READY',
-                    'Time': '2026-03-06T00:00:00Z',
-                }
-            ]
-        )
-        assert error is None
-        assert normalized is not None
-        assert normalized[0]['SignalType'] == 'SNAPSHOT'
-
-    def test_normalize_status_rejects_watcher(self):
-        """Normalize status rejects watcher."""
-        normalized, error = validation.normalize_status_configurations(
-            [
-                {
-                    'InstrumentationType': 'WATCHER',
-                    'SignalType': 'SNAPSHOT',
-                    'LocationHash': 'aaaabbbbccccdddd',
-                    'Status': 'READY',
-                    'Time': '2026-03-06T00:00:00Z',
-                }
-            ]
-        )
-        assert normalized is None
-        assert error is not None
-        assert 'invalid InstrumentationType' in error
-
 
 class TestBatchDeleteFormatting:
     """Test batch-delete response rendering."""
@@ -900,10 +869,61 @@ class TestToolRegistration:
             'batch_delete_instrumentations_by_arns',
             'get_instrumentation_configuration_status',
             'check_instrumentation_status',
-            'report_instrumentation_configuration_status',
             'search_snapshots_for_status_event',
             'get_sample_snapshot_for_breakpoint',
         ]
+
+    def test_read_only_tools_are_annotated_read_only(self):
+        """Read-only tools carry ``readOnlyHint=True`` for MCP clients."""
+        recorder = RecorderMCP()
+
+        registration.register_tools(recorder)
+
+        for name in (
+            'list_instrumentations',
+            'get_instrumentation',
+            'get_instrumentation_configuration_status',
+            'check_instrumentation_status',
+            'search_snapshots_for_status_event',
+            'get_sample_snapshot_for_breakpoint',
+        ):
+            assert recorder.annotations[name].readOnlyHint is True
+
+    def test_destructive_tools_are_annotated_destructive(self):
+        """Delete tools carry ``destructiveHint=True`` so clients can warn first."""
+        recorder = RecorderMCP()
+
+        registration.register_tools(recorder)
+
+        for name in (
+            'delete_instrumentation',
+            'batch_delete_instrumentations_by_scope',
+            'batch_delete_instrumentations_by_arns',
+        ):
+            annotations = recorder.annotations[name]
+            assert annotations.readOnlyHint is False
+            assert annotations.destructiveHint is True
+            assert annotations.idempotentHint is True
+
+    def test_create_tool_is_state_changing_but_not_destructive(self):
+        """create_instrumentation is a write, not a read and not destructive."""
+        recorder = RecorderMCP()
+
+        registration.register_tools(recorder)
+
+        annotations = recorder.annotations['create_instrumentation']
+        assert annotations.readOnlyHint is False
+        assert annotations.destructiveHint is False
+        assert annotations.idempotentHint is False
+
+    def test_every_tool_is_annotated_open_world(self):
+        """Every tool calls the AWS API, so all carry ``openWorldHint=True``."""
+        recorder = RecorderMCP()
+
+        registration.register_tools(recorder)
+
+        for name in recorder.registered:
+            assert recorder.annotations[name].openWorldHint is True
 
 
 class TestSnapshotLogGroupResolution:

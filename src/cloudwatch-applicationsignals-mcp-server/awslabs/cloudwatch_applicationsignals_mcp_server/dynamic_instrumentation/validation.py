@@ -14,7 +14,7 @@
 """Validation and normalization helpers for instrumentation inputs."""
 
 from .constants import SNAPSHOT_SIGNAL_TYPE
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 
 def normalize_instrumentation_type(
@@ -167,85 +167,3 @@ def _validate_location_inputs(
     )
 
     return message
-
-
-def normalize_status_configurations(
-    configurations: List[Dict[str, str]],
-) -> Tuple[Optional[List[Dict[str, str]]], Optional[str]]:
-    """Normalize and validate status report configurations."""
-    key_map = {
-        'instrumentation_type': 'InstrumentationType',
-        'signal_type': 'SignalType',
-        'location_hash': 'LocationHash',
-        'status': 'Status',
-        'time': 'Time',
-        'error_cause': 'ErrorCause',
-    }
-
-    required_keys = ['InstrumentationType', 'SignalType', 'LocationHash', 'Status', 'Time']
-    allowed_instrumentation = {'BREAKPOINT', 'PROBE'}
-    allowed_signal = {SNAPSHOT_SIGNAL_TYPE}
-    allowed_status = {'READY', 'ERROR', 'ACTIVE', 'DISABLED'}
-    allowed_error_cause = {
-        'FILE_NOT_FOUND',
-        'METHOD_NOT_FOUND',
-        'LINE_NOT_EXECUTABLE',
-        'OVERLOADED_METHODS',
-        'LANGUAGE_MISMATCH',
-        'RUNTIME_ERROR',
-    }
-
-    normalized_list: List[Dict[str, str]] = []
-
-    for idx, item in enumerate(configurations, 1):
-        if not isinstance(item, dict):
-            return None, f'ERROR: configurations[{idx}] must be an object'
-
-        normalized: Dict[str, str] = {}
-        for key, value in item.items():
-            canonical_key = key_map.get(key, key)
-            if canonical_key in normalized and normalized[canonical_key] != value:
-                return (
-                    None,
-                    f'ERROR: configurations[{idx}] has conflicting values for {canonical_key}',
-                )
-            normalized[canonical_key] = value
-
-        if not normalized.get('SignalType'):
-            normalized['SignalType'] = SNAPSHOT_SIGNAL_TYPE
-
-        missing = [key for key in required_keys if not normalized.get(key)]
-        if missing:
-            return (
-                None,
-                f'ERROR: configurations[{idx}] missing required fields: {", ".join(missing)}',
-            )
-
-        if normalized['InstrumentationType'] not in allowed_instrumentation:
-            return (
-                None,
-                f'ERROR: configurations[{idx}] invalid InstrumentationType: {normalized["InstrumentationType"]}',
-            )
-
-        if normalized['SignalType'] not in allowed_signal:
-            return (
-                None,
-                f'ERROR: configurations[{idx}] invalid SignalType: {normalized["SignalType"]}',
-            )
-
-        if normalized['Status'] not in allowed_status:
-            return None, f'ERROR: configurations[{idx}] invalid Status: {normalized["Status"]}'
-
-        if 'ErrorCause' in normalized and normalized['ErrorCause'] not in allowed_error_cause:
-            return (
-                None,
-                f'ERROR: configurations[{idx}] invalid ErrorCause: {normalized["ErrorCause"]}',
-            )
-
-        location_hash = normalized.get('LocationHash')
-        if not isinstance(location_hash, str) or len(location_hash) != 16:
-            return None, f'ERROR: configurations[{idx}] LocationHash must be a 16-character string'
-
-        normalized_list.append(normalized)
-
-    return normalized_list, None

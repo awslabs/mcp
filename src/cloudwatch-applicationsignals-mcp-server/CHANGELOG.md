@@ -9,9 +9,8 @@
     `delete_instrumentation`, `batch_delete_instrumentations_by_scope`,
     `batch_delete_instrumentations_by_arns` for managing instrumentation
     configurations.
-  - `get_instrumentation_configuration_status`, `check_instrumentation_status`,
-    `report_instrumentation_configuration_status` for status inspection and
-    reporting.
+  - `get_instrumentation_configuration_status`, `check_instrumentation_status`
+    for status inspection.
   - `search_snapshots_for_status_event`, `get_sample_snapshot_for_breakpoint`
     for analyzing captured snapshots from CloudWatch Logs.
   - Ships a trimmed preview `application-signals` service model bundled under
