@@ -37,6 +37,7 @@ from awslabs.redshift_mcp_server.consts import (
     SVV_REDSHIFT_DATABASES_QUERY,
 )
 from botocore.config import Config
+from botocore.exceptions import ClientError
 from loguru import logger
 
 
@@ -423,11 +424,21 @@ async def _execute_statement(
 async def discover_clusters() -> list[dict]:
     """Discover all Redshift clusters and serverless workgroups.
 
+    Discovery is best-effort for each type: if either provisioned or serverless
+    discovery succeeds, the function returns whatever was found. It only raises
+    if both fail (i.e., no clusters could be discovered at all).
+
     Returns:
         List of cluster information dictionaries.
+
+    Raises:
+        Exception: If both provisioned and serverless discovery fail.
     """
     clusters = []
+    provisioned_error = None
+    serverless_error = None
 
+    # Attempt provisioned cluster discovery
     try:
         # Get provisioned clusters
         logger.debug('Discovering provisioned Redshift clusters')
@@ -456,10 +467,11 @@ async def discover_clusters() -> list[dict]:
 
         logger.info(f'Found {len(clusters)} provisioned clusters')
 
-    except Exception as e:
-        logger.error(f'Error discovering provisioned clusters: {str(e)}')
-        raise
+    except ClientError as e:
+        provisioned_error = e
+        logger.warning(f'Unable to discover provisioned clusters: {str(e)}')
 
+    # Attempt serverless workgroup discovery
     try:
         # Get serverless workgroups
         logger.debug('Discovering Redshift Serverless workgroups')
@@ -491,16 +503,28 @@ async def discover_clusters() -> list[dict]:
                     'master_username': None,  # Serverless uses IAM
                     'publicly_accessible': workgroup_detail.get('publiclyAccessible'),
                     'encrypted': True,  # Serverless is always encrypted
-                    'tags': {tag['key']: tag['value'] for tag in workgroup_detail.get('tags', [])},
+                    'tags': {
+                        tag['key']: tag['value']
+                        for tag in workgroup_detail.get('tags', [])
+                    },
                 }
                 clusters.append(cluster_info)
 
         serverless_count = len([c for c in clusters if c['type'] == 'serverless'])
         logger.info(f'Found {serverless_count} serverless workgroups')
 
-    except Exception as e:
-        logger.error(f'Error discovering serverless workgroups: {str(e)}')
-        raise
+    except ClientError as e:
+        serverless_error = e
+        logger.warning(f'Unable to discover serverless workgroups: {str(e)}')
+
+    # If both discovery methods failed, raise an error
+    if provisioned_error and serverless_error:
+        error_msg = (
+            f'Failed to discover any Redshift clusters. '
+            f'Provisioned error: {provisioned_error}; Serverless error: {serverless_error}'
+        )
+        logger.error(error_msg)
+        raise PermissionError(error_msg)
 
     logger.info(f'Total clusters discovered: {len(clusters)}')
     return clusters
