@@ -124,7 +124,7 @@ To pre-connect a single instance at startup, pass arguments after the package na
 
 ## Related resources
 
-- [`rds-db2-provision-skill`](../../..) — the Terraform composer that deploys RDS for Db2.
+- `rds-db2-provision-skill` — the Terraform composer that deploys RDS for Db2.
 - [Deploying Amazon RDS for Db2 using Terraform](https://aws.amazon.com/blogs/database/deploying-amazon-rds-for-db2-using-terraform/) — the published Terraform modules the provisioning skill reuses.
 - [Create a monitoring dashboard for Amazon RDS for Db2](https://aws.amazon.com/blogs/database/create-monitoring-dashboard-for-amazon-rds-for-db2/) — basis for a planned phase-2 monitoring toolset.
 - [Connect to Amazon RDS for Db2 from your laptop](https://aws.amazon.com/blogs/database/connect-to-amazon-rds-for-db2-from-your-laptop/) — EC2 + SSM tunnel approach used in the testing section above.
@@ -190,4 +190,4 @@ Clean up afterward: end the SSM session (Ctrl-C). No `/etc/hosts` change is need
 
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE).
+Licensed under the Apache License, Version 2.0.
