@@ -71,17 +71,25 @@ async def review_cluster(
     total_queries = len(queries)
     findings: list[ReviewFinding] = []
     queries_executed: list[str] = []
+    queries_skipped: list[str] = []
 
     # Stage 2 & 3: Execute and collect findings
     for idx, (query_name, sql) in enumerate(queries):
         logger.debug('Executing review query: {} ({}/{})', query_name, idx + 1, total_queries)
 
-        result = await execute_query_func(
-            cluster_identifier=cluster_identifier,
-            database_name=database_name,
-            sql=sql,
-            allow_read_write=True,
-        )
+        try:
+            result = await execute_query_func(
+                cluster_identifier=cluster_identifier,
+                database_name=database_name,
+                sql=sql,
+                allow_read_write=True,
+            )
+        except Exception as e:
+            logger.warning('Review query {} skipped: {}', query_name, str(e))
+            queries_skipped.append(query_name)
+            if progress_reporter_func:
+                await progress_reporter_func(idx + 1, total_queries)
+            continue
 
         queries_executed.append(query_name)
 
@@ -134,8 +142,9 @@ async def review_cluster(
         )
 
     logger.info(
-        'Review complete: {} queries executed, {} findings, {} recommendations',
+        'Review complete: {} queries executed, {} skipped, {} findings, {} recommendations',
         len(queries_executed),
+        len(queries_skipped),
         len(findings),
         len(recommendations),
     )
@@ -145,4 +154,5 @@ async def review_cluster(
         findings=findings,
         recommendations=recommendations,
         queries_executed=queries_executed,
+        queries_skipped=queries_skipped,
     )

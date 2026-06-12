@@ -159,16 +159,42 @@ class TestErrorPropagation:
         execute_query_func.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_failed_query_raises(self):
-        """A failing query propagates the exception."""
-        execute_query_func = AsyncMock(side_effect=RuntimeError('Data API timeout'))
+    async def test_failed_query_skipped(self):
+        """A failing query is skipped and recorded in queries_skipped."""
+        call_count = [0]
 
-        with pytest.raises(RuntimeError, match='Data API timeout'):
-            await review_cluster(
-                cluster_identifier='test-cluster',
-                execute_query_func=execute_query_func,
-                discover_clusters_func=_make_discover_clusters(),
-            )
+        async def _side_effect(*a, **kw):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                raise RuntimeError('permission denied for relation sys_auto_table_optimization')
+            return _make_empty_response()
+
+        execute_query_func = AsyncMock(side_effect=_side_effect)
+
+        result = await review_cluster(
+            cluster_identifier='test-cluster',
+            execute_query_func=execute_query_func,
+            discover_clusters_func=_make_discover_clusters(),
+        )
+
+        assert len(result.queries_skipped) == 1
+        assert result.queries_skipped[0] not in result.queries_executed
+        assert len(result.queries_executed) == result.signals_evaluated - 1
+
+    @pytest.mark.asyncio
+    async def test_all_queries_fail_returns_empty_result(self):
+        """When all queries fail, result has no findings but all queries in skipped."""
+        execute_query_func = AsyncMock(side_effect=RuntimeError('permission denied'))
+
+        result = await review_cluster(
+            cluster_identifier='test-cluster',
+            execute_query_func=execute_query_func,
+            discover_clusters_func=_make_discover_clusters(),
+        )
+
+        assert len(result.queries_executed) == 0
+        assert len(result.queries_skipped) == result.signals_evaluated
+        assert len(result.findings) == 0
 
 
 # ---------------------------------------------------------------------------
