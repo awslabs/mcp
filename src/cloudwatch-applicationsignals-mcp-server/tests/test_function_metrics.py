@@ -88,6 +88,21 @@ class TestFunctionMetrics:
         assert [r['name'] for r in out] == ['slow', 'fast']
 
     @patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.function_metrics.promql_client.instant_query'
+    )
+    def test_fetch_scopes_by_operation(self, mock_query):
+        """An operation arg adds an operation-label matcher to every metric query."""
+        mock_query.return_value = {'result': []}
+        function_metrics.fetch_function_records(
+            service_name='svc', hours=1, operation='POST /checkout'
+        )
+        # All three queries (avg, count, errors) must carry the operation matcher.
+        assert mock_query.call_count == 3
+        for call in mock_query.call_args_list:
+            query_str = call[0][0]
+            assert '"operation"="POST /checkout"' in query_str
+
+    @patch(
         'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.function_metrics.promql_client.label_values_query'
     )
     def test_search_filters_substring_case_insensitive(self, mock_lv):
@@ -95,3 +110,13 @@ class TestFunctionMetrics:
         mock_lv.return_value = ['mod.process_a', 'mod.handle', 'mod.PROCESS_b']
         out = function_metrics.search_function_names('process', service_name='svc')
         assert out == ['mod.process_a', 'mod.PROCESS_b']
+
+    @patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.function_metrics.promql_client.label_values_query'
+    )
+    def test_search_scopes_by_operation(self, mock_lv):
+        """An operation arg scopes the label-values selector to that operation."""
+        mock_lv.return_value = ['mod.handle']
+        function_metrics.search_function_names('handle', service_name='svc', operation='GET /a')
+        match_arg = mock_lv.call_args[1]['match'][0]
+        assert '"operation"="GET /a"' in match_arg

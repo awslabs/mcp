@@ -241,15 +241,16 @@ class TestListFunctions:
     @patch(
         'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.tools.function_metrics.fetch_function_records'
     )
-    def test_endpoint_filter_unsupported_note(self, mock_fetch):
-        """Endpoint arg is ignored with an explanatory note (Gap G4)."""
+    def test_endpoint_filters_by_operation(self, mock_fetch):
+        """Endpoint is passed through as the operation filter and echoed in the result."""
         from awslabs.cloudwatch_applicationsignals_mcp_server.service_events.tools import (
             list_functions,
         )
 
         mock_fetch.return_value = [_fn_record('f')]
-        result = list_functions(hours=24, endpoint='GET /x')
-        assert 'endpoint_filter_note' in result
+        result = list_functions(hours=24, endpoint='POST /checkout')
+        assert result['endpoint_filter'] == 'POST /checkout'
+        assert mock_fetch.call_args[1]['operation'] == 'POST /checkout'
 
     @patch(
         'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.tools.function_metrics.fetch_function_records'

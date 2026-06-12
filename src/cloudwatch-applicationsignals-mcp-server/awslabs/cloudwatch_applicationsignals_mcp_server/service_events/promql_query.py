@@ -42,6 +42,9 @@ LABEL_FUNCTION_NAME = 'function.name'
 LABEL_CALLER = 'aws.service_events.caller'
 LABEL_FUNCTION_AT_LINE = 'aws.service_events.function_at_line'
 LABEL_STATUS = 'status'
+# Endpoint/operation the function executed under (e.g. "POST /checkout"). Added to
+# the service.function.duration metric so function metrics can be filtered by endpoint.
+LABEL_OPERATION = 'operation'
 
 DEFAULT_RATE_WINDOW = '5m'
 
@@ -69,6 +72,7 @@ def _function_matchers(
     deployment_id: Optional[str] = None,
     function_name: Optional[str] = None,
     status: Optional[str] = None,
+    operation: Optional[str] = None,
 ) -> Dict[str, str]:
     matchers: Dict[str, str] = {}
     if service_name:
@@ -81,6 +85,8 @@ def _function_matchers(
         matchers[LABEL_FUNCTION_NAME] = function_name
     if status:
         matchers[LABEL_STATUS] = status
+    if operation:
+        matchers[LABEL_OPERATION] = operation
     return matchers
 
 
@@ -90,11 +96,14 @@ def function_duration_selector(
     deployment_id: Optional[str] = None,
     function_name: Optional[str] = None,
     status: Optional[str] = None,
+    operation: Optional[str] = None,
 ) -> str:
     """Raw selector for ``service.function.duration`` with optional filters."""
     return build_selector(
         METRIC_FUNCTION_DURATION,
-        _function_matchers(service_name, environment, deployment_id, function_name, status),
+        _function_matchers(
+            service_name, environment, deployment_id, function_name, status, operation
+        ),
     )
 
 

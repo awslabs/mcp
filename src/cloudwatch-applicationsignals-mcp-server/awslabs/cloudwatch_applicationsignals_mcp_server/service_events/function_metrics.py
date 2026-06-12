@@ -45,15 +45,22 @@ def fetch_function_records(
     environment: Optional[str] = None,
     hours: int = 24,
     function_name: Optional[str] = None,
+    operation: Optional[str] = None,
 ) -> List[Dict]:
     """Return merged per-function records: name, line, calls, avg_duration_ms, errors.
 
     Issues three instant queries (avg, count, error-count) over the ``hours`` window
     and merges them by function name. ``function_name`` (exact label match) narrows
-    to one function. Raises ``PromQLQueryError`` on query failure.
+    to one function; ``operation`` (exact ``operation`` label match, e.g.
+    "POST /checkout") narrows to functions that executed under one endpoint. Raises
+    ``PromQLQueryError`` on query failure.
     """
     window = promql_query.hours_to_window(hours)
-    filters = {'function_name': function_name} if function_name else {}
+    filters: Dict[str, str] = {}
+    if function_name:
+        filters['function_name'] = function_name
+    if operation:
+        filters['operation'] = operation
 
     avg_q = promql_query.avg_by_function(service_name, window=window, **filters)
     count_q = promql_query.count_by_function(service_name, window=window, **filters)
@@ -105,13 +112,15 @@ def search_function_names(
     service_name: Optional[str] = None,
     hours: int = 24,
     limit: int = 20,
+    operation: Optional[str] = None,
 ) -> List[str]:
     """Return function names matching ``query`` (case-insensitive substring).
 
     Uses the PromQL ``label/function.name/values`` endpoint scoped to the
-    ``service.function.duration`` selector, then filters in Python.
+    ``service.function.duration`` selector, then filters in Python. ``operation``
+    (exact ``operation`` label match) scopes the search to one endpoint.
     """
-    selector = promql_query.function_duration_selector(service_name)
+    selector = promql_query.function_duration_selector(service_name, operation=operation)
     values = promql_client.label_values_query(promql_query.LABEL_FUNCTION_NAME, match=[selector])
     q = query.lower()
     matches = [v for v in values if q in v.lower()]

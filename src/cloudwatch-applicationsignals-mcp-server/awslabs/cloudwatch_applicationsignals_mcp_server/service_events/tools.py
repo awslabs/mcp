@@ -63,8 +63,9 @@ def list_functions(
         threshold_ms: Average-duration threshold in ms when filter="slow" (default 100ms).
         top: Maximum number of functions to return (default 20).
         sort_by: Sort order - "calls" (most called), "duration" (slowest by average), "errors" (most errors).
-        endpoint: NOT SUPPORTED — `service.function.duration` carries no endpoint/operation
-            label (plan_006 Gap G4). Ignored; a note is returned when provided.
+        endpoint: Filter to functions that executed under a specific endpoint/operation
+            (e.g., "POST /checkout"). Exact match on the metric's `operation` label.
+            Use get_endpoint_performance to discover operation names. Optional.
         service_name: Service name to query. Optional — from user prompt or prior tool output.
         environment: Environment name. Optional — from user prompt or prior tool output.
 
@@ -74,7 +75,7 @@ def list_functions(
     """
     logger.debug(
         f'list_functions called: hours={hours}, filter={filter}, sort_by={sort_by}, '
-        f'top={top}, service_name={service_name}, environment={environment}'
+        f'top={top}, endpoint={endpoint}, service_name={service_name}, environment={environment}'
     )
 
     try:
@@ -82,6 +83,7 @@ def list_functions(
             service_name=service_name,
             environment=environment,
             hours=hours,
+            operation=endpoint,
         )
     except PromQLQueryError as e:
         logger.error(f'Functions PromQL error: {e}')
@@ -115,10 +117,7 @@ def list_functions(
     }
 
     if endpoint:
-        result['endpoint_filter_note'] = (
-            'endpoint filtering is not supported by the metrics source '
-            '(service.function.duration has no operation label); filter ignored.'
-        )
+        result['endpoint_filter'] = endpoint
 
     logger.debug(
         f'list_functions returning {result["returned"]}/{result["total_functions"]} functions'
@@ -132,6 +131,7 @@ async def get_function_details(
     include_exceptions: bool = False,
     service_name: Optional[str] = None,
     environment: Optional[str] = None,
+    endpoint: Optional[str] = None,
 ) -> dict:
     """Get detailed metrics for a specific function.
 
@@ -148,16 +148,20 @@ async def get_function_details(
             (from CloudWatch Logs) and returns them as `related_incidents`. Default False.
         service_name: Service name to query. Optional — from user prompt or prior tool output.
         environment: Environment name. Optional — from user prompt or prior tool output.
+        endpoint: Scope the function's metrics to a specific endpoint/operation
+            (e.g., "POST /checkout"). Exact match on the metric's `operation` label.
+            Optional — when omitted, metrics are aggregated across all endpoints.
 
     Returns:
         Function metrics: name, line, total_calls, avg_duration_ms, total_errors,
         and related_incidents (only when include_exceptions=True).
     """
     logger.debug(
-        'get_function_details called: function_name=%s, hours=%s, include_exceptions=%s',
+        'get_function_details called: function_name=%s, hours=%s, include_exceptions=%s, endpoint=%s',
         function_name,
         hours,
         include_exceptions,
+        endpoint,
     )
 
     def _fetch_records():
@@ -167,6 +171,7 @@ async def get_function_details(
                 environment=environment,
                 hours=hours,
                 function_name=function_name,
+                operation=endpoint,
             )
         except PromQLQueryError as e:
             logger.debug(f'Functions PromQL error: {e}')
@@ -174,7 +179,9 @@ async def get_function_details(
 
     def _fetch_incidents():
         try:
-            return cw_logs.query_incidents(service_name=service_name, hours=hours, limit=20)
+            return cw_logs.query_incidents(
+                service_name=service_name, hours=hours, endpoint=endpoint, limit=20
+            )
         except CwLogsQueryError as e:
             logger.warning(f'Failed to fetch related incidents: {e}')
             return None
@@ -204,9 +211,11 @@ async def get_function_details(
         'total_errors': rec.get('errors', 0),
     }
 
-    # Related incidents from CloudWatch Logs (independent of metrics). Without an
-    # operation label on the metric we cannot correlate by endpoint (Gap G4), so
-    # surface recent service incidents as-is for context.
+    if endpoint:
+        details['endpoint_filter'] = endpoint
+
+    # Related incidents from CloudWatch Logs (independent of metrics). When an
+    # endpoint is given, the incident query is scoped to that operation as well.
     if inc_response is not None:
         related = []
         for inc in inc_response[:5]:
@@ -235,6 +244,7 @@ def search_functions(
     limit: int = 20,
     service_name: Optional[str] = None,
     environment: Optional[str] = None,
+    endpoint: Optional[str] = None,
 ) -> dict:
     """Search for functions by name.
 
@@ -249,12 +259,16 @@ def search_functions(
         limit: Maximum number of results to return (default 20).
         service_name: Service name to query. Optional — from user prompt or prior tool output.
         environment: Environment name. Optional — from user prompt or prior tool output.
+        endpoint: Scope the search to functions that executed under a specific
+            endpoint/operation (e.g., "POST /checkout"). Exact match on the metric's
+            `operation` label. Optional.
 
     Returns:
         Limited list of functions whose name contains the query string.
     """
     logger.debug(
-        f'search_functions called: query={query}, limit={limit}, service_name={service_name}'
+        f'search_functions called: query={query}, limit={limit}, '
+        f'endpoint={endpoint}, service_name={service_name}'
     )
 
     try:
@@ -262,6 +276,7 @@ def search_functions(
             query=query,
             service_name=service_name,
             limit=limit,
+            operation=endpoint,
         )
     except PromQLQueryError as e:
         return {
@@ -280,6 +295,8 @@ def search_functions(
         'functions': formatted,
         'data_source': 'cloudwatch_metrics_v2',
     }
+    if endpoint:
+        result['endpoint_filter'] = endpoint
     logger.debug(f'search_functions returning {len(formatted)} matches')
     return result
 
