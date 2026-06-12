@@ -22,7 +22,7 @@ class KnowledgeResult:
 
     rank: int
     title: str
-    url: str
+    url: Optional[str]
     context: str
 
 
