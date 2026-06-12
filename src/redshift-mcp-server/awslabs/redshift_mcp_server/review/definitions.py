@@ -599,26 +599,27 @@ SELECT count(*), 'REC_001'
 FROM data
 WHERE node_type NOT LIKE 'rg%'
 UNION ALL
+-- Signal: exceeds the recommended storage threshold of 70%
 SELECT count(*), 'REC_002'
 FROM data
-WHERE node_type NOT LIKE 'rg%'
+WHERE storage_utilization_pct > 70 AND node_type NOT LIKE 'rg%'
 UNION ALL
 SELECT count(*), 'REC_004'
 FROM data
-WHERE node_type NOT LIKE 'rg%'
+WHERE storage_utilization_pct > 70 AND node_type NOT LIKE 'rg%'
 UNION ALL
 SELECT count(*), 'REC_005'
 FROM data
-WHERE node_type NOT LIKE 'rg%'
+WHERE storage_utilization_pct > 70 AND node_type NOT LIKE 'rg%'
 UNION ALL
 SELECT count(*), 'REC_006'
 FROM data
-WHERE node_type NOT LIKE 'rg%'
+WHERE storage_utilization_pct > 50 AND node_type NOT LIKE 'rg%'
 UNION ALL
 -- Signal: has under-utilized storage
 SELECT count(*), 'REC_012'
 FROM data
-WHERE storage_utilization_pct < 40 and node_type NOT LIKE 'rg%'
+WHERE storage_utilization_pct < 40 AND node_type NOT LIKE 'rg%'
 UNION ALL
 -- Signal: has 10% data skew
 SELECT count(*), 'REC_008'
