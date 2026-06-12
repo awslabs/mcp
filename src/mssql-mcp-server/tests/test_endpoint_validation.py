@@ -242,7 +242,7 @@ def test_internal_create_connection_validates_endpoint(mocker):
     srv.server_config.configured_default_secret_arn = custom_arn
 
     try:
-        conn, resp = internal_create_connection(
+        conn, resp, _ = internal_create_connection(
             region='us-east-1',
             connection_method=ConnectionMethod.MSSQL_PASSWORD,
             instance_identifier='my-instance',

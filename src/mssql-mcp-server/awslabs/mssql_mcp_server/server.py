@@ -296,7 +296,7 @@ async def connect_to_database(
 ) -> str:
     """Connect to a SQL Server RDS instance and save the connection internally."""
     try:
-        db_connection, llm_response = internal_create_connection(
+        db_connection, llm_response, replaced_conn = internal_create_connection(
             region=region,
             connection_method=connection_method,
             instance_identifier=instance_identifier,
@@ -304,6 +304,12 @@ async def connect_to_database(
             port=port,
             database=database,
         )
+
+        if replaced_conn:
+            try:
+                await replaced_conn.close()
+            except Exception as close_err:
+                logger.warning(f'Failed to close replaced connection: {close_err}')
 
         if isinstance(db_connection, PymssqlPoolConnection):
             try:
@@ -462,31 +468,10 @@ def internal_create_connection(
     if not db_endpoint:
         raise ValueError("db_endpoint can't be none or empty")
 
-    existing_conn = db_connection_map.get(
-        connection_method, instance_identifier, db_endpoint, database, port
-    )
-    if existing_conn:
-        llm_response = json.dumps(
-            {
-                'connection_method': connection_method,
-                'instance_identifier': instance_identifier,
-                'db_endpoint': db_endpoint,
-                'database': database,
-                'port': port,
-            },
-            indent=2,
-            default=str,
-        )
-        return (existing_conn, llm_response)
-
-    # Validate the endpoint against RDS or the allowed list.
-    # Use the AWS-sourced endpoint for the connection string.
-    db_endpoint, port = validate_endpoint(db_endpoint, port, instance_identifier, region)
-
-    # Resolve the Secrets Manager ARN. Per-target override wins, then the
-    # bare default ARN, then the instance MasterUserSecret metadata.
-    # The LLM cannot influence the secret selection — only the operator
-    # controls which ARNs are available via startup --secret_arn flags.
+    # Resolve the Secrets Manager ARN first so we can detect stale cached
+    # connections whose ARN no longer matches the operator config.
+    # Priority: per-target → default → RDS MasterUserSecret metadata.
+    # The LLM cannot influence this — only operator --secret_arn flags control it.
     target_key = instance_identifier
     per_target_secret_arn = server_config.configured_secret_arns.get(target_key, '')
     metadata_secret_arn = ''
@@ -495,9 +480,24 @@ def internal_create_connection(
         rds_client = boto3.client(
             'rds', region_name=region, config=Config(user_agent_extra=__user_agent__)
         )
-        instance_props = rds_client.describe_db_instances(
-            DBInstanceIdentifier=instance_identifier
-        )['DBInstances'][0]
+        try:
+            response = rds_client.describe_db_instances(DBInstanceIdentifier=instance_identifier)
+        except ClientError as e:
+            code = e.response['Error']['Code']
+            if code == 'DBInstanceNotFound':
+                raise ValueError(
+                    f"RDS instance '{instance_identifier}' not found in region '{region}'"
+                ) from e
+            raise ValueError(
+                f'Failed to describe RDS instance: {e.response["Error"]["Message"]}'
+            ) from e
+
+        instances = response.get('DBInstances', [])
+        if not instances:
+            raise ValueError(
+                f"describe_db_instances returned no instances for '{instance_identifier}'"
+            )
+        instance_props = instances[0]
         master_secret = instance_props.get('MasterUserSecret', {})
         metadata_secret_arn = master_secret.get('SecretArn', '') if master_secret else ''
 
@@ -508,12 +508,54 @@ def internal_create_connection(
         or ''
     )
 
+    if per_target_secret_arn:
+        logger.info(f'Using per-target secret_arn for instance {target_key}')
+    elif server_config.configured_default_secret_arn:
+        logger.info('Using default secret_arn from startup configuration')
+    elif metadata_secret_arn:
+        logger.info(f'Using RDS MasterUserSecret metadata for instance {target_key}')
+
     if not secret_arn:
         raise ValueError(
-            f"RDS instance '{instance_identifier}' does not have a managed "
-            f'MasterUserSecret and no --secret_arn was provided. '
-            f'Supply a --secret_arn or configure a Secrets Manager secret.'
+            f"No secret resolved for instance '{instance_identifier}': "
+            f'no per-target --secret_arn matched this instance, no bare default '
+            f'--secret_arn was configured, and the instance has no managed '
+            f'MasterUserSecret. Supply --secret_arn <arn> (bare default) or '
+            f'--secret_arn {instance_identifier}=<arn> (per-target).'
         )
+
+    # Check for existing connection; evict if the resolved ARN differs.
+    replaced_conn = None
+    existing_conn = db_connection_map.get(
+        connection_method, instance_identifier, db_endpoint, database, port
+    )
+    if existing_conn:
+        if secret_arn and getattr(existing_conn, 'secret_arn', '') != secret_arn:
+            logger.info(
+                f'Replacing existing connection for {instance_identifier}/{database}: '
+                f'secret_arn changed'
+            )
+            db_connection_map.remove(
+                connection_method, instance_identifier, db_endpoint, database, port
+            )
+            replaced_conn = existing_conn
+        else:
+            llm_response = json.dumps(
+                {
+                    'connection_method': connection_method,
+                    'instance_identifier': instance_identifier,
+                    'db_endpoint': db_endpoint,
+                    'database': database,
+                    'port': port,
+                },
+                indent=2,
+                default=str,
+            )
+            return (existing_conn, llm_response, None)
+
+    # Validate the endpoint against RDS or the allowed list.
+    # Use the AWS-sourced endpoint for the connection string.
+    db_endpoint, port = validate_endpoint(db_endpoint, port, instance_identifier, region)
 
     logger.debug(f'Connection props: secret_arn:{secret_arn}, endpoint:{db_endpoint}, port:{port}')
 
@@ -541,7 +583,7 @@ def internal_create_connection(
         indent=2,
         default=str,
     )
-    return (db_connection, llm_response)
+    return (db_connection, llm_response, replaced_conn)
 
 
 def _parse_identifier_parts(table_name: str) -> Optional[list[str]]:
@@ -677,8 +719,11 @@ def main():
             'from the connect_to_database tool).\n'
             '  - "<arn>" without "=" — bare ARN used as the default for any '
             'target the operator did not pin explicitly (at most one allowed).\n'
-            'When unspecified, the MCP server falls back to the instance '
-            'MasterUserSecret advertised by AWS. '
+            'Resolution order: per-target ARN > bare default ARN > RDS '
+            'MasterUserSecret metadata. A bare default takes precedence over '
+            'the instance MasterUserSecret for all unpinned instances. '
+            'The RDS MasterUserSecret is only consulted when no --secret_arn '
+            'is configured at all. '
             'The LLM cannot pick a secret ARN — it can only target an instance '
             'the operator has registered here.'
         ),
@@ -717,7 +762,11 @@ def main():
         else:
             arn = raw.strip()
             if not arn:
-                continue
+                logger.error(
+                    'Empty --secret_arn value. If using a shell variable, '
+                    'ensure it is set and non-empty.'
+                )
+                sys.exit(2)
             if default_secret_arn is not None:
                 logger.error(
                     'At most one bare --secret_arn (no "=" separator) is '
@@ -771,7 +820,7 @@ def main():
                 )
                 sys.exit(1)
 
-            db_connection, _ = internal_create_connection(
+            db_connection, _, _ = internal_create_connection(
                 region=args.region,
                 connection_method=connection_method,
                 instance_identifier=args.instance_identifier,

@@ -408,16 +408,18 @@ def internal_create_connection(
     if not db_endpoint:
         raise ValueError("db_endpoint can't be none or empty")
 
-    # Resolve the Secrets Manager ARN. Per-target override wins, then the
-    # bare default ARN, then the instance MasterUserSecret metadata.
-    # The LLM cannot influence the secret selection — only the operator
-    # controls which ARNs are available via startup --secret_arn flags.
+    # For ORACLE_PASSWORD, resolve the secret ARN from operator config.
+    # Per-target override wins, then the bare default. If neither is set,
+    # the RDS MasterUserSecret metadata is used as a final fallback
+    # (resolved later via describe_db_instances).
+    # The LLM cannot influence this — only operator --secret_arn flags control it.
     secret_arn: str = ''
     if connection_method == ConnectionMethod.ORACLE_PASSWORD:
         target_key = instance_identifier
         per_target_secret_arn = server_config.configured_secret_arns.get(target_key, '')
         if per_target_secret_arn:
             secret_arn = per_target_secret_arn
+            logger.info(f'Using per-target secret_arn for instance {target_key}')
         elif server_config.configured_default_secret_arn:
             secret_arn = server_config.configured_default_secret_arn
             logger.info(f'Using default secret_arn from startup configuration: {secret_arn}')
@@ -498,8 +500,11 @@ def internal_create_connection(
 
     if not secret_arn:
         raise ValueError(
-            'No secret_arn resolved. Enable RDS-managed master credentials, '
-            'pass --secret_arn, or set a configured_default_secret_arn.'
+            f"No secret resolved for instance '{instance_identifier}': "
+            f'no per-target --secret_arn matched this instance, no bare default '
+            f'--secret_arn was configured, and the instance has no managed '
+            f'MasterUserSecret. Supply --secret_arn <arn> (bare default) or '
+            f'--secret_arn {instance_identifier}=<arn> (per-target).'
         )
 
     db_connection = OracledbPoolConnection(
@@ -653,8 +658,11 @@ def main():
             'from the connect_to_database tool).\n'
             '  - "<arn>" without "=" — bare ARN used as the default for any '
             'target the operator did not pin explicitly (at most one allowed).\n'
-            'When unspecified, the MCP server falls back to the instance '
-            'MasterUserSecret advertised by AWS. '
+            'Resolution order: per-target ARN > bare default ARN > RDS '
+            'MasterUserSecret metadata. A bare default takes precedence over '
+            'the instance MasterUserSecret for all unpinned instances. '
+            'The RDS MasterUserSecret is only consulted when no --secret_arn '
+            'is configured at all. '
             'The LLM cannot pick a secret ARN — it can only target an instance '
             'the operator has registered here.'
         ),
@@ -717,7 +725,11 @@ def main():
         else:
             arn = raw.strip()
             if not arn:
-                continue
+                logger.error(
+                    'Empty --secret_arn value. If using a shell variable, '
+                    'ensure it is set and non-empty.'
+                )
+                sys.exit(2)
             if default_secret_arn is not None:
                 logger.error(
                     'At most one bare --secret_arn (no "=" separator) is '

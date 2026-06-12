@@ -35,9 +35,26 @@ from awslabs.oracle_mcp_server.server import (
     server_config,
     validate_table_name,
 )
+from awslabs.oracle_mcp_server.server import (
+    mcp as server_mcp,
+)
 from botocore.exceptions import ClientError
 from mcp.shared.exceptions import McpError
 from unittest.mock import AsyncMock, MagicMock
+
+
+# ─── security invariant: secret_arn not exposed to LLM ──────────────────────
+
+
+def test_connect_to_database_tool_schema_does_not_expose_secret_arn():
+    """The LLM-facing connect_to_database tool must never expose secret_arn."""
+    tool = server_mcp._tool_manager.get_tool('connect_to_database')
+    assert tool is not None
+    schema = tool.parameters
+    assert 'secret_arn' not in schema.get('properties', {}), (
+        'secret_arn must not be exposed as a tool parameter — '
+        'secrets are configured exclusively via CLI --secret_arn flags'
+    )
 
 
 class DummyCtx:
@@ -1650,8 +1667,8 @@ def test_internal_create_connection_uses_per_target_secret_arn(mocker):
     mock_boto.assert_not_called()
 
 
-def test_main_secret_arn_empty_value_skipped(mocker):
-    """An empty bare --secret_arn value is silently skipped."""
+def test_main_secret_arn_empty_value_exits(mocker):
+    """An empty bare --secret_arn value exits with code 2."""
     from awslabs.oracle_mcp_server import server as server_module
 
     mocker.patch(
@@ -1660,8 +1677,51 @@ def test_main_secret_arn_empty_value_skipped(mocker):
             'prog',
             '--secret_arn',
             '',
+        ],
+    )
+    mocker.patch.object(server_module, 'mcp')
+
+    with pytest.raises(SystemExit) as exc_info:
+        server_module.main()
+    assert exc_info.value.code == 2
+
+
+# ─── whitespace stripping in --secret_arn parsing ────────────────────────────
+
+
+def test_main_secret_arn_whitespace_stripped_per_target(mocker):
+    """Whitespace around key and ARN in per-target --secret_arn is stripped."""
+    from awslabs.oracle_mcp_server import server as server_module
+
+    padded_value = '  inst1  =  arn:aws:secretsmanager:us-east-1:123:secret:x  '
+    mocker.patch(
+        'sys.argv',
+        [
+            'prog',
             '--secret_arn',
-            'arn:aws:secretsmanager:us-east-1:123:secret:real',
+            padded_value,
+        ],
+    )
+    mocker.patch.object(server_module, 'mcp')
+
+    server_module.main()
+
+    assert server_module.server_config.configured_secret_arns == {
+        'inst1': 'arn:aws:secretsmanager:us-east-1:123:secret:x',
+    }
+
+
+def test_main_secret_arn_whitespace_stripped_bare_default(mocker):
+    """Whitespace around a bare default --secret_arn is stripped."""
+    from awslabs.oracle_mcp_server import server as server_module
+
+    padded_value = '   arn:aws:secretsmanager:us-east-1:123:secret:default   '
+    mocker.patch(
+        'sys.argv',
+        [
+            'prog',
+            '--secret_arn',
+            padded_value,
         ],
     )
     mocker.patch.object(server_module, 'mcp')
@@ -1669,8 +1729,27 @@ def test_main_secret_arn_empty_value_skipped(mocker):
     server_module.main()
 
     assert server_module.server_config.configured_default_secret_arn == (
-        'arn:aws:secretsmanager:us-east-1:123:secret:real'
+        'arn:aws:secretsmanager:us-east-1:123:secret:default'
     )
+
+
+def test_main_secret_arn_whitespace_only_key_exits(mocker):
+    """A per-target value whose key is whitespace-only exits with code 2."""
+    from awslabs.oracle_mcp_server import server as server_module
+
+    mocker.patch(
+        'sys.argv',
+        [
+            'prog',
+            '--secret_arn',
+            '   =arn:aws:secretsmanager:us-east-1:123:secret:x',
+        ],
+    )
+    mocker.patch.object(server_module, 'mcp')
+
+    with pytest.raises(SystemExit) as exc_info:
+        server_module.main()
+    assert exc_info.value.code == 2
 
 
 def test_main_missing_connection_method_with_endpoint_exits(mocker):
