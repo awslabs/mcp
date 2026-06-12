@@ -360,32 +360,3 @@ def render_status_assessment(
         )
 
     raise TypeError(f'Unknown Verdict variant: {type(verdict).__name__}')
-
-
-def render_report_instrumentation_configuration_status_output(
-    data: Dict[str, Any],
-    normalized: List[Dict[str, str]],
-    service: str,
-    environment: str,
-) -> str:
-    """Render the status-report submission response."""
-    unprocessed = data.get('UnprocessedStatusEvents', [])
-
-    output = f"""STATUS REPORT SUBMITTED
-
-Service: {data.get('Service', service)}
-Environment: {data.get('Environment', environment)}
-Reported Events: {len(normalized)}
-Unprocessed Events: {len(unprocessed)}
-"""
-
-    if unprocessed:
-        output += '\nUNPROCESSED EVENTS:\n'
-        for index, event in enumerate(unprocessed, 1):
-            output += (
-                f'- Event {index}: {event.get("LocationHash", "N/A")} | '
-                f'{event.get("Status", "N/A")} | {format_timestamp(event.get("Time"))} | '
-                f'FailedReason: {event.get("FailedReason", "N/A")}\n'
-            )
-
-    return output

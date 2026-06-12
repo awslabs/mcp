@@ -33,15 +33,19 @@ APPLICATION_SIGNALS_API_VERSION = '2024-04-15'
 
 
 def _resolve_region() -> str:
-    """Resolve AWS region: AWS_REGION env var > profile/config > us-east-1."""
-    env_region = os.environ.get('AWS_REGION')
-    if env_region:
-        return env_region
-    profile = os.environ.get('AWS_PROFILE')
-    session = boto3.Session(profile_name=profile)
-    if session.region_name:
-        return session.region_name
-    return 'us-east-1'
+    """Resolve AWS region: AWS_REGION env var, else us-east-1.
+
+    Matches the parent package's ``aws_clients`` and every sibling MCP server:
+    region comes from ``AWS_REGION`` (falling back to ``us-east-1``) and a
+    configured profile's region is *not* consulted. This is deliberate — the
+    snapshot tools query CloudWatch Logs through the parent package's
+    ``logs_client``, which resolves region the same way. Honoring the profile
+    region here (but not there) would split a profile-only caller's clients
+    across two regions: instrumentations created in the profile region while
+    snapshot queries run in ``us-east-1``, surfacing as a breakpoint that shows
+    ACTIVE but whose snapshot searches always come back empty.
+    """
+    return os.environ.get('AWS_REGION', 'us-east-1')
 
 
 def _build_config() -> Config:

@@ -229,6 +229,13 @@ class UnknownLocation:
 
 Location = Union[CodeLocation, HashLocation, UnknownLocation]
 
+# A location resolved from *caller* inputs (create/lookup). Unlike ``Location``,
+# this never includes ``UnknownLocation`` — that variant only arises when parsing
+# an API *response* (see ``location_from_response``). Narrowing the parser return
+# types to this union lets callers use ``to_identifier``/``to_api_payload``
+# without a cast, since both members implement them.
+ResolvedLocation = Union[CodeLocation, HashLocation]
+
 
 # ──────────────────────────── input parsers ────────────────────────────
 
@@ -242,7 +249,7 @@ def parse_create_inputs(
     class_name: Optional[str] = None,
     method_name: Optional[str] = None,
     line_number: Optional[int] = None,
-) -> Tuple[Optional[Location], Optional[str]]:
+) -> Tuple[Optional[ResolvedLocation], Optional[str]]:
     """Parse MCP-tool kwargs into a ``Location`` for a create-instrumentation call.
 
     HashLocation is not accepted: callers cannot create an instrumentation from
@@ -291,7 +298,7 @@ def parse_lookup_inputs(
     method_name: Optional[str] = None,
     line_number: Optional[int] = None,
     allow_code_location_lookup: bool = True,
-) -> Tuple[Optional[Location], Optional[str]]:
+) -> Tuple[Optional[ResolvedLocation], Optional[str]]:
     """Parse MCP-tool kwargs into a ``Location`` for a lookup operation.
 
     Lookup accepts a location_hash or a code location. Resolution order:
@@ -383,6 +390,7 @@ __all__: List[str] = [
     'HashLocation',
     'UnknownLocation',
     'Location',
+    'ResolvedLocation',
     'parse_create_inputs',
     'parse_lookup_inputs',
     'location_from_response',

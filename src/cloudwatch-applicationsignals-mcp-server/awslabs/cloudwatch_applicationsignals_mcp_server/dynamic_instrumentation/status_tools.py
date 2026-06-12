@@ -19,15 +19,14 @@ from .location import parse_lookup_inputs
 from .status_assessment import assess
 from .status_rendering import (
     render_get_instrumentation_configuration_status_output,
-    render_report_instrumentation_configuration_status_output,
     render_status_assessment,
 )
 from .validation import (
+    is_valid_location_hash,
     normalize_instrumentation_type,
-    normalize_status_configurations,
     validate_snapshot_signal,
 )
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 
@@ -75,8 +74,18 @@ Usage:
 
 
 def _parse_iso_timestamp(value: str) -> datetime:
-    """Parse an ISO 8601 timestamp, accepting trailing 'Z' as UTC."""
-    return datetime.fromisoformat(value.replace('Z', '+00:00'))
+    """Parse an ISO 8601 timestamp, accepting trailing 'Z' as UTC.
+
+    A naive input (no 'Z' or offset, e.g. ``2025-02-03T18:42:00``) is assumed
+    to be UTC rather than host-local. Without this, downstream ``astimezone``
+    calls in ``assess()`` would reinterpret it in the host timezone — on a
+    UTC-8 host ``18:42`` becomes ``02:42Z``, shifting the whole status query
+    window and causing ACTIVE/READY events to be missed.
+    """
+    parsed = datetime.fromisoformat(value.replace('Z', '+00:00'))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
 
 
 def get_instrumentation_configuration_status(
@@ -249,7 +258,7 @@ def check_instrumentation_status(
         service: Backend service identifier.
         environment: Backend environment identifier.
         instrumentation_type: BREAKPOINT or PROBE.
-        location_hash: Required 16-character location hash for the target configuration.
+        location_hash: Required 16-character lowercase hex location hash for the target configuration.
         start_time: Required ISO 8601 lower bound for the overall check window.
         end_time: Required ISO 8601 upper bound for the overall check window.
         signal_type: Must be SNAPSHOT.
@@ -265,7 +274,7 @@ def check_instrumentation_status(
     if signal_error:
         return signal_error
 
-    if not location_hash or len(location_hash) != 16:
+    if not is_valid_location_hash(location_hash):
         return 'ERROR: location_hash must be a 16-character hex string'
 
     try:
@@ -333,66 +342,4 @@ def check_instrumentation_status(
         environment=environment,
         normalized_type=normalized_type,
         time_window=time_window,
-    )
-
-
-def report_instrumentation_configuration_status(
-    service: str,
-    environment: str,
-    configurations: List[Dict[str, str]],
-) -> str:
-    """Report one or more instrumentation status events to the backend.
-
-    Args:
-        service: Backend service identifier.
-        environment: Backend environment identifier.
-        configurations: List of status-event objects. Each item must normalize to:
-            InstrumentationType, SignalType, LocationHash, Status, and Time.
-            Optional ErrorCause is allowed for ERROR events.
-
-    Notes:
-        - Only BREAKPOINT and PROBE status events are accepted.
-        - SignalType must be SNAPSHOT.
-        - LocationHash must be a 16-character string.
-
-    Returns:
-        A human-readable submission summary including any unprocessed events
-        returned by the backend.
-    """
-    if not configurations:
-        return 'ERROR: configurations must contain at least one status report'
-
-    normalized, error = normalize_status_configurations(configurations)
-    if error:
-        return error
-
-    try:
-        data = gateway.report_instrumentation_configuration_status(
-            Service=service,
-            Environment=environment,
-            Configurations=normalized,
-        )
-    except gateway.GatewayError as err:
-        return gateway.render_error(
-            err,
-            action='report instrumentation status',
-            attempted_label='ATTEMPTED TO REPORT:',
-            attempted={
-                'Service': service,
-                'Environment': environment,
-                'Events': len(normalized),
-            },
-            possible_causes=[
-                'Validation error in configurations list',
-                'Invalid service or environment identifier',
-                'Throttling or service error',
-            ],
-            troubleshooting=['Verify configuration fields and retry'],
-        )
-
-    return render_report_instrumentation_configuration_status_output(
-        data=data,
-        normalized=normalized,
-        service=service,
-        environment=environment,
     )

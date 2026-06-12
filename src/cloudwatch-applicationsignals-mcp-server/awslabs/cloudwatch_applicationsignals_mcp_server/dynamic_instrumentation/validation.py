@@ -13,22 +13,44 @@
 # limitations under the License.
 """Validation and normalization helpers for instrumentation inputs."""
 
+import re
 from .constants import SNAPSHOT_SIGNAL_TYPE
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
+
+
+_LOCATION_HASH_RE = re.compile(r'[0-9a-f]{16}')
 
 
 def normalize_instrumentation_type(
     instrumentation_type: str,
-) -> Tuple[Optional[str], Optional[str]]:
-    """Normalize the type to upper-case; return ``(normalized, error)``."""
+) -> Tuple[str, Optional[str]]:
+    """Normalize the type to upper-case; return ``(normalized, error)``.
+
+    The normalized value is always a ``str`` (the upper-cased received value
+    even on the error path) so callers get a non-optional type once they
+    return early on ``error``. Callers must check ``error`` before using
+    ``normalized``.
+    """
     normalized = (instrumentation_type or '').strip().upper()
     allowed = {'BREAKPOINT', 'PROBE'}
     if normalized not in allowed:
-        return None, (
+        return normalized, (
             'ERROR: instrumentation_type must be one of BREAKPOINT, PROBE '
             f'(received: {instrumentation_type})'
         )
     return normalized, None
+
+
+def is_valid_location_hash(location_hash: Optional[str]) -> bool:
+    """Return True for a 16-character lowercase hexadecimal location hash.
+
+    Location hashes are 16 lowercase hex characters by API design. Validating
+    against this shape (rather than only checking length) lets snapshot/status
+    tools reject malformed input before it is interpolated into a CloudWatch
+    Logs Insights query — hex can never contain the double-quote that would
+    otherwise break out of a query string literal.
+    """
+    return bool(location_hash and _LOCATION_HASH_RE.fullmatch(location_hash))
 
 
 def validate_snapshot_signal(signal_type: str) -> Optional[str]:
@@ -40,14 +62,19 @@ def validate_snapshot_signal(signal_type: str) -> Optional[str]:
 
 
 def _format_code_location_troubleshooting(
-    language: str,
-    file_path: str,
+    language: Optional[str],
+    file_path: Optional[str],
     code_unit: Optional[str],
     class_name: Optional[str],
     method_name: Optional[str],
     line_number: Optional[int],
 ) -> str:
-    """Build troubleshooting guidance for code-location create failures."""
+    """Build troubleshooting guidance for code-location create failures.
+
+    ``language``/``file_path`` are ``Optional`` because callers pass raw,
+    unvalidated MCP inputs (which may be ``None``); the body renders them
+    verbatim and guards with ``(language or '')`` where it matters.
+    """
     lang = (language or '').strip().lower()
 
     lines = [
@@ -167,85 +194,3 @@ def _validate_location_inputs(
     )
 
     return message
-
-
-def normalize_status_configurations(
-    configurations: List[Dict[str, str]],
-) -> Tuple[Optional[List[Dict[str, str]]], Optional[str]]:
-    """Normalize and validate status report configurations."""
-    key_map = {
-        'instrumentation_type': 'InstrumentationType',
-        'signal_type': 'SignalType',
-        'location_hash': 'LocationHash',
-        'status': 'Status',
-        'time': 'Time',
-        'error_cause': 'ErrorCause',
-    }
-
-    required_keys = ['InstrumentationType', 'SignalType', 'LocationHash', 'Status', 'Time']
-    allowed_instrumentation = {'BREAKPOINT', 'PROBE'}
-    allowed_signal = {SNAPSHOT_SIGNAL_TYPE}
-    allowed_status = {'READY', 'ERROR', 'ACTIVE', 'DISABLED'}
-    allowed_error_cause = {
-        'FILE_NOT_FOUND',
-        'METHOD_NOT_FOUND',
-        'LINE_NOT_EXECUTABLE',
-        'OVERLOADED_METHODS',
-        'LANGUAGE_MISMATCH',
-        'RUNTIME_ERROR',
-    }
-
-    normalized_list: List[Dict[str, str]] = []
-
-    for idx, item in enumerate(configurations, 1):
-        if not isinstance(item, dict):
-            return None, f'ERROR: configurations[{idx}] must be an object'
-
-        normalized: Dict[str, str] = {}
-        for key, value in item.items():
-            canonical_key = key_map.get(key, key)
-            if canonical_key in normalized and normalized[canonical_key] != value:
-                return (
-                    None,
-                    f'ERROR: configurations[{idx}] has conflicting values for {canonical_key}',
-                )
-            normalized[canonical_key] = value
-
-        if not normalized.get('SignalType'):
-            normalized['SignalType'] = SNAPSHOT_SIGNAL_TYPE
-
-        missing = [key for key in required_keys if not normalized.get(key)]
-        if missing:
-            return (
-                None,
-                f'ERROR: configurations[{idx}] missing required fields: {", ".join(missing)}',
-            )
-
-        if normalized['InstrumentationType'] not in allowed_instrumentation:
-            return (
-                None,
-                f'ERROR: configurations[{idx}] invalid InstrumentationType: {normalized["InstrumentationType"]}',
-            )
-
-        if normalized['SignalType'] not in allowed_signal:
-            return (
-                None,
-                f'ERROR: configurations[{idx}] invalid SignalType: {normalized["SignalType"]}',
-            )
-
-        if normalized['Status'] not in allowed_status:
-            return None, f'ERROR: configurations[{idx}] invalid Status: {normalized["Status"]}'
-
-        if 'ErrorCause' in normalized and normalized['ErrorCause'] not in allowed_error_cause:
-            return (
-                None,
-                f'ERROR: configurations[{idx}] invalid ErrorCause: {normalized["ErrorCause"]}',
-            )
-
-        location_hash = normalized.get('LocationHash')
-        if not isinstance(location_hash, str) or len(location_hash) != 16:
-            return None, f'ERROR: configurations[{idx}] LocationHash must be a 16-character string'
-
-        normalized_list.append(normalized)
-
-    return normalized_list, None

@@ -85,11 +85,6 @@ def get_instrumentation_configuration_status(**kwargs: Any) -> Dict[str, Any]:
     return _call('get_instrumentation_configuration_status', **kwargs)
 
 
-def report_instrumentation_configuration_status(**kwargs: Any) -> Dict[str, Any]:
-    """Call ``ReportInstrumentationConfigurationStatus`` through the gateway."""
-    return _call('report_instrumentation_configuration_status', **kwargs)
-
-
 def render_error(
     err: GatewayError,
     *,

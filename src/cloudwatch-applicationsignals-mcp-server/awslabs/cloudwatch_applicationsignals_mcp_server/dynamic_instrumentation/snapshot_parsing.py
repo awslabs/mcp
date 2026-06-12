@@ -85,6 +85,19 @@ def _escape_logs_insights_regex(value: object) -> str:
     return re.escape(str(value)).replace('/', r'\/')
 
 
+def _escape_logs_insights_string(value: object) -> str:
+    """Escape a value for a double-quoted CloudWatch Logs Insights string literal.
+
+    Logs Insights string literals are double-quoted with backslash escaping.
+    Escape backslashes first (so the escapes added next are not themselves
+    re-escaped), then double-quotes, so an embedded quote cannot terminate the
+    literal and inject caller-controlled query syntax. This is distinct from
+    ``_escape_logs_insights_regex``, which escapes for ``/.../`` regex context,
+    not ``"..."`` literal context.
+    """
+    return str(value).replace('\\', '\\\\').replace('"', '\\"')
+
+
 def _parse_snapshot_fields(result: dict) -> dict:
     """Extract key debugging fields from a raw CloudWatch Logs snapshot result.
 
@@ -231,12 +244,26 @@ def _parse_snapshot_fields(result: dict) -> dict:
             }
         )
 
+    def _line_key(value):
+        """Order numeric line keys first (by value), non-numeric keys last (lexically).
+
+        Returns a ``(group, sort_value)`` tuple so the two kinds never compare
+        across types. A bare ``int(v) if v.isdigit() else v`` key would mix
+        ``int`` and ``str`` and raise ``TypeError`` the moment a non-digit key
+        appears alongside numeric ones (e.g. a negative line ``'-1'``, since
+        ``'-1'.isdigit()`` is ``False``), crashing snapshot parsing.
+        """
+        text = str(value)
+        if text.isdigit():
+            return (0, int(text), '')
+        return (1, 0, text)
+
     all_line_numbers = sorted(
         set(line_locals.keys())
         | set(line_arguments.keys())
         | set(line_return_values.keys())
         | set(line_throwables.keys()),
-        key=lambda v: int(v) if str(v).isdigit() else v,
+        key=_line_key,
     )
 
     return {
