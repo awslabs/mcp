@@ -1027,7 +1027,7 @@ WHERE service_class_id <> 5 and service_class_id <> 14 and service_class_id <> 1
     ),
     (
         'WorkloadEvaluation',
-        'all',
+        'provisioned',
         """\
 -- WorkloadEvaluation
 WITH recursive min_list(start_min, end_min) as (

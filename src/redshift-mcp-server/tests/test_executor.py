@@ -68,6 +68,7 @@ class TestServerlessExclusion:
 
         assert 'NodeDetails' not in result.queries_executed
         assert 'WLMConfig' not in result.queries_executed
+        assert 'WorkloadEvaluation' not in result.queries_executed
 
     @pytest.mark.asyncio
     async def test_provisioned_queries_included_for_provisioned(self):
@@ -305,3 +306,4 @@ class TestReviewQueriesConstants:
         provisioned = {name for name, ct, _ in SIGNAL_EVALUATION_SQL if ct == 'provisioned'}
         assert 'NodeDetails' in provisioned
         assert 'WLMConfig' in provisioned
+        assert 'WorkloadEvaluation' in provisioned
