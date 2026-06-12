@@ -268,62 +268,6 @@ async def get_table_schema(
 
 
 @mcp.tool(
-    name='list_db2_instances',
-    description='List Amazon RDS for Db2 instances in a region (endpoint, port, master secret)',
-)
-async def list_db2_instances(
-    region: Annotated[str, Field(description='AWS region')],
-) -> str | dict:
-    """List RDS for Db2 instances to bridge provisioning and connection."""
-    try:
-        rds = boto3.client(
-            'rds', region_name=region, config=Config(user_agent_extra=__user_agent__)
-        )
-        instances = []
-        paginator = rds.get_paginator('describe_db_instances')
-        for page in paginator.paginate():
-            for inst in page.get('DBInstances', []):
-                if not str(inst.get('Engine', '')).startswith('db2'):
-                    continue
-                instances.append(_summarize_instance(inst))
-        return _wrap_untrusted_data(instances)
-    except ClientError as e:
-        logger.exception(f'list_db2_instances failed: {e}')
-        return {
-            'error': 'list_db2_instances ClientError',
-            'code': e.response['Error']['Code'],
-            'message': e.response['Error']['Message'],
-        }
-
-
-@mcp.tool(
-    name='describe_db2_instance',
-    description='Describe one Amazon RDS for Db2 instance (endpoint, port, master secret ARN)',
-)
-async def describe_db2_instance(
-    region: Annotated[str, Field(description='AWS region')],
-    instance_identifier: Annotated[str, Field(description='RDS instance identifier')],
-) -> str | dict:
-    """Describe a single RDS for Db2 instance."""
-    try:
-        rds = boto3.client(
-            'rds', region_name=region, config=Config(user_agent_extra=__user_agent__)
-        )
-        response = rds.describe_db_instances(DBInstanceIdentifier=instance_identifier)
-        instances = response.get('DBInstances', [])
-        if not instances:
-            return {'error': f"No instance found for '{instance_identifier}'"}
-        return _wrap_untrusted_data(_summarize_instance(instances[0]))
-    except ClientError as e:
-        logger.exception(f'describe_db2_instance failed: {e}')
-        return {
-            'error': 'describe_db2_instance ClientError',
-            'code': e.response['Error']['Code'],
-            'message': e.response['Error']['Message'],
-        }
-
-
-@mcp.tool(
     name='connect_to_database',
     description='Connect to an Amazon RDS for Db2 instance and cache the connection internally',
 )
@@ -389,26 +333,6 @@ def is_database_connected(
 def get_database_connection_info() -> list:
     """Get all cached database connection information."""
     return db_connection_map.get_keys()
-
-
-def _summarize_instance(inst: dict) -> dict:
-    """Reduce a describe_db_instances entry to connection-relevant fields."""
-    endpoint = inst.get('Endpoint') or {}
-    master_secret = inst.get('MasterUserSecret') or {}
-    return {
-        'db_instance_identifier': inst.get('DBInstanceIdentifier'),
-        'engine': inst.get('Engine'),
-        'engine_version': inst.get('EngineVersion'),
-        'status': inst.get('DBInstanceStatus'),
-        'endpoint_address': endpoint.get('Address'),
-        'endpoint_port': endpoint.get('Port'),
-        'db_name': inst.get('DBName'),
-        'master_username': inst.get('MasterUsername'),
-        'master_user_secret_arn': master_secret.get('SecretArn'),
-        'publicly_accessible': inst.get('PubliclyAccessible'),
-        'availability_zone': inst.get('AvailabilityZone'),
-        'multi_az': inst.get('MultiAZ'),
-    }
 
 
 def internal_create_connection(

@@ -29,7 +29,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 # Dummy ARNs for tests (not real secrets)
 DUMMY_RDS_SECRET_ARN = 'arn:rds'  # pragma: allowlist secret
-DUMMY_DB2_SECRET_ARN = 'arn:aws:secretsmanager:...:secret:db2'  # pragma: allowlist secret
 
 
 # --------------------------------------------------------------------------- #
@@ -237,66 +236,6 @@ class TestConnectTool:
 
 
 # --------------------------------------------------------------------------- #
-# Discovery tools
-# --------------------------------------------------------------------------- #
-
-
-class TestDiscovery:
-    """Tests for list_db2_instances and describe_db2_instance."""
-
-    async def test_list_filters_db2(self, mocker):
-        """Only db2-engine instances are summarized."""
-        rds = MagicMock()
-        paginator = MagicMock()
-        paginator.paginate.return_value = [
-            {
-                'DBInstances': [
-                    {'DBInstanceIdentifier': 'a', 'Engine': 'db2-se', 'Endpoint': {'Port': 50443}},
-                    {'DBInstanceIdentifier': 'b', 'Engine': 'postgres'},
-                ]
-            }
-        ]
-        rds.get_paginator.return_value = paginator
-        mocker.patch.object(server.boto3, 'client', return_value=rds)
-        out = await server.list_db2_instances('us-east-1')
-        assert '"a"' in out and 'postgres' not in out
-
-    async def test_list_client_error(self, mocker):
-        """A ClientError from RDS is surfaced as a structured dict."""
-        rds = MagicMock()
-        rds.get_paginator.side_effect = _client_error()
-        mocker.patch.object(server.boto3, 'client', return_value=rds)
-        out = await server.list_db2_instances('us-east-1')
-        assert out['code'] == 'AccessDenied'
-
-    async def test_describe_found(self, mocker):
-        """describe_db2_instance summarizes a found instance."""
-        rds = MagicMock()
-        rds.describe_db_instances.return_value = {
-            'DBInstances': [{'DBInstanceIdentifier': 'a', 'Engine': 'db2-se'}]
-        }
-        mocker.patch.object(server.boto3, 'client', return_value=rds)
-        out = await server.describe_db2_instance('us-east-1', 'a')
-        assert '"a"' in out
-
-    async def test_describe_not_found(self, mocker):
-        """An empty result yields an error message."""
-        rds = MagicMock()
-        rds.describe_db_instances.return_value = {'DBInstances': []}
-        mocker.patch.object(server.boto3, 'client', return_value=rds)
-        out = await server.describe_db2_instance('us-east-1', 'missing')
-        assert 'error' in out
-
-    async def test_describe_client_error(self, mocker):
-        """A ClientError is surfaced as a structured dict."""
-        rds = MagicMock()
-        rds.describe_db_instances.side_effect = _client_error('DBInstanceNotFound', 'no')
-        mocker.patch.object(server.boto3, 'client', return_value=rds)
-        out = await server.describe_db2_instance('us-east-1', 'a')
-        assert out['code'] == 'DBInstanceNotFound'
-
-
-# --------------------------------------------------------------------------- #
 # internal_create_connection
 # --------------------------------------------------------------------------- #
 
@@ -433,23 +372,6 @@ class TestIdentifierValidation:
     def test_catalog_form_qualified_falls_back(self):
         """A multi-part name falls back to uppercasing the whole string."""
         assert server._catalog_form('a.b') == 'A.B'
-
-
-class TestSummarizeInstance:
-    """Tests for describe_db_instances summarization."""
-
-    def test_summary_extracts_connection_fields(self):
-        """The summary surfaces endpoint, port, and master secret ARN."""
-        inst = {
-            'DBInstanceIdentifier': 'db2-prod',
-            'Engine': 'db2-se',
-            'Endpoint': {'Address': 'db2.rds.amazonaws.com', 'Port': 50443},
-            'MasterUserSecret': {'SecretArn': DUMMY_DB2_SECRET_ARN},
-        }
-        out = server._summarize_instance(inst)
-        assert out['endpoint_address'] == 'db2.rds.amazonaws.com'
-        assert out['endpoint_port'] == 50443
-        assert out['master_user_secret_arn'] == DUMMY_DB2_SECRET_ARN
 
 
 class TestWrapUntrustedData:

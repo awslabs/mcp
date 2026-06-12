@@ -305,3 +305,24 @@ def test_validate_sync_failure(mocker):
     fake.exec_immediate.return_value = 0
     with pytest.raises(ValueError, match='Validation query failed'):
         _conn(readonly=True).validate_sync()
+
+
+def test_credential_error_excludes_secret_material(mocker):
+    """A missing-field credential error must not echo secret values or key names."""
+    # Secret is valid JSON and contains a password, but no username field.
+    payload = {'password': DUMMY_PASSWORD, 'host': 'internal-db.example.com'}
+    fake_client = mocker.Mock()
+    fake_client.get_secret_value.return_value = {'SecretString': json.dumps(payload)}
+    fake_session = mocker.Mock()
+    fake_session.client.return_value = fake_client
+    mocker.patch('boto3.Session', return_value=fake_session)
+
+    with pytest.raises(ValueError) as exc_info:
+        _conn(is_test=False)._get_credentials_from_secret()
+
+    message = str(exc_info.value)
+    # No secret value and no secret key names should leak into the error surfaced
+    # back to the model/caller.
+    assert DUMMY_PASSWORD not in message
+    assert 'internal-db.example.com' not in message
+    assert 'host' not in message

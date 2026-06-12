@@ -139,18 +139,15 @@ class IbmDbConnection(AbstractDBConnection):
         try:
             secret = json.loads(response['SecretString'])
         except json.JSONDecodeError as e:
-            raise ValueError(f'Secret value is not valid JSON: {e}') from e
+            # Do not interpolate the exception: it could echo secret material.
+            raise ValueError('Secret value is not valid JSON') from e
 
         username = secret.get('username') or secret.get('user') or secret.get('Username')
         password = secret.get('password') or secret.get('Password')
         if not username:
-            raise ValueError(
-                f'Secret does not contain username. Available keys: {", ".join(secret.keys())}'
-            )
+            raise ValueError('Secret does not contain a username field')
         if not password:
-            raise ValueError(
-                f'Secret does not contain password. Available keys: {", ".join(secret.keys())}'
-            )
+            raise ValueError('Secret does not contain a password field')
         return username, password
 
     def _connect_sync(self):

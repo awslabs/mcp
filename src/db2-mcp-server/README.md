@@ -1,8 +1,8 @@
 # Amazon RDS for Db2 MCP Server
 
 An AWS Labs Model Context Protocol (MCP) server for Amazon RDS for Db2. It lets an
-MCP-aware assistant **discover** RDS for Db2 instances, **connect** to them over SSL,
-and **run read-only SQL** — turning natural-language questions into Db2 queries.
+MCP-aware assistant **connect** to RDS for Db2 instances over SSL and **run read-only
+SQL** — turning natural-language questions into Db2 queries.
 
 > **Scope.** This server handles *connect, query, and schema inspection*. It does **not**
 > provision Db2 instances. Provisioning is owned by the companion
@@ -11,9 +11,6 @@ and **run read-only SQL** — turning natural-language questions into Db2 querie
 
 ## Features
 
-- **`list_db2_instances`** / **`describe_db2_instance`** — discover RDS for Db2 instances and
-  surface the endpoint, port, and master-user secret ARN (the bridge from provisioning to
-  connection).
 - **`connect_to_database`** — open and cache an SSL connection using credentials pulled from
   AWS Secrets Manager.
 - **`run_query`** — run a parameterized SQL query (read-only by default).
@@ -116,11 +113,9 @@ To pre-connect a single instance at startup, pass arguments after the package na
 ## The deploy → connect → query journey
 
 1. **Deploy** with the `rds-db2-provision-skill` (Terraform). It produces an instance with a
-   managed master-user secret and SSL on 50443.
-2. **Discover** with `list_db2_instances` / `describe_db2_instance` to get the endpoint and
-   master-secret ARN.
-3. **Connect** with `connect_to_database`.
-4. **Query** with `run_query` / `get_table_schema`.
+   managed master-user secret and SSL on 50443. Note its endpoint and master-secret ARN.
+2. **Connect** with `connect_to_database`.
+3. **Query** with `run_query` / `get_table_schema`.
 
 ## Related resources
 
