@@ -1203,6 +1203,33 @@ async def test_connect_to_database_closes_replaced_connection(mocker):
     replaced_conn.close.assert_awaited_once()
 
 
+@pytest.mark.asyncio
+async def test_connect_to_database_replaced_close_failure_is_non_fatal(mocker):
+    """If closing the replaced connection raises, the tool still succeeds."""
+    from awslabs.oracle_mcp_server.server import connect_to_database
+
+    replaced_conn = AsyncMock()
+    replaced_conn.close = AsyncMock(side_effect=RuntimeError('close failed'))
+    mock_pool_conn = MagicMock(spec=OracledbPoolConnection)
+    mock_pool_conn.initialize_pool = AsyncMock()
+
+    mocker.patch(
+        'awslabs.oracle_mcp_server.server.internal_create_connection',
+        return_value=(mock_pool_conn, {'status': 'ok'}, replaced_conn),
+    )
+
+    result = await connect_to_database(
+        region='us-east-1',
+        connection_method=ConnectionMethod.ORACLE_PASSWORD,
+        db_endpoint='ep1',
+        service_name='ORCL',
+    )
+
+    # Close failure is swallowed; the connect still returns the success payload.
+    assert result == {'status': 'ok'}
+    replaced_conn.close.assert_awaited_once()
+
+
 # --- internal_create_connection ---
 
 

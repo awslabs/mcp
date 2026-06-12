@@ -298,13 +298,13 @@ class OracledbPoolConnection(AbstractDBConnection):
         password = secret.get('password') or secret.get('Password')
         if not username:
             raise ValueError(
-                'Secret does not contain a recognized username field. '
-                'Expected one of: username, user, Username.'
+                'Secret has no usable username value. Expected a non-empty '
+                'field named one of: username, user, Username.'
             )
         if not password:
             raise ValueError(
-                'Secret does not contain a recognized password field. '
-                'Expected one of: password, Password.'
+                'Secret has no usable password value. Expected a non-empty '
+                'field named one of: password, Password.'
             )
         logger.debug(f'Successfully extracted credentials for user: {username}')
         return username, password

@@ -617,7 +617,7 @@ def test_get_credentials_from_secret_missing_username(mocker):
     mock_session.client.return_value = mock_sm
     mocker.patch('boto3.Session', return_value=mock_session)
 
-    with pytest.raises(ValueError, match='does not contain a recognized username field'):
+    with pytest.raises(ValueError, match='no usable username value'):
         conn._get_credentials_from_secret('arn:any', 'us-east-1')
 
 
@@ -631,7 +631,7 @@ def test_get_credentials_from_secret_missing_password(mocker):
     mock_session.client.return_value = mock_sm
     mocker.patch('boto3.Session', return_value=mock_session)
 
-    with pytest.raises(ValueError, match='does not contain a recognized password field'):
+    with pytest.raises(ValueError, match='no usable password value'):
         conn._get_credentials_from_secret('arn:any', 'us-east-1')
 
 

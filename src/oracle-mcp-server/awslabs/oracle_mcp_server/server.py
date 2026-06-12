@@ -337,7 +337,7 @@ async def connect_to_database(
                 return {'status': 'Failed', 'error': str(pool_err)}
 
         return llm_response
-    except (ValueError, ClientError) as e:
+    except Exception as e:
         logger.exception(f'connect_to_database failed: {e}')
         return {'status': 'Failed', 'error': str(e)}
 
@@ -412,7 +412,8 @@ def internal_create_connection(
     # Per-target override wins, then the bare default. If neither is set,
     # the RDS MasterUserSecret metadata is used as a final fallback
     # (resolved later via describe_db_instances).
-    # The LLM cannot influence this — only operator --secret_arn flags control it.
+    # The LLM chooses only the instance_identifier target key; it cannot supply
+    # ARN values — those come exclusively from operator --secret_arn flags.
     secret_arn: str = ''
     if connection_method == ConnectionMethod.ORACLE_PASSWORD:
         target_key = instance_identifier
@@ -422,7 +423,7 @@ def internal_create_connection(
             logger.info(f'Using per-target secret_arn for instance {target_key}')
         elif server_config.configured_default_secret_arn:
             secret_arn = server_config.configured_default_secret_arn
-            logger.info(f'Using default secret_arn from startup configuration: {secret_arn}')
+            logger.info('Using default secret_arn from startup configuration')
 
     # Check for existing connection
     replaced_conn = None
@@ -494,7 +495,7 @@ def internal_create_connection(
                 )
 
     logger.info(
-        f'Instance props: masteruser:{masteruser}, secret_arn:{secret_arn}, '
+        f'Instance props: masteruser:{masteruser}, secret_arn_resolved:{bool(secret_arn)}, '
         f'endpoint:{db_endpoint}, port:{port}'
     )
 
@@ -661,10 +662,11 @@ def main():
             'Resolution order: per-target ARN > bare default ARN > RDS '
             'MasterUserSecret metadata. A bare default takes precedence over '
             'the instance MasterUserSecret for all unpinned instances. '
-            'The RDS MasterUserSecret is only consulted when no --secret_arn '
-            'is configured at all. '
-            'The LLM cannot pick a secret ARN — it can only target an instance '
-            'the operator has registered here.'
+            'The RDS MasterUserSecret is consulted for a given instance only '
+            'when that instance has no per-target ARN and no bare default is '
+            'configured. '
+            'The LLM cannot supply a secret ARN value — it only chooses which '
+            'instance to target; ARNs come exclusively from the operator here.'
         ),
     )
     parser.add_argument(

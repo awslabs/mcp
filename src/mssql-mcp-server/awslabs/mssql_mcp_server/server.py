@@ -468,15 +468,47 @@ def internal_create_connection(
     if not db_endpoint:
         raise ValueError("db_endpoint can't be none or empty")
 
-    # Resolve the Secrets Manager ARN first so we can detect stale cached
-    # connections whose ARN no longer matches the operator config.
-    # Priority: per-target → default → RDS MasterUserSecret metadata.
-    # The LLM cannot influence this — only operator --secret_arn flags control it.
+    # Resolve the operator-configured Secrets Manager ARN (per-target → default).
+    # This is a pure in-memory lookup so we can detect stale cached connections
+    # without any network call. The RDS MasterUserSecret fallback is deferred to
+    # AFTER the cache check so a cached reconnect stays offline (mirrors oracle).
+    # The LLM chooses only the instance_identifier target key; it cannot supply
+    # ARN values — those come exclusively from operator --secret_arn flags.
     target_key = instance_identifier
     per_target_secret_arn = server_config.configured_secret_arns.get(target_key, '')
-    metadata_secret_arn = ''
+    secret_arn: str = per_target_secret_arn or server_config.configured_default_secret_arn or ''
 
-    if not per_target_secret_arn and not server_config.configured_default_secret_arn:
+    if per_target_secret_arn:
+        logger.info(f'Using per-target secret_arn for instance {target_key}')
+    elif server_config.configured_default_secret_arn:
+        logger.info('Using default secret_arn from startup configuration')
+
+    # Check for existing connection. If the resolved config ARN matches (or there
+    # is no config ARN to compare against), reuse it without any network call.
+    # Defer the actual eviction until after the fallible RDS calls below succeed,
+    # so a mid-resolution failure never orphans the cached connection.
+    existing_conn = db_connection_map.get(
+        connection_method, instance_identifier, db_endpoint, database, port
+    )
+    replace_existing = bool(
+        existing_conn and secret_arn and getattr(existing_conn, 'secret_arn', '') != secret_arn
+    )
+    if existing_conn and not replace_existing:
+        llm_response = json.dumps(
+            {
+                'connection_method': connection_method,
+                'instance_identifier': instance_identifier,
+                'db_endpoint': db_endpoint,
+                'database': database,
+                'port': port,
+            },
+            indent=2,
+            default=str,
+        )
+        return (existing_conn, llm_response, None)
+
+    # No operator-configured ARN: fall back to the instance's RDS MasterUserSecret.
+    if not secret_arn:
         rds_client = boto3.client(
             'rds', region_name=region, config=Config(user_agent_extra=__user_agent__)
         )
@@ -497,23 +529,10 @@ def internal_create_connection(
             raise ValueError(
                 f"describe_db_instances returned no instances for '{instance_identifier}'"
             )
-        instance_props = instances[0]
-        master_secret = instance_props.get('MasterUserSecret', {})
-        metadata_secret_arn = master_secret.get('SecretArn', '') if master_secret else ''
-
-    secret_arn: str = (
-        per_target_secret_arn
-        or server_config.configured_default_secret_arn
-        or metadata_secret_arn
-        or ''
-    )
-
-    if per_target_secret_arn:
-        logger.info(f'Using per-target secret_arn for instance {target_key}')
-    elif server_config.configured_default_secret_arn:
-        logger.info('Using default secret_arn from startup configuration')
-    elif metadata_secret_arn:
-        logger.info(f'Using RDS MasterUserSecret metadata for instance {target_key}')
+        master_secret = instances[0].get('MasterUserSecret', {})
+        secret_arn = master_secret.get('SecretArn', '') if master_secret else ''
+        if secret_arn:
+            logger.info(f'Using RDS MasterUserSecret metadata for instance {target_key}')
 
     if not secret_arn:
         raise ValueError(
@@ -524,40 +543,30 @@ def internal_create_connection(
             f'--secret_arn {instance_identifier}=<arn> (per-target).'
         )
 
-    # Check for existing connection; evict if the resolved ARN differs.
-    replaced_conn = None
-    existing_conn = db_connection_map.get(
-        connection_method, instance_identifier, db_endpoint, database, port
-    )
-    if existing_conn:
-        if secret_arn and getattr(existing_conn, 'secret_arn', '') != secret_arn:
-            logger.info(
-                f'Replacing existing connection for {instance_identifier}/{database}: '
-                f'secret_arn changed'
-            )
-            db_connection_map.remove(
-                connection_method, instance_identifier, db_endpoint, database, port
-            )
-            replaced_conn = existing_conn
-        else:
-            llm_response = json.dumps(
-                {
-                    'connection_method': connection_method,
-                    'instance_identifier': instance_identifier,
-                    'db_endpoint': db_endpoint,
-                    'database': database,
-                    'port': port,
-                },
-                indent=2,
-                default=str,
-            )
-            return (existing_conn, llm_response, None)
-
     # Validate the endpoint against RDS or the allowed list.
     # Use the AWS-sourced endpoint for the connection string.
+    # Keep the original (endpoint, port) so eviction below targets the same
+    # cache key that db_connection_map.get used above.
+    cache_endpoint, cache_port = db_endpoint, port
     db_endpoint, port = validate_endpoint(db_endpoint, port, instance_identifier, region)
 
-    logger.debug(f'Connection props: secret_arn:{secret_arn}, endpoint:{db_endpoint}, port:{port}')
+    # All fallible network calls have succeeded; now it is safe to evict the
+    # stale cached connection so a failure above can never orphan it.
+    replaced_conn = None
+    if replace_existing:
+        logger.info(
+            f'Replacing existing connection for {instance_identifier}/{database}: '
+            f'secret_arn changed'
+        )
+        db_connection_map.remove(
+            connection_method, instance_identifier, cache_endpoint, database, cache_port
+        )
+        replaced_conn = existing_conn
+
+    logger.debug(
+        f'Connection props: secret_arn_resolved:{bool(secret_arn)}, '
+        f'endpoint:{db_endpoint}, port:{port}'
+    )
 
     db_connection = PymssqlPoolConnection(
         host=db_endpoint,
@@ -722,10 +731,11 @@ def main():
             'Resolution order: per-target ARN > bare default ARN > RDS '
             'MasterUserSecret metadata. A bare default takes precedence over '
             'the instance MasterUserSecret for all unpinned instances. '
-            'The RDS MasterUserSecret is only consulted when no --secret_arn '
-            'is configured at all. '
-            'The LLM cannot pick a secret ARN — it can only target an instance '
-            'the operator has registered here.'
+            'The RDS MasterUserSecret is consulted for a given instance only '
+            'when that instance has no per-target ARN and no bare default is '
+            'configured. '
+            'The LLM cannot supply a secret ARN value — it only chooses which '
+            'instance to target; ARNs come exclusively from the operator here.'
         ),
     )
     parser.add_argument(
