@@ -17,7 +17,7 @@
 import asyncio
 import json
 import re
-from .aws_clients import applicationsignals_client, logs_client, xray_client
+from .aws_clients import AWS_REGION, applicationsignals_client, logs_client, xray_client
 from .sli_report_client import AWSConfig, SLIReportClient
 from .utils import remove_null_values
 from datetime import datetime, timedelta, timezone
@@ -76,7 +76,7 @@ def _compose_spans_query(user_query: str, log_group_name: str) -> str:
     return ' | '.join(parts)
 
 
-def check_transaction_search_enabled(region: str = 'us-east-1') -> tuple[bool, str, str]:
+def check_transaction_search_enabled(region: str = AWS_REGION) -> tuple[bool, str, str]:
     """Internal function to check if AWS X-Ray Transaction Search is enabled.
 
     Returns:
@@ -419,7 +419,7 @@ async def list_slis(
             try:
                 # Create custom config with the service's key attributes
                 config = AWSConfig(
-                    region='us-east-1',
+                    region=AWS_REGION,
                     period_in_hours=hours,
                     service_name=service_name,
                     key_attributes=service['KeyAttributes'],
