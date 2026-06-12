@@ -31,7 +31,7 @@ HIGH_CONFIDENCE_MATCH_THRESHOLD = 85  # High confidence threshold for exact fuzz
 
 async def execute_audit_api(input_obj: Dict[str, Any], region: str, banner: str) -> str:
     """Execute the Application Signals audit API call with the given input object."""
-    from .aws_clients import applicationsignals_client
+    from .aws_clients import get_client
 
     # File log path
     desired_log_path = os.environ.get('AUDITOR_LOG_PATH', tempfile.gettempdir())
@@ -131,7 +131,7 @@ async def execute_audit_api(input_obj: Dict[str, Any], region: str, banner: str)
 
         # Call the Application Signals API for this batch
         try:
-            response = applicationsignals_client.list_audit_findings(**batch_input_obj)  # type: ignore[attr-defined]
+            response = get_client('application-signals').list_audit_findings(**batch_input_obj)  # type: ignore[attr-defined]
 
             # Format and log output for this batch
             observation_text = json.dumps(response, indent=2, default=str)
@@ -308,7 +308,9 @@ def _fetch_instrumented_services_with_pagination(
         filtering_stats contains: {'total_services': int, 'instrumented_services': int, 'filtered_out': int}
     """
     if applicationsignals_client is None:
-        from .aws_clients import applicationsignals_client
+        from .aws_clients import get_client
+
+        applicationsignals_client = get_client('application-signals')
 
     all_service_names = []
     filtering_stats = {'total_services': 0, 'instrumented_services': 0, 'filtered_out': 0}
@@ -455,7 +457,9 @@ def expand_service_wildcard_patterns(
     from .utils import calculate_name_similarity
 
     if applicationsignals_client is None:
-        from .aws_clients import applicationsignals_client
+        from .aws_clients import get_client
+
+        applicationsignals_client = get_client('application-signals')
 
     expanded_targets = []
     service_patterns = []
@@ -624,7 +628,9 @@ def expand_slo_wildcard_patterns(
         Tuple of (expanded_targets, next_token, slo_names_in_batch)
     """
     if applicationsignals_client is None:
-        from .aws_clients import applicationsignals_client
+        from .aws_clients import get_client
+
+        applicationsignals_client = get_client('application-signals')
 
     expanded_targets = []
     wildcard_patterns = []
@@ -734,7 +740,9 @@ def expand_service_operation_wildcard_patterns(
         filtering_stats contains: {'total_services': int, 'instrumented_services': int, 'filtered_out': int}
     """
     if applicationsignals_client is None:
-        from .aws_clients import applicationsignals_client
+        from .aws_clients import get_client
+
+        applicationsignals_client = get_client('application-signals')
 
     expanded_targets = []
     wildcard_patterns = []

@@ -15,7 +15,7 @@
 """Retrieve service SLI status based on configured Application Signals SLOs."""
 
 import logging
-from .aws_clients import applicationsignals_client, cloudwatch_client
+from .aws_clients import get_client
 from botocore.exceptions import ClientError
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -193,8 +193,8 @@ class SLIReportClient:
         )
 
         # Use shared AWS clients from aws_clients module
-        self.signals_client = applicationsignals_client
-        self.cloudwatch_client = cloudwatch_client
+        self.signals_client = get_client('application-signals')
+        self.cloudwatch_client = get_client('cloudwatch')
         logger.debug('Using shared AWS clients')
 
     def get_slo_summaries(self) -> List[SLOSummary]:

@@ -30,7 +30,6 @@ def mock_aws_clients():
     Returns:
         dict: Dictionary containing all mocked AWS clients
     """
-    # Create mock clients
     mock_logs_client = MagicMock()
     mock_applicationsignals_client = MagicMock()
     mock_cloudwatch_client = MagicMock()
@@ -39,53 +38,30 @@ def mock_aws_clients():
     mock_s3_client = MagicMock()
     mock_iam_client = MagicMock()
 
-    # Patch the clients in all modules where they're imported
+    client_map = {
+        'logs': mock_logs_client,
+        'application-signals': mock_applicationsignals_client,
+        'cloudwatch': mock_cloudwatch_client,
+        'xray': mock_xray_client,
+        'synthetics': mock_synthetics_client,
+        's3': mock_s3_client,
+        'iam': mock_iam_client,
+    }
+
+    def _get_client(service_name):
+        return client_map.get(service_name, MagicMock())
+
     patches = [
-        # Original aws_clients module
         patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.logs_client',
-            mock_logs_client,
+            'awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.get_client',
+            side_effect=_get_client,
         ),
         patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.applicationsignals_client',
-            mock_applicationsignals_client,
-        ),
-        patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.cloudwatch_client',
-            mock_cloudwatch_client,
-        ),
-        patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.xray_client',
-            mock_xray_client,
-        ),
-        patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.synthetics_client',
-            mock_synthetics_client,
-        ),
-        patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.s3_client',
-            mock_s3_client,
-        ),
-        patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.iam_client',
-            mock_iam_client,
-        ),
-        # Server module
-        patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.server.applicationsignals_client',
-            mock_applicationsignals_client,
-        ),
-        patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.server.synthetics_client',
-            mock_synthetics_client,
-        ),
-        patch('awslabs.cloudwatch_applicationsignals_mcp_server.server.s3_client', mock_s3_client),
-        patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.server.iam_client', mock_iam_client
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_client',
+            side_effect=_get_client,
         ),
     ]
 
-    # Start all patches
     for p in patches:
         p.start()
 
@@ -100,7 +76,6 @@ def mock_aws_clients():
             'iam_client': mock_iam_client,
         }
     finally:
-        # Stop all patches
         for p in patches:
             p.stop()
 
