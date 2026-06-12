@@ -1161,8 +1161,8 @@ def test_revoke_not_flagged_as_injection():
 # ─── secret_arn override ─────────────────────────────────────────────────────
 
 
-def test_internal_create_connection_uses_custom_secret_arn(mocker):
-    """When secret_arn is provided, skip the RDS describe call and use it directly."""
+def test_internal_create_connection_uses_per_target_secret_arn(mocker):
+    """When a per-target --secret_arn is configured, skip the RDS describe call and use it."""
     import awslabs.mssql_mcp_server.server as srv
 
     mocker.patch.object(db_connection_map, 'get', return_value=None)
@@ -1171,6 +1171,8 @@ def test_internal_create_connection_uses_custom_secret_arn(mocker):
     srv.server_config.readonly_query = True
 
     custom_arn = 'arn:aws:secretsmanager:us-east-1:123456789012:secret:my-db-user'
+    old_arns = srv.server_config.configured_secret_arns
+    srv.server_config.configured_secret_arns = {'inst1': custom_arn}
     mock_boto = mocker.patch('awslabs.mssql_mcp_server.server.boto3')
 
     try:
@@ -1181,24 +1183,28 @@ def test_internal_create_connection_uses_custom_secret_arn(mocker):
             db_endpoint='ep1',
             port=1433,
             database='testdb',
-            secret_arn=custom_arn,
         )
         # RDS describe_db_instances should NOT be called
         mock_boto.client.assert_not_called()
         assert conn.secret_arn == custom_arn
     finally:
         srv.server_config.readonly_query = old_readonly
+        srv.server_config.configured_secret_arns = old_arns
         db_connection_map.remove(ConnectionMethod.MSSQL_PASSWORD, 'inst1', 'ep1', 'testdb', 1433)
 
 
 def test_internal_create_connection_falls_back_to_master_secret(mocker):
-    """When no secret_arn is provided, fall back to the RDS master secret."""
+    """When no --secret_arn is configured, fall back to the RDS master secret."""
     import awslabs.mssql_mcp_server.server as srv
 
     mocker.patch.object(db_connection_map, 'get', return_value=None)
     mocker.patch('awslabs.mssql_mcp_server.server.validate_endpoint', return_value=('ep1', 1433))
     old_readonly = srv.server_config.readonly_query
     srv.server_config.readonly_query = True
+    old_arns = srv.server_config.configured_secret_arns
+    old_default = srv.server_config.configured_default_secret_arn
+    srv.server_config.configured_secret_arns = {}
+    srv.server_config.configured_default_secret_arn = None
 
     master_arn = 'arn:aws:secretsmanager:us-east-1:123456789012:secret:rds-master'
     mock_rds = MagicMock()
@@ -1220,6 +1226,8 @@ def test_internal_create_connection_falls_back_to_master_secret(mocker):
         assert conn.secret_arn == master_arn
     finally:
         srv.server_config.readonly_query = old_readonly
+        srv.server_config.configured_secret_arns = old_arns
+        srv.server_config.configured_default_secret_arn = old_default
         db_connection_map.remove(ConnectionMethod.MSSQL_PASSWORD, 'inst1', 'ep1', 'testdb', 1433)
 
 
@@ -1227,8 +1235,8 @@ def test_new_database_connection_uses_startup_secret_not_rds_master(mocker):
     """Connecting to a new database must use the startup secret, not fall back to RDS master.
 
     Simulates: server started with --database master --secret_arn <readonly_user>.
-    Agent then connects to TestDB without passing secret_arn. The new pool must
-    use the same readonly secret, not call describe_db_instances for the RDS master.
+    Agent then connects to TestDB. The new pool must use the same readonly secret,
+    not call describe_db_instances for the RDS master.
     """
     import awslabs.mssql_mcp_server.server as srv
 
@@ -1239,8 +1247,8 @@ def test_new_database_connection_uses_startup_secret_not_rds_master(mocker):
     master_arn = 'arn:aws:secretsmanager:us-east-1:123456789012:secret:rds-master'
 
     # Simulate main() storing --secret_arn at startup
-    old_default = srv.server_config.default_secret_arn
-    srv.server_config.default_secret_arn = readonly_arn
+    old_default = srv.server_config.configured_default_secret_arn
+    srv.server_config.configured_default_secret_arn = readonly_arn
 
     mocker.patch('awslabs.mssql_mcp_server.server.validate_endpoint', return_value=('ep1', 1433))
 
@@ -1252,7 +1260,7 @@ def test_new_database_connection_uses_startup_secret_not_rds_master(mocker):
     mocker.patch('awslabs.mssql_mcp_server.server.boto3.client', return_value=mock_rds)
 
     try:
-        # Startup: connect to master with explicit secret_arn (like main() does)
+        # Startup: connect to master (default secret_arn from startup config is used)
         master_conn, _ = internal_create_connection(
             region='us-east-1',
             connection_method=ConnectionMethod.MSSQL_PASSWORD,
@@ -1260,11 +1268,10 @@ def test_new_database_connection_uses_startup_secret_not_rds_master(mocker):
             db_endpoint='ep1',
             port=1433,
             database='master',
-            secret_arn=readonly_arn,
         )
         assert master_conn.secret_arn == readonly_arn
 
-        # Agent connects to TestDB without secret_arn
+        # Agent connects to TestDB
         testdb_conn, _ = internal_create_connection(
             region='us-east-1',
             connection_method=ConnectionMethod.MSSQL_PASSWORD,
@@ -1281,6 +1288,6 @@ def test_new_database_connection_uses_startup_secret_not_rds_master(mocker):
         assert testdb_conn.secret_arn != master_arn
     finally:
         srv.server_config.readonly_query = old_readonly
-        srv.server_config.default_secret_arn = old_default
+        srv.server_config.configured_default_secret_arn = old_default
         db_connection_map.remove(ConnectionMethod.MSSQL_PASSWORD, 'inst1', 'ep1', 'master', 1433)
         db_connection_map.remove(ConnectionMethod.MSSQL_PASSWORD, 'inst1', 'ep1', 'TestDB', 1433)

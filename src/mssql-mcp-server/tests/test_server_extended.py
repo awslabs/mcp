@@ -620,3 +620,212 @@ def test_main_startup_connection_validation_returns_empty(mocker):
     with pytest.raises(SystemExit) as exc_info:
         srv.main()
     assert exc_info.value.code == 1
+
+
+# ─── --secret_arn CLI parsing ─────────────────────────────────────────────────
+
+
+def test_main_secret_arn_per_target_parsing(mocker):
+    """--secret_arn with key=arn syntax populates configured_secret_arns."""
+    import awslabs.mssql_mcp_server.server as srv
+
+    mocker.patch.object(
+        sys,
+        'argv',
+        [
+            'prog',
+            '--region',
+            'us-east-1',
+            '--secret_arn',
+            'inst1=arn:aws:secretsmanager:us-east-1:123:secret:s1',
+            '--secret_arn',
+            'inst2=arn:aws:secretsmanager:us-east-1:123:secret:s2',
+        ],
+    )
+    mocker.patch.object(srv.mcp, 'run')
+    mocker.patch.object(srv.db_connection_map, 'close_all')
+
+    srv.main()
+
+    assert srv.server_config.configured_secret_arns == {
+        'inst1': 'arn:aws:secretsmanager:us-east-1:123:secret:s1',
+        'inst2': 'arn:aws:secretsmanager:us-east-1:123:secret:s2',
+    }
+    assert srv.server_config.configured_default_secret_arn is None
+
+
+def test_main_secret_arn_bare_default(mocker):
+    """A bare --secret_arn (no '=') sets configured_default_secret_arn."""
+    import awslabs.mssql_mcp_server.server as srv
+
+    mocker.patch.object(
+        sys,
+        'argv',
+        [
+            'prog',
+            '--region',
+            'us-east-1',
+            '--secret_arn',
+            'arn:aws:secretsmanager:us-east-1:123:secret:default',
+        ],
+    )
+    mocker.patch.object(srv.mcp, 'run')
+    mocker.patch.object(srv.db_connection_map, 'close_all')
+
+    srv.main()
+
+    assert srv.server_config.configured_default_secret_arn == (
+        'arn:aws:secretsmanager:us-east-1:123:secret:default'
+    )
+    assert srv.server_config.configured_secret_arns == {}
+
+
+def test_main_secret_arn_invalid_key_arn_exits(mocker):
+    """--secret_arn with empty key in key=arn syntax exits with code 2."""
+    import awslabs.mssql_mcp_server.server as srv
+
+    mocker.patch.object(
+        sys,
+        'argv',
+        ['prog', '--region', 'us-east-1', '--secret_arn', '=arn:bad'],
+    )
+    mocker.patch.object(srv.mcp, 'run')
+    mocker.patch.object(srv.db_connection_map, 'close_all')
+
+    with pytest.raises(SystemExit) as exc_info:
+        srv.main()
+    assert exc_info.value.code == 2
+
+
+def test_main_secret_arn_duplicate_key_exits(mocker):
+    """Duplicate --secret_arn keys exit with code 2."""
+    import awslabs.mssql_mcp_server.server as srv
+
+    mocker.patch.object(
+        sys,
+        'argv',
+        [
+            'prog',
+            '--region',
+            'us-east-1',
+            '--secret_arn',
+            'inst1=arn:aws:secretsmanager:us-east-1:123:secret:s1',
+            '--secret_arn',
+            'inst1=arn:aws:secretsmanager:us-east-1:123:secret:s2',
+        ],
+    )
+    mocker.patch.object(srv.mcp, 'run')
+    mocker.patch.object(srv.db_connection_map, 'close_all')
+
+    with pytest.raises(SystemExit) as exc_info:
+        srv.main()
+    assert exc_info.value.code == 2
+
+
+def test_main_secret_arn_two_bare_defaults_exits(mocker):
+    """Two bare --secret_arn values (no '=') exits with code 2."""
+    import awslabs.mssql_mcp_server.server as srv
+
+    mocker.patch.object(
+        sys,
+        'argv',
+        [
+            'prog',
+            '--region',
+            'us-east-1',
+            '--secret_arn',
+            'arn:aws:secretsmanager:us-east-1:123:secret:a',
+            '--secret_arn',
+            'arn:aws:secretsmanager:us-east-1:123:secret:b',
+        ],
+    )
+    mocker.patch.object(srv.mcp, 'run')
+    mocker.patch.object(srv.db_connection_map, 'close_all')
+
+    with pytest.raises(SystemExit) as exc_info:
+        srv.main()
+    assert exc_info.value.code == 2
+
+
+def test_main_secret_arn_mixed_per_target_and_default(mocker):
+    """Mixing per-target and bare --secret_arn values works correctly."""
+    import awslabs.mssql_mcp_server.server as srv
+
+    mocker.patch.object(
+        sys,
+        'argv',
+        [
+            'prog',
+            '--region',
+            'us-east-1',
+            '--secret_arn',
+            'inst1=arn:aws:secretsmanager:us-east-1:123:secret:specific',
+            '--secret_arn',
+            'arn:aws:secretsmanager:us-east-1:123:secret:fallback',
+        ],
+    )
+    mocker.patch.object(srv.mcp, 'run')
+    mocker.patch.object(srv.db_connection_map, 'close_all')
+
+    srv.main()
+
+    assert srv.server_config.configured_secret_arns == {
+        'inst1': 'arn:aws:secretsmanager:us-east-1:123:secret:specific',
+    }
+    assert srv.server_config.configured_default_secret_arn == (
+        'arn:aws:secretsmanager:us-east-1:123:secret:fallback'
+    )
+
+
+def test_main_secret_arn_empty_value_skipped(mocker):
+    """An empty bare --secret_arn value is silently skipped."""
+    import awslabs.mssql_mcp_server.server as srv
+
+    mocker.patch.object(
+        sys,
+        'argv',
+        [
+            'prog',
+            '--region',
+            'us-east-1',
+            '--secret_arn',
+            '',
+            '--secret_arn',
+            'arn:aws:secretsmanager:us-east-1:123:secret:real',
+        ],
+    )
+    mocker.patch.object(srv.mcp, 'run')
+    mocker.patch.object(srv.db_connection_map, 'close_all')
+
+    srv.main()
+
+    assert srv.server_config.configured_default_secret_arn == (
+        'arn:aws:secretsmanager:us-east-1:123:secret:real'
+    )
+
+
+def test_main_invalid_connection_method_exits(mocker):
+    """Invalid --connection_method at startup exits with code 1."""
+    import awslabs.mssql_mcp_server.server as srv
+
+    mocker.patch.object(
+        sys,
+        'argv',
+        [
+            'prog',
+            '--region',
+            'us-east-1',
+            '--connection_method',
+            'INVALID_METHOD',
+            '--instance_identifier',
+            'inst1',
+            '--db_endpoint',
+            'ep1',
+        ],
+    )
+    mocker.patch.object(srv.mcp, 'run')
+    mocker.patch.object(srv.db_connection_map, 'close_all')
+
+    with pytest.raises(SystemExit) as exc_info:
+        srv.main()
+    assert exc_info.value.code == 1
