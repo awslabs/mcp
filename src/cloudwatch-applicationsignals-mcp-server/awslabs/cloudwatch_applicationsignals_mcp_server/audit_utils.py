@@ -29,9 +29,17 @@ FUZZY_MATCH_THRESHOLD = 30  # Minimum similarity score for fuzzy matching
 HIGH_CONFIDENCE_MATCH_THRESHOLD = 85  # High confidence threshold for exact fuzzy matches
 
 
-async def execute_audit_api(input_obj: Dict[str, Any], region: str, banner: str) -> str:
+async def execute_audit_api(
+    input_obj: Dict[str, Any],
+    region: str,
+    banner: str,
+    applicationsignals_client_override=None,
+) -> str:
     """Execute the Application Signals audit API call with the given input object."""
-    from .aws_clients import applicationsignals_client
+    if applicationsignals_client_override is None:
+        from .aws_clients import applicationsignals_client
+    else:
+        applicationsignals_client = applicationsignals_client_override
 
     # File log path
     desired_log_path = os.environ.get('AUDITOR_LOG_PATH', tempfile.gettempdir())

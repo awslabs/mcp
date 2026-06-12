@@ -181,11 +181,13 @@ class SLIReportClient:
     Handles interaction with AWS services to collect and analyze SLO data.
     """
 
-    def __init__(self, config: AWSConfig):
+    def __init__(self, config: AWSConfig, signals_client=None, cloudwatch_client_override=None):
         """Initialize SLIReportClient with AWS configuration.
 
         Args:
             config: AWSConfig instance containing region, period, and service settings
+            signals_client: Optional Application Signals client override
+            cloudwatch_client_override: Optional CloudWatch client override
         """
         self.config = config
         logger.info(
@@ -193,8 +195,8 @@ class SLIReportClient:
         )
 
         # Use shared AWS clients from aws_clients module
-        self.signals_client = applicationsignals_client
-        self.cloudwatch_client = cloudwatch_client
+        self.signals_client = signals_client or applicationsignals_client
+        self.cloudwatch_client = cloudwatch_client_override or cloudwatch_client
         logger.debug('Using shared AWS clients')
 
     def get_slo_summaries(self) -> List[SLOSummary]:

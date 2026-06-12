@@ -577,9 +577,12 @@ async def analyze_canary_logs_with_time_window(
     canary: dict,
     window_minutes: int = 3,
     region: str = 'us-east-1',
+    logs_client_override=None,
 ) -> dict:
     """Analyze canary logs within a specific time window around failure."""
     try:
+        logs = logs_client_override or logs_client
+
         # Calculate time window around failure
         if isinstance(failure_time, str):
             failure_time = datetime.fromisoformat(failure_time.replace('Z', '+00:00'))
@@ -598,7 +601,7 @@ async def analyze_canary_logs_with_time_window(
 
         # Get log events in the time window
         try:
-            response = logs_client.filter_log_events(
+            response = logs.filter_log_events(
                 logGroupName=log_group_name,
                 startTime=start_timestamp,
                 endTime=end_timestamp,
@@ -671,11 +674,19 @@ async def analyze_canary_logs_with_time_window(
         return {'status': 'error', 'insights': [f'Log analysis failed: {str(e)[:200]}']}
 
 
-async def extract_disk_memory_usage_metrics(canary_name: str, region: str = 'us-east-1') -> dict:
+async def extract_disk_memory_usage_metrics(
+    canary_name: str,
+    region: str = 'us-east-1',
+    synthetics_client_override=None,
+    logs_client_override=None,
+) -> dict:
     """Extract disk and memory usage metrics from canary log group."""
     try:
+        synthetics = synthetics_client_override or synthetics_client
+        logs = logs_client_override or logs_client
+
         # Get canary details to find the Lambda function name
-        canary_response = synthetics_client.get_canary(Name=canary_name)
+        canary_response = synthetics.get_canary(Name=canary_name)
         canary = canary_response['Canary']
 
         # Handle both EngineArn and EngineConfigs
@@ -699,7 +710,7 @@ async def extract_disk_memory_usage_metrics(canary_name: str, region: str = 'us-
         | limit 20
         """
 
-        response = logs_client.start_query(
+        response = logs.start_query(
             logGroupName=log_group_name,
             startTime=int(start_time.timestamp()),
             endTime=int(end_time.timestamp()),
@@ -714,7 +725,7 @@ async def extract_disk_memory_usage_metrics(canary_name: str, region: str = 'us-
         delay = 1
         result = None
         while wait_time < max_wait:
-            result = logs_client.get_query_results(queryId=query_id)
+            result = logs.get_query_results(queryId=query_id)
             if result['status'] == 'Complete':
                 break
             await asyncio.sleep(delay)
@@ -761,9 +772,13 @@ async def extract_disk_memory_usage_metrics(canary_name: str, region: str = 'us-
         return {'error': f'Resource analysis failed: {str(e)[:200]}'}
 
 
-async def get_canary_code(canary: dict, region: str = 'us-east-1') -> dict:
+async def get_canary_code(
+    canary: dict, region: str = 'us-east-1', lambda_client_override=None
+) -> dict:
     """Extract and analyze canary code from Lambda layers."""
     try:
+        lambda_client_for_call = lambda_client_override or lambda_client
+
         engine_arn = canary.get('EngineArn', '')
         if not engine_arn:
             engine_configs = canary.get('EngineConfigs', [])
@@ -774,7 +789,7 @@ async def get_canary_code(canary: dict, region: str = 'us-east-1') -> dict:
         function_name = engine_arn.split(':function:')[1].split(':')[0]
 
         # Get function configuration
-        function_response = lambda_client.get_function(FunctionName=function_name)
+        function_response = lambda_client_for_call.get_function(FunctionName=function_name)
         config = function_response['Configuration']
 
         result = {
@@ -789,7 +804,9 @@ async def get_canary_code(canary: dict, region: str = 'us-east-1') -> dict:
         source_location_arn = canary.get('Code', {}).get('SourceLocationArn', '')
         if source_location_arn and ':layer:' in source_location_arn:
             try:
-                layer_response = lambda_client.get_layer_version_by_arn(Arn=source_location_arn)
+                layer_response = lambda_client_for_call.get_layer_version_by_arn(
+                    Arn=source_location_arn
+                )
                 if 'Location' in layer_response['Content']:
                     with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp_file:
                         import requests
@@ -831,7 +848,9 @@ async def get_canary_code(canary: dict, region: str = 'us-east-1') -> dict:
 
             for layer in custom_layers:
                 try:
-                    layer_response = lambda_client.get_layer_version_by_arn(Arn=layer['Arn'])
+                    layer_response = lambda_client_for_call.get_layer_version_by_arn(
+                        Arn=layer['Arn']
+                    )
                     if 'Location' in layer_response['Content']:
                         with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp_file:
                             import requests
@@ -892,10 +911,18 @@ async def get_canary_code(canary: dict, region: str = 'us-east-1') -> dict:
 
 
 async def check_canaries_for_service(
-    normalized_targets, unix_start, unix_end, region: str = 'us-east-1'
+    normalized_targets,
+    unix_start,
+    unix_end,
+    region: str = 'us-east-1',
+    applicationsignals_client_override=None,
+    synthetics_client_override=None,
 ):
     """Check Synthetics canaries associated with audited services via list_service_dependents."""
     try:
+        appsignals_client = applicationsignals_client_override or applicationsignals_client
+        synthetics = synthetics_client_override or synthetics_client
+
         canary_names = set()
         for target in normalized_targets:
             svc = (target.get('Data') or {}).get('Service') or {}
@@ -913,7 +940,7 @@ async def check_canaries_for_service(
                     }
                     if next_token:
                         kwargs['NextToken'] = next_token
-                    resp = applicationsignals_client.list_service_dependents(**kwargs)
+                    resp = appsignals_client.list_service_dependents(**kwargs)
                     for dep in resp.get('ServiceDependents', []):
                         dep_attrs = dep.get('DependentKeyAttributes', {})
                         if dep_attrs.get('ResourceType') == 'AWS::Synthetics::Canary':
@@ -933,7 +960,7 @@ async def check_canaries_for_service(
             if not name:
                 continue
             try:
-                runs_resp = synthetics_client.get_canary_runs(Name=name, MaxResults=5)
+                runs_resp = synthetics.get_canary_runs(Name=name, MaxResults=5)
                 runs = runs_resp.get('CanaryRuns', [])
                 if not runs:
                     canary_statuses.append((name, 'no_data', 0, 0))
@@ -971,7 +998,9 @@ async def check_canaries_for_service(
         return ''
 
 
-async def get_canary_metrics_and_service_insights(canary_name: str, region: str) -> str:
+async def get_canary_metrics_and_service_insights(
+    canary_name: str, region: str, applicationsignals_client_override=None
+) -> str:
     """Get canary metrics and service insights using Application Signals audit API."""
     import time
 
@@ -985,7 +1014,12 @@ async def get_canary_metrics_and_service_insights(canary_name: str, region: str)
             'AuditTargets': [{'Type': 'canary', 'Data': {'Canary': {'CanaryName': canary_name}}}],
             'Auditors': ['canary', 'operation_metric', 'trace'],
         }
-        return await execute_audit_api(audit_input, region, f'Canary Analysis for {canary_name}\n')
+        return await execute_audit_api(
+            audit_input,
+            region,
+            f'Canary Analysis for {canary_name}\n',
+            applicationsignals_client_override,
+        )
 
     except Exception as e:
         return f'ListAuditFindings API unavailable: {str(e)}'

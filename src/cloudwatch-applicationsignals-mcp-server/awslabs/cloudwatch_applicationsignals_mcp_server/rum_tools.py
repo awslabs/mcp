@@ -27,6 +27,7 @@ from .aws_clients import (
     AWS_REGION,
     applicationsignals_client,
     cloudwatch_client,
+    get_aws_client,
     logs_client,
     rum_client,
     sts_client,
@@ -36,7 +37,8 @@ from .utils import remove_null_values
 from datetime import datetime, timezone
 from functools import lru_cache
 from loguru import logger
-from typing import Any, Callable, Optional
+from pydantic import Field
+from typing import Annotated, Any, Callable, Optional
 
 
 # ---------------------------------------------------------------------------
@@ -77,6 +79,14 @@ _PLATFORM_DETECT_WINDOW_MS = 24 * 60 * 60 * 1000
 _PLATFORM_DETECT_SAMPLE_LIMIT = 10
 
 
+def _profile_name_field():
+    """Create the shared profile_name field used by profile-aware tools."""
+    return Field(
+        default=None,
+        description='Optional AWS CLI profile name to use for this tool call. Defaults to AWS_PROFILE or the default credential chain.',
+    )
+
+
 async def query_rum_events(
     action: str,
     app_monitor_name: Optional[str] = None,
@@ -97,6 +107,7 @@ async def query_rum_events(
     bucket: Optional[str] = None,
     compare_previous: Optional[bool] = None,
     limit: Optional[int] = None,
+    profile_name: Annotated[Optional[str], _profile_name_field()] = None,
 ) -> str:
     """CloudWatch RUM – monitor real user experience across web and mobile apps.
 
@@ -153,6 +164,8 @@ async def query_rum_events(
                 'available_actions': sorted(_ACTION_MAP.keys()),
             }
         )
+    clients = _get_rum_clients(profile_name) if profile_name else None
+
     # Build kwargs from non-None values (excluding 'action')
     _all_kwargs = {
         'app_monitor_name': app_monitor_name,
@@ -175,6 +188,8 @@ async def query_rum_events(
         'limit': limit,
     }
     kwargs = {k: v for k, v in _all_kwargs.items() if v is not None}
+    if clients:
+        kwargs['_clients'] = clients
     try:
         return await handler(**kwargs)
     except (TypeError, ValueError) as e:
@@ -187,6 +202,24 @@ async def query_rum_events(
 
 
 # --- Internal helpers ---
+
+
+def _get_rum_clients(profile_name: Optional[str] = None) -> Optional[dict[str, Any]]:
+    """Return profile-scoped clients for the RUM action dispatcher."""
+    if profile_name is None:
+        return None
+    return {
+        'applicationsignals': get_aws_client(
+            'application-signals', region_name=AWS_REGION, profile_name=profile_name
+        ),
+        'cloudwatch': get_aws_client(
+            'cloudwatch', region_name=AWS_REGION, profile_name=profile_name
+        ),
+        'logs': get_aws_client('logs', region_name=AWS_REGION, profile_name=profile_name),
+        'rum': get_aws_client('rum', region_name=AWS_REGION, profile_name=profile_name),
+        'sts': get_aws_client('sts', region_name=AWS_REGION, profile_name=profile_name),
+        'xray': get_aws_client('xray', region_name=AWS_REGION, profile_name=profile_name),
+    }
 
 
 @lru_cache(maxsize=1)
@@ -205,11 +238,16 @@ def _get_partition() -> str:
     return 'aws'
 
 
-def _log_group_arn(log_group_name: str) -> str:
+def _get_account_id_for_clients(clients: Optional[dict[str, Any]] = None) -> str:
+    """Return the account ID for either the default or profile-scoped STS client."""
+    if clients:
+        return clients['sts'].get_caller_identity()['Account']
+    return _get_account_id()
+
+
+def _log_group_arn(log_group_name: str, clients: Optional[dict[str, Any]] = None) -> str:
     """Compose a CloudWatch Logs log group ARN from its name."""
-    return (
-        f'arn:{_get_partition()}:logs:{AWS_REGION}:{_get_account_id()}:log-group:{log_group_name}'
-    )
+    return f'arn:{_get_partition()}:logs:{AWS_REGION}:{_get_account_id_for_clients(clients)}:log-group:{log_group_name}'
 
 
 def _clear_module_caches() -> None:
@@ -258,7 +296,31 @@ def _get_rum_app_info_confident_cached(app_monitor_name: str) -> tuple[str, str,
     return log_group, 'unknown', False
 
 
-def _get_rum_app_info_sync(app_monitor_name: str) -> tuple[str, str]:
+def _get_rum_app_info_sync(
+    app_monitor_name: str, clients: Optional[dict[str, Any]] = None
+) -> tuple[str, str]:
+    if clients:
+        resp = clients['rum'].get_app_monitor(Name=app_monitor_name)
+        app_monitor = resp['AppMonitor']
+        cw_log = app_monitor.get('DataStorage', {}).get('CwLog', {})
+        if not cw_log.get('CwLogEnabled', False):
+            raise ValueError(
+                f"App monitor '{app_monitor_name}' does not have CloudWatch Logs enabled. "
+                f'To enable it, run: aws rum update-app-monitor --name {app_monitor_name} --cw-log-enabled. '
+                f'Once enabled, new events will be sent to CW Logs (existing events are not backfilled). '
+                f'Recommended log retention: 30 days.'
+            )
+        log_group = cw_log.get('CwLogGroup')
+        if not log_group:
+            raise ValueError(
+                f"App monitor '{app_monitor_name}' has CW Logs enabled but no log group found. "
+                f'This may indicate the app monitor was recently created. Wait a few minutes and retry.'
+            )
+        raw_platform = app_monitor.get('Platform')
+        if raw_platform:
+            return log_group, ('web' if raw_platform == 'Web' else 'mobile')
+        return log_group, _detect_platform_from_logs(log_group, clients)
+
     log_group, platform, confident = _get_rum_app_info_confident_cached(app_monitor_name)
     if confident:
         return log_group, platform
@@ -266,7 +328,7 @@ def _get_rum_app_info_sync(app_monitor_name: str) -> tuple[str, str]:
     return log_group, _detect_platform_from_logs(log_group)
 
 
-def _detect_platform_from_logs(log_group: str) -> str:
+def _detect_platform_from_logs(log_group: str, clients: Optional[dict[str, Any]] = None) -> str:
     """Fallback platform detection by sampling recent log events.
 
     Mobile (OTel) events have a top-level ``resource`` key or ``scope`` key;
@@ -278,9 +340,10 @@ def _detect_platform_from_logs(log_group: str) -> str:
     silently being routed as 'web'.
     """
     try:
+        logs = clients['logs'] if clients else logs_client
         end_ms = int(time.time() * 1000)
         start_ms = end_ms - _PLATFORM_DETECT_WINDOW_MS
-        resp = logs_client.filter_log_events(
+        resp = logs.filter_log_events(
             logGroupName=log_group,
             startTime=start_ms,
             endTime=end_ms,
@@ -310,9 +373,11 @@ def _detect_platform_from_logs(log_group: str) -> str:
         return 'unknown'
 
 
-async def _get_rum_app_info(app_monitor_name: str) -> tuple[str, str]:
+async def _get_rum_app_info(
+    app_monitor_name: str, clients: Optional[dict[str, Any]] = None
+) -> tuple[str, str]:
     """Async wrapper: returns (log_group, platform)."""
-    return await asyncio.to_thread(_get_rum_app_info_sync, app_monitor_name)
+    return await asyncio.to_thread(_get_rum_app_info_sync, app_monitor_name, clients)
 
 
 _UNKNOWN_PLATFORM_HINT = (
@@ -353,9 +418,11 @@ def _run_logs_insights_query_sync(
     max_results: int = 1000,
     poll_interval: float = 1.0,
     max_poll_seconds: float = 60.0,
+    clients: Optional[dict[str, Any]] = None,
 ) -> dict:
     """Run a CW Logs Insights query and poll for results (synchronous)."""
-    resp = logs_client.start_query(
+    logs = clients['logs'] if clients else logs_client
+    resp = logs.start_query(
         logGroupName=log_group,
         startTime=int(start_time.timestamp()),
         endTime=int(end_time.timestamp()),
@@ -369,7 +436,7 @@ def _run_logs_insights_query_sync(
     result = None
     timed_out = True
     while time.monotonic() < deadline:
-        result = logs_client.get_query_results(queryId=query_id)
+        result = logs.get_query_results(queryId=query_id)
         status = result['status']
         if status in ('Complete', 'Failed', 'Cancelled'):
             timed_out = False
@@ -379,7 +446,7 @@ def _run_logs_insights_query_sync(
     if timed_out or result is None:
         # Free the concurrency slot — otherwise the query keeps running server-side.
         try:
-            logs_client.stop_query(queryId=query_id)
+            logs.stop_query(queryId=query_id)
         except Exception as e:
             logger.debug(f'stop_query failed for {query_id}: {e}')
         return {'status': 'Timeout', 'results': [], 'statistics': {}, 'queryId': query_id}
@@ -403,6 +470,7 @@ async def _run_logs_insights_query(
     max_results: int = 1000,
     poll_interval: float = 1.0,
     max_poll_seconds: float = 60.0,
+    clients: Optional[dict[str, Any]] = None,
 ) -> dict:
     """Async wrapper around the sync Logs Insights poll loop.
 
@@ -418,6 +486,7 @@ async def _run_logs_insights_query(
         max_results,
         poll_interval,
         max_poll_seconds,
+        clients,
     )
 
 
@@ -452,10 +521,13 @@ def _platform_mismatch(requested: str, monitor_platform: str) -> Optional[str]:
 # --- Wave 1: Foundation tools ---
 
 
-async def check_rum_data_access(app_monitor_name: str) -> str:
+async def check_rum_data_access(
+    app_monitor_name: str, _clients: Optional[dict[str, Any]] = None
+) -> str:
     """Check an app monitor's configuration and data access capabilities."""
+    rum = _clients['rum'] if _clients else rum_client
     try:
-        resp = await asyncio.to_thread(rum_client.get_app_monitor, Name=app_monitor_name)
+        resp = await asyncio.to_thread(rum.get_app_monitor, Name=app_monitor_name)
     except rum_client.exceptions.ResourceNotFoundException:
         return json.dumps(
             {'error': f"App monitor '{app_monitor_name}' not found.", 'error_type': 'bad_request'}
@@ -567,12 +639,15 @@ async def check_rum_data_access(app_monitor_name: str) -> str:
 # --- Wave 2: App Monitor CRUD tools ---
 
 
-async def list_rum_app_monitors(max_results: int = 25) -> str:
+async def list_rum_app_monitors(
+    max_results: int = 25, _clients: Optional[dict[str, Any]] = None
+) -> str:
     """List all CloudWatch RUM app monitors in the account."""
+    rum = _clients['rum'] if _clients else rum_client
 
     def _list() -> list:
         out = []
-        paginator = rum_client.get_paginator('list_app_monitors')
+        paginator = rum.get_paginator('list_app_monitors')
         for page in paginator.paginate(PaginationConfig={'MaxItems': max_results}):
             for m in page.get('AppMonitorSummaries', []):
                 out.append(remove_null_values(m))
@@ -582,28 +657,35 @@ async def list_rum_app_monitors(max_results: int = 25) -> str:
     return json.dumps({'app_monitors': monitors, 'count': len(monitors)}, default=str)
 
 
-async def get_rum_app_monitor(app_monitor_name: str) -> str:
+async def get_rum_app_monitor(
+    app_monitor_name: str, _clients: Optional[dict[str, Any]] = None
+) -> str:
     """Get full configuration of a CloudWatch RUM app monitor."""
+    rum = _clients['rum'] if _clients else rum_client
     try:
-        resp = await asyncio.to_thread(rum_client.get_app_monitor, Name=app_monitor_name)
+        resp = await asyncio.to_thread(rum.get_app_monitor, Name=app_monitor_name)
         return json.dumps(remove_null_values(resp['AppMonitor']), default=str)
     except Exception as e:
         return json.dumps({'error': str(e), 'error_type': 'service_error'})
 
 
-async def list_rum_tags(resource_arn: str) -> str:
+async def list_rum_tags(resource_arn: str, _clients: Optional[dict[str, Any]] = None) -> str:
     """List tags for a RUM resource (app monitor)."""
+    rum = _clients['rum'] if _clients else rum_client
     try:
-        resp = await asyncio.to_thread(rum_client.list_tags_for_resource, ResourceArn=resource_arn)
+        resp = await asyncio.to_thread(rum.list_tags_for_resource, ResourceArn=resource_arn)
         return json.dumps({'tags': resp.get('Tags', {})})
     except Exception as e:
         return json.dumps({'error': str(e), 'error_type': 'service_error'})
 
 
-async def get_rum_resource_policy(app_monitor_name: str) -> str:
+async def get_rum_resource_policy(
+    app_monitor_name: str, _clients: Optional[dict[str, Any]] = None
+) -> str:
     """Get the resource-based policy for a RUM app monitor."""
+    rum = _clients['rum'] if _clients else rum_client
     try:
-        resp = await asyncio.to_thread(rum_client.get_resource_policy, Name=app_monitor_name)
+        resp = await asyncio.to_thread(rum.get_resource_policy, Name=app_monitor_name)
         policy = resp.get('PolicyDocument', '{}')
         return json.dumps({'policy': json.loads(policy) if policy else None})
     except Exception as e:
@@ -619,6 +701,7 @@ async def run_rum_query(
     start_time: str,
     end_time: str,
     max_results: int = 100,
+    _clients: Optional[dict[str, Any]] = None,
 ) -> str:
     """Run an arbitrary CloudWatch Logs Insights query against a RUM app monitor's log group.
 
@@ -632,7 +715,7 @@ async def run_rum_query(
     bound response size; this does not bound the data scanned.
     """
     try:
-        log_group, _platform = await _get_rum_app_info(app_monitor_name)
+        log_group, _platform = await _get_rum_app_info(app_monitor_name, _clients)
     except ValueError as e:
         return json.dumps({'error': str(e), 'error_type': 'bad_request'})
 
@@ -652,6 +735,7 @@ async def run_rum_query(
             start_time=_parse_time(start_time),
             end_time=_parse_time(end_time),
             max_results=capped,
+            clients=_clients,
         )
         return json.dumps(
             {
@@ -675,6 +759,7 @@ async def audit_rum_health(
     start_time: str,
     end_time: str,
     compare_previous: bool = False,
+    _clients: Optional[dict[str, Any]] = None,
 ) -> str:
     """Quick health check: errors, slowest pages, and sessions with most errors.
 
@@ -682,7 +767,7 @@ async def audit_rum_health(
     the prior period of equal length for period-over-period comparison.
     """
     try:
-        log_group, platform = await _get_rum_app_info(app_monitor_name)
+        log_group, platform = await _get_rum_app_info(app_monitor_name, _clients)
     except ValueError as e:
         return json.dumps({'error': str(e), 'error_type': 'bad_request'})
 
@@ -700,7 +785,9 @@ async def audit_rum_health(
 
     async def _run(q):
         try:
-            return await _run_logs_insights_query(log_group, q, st, et, max_results=10)
+            return await _run_logs_insights_query(
+                log_group, q, st, et, max_results=10, clients=_clients
+            )
         except Exception as e:
             return {'status': 'Failed', 'error': str(e), 'results': []}
 
@@ -722,7 +809,7 @@ async def audit_rum_health(
         async def _run_prev(q):
             try:
                 return await _run_logs_insights_query(
-                    log_group, q, prev_st, prev_et, max_results=10
+                    log_group, q, prev_st, prev_et, max_results=10, clients=_clients
                 )
             except Exception as e:
                 return {'status': 'Failed', 'error': str(e), 'results': []}
@@ -742,10 +829,11 @@ async def get_rum_errors(
     end_time: str,
     page_url: Optional[str] = None,
     group_by: Optional[str] = None,
+    _clients: Optional[dict[str, Any]] = None,
 ) -> str:
     """Get JS and HTTP errors grouped by message and page."""
     try:
-        log_group, platform = await _get_rum_app_info(app_monitor_name)
+        log_group, platform = await _get_rum_app_info(app_monitor_name, _clients)
     except ValueError as e:
         return json.dumps({'error': str(e), 'error_type': 'bad_request'})
 
@@ -754,7 +842,7 @@ async def get_rum_errors(
 
     query = rum_queries.errors_query(page_url=page_url, group_by=group_by)
     result = await _run_logs_insights_query(
-        log_group, query, _parse_time(start_time), _parse_time(end_time)
+        log_group, query, _parse_time(start_time), _parse_time(end_time), clients=_clients
     )
     return json.dumps(
         {
@@ -771,10 +859,11 @@ async def get_rum_performance(
     start_time: str,
     end_time: str,
     page_url: Optional[str] = None,
+    _clients: Optional[dict[str, Any]] = None,
 ) -> str:
     """Get page load performance and Core Web Vitals (LCP, FID, CLS, INP)."""
     try:
-        log_group, platform = await _get_rum_app_info(app_monitor_name)
+        log_group, platform = await _get_rum_app_info(app_monitor_name, _clients)
     except ValueError as e:
         return json.dumps({'error': str(e), 'error_type': 'bad_request'})
 
@@ -786,10 +875,14 @@ async def get_rum_performance(
 
     nav_result, vitals_result = await asyncio.gather(
         _run_logs_insights_query(
-            log_group, rum_queries.performance_navigation_query(page_url), st, et
+            log_group, rum_queries.performance_navigation_query(page_url), st, et, clients=_clients
         ),
         _run_logs_insights_query(
-            log_group, rum_queries.performance_web_vitals_query(page_url), st, et
+            log_group,
+            rum_queries.performance_web_vitals_query(page_url),
+            st,
+            et,
+            clients=_clients,
         ),
     )
 
@@ -832,10 +925,11 @@ async def get_rum_sessions(
     app_monitor_name: str,
     start_time: str,
     end_time: str,
+    _clients: Optional[dict[str, Any]] = None,
 ) -> str:
     """Get recent sessions with browser, OS, device type, and event counts."""
     try:
-        log_group, platform = await _get_rum_app_info(app_monitor_name)
+        log_group, platform = await _get_rum_app_info(app_monitor_name, _clients)
     except ValueError as e:
         return json.dumps({'error': str(e), 'error_type': 'bad_request'})
 
@@ -845,7 +939,7 @@ async def get_rum_sessions(
     st = _parse_time(start_time)
     et = _parse_time(end_time)
     query = rum_queries.SESSIONS_QUERY if platform == 'web' else rum_queries.MOBILE_SESSIONS_QUERY
-    result = await _run_logs_insights_query(log_group, query, st, et)
+    result = await _run_logs_insights_query(log_group, query, st, et, clients=_clients)
     return json.dumps(
         {'app_monitor': app_monitor_name, 'platform': platform, **result}, default=str
     )
@@ -855,10 +949,11 @@ async def get_rum_page_views(
     app_monitor_name: str,
     start_time: str,
     end_time: str,
+    _clients: Optional[dict[str, Any]] = None,
 ) -> str:
     """Get top pages by view count."""
     try:
-        log_group, platform = await _get_rum_app_info(app_monitor_name)
+        log_group, platform = await _get_rum_app_info(app_monitor_name, _clients)
     except ValueError as e:
         return json.dumps({'error': str(e), 'error_type': 'bad_request'})
 
@@ -866,7 +961,11 @@ async def get_rum_page_views(
         return _unknown_platform_response(app_monitor_name)
 
     result = await _run_logs_insights_query(
-        log_group, rum_queries.PAGE_VIEWS_QUERY, _parse_time(start_time), _parse_time(end_time)
+        log_group,
+        rum_queries.PAGE_VIEWS_QUERY,
+        _parse_time(start_time),
+        _parse_time(end_time),
+        clients=_clients,
     )
     return json.dumps({'app_monitor': app_monitor_name, **result}, default=str)
 
@@ -881,10 +980,11 @@ async def get_rum_timeseries(
     metric: str = 'errors',
     bucket: str = '1h',
     page_url: Optional[str] = None,
+    _clients: Optional[dict[str, Any]] = None,
 ) -> str:
     """Get time-bucketed trends for errors, performance, or sessions."""
     try:
-        log_group, platform = await _get_rum_app_info(app_monitor_name)
+        log_group, platform = await _get_rum_app_info(app_monitor_name, _clients)
     except ValueError as e:
         return json.dumps({'error': str(e), 'error_type': 'bad_request'})
 
@@ -915,7 +1015,7 @@ async def get_rum_timeseries(
             }
         )
 
-    result = await _run_logs_insights_query(log_group, query, st, et)
+    result = await _run_logs_insights_query(log_group, query, st, et, clients=_clients)
     return json.dumps(
         {
             'app_monitor': app_monitor_name,
@@ -933,10 +1033,11 @@ async def get_rum_locations(
     start_time: str,
     end_time: str,
     page_url: Optional[str] = None,
+    _clients: Optional[dict[str, Any]] = None,
 ) -> str:
     """Get session counts and performance by country."""
     try:
-        log_group, platform = await _get_rum_app_info(app_monitor_name)
+        log_group, platform = await _get_rum_app_info(app_monitor_name, _clients)
     except ValueError as e:
         return json.dumps({'error': str(e), 'error_type': 'bad_request'})
 
@@ -946,8 +1047,12 @@ async def get_rum_locations(
     st = _parse_time(start_time)
     et = _parse_time(end_time)
     sessions_result, perf_result = await asyncio.gather(
-        _run_logs_insights_query(log_group, rum_queries.geo_sessions_query(page_url), st, et),
-        _run_logs_insights_query(log_group, rum_queries.geo_performance_query(page_url), st, et),
+        _run_logs_insights_query(
+            log_group, rum_queries.geo_sessions_query(page_url), st, et, clients=_clients
+        ),
+        _run_logs_insights_query(
+            log_group, rum_queries.geo_performance_query(page_url), st, et, clients=_clients
+        ),
     )
 
     return json.dumps(
@@ -965,10 +1070,11 @@ async def get_rum_http_requests(
     start_time: str,
     end_time: str,
     page_url: Optional[str] = None,
+    _clients: Optional[dict[str, Any]] = None,
 ) -> str:
     """Get top HTTP requests by URL with latency and error rates."""
     try:
-        log_group, platform = await _get_rum_app_info(app_monitor_name)
+        log_group, platform = await _get_rum_app_info(app_monitor_name, _clients)
     except ValueError as e:
         return json.dumps({'error': str(e), 'error_type': 'bad_request'})
 
@@ -980,6 +1086,7 @@ async def get_rum_http_requests(
         rum_queries.http_requests_query(page_url),
         _parse_time(start_time),
         _parse_time(end_time),
+        clients=_clients,
     )
     return json.dumps({'app_monitor': app_monitor_name, **result}, default=str)
 
@@ -990,10 +1097,11 @@ async def get_rum_session_detail(
     start_time: str,
     end_time: str,
     limit: int = 100,
+    _clients: Optional[dict[str, Any]] = None,
 ) -> str:
     """Get all events for a single session in chronological order."""
     try:
-        log_group, platform = await _get_rum_app_info(app_monitor_name)
+        log_group, platform = await _get_rum_app_info(app_monitor_name, _clients)
     except ValueError as e:
         return json.dumps({'error': str(e), 'error_type': 'bad_request'})
 
@@ -1013,7 +1121,7 @@ async def get_rum_session_detail(
         if platform == 'web'
         else rum_queries.mobile_session_detail_query(session_id, limit=capped_limit)
     )
-    result = await _run_logs_insights_query(log_group, query, st, et)
+    result = await _run_logs_insights_query(log_group, query, st, et, clients=_clients)
     return json.dumps(
         {
             'app_monitor': app_monitor_name,
@@ -1032,10 +1140,11 @@ async def get_rum_resources(
     start_time: str,
     end_time: str,
     page_url: Optional[str] = None,
+    _clients: Optional[dict[str, Any]] = None,
 ) -> str:
     """Get top resource requests by duration and size."""
     try:
-        log_group, platform = await _get_rum_app_info(app_monitor_name)
+        log_group, platform = await _get_rum_app_info(app_monitor_name, _clients)
     except ValueError as e:
         return json.dumps({'error': str(e), 'error_type': 'bad_request'})
 
@@ -1047,6 +1156,7 @@ async def get_rum_resources(
         rum_queries.resource_requests_query(page_url),
         _parse_time(start_time),
         _parse_time(end_time),
+        clients=_clients,
     )
     return json.dumps({'app_monitor': app_monitor_name, **result}, default=str)
 
@@ -1055,10 +1165,11 @@ async def get_rum_page_flows(
     app_monitor_name: str,
     start_time: str,
     end_time: str,
+    _clients: Optional[dict[str, Any]] = None,
 ) -> str:
     """Get page-to-page navigation flows (approximates user journey)."""
     try:
-        log_group, platform = await _get_rum_app_info(app_monitor_name)
+        log_group, platform = await _get_rum_app_info(app_monitor_name, _clients)
     except ValueError as e:
         return json.dumps({'error': str(e), 'error_type': 'bad_request'})
 
@@ -1070,6 +1181,7 @@ async def get_rum_page_flows(
         rum_queries.PAGE_FLOWS_QUERY,
         _parse_time(start_time),
         _parse_time(end_time),
+        clients=_clients,
     )
     return json.dumps({'app_monitor': app_monitor_name, **result}, default=str)
 
@@ -1082,6 +1194,7 @@ async def get_rum_crashes(
     start_time: str,
     end_time: str,
     platform: str = 'all',
+    _clients: Optional[dict[str, Any]] = None,
 ) -> str:
     """Get mobile crashes and stability issues.
 
@@ -1097,7 +1210,7 @@ async def get_rum_crashes(
         )
 
     try:
-        log_group, monitor_platform = await _get_rum_app_info(app_monitor_name)
+        log_group, monitor_platform = await _get_rum_app_info(app_monitor_name, _clients)
     except ValueError as e:
         return json.dumps({'error': str(e), 'error_type': 'bad_request'})
 
@@ -1125,17 +1238,17 @@ async def get_rum_crashes(
 
     if platform in ('ios', 'all'):
         tasks['ios_crashes'] = _run_logs_insights_query(
-            log_group, rum_queries.MOBILE_CRASHES_IOS, st, et
+            log_group, rum_queries.MOBILE_CRASHES_IOS, st, et, clients=_clients
         )
         tasks['ios_hangs'] = _run_logs_insights_query(
-            log_group, rum_queries.MOBILE_HANGS_IOS, st, et
+            log_group, rum_queries.MOBILE_HANGS_IOS, st, et, clients=_clients
         )
     if platform in ('android', 'all'):
         tasks['android'] = _run_logs_insights_query(
-            log_group, rum_queries.MOBILE_CRASHES_ANDROID, st, et
+            log_group, rum_queries.MOBILE_CRASHES_ANDROID, st, et, clients=_clients
         )
         tasks['android_anrs'] = _run_logs_insights_query(
-            log_group, rum_queries.MOBILE_ANRS_ANDROID, st, et
+            log_group, rum_queries.MOBILE_ANRS_ANDROID, st, et, clients=_clients
         )
 
     names = list(tasks.keys())
@@ -1157,6 +1270,7 @@ async def get_rum_app_launches(
     start_time: str,
     end_time: str,
     platform: str = 'all',
+    _clients: Optional[dict[str, Any]] = None,
 ) -> str:
     """Get mobile app launch performance (cold/warm/pre-warm)."""
     if platform not in ('ios', 'android', 'all'):
@@ -1168,7 +1282,7 @@ async def get_rum_app_launches(
         )
 
     try:
-        log_group, monitor_platform = await _get_rum_app_info(app_monitor_name)
+        log_group, monitor_platform = await _get_rum_app_info(app_monitor_name, _clients)
     except ValueError as e:
         return json.dumps({'error': str(e), 'error_type': 'bad_request'})
 
@@ -1196,11 +1310,11 @@ async def get_rum_app_launches(
 
     if platform in ('ios', 'all'):
         tasks['ios'] = _run_logs_insights_query(
-            log_group, rum_queries.MOBILE_APP_LAUNCHES_IOS, st, et
+            log_group, rum_queries.MOBILE_APP_LAUNCHES_IOS, st, et, clients=_clients
         )
     if platform in ('android', 'all'):
         tasks['android'] = _run_logs_insights_query(
-            log_group, rum_queries.MOBILE_APP_LAUNCHES_ANDROID, st, et
+            log_group, rum_queries.MOBILE_APP_LAUNCHES_ANDROID, st, et, clients=_clients
         )
 
     names = list(tasks.keys())
@@ -1221,22 +1335,24 @@ async def analyze_rum_log_group(
     app_monitor_name: str,
     start_time: str,
     end_time: str,
+    _clients: Optional[dict[str, Any]] = None,
 ) -> str:
     """Analyze a RUM log group for anomalies and common patterns."""
     try:
-        log_group, _platform = await _get_rum_app_info(app_monitor_name)
+        log_group, _platform = await _get_rum_app_info(app_monitor_name, _clients)
         st = _parse_time(start_time)
         et = _parse_time(end_time)
     except ValueError as e:
         return json.dumps({'error': str(e), 'error_type': 'bad_request'})
 
-    log_group_arn = _log_group_arn(log_group)
+    log_group_arn = _log_group_arn(log_group, _clients)
+    logs = _clients['logs'] if _clients else logs_client
 
     anomaly_info: dict[str, Any] = {'detectors': [], 'anomalies': []}
 
     def _fetch_anomaly_detectors() -> tuple[list, Optional[str]]:
         try:
-            resp = logs_client.list_log_anomaly_detectors(filterLogGroupArn=log_group_arn)
+            resp = logs.list_log_anomaly_detectors(filterLogGroupArn=log_group_arn)
             return resp.get('anomalyDetectors', []), None
         except Exception as e:
             return [], str(e)
@@ -1247,9 +1363,9 @@ async def analyze_rum_log_group(
             token: Optional[str] = None
             for _ in range(_ANOMALY_PAGE_CAP):
                 if token:
-                    resp = logs_client.list_anomalies(anomalyDetectorArn=arn, nextToken=token)
+                    resp = logs.list_anomalies(anomalyDetectorArn=arn, nextToken=token)
                 else:
-                    resp = logs_client.list_anomalies(anomalyDetectorArn=arn)
+                    resp = logs.list_anomalies(anomalyDetectorArn=arn)
                 out.extend(resp.get('anomalies', []))
                 token = resp.get('nextToken')
                 if not token:
@@ -1287,8 +1403,12 @@ async def analyze_rum_log_group(
         anomaly_info['page_cap'] = _ANOMALY_PAGE_CAP
 
     top_patterns, error_patterns = await asyncio.gather(
-        _run_logs_insights_query(log_group, rum_queries.TOP_PATTERNS_QUERY, st, et),
-        _run_logs_insights_query(log_group, rum_queries.ERROR_PATTERNS_QUERY, st, et),
+        _run_logs_insights_query(
+            log_group, rum_queries.TOP_PATTERNS_QUERY, st, et, clients=_clients
+        ),
+        _run_logs_insights_query(
+            log_group, rum_queries.ERROR_PATTERNS_QUERY, st, et, clients=_clients
+        ),
     )
 
     return json.dumps(
@@ -1311,13 +1431,14 @@ async def correlate_rum_to_backend(
     start_time: str,
     end_time: str,
     max_traces: int = 10,
+    _clients: Optional[dict[str, Any]] = None,
 ) -> str:
     """Correlate frontend RUM events to backend X-Ray traces.
 
     ``max_traces`` is capped at 100 to bound X-Ray BatchGetTraces fan-out.
     """
     try:
-        log_group, platform = await _get_rum_app_info(app_monitor_name)
+        log_group, platform = await _get_rum_app_info(app_monitor_name, _clients)
     except ValueError as e:
         return json.dumps({'error': str(e), 'error_type': 'bad_request'})
 
@@ -1339,7 +1460,12 @@ async def correlate_rum_to_backend(
     raw_limit = capped_traces * _CORRELATE_OVERSAMPLE_FACTOR
     query = rum_queries.trace_ids_for_page_query(page_url, limit=raw_limit)
     logs_result = await _run_logs_insights_query(
-        log_group, query, _parse_time(start_time), _parse_time(end_time), max_results=raw_limit
+        log_group,
+        query,
+        _parse_time(start_time),
+        _parse_time(end_time),
+        max_results=raw_limit,
+        clients=_clients,
     )
 
     raw_trace_ids = [
@@ -1369,8 +1495,9 @@ async def correlate_rum_to_backend(
     batches = [trace_ids[i : i + 5] for i in range(0, len(trace_ids), 5)]
 
     def _get_batch(batch):
+        xray = _clients['xray'] if _clients else xray_client
         try:
-            return xray_client.batch_get_traces(TraceIds=batch).get('Traces', []), None
+            return xray.batch_get_traces(TraceIds=batch).get('Traces', []), None
         except Exception as e:
             logger.warning(f'Failed to get traces {batch}: {e}')
             return [], str(e)
@@ -1445,6 +1572,7 @@ async def get_rum_metrics(
     end_time: str,
     statistic: str = 'Average',
     period: int = 300,
+    _clients: Optional[dict[str, Any]] = None,
 ) -> str:
     """Get vended CloudWatch metrics from the AWS/RUM namespace."""
     # Caller-input parsing — return a 'bad_request' shape so callers can distinguish.
@@ -1489,6 +1617,7 @@ async def get_rum_metrics(
     # Capped at _METRIC_DATA_PAGE_CAP to bound worker-thread time and memory;
     # returns (pages, truncated) where truncated=True means more data existed.
     def _paginate() -> tuple[list, bool]:
+        cloudwatch = _clients['cloudwatch'] if _clients else cloudwatch_client
         pages = []
         token = None
         for _ in range(_METRIC_DATA_PAGE_CAP):
@@ -1499,7 +1628,7 @@ async def get_rum_metrics(
             }
             if token:
                 kwargs['NextToken'] = token
-            page = cloudwatch_client.get_metric_data(**kwargs)
+            page = cloudwatch.get_metric_data(**kwargs)
             pages.append(page)
             token = page.get('NextToken')
             if not token:
@@ -1566,6 +1695,7 @@ async def get_rum_slo_health(
     app_monitor_name: str,
     start_time: str,
     end_time: str,
+    _clients: Optional[dict[str, Any]] = None,
 ) -> str:
     """Get SLO health status for a RUM app monitor.
 
@@ -1573,10 +1703,11 @@ async def get_rum_slo_health(
     is not used — the SLO budget report is evaluated at ``end_time`` only.
     """
     et = _parse_time(end_time)
+    appsignals = _clients['applicationsignals'] if _clients else applicationsignals_client
 
     def _list_slos() -> list:
         out = []
-        paginator = applicationsignals_client.get_paginator('list_service_level_objectives')
+        paginator = appsignals.get_paginator('list_service_level_objectives')
         for page in paginator.paginate(
             KeyAttributes={
                 'Type': 'AWS::Resource',
@@ -1623,7 +1754,7 @@ async def get_rum_slo_health(
         slo_id = slo_arn or slo_name
         try:
             resp = await asyncio.to_thread(
-                applicationsignals_client.get_service_level_objective,
+                appsignals.get_service_level_objective,
                 Id=slo_id,
             )
             slo_detail = resp.get('Slo', {})
@@ -1631,7 +1762,7 @@ async def get_rum_slo_health(
             attainment = goal.get('AttainmentGoal')
 
             budget_resp = await asyncio.to_thread(
-                applicationsignals_client.batch_get_service_level_objective_budget_report,
+                appsignals.batch_get_service_level_objective_budget_report,
                 Timestamp=et,
                 SloIds=[slo_id],
             )
