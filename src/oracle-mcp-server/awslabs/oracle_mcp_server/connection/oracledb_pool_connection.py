@@ -294,16 +294,17 @@ class OracledbPoolConnection(AbstractDBConnection):
         except json.JSONDecodeError as e:
             raise ValueError(f'Secret value is not valid JSON: {e}') from e
 
-        logger.debug(f'Secret keys: {", ".join(secret.keys())}')
         username = secret.get('username') or secret.get('user') or secret.get('Username')
         password = secret.get('password') or secret.get('Password')
         if not username:
             raise ValueError(
-                f'Secret does not contain username. Available keys: {", ".join(secret.keys())}'
+                'Secret does not contain a recognized username field. '
+                'Expected one of: username, user, Username.'
             )
         if not password:
             raise ValueError(
-                f'Secret does not contain password. Available keys: {", ".join(secret.keys())}'
+                'Secret does not contain a recognized password field. '
+                'Expected one of: password, Password.'
             )
         logger.debug(f'Successfully extracted credentials for user: {username}')
         return username, password
