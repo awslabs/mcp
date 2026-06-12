@@ -14,10 +14,10 @@
 
 """Code Interpreter tools sub-package for the unified AgentCore MCP server.
 
-Provides 9 code interpreter tools via Amazon Bedrock AgentCore:
+Provides 10 code interpreter tools via Amazon Bedrock AgentCore:
 - Session lifecycle: start, stop, get, list
 - Code execution: execute_code, execute_command, install_packages
-- File operations: upload_file, download_file
+- File operations: upload_file, download_file, list_files
 """
 
 import os
@@ -37,7 +37,7 @@ async def cleanup_code_interpreter() -> None:
 
 
 def register_code_interpreter_tools(mcp):
-    """Register all 9 code interpreter tools with the MCP server."""
+    """Register all 10 code interpreter tools with the MCP server."""
     # Session lifecycle tools
     mcp.tool()(session.start_code_interpreter_session)
     mcp.tool()(session.stop_code_interpreter_session)
@@ -52,5 +52,6 @@ def register_code_interpreter_tools(mcp):
     # File operation tools
     mcp.tool()(files.upload_file)
     mcp.tool()(files.download_file)
+    mcp.tool()(files.list_files)
 
     logger.info('All code interpreter tool groups registered successfully')
