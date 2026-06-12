@@ -34,6 +34,9 @@ from awslabs.billing_cost_management_mcp_server.tools.aws_pricing_tools import a
 from awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools import (
     bcm_pricing_calculator_server,
 )
+from awslabs.billing_cost_management_mcp_server.tools.bcm_readiness_tools import (
+    bcm_readiness_server,
+)
 from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_tools import (
     billing_conductor_server,
 )
@@ -152,6 +155,7 @@ TOOLS:
 - billing-view: AWS Billing View tools for managing and querying billing views (get-billing-view, list-billing-views, list-source-views-for-billing-view, get-resource-policy)
 - cost-allocation-tags: List cost allocation tags and backfill history (list-cost-allocation-tags, list-cost-allocation-tag-backfill-history)
 - cost-category: Describe and list cost category definitions (describe-cost-category-definition, list-cost-category-definitions)
+- check-bcm-readiness: Pre-flight diagnosis of whether an account is ready (IAM, Cost Explorer, tags, Cost Optimization Hub) for a cost-management intent. Call FIRST to avoid silent $0/empty failures.
 
 PROMPTS:
 - savings_plans: Analyzes AWS usage and identifies opportunities for Savings Plans purchases
@@ -211,6 +215,7 @@ async def setup():
     await mcp.import_server(bvs_server)
     await mcp.import_server(cost_allocation_tags_server)
     await mcp.import_server(cost_category_server)
+    await mcp.import_server(bcm_readiness_server)
 
     await register_prompts()
 
@@ -251,6 +256,7 @@ async def setup():
         'list-cost-allocation-tag-backfill-history',
         'describe-cost-category-definition',
         'list-cost-category-definitions',
+        'check-bcm-readiness',
     ]
     for tool in tools:
         logger.info(f'- {tool}')
