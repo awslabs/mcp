@@ -88,7 +88,7 @@ This tool uses the Redshift Data API to run queries and return results.
 ### review_cluster
 Runs a diagnostic review of a Redshift cluster or serverless workgroup.
 Returns identified potential issues and respective recommendations ordered by required mitigation effort.
-Requires superuser privileges.
+Requires superuser (CREATEUSER) privileges.
 
 ## Getting Started
 
@@ -652,7 +652,7 @@ async def review_cluster_tool(
     - Ensure your AWS credentials are properly configured (via AWS_PROFILE or default credentials).
     - The cluster must be available and accessible.
     - Required IAM permissions: redshift-data:ExecuteStatement, redshift-data:DescribeStatement, redshift-data:GetStatementResult.
-    - The connected user must have superuser privileges to access the required system views.
+    - The connected user must have superuser (CREATEUSER) privileges to access the required system views.
 
     ## Parameters
 

@@ -421,7 +421,7 @@ review_cluster(cluster_identifier: str, database_name: str = 'dev') -> ReviewRes
 - Deduplicated recommendations with documentation links
 - List of diagnostic queries executed
 
-**Note**: Requires superuser privileges. Provisioned-only diagnostics are automatically skipped for serverless workgroups.
+**Note**: Requires superuser (CREATEUSER) privileges. Provisioned-only diagnostics are automatically skipped for serverless workgroups.
 
 ## Permissions
 
@@ -459,3 +459,4 @@ In addition to AWS IAM permissions, you need appropriate database-level permissi
 - **Read Access**: `SELECT` permissions on tables/views you want to query
 - **Schema Access**: `USAGE` permissions on schemas you want to explore
 - **Database Access**: Connection permissions to databases you want to access
+- **Review Access**: The `review_cluster` tool requires superuser (CREATEUSER) privileges to read system views such as `SYS_AUTO_TABLE_OPTIMIZATION`, `SYS_QUERY_HISTORY`, and `SVV_TABLE_INFO`. Grant via `ALTER USER <username> CREATEUSER;` or `GRANT ROLE sys:monitor TO <username>;` for a narrower scope.
