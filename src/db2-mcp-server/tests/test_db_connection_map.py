@@ -14,6 +14,7 @@
 
 """Tests for the connection map."""
 
+import asyncio
 import pytest
 from awslabs.db2_mcp_server.connection.abstract_db_connection import AbstractDBConnection
 from awslabs.db2_mcp_server.connection.db_connection_map import (
@@ -161,4 +162,24 @@ def test_close_all_tolerates_errors():
     m = DBConnectionMap()
     m.set(M, 'id', 'host', 'DB2DB', FakeConn(raise_close=True), 50443)
     m.close_all()
+    assert m.map == {}
+
+
+async def test_close_all_with_running_loop():
+    """close_all schedules async closes on the running loop and clears the map."""
+    m = DBConnectionMap()
+    c = FakeConn(async_close=True)
+    m.set(M, 'id', 'host', 'DB2DB', c, 50443)
+    m.close_all()
+    await asyncio.sleep(0.05)  # let the scheduled close task run
+    assert m.map == {}
+    assert c.closed is True
+
+
+async def test_close_all_running_loop_tolerates_task_error():
+    """A failing async close on the running loop is logged and the map still clears."""
+    m = DBConnectionMap()
+    m.set(M, 'id', 'host', 'DB2DB', FakeConn(async_close=True, raise_close=True), 50443)
+    m.close_all()
+    await asyncio.sleep(0.05)  # let the failing close task run + done-callback fire
     assert m.map == {}

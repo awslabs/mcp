@@ -409,6 +409,13 @@ class TestIdentifierValidation:
             ('1bad', False),
             ('', False),
             (None, False),
+            ('"a""b"', True),  # doubled quote = one escaped quote inside a quoted id
+            ('""', False),  # empty quoted identifier
+            ('"open', False),  # unterminated quoted identifier
+            ('a.', False),  # trailing separator
+            ('a b', False),  # invalid character after first part
+            ('"a\x00b"', False),  # NUL inside quoted identifier
+            ('A' * 129, False),  # exceeds the max identifier byte length
         ],
     )
     def test_validate_identifier(self, name, valid):
@@ -507,6 +514,39 @@ class TestMain:
         mocker.patch.object(server.db_connection_map, 'close_all')
         server.main()
         validated.validate_sync.assert_called_once()
+
+    def test_main_endpoint_requires_region_exits(self, mocker, monkeypatch):
+        """--db_endpoint without --region exits with a non-zero status."""
+        monkeypatch.setattr(sys, 'argv', ['prog', '--db_endpoint', 'host'])
+        mocker.patch.object(server.mcp, 'run')
+        mocker.patch.object(server.db_connection_map, 'close_all')
+        with pytest.raises(SystemExit):
+            server.main()
+
+    def test_main_startup_validate_failure_exits(self, mocker, monkeypatch):
+        """A failed startup validation exits with a non-zero status."""
+        monkeypatch.setattr(
+            sys,
+            'argv',
+            [
+                'prog',
+                '--region',
+                'us-east-1',
+                '--db_endpoint',
+                'host',
+                '--secret_arn',
+                'arn:x',
+            ],  # pragma: allowlist secret
+        )
+        bad = MagicMock()
+        bad.validate_sync.side_effect = RuntimeError('boom')
+        mocker.patch.object(
+            server, 'internal_create_connection', return_value=(bad, {'status': 'Connected'})
+        )
+        mocker.patch.object(server.mcp, 'run')
+        mocker.patch.object(server.db_connection_map, 'close_all')
+        with pytest.raises(SystemExit):
+            server.main()
 
 
 def test_connection_method_enum():

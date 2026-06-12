@@ -21,6 +21,10 @@ from datetime import date
 from decimal import Decimal
 
 
+DUMMY_PASSWORD = 'pw'  # pragma: allowlist secret
+BAD_JSON_PAYLOAD = 'not-json'
+
+
 def _conn(**kwargs) -> IbmDbConnection:
     defaults = {
         'host': 'db2.example.com',
@@ -233,3 +237,71 @@ class TestLifecycle:
         await c.close()
         fake.close.assert_called_once()
         assert c._conn is None
+
+
+class TestCredentialErrors:
+    """Error paths for Secrets Manager credential extraction."""
+
+    def _patch_session(self, mocker, *, response=None, side_effect=None):
+        """Patch boto3.Session so get_secret_value returns/raises as configured."""
+        fake_client = mocker.Mock()
+        if side_effect is not None:
+            fake_client.get_secret_value.side_effect = side_effect
+        else:
+            fake_client.get_secret_value.return_value = response
+        fake_session = mocker.Mock()
+        fake_session.client.return_value = fake_client
+        mocker.patch('boto3.Session', return_value=fake_session)
+
+    def test_client_error_raises(self, mocker):
+        """A Secrets Manager ClientError is wrapped in a ValueError."""
+        from botocore.exceptions import ClientError
+
+        err = ClientError({'Error': {'Code': 'AccessDenied', 'Message': 'no'}}, 'GetSecretValue')
+        self._patch_session(mocker, side_effect=err)
+        with pytest.raises(ValueError, match='Secrets Manager'):
+            _conn(is_test=False)._get_credentials_from_secret()
+
+    def test_missing_secret_string(self, mocker):
+        """A response without SecretString raises."""
+        self._patch_session(mocker, response={})
+        with pytest.raises(ValueError, match='SecretString'):
+            _conn(is_test=False)._get_credentials_from_secret()
+
+    def test_invalid_json(self, mocker):
+        """A SecretString that is not valid JSON raises."""
+        self._patch_session(mocker, response={'SecretString': BAD_JSON_PAYLOAD})
+        with pytest.raises(ValueError, match='valid JSON'):
+            _conn(is_test=False)._get_credentials_from_secret()
+
+    def test_missing_username(self, mocker):
+        """A secret without a username raises."""
+        self._patch_session(
+            mocker, response={'SecretString': json.dumps({'password': DUMMY_PASSWORD})}
+        )
+        with pytest.raises(ValueError, match='username'):
+            _conn(is_test=False)._get_credentials_from_secret()
+
+    def test_missing_password(self, mocker):
+        """A secret without a password raises."""
+        self._patch_session(mocker, response={'SecretString': json.dumps({'username': 'admin'})})
+        with pytest.raises(ValueError, match='password'):
+            _conn(is_test=False)._get_credentials_from_secret()
+
+
+def test_to_positional_double_boolean_blob():
+    """Double, boolean, and blob value types bind positionally."""
+    params = [
+        {'name': 'd', 'value': {'doubleValue': 1.5}},
+        {'name': 'b', 'value': {'booleanValue': True}},
+        {'name': 'l', 'value': {'blobValue': b'xyz'}},
+    ]
+    assert IbmDbConnection._to_positional(params) == (1.5, True, b'xyz')
+
+
+def test_validate_sync_failure(mocker):
+    """A failed validation probe raises ValueError."""
+    fake = _fake_ibm_db(mocker, rows=[])
+    fake.exec_immediate.return_value = 0
+    with pytest.raises(ValueError, match='Validation query failed'):
+        _conn(readonly=True).validate_sync()
