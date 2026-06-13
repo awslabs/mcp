@@ -33,7 +33,7 @@ inspect raw union dicts; they call ``location_from_response`` and use the
 type's instance methods.
 """
 
-from .validation import _validate_location_inputs
+from .validation import _validate_location_inputs, canonical_language
 from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
@@ -55,7 +55,21 @@ def _freeze_mapping(value: Mapping[str, Any]) -> Mapping[str, Any]:
 
 @dataclass(frozen=True)
 class CodeLocation:
-    """A code-based instrumentation target (BREAKPOINT or PROBE)."""
+    """A code-based instrumentation target (BREAKPOINT or PROBE).
+
+    Which fields identify the target vs. which are metadata depends on language:
+
+    * Java       — ``code_unit`` (package), ``class_name`` (simple name), and
+                   ``method_name`` together identify the target; all required.
+    * Python     — ``code_unit`` (dotted module path) and ``method_name``
+                   identify the target; ``class_name`` is optional (qualifies a
+                   method defined in a class).
+    * JavaScript — ``file_path`` + ``line_number`` identify the target;
+                   ``code_unit``/``class_name``/``method_name`` are not used.
+
+    ``line_number`` makes any target line-level (fires at that line rather than
+    on method entry/exit).
+    """
 
     language: str
     file_path: str
@@ -276,7 +290,7 @@ def parse_create_inputs(
 
     return (
         CodeLocation(
-            language=language,
+            language=canonical_language(language) or language,
             file_path=file_path,
             code_unit=code_unit,
             class_name=class_name,
