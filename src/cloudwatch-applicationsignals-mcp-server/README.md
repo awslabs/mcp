@@ -426,18 +426,18 @@ query_rum_events(action="<action_name>", app_monitor_name="my-app", ...)
 
 **Optional parameters** (action-dependent): `resource_arn`, `page_url`, `group_by`, `platform`, `max_results`, `max_traces`, `statistic`, `period`, `session_id`, `metric`, `bucket`, `compare_previous`
 
-### 🔬 Dynamic Instrumentation Tools (Preview)
+### 🔬 Dynamic Instrumentation Tools
 
 Interactively debug live services without redeploying. Dynamic instrumentation
 lets you place breakpoint-style or probe-style instrumentation on running
 Application Signals services, then inspect the captured snapshots (arguments,
 local state, and stack traces) from CloudWatch Logs.
 
-> **Preview:** These tools depend on `application-signals` dynamic
+> **Note:** These tools depend on `application-signals` dynamic
 > instrumentation operations that are not yet part of the public AWS SDK. The
-> server bundles a trimmed preview service model (see
+> server bundles a trimmed service model (see
 > `awslabs/cloudwatch_applicationsignals_mcp_server/dynamic_instrumentation/aws_data/README.md`)
-> so the tools work against the preview API. The bundled model is removed once
+> so the tools work against these operations. The bundled model is removed once
 > the operations are generally available in `botocore`.
 
 **Configuration & status tools**

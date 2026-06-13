@@ -220,8 +220,25 @@ class TestCrudToolsBoto3Integration:
         assert 'ValidationException' in rendered
         assert 'bad scope' in rendered
 
-    def test_create_instrumentation_strips_wildcard_capture_argument(self):
-        """Create instrumentation strips wildcard capture argument."""
+    def test_create_instrumentation_rejects_wildcard_capture_argument(self):
+        """Create instrumentation rejects a wildcard in capture_arguments before any API call."""
+        stubber = self._stub_application_signals()
+        rendered = crud_tools.create_instrumentation(
+            instrumentation_type='BREAKPOINT',
+            service='svc',
+            environment='env',
+            language='Python',
+            file_path='/app/handler.py',
+            code_unit='services.handler',
+            method_name='run',
+            capture_arguments=['order_id', '*'],
+        )
+        # No API call should have been made — the wildcard is rejected up front.
+        stubber.assert_no_pending_responses()
+        assert 'capture_arguments does not support the wildcard' in rendered
+
+    def test_create_line_level_success_suppresses_arguments_and_return(self):
+        """A line-level create success message shows locals/stack traces, not arguments/return."""
         stubber = self._stub_application_signals()
         stubber.add_response(
             'create_instrumentation_configuration',
@@ -234,15 +251,14 @@ class TestCrudToolsBoto3Integration:
                     'CodeLocation': {
                         'Language': 'Python',
                         'FilePath': '/app/handler.py',
-                        'MethodName': 'run',
+                        'LineNumber': 42,
                     }
                 },
                 'LocationHash': 'aaaabbbbccccdddd',
                 'Description': 'MCP dynamic instrumentation',
-                'ExpiresAt': datetime(2026, 3, 10, 12, 0, 0, tzinfo=timezone.utc),
                 'CaptureConfiguration': {
                     'CodeCapture': {
-                        'CaptureArguments': ['order_id'],
+                        'CaptureLocals': ['total'],
                         'CaptureReturn': True,
                         'CaptureStackTrace': True,
                         'CaptureLimits': {},
@@ -260,12 +276,15 @@ class TestCrudToolsBoto3Integration:
             file_path='/app/handler.py',
             code_unit='services.handler',
             method_name='run',
-            capture_arguments=['order_id', '*'],
+            line_number=42,
+            capture_locals=['total'],
         )
         stubber.assert_no_pending_responses()
         assert 'Successfully created BREAKPOINT instrumentation' in rendered
-        assert 'wildcard * is not supported and was ignored' in rendered
-        assert 'aaaabbbbccccdddd' in rendered
+        assert '- Local Variables: total' in rendered
+        assert '- Stack Traces: Enabled' in rendered
+        assert '- Arguments:' not in rendered
+        assert '- Return Values:' not in rendered
 
     def test_create_instrumentation_renders_client_error_with_attempted_block(self):
         """Create instrumentation renders client error with attempted block."""
@@ -495,6 +514,58 @@ class TestSignalValidationAndNormalization:
         assert 'must be SNAPSHOT' in error
 
 
+class TestProbeConstraints:
+    """Test PROBE-only constraint validation."""
+
+    def test_breakpoint_is_unconstrained(self):
+        """A BREAKPOINT type returns None regardless of language/line_number."""
+        assert validation.validate_probe_constraints('BREAKPOINT', 'JavaScript', 5) is None
+
+    def test_probe_rejects_javascript(self):
+        """PROBE on JavaScript is rejected."""
+        error = validation.validate_probe_constraints('PROBE', 'JavaScript', None)
+        assert error is not None
+        assert 'PROBE is not supported for JavaScript' in error
+
+    def test_probe_rejects_line_number(self):
+        """PROBE with a line_number is rejected (the SDKs ignore it)."""
+        error = validation.validate_probe_constraints('PROBE', 'Python', 42)
+        assert error is not None
+        assert 'PROBE does not support line_number' in error
+
+    def test_valid_probe_passes(self):
+        """A method-level PROBE on a supported language passes."""
+        assert validation.validate_probe_constraints('PROBE', 'Python', None) is None
+
+    def test_create_probe_javascript_rejected_end_to_end(self):
+        """create_instrumentation rejects a PROBE on JavaScript before any API call."""
+        rendered = crud_tools.create_instrumentation(
+            instrumentation_type='PROBE',
+            service='svc',
+            environment='env',
+            language='JavaScript',
+            file_path='/app/handler.js',
+            line_number=10,
+            capture_locals=['total'],
+        )
+        assert 'PROBE is not supported for JavaScript' in rendered
+
+    def test_create_probe_with_line_number_rejected_end_to_end(self):
+        """create_instrumentation rejects a PROBE with line_number before any API call."""
+        rendered = crud_tools.create_instrumentation(
+            instrumentation_type='PROBE',
+            service='svc',
+            environment='env',
+            language='Python',
+            file_path='/app/handler.py',
+            code_unit='services.handler',
+            method_name='run',
+            line_number=42,
+            capture_arguments=['order_id'],
+        )
+        assert 'PROBE does not support line_number' in rendered
+
+
 class TestBatchDeleteFormatting:
     """Test batch-delete response rendering."""
 
@@ -642,7 +713,7 @@ class TestCrudRenderingHelpers:
             environment='env',
         )
         assert 'INSTRUMENTATION CONFIGURATION' in rendered
-        assert '- Arguments: (none)' in rendered
+        assert '- Arguments: (empty list)' in rendered
         assert '- Max Collection Depth: 4' in rendered
         assert '- Max Object Depth: 2' in rendered
         assert 'ATTRIBUTE FILTERS: 1 filter group(s)' in rendered
@@ -1319,8 +1390,8 @@ class TestSnapshotToolsCloudWatchPath:
 class TestCodeInstrumentationArgumentContract:
     """Test code-instrumentation-specific guardrails."""
 
-    def test_create_requires_capture_arguments_for_code_instrumentation(self):
-        """Create requires capture arguments for code instrumentation."""
+    def test_create_rejects_empty_capture_arguments_list(self):
+        """An explicit empty capture_arguments list is rejected (omit to capture none)."""
         rendered = crud_tools.create_instrumentation(
             instrumentation_type='BREAKPOINT',
             service='svc',
@@ -1329,9 +1400,39 @@ class TestCodeInstrumentationArgumentContract:
             file_path='/app/demo_app.py',
             code_unit='__main__',
             method_name='process_payment',
+            capture_arguments=[],
         )
-        assert 'capture_arguments is required' in rendered
-        assert 'Inspect the source file' in rendered
+        assert 'capture_arguments must contain at least one name' in rendered
+
+    def test_create_rejects_empty_capture_locals_list(self):
+        """An explicit empty capture_locals list is rejected (omit to capture none)."""
+        rendered = crud_tools.create_instrumentation(
+            instrumentation_type='BREAKPOINT',
+            service='svc',
+            environment='env',
+            language='Python',
+            file_path='/app/demo_app.py',
+            code_unit='__main__',
+            method_name='process_payment',
+            capture_arguments=['order_id'],
+            capture_locals=[],
+        )
+        assert 'capture_locals must contain at least one name' in rendered
+
+    def test_create_line_level_requires_capture_locals(self):
+        """A line-level config (line_number set) without capture_locals is rejected."""
+        rendered = crud_tools.create_instrumentation(
+            instrumentation_type='BREAKPOINT',
+            service='svc',
+            environment='env',
+            language='Python',
+            file_path='/app/demo_app.py',
+            code_unit='services.demo',
+            method_name='process_payment',
+            line_number=42,
+            capture_arguments=['order_id'],
+        )
+        assert 'line-level instrumentation (line_number set) requires capture_locals' in rendered
 
     def test_code_capture_preserves_explicit_empty_argument_list(self):
         """Code capture preserves explicit empty argument list."""
@@ -1796,7 +1897,7 @@ class TestValidationLocationInputs:
             line_number=None,
         )
         assert message is not None
-        assert 'language must be Python or Java' in message
+        assert 'language must be Python, Java, or JavaScript' in message
 
     def test_java_fully_qualified_class_name_errors_with_suggestion(self):
         """A fully qualified Java class_name errors and suggests a split."""
@@ -1839,6 +1940,71 @@ class TestValidationLocationInputs:
         assert message is not None
         assert 'module path (e.g., services.billing), not a .py filename' in message
 
+    def test_java_missing_required_fields_reports_errors(self):
+        """Java without code_unit/class_name/method_name reports each as required."""
+        message = validation._validate_location_inputs(
+            language='Java',
+            file_path='/app/Order.java',
+            code_unit=None,
+            class_name=None,
+            method_name=None,
+            line_number=None,
+        )
+        assert message is not None
+        assert 'Java requires code_unit' in message
+        assert 'Java requires class_name' in message
+        assert 'Java requires method_name' in message
+
+    def test_python_missing_required_fields_reports_errors(self):
+        """Python without code_unit/method_name reports each as required."""
+        message = validation._validate_location_inputs(
+            language='Python',
+            file_path='/app/h.py',
+            code_unit=None,
+            class_name=None,
+            method_name=None,
+            line_number=None,
+        )
+        assert message is not None
+        assert 'Python requires code_unit' in message
+        assert 'Python requires method_name' in message
+
+    def test_valid_javascript_line_location_returns_none(self):
+        """A valid JavaScript line location (line_number set) passes validation."""
+        assert (
+            validation._validate_location_inputs(
+                language='JavaScript',
+                file_path='/app/handler.js',
+                code_unit=None,
+                class_name=None,
+                method_name=None,
+                line_number=42,
+            )
+            is None
+        )
+
+    def test_javascript_without_line_number_reports_error(self):
+        """JavaScript without a line_number reports the line-binding requirement."""
+        message = validation._validate_location_inputs(
+            language='JavaScript',
+            file_path='/app/handler.js',
+            code_unit=None,
+            class_name=None,
+            method_name=None,
+            line_number=None,
+        )
+        assert message is not None
+        assert 'JavaScript requires line_number' in message
+
+    def test_canonical_language_maps_casing(self):
+        """canonical_language maps any casing to the API's enum casing, else None."""
+        assert validation.canonical_language('javascript') == 'Javascript'
+        assert validation.canonical_language('JavaScript') == 'Javascript'
+        assert validation.canonical_language('PYTHON') == 'Python'
+        assert validation.canonical_language('java') == 'Java'
+        assert validation.canonical_language('ruby') is None
+        assert validation.canonical_language(None) is None
+
     def test_troubleshooting_python_branch_renders_python_rules(self):
         """The Python troubleshooting branch renders Python-specific rules."""
         rendered = validation._format_code_location_troubleshooting(
@@ -1865,6 +2031,34 @@ class TestValidationLocationInputs:
         )
         assert 'Java rules:' in rendered
         assert 'FUNCTION/METHOD-level' in rendered
+
+    def test_troubleshooting_javascript_branch_renders_js_rules_and_slide_note(self):
+        """The JavaScript branch renders JS rules and the line-slide note for line-level."""
+        rendered = validation._format_code_location_troubleshooting(
+            language='JavaScript',
+            file_path='/app/handler.js',
+            code_unit=None,
+            class_name=None,
+            method_name=None,
+            line_number=42,
+        )
+        assert 'JavaScript rules:' in rendered
+        assert 'binds by file_path + line_number' in rendered
+        assert 'slides to the next parseable line' in rendered
+        assert 'LINE-LEVEL (L42)' in rendered
+
+    def test_troubleshooting_python_line_level_notes_non_executable(self):
+        """The Python branch warns that a non-executable line never fires."""
+        rendered = validation._format_code_location_troubleshooting(
+            language='Python',
+            file_path='/app/h.py',
+            code_unit='services.billing',
+            class_name=None,
+            method_name='run',
+            line_number=12,
+        )
+        assert 'non-executable' in rendered
+        assert 'never fires' in rendered
 
 
 class TestCrudRenderingMoreHelpers:
@@ -1923,8 +2117,8 @@ class TestCrudRenderingMoreHelpers:
             location=loc,
             ttl_hours=24,
             capture_arguments=['order_id'],
-            wildcard_removed=True,
             code_capture_locals=['result'],
+            is_line_level=False,
             code_capture_return=True,
             code_capture_stack_trace=False,
             max_hits=3,
@@ -1940,7 +2134,6 @@ class TestCrudRenderingMoreHelpers:
         assert 'Successfully created BREAKPOINT instrumentation' in rendered
         assert '- Expires: 2026-03-10T11:00:00Z (requested 24 hours)' in rendered
         assert '- Arguments: order_id' in rendered
-        assert 'wildcard * is not supported and was ignored' in rendered
         assert '- Local Variables: result' in rendered
         assert '- Return Values: Enabled' in rendered
         assert '- Stack Traces: Disabled' in rendered
@@ -1958,8 +2151,8 @@ class TestCrudRenderingMoreHelpers:
             location=loc,
             ttl_hours=None,
             capture_arguments=[],
-            wildcard_removed=False,
             code_capture_locals=None,
+            is_line_level=False,
             code_capture_return=False,
             code_capture_stack_trace=True,
             max_hits=None,
@@ -2013,8 +2206,8 @@ class TestCrudRenderingMoreHelpers:
         )
         assert 'Capture payload could not be parsed.' in rendered
 
-    def test_render_get_output_arguments_all_and_full_limits(self):
-        """Arguments=None renders 'All' and every populated limit renders."""
+    def test_render_get_output_arguments_not_set_and_full_limits(self):
+        """Omitted CaptureArguments renders '(not set)' and every populated limit renders."""
         rendered = crud_rendering.render_get_instrumentation_output(
             config={
                 'InstrumentationType': 'BREAKPOINT',
@@ -2041,7 +2234,7 @@ class TestCrudRenderingMoreHelpers:
             service='svc',
             environment='env',
         )
-        assert '- Arguments: All' in rendered
+        assert '- Arguments: (not set)' in rendered
         assert '- Max Hits: 1' in rendered
         assert '- Max Stack Frames: 5' in rendered
         assert '- Max Fields Per Object: 8' in rendered
@@ -2861,8 +3054,8 @@ class TestCrudRenderingBranches:
             location=loc,
             ttl_hours=None,
             capture_arguments=[],
-            wildcard_removed=False,
             code_capture_locals=None,
+            is_line_level=False,
             code_capture_return=True,
             code_capture_stack_trace=True,
             max_hits=None,
@@ -2877,8 +3070,8 @@ class TestCrudRenderingBranches:
         )
         assert '- Arguments: (none)' in rendered
 
-    def test_list_output_renders_empty_arguments_as_none(self):
-        """A listed config with present-but-empty CaptureArguments renders '(none)'."""
+    def test_list_output_renders_empty_arguments_as_empty_list(self):
+        """A listed config with present-but-empty CaptureArguments renders '(empty list)'."""
         data = {
             'LatestConfigurations': [
                 {
@@ -2900,7 +3093,7 @@ class TestCrudRenderingBranches:
             service='svc',
             environment='env',
         )
-        assert '- Arguments: (none)' in rendered
+        assert '- Arguments: (empty list)' in rendered
 
     def test_get_instrumentation_output_renders_local_variables(self):
         """A CodeCapture with capture_locals renders the Local Variables line."""
@@ -2919,6 +3112,78 @@ class TestCrudRenderingBranches:
             config=config, service='svc', environment='env'
         )
         assert '- Local Variables: counter, total' in rendered
+
+    def test_list_output_renders_empty_locals_as_empty_list(self):
+        """A listed config with present-but-empty CaptureLocals renders '(empty list)'."""
+        data = {
+            'LatestConfigurations': [
+                {
+                    'Location': {'CodeLocation': {'Language': 'Python', 'FilePath': '/app/h.py'}},
+                    'LocationHash': 'h',
+                    'CaptureConfiguration': {
+                        'CodeCapture': {
+                            'CaptureReturn': True,
+                            'CaptureStackTrace': True,
+                            'CaptureArguments': ['order_id'],
+                            'CaptureLocals': [],
+                        }
+                    },
+                }
+            ]
+        }
+        rendered = crud_rendering.render_list_instrumentations_output(
+            data=data,
+            normalized_type='BREAKPOINT',
+            service='svc',
+            environment='env',
+        )
+        assert '- Locals: (empty list)' in rendered
+
+    def test_get_output_renders_empty_locals_as_empty_list(self):
+        """A get config with present-but-empty CaptureLocals renders '(empty list)'."""
+        config = {
+            'InstrumentationType': 'BREAKPOINT',
+            'Location': {'CodeLocation': {'Language': 'Python', 'FilePath': '/app/h.py'}},
+            'CaptureConfiguration': {
+                'CodeCapture': {
+                    'CaptureReturn': True,
+                    'CaptureStackTrace': True,
+                    'CaptureArguments': ['order_id'],
+                    'CaptureLocals': [],
+                }
+            },
+        }
+        rendered = crud_rendering.render_get_instrumentation_output(
+            config=config, service='svc', environment='env'
+        )
+        assert '- Local Variables: (empty list)' in rendered
+
+    def test_create_success_message_probe_shows_longer_ready_window(self):
+        """A PROBE create-success message shows the ~10-12 min READY window."""
+        loc = location.CodeLocation(language='Python', file_path='/app/h.py', method_name='run')
+        rendered = crud_rendering.render_create_success_message(
+            response={'LocationHash': 'aaaabbbbccccdddd', 'ARN': 'arn', 'CreatedAt': None},
+            normalized_type='PROBE',
+            service='svc',
+            environment='env',
+            location=loc,
+            ttl_hours=None,
+            capture_arguments=['order_id'],
+            code_capture_locals=None,
+            is_line_level=False,
+            code_capture_return=True,
+            code_capture_stack_trace=True,
+            max_hits=None,
+            max_string_length=None,
+            max_collection_width=None,
+            max_collection_depth=None,
+            max_stack_frames=None,
+            max_stack_trace_size=None,
+            max_object_depth=None,
+            max_fields_per_object=None,
+            attribute_filters=None,
+        )
+        assert 'Allow ~10-12 min before this configuration reports READY' in rendered
 
 
 class TestErrorTranslationEmptyHelpers:
@@ -2991,10 +3256,24 @@ class TestLocationBranches:
             normalized_type='BREAKPOINT',
             language='Python',
             file_path='/app/h.py',
+            code_unit='services.h',
+            method_name='run',
             line_number=0,
         )
         assert loc is None
         assert err
+
+    def test_parse_create_inputs_canonicalizes_language_casing(self):
+        """parse_create_inputs maps language casing to the API enum (javascript -> Javascript)."""
+        loc, err = location.parse_create_inputs(
+            normalized_type='BREAKPOINT',
+            language='javascript',
+            file_path='/app/handler.js',
+            line_number=42,
+        )
+        assert err is None
+        assert loc is not None
+        assert loc.to_api_payload()['CodeLocation']['Language'] == 'Javascript'
 
     def test_parse_lookup_inputs_disallows_code_location(self):
         """allow_code_location_lookup=False rejects a code-location lookup."""
@@ -3718,6 +3997,8 @@ class TestCrudToolsTtlAndFilters:
             environment='env',
             language='Python',
             file_path='/app/handler.py',
+            code_unit='services.handler',
+            method_name='run',
             capture_arguments=['order_id'],
             ttl_hours=3,
             attribute_filters=[{'Key': 'stage', 'Value': 'prod'}],
