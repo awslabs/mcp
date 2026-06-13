@@ -56,7 +56,7 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/ecs-mcp-server                                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @guitar80ep @matthewgoodman13 @nineonine @biagic @tusharbabbar @lewisct
 /src/eks-mcp-server                                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @patrick-yu-amzn @srhsrhsrhsrh
 /src/elasticache-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @swarnaprakash @madolson @allenss-amazon @kevinmcgehee
-/src/finch-mcp-server                                          @awslabs/mcp-admins @awslabs/mcp-maintainers  @Shubhranshu153 @pendo324
+/src/finch-mcp-server                                          @awslabs/mcp-admins @awslabs/mcp-maintainers  @Shubhranshu153 @pendo324 @coderbirju @Swapnanil-Gupta
 /src/healthimaging-mcp-server                                  @awslabs/mcp-admins @awslabs/mcp-maintainers  @manish364
 /src/healthlake-mcp-server                                     @awslabs/mcp-admins @awslabs/mcp-maintainers  @aws-steve @awsri
 /src/iam-mcp-server                                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @oshardik
