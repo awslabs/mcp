@@ -510,6 +510,59 @@ class TestExecuteQueryTool:
         assert result.query_id == 'query-456'
 
     @pytest.mark.asyncio
+    async def test_execute_query_tool_default_read_only(self, mocker):
+        """Test that execute_query_tool defaults to read_only=True (allow_read_write=False)."""
+        mock_execute_query = mocker.patch('awslabs.redshift_mcp_server.server.execute_query')
+        mock_execute_query.return_value = {
+            'columns': ['id'],
+            'rows': [[1]],
+            'row_count': 1,
+            'execution_time_ms': 10,
+            'query_id': 'query-ro',
+        }
+
+        await execute_query_tool(
+            Context(),
+            cluster_identifier='test-cluster',
+            database_name='dev',
+            sql='SELECT 1',
+        )
+
+        mock_execute_query.assert_called_once_with(
+            cluster_identifier='test-cluster',
+            database_name='dev',
+            sql='SELECT 1',
+            allow_read_write=False,
+        )
+
+    @pytest.mark.asyncio
+    async def test_execute_query_tool_read_write(self, mocker):
+        """Test that execute_query_tool with read_only=False passes allow_read_write=True."""
+        mock_execute_query = mocker.patch('awslabs.redshift_mcp_server.server.execute_query')
+        mock_execute_query.return_value = {
+            'columns': ['id'],
+            'rows': [[1]],
+            'row_count': 1,
+            'execution_time_ms': 10,
+            'query_id': 'query-rw',
+        }
+
+        await execute_query_tool(
+            Context(),
+            cluster_identifier='test-cluster',
+            database_name='dev',
+            sql='SELECT 1',
+            read_only=False,
+        )
+
+        mock_execute_query.assert_called_once_with(
+            cluster_identifier='test-cluster',
+            database_name='dev',
+            sql='SELECT 1',
+            allow_read_write=True,
+        )
+
+    @pytest.mark.asyncio
     async def test_execute_query_tool_error(self, mocker):
         """Test execute_query_tool error handling."""
         from unittest.mock import AsyncMock, Mock
