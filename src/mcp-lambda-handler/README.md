@@ -64,6 +64,39 @@ pip install -e .[dev]
 pytest
 ```
 
+## Prompts
+
+MCP supports **prompts** that can be listed and retrieved by clients.
+You can define them using the `@mcp.prompt` decorator. Prompts automatically expose argument schemas based on type hints.
+
+### Example
+
+```python
+@mcp.prompt
+def greeting(name: str, excited: bool = False) -> str:
+    """
+    A simple greeting prompt.
+    """
+    if excited:
+        return f"Hello, {name}!!! 🎉"
+    return f"Hello, {name}."
+```
+
+### Available Requests
+
+* `prompts/list` → Lists all registered prompts with metadata (name, description, arguments, tags).
+* `prompts/get` → Retrieves the rendered content of a prompt given its `name` and optional `arguments`.
+
+### Prompt Naming Convention
+
+> **Note:** By default, prompt function names are automatically converted to camelCase. For example, a function named `generate_code` will be registered as `generateCode`. This differs from FastMCP, which keeps the original snake_case name. To use a custom name, pass the `name` argument explicitly:
+>
+> ```python
+> @mcp.prompt(name="generate_code")
+> def generate_code(language: str) -> str:
+>     ...
+> ```
+
 ## Contributing
 
 Contributions are welcome! Please see the [CONTRIBUTING.md](../../CONTRIBUTING.md) in the monorepo root for guidelines.
