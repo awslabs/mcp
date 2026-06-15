@@ -160,13 +160,13 @@ class TestErrorPropagation:
 
     @pytest.mark.asyncio
     async def test_failed_query_skipped(self):
-        """A failing query is skipped and recorded in queries_skipped."""
+        """A failing query is skipped and recorded in queries_skipped with reason."""
         call_count = [0]
 
         async def _side_effect(*a, **kw):
             call_count[0] += 1
             if call_count[0] == 1:
-                raise RuntimeError('permission denied for relation sys_auto_table_optimization')
+                raise RuntimeError('table does not exist')
             return _make_empty_response()
 
         execute_query_func = AsyncMock(side_effect=_side_effect)
@@ -178,13 +178,29 @@ class TestErrorPropagation:
         )
 
         assert len(result.queries_skipped) == 1
-        assert result.queries_skipped[0] not in result.queries_executed
+        assert result.queries_skipped[0]['query_name'] not in result.queries_executed
+        assert 'reason' in result.queries_skipped[0]
+        assert 'table does not exist' in result.queries_skipped[0]['reason']
         assert len(result.queries_executed) == result.signals_evaluated - 1
 
     @pytest.mark.asyncio
+    async def test_permission_denied_aborts_review(self):
+        """A permission denied error aborts the entire review."""
+        execute_query_func = AsyncMock(
+            side_effect=RuntimeError('permission denied for relation sys_auto_table_optimization')
+        )
+
+        with pytest.raises(Exception, match='Review requires superuser'):
+            await review_cluster(
+                cluster_identifier='test-cluster',
+                execute_query_func=execute_query_func,
+                discover_clusters_func=_make_discover_clusters(),
+            )
+
+    @pytest.mark.asyncio
     async def test_all_queries_fail_returns_empty_result(self):
-        """When all queries fail, result has no findings but all queries in skipped."""
-        execute_query_func = AsyncMock(side_effect=RuntimeError('permission denied'))
+        """When all queries fail with non-permission errors, result has no findings but all queries in skipped."""
+        execute_query_func = AsyncMock(side_effect=RuntimeError('timeout'))
 
         result = await review_cluster(
             cluster_identifier='test-cluster',

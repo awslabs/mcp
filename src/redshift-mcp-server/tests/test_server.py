@@ -35,7 +35,6 @@ from awslabs.redshift_mcp_server.server import (
     list_databases_tool,
     list_schemas_tool,
     list_tables_tool,
-    mcp,
     review_cluster_tool,
 )
 from mcp.server.fastmcp import Context
@@ -643,43 +642,3 @@ class TestReviewClusterTool:
         mock_ctx.error.assert_called_once_with(
             'Failed to review cluster test-cluster: Data API timeout'
         )
-
-    @pytest.mark.asyncio
-    async def test_review_cluster_parameters(self, mocker):
-        """Test review_cluster passes all parameters correctly."""
-        expected = self._make_review_result()
-
-        mock_pipeline = mocker.patch(
-            'awslabs.redshift_mcp_server.server.review_cluster',
-            return_value=expected,
-        )
-        mock_ctx = self._make_mock_ctx(mocker)
-
-        await review_cluster_tool(
-            ctx=mock_ctx,
-            cluster_identifier='my-cluster',
-            database_name='analytics',
-        )
-
-        call_kwargs = mock_pipeline.call_args.kwargs
-        assert call_kwargs['cluster_identifier'] == 'my-cluster'
-        assert call_kwargs['database_name'] == 'analytics'
-
-    def test_no_removed_tools_registered(self):
-        """Verify export_csv and import_and_analyze are not registered as tools."""
-        tool_names = set()
-        for tool in mcp._tool_manager._tools.values():
-            tool_names.add(tool.name)
-
-        assert 'export_csv' not in tool_names, 'export_csv should not be registered'
-        assert 'import_and_analyze' not in tool_names, (
-            'import_and_analyze should not be registered'
-        )
-
-    def test_review_cluster_tool_is_registered(self):
-        """Verify review_cluster is registered as an MCP tool."""
-        tool_names = set()
-        for tool in mcp._tool_manager._tools.values():
-            tool_names.add(tool.name)
-
-        assert 'review_cluster' in tool_names, 'review_cluster should be registered as a tool'

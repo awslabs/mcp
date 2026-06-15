@@ -1037,6 +1037,12 @@ WITH recursive min_list(start_min, end_min) as (
     dateadd(m,2,dateadd(d,-7,date_trunc('m',getdate()))) end_min
   UNION ALL
   SELECT dateadd(m, 1, start_min), dateadd(m, 1, end_min) from min_list where start_min < date_trunc('m',getdate())),
+precondition AS (
+  SELECT count(DISTINCT user_id) AS distinct_users,
+         count(DISTINCT trunc(start_time)) AS active_days
+  FROM sys_query_history
+  WHERE user_id > 1
+),
 scan_list as (
   SELECT query_id, max(mb_scanned) max_scan_mb,
     CASE WHEN max_scan_mb < 100 THEN 'small'
@@ -1089,9 +1095,11 @@ FROM summary s
 JOIN workload_breakdown b using(workloadtype)
 )
 -- Signal: Evaluate Workload for Serverless. Cluster is busy less than 75% of the time in a day.
+-- Gate: only evaluate if at least 2 distinct users and 3 active days in history.
 SELECT count(*), 'REC_032'
 FROM data
 WHERE total_pct_busy < 75
+  AND EXISTS (SELECT 1 FROM precondition WHERE distinct_users >= 2 AND active_days >= 3)
 """,
     ),
 ]

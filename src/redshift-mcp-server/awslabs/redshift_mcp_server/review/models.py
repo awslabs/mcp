@@ -51,7 +51,7 @@ class ReviewResult(BaseModel):
     queries_executed: list[str] = Field(
         ..., description='Names of diagnostic queries that were executed'
     )
-    queries_skipped: list[str] = Field(
+    queries_skipped: list[dict[str, str]] = Field(
         default_factory=list,
-        description='Names of diagnostic queries skipped due to permission or execution errors',
+        description='Diagnostic queries skipped, each with query_name and reason',
     )
