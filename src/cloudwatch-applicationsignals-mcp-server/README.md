@@ -426,6 +426,36 @@ query_rum_events(action="<action_name>", app_monitor_name="my-app", ...)
 
 **Optional parameters** (action-dependent): `resource_arn`, `page_url`, `group_by`, `platform`, `max_results`, `max_traces`, `statistic`, `period`, `session_id`, `metric`, `bucket`, `compare_previous`
 
+### 🔬 Dynamic Instrumentation Tools (Preview)
+
+Interactively debug live services without redeploying. Dynamic instrumentation
+lets you place breakpoint-style or probe-style instrumentation on running
+Application Signals services, then inspect the captured snapshots (arguments,
+local state, and stack traces) from CloudWatch Logs.
+
+> **Preview:** These tools depend on `application-signals` dynamic
+> instrumentation operations that are not yet part of the public AWS SDK. The
+> server bundles a trimmed preview service model (see
+> `awslabs/cloudwatch_applicationsignals_mcp_server/dynamic_instrumentation/aws_data/README.md`)
+> so the tools work against the preview API. The bundled model is removed once
+> the operations are generally available in `botocore`.
+
+**Configuration & status tools**
+
+- `create_instrumentation` — Create a dynamic instrumentation configuration for BREAKPOINT or PROBE.
+- `list_instrumentations` — List active instrumentation configurations for one service, environment, and type.
+- `get_instrumentation` — Get the full backend configuration for a single instrumentation target.
+- `delete_instrumentation` — Delete a single instrumentation configuration.
+- `batch_delete_instrumentations_by_scope` — Batch delete instrumentation configurations by scope.
+- `batch_delete_instrumentations_by_arns` — Batch delete instrumentation configurations by explicit resource ARN list.
+- `get_instrumentation_configuration_status` — Get status-event history for one instrumentation configuration and one explicit status.
+- `check_instrumentation_status` — Run a consolidated READY/ACTIVE/ERROR status check over a time window.
+
+**Snapshot analysis tools**
+
+- `search_snapshots_for_status_event` — Search CloudWatch Logs snapshots near a known instrumentation status timestamp.
+- `get_sample_snapshot_for_breakpoint` — Fetch one nearby snapshot to inspect the structure of captured data.
+
 ## Installation
 
 ### One-Click Installation
@@ -1016,7 +1046,13 @@ The server requires the following AWS IAM permissions:
         "iam:GetRole",
         "iam:ListAttachedRolePolicies",
         "iam:GetPolicy",
-        "iam:GetPolicyVersion"
+        "iam:GetPolicyVersion",
+        "application-signals:CreateInstrumentationConfiguration",
+        "application-signals:ListInstrumentationConfigurations",
+        "application-signals:GetInstrumentationConfiguration",
+        "application-signals:DeleteInstrumentationConfiguration",
+        "application-signals:BatchDeleteInstrumentationConfigurations",
+        "application-signals:GetInstrumentationConfigurationStatus"
       ],
       "Resource": "*"
     }
