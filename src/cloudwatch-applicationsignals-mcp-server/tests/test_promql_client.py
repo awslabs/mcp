@@ -32,6 +32,12 @@ class _FakeResponse:
         self.text = text if text is not None else json.dumps(payload or {})
 
 
+# Capture the genuine helper functions BEFORE the autouse fixture stubs them, so the
+# tests that exercise their real bodies cover the source lines (not a copy).
+_REAL_REGION = promql_client._region
+_REAL_GET_CREDENTIALS = promql_client._get_credentials
+
+
 @pytest.fixture(autouse=True)
 def _reset(monkeypatch):
     promql_client._reset_session()
@@ -222,3 +228,160 @@ class TestMatchParamEncoding:
         # The value sent must be a bare string, never a list.
         assert captured['params']['match[]'] == '{"m"}'
         assert not isinstance(captured['params']['match[]'], list)
+
+
+# ============================================================================
+# Internal helpers and lazy-init paths
+# ============================================================================
+
+
+class TestInternalHelpers:
+    """Cover the lazy session, region resolution, and credential helpers."""
+
+    def test_region_reads_aws_region(self, monkeypatch):
+        """_region returns the package-level AWS_REGION (real implementation)."""
+        import awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients as aws_clients
+
+        monkeypatch.setattr(aws_clients, 'AWS_REGION', 'eu-central-1', raising=False)
+        assert _REAL_REGION() == 'eu-central-1'
+
+    def test_get_http_session_builds_and_caches(self):
+        """_get_http_session lazily builds a URLLib3Session and caches it."""
+        promql_client._reset_session()
+        session1 = promql_client._get_http_session()
+        session2 = promql_client._get_http_session()
+        from botocore.httpsession import URLLib3Session
+
+        assert isinstance(session1, URLLib3Session)
+        assert session1 is session2
+        promql_client._reset_session()
+
+    def test_get_credentials_success(self, monkeypatch):
+        """_get_credentials resolves frozen credentials from a boto3 session."""
+        from botocore.credentials import Credentials
+
+        fake_creds = Credentials('AKID', 'SECRET', 'TOKEN')
+        fake_session = MagicMock()
+        fake_session.get_credentials.return_value = fake_creds
+
+        import boto3
+
+        monkeypatch.setattr(boto3, 'Session', lambda *a, **k: fake_session)
+        # Run the real implementation captured before the autouse fixture stubbed it.
+        with patch.object(promql_client, '_region', lambda: 'us-east-1'):
+            frozen = _REAL_GET_CREDENTIALS()
+        assert frozen.access_key == 'AKID'
+        assert frozen.secret_key == 'SECRET'
+
+    def test_get_credentials_missing_raises(self, monkeypatch):
+        """_get_credentials raises when no credentials are available."""
+        fake_session = MagicMock()
+        fake_session.get_credentials.return_value = None
+
+        import boto3
+
+        monkeypatch.setattr(boto3, 'Session', lambda *a, **k: fake_session)
+        with patch.object(promql_client, '_region', lambda: 'us-east-1'):
+            with pytest.raises(PromQLQueryError, match='credentials not found'):
+                _REAL_GET_CREDENTIALS()
+
+    def test_sleep_backoff_sleeps_before_final(self, monkeypatch):
+        """_sleep_backoff sleeps on non-final attempts and not on the last."""
+        calls = []
+        monkeypatch.setattr(promql_client.time, 'sleep', lambda s: calls.append(s))
+        promql_client._sleep_backoff(1)
+        promql_client._sleep_backoff(promql_client.MAX_RETRIES)
+        # Slept once (for attempt 1), not on the final attempt.
+        assert calls == [promql_client.RETRY_BASE_DELAY_SECONDS]
+
+
+class TestMakeRequestExtra:
+    """Additional request-path coverage: network errors and more helpers."""
+
+    def test_http_exception_retries_then_fails(self):
+        """A transport-level exception is retried and surfaced after max attempts."""
+        fake = MagicMock()
+        fake.send.side_effect = ConnectionError('network down')
+        with (
+            patch.object(promql_client, '_get_http_session', return_value=fake),
+            patch.object(promql_client, '_sleep_backoff', lambda *_: None),
+        ):
+            with pytest.raises(PromQLQueryError, match='after .* attempts'):
+                promql_client.make_request('query', {'query': 'up'})
+        assert fake.send.call_count == promql_client.MAX_RETRIES
+
+    def test_http_exception_then_success(self):
+        """Recovers after a transient transport error on the first attempt."""
+        payload = {'status': 'success', 'data': ['ok']}
+        fake = MagicMock()
+        fake.send.side_effect = [TimeoutError('slow'), _FakeResponse(200, payload)]
+        with (
+            patch.object(promql_client, '_get_http_session', return_value=fake),
+            patch.object(promql_client, '_sleep_backoff', lambda *_: None),
+        ):
+            data = promql_client.make_request('query', {'query': 'up'})
+        assert data == ['ok']
+        assert fake.send.call_count == 2
+
+    def test_range_query_helper(self):
+        """range_query builds start/end/step params and returns matrix data."""
+        payload = {'status': 'success', 'data': {'resultType': 'matrix', 'result': []}}
+        captured = {}
+
+        def _fake_make_request(endpoint, params=None, region=None):
+            captured['endpoint'] = endpoint
+            captured['params'] = params
+            return payload['data']
+
+        with patch.object(promql_client, 'make_request', _fake_make_request):
+            out = promql_client.range_query('up', start='1', end='2', step='60')
+        assert out['resultType'] == 'matrix'
+        assert captured['endpoint'] == promql_client.ENDPOINT_QUERY_RANGE
+        assert captured['params'] == {'query': 'up', 'start': '1', 'end': '2', 'step': '60'}
+
+    def test_labels_query_sorted_with_all_params(self):
+        """labels_query sends match/start/end and returns sorted label names."""
+        captured = {}
+
+        def _fake_make_request(endpoint, params=None, region=None):
+            captured['endpoint'] = endpoint
+            captured['params'] = params
+            return ['z', 'a', 'm']
+
+        with patch.object(promql_client, 'make_request', _fake_make_request):
+            out = promql_client.labels_query(match=['{"m"}'], start='1', end='2')
+        assert out == ['a', 'm', 'z']
+        assert captured['endpoint'] == promql_client.ENDPOINT_LABELS
+        assert captured['params'] == {'match[]': '{"m"}', 'start': '1', 'end': '2'}
+
+    def test_labels_query_non_list_returns_empty(self):
+        """labels_query returns [] when data is not a list."""
+        with patch.object(promql_client, 'make_request', lambda *a, **k: None):
+            assert promql_client.labels_query() == []
+
+    def test_label_values_query_with_start_end(self):
+        """label_values_query forwards start/end and sorts the result."""
+        captured = {}
+
+        def _fake_make_request(endpoint, params=None, region=None):
+            captured['endpoint'] = endpoint
+            captured['params'] = params
+            return ['c', 'a']
+
+        with patch.object(promql_client, 'make_request', _fake_make_request):
+            out = promql_client.label_values_query(
+                'function.name', match=['{"m"}'], start='1', end='2'
+            )
+        assert out == ['a', 'c']
+        assert captured['endpoint'] == 'label/function.name/values'
+        assert captured['params'] == {'match[]': '{"m"}', 'start': '1', 'end': '2'}
+
+    def test_label_values_query_non_list_returns_empty(self):
+        """label_values_query returns [] when data is not a list."""
+        with patch.object(promql_client, 'make_request', lambda *a, **k: {}):
+            assert promql_client.label_values_query('function.name') == []
+
+    def test_series_query_non_list_returns_empty(self):
+        """series_query returns [] when data is not a list."""
+        with patch.object(promql_client, 'make_request', lambda *a, **k: None):
+            assert promql_client.series_query(['{"m"}']) == []

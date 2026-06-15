@@ -18,7 +18,7 @@ import json
 import pytest
 from awslabs.cloudwatch_applicationsignals_mcp_server.service_events import cw_logs
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 
 FIXTURES_DIR = Path(__file__).parent / 'fixtures'
@@ -341,3 +341,279 @@ class TestDurationHelpers:
         """Return None for empty percentile duration data."""
         assert cw_logs._percentile_ms_from_duration({}, 99) is None
         assert cw_logs._percentile_ms_from_duration({'Values': [], 'Counts': []}, 99) is None
+
+    def test_percentile_zero_total(self):
+        """Return None when all bucket counts are zero (total weight <= 0)."""
+        duration = {'Values': [10000.0, 20000.0], 'Counts': [0, 0]}
+        assert cw_logs._percentile_ms_from_duration(duration, 99) is None
+
+    def test_percentile_falls_back_to_last_bucket(self):
+        """Fall back to the largest bucket when the cumulative rank is never reached."""
+        # Counts sum to 10; floating rank for p100 is 10.0. Rounding inside the loop
+        # can leave the last bucket as the fallback return (line covering the final return).
+        duration = {'Values': [10000.0, 20000.0, 30000.0], 'Counts': [1, 1, 8]}
+        # p100 -> target_rank = 10; cumulative reaches 10 at the last bucket.
+        assert cw_logs._percentile_ms_from_duration(duration, 100) == 30.0
+
+    def test_percentile_mismatched_lengths(self):
+        """Return None when Values and Counts arrays differ in length."""
+        duration = {'Values': [10000.0], 'Counts': [1, 2]}
+        assert cw_logs._percentile_ms_from_duration(duration, 99) is None
+
+
+# ============================================================================
+# Region resolution and lazy client build
+# ============================================================================
+
+
+class TestClientAndRegion:
+    """Tests for region resolution and the lazily-built logs client."""
+
+    def test_region_uses_aws_clients_constant(self):
+        """Resolve the region from the aws_clients AWS_REGION constant."""
+        with patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.AWS_REGION',
+            'eu-west-1',
+        ):
+            assert cw_logs._region() == 'eu-west-1'
+
+    def test_get_logs_client_builds_and_caches(self):
+        """Build the boto3 logs client once and reuse the cached instance."""
+        cw_logs._reset_client()
+        sentinel = object()
+        fake_boto3 = MagicMock()
+        fake_boto3.client.return_value = sentinel
+        with (
+            patch.dict('sys.modules', {'boto3': fake_boto3}),
+            patch.object(cw_logs, '_region', return_value='us-east-2'),
+        ):
+            first = cw_logs._get_logs_client()
+            second = cw_logs._get_logs_client()
+        assert first is sentinel
+        assert second is sentinel
+        # boto3.client called exactly once thanks to caching.
+        fake_boto3.client.assert_called_once_with('logs', region_name='us-east-2')
+
+
+# ============================================================================
+# Wildcard log group enumeration: cap + error handling
+# ============================================================================
+
+
+class _CappedPaginator:
+    """Paginator yielding many groups across pages to exercise the cap."""
+
+    def __init__(self, total):
+        self._total = total
+
+    def paginate(self, **kwargs):
+        # Two pages, 40 groups each -> 80 total, exceeding the 50 cap.
+        per_page = 40
+        emitted = 0
+        page = []
+        while emitted < self._total:
+            page.append({'logGroupName': f'/aws/service-events/svc-{emitted}'})
+            emitted += 1
+            if len(page) == per_page:
+                yield {'logGroups': page}
+                page = []
+        if page:
+            yield {'logGroups': page}
+
+
+class TestWildcardEnumeration:
+    """Tests for the cap and error paths in cross-service log group enumeration."""
+
+    def test_caps_at_max_wildcard_groups(self):
+        """Cap the wildcard scan at MAX_WILDCARD_LOG_GROUPS groups."""
+        client = MagicMock()
+        client.get_paginator.return_value = _CappedPaginator(total=80)
+        with patch.object(cw_logs, '_get_logs_client', return_value=client):
+            groups = cw_logs._resolve_log_groups(None)
+        assert len(groups) == cw_logs.MAX_WILDCARD_LOG_GROUPS
+
+    def test_enumeration_error_returns_empty(self):
+        """Return an empty list when enumeration raises."""
+        client = MagicMock()
+        client.get_paginator.side_effect = RuntimeError('describe failed')
+        with patch.object(cw_logs, '_get_logs_client', return_value=client):
+            groups = cw_logs._resolve_log_groups(None)
+        assert groups == []
+
+
+# ============================================================================
+# run_insights_query: extra filter, empty/unparsable messages
+# ============================================================================
+
+
+class TestRunInsightsQuery:
+    """Tests for query assembly and record parsing in run_insights_query."""
+
+    def test_extra_query_filter_appended(self):
+        """Append an extra filter clause to the query string when provided."""
+        fake = _FakeLogsClient(records=[])
+        with patch.object(cw_logs, '_get_logs_client', return_value=fake):
+            cw_logs.run_insights_query(
+                cw_logs.EVENT_DEPLOYMENT_EVENT,
+                hours=24,
+                service_name='svc',
+                extra_query_filter='filter foo = "bar"',
+            )
+        qs = fake.start_query_calls[0]['queryString']
+        assert 'filter foo = "bar"' in qs
+
+    def test_skips_empty_and_unparsable_messages(self):
+        """Skip rows with empty messages and rows whose @message is not valid JSON."""
+        client = MagicMock()
+        client.start_query.return_value = {'queryId': 'q-1'}
+        client.get_query_results.return_value = {
+            'status': 'Complete',
+            'results': [
+                [{'field': '@message', 'value': ''}],  # empty -> skipped
+                [{'field': '@message', 'value': '{not json'}],  # unparsable -> skipped
+                [{'field': '@message', 'value': json.dumps({'eventName': 'x'})}],
+            ],
+        }
+        with patch.object(cw_logs, '_get_logs_client', return_value=client):
+            out = cw_logs.run_insights_query(
+                cw_logs.EVENT_INCIDENT_SNAPSHOT, hours=1, service_name='svc'
+            )
+        assert out == [{'eventName': 'x'}]
+
+
+# ============================================================================
+# _execute: failure and polling paths
+# ============================================================================
+
+
+class TestExecuteErrors:
+    """Tests for start/poll error handling in _execute."""
+
+    def test_start_query_failure_raises(self):
+        """Wrap a start_query exception in CwLogsQueryError."""
+        client = MagicMock()
+        client.start_query.side_effect = RuntimeError('start boom')
+        with patch.object(cw_logs, '_get_logs_client', return_value=client):
+            with pytest.raises(cw_logs.CwLogsQueryError, match='Failed to start query'):
+                cw_logs._execute('q', 1, ['/aws/service-events/svc'])
+
+    def test_missing_query_id_raises(self):
+        """Raise when start_query returns no queryId."""
+        client = MagicMock()
+        client.start_query.return_value = {}
+        with patch.object(cw_logs, '_get_logs_client', return_value=client):
+            with pytest.raises(cw_logs.CwLogsQueryError, match='did not return a queryId'):
+                cw_logs._execute('q', 1, ['/aws/service-events/svc'])
+
+    def test_get_query_results_failure_raises(self):
+        """Wrap a get_query_results exception in CwLogsQueryError."""
+        client = MagicMock()
+        client.start_query.return_value = {'queryId': 'q-1'}
+        client.get_query_results.side_effect = RuntimeError('poll boom')
+        with patch.object(cw_logs, '_get_logs_client', return_value=client):
+            with pytest.raises(cw_logs.CwLogsQueryError, match='Failed to get query results'):
+                cw_logs._execute('q', 1, ['/aws/service-events/svc'])
+
+    def test_failed_status_raises(self):
+        """Raise when the query terminates with a non-Complete status."""
+        client = MagicMock()
+        client.start_query.return_value = {'queryId': 'q-1'}
+        client.get_query_results.return_value = {'status': 'Failed'}
+        with patch.object(cw_logs, '_get_logs_client', return_value=client):
+            with pytest.raises(cw_logs.CwLogsQueryError, match='Query Failed'):
+                cw_logs._execute('q', 1, ['/aws/service-events/svc'])
+
+    def test_timeout_raises(self):
+        """Raise CwLogsQueryError when the query never completes within the timeout."""
+        client = MagicMock()
+        client.start_query.return_value = {'queryId': 'q-1'}
+        client.get_query_results.return_value = {'status': 'Running'}
+        # Drive time so the poll loop runs once then exceeds QUERY_TIMEOUT_SECONDS.
+        times = iter([0.0, 0.0, 0.0, cw_logs.QUERY_TIMEOUT_SECONDS + 1])
+
+        def fake_time():
+            try:
+                return next(times)
+            except StopIteration:
+                return cw_logs.QUERY_TIMEOUT_SECONDS + 1
+
+        with (
+            patch.object(cw_logs, '_get_logs_client', return_value=client),
+            patch.object(cw_logs.time, 'time', side_effect=fake_time),
+            patch.object(cw_logs.time, 'sleep'),
+        ):
+            with pytest.raises(cw_logs.CwLogsQueryError, match='did not complete within'):
+                cw_logs._execute('q', 1, ['/aws/service-events/svc'])
+
+
+# ============================================================================
+# Limit/filter break branches in typed query helpers
+# ============================================================================
+
+
+class TestQueryLimitsAndFilters:
+    """Tests for limit truncation and Python-side filters in typed helpers."""
+
+    @staticmethod
+    def _summary_record(operation):
+        """Build a minimal endpoint_summary OTLP record."""
+        return {
+            'resource': {'attributes': {'service.name': 'svc'}},
+            'attributes': {'aws.service_events.operation': operation},
+            'body': {'duration': {'Count': 1, 'Sum': 1000.0}},
+            'eventName': cw_logs.EVENT_ENDPOINT_SUMMARY,
+        }
+
+    def test_endpoint_summary_honors_limit(self):
+        """Stop collecting endpoint summaries once the limit is reached."""
+        fake = _FakeLogsClient(records=[self._summary_record(f'op-{i}') for i in range(5)])
+        with patch.object(cw_logs, '_get_logs_client', return_value=fake):
+            out = cw_logs.query_endpoint_summaries(service_name='svc', hours=24, limit=2)
+        assert len(out) == 2
+
+    def test_incidents_endpoint_filter(self):
+        """Filter incidents by an operation/endpoint substring."""
+        match = {
+            'resource': {'attributes': {'service.name': 'svc'}},
+            'attributes': {
+                'aws.service_events.operation': 'POST /checkout',
+                'aws.service_events.trigger_type': 'exception',
+            },
+            'eventName': cw_logs.EVENT_INCIDENT_SNAPSHOT,
+        }
+        other = {
+            'resource': {'attributes': {'service.name': 'svc'}},
+            'attributes': {
+                'aws.service_events.operation': 'GET /health',
+                'aws.service_events.trigger_type': 'exception',
+            },
+            'eventName': cw_logs.EVENT_INCIDENT_SNAPSHOT,
+        }
+        fake = _FakeLogsClient(records=[match, other])
+        with patch.object(cw_logs, '_get_logs_client', return_value=fake):
+            out = cw_logs.query_incidents(service_name='svc', hours=24, endpoint='checkout')
+        assert len(out) == 1
+        assert out[0]['attributes']['aws.service_events.operation'] == 'POST /checkout'
+
+    def test_deployments_honor_limit(self):
+        """Stop collecting deployments once the limit is reached."""
+        fake = _FakeLogsClient(
+            records=[TestDeployments._dep(f'sha-{i}', f'run-{i}', 'startup') for i in range(5)]
+        )
+        with patch.object(cw_logs, '_get_logs_client', return_value=fake):
+            out = cw_logs.query_deployments(service_name='svc', hours=168, limit=2)
+        assert len(out) == 2
+
+    def test_deployments_dedupes_startup_by_deployment_id(self):
+        """Drop a duplicate startup that repeats the same deployment_id for one commit."""
+        # Same commit, two startup events with the SAME deployment_id -> only one kept.
+        fake = _FakeLogsClient(
+            records=[
+                TestDeployments._dep('shaX', 'run-dup', 'startup'),
+                TestDeployments._dep('shaX', 'run-dup', 'startup'),
+            ]
+        )
+        with patch.object(cw_logs, '_get_logs_client', return_value=fake):
+            out = cw_logs.query_deployments(service_name='svc', hours=168)
+        assert len(out) == 1
+        assert out[0]['deployment_id'] == 'run-dup'

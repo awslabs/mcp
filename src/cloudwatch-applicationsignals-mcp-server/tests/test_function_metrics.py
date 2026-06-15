@@ -103,6 +103,20 @@ class TestFunctionMetrics:
             assert '"operation"="POST /checkout"' in query_str
 
     @patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.function_metrics.promql_client.instant_query'
+    )
+    def test_fetch_scopes_by_function_name(self, mock_query):
+        """A function_name arg adds a function_name-label matcher to every metric query."""
+        mock_query.return_value = {'result': []}
+        function_metrics.fetch_function_records(
+            service_name='svc', hours=1, function_name='mod.process'
+        )
+        assert mock_query.call_count == 3
+        for call in mock_query.call_args_list:
+            query_str = call[0][0]
+            assert '"function.name"="mod.process"' in query_str
+
+    @patch(
         'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.function_metrics.promql_client.label_values_query'
     )
     def test_search_filters_substring_case_insensitive(self, mock_lv):
