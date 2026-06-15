@@ -64,7 +64,7 @@ def check_appsignals_enabled(region: str) -> bool:
             logGroupNamePrefix='/aws/application-signals/data', limit=1
         )
         return any(
-            lg['logGroupName'] == '/aws/application-signals/data'
+            lg.get('logGroupName') == '/aws/application-signals/data'
             for lg in resp.get('logGroups', [])
         )
     except Exception:

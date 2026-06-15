@@ -29,10 +29,10 @@ These helpers reconstruct the call tree and render it as indented ASCII for
 root-cause analysis.
 """
 
-from typing import List
+from typing import List, Optional
 
 
-def _call_path_to_ascii(call_path: List[dict]) -> str:
+def _call_path_to_ascii(call_path: Optional[List[dict]]) -> str:
     """Render a flat ``call_path`` adjacency list as an indented ASCII call tree.
 
     Reconstructs parent→child edges from ``caller_function_name``. Nodes whose

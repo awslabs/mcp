@@ -822,7 +822,7 @@ def _get_slo_compliance_summary(hours: int) -> Optional[dict]:
                 client.list_audit_findings,
                 StartTime=start_dt,
                 EndTime=end_dt,
-                AuditTargets=batch,
+                AuditTargets=batch,  # type: ignore[arg-type]
                 Auditors=['slo'],
             )
             for batch in batches

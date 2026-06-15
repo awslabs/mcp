@@ -56,15 +56,16 @@ def fetch_function_records(
     ``PromQLQueryError`` on query failure.
     """
     window = promql_query.hours_to_window(hours)
-    filters: Dict[str, str] = {}
-    if function_name:
-        filters['function_name'] = function_name
-    if operation:
-        filters['operation'] = operation
 
-    avg_q = promql_query.avg_by_function(service_name, window=window, **filters)
-    count_q = promql_query.count_by_function(service_name, window=window, **filters)
-    errors_q = promql_query.errors_by_function(service_name, window=window, **filters)
+    avg_q = promql_query.avg_by_function(
+        service_name, window=window, function_name=function_name, operation=operation
+    )
+    count_q = promql_query.count_by_function(
+        service_name, window=window, function_name=function_name, operation=operation
+    )
+    errors_q = promql_query.errors_by_function(
+        service_name, window=window, function_name=function_name, operation=operation
+    )
 
     avg_res = promql_client.instant_query(avg_q).get('result', [])
     count_res = promql_client.instant_query(count_q).get('result', [])

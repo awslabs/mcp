@@ -474,7 +474,7 @@ def query_deployments(
             'service_name': _service_name(record),
             'environment': _environment(record),
         }
-        key = sha or entry['deployment_id'] or id(record)
+        key = str(sha or entry['deployment_id'] or id(record))
         if key not in by_commit:
             by_commit[key] = []
             commit_order.append(key)

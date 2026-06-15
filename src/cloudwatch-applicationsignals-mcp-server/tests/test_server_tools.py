@@ -1375,6 +1375,7 @@ class TestSloComplianceSummary:
 
         result = _get_slo_compliance_summary(hours=24)
 
+        assert result is not None
         assert result['total_slos'] == 7
         # Two batches each return one finding.
         assert result['total_findings'] == 2
@@ -1433,6 +1434,7 @@ class TestServiceInventory:
 
         result = _get_service_inventory(hours=24)
 
+        assert result is not None
         assert 'Instrumented with Application Signals: 1 of 3 services' in result
         assert '- svc-a (prod)' in result
         assert '2 other services are NOT instrumented' in result
@@ -1475,5 +1477,6 @@ class TestServiceInventory:
 
         result = _get_service_inventory(hours=24)
 
+        assert result is not None
         assert 'NOT instrumented' not in result
         assert '- svc-a (prod)' in result

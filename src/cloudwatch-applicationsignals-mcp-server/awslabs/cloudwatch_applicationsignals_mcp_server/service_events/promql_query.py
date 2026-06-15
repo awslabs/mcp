@@ -116,7 +116,12 @@ def avg_by_function(
     service_name: Optional[str] = None,
     window: str = DEFAULT_RATE_WINDOW,
     top: Optional[int] = None,
-    **filters: Optional[str],
+    *,
+    environment: Optional[str] = None,
+    deployment_id: Optional[str] = None,
+    function_name: Optional[str] = None,
+    status: Optional[str] = None,
+    operation: Optional[str] = None,
 ) -> str:
     """Average duration (µs) grouped by function+line.
 
@@ -124,7 +129,14 @@ def avg_by_function(
     window keeps the average representative of the whole window. When ``top`` is
     given, wraps in ``topk(top, ...)`` for slowest-by-average ranking.
     """
-    sel = function_duration_selector(service_name, **filters)
+    sel = function_duration_selector(
+        service_name,
+        environment=environment,
+        deployment_id=deployment_id,
+        function_name=function_name,
+        status=status,
+        operation=operation,
+    )
     expr = f'histogram_avg(sum by ({_GROUP_BY}) (increase({sel}[{window}])))'
     if top is not None:
         expr = f'topk({top}, {expr})'
@@ -136,7 +148,12 @@ def count_by_function(
     window: str = DEFAULT_RATE_WINDOW,
     top: Optional[int] = None,
     group_by_line: bool = True,
-    **filters: Optional[str],
+    *,
+    environment: Optional[str] = None,
+    deployment_id: Optional[str] = None,
+    function_name: Optional[str] = None,
+    status: Optional[str] = None,
+    operation: Optional[str] = None,
 ) -> str:
     """Absolute call count grouped by function (+line).
 
@@ -145,7 +162,14 @@ def count_by_function(
     rate, matching the REST API's ``calls`` field. When ``top`` is given, wraps in
     ``topk(top, ...)`` for most-called ranking.
     """
-    sel = function_duration_selector(service_name, **filters)
+    sel = function_duration_selector(
+        service_name,
+        environment=environment,
+        deployment_id=deployment_id,
+        function_name=function_name,
+        status=status,
+        operation=operation,
+    )
     group = _GROUP_BY if group_by_line else f'"{LABEL_FUNCTION_NAME}"'
     expr = f'sum by ({group}) (histogram_count(increase({sel}[{window}])))'
     if top is not None:
@@ -157,11 +181,24 @@ def errors_by_function(
     service_name: Optional[str] = None,
     window: str = DEFAULT_RATE_WINDOW,
     top: Optional[int] = None,
-    **filters: Optional[str],
+    *,
+    environment: Optional[str] = None,
+    deployment_id: Optional[str] = None,
+    function_name: Optional[str] = None,
+    status: Optional[str] = 'error',
+    operation: Optional[str] = None,
 ) -> str:
     """Absolute error count grouped by function (``status="error"`` on the duration metric)."""
-    filters.setdefault('status', 'error')
-    return count_by_function(service_name, window=window, top=top, **filters)
+    return count_by_function(
+        service_name,
+        window=window,
+        top=top,
+        environment=environment,
+        deployment_id=deployment_id,
+        function_name=function_name,
+        status=status,
+        operation=operation,
+    )
 
 
 def hours_to_window(hours: int) -> str:
@@ -181,7 +218,7 @@ def _value_of(entry: dict) -> Optional[float]:
         return None
 
 
-def vector_to_function_value(result: List[dict]) -> List[Tuple[str, float]]:
+def vector_to_function_value(result: Optional[List[dict]]) -> List[Tuple[str, float]]:
     """Extract ``(function.name, value)`` pairs from an instant-vector result."""
     pairs: List[Tuple[str, float]] = []
     for entry in result or []:

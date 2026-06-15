@@ -271,7 +271,7 @@ class TestInternalHelpers:
         with patch.object(promql_client, '_region', lambda: 'us-east-1'):
             frozen = _REAL_GET_CREDENTIALS()
         assert frozen.access_key == 'AKID'
-        assert frozen.secret_key == 'SECRET'
+        assert frozen.secret_key == 'SECRET'  # pragma: allowlist secret
 
     def test_get_credentials_missing_raises(self, monkeypatch):
         """_get_credentials raises when no credentials are available."""

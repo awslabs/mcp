@@ -817,7 +817,7 @@ async def get_xray_trace(
 
         traces = []
         for trace in response.get('Traces', []):
-            trace_summary = _parse_xray_trace(trace)
+            trace_summary = _parse_xray_trace(trace)  # type: ignore[arg-type]
             traces.append(trace_summary)
 
         unprocessed = response.get('UnprocessedTraceIds', [])
