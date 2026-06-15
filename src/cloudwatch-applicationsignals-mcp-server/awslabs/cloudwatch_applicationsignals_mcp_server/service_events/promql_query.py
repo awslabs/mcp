@@ -26,6 +26,7 @@ expose only ``histogram_avg`` (average) and ``histogram_count`` (call count).
 See ``.claude/completed-plans/plan_006_metrics_v2_promql.md`` (Gap 1).
 """
 
+import math
 from typing import Dict, List, Optional, Tuple
 
 
@@ -213,9 +214,15 @@ def _value_of(entry: dict) -> Optional[float]:
     if not value or len(value) < 2:
         return None
     try:
-        return float(value[1])
+        val = float(value[1])
     except (ValueError, TypeError):
         return None
+    # Prometheus can return "NaN"/"Inf" (e.g. histogram_avg over an empty
+    # window). float() accepts those without raising, but they later blow up
+    # int(round(...)) in function_metrics, so treat them as unparseable.
+    if not math.isfinite(val):
+        return None
+    return val
 
 
 def vector_to_function_value(result: Optional[List[dict]]) -> List[Tuple[str, float]]:

@@ -146,6 +146,22 @@ class TestValueOf:
         """A numeric value string is parsed to float."""
         assert promql_query._value_of({'value': [123, '4.5']}) == 4.5
 
+    def test_nan_value(self):
+        """A "NaN" value (e.g. histogram_avg over an empty window) yields None."""
+        assert promql_query._value_of({'value': [123, 'NaN']}) is None
+
+    def test_positive_inf_value(self):
+        """A "+Inf" value yields None rather than a non-finite float."""
+        assert promql_query._value_of({'value': [123, '+Inf']}) is None
+
+    def test_inf_value(self):
+        """An "Inf" value yields None."""
+        assert promql_query._value_of({'value': [123, 'Inf']}) is None
+
+    def test_negative_inf_value(self):
+        """A "-Inf" value yields None."""
+        assert promql_query._value_of({'value': [123, '-Inf']}) is None
+
 
 class TestVectorToFunctionValue:
     """vector_to_function_value extraction."""

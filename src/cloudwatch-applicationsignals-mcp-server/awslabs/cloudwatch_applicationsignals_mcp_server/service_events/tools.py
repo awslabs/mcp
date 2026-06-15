@@ -457,7 +457,7 @@ async def get_incidents(
     CloudWatch Logs. If no incidents are found and Application Signals is enabled,
     falls back to service-level trace audit findings.
 
-    Returns minimal data per incident for quick scanning. Use get_incident_details(snapshot_id)
+    Returns minimal data per incident for quick scanning. Use get_incident_root_cause(snapshot_id)
     to get the full call tree for detailed RCA.
 
     **Deployment-anchored investigation:**
@@ -471,9 +471,9 @@ async def get_incidents(
 
     **For latency incidents:**
     - No exception was thrown.
-    - Use get_incident_details() to examine the call_tree (when present): per-function
+    - Use get_incident_root_cause() to examine the call_tree (when present): per-function
       timing from function-call instrumentation (`call_path`) shows where time was spent.
-    - If call_tree is absent in get_incident_details(), no instrumentation was captured —
+    - If call_tree is absent in get_incident_root_cause(), no instrumentation was captured —
       rely on duration_ms and trace correlation instead.
 
     **Duration field:**
@@ -482,7 +482,7 @@ async def get_incidents(
 
     **Workflow:**
     1. Use this tool to list incidents and identify which one to investigate
-    2. Use get_incident_details(snapshot_id) for exception context and the
+    2. Use get_incident_root_cause(snapshot_id) for exception context and the
        optional call_tree
 
     **SLO breach correlation (primary RCA path):**
@@ -490,7 +490,7 @@ async def get_incidents(
     - Use the `endpoint` parameter to filter incidents by the breaching SLO's operation route
     - For latency SLOs, filter with `trigger_type="latency"` to find slow request incidents
     - For availability SLOs, filter with `trigger_type="exception"`
-    - Matching incidents surface code-level root cause via `get_incident_details(snapshot_id)` —
+    - Matching incidents surface code-level root cause via `get_incident_root_cause(snapshot_id)` —
       exception_type + stack_trace pinpoint the failure; call_tree adds per-function timing when captured
     - If the root cause is in a downstream dependency, use the incident's
       `telemetry_correlation.trace_id` with `get_xray_trace()` for full distributed trace analysis
@@ -506,7 +506,7 @@ async def get_incidents(
 
     Returns:
         List of incident summaries with:
-        - snapshot_id: Use with get_incident_details() for exception context and optional call_tree
+        - snapshot_id: Use with get_incident_root_cause() for exception context and optional call_tree
         - operation: HTTP method + route
         - trigger_type: "exception" or "latency"
         - duration_ms: Total request duration in ms
@@ -1119,11 +1119,11 @@ async def get_health_overview(
             op = finding.get('Operation')
             if slo_type == 'latency':
                 finding['next_step'] = (
-                    f'get_incidents(trigger_type="latency", endpoint="{op}", service_name="{svc}")'
+                    f'get_recent_incidents(trigger_type="latency", endpoint="{op}", service_name="{svc}")'
                 )
             elif slo_type == 'availability':
                 finding['next_step'] = (
-                    f'get_incidents(trigger_type="exception", endpoint="{op}", service_name="{svc}")'
+                    f'get_recent_incidents(trigger_type="exception", endpoint="{op}", service_name="{svc}")'
                 )
 
         result = {

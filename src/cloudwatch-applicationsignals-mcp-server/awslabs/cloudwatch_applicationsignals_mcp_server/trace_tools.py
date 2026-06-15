@@ -732,7 +732,7 @@ async def get_xray_trace(
     and fault status.
 
     **When to use this tool:**
-    - After `get_incident_details()` when the call_tree shows time spent in an external
+    - After `get_incident_root_cause()` when the call_tree shows time spent in an external
       call (HTTP client, AWS SDK, database driver)
     - When investigating SLO breaches that may correlate with downstream service degradation
     - When `telemetry_correlation.trace_id` is available in incident data
@@ -744,21 +744,21 @@ async def get_xray_trace(
     - Raw 32-char hex: "699e34c662d55e013e833341a5d9f079"
 
     **Workflow:**
-    1. Get incident details: `get_incident_details(snapshot_id)` -> note `telemetry_correlation.trace_id`
+    1. Get incident details: `get_incident_root_cause(snapshot_id)` -> note `telemetry_correlation.trace_id`
     2. Look up the trace: `get_xray_trace(trace_ids="<trace_id from step 1>")`
     3. Analyze the dependency tree for errors, faults, and latency bottlenecks
     4. If a downstream service segment shows errors/faults/high latency and is an instrumented
        service (not a managed AWS service like DynamoDB/S3), drill down into that service:
-       - Use `get_incidents(service_name="<downstream_service_name>", endpoint="<operation>")` to
+       - Use `get_recent_incidents(service_name="<downstream_service_name>", endpoint="<operation>")` to
          find incidents on the downstream service
-       - Use `get_incident_details(snapshot_id)` on the downstream incident for code-level root cause
+       - Use `get_incident_root_cause(snapshot_id)` on the downstream incident for code-level root cause
        - Repeat steps 1-4 to follow the dependency chain until you reach the true root cause
 
     **Interpreting segments:**
     - Segments with `namespace: "aws"` are AWS managed services (DynamoDB, S3, SQS, etc.) —
       check `aws.operation`, `cause`, and `http.status` for errors. No further drill-down available.
     - Segments with `namespace: "remote"` are calls to other services — if the service is
-      instrumented, you can drill down using `get_incidents(service_name=<segment name>)`.
+      instrumented, you can drill down using `get_recent_incidents(service_name=<segment name>)`.
     - Look for segments with `fault: true` (5xx), `error: true` (4xx), or `throttle: true`
       to identify the problematic dependency.
 

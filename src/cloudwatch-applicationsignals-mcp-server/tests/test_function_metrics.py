@@ -59,6 +59,37 @@ class TestFunctionMetrics:
     @patch(
         'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.function_metrics.promql_client.instant_query'
     )
+    def test_fetch_survives_nan_and_inf_values(self, mock_query):
+        """Non-finite PromQL values (NaN/Inf) are dropped, not crashed on.
+
+        Prometheus can return "NaN" (e.g. histogram_avg over an empty window).
+        float() accepts it, but it used to reach int(round(...)) and raise
+        ValueError/OverflowError, taking down the function-metrics tools.
+        """
+        mock_query.side_effect = [
+            {  # avg: NaN -> dropped, so no avg_us for f1
+                'result': [{'metric': {'function.name': 'f1'}, 'value': [0, 'NaN']}]
+            },
+            {  # calls: finite -> keeps f1 in the union
+                'result': [{'metric': {'function.name': 'f1'}, 'value': [0, '100']}]
+            },
+            {  # errors: +Inf -> dropped, falls back to 0
+                'result': [{'metric': {'function.name': 'f1'}, 'value': [0, '+Inf']}]
+            },
+        ]
+        # Must not raise (NaN/Inf previously reached int(round(...)) and threw).
+        recs = function_metrics.fetch_function_records(service_name='svc', hours=1)
+        assert len(recs) == 1
+        r = recs[0]
+        assert r['name'] == 'f1'
+        assert r['calls'] == 100
+        # Dropped non-finite metrics fall back to None / zero.
+        assert r['avg_duration_ms'] is None
+        assert r['errors'] == 0
+
+    @patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.function_metrics.promql_client.instant_query'
+    )
     def test_fetch_union_of_functions(self, mock_query):
         """Return the union of functions across all metric series."""
         mock_query.side_effect = [
