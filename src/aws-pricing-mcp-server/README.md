@@ -150,3 +150,25 @@ The server uses two key environment variables:
   "AWS_REGION": "us-east-1"
 }
 ```
+
+### Cost report output directory
+
+The `generate_cost_report` tool can save the generated report to a file via its
+`output_file` parameter. To prevent path-traversal writes outside an intended
+location, `output_file` is confined to a base directory:
+
+- **`AWS_PRICING_MCP_OUTPUT_DIR`** (optional): The base directory reports may be
+  written to. Defaults to the current working directory of the server process.
+
+Paths are resolved and must stay within this base directory. Absolute paths that
+fall outside it, `..` traversal segments, and symlinks that escape the base are
+all rejected. To allow reports to be written elsewhere, set this variable to the
+desired directory:
+
+```json
+"env": {
+  "AWS_PROFILE": "default",
+  "AWS_REGION": "us-east-1",
+  "AWS_PRICING_MCP_OUTPUT_DIR": "/path/to/reports"
+}
+```
