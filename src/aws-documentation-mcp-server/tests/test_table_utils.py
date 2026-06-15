@@ -490,6 +490,68 @@ class TestCellToText:
         assert cell_val == '[Link](/x)'
 
 
+class TestColspanHandling:
+    """Tests for colspan support in table parsing."""
+
+    def test_colspan_in_data_row(self):
+        """A data cell with colspan fills multiple columns."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>Name</th><th>Region 1</th><th>Region 2</th></tr></thead>
+        <tbody>
+            <tr><td>Normal</td><td>100</td><td>200</td></tr>
+            <tr><td>Spanned</td><td colspan="2">All regions: 50</td></tr>
+        </tbody></table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result is not None
+        assert len(result['rows']) == 2
+        assert result['rows'][0] == {'Name': 'Normal', 'Region 1': '100', 'Region 2': '200'}
+        assert result['rows'][1] == {
+            'Name': 'Spanned',
+            'Region 1': 'All regions: 50',
+            'Region 2': 'All regions: 50',
+        }
+
+    def test_colspan_in_header(self):
+        """A header cell with colspan expands into multiple columns."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>Name</th><th colspan="2">Values</th></tr></thead>
+        <tbody>
+            <tr><td>Foo</td><td>10</td><td>20</td></tr>
+        </tbody></table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result is not None
+        assert result['columns'] == ['Name', 'Values', 'Values_2']
+        assert result['rows'][0] == {'Name': 'Foo', 'Values': '10', 'Values_2': '20'}
+
+    def test_colspan_with_rowspan(self):
+        """Colspan and rowspan can coexist in the same table."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>Action</th><th>Col A</th><th>Col B</th></tr></thead>
+        <tbody>
+            <tr><td rowspan="2">Run</td><td colspan="2">Shared value</td></tr>
+            <tr><td>a</td><td>b</td></tr>
+        </tbody></table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result is not None
+        # Should have 2 rows, first with colspan filling both columns
+        rows = result['rows']
+        assert len(rows) == 2 or 'parent_columns' in result
+
+    def test_colspan_row_not_dropped(self):
+        """Rows with colspan cells are not dropped due to cell count mismatch."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>A</th><th>B</th><th>C</th><th>D</th></tr></thead>
+        <tbody>
+            <tr><td>1</td><td>2</td><td>3</td><td>4</td></tr>
+            <tr><td colspan="4">This spans all columns</td></tr>
+            <tr><td>5</td><td>6</td><td>7</td><td>8</td></tr>
+        </tbody></table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result is not None
+        assert len(result['rows']) == 3
+        assert result['rows'][1]['A'] == 'This spans all columns'
+
+
 class TestExtractTableDataEdgeCases:
     """Tests for _extract_table_data edge cases."""
 

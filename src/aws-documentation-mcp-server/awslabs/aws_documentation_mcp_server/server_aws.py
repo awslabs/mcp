@@ -271,7 +271,7 @@ async def search_table(
         ge=1,
         le=100,
     ),
-) -> str | SearchTableResponse:
+) -> SearchTableResponse:
     """Search for specific rows in a large documentation table.
 
     Use this tool when you need specific rows from a large documentation table

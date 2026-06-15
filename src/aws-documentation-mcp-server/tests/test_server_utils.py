@@ -15,11 +15,7 @@
 
 import httpx
 import pytest
-from awslabs.aws_documentation_mcp_server.models import (
-    SearchResponse,
-    SearchResult,
-    SearchTableResponse,
-)
+from awslabs.aws_documentation_mcp_server.models import SearchResponse, SearchResult
 from awslabs.aws_documentation_mcp_server.server_utils import (
     DEFAULT_USER_AGENT,
     SEARCH_RESULT_CACHE,
@@ -621,9 +617,10 @@ class TestSearchTableImpl:
 
             result = await search_table_impl(ctx, url, 'Sec', 'query', 20, 'test-uuid')
 
-            assert isinstance(result, str)
-            assert 'Failed to fetch' in result
-            assert 'Connection error' in result
+            assert result.error is not None
+            assert 'Failed to fetch' in result.error
+            assert 'Connection error' in result.error
+            assert result.results == []
             ctx.error.assert_called_once()
 
     @pytest.mark.asyncio
@@ -647,9 +644,10 @@ class TestSearchTableImpl:
 
             result = await search_table_impl(ctx, url, 'Sec', 'query', 20, 'test-uuid')
 
-            assert isinstance(result, str)
-            assert 'Failed to fetch' in result
-            assert 'status code 404' in result
+            assert result.error is not None
+            assert 'Failed to fetch' in result.error
+            assert 'status code 404' in result.error
+            assert result.results == []
 
     @pytest.mark.asyncio
     async def test_no_tables_on_page(self):
@@ -673,7 +671,6 @@ class TestSearchTableImpl:
 
             result = await search_table_impl(ctx, url, '', 'query', 20, 'test-uuid')
 
-            assert isinstance(result, SearchTableResponse)
             assert result.tables_searched == 0
             assert result.hint is not None
             assert 'No tables found' in result.hint
@@ -702,7 +699,6 @@ class TestSearchTableImpl:
                 ctx, url, 'Nonexistent Section', 'query', 20, 'test-uuid'
             )
 
-            assert isinstance(result, SearchTableResponse)
             assert result.tables_searched == 0
             assert result.hint is not None
             assert 'not found' in result.hint
@@ -736,7 +732,6 @@ class TestSearchTableImpl:
 
             result = await search_table_impl(ctx, url, 'Quotas', 'Titan', 20, 'test-uuid')
 
-            assert isinstance(result, SearchTableResponse)
             assert result.tables_searched == 1
             assert result.tables_with_matches == 1
             assert len(result.results) == 1
@@ -767,7 +762,6 @@ class TestSearchTableImpl:
 
             result = await search_table_impl(ctx, url, 'Quotas', 'nonexistent', 20, 'test-uuid')
 
-            assert isinstance(result, SearchTableResponse)
             assert result.tables_with_matches == 0
             assert result.results == []
             assert result.hint is not None
@@ -805,7 +799,6 @@ class TestSearchTableImpl:
                 ctx, url, 'Service quotas', 'Instances', 20, 'test-uuid'
             )
 
-            assert isinstance(result, SearchTableResponse)
             assert result.tables_searched == 2
             assert result.tables_with_matches == 1
             assert result.results[0].matched_rows == 1
@@ -870,6 +863,5 @@ class TestSearchTableImpl:
 
             result = await search_table_impl(ctx, url, '', 'foo', 20, 'test-uuid')
 
-            assert isinstance(result, SearchTableResponse)
             assert result.tables_searched == 1
             assert result.tables_with_matches == 1

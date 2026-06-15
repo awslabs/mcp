@@ -232,7 +232,7 @@ async def search_table_impl(
     query: str,
     max_rows: int,
     session_uuid: str,
-) -> str | SearchTableResponse:
+) -> SearchTableResponse:
     """The implementation of the search_table tool."""
     from awslabs.aws_documentation_mcp_server.table_utils import (
         filter_table_rows,
@@ -266,13 +266,29 @@ async def search_table_impl(
             error_msg = f'Failed to fetch {url_str}: {str(e)}'
             logger.error(error_msg)
             await ctx.error(error_msg)
-            return error_msg
+            return SearchTableResponse(
+                url=url_str,
+                section_title=section_title or '',
+                query=query,
+                tables_searched=0,
+                tables_with_matches=0,
+                results=[],
+                error=error_msg,
+            )
 
         if response.status_code >= 400:
             error_msg = f'Failed to fetch {url_str} - status code {response.status_code}'
             logger.error(error_msg)
             await ctx.error(error_msg)
-            return error_msg
+            return SearchTableResponse(
+                url=url_str,
+                section_title=section_title or '',
+                query=query,
+                tables_searched=0,
+                tables_with_matches=0,
+                results=[],
+                error=error_msg,
+            )
 
         page_raw = response.text
 

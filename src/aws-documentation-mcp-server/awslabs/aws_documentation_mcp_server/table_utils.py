@@ -142,12 +142,22 @@ def _extract_table_data(table: Tag) -> Optional[dict]:
     thead = table.find('thead')
     if thead and isinstance(thead, Tag):
         for th in thead.find_all(['th', 'td']):
-            headers.append(th.get_text(strip=True))
+            if not isinstance(th, Tag):
+                continue
+            colspan = int(str(th.get('colspan', '1')))
+            text = th.get_text(strip=True)
+            for i in range(colspan):
+                headers.append(text if i == 0 else f'{text}_{i + 1}')
     else:
         first_row = table.find('tr')
         if first_row and isinstance(first_row, Tag):
             for cell in first_row.find_all(['th', 'td']):
-                headers.append(cell.get_text(strip=True))
+                if not isinstance(cell, Tag):
+                    continue
+                colspan = int(str(cell.get('colspan', '1')))
+                text = cell.get_text(strip=True)
+                for i in range(colspan):
+                    headers.append(text if i == 0 else f'{text}_{i + 1}')
 
     if not headers:
         return None
@@ -170,7 +180,8 @@ def _extract_table_data(table: Tag) -> Optional[dict]:
         rowspan_cols: set[int] = set()
         cell_idx = 0
 
-        for col_idx in range(len(headers)):
+        col_idx = 0
+        while col_idx < len(headers):
             if col_idx in active_rowspans:
                 value, remaining = active_rowspans[col_idx]
                 row[headers[col_idx]] = value
@@ -179,15 +190,22 @@ def _extract_table_data(table: Tag) -> Optional[dict]:
                     del active_rowspans[col_idx]
                 else:
                     active_rowspans[col_idx] = (value, remaining - 1)
+                col_idx += 1
             elif cell_idx < len(cells):
                 cell = cells[cell_idx]
                 value = _cell_to_text(cell)
-                row[headers[col_idx]] = value
+                colspan = int(str(cell.get('colspan', '1')))
                 rowspan = int(str(cell.get('rowspan', '1')))
-                if rowspan > 1:
-                    active_rowspans[col_idx] = (value, rowspan - 1)
-                    rowspan_cols.add(col_idx)
+                for span in range(colspan):
+                    if col_idx + span < len(headers):
+                        row[headers[col_idx + span]] = value
+                        if rowspan > 1:
+                            active_rowspans[col_idx + span] = (value, rowspan - 1)
+                            rowspan_cols.add(col_idx + span)
+                col_idx += colspan
                 cell_idx += 1
+            else:
+                col_idx += 1
 
         if len(row) == len(headers):
             row['_rowspan_cols'] = rowspan_cols
