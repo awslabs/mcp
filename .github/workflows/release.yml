@@ -308,6 +308,7 @@ jobs:
           sparse-checkout: |
             ${{ env.SRC_DIRECTORY }}/${{ matrix.changed-directory }}
             ./.github/actions/build-and-push-container-image
+            ./.github/workflows/release.py
       - name: Validate package directory
         run: |
           set -euo pipefail
@@ -347,11 +348,22 @@ jobs:
           echo "::debug::Directory validated: $FULL_PATH"
       - name: Install uv
         uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b # v7.3.0
+      - name: Pin dependencies from lockfile
+        working-directory: ${{ env.SRC_DIRECTORY }}/${{ matrix.changed-directory }}
+        run: |
+          set -euo pipefail
+          echo "::debug::Pinning dependencies for package"
+          if [ -f "uv.lock" ]; then
+            uv run --script ../../.github/workflows/release.py pin-dependencies --directory="."
+            echo "::debug::Dependencies pinned from uv.lock"
+          else
+            echo "::debug::No uv.lock found, skipping dependency pinning"
+          fi
       - name: Build package
         working-directory: ${{ env.SRC_DIRECTORY }}/${{ matrix.changed-directory }}
         run: |
           set -euo pipefail
-          echo "::debug::Building package: ${{ matrix.changed-directory }}"
+          echo "::debug::Building package"
           uv build
           echo "::debug::Package build completed"
       - name: Get Version from Package
