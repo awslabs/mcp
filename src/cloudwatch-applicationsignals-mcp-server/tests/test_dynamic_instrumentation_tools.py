@@ -2767,21 +2767,21 @@ os.environ.setdefault('AWS_DEFAULT_REGION', 'us-west-2')
 class TestResolveRegion:
     """Cover region resolution in dynamic_instrumentation.aws_clients.
 
-    DI deliberately matches the parent package (and every sibling MCP server):
-    AWS_REGION env var, else us-east-1. The profile region is intentionally not
-    consulted, so the DI app-signals client and the parent's logs_client always
-    resolve to the same region for a given caller.
+    DI deliberately defers to the parent package's already-resolved
+    ``aws_clients.AWS_REGION`` (AWS_REGION/AWS_DEFAULT_REGION env > configured
+    profile region > us-east-1) rather than resolving region itself. The DI
+    app-signals client and the parent's logs_client must resolve to the same
+    region for a given caller, so DI reads that single source of truth.
     """
 
-    def test_env_region_wins(self, monkeypatch):
-        """AWS_REGION env var is used when set."""
-        monkeypatch.setenv('AWS_REGION', 'eu-central-1')
-        assert aws_clients._resolve_region() == 'eu-central-1'
+    def test_defers_to_parent_region(self):
+        """DI region resolution returns the parent package's AWS_REGION."""
+        assert aws_clients._resolve_region() == parent_aws_clients.AWS_REGION
 
-    def test_falls_back_to_us_east_1(self, monkeypatch):
-        """With no AWS_REGION, us-east-1 is the fallback (profile region ignored)."""
-        monkeypatch.delenv('AWS_REGION', raising=False)
-        assert aws_clients._resolve_region() == 'us-east-1'
+    def test_reads_parent_value_live(self, monkeypatch):
+        """DI reads the parent's AWS_REGION at call time, not a cached copy."""
+        monkeypatch.setattr(parent_aws_clients, 'AWS_REGION', 'eu-central-1')
+        assert aws_clients._resolve_region() == 'eu-central-1'
 
 
 class TestCaptureLimitsPayload:
