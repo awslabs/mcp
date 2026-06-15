@@ -477,8 +477,13 @@ async def discover_clusters() -> list[dict]:
                     'identifier': workgroup['workgroupName'],
                     'type': 'serverless',
                     'status': workgroup['status'],
-                    'database_name': workgroup_detail.get('configParameters', [{}])[0].get(
-                        'parameterValue', 'dev'
+                    'database_name': next(
+                        (
+                            p['parameterValue']
+                            for p in workgroup_detail.get('configParameters', [])
+                            if p.get('parameterKey') == 'default_database'
+                        ),
+                        'dev',
                     ),
                     'endpoint': workgroup_detail.get('endpoint', {}).get('address'),
                     'port': workgroup_detail.get('endpoint', {}).get('port'),
