@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 ### Added
-- Dynamic instrumentation tools (preview) for interactively debugging live
+- Dynamic instrumentation tools for interactively debugging live
   Application Signals services without redeploying:
   - `create_instrumentation`, `list_instrumentations`, `get_instrumentation`,
     `delete_instrumentation`, `batch_delete_instrumentations_by_scope`,
@@ -13,7 +13,7 @@
     for status inspection.
   - `search_snapshots_for_status_event`, `get_sample_snapshot_for_breakpoint`
     for analyzing captured snapshots from CloudWatch Logs.
-  - Ships a trimmed preview `application-signals` service model bundled under
+  - Ships a trimmed `application-signals` service model bundled under
     `dynamic_instrumentation/aws_data/`, loaded via a session-scoped botocore
     data loader. The bundled model is removed once the operations are generally
     available in `botocore`.

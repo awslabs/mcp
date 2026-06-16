@@ -73,8 +73,8 @@ def render_create_success_message(
     location: Location,
     ttl_hours: Optional[int],
     capture_arguments: Optional[List[str]],
-    wildcard_removed: bool,
     code_capture_locals: Optional[List[str]],
+    is_line_level: bool,
     code_capture_return: Optional[bool],
     code_capture_stack_trace: Optional[bool],
     max_hits: Optional[int],
@@ -121,17 +121,17 @@ INSTRUMENTATION CREATED:
     success_message += render_location_block(location=location, location_hash=location_hash)
     success_message += '\nCAPTURE CONFIGURATION:\n'
 
-    if capture_arguments:
-        success_message += f'- Arguments: {", ".join(capture_arguments)}\n'
-    else:
-        success_message += '- Arguments: (none)\n'
-    if wildcard_removed:
-        success_message += '  Note: wildcard * is not supported and was ignored.\n'
+    if not is_line_level:
+        if capture_arguments:
+            success_message += f'- Arguments: {", ".join(capture_arguments)}\n'
+        else:
+            success_message += '- Arguments: (none)\n'
 
     if code_capture_locals:
         success_message += f'- Local Variables: {", ".join(code_capture_locals)}\n'
 
-    success_message += f'- Return Values: {"Enabled" if code_capture_return else "Disabled"}\n'
+    if not is_line_level:
+        success_message += f'- Return Values: {"Enabled" if code_capture_return else "Disabled"}\n'
     success_message += f'- Stack Traces: {"Enabled" if code_capture_stack_trace else "Disabled"}\n'
     success_message += _render_create_capture_limits(
         max_hits=max_hits,
@@ -148,6 +148,16 @@ INSTRUMENTATION CREATED:
         success_message += (
             f'\nATTRIBUTE FILTERS: {len(attribute_filters)} filter group(s) applied\n'
         )
+
+    if normalized_type == 'PROBE':
+        expected_ready = '~10-12 min'
+    else:
+        expected_ready = '~1-2 min'
+    success_message += (
+        f'\nNOTE: Allow {expected_ready} before this configuration reports READY. '
+        'Status checks immediately after creation may return no events yet — '
+        'wait and re-check rather than recreating.\n'
+    )
 
     success_message += (
         f'\nTIP: Use this LocationHash to delete: '
@@ -200,16 +210,19 @@ LOCATION:
             output += f'- Return: {"Enabled" if cap.capture_return else "Disabled"}\n'
             output += f'- Stack Traces: {"Enabled" if cap.capture_stack_trace else "Disabled"}\n'
 
-            if cap.capture_arguments is not None:
-                if cap.capture_arguments:
-                    output += f'- Arguments: {", ".join(cap.capture_arguments)}\n'
-                else:
-                    output += '- Arguments: (none)\n'
+            if cap.capture_arguments is None:
+                output += '- Arguments: (not set)\n'
+            elif cap.capture_arguments:
+                output += f'- Arguments: {", ".join(cap.capture_arguments)}\n'
             else:
-                output += '- Arguments: All\n'
+                output += '- Arguments: (empty list)\n'
 
-            if cap.capture_locals:
+            if cap.capture_locals is None:
+                output += '- Locals: (not set)\n'
+            elif cap.capture_locals:
                 output += f'- Locals: {", ".join(cap.capture_locals)}\n'
+            else:
+                output += '- Locals: (empty list)\n'
 
             limits = cap.limits
             if not limits.is_empty():
@@ -270,15 +283,18 @@ LOCATION:
     if isinstance(cap, CodeCapture):
         output += f'- Return Values: {"Enabled" if cap.capture_return else "Disabled"}\n'
         output += f'- Stack Traces: {"Enabled" if cap.capture_stack_trace else "Disabled"}\n'
-        if cap.capture_arguments is not None:
-            if cap.capture_arguments:
-                output += f'- Arguments: {", ".join(cap.capture_arguments)}\n'
-            else:
-                output += '- Arguments: (none)\n'
+        if cap.capture_arguments is None:
+            output += '- Arguments: (not set)\n'
+        elif cap.capture_arguments:
+            output += f'- Arguments: {", ".join(cap.capture_arguments)}\n'
         else:
-            output += '- Arguments: All\n'
-        if cap.capture_locals:
+            output += '- Arguments: (empty list)\n'
+        if cap.capture_locals is None:
+            output += '- Local Variables: (not set)\n'
+        elif cap.capture_locals:
             output += f'- Local Variables: {", ".join(cap.capture_locals)}\n'
+        else:
+            output += '- Local Variables: (empty list)\n'
 
         limits = cap.limits
         if not limits.is_empty():

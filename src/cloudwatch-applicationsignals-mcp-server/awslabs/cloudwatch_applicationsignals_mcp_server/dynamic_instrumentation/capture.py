@@ -24,14 +24,14 @@ blocks) and it does *not* fill in tool-input defaults (defaults like
 ``capture_return=True`` resolve at the tool layer where the success-message
 prose can read the resolved value).
 
-Two distinctions worth preserving across the round-trip:
-
-* ``CaptureArguments`` *omitted* means "capture all arguments"; renderers
-  show ``- Arguments: All``.
-* ``CaptureArguments`` *present-but-empty* means "capture none"; renderers
-  show ``- Arguments: (none)``.
-
-Both shapes survive parse → payload → parse round-trips.
+The ADT preserves the distinction between an *omitted* list (``None`` — key
+absent from the API payload) and a *present-but-empty* list (``()`` — key
+emitted as ``[]``) so an API response round-trips parse → payload → parse
+without losing information. It does *not* assert what the backend means by
+either shape. The MCP *create* tool deliberately does not expose both shapes:
+it rejects empty lists and the ``*`` wildcard and treats an omitted list as
+"capture nothing for that field" (see ``create_instrumentation``). Renderers
+report the raw shape rather than labeling it "all" or "none".
 """
 
 from dataclasses import dataclass, field
@@ -102,10 +102,11 @@ class CodeCapture:
     discipline ``Location`` applies to ``extra_fields`` via
     ``MappingProxyType``.
 
-    The ``Optional`` distinction is meaningful and survives the round-trip:
-    ``None`` means "capture all arguments" (key omitted from the API
-    payload); an empty tuple ``()`` means "capture none" (key emitted as
-    ``[]``).
+    The ``Optional`` distinction is preserved across the round-trip: ``None``
+    omits the key from the API payload, while an empty tuple ``()`` emits the
+    key as ``[]``. This ADT does not assign semantics to either shape; the
+    create tool restricts which shapes it will send (see
+    ``create_instrumentation``).
     """
 
     capture_return: bool
