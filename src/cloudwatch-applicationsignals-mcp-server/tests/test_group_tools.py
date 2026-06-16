@@ -51,22 +51,23 @@ def mock_aws_clients():
     # Default return for canary check pagination — prevents infinite loop in check_canaries_for_service
     mock_applicationsignals_client.list_service_dependents.return_value = {'ServiceDependents': []}
 
+    def _get_client(service_name):
+        if service_name == 'application-signals':
+            return mock_applicationsignals_client
+        if service_name == 'cloudwatch':
+            return mock_cloudwatch_client
+        if service_name == 'synthetics':
+            return mock_synthetics_client
+        return MagicMock()
+
     patches = [
         patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.group_tools.applicationsignals_client',
-            mock_applicationsignals_client,
+            'awslabs.cloudwatch_applicationsignals_mcp_server.group_tools.get_client',
+            side_effect=_get_client,
         ),
         patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.group_tools.cloudwatch_client',
-            mock_cloudwatch_client,
-        ),
-        patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.applicationsignals_client',
-            mock_applicationsignals_client,
-        ),
-        patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.synthetics_client',
-            mock_synthetics_client,
+            'awslabs.cloudwatch_applicationsignals_mcp_server.canary_utils.get_client',
+            side_effect=_get_client,
         ),
     ]
 

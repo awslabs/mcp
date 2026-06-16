@@ -14,7 +14,7 @@
 
 """CloudWatch Application Signals MCP Server - Service-related tools."""
 
-from .aws_clients import applicationsignals_client, cloudwatch_client
+from .aws_clients import get_client
 from botocore.exceptions import ClientError
 from datetime import datetime, timedelta, timezone
 from loguru import logger
@@ -79,7 +79,7 @@ async def list_monitored_services() -> str:
 
         # Get all services
         logger.debug(f'Querying services for time range: {start_time} to {end_time}')
-        response = applicationsignals_client.list_services(
+        response = get_client('application-signals').list_services(
             StartTime=start_time, EndTime=end_time, MaxResults=100
         )
         services = response.get('ServiceSummaries', [])
@@ -168,7 +168,7 @@ async def get_service_detail(
         start_time = end_time - timedelta(hours=24)
 
         # First, get all services to find the one we want
-        services_response = applicationsignals_client.list_services(
+        services_response = get_client('application-signals').list_services(
             StartTime=start_time, EndTime=end_time, MaxResults=100
         )
 
@@ -186,7 +186,7 @@ async def get_service_detail(
 
         # Get detailed service information
         logger.debug(f'Getting detailed information for service: {service_name}')
-        service_response = applicationsignals_client.get_service(
+        service_response = get_client('application-signals').get_service(
             StartTime=start_time, EndTime=end_time, KeyAttributes=target_service['KeyAttributes']
         )
 
@@ -305,7 +305,7 @@ async def query_service_metrics(
         start_time = end_time - timedelta(hours=hours)
 
         # Get service details to find metrics
-        services_response = applicationsignals_client.list_services(
+        services_response = get_client('application-signals').list_services(
             StartTime=start_time, EndTime=end_time, MaxResults=100
         )
 
@@ -322,7 +322,7 @@ async def query_service_metrics(
             return f"Service '{service_name}' not found in Application Signals."
 
         # Get detailed service info for metric references
-        service_response = applicationsignals_client.get_service(
+        service_response = get_client('application-signals').get_service(
             StartTime=start_time, EndTime=end_time, KeyAttributes=target_service['KeyAttributes']
         )
 
@@ -362,7 +362,7 @@ async def query_service_metrics(
             period = 3600  # 1 hour
 
         # Get both standard and extended statistics in a single call
-        response = cloudwatch_client.get_metric_statistics(
+        response = get_client('cloudwatch').get_metric_statistics(
             Namespace=target_metric['Namespace'],
             MetricName=target_metric['MetricName'],
             Dimensions=target_metric.get('Dimensions', []),
@@ -525,7 +525,7 @@ async def list_service_operations(
         start_time = end_time - timedelta(hours=hours)
 
         # First, get the service to find its key attributes
-        services_response = applicationsignals_client.list_services(
+        services_response = get_client('application-signals').list_services(
             StartTime=start_time, EndTime=end_time, MaxResults=100
         )
 
@@ -543,7 +543,7 @@ async def list_service_operations(
 
         # Get operations for the service using ListServiceOperations API
         logger.debug(f'Getting operations for service: {service_name}')
-        operations_response = applicationsignals_client.list_service_operations(
+        operations_response = get_client('application-signals').list_service_operations(
             StartTime=start_time,
             EndTime=end_time,
             KeyAttributes=target_service['KeyAttributes'],

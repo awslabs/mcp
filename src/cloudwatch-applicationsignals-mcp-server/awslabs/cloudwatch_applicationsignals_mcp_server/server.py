@@ -28,11 +28,8 @@ from .audit_utils import (
     parse_auditors,
 )
 from .aws_clients import (
-    AWS_REGION,
-    applicationsignals_client,
-    iam_client,
-    s3_client,
-    synthetics_client,
+    get_client,
+    get_region,
 )
 from .canary_knowledge_base_loader import CanaryKnowledgeBaseLoader
 from .canary_knowledge_base_model import FailureContext
@@ -120,7 +117,7 @@ logger.add(
 logger.debug(f'CloudWatch applicationsignals MCP Server initialized with log level: {log_level}')
 logger.debug(f'File logging enabled: {aws_cli_log_path}')
 
-logger.debug(f'Using AWS region: {AWS_REGION}')
+logger.debug(f'Using AWS region: {get_region()}')
 
 
 def _filter_operation_targets(provided):
@@ -336,7 +333,7 @@ async def audit_services(
 
     try:
         # Region defaults
-        region = AWS_REGION.strip()
+        region = get_region().strip()
 
         # Time range (fill missing with defaults)
         start_dt = (
@@ -401,7 +398,7 @@ async def audit_services(
                     unix_end,
                     next_token,
                     max_services,
-                    applicationsignals_client,
+                    get_client('application-signals'),
                 )
             )
             logger.debug(f'Paginated wildcard expansion completed - {len(provided)} total targets')
@@ -419,7 +416,7 @@ async def audit_services(
 
         # Validate and enrich targets using shared utility
         normalized_targets = validate_and_enrich_service_targets(
-            normalized_targets, applicationsignals_client, unix_start, unix_end
+            normalized_targets, get_client('application-signals'), unix_start, unix_end
         )
 
         # Parse auditors with service-specific defaults
@@ -611,7 +608,7 @@ async def audit_slos(
 
     try:
         # Region defaults
-        region = AWS_REGION.strip()
+        region = get_region().strip()
 
         # Time range (fill missing with defaults)
         start_dt = (
@@ -667,7 +664,7 @@ async def audit_slos(
                 # Use the paginated utility function
                 expanded_slo_targets, returned_next_token, slo_names_in_batch = (
                     expand_slo_wildcard_patterns(
-                        provided, next_token, max_slos, applicationsignals_client
+                        provided, next_token, max_slos, get_client('application-signals')
                     )
                 )
                 # Filter to get only SLO targets
@@ -876,7 +873,7 @@ async def audit_service_operations(
 
     try:
         # Region defaults
-        region = AWS_REGION.strip()
+        region = get_region().strip()
 
         # Time range (fill missing with defaults)
         start_dt = (
@@ -925,7 +922,7 @@ async def audit_service_operations(
                 unix_end,
                 next_token,
                 max_services,
-                applicationsignals_client,
+                get_client('application-signals'),
             )
             logger.debug(
                 f'Paginated wildcard expansion completed - {len(operation_only_targets)} total targets'
@@ -994,7 +991,7 @@ async def audit_service_operations(
 
 @mcp.tool()
 async def analyze_canary_failures(
-    canary_name: str, region: str = AWS_REGION, description: str = ''
+    canary_name: str, region: str | None = None, description: str = ''
 ) -> str:
     """Comprehensive canary failure analysis with deep dive into issues.
 
@@ -1045,13 +1042,14 @@ async def analyze_canary_failures(
             - Root cause identification with specific remediation steps
             - Historical pattern analysis and trend insights
     """
+    if not region:
+        region = get_region()
     try:
-        # Get recent canary runs
-        response = synthetics_client.get_canary_runs(Name=canary_name, MaxResults=5)
+        response = get_client('synthetics').get_canary_runs(Name=canary_name, MaxResults=5)
         runs = response.get('CanaryRuns', [])
 
         # Get canary details
-        canary_response = synthetics_client.get_canary(Name=canary_name)
+        canary_response = get_client('synthetics').get_canary(Name=canary_name)
         canary = canary_response['Canary']
 
         # Get telemetry and service insights
@@ -1201,7 +1199,7 @@ async def analyze_canary_failures(
                     failure_run_path = f'{base_path}/{today}/' if base_path else f'{today}/'
 
                 try:
-                    artifacts_response = s3_client.list_objects_v2(
+                    artifacts_response = get_client('s3').list_objects_v2(
                         Bucket=bucket_name, Prefix=failure_run_path, MaxKeys=50
                     )
                     failure_artifacts = artifacts_response.get('Contents', [])
@@ -1248,7 +1246,7 @@ async def analyze_canary_failures(
                             else:
                                 success_run_path = failure_run_path  # Use same path as fallback
                             try:
-                                success_artifacts_response = s3_client.list_objects_v2(
+                                success_artifacts_response = get_client('s3').list_objects_v2(
                                     Bucket=bucket_name, Prefix=success_run_path, MaxKeys=50
                                 )
                                 success_artifacts = success_artifacts_response.get('Contents', [])
@@ -1260,10 +1258,13 @@ async def analyze_canary_failures(
 
                                 if har_files and success_har_files:
                                     failure_har = await analyze_har_file(
-                                        s3_client, bucket_name, har_files, is_failed_run=True
+                                        get_client('s3'),
+                                        bucket_name,
+                                        har_files,
+                                        is_failed_run=True,
                                     )
                                     success_har = await analyze_har_file(
-                                        s3_client,
+                                        get_client('s3'),
                                         bucket_name,
                                         success_har_files,
                                         is_failed_run=False,
@@ -1288,7 +1289,7 @@ async def analyze_canary_failures(
 
                             if har_files:
                                 failure_har = await analyze_har_file(
-                                    s3_client, bucket_name, har_files, is_failed_run=True
+                                    get_client('s3'), bucket_name, har_files, is_failed_run=True
                                 )
                                 result += '🌐 HAR ANALYSIS:\n'
                                 result += (
@@ -1301,7 +1302,7 @@ async def analyze_canary_failures(
                         # Screenshot analysis
                         if screenshots:
                             screenshot_analysis = await analyze_screenshots(
-                                s3_client, bucket_name, screenshots, is_failed_run=True
+                                get_client('s3'), bucket_name, screenshots, is_failed_run=True
                             )
                             if screenshot_analysis.get('insights'):
                                 result += '📸 SCREENSHOT ANALYSIS:\n'
@@ -1312,7 +1313,7 @@ async def analyze_canary_failures(
                         # Log analysis
                         if logs:
                             s3_log_analysis = await analyze_log_files(
-                                s3_client, bucket_name, logs, is_failed_run=True
+                                get_client('s3'), bucket_name, logs, is_failed_run=True
                             )
                             if s3_log_analysis.get('insights'):
                                 result += '📋 LOG ANALYSIS:\n'
@@ -1392,7 +1393,9 @@ async def analyze_canary_failures(
                 result += f"\n🔍 RUNNING COMPREHENSIVE IAM ANALYSIS (common cause of '{selected_reason}'):\n"
 
                 # 1. Check IAM role and policies
-                iam_analysis = await analyze_iam_role_and_policies(canary, iam_client, region)
+                iam_analysis = await analyze_iam_role_and_policies(
+                    canary, get_client('iam'), region
+                )
 
                 # Display IAM analysis results
                 result += f'IAM Role Analysis Status: {iam_analysis["status"]}\n'
@@ -1401,7 +1404,7 @@ async def analyze_canary_failures(
 
                 # 2. ENHANCED: Check resource ARN correctness with detailed validation
                 result += '\n🔍 CHECKING RESOURCE ARN CORRECTNESS:\n'
-                arn_check = check_resource_arns_correct(canary, iam_client)
+                arn_check = check_resource_arns_correct(canary, get_client('iam'))
 
                 if arn_check.get('correct'):
                     result += '✅ Resource ARNs: Correct\n'
@@ -1508,7 +1511,7 @@ async def analyze_canary_failures(
             if har_files and bucket_name:
                 try:
                     har_timeout_analysis = await analyze_har_file(
-                        s3_client, bucket_name, har_files, is_failed_run=True
+                        get_client('s3'), bucket_name, har_files, is_failed_run=True
                     )
 
                     result += '\n🔍 HAR FILE ANALYSIS FOR NAVIGATION TIMEOUT:\n'
@@ -1607,7 +1610,7 @@ async def analyze_canary_failures(
 
 
 @mcp.tool()
-async def list_canaries(region: str = AWS_REGION, max_results: int = 20) -> str:
+async def list_canaries(region: str | None = None, max_results: int = 20) -> str:
     """List all CloudWatch Synthetics canaries in the account.
 
     Use this tool to discover canaries before analyzing them with analyze_canary_failures().
@@ -1633,7 +1636,7 @@ async def list_canaries(region: str = AWS_REGION, max_results: int = 20) -> str:
             if paginator_token:
                 kwargs['NextToken'] = paginator_token
 
-            response = synthetics_client.describe_canaries(**kwargs)
+            response = get_client('synthetics').describe_canaries(**kwargs)
             canaries.extend(response.get('Canaries', []))
             paginator_token = response.get('NextToken')
             if not paginator_token or len(canaries) >= max_results:
