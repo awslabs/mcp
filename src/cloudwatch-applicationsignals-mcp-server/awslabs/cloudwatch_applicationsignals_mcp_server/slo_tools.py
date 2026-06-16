@@ -15,15 +15,32 @@
 """CloudWatch Application Signals MCP Server - SLO-related tools."""
 
 import json
-from .aws_clients import applicationsignals_client
+from .aws_clients import AWS_REGION, applicationsignals_client, get_aws_client
 from botocore.exceptions import ClientError
 from loguru import logger
 from pydantic import Field
 from time import perf_counter as timer
+from typing import Annotated, Optional
+
+
+def _profile_name_field():
+    """Create the shared profile_name field used by profile-aware tools."""
+    return Field(
+        default=None,
+        description='Optional AWS CLI profile name to use for this tool call. Defaults to AWS_PROFILE or the default credential chain.',
+    )
+
+
+def _get_applicationsignals_client(profile_name: Optional[str] = None):
+    """Return the default or profile-scoped Application Signals client."""
+    if profile_name is None:
+        return applicationsignals_client
+    return get_aws_client('application-signals', region_name=AWS_REGION, profile_name=profile_name)
 
 
 async def get_slo(
     slo_id: str = Field(..., description='The ARN or name of the SLO to retrieve'),
+    profile_name: Annotated[Optional[str], _profile_name_field()] = None,
 ) -> str:
     """Get detailed information about a specific Service Level Objective (SLO).
 
@@ -62,7 +79,9 @@ async def get_slo(
     logger.info(f'Starting get_service_level_objective request for SLO: {slo_id}')
 
     try:
-        response = applicationsignals_client.get_service_level_objective(Id=slo_id)
+        appsignals_client = _get_applicationsignals_client(profile_name)
+
+        response = appsignals_client.get_service_level_objective(Id=slo_id)
         slo = response.get('Slo', {})
 
         if not slo:
@@ -286,6 +305,7 @@ async def list_slos(
     max_results: int = Field(
         default=50, description='Maximum number of SLOs to return (default: 50, max: 50)'
     ),
+    profile_name: Annotated[Optional[str], _profile_name_field()] = None,
 ) -> str:
     """List all Service Level Objectives (SLOs) in Application Signals.
 
@@ -311,6 +331,8 @@ async def list_slos(
     logger.debug('Starting list_slos request')
 
     try:
+        appsignals_client = _get_applicationsignals_client(profile_name)
+
         # Parse key_attributes JSON string
         try:
             key_attrs_dict = json.loads(key_attributes) if key_attributes else {}
@@ -333,7 +355,7 @@ async def list_slos(
         logger.debug(f'Listing SLOs with parameters: {request_params}')
 
         # Call the Application Signals API
-        response = applicationsignals_client.list_service_level_objectives(**request_params)
+        response = appsignals_client.list_service_level_objectives(**request_params)
         slo_summaries = response.get('SloSummaries', [])
 
         logger.debug(f'Retrieved {len(slo_summaries)} SLO summaries')

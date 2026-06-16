@@ -25,7 +25,7 @@ Tools:
 - list_grouping_attribute_definitions: List all custom grouping attribute definitions
 """
 
-from .aws_clients import AWS_REGION, applicationsignals_client, cloudwatch_client
+from .aws_clients import AWS_REGION, applicationsignals_client, cloudwatch_client, get_aws_client
 from .canary_utils import check_canaries_for_service
 from .sli_report_client import AWSConfig, SLIReportClient
 from .utils import (
@@ -44,12 +44,41 @@ from datetime import datetime
 from loguru import logger
 from pydantic import Field
 from time import perf_counter as timer
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Annotated, Any, Dict, List, Optional, Tuple
 
 
 # =============================================================================
 # SHARED HELPER FUNCTIONS
 # =============================================================================
+
+
+def _profile_name_field():
+    """Create the shared profile_name field used by profile-aware tools."""
+    return Field(
+        default=None,
+        description='Optional AWS CLI profile name to use for this tool call. Defaults to AWS_PROFILE or the default credential chain.',
+    )
+
+
+def _get_applicationsignals_client(profile_name: Optional[str] = None):
+    """Return the default or profile-scoped Application Signals client."""
+    if profile_name is None:
+        return applicationsignals_client
+    return get_aws_client('application-signals', region_name=AWS_REGION, profile_name=profile_name)
+
+
+def _get_cloudwatch_client(profile_name: Optional[str] = None):
+    """Return the default or profile-scoped CloudWatch client."""
+    if profile_name is None:
+        return cloudwatch_client
+    return get_aws_client('cloudwatch', region_name=AWS_REGION, profile_name=profile_name)
+
+
+def _get_synthetics_client(profile_name: Optional[str] = None):
+    """Return the profile-scoped Synthetics client used for group canary checks."""
+    if profile_name is None:
+        return None
+    return get_aws_client('synthetics', region_name=AWS_REGION, profile_name=profile_name)
 
 
 def _matches_group(service_groups: List[Dict], group_name: str) -> bool:
@@ -78,6 +107,7 @@ async def _discover_services_by_group(
     group_name: str,
     start_time: datetime,
     end_time: datetime,
+    applicationsignals_client_override=None,
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     """Discover all services belonging to a specific group.
 
@@ -92,6 +122,8 @@ async def _discover_services_by_group(
                    Can also match GroupName. Supports wildcards like '*payment*'.
         start_time: Start time for service discovery
         end_time: End time for service discovery
+        applicationsignals_client_override: Optional Application Signals client to use instead
+            of the module-level default.
 
     Returns:
         Tuple of (list of services in the group, discovery stats)
@@ -106,7 +138,8 @@ async def _discover_services_by_group(
     }
 
     try:
-        all_services = list_services_paginated(applicationsignals_client, start_time, end_time)
+        appsignals_client = applicationsignals_client_override or applicationsignals_client
+        all_services = list_services_paginated(appsignals_client, start_time, end_time)
 
         for service in all_services:
             stats['total_services_scanned'] += 1
@@ -192,6 +225,7 @@ async def _setup_group_tool(
     emoji: str,
     title: str,
     default_hours: int = 3,
+    profile_name: Optional[str] = None,
 ) -> Tuple[Optional[List[Dict]], Optional[datetime], Optional[datetime], str, Optional[Dict]]:
     """Common setup: parse time, discover services, build header or error message.
 
@@ -203,7 +237,7 @@ async def _setup_group_tool(
         return None, None, None, 'Error: end_time must be greater than start_time.', None
 
     group_services, discovery_stats = await _discover_services_by_group(
-        group_name, start_dt, end_dt
+        group_name, start_dt, end_dt, _get_applicationsignals_client(profile_name)
     )
     if not group_services:
         return None, None, None, _format_no_services_found(group_name, discovery_stats), None
@@ -230,6 +264,7 @@ async def list_group_services(
         default=None,
         description="End time (unix seconds or 'YYYY-MM-DD HH:MM:SS'). Defaults to now UTC.",
     ),
+    profile_name: Annotated[Optional[str], _profile_name_field()] = None,
 ) -> str:
     """SERVICE DISCOVERY TOOL - Find all services belonging to a group.
 
@@ -260,7 +295,7 @@ async def list_group_services(
 
     try:
         group_services, _, _, result, discovery_stats = await _setup_group_tool(
-            group_name, start_time, end_time, '📋', 'SERVICES IN GROUP'
+            group_name, start_time, end_time, '📋', 'SERVICES IN GROUP', profile_name=profile_name
         )
         if group_services is None or discovery_stats is None:
             return result
@@ -369,6 +404,7 @@ async def audit_group_health(
         default=LATENCY_P99_THRESHOLD_CRITICAL,
         description='Latency P99 threshold in milliseconds for CRITICAL when using metrics fallback (default: 5000.0)',
     ),
+    profile_name: Annotated[Optional[str], _profile_name_field()] = None,
 ) -> str:
     """HEALTH AUDIT TOOL - Detect anomalies and unhealthy services in a group.
 
@@ -406,8 +442,17 @@ async def audit_group_health(
     logger.debug(f'Starting audit_group_health for group: {group_name}')
 
     try:
+        appsignals_client = _get_applicationsignals_client(profile_name)
+        profile_cloudwatch_client = _get_cloudwatch_client(profile_name)
+        profile_synthetics_client = _get_synthetics_client(profile_name)
+
         group_services, start_dt, end_dt, result, _ = await _setup_group_tool(
-            group_name, start_time, end_time, '🔍', 'GROUP HEALTH AUDIT'
+            group_name,
+            start_time,
+            end_time,
+            '🔍',
+            'GROUP HEALTH AUDIT',
+            profile_name=profile_name,
         )
         if group_services is None or start_dt is None or end_dt is None:
             return result
@@ -461,7 +506,11 @@ async def audit_group_health(
                     service_name=svc_name,
                     key_attributes=key_attrs,
                 )
-                sli_client = SLIReportClient(config)
+                sli_client = SLIReportClient(
+                    config,
+                    signals_client=appsignals_client,
+                    cloudwatch_client_override=profile_cloudwatch_client,
+                )
                 sli_report = sli_client.generate_sli_report()
 
                 # Check if we have any SLOs configured
@@ -504,7 +553,7 @@ async def audit_group_health(
 
                 try:
                     # Get service detail for metric references
-                    service_response = applicationsignals_client.get_service(
+                    service_response = appsignals_client.get_service(
                         StartTime=start_dt,
                         EndTime=end_dt,
                         KeyAttributes=key_attrs,
@@ -520,7 +569,7 @@ async def audit_group_health(
 
                         if metric_type == 'Fault':
                             stats = fetch_metric_stats(
-                                cloudwatch_client,
+                                profile_cloudwatch_client,
                                 namespace,
                                 metric_name,
                                 dimensions,
@@ -560,7 +609,7 @@ async def audit_group_health(
 
                         elif metric_type == 'Error':
                             stats = fetch_metric_stats(
-                                cloudwatch_client,
+                                profile_cloudwatch_client,
                                 namespace,
                                 metric_name,
                                 dimensions,
@@ -600,7 +649,7 @@ async def audit_group_health(
 
                         elif metric_type == 'Latency':
                             stats = fetch_metric_stats(
-                                cloudwatch_client,
+                                profile_cloudwatch_client,
                                 namespace,
                                 metric_name,
                                 dimensions,
@@ -739,7 +788,12 @@ async def audit_group_health(
             unix_start = int(start_dt.timestamp())
             unix_end = int(end_dt.timestamp())
             canary_result = await check_canaries_for_service(
-                normalized_targets, unix_start, unix_end, AWS_REGION
+                normalized_targets,
+                unix_start,
+                unix_end,
+                AWS_REGION,
+                appsignals_client if profile_name is not None else None,
+                profile_synthetics_client,
             )
             if canary_result:
                 result += '\n' + '=' * 50 + '\n'
@@ -794,6 +848,7 @@ async def get_group_dependencies(
         default=None,
         description="End time (unix seconds or 'YYYY-MM-DD HH:MM:SS'). Defaults to now UTC.",
     ),
+    profile_name: Annotated[Optional[str], _profile_name_field()] = None,
 ) -> str:
     """DEPENDENCY MAPPING TOOL - Analyze dependencies within and across groups.
 
@@ -824,8 +879,15 @@ async def get_group_dependencies(
     logger.debug(f'Starting get_group_dependencies for group: {group_name}')
 
     try:
+        appsignals_client = _get_applicationsignals_client(profile_name)
+
         group_services, start_dt, end_dt, result, _ = await _setup_group_tool(
-            group_name, start_time, end_time, '🔗', 'GROUP DEPENDENCIES'
+            group_name,
+            start_time,
+            end_time,
+            '🔗',
+            'GROUP DEPENDENCIES',
+            profile_name=profile_name,
         )
         if group_services is None or start_dt is None or end_dt is None:
             return result
@@ -852,7 +914,7 @@ async def get_group_dependencies(
 
             # Get dependencies
             try:
-                response = applicationsignals_client.list_service_dependencies(
+                response = appsignals_client.list_service_dependencies(
                     StartTime=start_dt,
                     EndTime=end_dt,
                     KeyAttributes=key_attrs,
@@ -887,7 +949,7 @@ async def get_group_dependencies(
                         cache_key = (dep_name.lower(), dep_env.lower())
                         if cache_key not in dep_group_cache:
                             try:
-                                dep_svc_response = applicationsignals_client.get_service(
+                                dep_svc_response = appsignals_client.get_service(
                                     StartTime=start_dt,
                                     EndTime=end_dt,
                                     KeyAttributes=dep_key_attrs,
@@ -1009,6 +1071,7 @@ async def get_group_changes(
         default=None,
         description="End time (unix seconds or 'YYYY-MM-DD HH:MM:SS'). Defaults to now UTC.",
     ),
+    profile_name: Annotated[Optional[str], _profile_name_field()] = None,
 ) -> str:
     """CHANGE TRACKING TOOL - Monitor deployments in a group.
 
@@ -1037,8 +1100,10 @@ async def get_group_changes(
     logger.debug(f'Starting get_group_changes for group: {group_name}')
 
     try:
+        appsignals_client = _get_applicationsignals_client(profile_name)
+
         group_services, start_dt, end_dt, result, _ = await _setup_group_tool(
-            group_name, start_time, end_time, '📦', 'GROUP CHANGES'
+            group_name, start_time, end_time, '📦', 'GROUP CHANGES', profile_name=profile_name
         )
         if group_services is None or start_dt is None or end_dt is None:
             return result
@@ -1065,7 +1130,7 @@ async def get_group_changes(
                 if next_token:
                     list_params['NextToken'] = next_token
 
-                response = applicationsignals_client.list_service_states(**list_params)
+                response = appsignals_client.list_service_states(**list_params)
                 service_states = response.get('ServiceStates', [])
                 next_token = response.get('NextToken')
 
@@ -1190,7 +1255,9 @@ async def get_group_changes(
 # =============================================================================
 
 
-async def list_grouping_attribute_definitions() -> str:
+async def list_grouping_attribute_definitions(
+    profile_name: Annotated[Optional[str], _profile_name_field()] = None,
+) -> str:
     """GROUPING CONFIGURATION TOOL - List all custom grouping attribute definitions.
 
     Use this tool when users ask:
@@ -1221,6 +1288,8 @@ async def list_grouping_attribute_definitions() -> str:
     logger.debug('Starting list_grouping_attribute_definitions')
 
     try:
+        appsignals_client = _get_applicationsignals_client(profile_name)
+
         all_definitions = []
         next_token = None
         updated_at = None
@@ -1230,7 +1299,7 @@ async def list_grouping_attribute_definitions() -> str:
             if next_token:
                 list_params['NextToken'] = next_token
 
-            response = applicationsignals_client.list_grouping_attribute_definitions(**list_params)
+            response = appsignals_client.list_grouping_attribute_definitions(**list_params)
             definitions = response.get('GroupingAttributeDefinitions', [])
             all_definitions.extend(definitions)
 

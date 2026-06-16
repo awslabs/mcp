@@ -14,15 +14,40 @@
 
 """CloudWatch Application Signals MCP Server - Service-related tools."""
 
-from .aws_clients import applicationsignals_client, cloudwatch_client
+from .aws_clients import AWS_REGION, applicationsignals_client, cloudwatch_client, get_aws_client
 from botocore.exceptions import ClientError
 from datetime import datetime, timedelta, timezone
 from loguru import logger
 from pydantic import Field
 from time import perf_counter as timer
+from typing import Annotated, Optional
 
 
-async def list_monitored_services() -> str:
+def _profile_name_field():
+    """Create the shared profile_name field used by profile-aware tools."""
+    return Field(
+        default=None,
+        description='Optional AWS CLI profile name to use for this tool call. Defaults to AWS_PROFILE or the default credential chain.',
+    )
+
+
+def _get_applicationsignals_client(profile_name: Optional[str] = None):
+    """Return the default or profile-scoped Application Signals client."""
+    if profile_name is None:
+        return applicationsignals_client
+    return get_aws_client('application-signals', region_name=AWS_REGION, profile_name=profile_name)
+
+
+def _get_cloudwatch_client(profile_name: Optional[str] = None):
+    """Return the default or profile-scoped CloudWatch client."""
+    if profile_name is None:
+        return cloudwatch_client
+    return get_aws_client('cloudwatch', region_name=AWS_REGION, profile_name=profile_name)
+
+
+async def list_monitored_services(
+    profile_name: Annotated[Optional[str], _profile_name_field()] = None,
+) -> str:
     """OPTIONAL TOOL for service discovery - audit_services() can automatically discover services using wildcard patterns.
 
     **IMPORTANT: For service auditing and operation analysis, use audit_services() as the PRIMARY tool instead.**
@@ -73,13 +98,15 @@ async def list_monitored_services() -> str:
     logger.debug('Starting list_application_signals_services request')
 
     try:
+        appsignals_client = _get_applicationsignals_client(profile_name)
+
         # Calculate time range (last 24 hours)
         end_time = datetime.now(timezone.utc)
         start_time = end_time - timedelta(hours=24)
 
         # Get all services
         logger.debug(f'Querying services for time range: {start_time} to {end_time}')
-        response = applicationsignals_client.list_services(
+        response = appsignals_client.list_services(
             StartTime=start_time, EndTime=end_time, MaxResults=100
         )
         services = response.get('ServiceSummaries', [])
@@ -126,6 +153,7 @@ async def get_service_detail(
     service_name: str = Field(
         ..., description='Name of the service to get details for (case-sensitive)'
     ),
+    profile_name: Annotated[Optional[str], _profile_name_field()] = None,
 ) -> str:
     """Get detailed information about a specific Application Signals service.
 
@@ -163,12 +191,14 @@ async def get_service_detail(
     logger.debug(f'Starting get_service_healthy_detail request for service: {service_name}')
 
     try:
+        appsignals_client = _get_applicationsignals_client(profile_name)
+
         # Calculate time range (last 24 hours)
         end_time = datetime.now(timezone.utc)
         start_time = end_time - timedelta(hours=24)
 
         # First, get all services to find the one we want
-        services_response = applicationsignals_client.list_services(
+        services_response = appsignals_client.list_services(
             StartTime=start_time, EndTime=end_time, MaxResults=100
         )
 
@@ -186,7 +216,7 @@ async def get_service_detail(
 
         # Get detailed service information
         logger.debug(f'Getting detailed information for service: {service_name}')
-        service_response = applicationsignals_client.get_service(
+        service_response = appsignals_client.get_service(
             StartTime=start_time, EndTime=end_time, KeyAttributes=target_service['KeyAttributes']
         )
 
@@ -270,6 +300,7 @@ async def query_service_metrics(
     hours: int = Field(
         default=1, description='Number of hours to look back (default 1, max 168 for 1 week)'
     ),
+    profile_name: Annotated[Optional[str], _profile_name_field()] = None,
 ) -> str:
     """Get CloudWatch metrics for a specific Application Signals service.
 
@@ -300,12 +331,15 @@ async def query_service_metrics(
     )
 
     try:
+        appsignals_client = _get_applicationsignals_client(profile_name)
+        cw_client = _get_cloudwatch_client(profile_name)
+
         # Calculate time range
         end_time = datetime.now(timezone.utc)
         start_time = end_time - timedelta(hours=hours)
 
         # Get service details to find metrics
-        services_response = applicationsignals_client.list_services(
+        services_response = appsignals_client.list_services(
             StartTime=start_time, EndTime=end_time, MaxResults=100
         )
 
@@ -322,7 +356,7 @@ async def query_service_metrics(
             return f"Service '{service_name}' not found in Application Signals."
 
         # Get detailed service info for metric references
-        service_response = applicationsignals_client.get_service(
+        service_response = appsignals_client.get_service(
             StartTime=start_time, EndTime=end_time, KeyAttributes=target_service['KeyAttributes']
         )
 
@@ -362,7 +396,7 @@ async def query_service_metrics(
             period = 3600  # 1 hour
 
         # Get both standard and extended statistics in a single call
-        response = cloudwatch_client.get_metric_statistics(
+        response = cw_client.get_metric_statistics(
             Namespace=target_metric['Namespace'],
             MetricName=target_metric['MetricName'],
             Dimensions=target_metric.get('Dimensions', []),
@@ -466,6 +500,7 @@ async def list_service_operations(
         default=24,
         description='Number of hours to look back for operation discovery (default 24, max 24 for Application Signals operation discovery)',
     ),
+    profile_name: Annotated[Optional[str], _profile_name_field()] = None,
 ) -> str:
     """OPERATION DISCOVERY TOOL - For operation inventory only. Use audit_services() as PRIMARY tool for operation auditing.
 
@@ -519,13 +554,15 @@ async def list_service_operations(
     logger.debug(f'Starting list_service_operations request for service: {service_name}')
 
     try:
+        appsignals_client = _get_applicationsignals_client(profile_name)
+
         # Calculate time range - enforce 24 hour maximum for Application Signals operation discovery
         end_time = datetime.now(timezone.utc)
         hours = min(hours, 24)  # Enforce maximum of 24 hours
         start_time = end_time - timedelta(hours=hours)
 
         # First, get the service to find its key attributes
-        services_response = applicationsignals_client.list_services(
+        services_response = appsignals_client.list_services(
             StartTime=start_time, EndTime=end_time, MaxResults=100
         )
 
@@ -543,7 +580,7 @@ async def list_service_operations(
 
         # Get operations for the service using ListServiceOperations API
         logger.debug(f'Getting operations for service: {service_name}')
-        operations_response = applicationsignals_client.list_service_operations(
+        operations_response = appsignals_client.list_service_operations(
             StartTime=start_time,
             EndTime=end_time,
             KeyAttributes=target_service['KeyAttributes'],

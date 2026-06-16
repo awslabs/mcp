@@ -15,12 +15,27 @@
 """Change tracking tools for AWS Application Signals MCP Server."""
 
 import json
-from .aws_clients import AWS_REGION, applicationsignals_client
+from .aws_clients import AWS_REGION, applicationsignals_client, get_aws_client
 from .utils import parse_timestamp
 from botocore.exceptions import ClientError, NoCredentialsError
 from datetime import datetime, timezone
 from pydantic import Field
-from typing import Dict, List, Optional
+from typing import Annotated, Dict, List, Optional
+
+
+def _profile_name_field():
+    """Create the shared profile_name field used by profile-aware tools."""
+    return Field(
+        default=None,
+        description='Optional AWS CLI profile name to use for this tool call. Defaults to AWS_PROFILE or the default credential chain.',
+    )
+
+
+def _get_applicationsignals_client(profile_name: Optional[str] = None):
+    """Return the default or profile-scoped Application Signals client."""
+    if profile_name is None:
+        return applicationsignals_client
+    return get_aws_client('application-signals', region_name=AWS_REGION, profile_name=profile_name)
 
 
 def _filter_service_states_by_attributes(
@@ -109,6 +124,7 @@ async def _list_change_events(
     max_results: int = 100,
     region: Optional[str] = None,
     comprehensive_history: bool = True,
+    profile_name: Optional[str] = None,
 ) -> str:
     """Retrieve change events for AWS resources within specified time range.
 
@@ -120,11 +136,14 @@ async def _list_change_events(
         region: AWS region (optional, defaults to configured region)
         comprehensive_history: If True, retrieves complete change history using ListEntityEvents (requires service_key_attributes).
                              If False, retrieves only latest service states using ListServiceStates (service_key_attributes optional).
+        profile_name: Optional AWS CLI profile name for this tool call.
 
     Returns:
         JSON string containing change events with timeline analysis
     """
     try:
+        appsignals_client = _get_applicationsignals_client(profile_name)
+
         # Validate time parameters
         start_dt = parse_timestamp(start_time)
         end_dt = parse_timestamp(end_time)
@@ -160,7 +179,7 @@ async def _list_change_events(
         # Use appropriate API based on comprehensive_history flag
         if comprehensive_history:
             return await _list_entity_events(
-                applicationsignals_client,
+                appsignals_client,
                 start_timestamp,
                 end_timestamp,
                 service_key_attributes,
@@ -168,7 +187,7 @@ async def _list_change_events(
             )
         else:
             return await _list_service_states(
-                applicationsignals_client,
+                appsignals_client,
                 start_timestamp,
                 end_timestamp,
                 service_key_attributes,
@@ -370,6 +389,7 @@ async def list_change_events(
         default=True,
         description='If True, uses ListEntityEvents API for complete change history (REQUIRES service_key_attributes). If False, uses ListServiceStates API for current service state information (service_key_attributes optional).',
     ),
+    profile_name: Annotated[Optional[str], _profile_name_field()] = None,
 ) -> str:
     """Query AWS Application Signals change events to correlate infrastructure and application changes with service performance issues.
 
@@ -443,6 +463,7 @@ async def list_change_events(
         max_results: Maximum number of events to return (1-250, default: 100)
         region: AWS region to query (defaults to configured region)
         comprehensive_history: If True, uses ListEntityEvents for complete change history. If False, uses ListServiceStates for current service states.
+        profile_name: Optional AWS CLI profile name for this tool call.
 
     Returns:
         JSON string containing change events with timeline analysis and correlation insights for incident investigation
@@ -454,4 +475,5 @@ async def list_change_events(
         max_results=max_results,
         region=region,
         comprehensive_history=comprehensive_history,
+        profile_name=profile_name,
     )
