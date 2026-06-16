@@ -151,24 +151,9 @@ IaC code: [ABSOLUTE_PATH_TO_IAC]"
 - Discover specific service names and environments for manual audit target construction
 - **RECOMMENDED**: Use `audit_services()` with wildcard patterns instead for comprehensive discovery AND analysis
 
-#### 5. **`get_service_detail`** - Service Metadata Tool
-**For basic service metadata and configuration details**
-
-- Service metadata and configuration (platform information, key attributes)
-- Service-level metrics (Latency, Error, Fault aggregates)
-- Log groups associated with the service
-- **IMPORTANT**: This tool does NOT provide operation names - use `audit_services()` for operation discovery
-
-#### 6. **`list_service_operations`** - Operation Discovery Tool
-**CRITICAL LIMITATION**: Only discovers operations that have been ACTIVELY INVOKED in the specified time window
-
-- Basic operation inventory for RECENTLY ACTIVE operations only (max 24 hours)
-- Empty results ≠ no operations exist, just no recent invocations
-- **RECOMMENDED**: Use `audit_services()` FIRST for comprehensive operation discovery and analysis
-
 ### 🎯 SLO Management Tools
 
-#### 7. **`get_slo`** - SLO Configuration Details
+#### 5. **`get_slo`** - SLO Configuration Details
 **Essential for understanding SLO configuration before deep investigation**
 
 - Comprehensive SLO configuration details (metrics, thresholds, goals)
@@ -176,7 +161,7 @@ IaC code: [ABSOLUTE_PATH_TO_IAC]"
 - Metric type (LATENCY or AVAILABILITY) and comparison operators
 - **NEXT STEP**: Use `audit_slos()` with `auditors="all"` for root cause analysis
 
-#### 8. **`list_slos`** - SLO Discovery
+#### 6. **`list_slos`** - SLO Discovery
 **List all Service Level Objectives in Application Signals**
 
 - Complete list of all SLOs in your account with names and ARNs
@@ -186,7 +171,7 @@ IaC code: [ABSOLUTE_PATH_TO_IAC]"
 
 ### 📈 Metrics & Performance Tools
 
-#### 9. **`query_service_metrics`** - CloudWatch Metrics Analysis
+#### 7. **`query_service_metrics`** - CloudWatch Metrics Analysis
 **Get CloudWatch metrics for specific Application Signals services**
 
 - Analyze service performance (latency, throughput, error rates)
@@ -196,7 +181,7 @@ IaC code: [ABSOLUTE_PATH_TO_IAC]"
 
 ### 🔍 Advanced Trace & Log Analysis Tools
 
-#### 10. **`search_transaction_spans`** - 100% Trace Visibility
+#### 8. **`search_transaction_spans`** - 100% Trace Visibility
 **Query OpenTelemetry Spans data via Transaction Search (100% sampled data)**
 
 - **100% sampled data** vs X-Ray's 5% sampling for more accurate results
@@ -211,20 +196,16 @@ FILTER attributes.aws.local.service = "payment-service" and attributes.aws.local
 | LIMIT 50
 ```
 
-#### 11. **`query_sampled_traces`** - X-Ray Trace Analysis (Secondary Tool)
-**Query AWS X-Ray traces (5% sampled data) for trace investigation**
+#### 9. **`get_xray_trace`** - X-Ray Trace Lookup (Downstream Dependency Analysis)
+**Look up specific X-Ray traces by trace ID to analyze downstream dependency calls**
 
-- **⚠️ IMPORTANT**: Consider using `audit_slos()` with `auditors="all"` instead for comprehensive root cause analysis
-- Uses X-Ray's 5% sampled trace data - may miss critical errors
-- Limited context compared to comprehensive audit tools
-- **RECOMMENDATION**: Use `get_service_detail()` for operation discovery and `audit_slos()` for root cause analysis
+- Retrieves full X-Ray trace data showing all downstream calls with their latencies, errors, and fault status
+- Accepts one or more comma-separated trace IDs (max 5 per call) in OTel, X-Ray, or raw-hex format
+- **Primary use**: drill into a downstream dependency after `get_incident_root_cause()` surfaces a `telemetry_correlation.trace_id`
+- Distinguishes AWS managed-service segments (`namespace: "aws"`) from instrumented remote services (`namespace: "remote"`) so you can follow the dependency chain to the true root cause
+- **Note**: X-Ray data is 5% sampled — prefer `get_service_health_overview()` / `get_recent_incidents()` for issue discovery, and use this tool for targeted trace drill-down
 
-**Common Filter Expressions:**
-- `service("service-name"){fault = true}` - Find traces with faults (5xx errors)
-- `duration > 5` - Find slow requests (over 5 seconds)
-- `annotation[aws.local.operation]="GET /api/orders"` - Filter by specific operation
-
-#### 12. **`analyze_canary_failures`** - Comprehensive Canary Failure Analysis
+#### 10. **`analyze_canary_failures`** - Comprehensive Canary Failure Analysis
 **Deep dive into CloudWatch Synthetics canary failures with root cause identification**
 
 - Comprehensive canary failure analysis with deep dive into issues
@@ -259,7 +240,7 @@ FILTER attributes.aws.local.service = "payment-service" and attributes.aws.local
 - Backend Service Debugging: Identify application code issues affecting canary success
 - Known Issue Detection: Automatically identify known runtime bugs and get targeted fix recommendations
 
-#### 13. **`list_canaries`** - Canary Discovery and Status
+#### 11. **`list_canaries`** - Canary Discovery and Status
 **List all CloudWatch Synthetics canaries in the account**
 
 - Discover all canaries with their current status (Running, Stopped, Error)
@@ -276,7 +257,7 @@ FILTER attributes.aws.local.service = "payment-service" and attributes.aws.local
 - `list_canaries(region="eu-west-1")` - List canaries in a specific region
 - `list_canaries(max_results=100)` - List up to 100 canaries
 
-#### 14. **`list_change_events`** - AWS Application Signals Change Event Query
+#### 12. **`list_change_events`** - AWS Application Signals Change Event Query
 **Query AWS Application Signals change events to correlate infrastructure and application changes with service performance issues**
 
 This tool provides access to AWS Application Signals' change detection capabilities through two complementary APIs:
@@ -317,7 +298,7 @@ This tool provides access to AWS Application Signals' change detection capabilit
 - **Supports audit_service_operations()**: Adds timeline context for operation performance investigations
 - **Complements analyze_canary_failures()**: Provides deployment correlation for canary issues
 
-#### 15. **`list_slis`** - Legacy SLI Status Report (Specialized Tool)
+#### 13. **`list_slis`** - Legacy SLI Status Report (Specialized Tool)
 **Use `audit_services()` as the PRIMARY tool for service auditing**
 
 - Basic report showing summary counts (total, healthy, breached, insufficient data)
@@ -327,7 +308,7 @@ This tool provides access to AWS Application Signals' change detection capabilit
 
 ### 🏢 Group-Level Monitoring Tools
 
-#### 16. **`list_group_services`** - Group Service Discovery
+#### 14. **`list_group_services`** - Group Service Discovery
 **Discover all services belonging to a specific group**
 
 - List services by group name with wildcard support (`*payment*`)
@@ -338,7 +319,7 @@ This tool provides access to AWS Application Signals' change detection capabilit
 - `list_group_services(group_name="Payments")` - List all services in Payments group
 - `list_group_services(group_name="*prod*")` - Find all production groups
 
-#### 17. **`audit_group_health`** - Group Health Monitoring
+#### 15. **`audit_group_health`** - Group Health Monitoring
 **Comprehensive health assessment for all services in a group**
 
 - Automatic health detection using SLOs and metrics
@@ -351,7 +332,7 @@ This tool provides access to AWS Application Signals' change detection capabilit
 - `audit_group_health(group_name="Payments")` - Audit all payment services
 - `audit_group_health(group_name="Frontend", fault_threshold_critical=10.0)` - Custom thresholds
 
-#### 18. **`get_group_dependencies`** - Group Dependency Mapping
+#### 16. **`get_group_dependencies`** - Group Dependency Mapping
 **Map dependencies within and across service groups**
 
 - Identifies intra-group dependencies (services calling each other)
@@ -362,7 +343,7 @@ This tool provides access to AWS Application Signals' change detection capabilit
 - `get_group_dependencies(group_name="Payments")` - Map payment service dependencies
 - Useful for understanding service architecture and blast radius
 
-#### 19. **`get_group_changes`** - Group Change Tracking
+#### 17. **`get_group_changes`** - Group Change Tracking
 **Track deployments across a group**
 
 - Lists recent deployments
@@ -374,13 +355,37 @@ This tool provides access to AWS Application Signals' change detection capabilit
 - `get_group_changes(group_name="Payments")` - Recent deployments in last 24 hours
 - `get_group_changes(group_name="API", start_time="2024-01-15 00:00:00")` - Deployments since specific time
 
-#### 20. **`list_grouping_attribute_definitions`** - Group Configuration
+#### 18. **`list_grouping_attribute_definitions`** - Group Configuration
 **List all custom grouping attribute definitions**
 
 - Shows configured grouping attributes (Team, BusinessUnit, etc.)
 - Displays source keys (AWS tags, OTEL attributes)
 - Shows default values for each grouping attribute
 - Useful for understanding available groups
+
+### 🛰️ ServiceEvents Telemetry Tools
+
+Incident-aware health, performance, and deployment telemetry sourced from ServiceEvents
+(CloudWatch Logs `incident_snapshot` records) and CloudWatch Metrics V2 (PromQL). Start
+broad health/performance investigations here — these tools surface incident events that
+the audit tools do not.
+
+**Health & incident tools**
+
+- `get_service_health_overview` — **PRIMARY entry point for general health/performance questions** ("any issues?", "is my app healthy?"). Consolidates SLO breaches, recent incident events, and the top error-prone functions in a single fast call.
+- `get_recent_incidents` — Lightweight list of recent incidents (errors, timeouts, slow requests). Falls back to Application Signals trace findings when no ServiceEvents incidents are present.
+- `get_incident_root_cause` — Full detail for one incident `snapshot_id`: exception/stack-trace context plus the per-function `call_tree` when instrumentation captured it.
+
+**Function & endpoint telemetry**
+
+- `list_monitored_functions` — List functions with captured telemetry (calls, errors, average duration) for a service.
+- `get_function_metrics` — Per-function metric detail; filterable by endpoint/operation.
+- `search_functions_by_name` — Find instrumented functions by name substring.
+- `get_endpoint_performance` — Endpoint/operation RED (rate, errors, duration) performance summary.
+
+**Deployment**
+
+- `find_deployment` — Locate recent deployment events; use the returned `hours_since_deployment` to scope health/incident queries to the post-deployment window.
 
 ### 🌐 CloudWatch RUM Tools
 
@@ -937,7 +942,7 @@ list_change_events(
 💡 **RECOMMENDED NEXT STEPS:**
 
 For detailed change history of specific problematic services, I can investigate further:
-1. Get service details first: get_service_detail("payment-service")
+1. Check service health first: get_service_health_overview(service_name="payment-service")
 2. Then query comprehensive change history: list_change_events() with service_key_attributes
 3. Correlate specific change timing with issue onset
 
