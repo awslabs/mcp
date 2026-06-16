@@ -192,6 +192,21 @@ async def audit_services(
 ) -> str:
     """PRIMARY SERVICE AUDIT TOOL - The #1 tool for comprehensive AWS service health auditing and monitoring.
 
+    **ROUTING — read first:** This tool analyzes Application Signals metrics, SLOs,
+    traces, logs, dependencies, and top contributors. It does **NOT** include
+    ServiceEvents incident events. For a **general, open-ended question** like "are
+    there any performance issues?", "is my app healthy?", or "take a look at my
+    service" — call **`get_service_health_overview` FIRST** (it consolidates SLO
+    breaches + recent incidents + top error functions), then come back here for
+    deeper root cause. Use `audit_services` when the user explicitly asks for an
+    audit / SLO / dependency / log / trace analysis, or once a target service or
+    area is already identified.
+
+    **MANDATORY:** When you do use this tool for a broad health/performance question,
+    you MUST also check recent incidents (`get_recent_incidents` or
+    `get_service_health_overview`) before concluding "no issues found" — this tool's
+    auditors alone will miss problems that only surface as incident events.
+
     **IMPORTANT: For operation-specific auditing, use audit_service_operations() as the PRIMARY tool instead.**
 
     **USE THIS FIRST FOR ALL SERVICE-LEVEL AUDITING TASKS**

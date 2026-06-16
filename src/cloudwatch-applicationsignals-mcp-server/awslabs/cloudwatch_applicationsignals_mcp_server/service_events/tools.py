@@ -900,9 +900,26 @@ async def get_health_overview(
 ) -> dict:
     """Get a health overview of the system.
 
-    This is a FAST, minimal-data tool for quick health checks. Use this
-    FIRST before drilling down with more detailed tools like get_incidents
-    or list_functions.
+    **PRIMARY ENTRY POINT for general health & performance questions.** Use this
+    FIRST for any broad, open-ended ask such as "is anything wrong with my app?",
+    "are there any performance issues?", or "how healthy is service X?". It is a
+    FAST, minimal-data tool that consolidates the signals those questions need:
+    SLO compliance/breaches, **recent incident events** (errors, timeouts, slow
+    requests), and the top error-prone functions — in a single call.
+
+    **MANDATORY for broad health/performance intent:** A general "any issues?"
+    question MUST be answered starting from this tool, because it includes recent
+    incident events. Do NOT answer such a question from audit_services alone —
+    audit_services analyzes Application Signals metrics/SLO/traces/logs but does
+    NOT include ServiceEvents incident events, so it will miss issues that only
+    surface as incidents. Always check incidents (this tool, or get_recent_incidents)
+    before concluding "no issues found".
+
+    **Drill-down after this overview:**
+    - get_recent_incidents / get_incident_root_cause(snapshot_id) for incident RCA
+      (the slo_compliance findings include the exact get_recent_incidents call to make).
+    - audit_services for deeper service-level root cause (traces, logs, dependency
+      and top-contributor analysis) once a target service or area is identified.
 
     **Deployment-anchored investigation:**
     If the issue may be related to a recent deployment, call find_deployment() first

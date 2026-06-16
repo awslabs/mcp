@@ -33,7 +33,14 @@ def _get_instrumentation_type(service: dict) -> str:
 async def list_monitored_services() -> str:
     """OPTIONAL TOOL for service discovery - audit_services() can automatically discover services using wildcard patterns.
 
-    **IMPORTANT: For service auditing and operation analysis, use audit_services() as the PRIMARY tool instead.**
+    **ROUTING:**
+    - For a **general health/performance question** ("any performance issues?",
+      "is my app healthy?"), use `get_service_health_overview` as the PRIMARY tool —
+      it is incident-aware (SLO breaches + recent incidents + top error functions).
+    - For **service/operation auditing** (SLO, dependency, log, or trace analysis),
+      use `audit_services` as the PRIMARY tool.
+    - Use THIS tool only for plain service inventory (names, environments, instrumentation
+      status), not for performance analysis.
 
     **WHEN TO USE THIS TOOL:**
     - Getting a detailed overview of all monitored services in your environment
