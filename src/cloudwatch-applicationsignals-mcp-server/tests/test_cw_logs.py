@@ -233,7 +233,7 @@ class TestDeployments:
             out = cw_logs.query_deployments(service_name='svc', hours=168)
         assert len(out) == 1
         dep = out[0]
-        assert dep['git_commit_sha'] == 'c3b0940dab7653ac8f4c2383c9dce96bb6dcc2ae'
+        assert dep['git_commit_sha'] == 'abababababababababababababababababababab'
         assert dep['deployment_id'] == '26605861522'
         assert dep['deployment_url'].endswith('/runs/26605861522')
 
@@ -241,8 +241,8 @@ class TestDeployments:
         """Match deployments by commit prefix and exclude non-matches."""
         fake = _FakeLogsClient(records=[_load('serviceevents_deployment.json')])
         with patch.object(cw_logs, '_get_logs_client', return_value=fake):
-            match = cw_logs.query_deployments(service_name='svc', hours=168, commit='c3b094')
-            nomatch = cw_logs.query_deployments(service_name='svc', hours=168, commit='deadbeef')
+            match = cw_logs.query_deployments(service_name='svc', hours=168, commit='ababab')
+            nomatch = cw_logs.query_deployments(service_name='svc', hours=168, commit='c3b094')
         assert len(match) == 1
         assert nomatch == []
 

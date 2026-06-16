@@ -546,8 +546,8 @@ async def list_slis(
 def _convert_otel_to_xray_trace_id(trace_id: str) -> str:
     """Convert OTel trace ID to X-Ray format.
 
-    OTel format: "0x699e34c662d55e013e833341a5d9f079" (0x + 32 hex)
-    X-Ray format: "1-699e34c6-62d55e013e833341a5d9f079" (1-epoch8hex-random24hex)
+    OTel format: "0xdeadbeefdeadbeefdeadbeefdeadbeef" (0x + 32 hex)
+    X-Ray format: "1-deadbeef-deadbeefdeadbeefdeadbeef" (1-epoch8hex-random24hex)
 
     Also accepts X-Ray format (passthrough) and raw 32-hex-char strings.
     """
@@ -739,9 +739,9 @@ async def get_xray_trace(
 
     **Trace ID format:**
     Accepts trace IDs in any of these formats:
-    - OTel format from incident data: "0x699e34c662d55e013e833341a5d9f079"
-    - X-Ray format: "1-699e34c6-62d55e013e833341a5d9f079"
-    - Raw 32-char hex: "699e34c662d55e013e833341a5d9f079"
+    - OTel format from incident data: "0xdeadbeefdeadbeefdeadbeefdeadbeef"
+    - X-Ray format: "1-deadbeef-deadbeefdeadbeefdeadbeef"
+    - Raw 32-char hex: "deadbeefdeadbeefdeadbeefdeadbeef"
 
     **Workflow:**
     1. Get incident details: `get_incident_root_cause(snapshot_id)` -> note `telemetry_correlation.trace_id`

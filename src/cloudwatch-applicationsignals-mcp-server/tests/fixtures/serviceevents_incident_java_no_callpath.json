@@ -11,7 +11,7 @@
     "http.request.method": "GET",
     "http.response.status_code": 200,
     "url.route": "/event/{eventId}/share/",
-    "vcs.ref.head.revision": "c3b0940dab7653ac8f4c2383c9dce96bb6dcc2ae",
+    "vcs.ref.head.revision": "abababababababababababababababababababab",
     "vcs.repository.url.full": "https://github.com/aws-observability/private-aws-otel-java-instrumentation-staging"
   },
   "body": {
@@ -76,5 +76,5 @@
   "severityText": "",
   "spanId": "8cda7858d3a2cf78",
   "timeUnixNano": 1780015082788365369,
-  "traceId": "6a18dfea9f3b3ecdc16287011ddb8e8b"
+  "traceId": "deadbeefdeadbeefdeadbeefdead0003"
 }

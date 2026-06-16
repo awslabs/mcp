@@ -11,7 +11,7 @@
     "http.request.method": "GET",
     "http.response.status_code": 500,
     "url.route": "/",
-    "vcs.ref.head.revision": "cde166ffd3593069d177869dba9fbd820de0576c",
+    "vcs.ref.head.revision": "abababababababababababababababababab0003",
     "vcs.repository.url.full": "https://github.com/jj22ee/indico"
   },
   "body": {
@@ -513,7 +513,7 @@
       "telemetry.sdk.language": "python",
       "telemetry.sdk.name": "opentelemetry",
       "telemetry.sdk.version": "1.40.0",
-      "vcs.ref.head.revision": "cde166ffd3593069d177869dba9fbd820de0576c",
+      "vcs.ref.head.revision": "abababababababababababababababababab0003",
       "vcs.repository.url.full": "https://github.com/jj22ee/indico"
     }
   },
@@ -525,5 +525,5 @@
   "severityText": "",
   "spanId": "497700f5fbb0b990",
   "timeUnixNano": 1780098109463317248,
-  "traceId": "6a1a242f1a33cf32a78c008437268f35"
+  "traceId": "deadbeefdeadbeefdeadbeefdead0002"
 }

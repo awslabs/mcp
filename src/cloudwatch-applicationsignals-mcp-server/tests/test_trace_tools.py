@@ -31,34 +31,34 @@ class TestConvertOtelToXrayTraceId:
 
     def test_otel_format_with_0x_prefix(self):
         """OTel 0x-prefixed 32-hex ID converts to X-Ray format."""
-        result = _convert_otel_to_xray_trace_id('0x699e34c662d55e013e833341a5d9f079')
-        assert result == '1-699e34c6-62d55e013e833341a5d9f079'
+        result = _convert_otel_to_xray_trace_id('0xdeadbeefdeadbeefdeadbeefdeadbeef')
+        assert result == '1-deadbeef-deadbeefdeadbeefdeadbeef'
 
     def test_raw_32_hex(self):
         """Raw 32-hex ID (no prefix) converts to X-Ray format."""
-        result = _convert_otel_to_xray_trace_id('699e34c662d55e013e833341a5d9f079')
-        assert result == '1-699e34c6-62d55e013e833341a5d9f079'
+        result = _convert_otel_to_xray_trace_id('deadbeefdeadbeefdeadbeefdeadbeef')
+        assert result == '1-deadbeef-deadbeefdeadbeefdeadbeef'
 
     def test_xray_format_passthrough(self):
         """Already-X-Ray-format IDs pass through unchanged."""
-        xray_id = '1-699e34c6-62d55e013e833341a5d9f079'
+        xray_id = '1-deadbeef-deadbeefdeadbeefdeadbeef'
         result = _convert_otel_to_xray_trace_id(xray_id)
         assert result == xray_id
 
     def test_uppercase_hex(self):
         """Uppercase hex is normalized to lowercase."""
-        result = _convert_otel_to_xray_trace_id('0x699E34C662D55E013E833341A5D9F079')
-        assert result == '1-699e34c6-62d55e013e833341a5d9f079'
+        result = _convert_otel_to_xray_trace_id('0xDEADBEEFDEADBEEFDEADBEEFDEADBEEF')
+        assert result == '1-deadbeef-deadbeefdeadbeefdeadbeef'
 
     def test_uppercase_0x_prefix(self):
         """An uppercase 0X prefix is accepted."""
-        result = _convert_otel_to_xray_trace_id('0X699e34c662d55e013e833341a5d9f079')
-        assert result == '1-699e34c6-62d55e013e833341a5d9f079'
+        result = _convert_otel_to_xray_trace_id('0Xdeadbeefdeadbeefdeadbeefdeadbeef')
+        assert result == '1-deadbeef-deadbeefdeadbeefdeadbeef'
 
     def test_whitespace_stripped(self):
         """Leading/trailing whitespace is stripped before conversion."""
-        result = _convert_otel_to_xray_trace_id('  0x699e34c662d55e013e833341a5d9f079  ')
-        assert result == '1-699e34c6-62d55e013e833341a5d9f079'
+        result = _convert_otel_to_xray_trace_id('  0xdeadbeefdeadbeefdeadbeefdeadbeef  ')
+        assert result == '1-deadbeef-deadbeefdeadbeefdeadbeef'
 
     def test_invalid_too_short(self):
         """A too-short ID raises ValueError."""
@@ -68,7 +68,7 @@ class TestConvertOtelToXrayTraceId:
     def test_invalid_non_hex(self):
         """A non-hex ID raises ValueError."""
         with pytest.raises(ValueError):
-            _convert_otel_to_xray_trace_id('0xzzzz34c662d55e013e833341a5d9f079')
+            _convert_otel_to_xray_trace_id('0xzzzz34c6deadbeefdeadbeefdeadbeef')
 
     def test_invalid_empty(self):
         """An empty string raises ValueError."""
@@ -279,7 +279,7 @@ class TestParseXrayTrace:
     def _make_trace(segments_docs):
         """Build a mock X-Ray trace response from segment documents."""
         return {
-            'Id': '1-699e34c6-62d55e013e833341a5d9f079',
+            'Id': '1-deadbeef-deadbeefdeadbeefdeadbeef',
             'Duration': 1.5,
             'Segments': [
                 {'Id': f'seg-{i}', 'Document': json.dumps(doc)}
@@ -293,7 +293,7 @@ class TestParseXrayTrace:
             [{'name': 'my-service', 'start_time': 1000.0, 'end_time': 1001.5}]
         )
         result = _parse_xray_trace(trace)
-        assert result['trace_id'] == '1-699e34c6-62d55e013e833341a5d9f079'
+        assert result['trace_id'] == '1-deadbeef-deadbeefdeadbeefdeadbeef'
         assert result['duration_s'] == 1.5
         assert len(result['segments']) == 1
         assert result['segments'][0]['name'] == 'my-service'
@@ -379,7 +379,7 @@ class TestGetXrayTrace:
 
     async def test_too_many_trace_ids(self):
         """More than 5 trace IDs is rejected."""
-        ids = ','.join(['699e34c662d55e013e833341a5d9f079'] * 6)
+        ids = ','.join(['deadbeefdeadbeefdeadbeefdeadbeef'] * 6)
         result = await get_xray_trace(trace_ids=ids)
         assert 'error' in result
         assert 'Maximum 5' in result['error']
@@ -395,7 +395,7 @@ class TestGetXrayTrace:
         mock_xray.batch_get_traces.return_value = {
             'Traces': [
                 {
-                    'Id': '1-699e34c6-62d55e013e833341a5d9f079',
+                    'Id': '1-deadbeef-deadbeefdeadbeefdeadbeef',
                     'Duration': 2.0,
                     'Segments': [
                         {
@@ -425,11 +425,11 @@ class TestGetXrayTrace:
             'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.xray_client',
             mock_xray,
         ):
-            result = await get_xray_trace(trace_ids='0x699e34c662d55e013e833341a5d9f079')
+            result = await get_xray_trace(trace_ids='0xdeadbeefdeadbeefdeadbeefdeadbeef')
 
         # OTel input was converted to X-Ray format before the API call.
         mock_xray.batch_get_traces.assert_called_once_with(
-            TraceIds=['1-699e34c6-62d55e013e833341a5d9f079']
+            TraceIds=['1-deadbeef-deadbeefdeadbeefdeadbeef']
         )
         assert len(result['traces']) == 1
         trace = result['traces'][0]
@@ -437,7 +437,7 @@ class TestGetXrayTrace:
         assert {s['name'] for s in trace['segments']} == {'frontend', 'backend'}
         # Conversion mapping is included because input was not X-Ray format.
         assert result['trace_id_conversions'] == {
-            '0x699e34c662d55e013e833341a5d9f079': '1-699e34c6-62d55e013e833341a5d9f079'
+            '0xdeadbeefdeadbeefdeadbeefdeadbeef': '1-deadbeef-deadbeefdeadbeefdeadbeef'
         }
 
     async def test_unprocessed_trace_ids_note(self):
@@ -445,14 +445,14 @@ class TestGetXrayTrace:
         mock_xray = MagicMock()
         mock_xray.batch_get_traces.return_value = {
             'Traces': [],
-            'UnprocessedTraceIds': ['1-699e34c6-62d55e013e833341a5d9f079'],
+            'UnprocessedTraceIds': ['1-deadbeef-deadbeefdeadbeefdeadbeef'],
         }
         with patch(
             'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.xray_client',
             mock_xray,
         ):
-            result = await get_xray_trace(trace_ids='1-699e34c6-62d55e013e833341a5d9f079')
+            result = await get_xray_trace(trace_ids='1-deadbeef-deadbeefdeadbeefdeadbeef')
 
         assert result['traces'] == []
-        assert result['unprocessed_trace_ids'] == ['1-699e34c6-62d55e013e833341a5d9f079']
+        assert result['unprocessed_trace_ids'] == ['1-deadbeef-deadbeefdeadbeefdeadbeef']
         assert 'note' in result

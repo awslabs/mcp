@@ -5,7 +5,7 @@
     "aws.service_events.deployment.trigger": "startup",
     "aws.service_events.deployment.url": "https://github.com/aws-observability/private-aws-otel-java-instrumentation-staging/actions/runs/26605861522",
     "event.name": "aws.service_events.deployment_event",
-    "vcs.ref.head.revision": "c3b0940dab7653ac8f4c2383c9dce96bb6dcc2ae",
+    "vcs.ref.head.revision": "abababababababababababababababababababab",
     "vcs.repository.url.full": "https://github.com/aws-observability/private-aws-otel-java-instrumentation-staging"
   },
   "eventName": "aws.service_events.deployment_event",

@@ -9,7 +9,7 @@
     "event.name": "aws.service_events.endpoint_summary",
     "http.request.method": "POST",
     "url.route": "/investigation/trigger_error",
-    "vcs.ref.head.revision": "76b00b35d8cbc18f02af76b55ad43c72f17da33f",
+    "vcs.ref.head.revision": "abababababababababababababababababab0001",
     "vcs.repository.url.full": "https://github.com/example/my-api-demo"
   },
   "body": {

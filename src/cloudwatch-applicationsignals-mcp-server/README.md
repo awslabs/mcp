@@ -1024,6 +1024,7 @@ The server requires the following AWS IAM permissions:
         "application-signals:ListGroupingAttributeDefinitions",
         "cloudwatch:GetMetricData",
         "cloudwatch:GetMetricStatistics",
+        "cloudwatch:ListMetrics",
         "logs:GetQueryResults",
         "logs:StartQuery",
         "logs:StopQuery",
