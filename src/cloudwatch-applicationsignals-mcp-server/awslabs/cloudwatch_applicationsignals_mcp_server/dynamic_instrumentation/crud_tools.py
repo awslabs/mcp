@@ -26,6 +26,8 @@ from .location import parse_create_inputs, parse_lookup_inputs
 from .validation import (
     _format_code_location_troubleshooting,
     normalize_instrumentation_type,
+    validate_capture_names,
+    validate_probe_constraints,
 )
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
@@ -60,11 +62,17 @@ def create_instrumentation(
     """Create a dynamic instrumentation configuration for BREAKPOINT or PROBE.
 
     This is the main creation entrypoint for the MCP server. BREAKPOINT and PROBE
-    create code-based instrumentation and require an explicit code location plus
-    explicit `capture_arguments`.
+    create code-based instrumentation and require an explicit code location. Set
+    capture_arguments for method/function-level targets and capture_locals for
+    line-level targets.
 
     Args:
-        instrumentation_type: BREAKPOINT or PROBE.
+        instrumentation_type: BREAKPOINT or PROBE. PROBE is method/function-level only
+            (no line_number) and is not supported for JavaScript. Unlike BREAKPOINT,
+            PROBE has no max_hits cap — it fires on every hit, which makes it suited to
+            long-running observation/monitoring without worrying about hitting a limit.
+            The trade-off: a PROBE never expires on its own, so you must delete it
+            explicitly when done.
         service: Backend service identifier used by the AWS API.
         environment: Backend environment identifier used by the AWS API.
         language: Required for BREAKPOINT/PROBE code instrumentation.
@@ -77,11 +85,18 @@ def create_instrumentation(
         class_name: Optional class name for class-based targets. Java should use the simple class name only.
         method_name: Optional function or method name for method-level instrumentation.
         line_number: Optional 1-based line number for line-level instrumentation.
-        capture_arguments: Required for BREAKPOINT/PROBE. MCP does not infer argument names automatically.
+        capture_arguments: A list of argument names to capture, for method/function-level
+            instrumentation (when line_number is not set). MCP does not infer argument names
+            automatically. Provide explicit names; an empty list and the wildcard "*" are
+            rejected. Omit to capture no arguments.
         capture_return: Whether to capture return values for code instrumentation. Defaults to enabled.
         capture_stack_trace: Whether to capture stack traces for code instrumentation. Defaults to enabled.
-        capture_locals: Optional list of local variable names to capture.
-        max_hits: Optional capture limit for maximum number of hits.
+        capture_locals: A list of local variable names to capture, for line-level
+            instrumentation (when line_number is set). MCP does not infer variable names
+            automatically. Provide explicit names; an empty list and the wildcard "*" are
+            rejected. Omit to capture no locals.
+        max_hits: Optional capture limit for maximum number of hits. Applies to BREAKPOINT
+            only; PROBE has no max_hits (it fires on every hit) and the value is ignored.
         max_string_length: Optional capture limit for string truncation.
         max_collection_width: Optional capture limit for collection width.
         max_collection_depth: Optional capture limit for nested collection depth.
@@ -89,9 +104,17 @@ def create_instrumentation(
         max_stack_trace_size: Optional capture limit for stack trace size.
         max_object_depth: Optional capture limit for object traversal depth.
         max_fields_per_object: Optional capture limit for object field count.
-        attribute_filters: Optional attribute filter groups forwarded to the AWS API.
+        attribute_filters: Optional list of resource-attribute filter groups that scope
+            which service instances the instrumentation applies to. Each group is a
+            dict of OpenTelemetry resource-attribute names to exact-match values
+            (e.g. {"service.version": "1.2.0", "deployment.environment": "prod"}).
+            Matching is exact (no wildcards/patterns); conditions are AND-ed within a
+            group and groups are OR-ed together. Up to 10 groups; keys and values must
+            be 1-50 and 1-100 characters respectively. Omit to apply to all instances.
         description: Free-form description stored with the instrumentation. Must be 50 characters or fewer.
-        ttl_hours: Optional expiration duration in hours. Converted to an absolute UTC timestamp.
+        ttl_hours: Optional expiration duration in hours. Converted to an absolute UTC
+            timestamp. Ignored for PROBE — a PROBE does not expire on its own and must be
+            deleted explicitly, so set up cleanup accordingly.
 
     Notes:
         - BREAKPOINT/PROBE require `language` and `file_path`.
@@ -103,7 +126,17 @@ def create_instrumentation(
           is executed directly as the process entry script.
         - For Java, set `code_unit` to the package name and keep `class_name` as the simple class name only.
         - `line_number` is only for line-level breakpoints and must be 1-based.
-        - `capture_arguments=["*"]` is not supported; "*" is ignored if present.
+        - Target an executable statement when setting `line_number`. Python/Java ignore a
+          non-executable line (blank/comment/decorator/signature) and the breakpoint never
+          fires; JavaScript slides the breakpoint to the next parseable line. Choose the
+          line deliberately.
+        - PROBE is method/function-level only: not supported for JavaScript, and
+          `line_number` is ignored.
+        - PROBE has no `max_hits` and fires on every hit (unlike BREAKPOINT). This makes
+          it suited to long-running observation/monitoring without worrying about a hit
+          limit — but a PROBE does not expire on its own (`ttl_hours` is ignored), so you
+          must delete it explicitly when you are done.
+        - `capture_arguments` and `capture_locals` reject `["*"]` and empty lists; omit to capture none.
         - `SignalType` is always SNAPSHOT.
         - `description` must be 50 characters or fewer.
         - Inspect the source file directly before calling this tool — choose `code_unit`,
@@ -116,6 +149,10 @@ def create_instrumentation(
     normalized_type, type_error = normalize_instrumentation_type(instrumentation_type)
     if type_error:
         return type_error
+
+    probe_error = validate_probe_constraints(normalized_type, language, line_number)
+    if probe_error:
+        return probe_error
 
     location, location_error = parse_create_inputs(
         normalized_type=normalized_type,
@@ -144,17 +181,26 @@ def create_instrumentation(
         line_number=line_number,
     )
 
-    wildcard_removed = False
-    if capture_arguments is None:
-        return (
-            'ERROR: capture_arguments is required for BREAKPOINT/PROBE code instrumentation.\n'
-            'MCP does not infer argument names automatically.\n'
-            'Inspect the source file directly and re-run with capture_arguments=[...].'
-        )
+    capture_arguments_error = validate_capture_names('capture_arguments', capture_arguments)
+    if capture_arguments_error:
+        return capture_arguments_error
+    capture_locals_error = validate_capture_names('capture_locals', capture_locals)
+    if capture_locals_error:
+        return capture_locals_error
 
-    if '*' in capture_arguments:
-        wildcard_removed = True
-    capture_arguments = [arg for arg in capture_arguments if arg != '*']
+    # Line-level instrumentation (line_number set) fires mid-function, where only
+    # locals carry data — arguments/return values are call-boundary concepts that
+    # do not apply. A line-level config without capture_locals would capture
+    # nothing useful, so require it. (JavaScript is always line-level per its
+    # location rules, so this requirement always applies to JavaScript.)
+    is_line_level = line_number is not None
+    if is_line_level and not capture_locals:
+        return (
+            'ERROR: line-level instrumentation (line_number set) requires capture_locals.\n'
+            'At a specific line, only local variables carry data — arguments and return '
+            'values apply to method/function-level targets (no line_number).\n'
+            'Provide capture_locals=[...] with the local variable names to capture.'
+        )
 
     code_capture_return = True if capture_return is None else capture_return
     code_capture_stack_trace = True if capture_stack_trace is None else capture_stack_trace
@@ -229,8 +275,8 @@ def create_instrumentation(
         location=location,
         ttl_hours=ttl_hours,
         capture_arguments=capture_arguments,
-        wildcard_removed=wildcard_removed,
         code_capture_locals=code_capture_locals,
+        is_line_level=is_line_level,
         code_capture_return=code_capture_return,
         code_capture_stack_trace=code_capture_stack_trace,
         max_hits=max_hits,

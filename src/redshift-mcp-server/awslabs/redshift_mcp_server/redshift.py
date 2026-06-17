@@ -333,7 +333,13 @@ async def _execute_protected_statement(
     # Get results from user query
     data_client = client_manager.redshift_data_client()
     assert user_query_id is not None, 'user_query_id should not be None at this point'
-    results_response = data_client.get_statement_result(Id=user_query_id)
+
+    # Only fetch results when the statement produced a result set (e.g. SET does not).
+    describe_response = data_client.describe_statement(Id=user_query_id)
+    if describe_response.get('HasResultSet'):
+        results_response = data_client.get_statement_result(Id=user_query_id)
+    else:
+        results_response = {'Records': [], 'ColumnMetadata': []}
     return results_response, user_query_id
 
 

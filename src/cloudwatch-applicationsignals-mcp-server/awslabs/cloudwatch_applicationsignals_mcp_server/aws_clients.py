@@ -21,8 +21,38 @@ from botocore.config import Config
 from loguru import logger
 
 
-# Get AWS region from environment variable or use default
-AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
+def _resolve_region() -> str:
+    """Resolve AWS region with priority: AWS_REGION > AWS_DEFAULT_REGION > profile/config > us-east-1.
+
+    We check the env vars explicitly (rather than relying on boto3's own
+    resolution) so the AWS_REGION > AWS_DEFAULT_REGION ordering is deterministic:
+    when both are set, some boto3 versions return AWS_DEFAULT_REGION. Only when
+    neither is set do we let boto3 resolve from the configured profile / ~/.aws/config,
+    so a profile-only caller (AWS_PROFILE set, no env region) picks up that
+    profile's region instead of silently defaulting to us-east-1.
+    """
+    env_region = os.environ.get('AWS_REGION') or os.environ.get('AWS_DEFAULT_REGION')
+    if env_region:
+        logger.debug(f'Region from AWS_REGION/AWS_DEFAULT_REGION env var: {env_region}')
+        return env_region
+    # Let boto3 resolve from AWS_PROFILE config or ~/.aws/config
+    profile = os.environ.get('AWS_PROFILE')
+    try:
+        session = boto3.Session(profile_name=profile)
+        if session.region_name:
+            logger.debug(
+                f'Region from AWS profile/config (profile={profile}): {session.region_name}'
+            )
+            return session.region_name
+    except Exception as e:  # pragma: no cover - defensive; bad/missing profile
+        logger.debug(f'Could not resolve region from boto3 session (profile={profile}): {e}')
+    logger.debug(
+        f'No region found in env or profile (profile={profile}), falling back to us-east-1'
+    )
+    return 'us-east-1'
+
+
+AWS_REGION = _resolve_region()
 logger.debug(f'Using AWS region: {AWS_REGION}')
 
 
@@ -123,3 +153,17 @@ try:
 except Exception as e:
     logger.error(f'Failed to initialize AWS clients: {str(e)}')
     raise
+
+
+def get_applicationsignals_client():
+    """Return the module-level Application Signals client.
+
+    Provided so callers (e.g. the service_events tools) can resolve the client lazily,
+    which lets ``mock.patch`` of the module attribute propagate in tests.
+    """
+    return applicationsignals_client
+
+
+def get_cloudwatch_client():
+    """Return the module-level CloudWatch client (lazy accessor; see above)."""
+    return cloudwatch_client
