@@ -1161,6 +1161,27 @@ class TestErrorPatternComparison:
         assert cmp['recent_window']['partial'] is True
         assert cmp['rows'][0]['delta'] == 12
         assert mock_win.call_count == 2
+        # trend_basis names BOTH windows so a Trend column is never ambiguous.
+        assert cmp['trend_basis'].startswith('Trend compares ')
+        assert cmp['recent_window']['label'] in cmp['trend_basis']
+        assert cmp['prior_window']['label'] in cmp['trend_basis']
+        assert 'UTC' in cmp['trend_basis']
+
+    def test_fmt_window_same_day_and_spanning(self):
+        """Same-day windows collapse the date; spanning windows show both dates."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.service_events import tools
+        from datetime import datetime, timezone
+
+        same_day = tools._fmt_window(
+            datetime(2026, 6, 17, 10, 12, tzinfo=timezone.utc),
+            datetime(2026, 6, 17, 13, 12, tzinfo=timezone.utc),
+        )
+        assert same_day == '2026-06-17 10:12–13:12 UTC'
+        spanning = tools._fmt_window(
+            datetime(2026, 6, 16, 16, 12, tzinfo=timezone.utc),
+            datetime(2026, 6, 17, 16, 12, tzinfo=timezone.utc),
+        )
+        assert spanning == '2026-06-16 16:12 → 2026-06-17 16:12 UTC'
 
     def test_comparison_none_when_a_window_fails(self):
         """If either window query fails (None), the comparison is omitted."""

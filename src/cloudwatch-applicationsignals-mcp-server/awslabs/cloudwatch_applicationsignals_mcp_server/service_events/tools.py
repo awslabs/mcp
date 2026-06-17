@@ -382,6 +382,17 @@ def _duration_str(seconds: float) -> str:
     return f'{max(60, int(round(seconds)))}s'
 
 
+def _fmt_window(start: datetime, end: datetime) -> str:
+    """Render an absolute UTC time range for a comparison window caption.
+
+    Same-day windows collapse the date once (``2026-06-17 10:12–13:12 UTC``); spanning
+    windows show both dates (``2026-06-16 16:12 → 2026-06-17 16:12 UTC``).
+    """
+    if start.date() == end.date():
+        return f'{start:%Y-%m-%d %H:%M}–{end:%H:%M} UTC'
+    return f'{start:%Y-%m-%d %H:%M} → {end:%Y-%m-%d %H:%M} UTC'
+
+
 def _query_error_patterns_window(
     service_name: str,
     environment: Optional[str],
@@ -532,8 +543,18 @@ async def _fetch_error_pattern_comparison(
     prior_total = sum(r['prior_count'] for r in merged)
     recent_total = sum(r['recent_count'] for r in merged)
 
+    # One-line, human-readable statement of exactly what the trend compares, with
+    # absolute UTC ranges — so a "Trend"/"Change" column is never shown without naming
+    # its baseline. e.g. "Trend compares Last 3h (after deploy) [2026-06-17 13:12–16:12
+    # UTC] vs Prior 3h (before deploy) [2026-06-17 10:12–13:12 UTC]".
+    trend_basis = (
+        f'Trend compares {recent_label} [{_fmt_window(after_start, after_end)}] '
+        f'vs {prior_label} [{_fmt_window(before_start, before_end)}]'
+    )
+
     comparison = {
         'strategy': strategy,
+        'trend_basis': trend_basis,
         'prior_window': {
             'label': prior_label,
             'start': before_start.isoformat(),
@@ -1249,6 +1270,10 @@ async def get_health_overview(
       answer "did the error pattern change?" directly. Fields:
         - `strategy`: "deployment" (cut line is a recent deploy, ±3h around it) or
           "time_window" (last 24h vs previous 24h when no recent deployment).
+        - `trend_basis`: a one-line statement of EXACTLY which two windows the trend
+          compares, with absolute UTC ranges. You MUST print this verbatim as a caption
+          directly above (or below) the table whenever you show a Trend/Change column —
+          never present a trend/percentage without stating what it is measured against.
         - `deployment.deployed_at`: the cut-line timestamp (deployment strategy only).
         - `prior_window` / `recent_window`: `{label, start, end[, partial]}` — use the
           `label` fields as the comparison column headers.
@@ -1264,7 +1289,10 @@ async def get_health_overview(
           current counts and say the earlier baseline is unavailable for comparison.
       RENDER THIS AS A MARKDOWN TABLE with columns: "Operation / Exception",
       prior_window.label, recent_window.label, and "Change" (use ▲ for up/new, ▼ for
-      down/cleared, ≈ for flat, with the delta and pct_change), plus a Total row.
+      down/cleared, ≈ for flat, with the delta and pct_change), plus a Total row. The two
+      count columns MUST be headed with the window `label`s (which include the time
+      span) — do NOT collapse them into a single ambiguous "Count" column. Print the
+      `trend_basis` caption next to the table so the comparison windows are unambiguous.
     - note: Reminder that counts are sampled, not exhaustive totals
     - ALERT: (when SLO breaches detected)
     - slo_compliance: SLO breach summary when Application Signals is enabled
