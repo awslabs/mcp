@@ -126,7 +126,13 @@ async def _validate_path(ctx: Context, path: str, must_be_dir: bool = True) -> s
 def _client_prefix(ctx: Context) -> str:
     """Extract a kebab-case prefix from the MCP client name, or 'ide' as fallback."""
     try:
-        name = ctx.session.client_params.clientInfo.name
+        session = ctx.session
+        if session is None:
+            return 'ide'
+        client_params = session.client_params
+        if client_params is None:
+            return 'ide'
+        name = client_params.clientInfo.name  # type: ignore[union-attr]
         if not isinstance(name, str):
             return 'ide'
         return name.lower().replace(' ', '-')
