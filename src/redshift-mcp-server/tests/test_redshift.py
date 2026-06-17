@@ -323,6 +323,90 @@ class TestExecuteProtectedStatement:
         assert calls[2][1]['sql'] == 'END;'
 
     @pytest.mark.asyncio
+    async def test_execute_protected_statement_no_result_set(self, mocker):
+        """Statements with no result set (e.g. SET) must not call get_statement_result."""
+        # Mock discover_clusters
+        mock_discover_clusters = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_clusters'
+        )
+        mock_discover_clusters.return_value = [
+            {'identifier': 'test-cluster', 'type': 'provisioned', 'status': 'available'}
+        ]
+
+        # Mock session manager
+        mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
+        mock_session_manager.session = mocker.AsyncMock(return_value='test-session-123')
+
+        # Mock _execute_statement
+        mock_execute_statement = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_statement'
+        )
+        mock_execute_statement.side_effect = ['begin-stmt-id', 'user-stmt-id', 'end-stmt-id']
+
+        # Mock data client: user statement finished but produced no result set
+        mock_data_client = mocker.Mock()
+        mock_data_client.describe_statement.return_value = {
+            'Status': 'FINISHED',
+            'HasResultSet': False,
+        }
+        mock_client_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.client_manager')
+        mock_client_manager.redshift_data_client.return_value = mock_data_client
+
+        results_response, query_id = await _execute_protected_statement(
+            'test-cluster',
+            'test-db',
+            "SET search_path TO 'public'",
+            allow_read_write=False,
+        )
+
+        # get_statement_result must NOT be called for statements with no result set
+        mock_data_client.get_statement_result.assert_not_called()
+        # describe_statement is used to detect whether a result set exists
+        mock_data_client.describe_statement.assert_called_once_with(Id='user-stmt-id')
+        assert query_id == 'user-stmt-id'
+        assert results_response == {'Records': [], 'ColumnMetadata': []}
+
+    @pytest.mark.asyncio
+    async def test_execute_protected_statement_with_result_set(self, mocker):
+        """Statements with a result set must fetch results via get_statement_result."""
+        # Mock discover_clusters
+        mock_discover_clusters = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_clusters'
+        )
+        mock_discover_clusters.return_value = [
+            {'identifier': 'test-cluster', 'type': 'provisioned', 'status': 'available'}
+        ]
+
+        # Mock session manager
+        mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
+        mock_session_manager.session = mocker.AsyncMock(return_value='test-session-123')
+
+        # Mock _execute_statement
+        mock_execute_statement = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_statement'
+        )
+        mock_execute_statement.side_effect = ['begin-stmt-id', 'user-stmt-id', 'end-stmt-id']
+
+        # Mock data client: user statement finished and produced a result set
+        expected_result = {'Records': [[{'longValue': 1}]], 'ColumnMetadata': [{'name': 'n'}]}
+        mock_data_client = mocker.Mock()
+        mock_data_client.describe_statement.return_value = {
+            'Status': 'FINISHED',
+            'HasResultSet': True,
+        }
+        mock_data_client.get_statement_result.return_value = expected_result
+        mock_client_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.client_manager')
+        mock_client_manager.redshift_data_client.return_value = mock_data_client
+
+        results_response, query_id = await _execute_protected_statement(
+            'test-cluster', 'test-db', 'SELECT 1 AS n', allow_read_write=False
+        )
+
+        mock_data_client.get_statement_result.assert_called_once_with(Id='user-stmt-id')
+        assert query_id == 'user-stmt-id'
+        assert results_response == expected_result
+
+    @pytest.mark.asyncio
     async def test_execute_protected_statement_transaction_breaker_error(self, mocker):
         """Test transaction breaker protection in read-only mode."""
         # Mock discover_clusters
@@ -1277,6 +1361,32 @@ class TestExecuteQuery:
         assert result['row_count'] == 1
         assert result['execution_time_ms'] == 123
         assert result['query_id'] == 'query-123'
+
+    @pytest.mark.asyncio
+    async def test_execute_query_no_result_set(self, mocker):
+        """SET-style statements with no result set return an empty, successful result."""
+        # Mock _execute_protected_statement to mimic a no-result-set statement
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+        mock_execute_protected.return_value = (
+            {'Records': [], 'ColumnMetadata': []},
+            'set-query-123',
+        )
+
+        mock_time = mocker.patch('time.time')
+        mock_time.side_effect = [1000.0, 1000.05]  # start_time, end_time
+
+        result = await execute_query(
+            'test-cluster',
+            'dev',
+            "SET search_path TO 'public'",
+        )
+
+        assert result['columns'] == []
+        assert result['rows'] == []
+        assert result['row_count'] == 0
+        assert result['query_id'] == 'set-query-123'
 
     @pytest.mark.asyncio
     async def test_execute_query_error_handling(self, mocker):

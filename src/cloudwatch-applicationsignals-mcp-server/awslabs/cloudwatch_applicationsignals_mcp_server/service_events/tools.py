@@ -362,13 +362,14 @@ async def get_endpoints(
         from ..endpoint_metrics import get_endpoint_red_metrics
 
         try:
-            formatted = await asyncio.to_thread(
+            formatted, not_found = await asyncio.to_thread(
                 get_endpoint_red_metrics,
                 service_name=service_name,
                 hours=hours,
                 operation=operation,
                 limit=limit,
                 percentile=percentile,
+                environment=environment,
             )
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error(f'Application Signals endpoint metrics error: {e}')
@@ -379,6 +380,16 @@ async def get_endpoints(
                 'error': str(e),
                 'endpoints': [],
                 'data_source': 'application_signals',
+            }
+
+        if not_found is not None:
+            return {
+                'total_endpoints': 0,
+                'returned': 0,
+                'time_range_hours': hours,
+                'endpoints': [],
+                'data_source': 'application_signals',
+                **not_found,
             }
 
         if operation and len(formatted) == 1:

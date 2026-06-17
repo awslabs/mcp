@@ -109,6 +109,39 @@ class TestFindServiceKeyAttributes:
             result = _find_service_key_attributes('missing', _NOW, _LATER)
         assert result is None
 
+    def test_summary_without_name_is_skipped(self):
+        """A service summary whose KeyAttributes lack a Name is skipped, not matched."""
+        mock_client = MagicMock()
+        mock_client.list_services.return_value = {
+            'ServiceSummaries': [
+                {'KeyAttributes': {'Type': 'Service'}},  # no Name -> skipped
+                {'KeyAttributes': {'Name': 'target', 'Type': 'Service'}},
+            ],
+            'NextToken': None,
+        }
+        with patch.object(
+            endpoint_metrics, 'get_applicationsignals_client', return_value=mock_client
+        ):
+            result = _find_service_key_attributes('target', _NOW, _LATER)
+        assert result == {'Name': 'target', 'Type': 'Service'}
+
+    def test_first_case_insensitive_match_wins(self):
+        """With multiple case-insensitive (non-exact) matches, the first is kept."""
+        mock_client = MagicMock()
+        mock_client.list_services.return_value = {
+            'ServiceSummaries': [
+                {'KeyAttributes': {'Name': 'SVC', 'Environment': 'eks:a'}},
+                {'KeyAttributes': {'Name': 'Svc', 'Environment': 'eks:b'}},
+            ],
+            'NextToken': None,
+        }
+        with patch.object(
+            endpoint_metrics, 'get_applicationsignals_client', return_value=mock_client
+        ):
+            result = _find_service_key_attributes('svc', _NOW, _LATER)
+        # First case-insensitive match is retained; the second does not overwrite it.
+        assert result == {'Name': 'SVC', 'Environment': 'eks:a'}
+
 
 class TestSumDatapoints:
     """Tests for _sum_datapoints aggregation."""
@@ -214,30 +247,43 @@ class TestLatencyStats:
 class TestGetEndpointRedMetrics:
     """Tests for the get_endpoint_red_metrics entry point."""
 
-    def test_service_not_found_returns_empty(self):
-        """When the service KeyAttributes are not found, an empty list is returned."""
+    def test_service_not_found_returns_not_found(self):
+        """When the service KeyAttributes are not found, a not-found diagnostic is returned."""
         mock_as = MagicMock()
         mock_as.list_services.return_value = {'ServiceSummaries': [], 'NextToken': None}
         with patch.object(endpoint_metrics, 'get_applicationsignals_client', return_value=mock_as):
-            result = get_endpoint_red_metrics('missing', hours=24)
-        assert result == []
+            summaries, not_found = get_endpoint_red_metrics('missing', hours=24)
+        assert summaries == []
+        assert not_found is not None
+        assert not_found['status'] == 'service_not_found'
+        assert 'missing' in not_found['message']
+
+    def test_not_found_message_includes_environment(self):
+        """When an environment is given, the not-found message names it."""
+        mock_as = MagicMock()
+        mock_as.list_services.return_value = {'ServiceSummaries': [], 'NextToken': None}
+        with patch.object(endpoint_metrics, 'get_applicationsignals_client', return_value=mock_as):
+            _, not_found = get_endpoint_red_metrics('missing', environment='eks:prod')
+        assert not_found is not None
+        assert 'eks:prod' in not_found['message']
 
     def test_happy_path_all_metric_types(self):
-        """A full operation with Latency/Fault/Error metrics produces a complete summary."""
+        """A full operation with LATENCY/FAULT/ERROR metrics produces a complete summary."""
         key_attrs = {'Name': 'svc', 'Type': 'Service'}
         mock_as = MagicMock()
         mock_as.list_services.return_value = {
             'ServiceSummaries': [{'KeyAttributes': key_attrs}],
             'NextToken': None,
         }
+        # The API returns operations under "ServiceOperations" with UPPERCASE MetricType.
         mock_as.list_service_operations.return_value = {
-            'Operations': [
+            'ServiceOperations': [
                 {
                     'Name': 'GET /orders',
                     'MetricReferences': [
-                        {'MetricType': 'Latency', 'Namespace': 'NS', 'MetricName': 'Latency'},
-                        {'MetricType': 'Fault', 'Namespace': 'NS', 'MetricName': 'Fault'},
-                        {'MetricType': 'Error', 'Namespace': 'NS', 'MetricName': 'Error'},
+                        {'MetricType': 'LATENCY', 'Namespace': 'NS', 'MetricName': 'Latency'},
+                        {'MetricType': 'FAULT', 'Namespace': 'NS', 'MetricName': 'Fault'},
+                        {'MetricType': 'ERROR', 'Namespace': 'NS', 'MetricName': 'Error'},
                     ],
                 }
             ],
@@ -265,10 +311,11 @@ class TestGetEndpointRedMetrics:
             patch.object(endpoint_metrics, 'get_applicationsignals_client', return_value=mock_as),
             patch.object(endpoint_metrics, 'get_cloudwatch_client', return_value=mock_cw),
         ):
-            result = get_endpoint_red_metrics('svc', hours=24, percentile=99)
+            summaries, not_found = get_endpoint_red_metrics('svc', hours=24, percentile=99)
 
-        assert len(result) == 1
-        summary = result[0]
+        assert not_found is None
+        assert len(summaries) == 1
+        summary = summaries[0]
         assert summary['operation'] == 'GET /orders'
         assert summary['service_name'] == 'svc'
         assert summary['total_requests'] == 10
@@ -288,7 +335,7 @@ class TestGetEndpointRedMetrics:
             'NextToken': None,
         }
         mock_as.list_service_operations.return_value = {
-            'Operations': [
+            'ServiceOperations': [
                 {'Name': 'GET /orders', 'MetricReferences': []},
                 {'Name': 'POST /payments', 'MetricReferences': []},
             ],
@@ -299,12 +346,13 @@ class TestGetEndpointRedMetrics:
             patch.object(endpoint_metrics, 'get_applicationsignals_client', return_value=mock_as),
             patch.object(endpoint_metrics, 'get_cloudwatch_client', return_value=mock_cw),
         ):
-            result = get_endpoint_red_metrics('svc', operation='PAYMENTS')
-        assert len(result) == 1
-        assert result[0]['operation'] == 'POST /payments'
+            summaries, not_found = get_endpoint_red_metrics('svc', operation='PAYMENTS')
+        assert not_found is None
+        assert len(summaries) == 1
+        assert summaries[0]['operation'] == 'POST /payments'
         # No metric refs -> defaults, and CloudWatch was never queried.
-        assert result[0]['total_requests'] == 0
-        assert result[0]['avg_duration_ms'] is None
+        assert summaries[0]['total_requests'] == 0
+        assert summaries[0]['avg_duration_ms'] is None
         mock_cw.get_metric_statistics.assert_not_called()
 
     def test_operations_paginated(self):
@@ -315,12 +363,13 @@ class TestGetEndpointRedMetrics:
             'NextToken': None,
         }
         mock_as.list_service_operations.side_effect = [
-            {'Operations': [{'Name': 'op-a', 'MetricReferences': []}], 'NextToken': 'next'},
-            {'Operations': [{'Name': 'op-b', 'MetricReferences': []}], 'NextToken': None},
+            {'ServiceOperations': [{'Name': 'op-a', 'MetricReferences': []}], 'NextToken': 'next'},
+            {'ServiceOperations': [{'Name': 'op-b', 'MetricReferences': []}], 'NextToken': None},
         ]
         with patch.object(endpoint_metrics, 'get_applicationsignals_client', return_value=mock_as):
-            result = get_endpoint_red_metrics('svc')
-        assert {r['operation'] for r in result} == {'op-a', 'op-b'}
+            summaries, not_found = get_endpoint_red_metrics('svc')
+        assert not_found is None
+        assert {r['operation'] for r in summaries} == {'op-a', 'op-b'}
         assert mock_as.list_service_operations.call_count == 2
         _, kwargs = mock_as.list_service_operations.call_args
         assert kwargs['NextToken'] == 'next'
@@ -333,12 +382,13 @@ class TestGetEndpointRedMetrics:
             'NextToken': None,
         }
         mock_as.list_service_operations.return_value = {
-            'Operations': [{'Name': f'op-{i}', 'MetricReferences': []} for i in range(5)],
+            'ServiceOperations': [{'Name': f'op-{i}', 'MetricReferences': []} for i in range(5)],
             'NextToken': None,
         }
         with patch.object(endpoint_metrics, 'get_applicationsignals_client', return_value=mock_as):
-            result = get_endpoint_red_metrics('svc', limit=2)
-        assert len(result) == 2
+            summaries, not_found = get_endpoint_red_metrics('svc', limit=2)
+        assert not_found is None
+        assert len(summaries) == 2
 
     def test_failure_path_raises(self):
         """An AWS failure during operation listing propagates to the caller."""
@@ -355,3 +405,42 @@ class TestGetEndpointRedMetrics:
             except RuntimeError as e:
                 raised = str(e) == 'boom'
         assert raised
+
+    def test_case_insensitive_name_match(self):
+        """A case-insensitive Name match resolves the service (exact match preferred)."""
+        mock_as = MagicMock()
+        mock_as.list_services.return_value = {
+            'ServiceSummaries': [
+                {'KeyAttributes': {'Name': 'Billing-Service', 'Type': 'Service'}}
+            ],
+            'NextToken': None,
+        }
+        mock_as.list_service_operations.return_value = {
+            'ServiceOperations': [{'Name': 'GET /x', 'MetricReferences': []}],
+            'NextToken': None,
+        }
+        with patch.object(endpoint_metrics, 'get_applicationsignals_client', return_value=mock_as):
+            summaries, not_found = get_endpoint_red_metrics('billing-service')
+        assert not_found is None
+        assert len(summaries) == 1
+
+    def test_environment_disambiguates_same_name(self):
+        """When environment is given, only the service in that environment resolves."""
+        mock_as = MagicMock()
+        mock_as.list_services.return_value = {
+            'ServiceSummaries': [
+                {'KeyAttributes': {'Name': 'svc', 'Environment': 'eks:dev'}},
+                {'KeyAttributes': {'Name': 'svc', 'Environment': 'eks:prod'}},
+            ],
+            'NextToken': None,
+        }
+        mock_as.list_service_operations.return_value = {
+            'ServiceOperations': [],
+            'NextToken': None,
+        }
+        with patch.object(endpoint_metrics, 'get_applicationsignals_client', return_value=mock_as):
+            _, not_found = get_endpoint_red_metrics('svc', environment='eks:prod')
+        assert not_found is None
+        # The prod KeyAttributes (not dev) were used for the operations query.
+        _, kwargs = mock_as.list_service_operations.call_args
+        assert kwargs['KeyAttributes']['Environment'] == 'eks:prod'
