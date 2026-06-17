@@ -109,6 +109,39 @@ class TestFindServiceKeyAttributes:
             result = _find_service_key_attributes('missing', _NOW, _LATER)
         assert result is None
 
+    def test_summary_without_name_is_skipped(self):
+        """A service summary whose KeyAttributes lack a Name is skipped, not matched."""
+        mock_client = MagicMock()
+        mock_client.list_services.return_value = {
+            'ServiceSummaries': [
+                {'KeyAttributes': {'Type': 'Service'}},  # no Name -> skipped
+                {'KeyAttributes': {'Name': 'target', 'Type': 'Service'}},
+            ],
+            'NextToken': None,
+        }
+        with patch.object(
+            endpoint_metrics, 'get_applicationsignals_client', return_value=mock_client
+        ):
+            result = _find_service_key_attributes('target', _NOW, _LATER)
+        assert result == {'Name': 'target', 'Type': 'Service'}
+
+    def test_first_case_insensitive_match_wins(self):
+        """With multiple case-insensitive (non-exact) matches, the first is kept."""
+        mock_client = MagicMock()
+        mock_client.list_services.return_value = {
+            'ServiceSummaries': [
+                {'KeyAttributes': {'Name': 'SVC', 'Environment': 'eks:a'}},
+                {'KeyAttributes': {'Name': 'Svc', 'Environment': 'eks:b'}},
+            ],
+            'NextToken': None,
+        }
+        with patch.object(
+            endpoint_metrics, 'get_applicationsignals_client', return_value=mock_client
+        ):
+            result = _find_service_key_attributes('svc', _NOW, _LATER)
+        # First case-insensitive match is retained; the second does not overwrite it.
+        assert result == {'Name': 'SVC', 'Environment': 'eks:a'}
+
 
 class TestSumDatapoints:
     """Tests for _sum_datapoints aggregation."""
