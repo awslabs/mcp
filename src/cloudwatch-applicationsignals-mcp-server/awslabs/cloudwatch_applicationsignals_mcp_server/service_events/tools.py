@@ -377,6 +377,8 @@ async def get_endpoints(
     right field for "what error patterns does my service have / changed?". It is scoped
     by `operation` when provided, otherwise service-wide. The field is OMITTED when the
     metric is unavailable or there are no errors — its absence never fails the call.
+    (For a service-wide error-pattern overview, `get_service_health_overview` also
+    includes this breakdown.)
 
     Args:
         hours: Time range to query in hours (default 24).
@@ -978,12 +980,17 @@ async def get_health_overview(
 ) -> dict:
     """Get a health overview of the system.
 
-    **PRIMARY ENTRY POINT for general health & performance questions.** Use this
-    FIRST for any broad, open-ended ask such as "is anything wrong with my app?",
-    "are there any performance issues?", or "how healthy is service X?". It is a
-    FAST, minimal-data tool that consolidates the signals those questions need:
+    **PRIMARY ENTRY POINT for general health, performance, AND error-pattern
+    questions.** Use this FIRST for any broad, open-ended ask such as "is anything
+    wrong with my app?", "are there any performance issues?", "how healthy is service
+    X?", or **"do you see any erroring pattern / did errors change for service X?"**.
+    It is a FAST, minimal-data tool that consolidates the signals those questions need:
     SLO compliance/breaches, **recent incident events** (errors, timeouts, slow
-    requests), and the top error-prone functions — in a single call.
+    requests), the top error-prone functions, and — when a `service_name` is given —
+    the **`error_patterns` breakdown (which exceptions on which operations, with
+    counts)** that matches the CloudWatch "Errors" page. A "what errors / which
+    exceptions / did the error pattern change?" question is answered HERE; you do not
+    need a separate endpoint call for the service-wide error breakdown.
 
     **MANDATORY for broad health/performance intent:** A general "any issues?"
     question MUST be answered starting from this tool, because it includes recent
@@ -1028,6 +1035,12 @@ async def get_health_overview(
     - Sampled error count (from top 50 error functions — not an exhaustive total)
     - Top 50 error-prone functions (name and error count only)
     - Top 10 recent incidents (minimal info: endpoint, trigger_type, timestamp)
+    - error_patterns: (when `service_name` is given and the `count` MetricV2 metric is
+      available — i.e. ServiceEvents enabled in the SDK) per-(operation, exception)
+      error counts `{operation, exception, exception_type, count}`, sorted by count desc.
+      This is the operation×exception error breakdown shown on the CloudWatch "Errors"
+      page; use it to answer "which errors / did the error pattern change?". Omitted
+      when no service_name or the metric is unavailable.
     - note: Reminder that counts are sampled, not exhaustive totals
     - ALERT: (when SLO breaches detected)
     - slo_compliance: SLO breach summary when Application Signals is enabled
@@ -1100,6 +1113,12 @@ async def get_health_overview(
             logger.warning(f'SLO compliance check failed: {e}')
             return None
 
+    # Per-(operation, exception) error patterns from the `count` MetricV2 metric.
+    # Service-scoped, so only fetched when a service_name is given; optional (omitted
+    # when the metric is unavailable). This is what answers "any erroring pattern /
+    # did error patterns change?" as part of the overall health picture.
+    want_error_patterns = bool(service_name)
+
     # --- Run all independent queries in parallel ---
     tasks = [
         asyncio.to_thread(_fetch_error_functions),
@@ -1110,6 +1129,10 @@ async def get_health_overview(
         tasks.append(asyncio.to_thread(_fetch_slo_compliance))
     if detail == 'comprehensive':
         tasks.append(asyncio.to_thread(_fetch_endpoints))
+    if want_error_patterns:
+        tasks.append(
+            asyncio.to_thread(_fetch_error_patterns, service_name, hours, None, environment, 20)
+        )
 
     results = await asyncio.gather(*tasks)
 
@@ -1126,6 +1149,9 @@ async def get_health_overview(
     if appsignals_enabled:
         idx += 1
     ep_response = results[idx] if detail == 'comprehensive' else None
+    if detail == 'comprehensive':
+        idx += 1
+    error_patterns = results[idx] if want_error_patterns else None
 
     # Format top error functions (records from CloudWatch Metrics V2)
     sampled_error_count = 0
@@ -1168,6 +1194,10 @@ async def get_health_overview(
     )
     overview['top_error_functions'] = top_error_functions
     overview['recent_incidents'] = recent_incidents
+    if error_patterns:
+        # Per-(operation, exception) error breakdown (CloudWatch "Errors" page data).
+        overview['error_patterns'] = error_patterns
+        overview['error_patterns_source'] = 'metrics_v2'
     overview['time_range_hours'] = hours
 
     # Extract cloud context from incidents if available

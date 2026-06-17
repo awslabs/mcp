@@ -1476,6 +1476,89 @@ class TestHealthOverview:
         assert 'service_stats' not in result
         assert result['data_source'] == 'service_events'
 
+    @patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.tools._fetch_error_patterns'
+    )
+    @patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.cw_logs.query_incidents'
+    )
+    @patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.tools.function_metrics.fetch_function_records'
+    )
+    def test_error_patterns_included_with_service_name(self, mock_fetch, mock_incidents, mock_err):
+        """error_patterns is folded into the overview when a service_name is given."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.service_events.tools import (
+            get_health_overview,
+        )
+
+        mock_fetch.return_value = []
+        mock_incidents.return_value = []
+        mock_err.return_value = [
+            {
+                'operation': 'GET /a',
+                'exception': 'foo.Bar NotFound',
+                'exception_type': 'NotFound',
+                'count': 42,
+            }
+        ]
+
+        result = _run(get_health_overview(hours=24, service_name='svc'))
+
+        assert result['error_patterns_source'] == 'metrics_v2'
+        assert result['error_patterns'][0]['exception_type'] == 'NotFound'
+        assert result['error_patterns'][0]['count'] == 42
+        # The error-pattern fetch is scoped to the given service.
+        assert mock_err.call_args[0][0] == 'svc'
+
+    @patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.tools._fetch_error_patterns'
+    )
+    @patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.cw_logs.query_incidents'
+    )
+    @patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.tools.function_metrics.fetch_function_records'
+    )
+    def test_error_patterns_omitted_when_unavailable(self, mock_fetch, mock_incidents, mock_err):
+        """When the count metric returns nothing, error_patterns is omitted (not failed)."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.service_events.tools import (
+            get_health_overview,
+        )
+
+        mock_fetch.return_value = []
+        mock_incidents.return_value = []
+        mock_err.return_value = None
+
+        result = _run(get_health_overview(hours=24, service_name='svc'))
+
+        assert 'error_patterns' not in result
+        assert 'error_patterns_source' not in result
+
+    @patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.tools._fetch_error_patterns'
+    )
+    @patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.cw_logs.query_incidents'
+    )
+    @patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.tools.function_metrics.fetch_function_records'
+    )
+    def test_error_patterns_skipped_without_service_name(
+        self, mock_fetch, mock_incidents, mock_err
+    ):
+        """No service_name -> the error-pattern fetch is not even attempted."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.service_events.tools import (
+            get_health_overview,
+        )
+
+        mock_fetch.return_value = []
+        mock_incidents.return_value = []
+
+        result = _run(get_health_overview(hours=24))
+
+        assert 'error_patterns' not in result
+        mock_err.assert_not_called()
+
 
 # ============================================================================
 # TestSloComplianceSummary and TestServiceInventory helpers
