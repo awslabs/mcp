@@ -274,12 +274,14 @@ def errors_by_operation_exception(
 ) -> str:
     """Build the per-(operation, exception) error-count query on the ``count`` metric.
 
-    ``sum by (operation, exception) (increase({"count","@resource.service.name"="svc"
-    [,"operation"="op"][,env]}[window]))``. The ``count`` metric is not a histogram, so
-    ``increase`` over the window yields the absolute error count per operation/exception
-    pair (matching the CloudWatch "Errors" page). Only series carrying an ``exception``
-    label are errors, so no extra status filter is needed. When ``top`` is given, wraps
-    in ``topk(top, ...)``.
+    ``sum by (operation, exception) (sum_over_time({"count","@resource.service.name"="svc"
+    [,"operation"="op"][,env]}[window]))``. The ``count`` metric stores per-interval error
+    counts (NOT a cumulative counter), so the total over the window is ``sum_over_time``
+    — adding every interval's value. (``increase``/``rate`` are wrong here: they assume a
+    monotonic counter and compute deltas between samples, which badly undercounts and does
+    not match the CloudWatch "Errors" page.) Only series carrying an ``exception`` label
+    are errors, so no extra status filter is needed. When ``top`` is given, wraps in
+    ``topk(top, ...)``.
     """
     matchers: Dict[str, str] = {LABEL_SERVICE_NAME: service_name}
     if environment:
@@ -287,7 +289,7 @@ def errors_by_operation_exception(
     if operation:
         matchers[LABEL_OPERATION] = operation
     sel = build_selector(METRIC_COUNT, matchers)
-    expr = f'sum by ({LABEL_OPERATION}, {LABEL_EXCEPTION}) (increase({sel}[{window}]))'
+    expr = f'sum by ({LABEL_OPERATION}, {LABEL_EXCEPTION}) (sum_over_time({sel}[{window}]))'
     if top is not None:
         expr = f'topk({top}, {expr})'
     return expr

@@ -227,11 +227,11 @@ class TestErrorsByOperationException:
     """Tests for the count-metric error-pattern builder."""
 
     def test_basic_query_shape(self):
-        """Builds a sum-by-(operation, exception) increase query on the count metric."""
+        """Builds a sum-by-(operation, exception) sum_over_time query on the count metric."""
         expr = promql_query.errors_by_operation_exception('svc', window='3h')
         assert expr == (
             'sum by (operation, exception) '
-            '(increase({"count","@resource.service.name"="svc"}[3h]))'
+            '(sum_over_time({"count","@resource.service.name"="svc"}[3h]))'
         )
 
     def test_operation_and_environment_filters(self):
