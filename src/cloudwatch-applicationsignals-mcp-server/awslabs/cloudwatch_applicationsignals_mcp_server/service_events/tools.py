@@ -370,25 +370,17 @@ async def get_endpoints(
     **Output is limited to avoid large responses.** Use `operation` parameter
     to filter to a specific API if you know the operation name.
 
-    **Error patterns (optional):** When a `service_name` is given and the service
-    emits the `count` MetricV2 metric (only when ServiceEvents is enabled in the SDK),
-    the response also includes an `error_patterns` list — per-(operation, exception)
-    error counts over the window, matching the CloudWatch "Errors" page. This is the
-    right field for "what error patterns does my service have / changed?". It is scoped
-    by `operation` when provided, otherwise service-wide. The field is OMITTED when the
-    metric is unavailable or there are no errors — its absence never fails the call.
-    (For a service-wide error-pattern overview, `get_service_health_overview` also
-    includes this breakdown.)
+    **For service-wide error patterns** (which exceptions on which operations, with
+    counts — the CloudWatch "Errors" page data), use `get_service_health_overview`,
+    which returns an `error_patterns` breakdown.
 
     Args:
         hours: Time range to query in hours (default 24).
         operation: Filter by operation name (e.g., "POST /api/users"). Substring match. Optional.
-            When exactly one endpoint matches, detail mode is returned. Also scopes
-            `error_patterns` to that operation.
-        limit: Maximum number of endpoints to return (default 20). Also caps `error_patterns`.
+            When exactly one endpoint matches, detail mode is returned.
+        limit: Maximum number of endpoints to return (default 20).
         service_name: Service name to query. Optional — from user prompt or prior tool output.
-            Required to query Application Signals and to compute `error_patterns`; the
-            CW-logs source scans all services when omitted.
+            Required to query Application Signals; the CW-logs source scans all services when omitted.
         environment: Environment name. Optional — from user prompt or prior tool output.
         percentile: Percentile to compute for duration (default 99). E.g., 99 for p99, 50 for p50.
             The result appears as `p{N}_duration_ms` in each endpoint entry.
@@ -397,30 +389,11 @@ async def get_endpoints(
         Dict with total endpoints count and limited list of endpoint summaries
         (including `p{N}_duration_ms`), or a single endpoint when one matches.
         Includes a `data_source` field indicating which backend provided the data.
-        When available, also includes `error_patterns` (list of
-        `{operation, exception, exception_type, count}`, sorted by count desc) and
-        `error_patterns_source: "metrics_v2"`.
     """
     logger.debug(
         f'get_endpoints called: hours={hours}, operation={operation}, service_name={service_name}'
     )
     pkey = f'p{int(percentile)}'
-
-    # Optional per-(operation, exception) error patterns from the `count` MetricV2
-    # metric (only present when ServiceEvents is enabled in the SDK). Computed once and
-    # merged into whichever response shape is returned below; None -> field omitted.
-    error_patterns = None
-    if service_name:
-        error_patterns = await asyncio.to_thread(
-            _fetch_error_patterns, service_name, hours, operation, environment, limit
-        )
-
-    def _with_error_patterns(payload: dict) -> dict:
-        """Attach the optional error_patterns block to a response dict."""
-        if error_patterns:
-            payload['error_patterns'] = error_patterns
-            payload['error_patterns_source'] = 'metrics_v2'
-        return payload
 
     # Application Signals path: endpoint RED metrics come from AppSignals, not CW logs.
     if state.is_appsignals_enabled() and service_name:
@@ -461,19 +434,17 @@ async def get_endpoints(
             result = formatted[0]
             result['time_range_hours'] = hours
             result['data_source'] = 'application_signals'
-            return _with_error_patterns(result)
+            return result
 
-        return _with_error_patterns(
-            {
-                'total_endpoints': len(formatted),
-                'returned': len(formatted),
-                'filter_operation': operation,
-                'percentile': pkey,
-                'time_range_hours': hours,
-                'endpoints': formatted,
-                'data_source': 'application_signals',
-            }
-        )
+        return {
+            'total_endpoints': len(formatted),
+            'returned': len(formatted),
+            'filter_operation': operation,
+            'percentile': pkey,
+            'time_range_hours': hours,
+            'endpoints': formatted,
+            'data_source': 'application_signals',
+        }
 
     # ServiceEvents CloudWatch Logs path: endpoint_summary records.
     try:
@@ -503,19 +474,17 @@ async def get_endpoints(
         result = formatted[0]
         result['time_range_hours'] = hours
         result['data_source'] = 'service_events'
-        return _with_error_patterns(result)
+        return result
 
-    return _with_error_patterns(
-        {
-            'total_endpoints': len(formatted),
-            'returned': len(formatted),
-            'filter_operation': operation,
-            'percentile': pkey,
-            'time_range_hours': hours,
-            'endpoints': formatted,
-            'data_source': 'service_events',
-        }
-    )
+    return {
+        'total_endpoints': len(formatted),
+        'returned': len(formatted),
+        'filter_operation': operation,
+        'percentile': pkey,
+        'time_range_hours': hours,
+        'endpoints': formatted,
+        'data_source': 'service_events',
+    }
 
 
 # =============================================================================

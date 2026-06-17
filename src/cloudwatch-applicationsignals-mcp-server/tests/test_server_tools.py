@@ -385,12 +385,9 @@ class TestGetEndpoints:
         assert result['data_source'] == 'service_events'
 
     @patch(
-        'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.tools._fetch_error_patterns'
-    )
-    @patch(
         'awslabs.cloudwatch_applicationsignals_mcp_server.endpoint_metrics.get_endpoint_red_metrics'
     )
-    def test_appsignals_red_metrics_when_enabled(self, mock_red, mock_err):
+    def test_appsignals_red_metrics_when_enabled(self, mock_red):
         """Use Application Signals RED metrics when enabled."""
         from awslabs.cloudwatch_applicationsignals_mcp_server.service_events import state
         from awslabs.cloudwatch_applicationsignals_mcp_server.service_events.tools import (
@@ -398,7 +395,6 @@ class TestGetEndpoints:
         )
 
         state.set_appsignals_enabled(True)
-        mock_err.return_value = None  # error patterns unavailable
         # get_endpoint_red_metrics returns (summaries, not_found).
         mock_red.return_value = (
             [
@@ -426,12 +422,9 @@ class TestGetEndpoints:
         mock_red.assert_called_once()
 
     @patch(
-        'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.tools._fetch_error_patterns'
-    )
-    @patch(
         'awslabs.cloudwatch_applicationsignals_mcp_server.endpoint_metrics.get_endpoint_red_metrics'
     )
-    def test_appsignals_service_not_found_surfaces_diagnostic(self, mock_red, mock_err):
+    def test_appsignals_service_not_found_surfaces_diagnostic(self, mock_red):
         """When the AppSignals service does not resolve, the not-found diagnostic is surfaced."""
         from awslabs.cloudwatch_applicationsignals_mcp_server.service_events import state
         from awslabs.cloudwatch_applicationsignals_mcp_server.service_events.tools import (
@@ -439,7 +432,6 @@ class TestGetEndpoints:
         )
 
         state.set_appsignals_enabled(True)
-        mock_err.return_value = None
         mock_red.return_value = (
             [],
             {
@@ -456,40 +448,6 @@ class TestGetEndpoints:
         assert result['total_endpoints'] == 0
         assert result['status'] == 'service_not_found'
         assert 'orders' in result['message']
-        # Not-found responses do not carry error patterns.
-        assert 'error_patterns' not in result
-
-    @patch(
-        'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.tools._fetch_error_patterns'
-    )
-    @patch(
-        'awslabs.cloudwatch_applicationsignals_mcp_server.endpoint_metrics.get_endpoint_red_metrics'
-    )
-    def test_appsignals_includes_error_patterns_when_available(self, mock_red, mock_err):
-        """error_patterns is merged into the response when the count metric returns rows."""
-        from awslabs.cloudwatch_applicationsignals_mcp_server.service_events import state
-        from awslabs.cloudwatch_applicationsignals_mcp_server.service_events.tools import (
-            get_endpoints,
-        )
-
-        state.set_appsignals_enabled(True)
-        mock_red.return_value = ([{'operation': 'GET /a', 'total_requests': 5}], None)
-        mock_err.return_value = [
-            {
-                'operation': 'GET /a',
-                'exception': 'foo.Bar NotFound',
-                'exception_type': 'NotFound',
-                'count': 12,
-            }
-        ]
-
-        result = asyncio.get_event_loop().run_until_complete(
-            get_endpoints(hours=24, service_name='orders')
-        )
-
-        assert result['error_patterns_source'] == 'metrics_v2'
-        assert result['error_patterns'][0]['exception_type'] == 'NotFound'
-        assert result['error_patterns'][0]['count'] == 12
 
 
 # ============================================================================
@@ -1019,12 +977,9 @@ class TestGetEndpointsAppSignals:
     """Cover the Application Signals branches of get_endpoints."""
 
     @patch(
-        'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.tools._fetch_error_patterns'
-    )
-    @patch(
         'awslabs.cloudwatch_applicationsignals_mcp_server.endpoint_metrics.get_endpoint_red_metrics'
     )
-    def test_appsignals_detail_mode_single_match(self, mock_red, mock_err):
+    def test_appsignals_detail_mode_single_match(self, mock_red):
         """Detail mode: a single AppSignals match returns the endpoint directly."""
         from awslabs.cloudwatch_applicationsignals_mcp_server.service_events import state
         from awslabs.cloudwatch_applicationsignals_mcp_server.service_events.tools import (
@@ -1032,7 +987,6 @@ class TestGetEndpointsAppSignals:
         )
 
         state.set_appsignals_enabled(True)
-        mock_err.return_value = None
         mock_red.return_value = ([{'operation': 'GET /api/orders', 'total_requests': 5}], None)
 
         result = _run(get_endpoints(operation='GET /api/orders', service_name='orders'))
@@ -1042,12 +996,9 @@ class TestGetEndpointsAppSignals:
         assert result['time_range_hours'] == 24
 
     @patch(
-        'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.tools._fetch_error_patterns'
-    )
-    @patch(
         'awslabs.cloudwatch_applicationsignals_mcp_server.endpoint_metrics.get_endpoint_red_metrics'
     )
-    def test_appsignals_error_returns_empty(self, mock_red, mock_err):
+    def test_appsignals_error_returns_empty(self, mock_red):
         """An AppSignals metrics error returns an empty AppSignals result."""
         from awslabs.cloudwatch_applicationsignals_mcp_server.service_events import state
         from awslabs.cloudwatch_applicationsignals_mcp_server.service_events.tools import (
@@ -1055,7 +1006,6 @@ class TestGetEndpointsAppSignals:
         )
 
         state.set_appsignals_enabled(True)
-        mock_err.return_value = None
         mock_red.side_effect = RuntimeError('boom')
 
         result = _run(get_endpoints(service_name='orders'))
