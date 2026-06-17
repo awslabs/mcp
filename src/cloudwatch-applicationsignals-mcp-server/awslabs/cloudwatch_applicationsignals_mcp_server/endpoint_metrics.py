@@ -25,15 +25,17 @@ shaped like the service_events ``get_endpoints`` output.
 import logging
 from .aws_clients import get_applicationsignals_client, get_cloudwatch_client
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 
 logger = logging.getLogger(__name__)
 
-# Application Signals operation metric types.
-_METRIC_LATENCY = 'Latency'
-_METRIC_FAULT = 'Fault'
-_METRIC_ERROR = 'Error'
+# Application Signals operation metric types. The list_service_operations API returns
+# these MetricType values in UPPERCASE (LATENCY/FAULT/ERROR); matching is done
+# case-insensitively (see _index_metric_refs) to be robust to either form.
+_METRIC_LATENCY = 'LATENCY'
+_METRIC_FAULT = 'FAULT'
+_METRIC_ERROR = 'ERROR'
 
 
 def _period_for_hours(hours: int) -> int:
@@ -46,10 +48,23 @@ def _period_for_hours(hours: int) -> int:
 
 
 def _find_service_key_attributes(
-    service_name: str, start_time, end_time
+    service_name: str,
+    start_time,
+    end_time,
+    environment: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
-    """Find KeyAttributes for a service by name (paginated list_services)."""
+    """Find KeyAttributes for a service by name (paginated list_services).
+
+    Returns the matched service's KeyAttributes, or ``None`` if no service resolves.
+
+    Matching is tolerant: an exact ``Name`` match wins; when ``environment`` is given it
+    must also match ``KeyAttributes.Environment``. A case-insensitive ``Name`` match is
+    accepted as a fallback. A name match whose environment differs (when an environment
+    was requested) is skipped, not returned.
+    """
     client = get_applicationsignals_client()
+    ci_match: Optional[Dict[str, Any]] = None
+    target = service_name.lower()
     next_token = None
     while True:
         params = {'StartTime': start_time, 'EndTime': end_time, 'MaxResults': 100}
@@ -58,11 +73,23 @@ def _find_service_key_attributes(
         response = client.list_services(**params)
         for service in response.get('ServiceSummaries', []):
             key_attrs = service.get('KeyAttributes', {})
-            if key_attrs.get('Name') == service_name:
+            name = key_attrs.get('Name')
+            if name is None:
+                continue
+            if name != service_name and name.lower() != target:
+                continue
+            if environment and key_attrs.get('Environment') != environment:
+                # Name matches but environment doesn't — keep scanning for an exact
+                # env match.
+                continue
+            if name == service_name:
                 return key_attrs
+            # Case-insensitive match — remember it but prefer a later exact match.
+            if ci_match is None:
+                ci_match = key_attrs
         next_token = response.get('NextToken')
         if not next_token:
-            return None
+            return ci_match
 
 
 def _sum_datapoints(metric_ref: Dict[str, Any], start_time, end_time, period: int):
@@ -119,21 +146,37 @@ def get_endpoint_red_metrics(
     operation: Optional[str] = None,
     limit: int = 20,
     percentile: float = 99,
-) -> List[Dict[str, Any]]:
+    environment: Optional[str] = None,
+) -> Tuple[List[Dict[str, Any]], Optional[Dict[str, Any]]]:
     """Return per-operation RED metric summaries for a service from Application Signals.
 
     Each summary mirrors the service_events ``get_endpoints`` shape:
     operation, total_requests, total_faults, total_errors, avg_duration_ms,
-    p{N}_duration_ms. Returns ``[]`` when the service or its operations are not found.
+    p{N}_duration_ms.
+
+    Returns ``(summaries, not_found)``. On success ``not_found`` is ``None``. When the
+    service name does not resolve in Application Signals, ``summaries`` is ``[]`` and
+    ``not_found`` is a diagnostic dict (``status``/``message``/``did_you_mean``) so the
+    caller can tell "service not found" apart from "found but no operations".
     """
     end_time = datetime.now(timezone.utc)
     start_time = end_time - timedelta(hours=hours)
     period = _period_for_hours(hours)
 
-    key_attrs = _find_service_key_attributes(service_name, start_time, end_time)
+    key_attrs = _find_service_key_attributes(
+        service_name, start_time, end_time, environment=environment
+    )
     if not key_attrs:
         logger.debug("AppSignals service '%s' not found for endpoint RED metrics", service_name)
-        return []
+        env_suffix = f" in environment '{environment}'" if environment else ''
+        not_found = {
+            'status': 'service_not_found',
+            'message': (
+                f"No Application Signals service named '{service_name}'{env_suffix} "
+                'was found in this region/time window.'
+            ),
+        }
+        return [], not_found
 
     client = get_applicationsignals_client()
     operations: List[Dict[str, Any]] = []
@@ -148,7 +191,7 @@ def get_endpoint_red_metrics(
         if next_token:
             params['NextToken'] = next_token
         response = client.list_service_operations(**params)
-        operations.extend(response.get('Operations', []))
+        operations.extend(response.get('ServiceOperations', []))  # type: ignore[arg-type]
         next_token = response.get('NextToken')
         if not next_token:
             break
@@ -160,8 +203,10 @@ def get_endpoint_red_metrics(
         if op_filter and op_filter not in op_name.lower():
             continue
 
-        metric_refs = op.get('MetricReferences', [])
-        by_type = {ref.get('MetricType'): ref for ref in metric_refs}
+        # MetricType is returned UPPERCASE by the API; index case-insensitively.
+        by_type = {
+            (ref.get('MetricType') or '').upper(): ref for ref in op.get('MetricReferences', [])
+        }
 
         total_requests = 0
         total_faults = 0
@@ -194,4 +239,4 @@ def get_endpoint_red_metrics(
         if len(summaries) >= limit:
             break
 
-    return summaries
+    return summaries, None

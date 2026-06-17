@@ -395,17 +395,21 @@ class TestGetEndpoints:
         )
 
         state.set_appsignals_enabled(True)
-        mock_red.return_value = [
-            {
-                'operation': 'GET /api/orders',
-                'service_name': 'orders',
-                'total_requests': 100,
-                'total_faults': 3,
-                'total_errors': 1,
-                'avg_duration_ms': 12.0,
-                'p99_duration_ms': 40.0,
-            }
-        ]
+        # get_endpoint_red_metrics returns (summaries, not_found).
+        mock_red.return_value = (
+            [
+                {
+                    'operation': 'GET /api/orders',
+                    'service_name': 'orders',
+                    'total_requests': 100,
+                    'total_faults': 3,
+                    'total_errors': 1,
+                    'avg_duration_ms': 12.0,
+                    'p99_duration_ms': 40.0,
+                }
+            ],
+            None,
+        )
 
         result = asyncio.get_event_loop().run_until_complete(
             get_endpoints(hours=24, service_name='orders')
@@ -416,6 +420,34 @@ class TestGetEndpoints:
         assert result['total_endpoints'] == 1
         assert result['endpoints'][0]['operation'] == 'GET /api/orders'
         mock_red.assert_called_once()
+
+    @patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.endpoint_metrics.get_endpoint_red_metrics'
+    )
+    def test_appsignals_service_not_found_surfaces_diagnostic(self, mock_red):
+        """When the AppSignals service does not resolve, the not-found diagnostic is surfaced."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.service_events import state
+        from awslabs.cloudwatch_applicationsignals_mcp_server.service_events.tools import (
+            get_endpoints,
+        )
+
+        state.set_appsignals_enabled(True)
+        mock_red.return_value = (
+            [],
+            {
+                'status': 'service_not_found',
+                'message': "No Application Signals service named 'orders' was found.",
+            },
+        )
+
+        result = asyncio.get_event_loop().run_until_complete(
+            get_endpoints(hours=24, service_name='orders')
+        )
+
+        assert result['data_source'] == 'application_signals'
+        assert result['total_endpoints'] == 0
+        assert result['status'] == 'service_not_found'
+        assert 'orders' in result['message']
 
 
 # ============================================================================
@@ -955,7 +987,7 @@ class TestGetEndpointsAppSignals:
         )
 
         state.set_appsignals_enabled(True)
-        mock_red.return_value = [{'operation': 'GET /api/orders', 'total_requests': 5}]
+        mock_red.return_value = ([{'operation': 'GET /api/orders', 'total_requests': 5}], None)
 
         result = _run(get_endpoints(operation='GET /api/orders', service_name='orders'))
 
