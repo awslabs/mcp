@@ -1,1 +1,0 @@
-# InfluxDB 3 Query Guide

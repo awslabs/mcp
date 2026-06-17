@@ -1,1 +1,0 @@
-# Grafana Dashboards for InfluxDB 2

@@ -129,8 +129,6 @@ Use `--cidr <your-ip>/32` rather than `0.0.0.0/0` to avoid exposing the instance
 
 ## Step 1 — Provision the Instance
 
-**Storage sizing:** EBS storage cannot be increased after creation — plan capacity upfront. Minimum is 400GB; for production workloads estimate based on retention period × write rate × bytes per point.
-
 **Standalone (single node):**
 ```bash
 # 1. Create parameter group (name must be alphanumeric only — no hyphens)
@@ -270,7 +268,7 @@ Use `$ALL_ACCESS_TOKEN` as the Token for all subsequent data plane operations. T
 curl https://<endpoint>:8086/ping
 # Returns 204 — no auth required, confirms network connectivity
 
-curl -H "Authorization: Token $ALL_ACCESS_TOKEN" \
+curl -H "Authorization: Bearer $ALL_ACCESS_TOKEN" \
   https://<endpoint>:8086/health
 # Returns: {"name":"influxdb","status":"pass","version":"..."}
 ```
@@ -284,12 +282,12 @@ Best practice: use tokens scoped to the minimum permissions required for each op
 ```bash
 # Get bucket ID
 BUCKET_ID=$(curl -s "https://<endpoint>:8086/api/v2/buckets?org=my-org" \
-  -H "Authorization: Token $ALL_ACCESS_TOKEN" \
+  -H "Authorization: Bearer $ALL_ACCESS_TOKEN" \
   | python3 -c "import sys,json; print([b for b in json.load(sys.stdin)['buckets'] if not b['name'].startswith('_')][0]['id'])")
 
 # Create a read/write token scoped to the bucket
 curl -X POST https://<endpoint>:8086/api/v2/authorizations \
-  -H "Authorization: Token $ALL_ACCESS_TOKEN" \
+  -H "Authorization: Bearer $ALL_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d "{
     \"orgID\": \"$ORG_ID\",
@@ -312,7 +310,7 @@ TOKEN="${APP_TOKEN:-$ALL_ACCESS_TOKEN}"
 # Use current Unix timestamp so the data appears in range(start: -1h) queries
 NOW=$(date +%s)
 curl -X POST "https://<endpoint>:8086/api/v2/write?org=my-org&bucket=my-bucket&precision=s" \
-  -H "Authorization: Token $TOKEN" \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: text/plain" \
   -d "cpu,host=server01,region=us-east usage_idle=98.2,usage_system=1.8 $NOW
 cpu,host=server02,region=us-east usage_idle=92.1,usage_system=3.4 $NOW"
@@ -327,7 +325,7 @@ Returns `204` on success. Common errors:
 **Flux:**
 ```bash
 curl -X POST "https://<endpoint>:8086/api/v2/query?org=my-org" \
-  -H "Authorization: Token $TOKEN" \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -H "Accept: application/csv" \
   -d '{
@@ -339,7 +337,7 @@ curl -X POST "https://<endpoint>:8086/api/v2/query?org=my-org" \
 **InfluxQL (V1 compatibility endpoint):**
 ```bash
 curl "https://<endpoint>:8086/query?db=my-bucket&q=SELECT+*+FROM+cpu+WHERE+time+>+now()+-+1h" \
-  -H "Authorization: Token $TOKEN"
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ## What's Created by `create-db-instance`

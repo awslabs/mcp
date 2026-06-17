@@ -34,7 +34,7 @@ Examples:
 ## Provisioning Checklist
 
 - [ ] Determine engine: Core (single-node) or Enterprise (multi-node)
-- [ ] Create parameter group (or use literal `InfluxDBV3Core` / `InfluxDBV3Enterprise`)
+- [ ] Choose a parameter group: pass a **service-owned** group to `--db-parameter-group-identifier` — `InfluxDBV3Core` (single-node) or `InfluxDBV3Enterprise` (multi-node) — or create a custom group and pass its returned **id**. **Mind the casing:** service-owned group **identifiers** use an uppercase `V` (`InfluxDBV3Core`), while the `--parameters` **option keys** use a lowercase `v` (`InfluxDBv3Core`).
 - [ ] Create cluster with `create-db-cluster` — **you MUST NOT pass** `--username`, `--password`, `--organization`, `--bucket`, or `--deployment-type` — these switch the cluster into a non-v3 initialization mode
 - [ ] Poll until `status` is `AVAILABLE`
 - [ ] Retrieve token from Secrets Manager: `READONLY-InfluxDB-auth-parameters-<CLUSTER_ID>`
@@ -43,7 +43,9 @@ Examples:
 
 → Next step: retrieve the token and make a data-plane call (see Authentication below).
 
-**V3 Core (default parameter group):**
+**V3 Core (service-owned default parameter group):**
+
+Use the service-owned `InfluxDBV3Core` parameter group (uppercase `V`). `--db-parameter-group-identifier` is optional — omitting it yields the same Core defaults.
 ```bash
 aws timestream-influxdb create-db-cluster \
   --name my-v3-cluster \
@@ -181,7 +183,7 @@ When a user asks how to write data — read `development-guide.md`. Key facts:
 When a user asks about databases, tables, retention, or cardinality — read `schema-design.md`. Key facts:
 - Design databases by retention period
 - Measurements become tables automatically on first write
-- Virtually unlimited cardinality; watch `maxTables` (default 500) and `maxColumnsPerTable` (default 200)
+- Virtually unlimited cardinality; watch the **10,000-table** limit (across all databases) and the **500-column-per-table** limit ([docs](https://docs.influxdata.com/influxdb3/enterprise/admin/databases/#database-table-and-column-limits))
 
 ### Querying
 

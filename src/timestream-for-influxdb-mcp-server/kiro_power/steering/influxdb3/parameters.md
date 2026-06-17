@@ -1,5 +1,10 @@
 # InfluxDB v3 Parameter Reference
 
+> **Casing matters.** The `--parameters` JSON **option keys** use a lowercase `v` —
+> `InfluxDBv3Core` / `InfluxDBv3Enterprise`. This is distinct from the two **service-owned
+> parameter groups**, `InfluxDBV3Core` / `InfluxDBV3Enterprise` (uppercase `V`), which are
+> passed to `--db-parameter-group-identifier`. Both are case-sensitive; don't interchange them.
+
 ## Table of Contents
 - [InfluxDBv3Core Parameters](#influxdbv3core-parameters)
 - [InfluxDBv3Enterprise Additional Parameters](#influxdbv3enterprise-additional-parameters)

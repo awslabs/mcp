@@ -22,13 +22,11 @@
 
 ## Operational — Will Cause Scaling Issues
 
-**10K Tables Limit**: Default max tables per database. Siemens hit this. Increasing beyond recommendation requires understanding compaction and query performance implications.
-
-**S3 Endpoint for Private V3**: Private V3 instances require an S3 VPC endpoint in the same account VPC. Without it, writes fail silently or timeout.
+**10K Tables Limit**: Default is **10,000 tables across all databases** (not per database), set by the `--num-table-limit` server config and **not exposed in the Timestream parameter group**. Each unique measurement is a table. Also note the **500-columns-per-table** limit (1 timestamp + up to 499 tag/field columns). More tables means more compaction work and more object-store PUTs — review compaction/query implications before relying on a high table count. See [Database, table, and column limits](https://docs.influxdata.com/influxdb3/enterprise/admin/databases/#database-table-and-column-limits).
 
 **Compactor Node OOM**: In V3 Enterprise, uneven load distribution can cause compactor nodes to OOM. Monitor `system.parquet_files` for growing file counts. Consider dedicated compactor nodes.
 
-**IO Threads Default**: V3 default is 2 IO threads (`--num-io-threads`). Often insufficient for production workloads. Tune via parameter group.
+**DataFusion Threads**: V3 has **no IO-threads parameter** (`num-io-threads` does not exist in the parameter group). To tune query parallelism, set `dataFusionNumThreads` (and related `dataFusionRuntime*` options) via the parameter group.
 
 ## Cost — Will Cause Bill Shock
 
