@@ -45,6 +45,13 @@ const sidebars: SidebarsConfig = {
         },
         {
           type: "category",
+          label: "Migration & Modernization",
+          items: [
+            "servers/aws-transform-mcp-server",
+          ],
+        },
+        {
+          type: "category",
           label: "Infrastructure & Deployment",
           items: [
             "servers/aws-iac-mcp-server",
@@ -67,6 +74,7 @@ const sidebars: SidebarsConfig = {
             "servers/bedrock-kb-retrieval-mcp-server",
             "servers/amazon-qindex-mcp-server",
             "servers/amazon-qbusiness-anonymous-mcp-server",
+            'servers/amazon-translate-mcp-server',
             "servers/document-loader-mcp-server",
             "servers/aws-bedrock-custom-model-import-mcp-server",
             "servers/amazon-bedrock-agentcore-mcp-server",
@@ -86,7 +94,9 @@ const sidebars: SidebarsConfig = {
             "servers/amazon-keyspaces-mcp-server",
             "servers/amazon-neptune-mcp-server",
             "servers/aurora-dsql-mcp-server",
+            "servers/mssql-mcp-server",
             "servers/mysql-mcp-server",
+            "servers/oracle-mcp-server",
             "servers/postgres-mcp-server",
             "servers/aws-dataprocessing-mcp-server",
             "servers/redshift-mcp-server",
@@ -123,6 +133,7 @@ const sidebars: SidebarsConfig = {
             "servers/aws-pricing-mcp-server",
             "servers/cloudwatch-mcp-server",
             "servers/cloudwatch-applicationsignals-mcp-server",
+            "servers/security-agent-mcp-server",
             "servers/well-architected-security-mcp-server",
             "servers/cloudtrail-mcp-server",
             "servers/billing-cost-management-mcp-server",

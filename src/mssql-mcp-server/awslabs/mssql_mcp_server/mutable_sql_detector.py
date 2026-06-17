@@ -1,0 +1,290 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import re
+
+
+MUTATING_KEYWORDS = {
+    # DML
+    'INSERT',
+    'UPDATE',
+    'DELETE',
+    'MERGE',
+    'TRUNCATE',
+    # DDL
+    'CREATE',
+    'DROP',
+    'ALTER',
+    'DBCC',
+    'KILL',
+    'SHUTDOWN',
+    'RECONFIGURE',
+    # Permissions
+    'GRANT',
+    'REVOKE',
+    'DENY',
+    # SQL Server-specific DDL
+    'BACKUP',
+    'RESTORE',
+    'BULK INSERT',
+    # Allows access to external data sources / linked servers
+    'OPENROWSET',
+    'OPENDATASOURCE',
+    'OPENQUERY',
+    'OPENXML',
+    # Deprecated but functional T-SQL DML
+    'UPDATETEXT',
+    'WRITETEXT',
+    # Trigger control
+    'DISABLE TRIGGER',
+    'ENABLE TRIGGER',
+    # Stored procedure execution
+    'EXEC',
+    'EXECUTE',
+    # Transaction control — can commit writes before Python-level rollback fires
+    'COMMIT',
+    # Connection context — changes active database on pooled connections
+    'USE',
+    # Database maintenance — flushes dirty pages to disk
+    'CHECKPOINT',
+    # Service Broker — writes to conversation infrastructure
+    'BEGIN DIALOG',
+    'BEGIN CONVERSATION',
+    'END CONVERSATION',
+}
+
+
+def _keyword_to_pattern(k: str) -> str:
+    return r'\s+'.join(re.escape(word) for word in k.split())
+
+
+MUTATING_PATTERN = re.compile(
+    r'(?i)\b(' + '|'.join(_keyword_to_pattern(k) for k in MUTATING_KEYWORDS) + r')\b'
+)
+
+_BLOCK_COMMENT_RE = re.compile(r'/\*.*?\*/', re.DOTALL)
+_LINE_COMMENT_RE = re.compile(r'--[^\n]*')
+_STRING_LITERAL_RE = re.compile(r"N?'(?:[^']|'')*'")
+
+
+def _strip_sql_comments_and_strings(sql_text: str) -> str:
+    """Remove SQL comments and string literals from SQL text.
+
+    String literals are replaced so that keywords inside quoted strings
+    (e.g. WHERE name = 'INSERT INTO') do not trigger false positives.
+    """
+    result = _BLOCK_COMMENT_RE.sub(' ', sql_text)
+    result = _LINE_COMMENT_RE.sub(' ', result)
+    result = _STRING_LITERAL_RE.sub("''", result)
+    return result
+
+
+# Patterns that must match against the ORIGINAL SQL (before stripping string literals).
+# These detect injection signatures that involve the literal quote character itself.
+ORIGINAL_SQL_PATTERNS = [
+    r"(?i)\bor\b\s*'[^']+'\s*=\s*'[^']+'",  # string tautology e.g. OR '1'='1'
+    r"(?i)'[^']*'\s*\bunion\b.*\bselect\b",  # UNION-based injection (closed string followed by UNION SELECT)
+    r"(?i)'\s+\bunion\b.*\bselect\b",  # UNION-based injection (bare closing quote followed by UNION SELECT)
+]
+
+_INLINE_COMMENT_RE = re.compile(r'^(?!\s*--)\S.*--', re.MULTILINE)
+
+# Patterns matched against comment-and-string-stripped SQL to avoid false positives
+# from keywords that appear inside string literal content.
+STRIPPED_SQL_PATTERNS = [
+    r'(?i)\bor\b\s+\d+\s*=\s*\d+',  # numeric tautology e.g. OR 1=1
+    r';\s*(?!($|\s*--|\s*/\*))(?=\S)',  # stacked queries, excluding semicolons followed by comments or whitespace
+    r'(?i)\bwaitfor\b',  # SQL Server timing attacks (DELAY and TIME variants)
+    r'(?i)\bsp_\w+',  # system stored procedures
+    r'(?i)\bxp_\w+',  # extended stored procedures (high risk: xp_cmdshell etc)
+    r'(?i)\brds_\w+',  # RDS stored procedures (rds_backup_database, rds_restore_database, etc)
+    r'(?i)\bexec(?:ute)?\s*\(',  # EXEC('string') or EXECUTE('string') dynamic SQL injection
+    r'(?i)\bset\s+context_info\b',  # non-transactional session state write (survives rollback)
+    r'(?i)\bset\s+(?:noexec|parseonly|fmtonly|rowcount|implicit_transactions)\b',  # session poisoning (survives rollback, corrupts pooled connections)
+    r'(?i)\braiserror\b[\s\S]*?\bwith\s+log\b',  # non-transactional write to SQL Server and Windows event logs
+]
+
+
+_SELECT_INTO_RE = re.compile(r'(?is)\bselect\b[^;]*?\binto\b\s+[#@\w\[\"]')
+
+# Tokens that may validly begin a T-SQL batch in read-only mode.
+# Any first token NOT in this set is treated as an implicit stored procedure call.
+_SAFE_READONLY_FIRST_TOKENS = frozenset(
+    {
+        # DQL
+        'SELECT',
+        'WITH',
+        # Variable / session
+        'DECLARE',
+        'SET',
+        'PRINT',
+        # Control flow
+        'IF',
+        'ELSE',
+        'BEGIN',
+        'END',
+        'WHILE',
+        'GOTO',
+        'RETURN',
+        'BREAK',
+        'CONTINUE',
+        'TRY',
+        'CATCH',
+        # Error handling
+        'RAISERROR',
+        'THROW',
+        # Transaction control (COMMIT blocked separately)
+        'ROLLBACK',
+        'SAVE',
+        # Cursor operations
+        'OPEN',
+        'CLOSE',
+        'FETCH',
+        'DEALLOCATE',
+        # Context revert
+        'REVERT',
+        # Keywords in MUTATING_KEYWORDS / SUSPICIOUS_PATTERNS — included so the
+        # specific keyword check fires instead of a generic "implicit proc" flag.
+        'INSERT',
+        'UPDATE',
+        'DELETE',
+        'MERGE',
+        'TRUNCATE',
+        'CREATE',
+        'DROP',
+        'ALTER',
+        'EXEC',
+        'EXECUTE',
+        'GRANT',
+        'REVOKE',
+        'DENY',
+        'COMMIT',
+        'USE',
+        'BACKUP',
+        'RESTORE',
+        'BULK',
+        'DBCC',
+        'KILL',
+        'SHUTDOWN',
+        'RECONFIGURE',
+        'CHECKPOINT',
+        'OPENROWSET',
+        'OPENDATASOURCE',
+        'OPENQUERY',
+        'OPENXML',
+        'UPDATETEXT',
+        'WRITETEXT',
+        'DISABLE',
+        'ENABLE',
+        'WAITFOR',
+    }
+)
+
+_FIRST_TOKEN_RE = re.compile(r'\w+')
+
+
+def _is_implicit_procedure_call(stripped_sql: str) -> bool:
+    """Detect if comment-stripped SQL starts with an implicit stored procedure call.
+
+    In SQL Server, a stored procedure can be called without the EXEC keyword
+    when its name is the first statement in a batch.  Any leading identifier
+    that is not a recognised T-SQL keyword is treated as a procedure name.
+    """
+    text = stripped_sql.strip()
+    if not text:
+        return False
+    match = _FIRST_TOKEN_RE.match(text)
+    if not match:
+        return False  # starts with non-word char (e.g. parenthesis, @variable)
+    first_token = match.group().upper()
+    return first_token not in _SAFE_READONLY_FIRST_TOKENS
+
+
+def detect_mutating_keywords(sql_text: str) -> list[str]:
+    """Return a list of mutating keywords found in the SQL (excluding comments and string literals)."""
+    stripped = _strip_sql_comments_and_strings(sql_text)
+    matches = MUTATING_PATTERN.findall(stripped)
+    result = list({m.upper() for m in matches})  # Deduplicated and normalized to uppercase
+    # SELECT ... INTO creates a new table and is not covered by the keyword pattern above.
+    if _SELECT_INTO_RE.search(stripped):
+        result.append('SELECT INTO')
+    if _is_implicit_procedure_call(stripped):
+        result.append('IMPLICIT PROCEDURE CALL')
+    return result
+
+
+def _has_inline_comment(sql: str) -> bool:
+    """Check if any line has a -- comment after non-whitespace content.
+
+    Standalone comment lines (where -- is the first non-whitespace) are allowed.
+    Inline comments (-- appearing mid-line after code) are rejected because they
+    are indistinguishable from comment injection attacks.
+
+    Runs against string-stripped SQL so that '--' inside string literals
+    (e.g. WHERE col = 'foo--bar') does not trigger a false positive.
+    """
+    stripped = _STRING_LITERAL_RE.sub("''", sql)
+    return _INLINE_COMMENT_RE.search(stripped) is not None
+
+
+def check_sql_injection_risk(sql: str) -> list[dict]:
+    """Check for potential SQL injection risks in sql query.
+
+    Args:
+        sql: query string
+
+    Returns:
+        dictionaries containing detected security issue
+    """
+    # ORIGINAL_SQL_PATTERNS run against the raw SQL because they detect
+    # injection signatures involving the quote character itself.
+    # STRIPPED_SQL_PATTERNS run against fully-stripped SQL (comments AND
+    # string literals removed) to avoid false positives from keywords
+    # that appear inside quoted string content.
+    fully_stripped = _strip_sql_comments_and_strings(sql)
+    issues = []
+
+    if _has_inline_comment(sql):
+        issues.append(
+            {
+                'type': 'sql',
+                'message': f'Inline comments are not allowed (use standalone comment lines instead): {sql}',
+                'severity': 'high',
+            }
+        )
+        return issues
+
+    for pattern in ORIGINAL_SQL_PATTERNS:
+        if re.search(pattern, sql):
+            issues.append(
+                {
+                    'type': 'sql',
+                    'message': f'Suspicious pattern in query: {sql}',
+                    'severity': 'high',
+                }
+            )
+            return issues
+
+    for pattern in STRIPPED_SQL_PATTERNS:
+        if re.search(pattern, fully_stripped):
+            issues.append(
+                {
+                    'type': 'sql',
+                    'message': f'Suspicious pattern in query: {sql}',
+                    'severity': 'high',
+                }
+            )
+            return issues
+
+    return issues

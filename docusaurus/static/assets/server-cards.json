@@ -63,6 +63,29 @@
   ],
   "servers": [
     {
+      "category": "Infrastructure & Deployment",
+      "description": "Manage AWS Transform workspaces, jobs, connectors, HITL tasks, and artifacts for mainframe, VMware, .NET, and custom code transformations.",
+      "icon": "\ud83d\udd04",
+      "id": "aws-transform-mcp-server",
+      "name": "AWS Transform MCP Server",
+      "source_path": "src/aws-transform-mcp-server/",
+      "subcategory": "Migration & Modernization",
+      "tags": [
+        "aws-transform",
+        "migration",
+        "modernization",
+        "mainframe",
+        "vmware",
+        "dotnet",
+        "hitl",
+        "transformation"
+      ],
+      "workflows": [
+        "vibe-coding",
+        "autonomous"
+      ]
+    },
+    {
       "category": "Essential Setup",
       "description": "Secure, auditable AWS operations with API access, documentation, Agent SOPs, and CloudTrail logging.",
       "icon": "\ud83d\udd11",
@@ -508,6 +531,28 @@
     },
     {
       "category": "Data & Analytics",
+      "description": "Microsoft SQL Server operations on AWS RDS via Secrets Manager authentication",
+      "icon": "\ud83d\udcca",
+      "id": "mssql-mcp-server",
+      "name": "Amazon RDS SQL Server MCP Server",
+      "source_path": "src/mssql-mcp-server/",
+      "subcategory": "SQL & NoSQL Databases",
+      "tags": [
+        "data-analytics",
+        "mssql",
+        "sql-server",
+        "rds",
+        "secrets-manager",
+        "sql-database",
+        "autonomous",
+        "data-operations"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Data & Analytics",
       "description": "MySQL database operations via RDS Data API",
       "icon": "\ud83d\udcca",
       "id": "mysql-mcp-server",
@@ -519,6 +564,27 @@
         "mysql",
         "aurora",
         "rds-data-api",
+        "sql-database",
+        "autonomous",
+        "data-operations"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Data & Analytics",
+      "description": "Oracle Database operations on AWS RDS via Secrets Manager authentication",
+      "icon": "\ud83d\udcca",
+      "id": "oracle-mcp-server",
+      "name": "Amazon RDS Oracle MCP Server",
+      "source_path": "src/oracle-mcp-server/",
+      "subcategory": "SQL & NoSQL Databases",
+      "tags": [
+        "data-analytics",
+        "oracle",
+        "rds",
+        "secrets-manager",
         "sql-database",
         "autonomous",
         "data-operations"
@@ -606,6 +672,27 @@
       ],
       "workflows": [
         "autonomous"
+      ]
+    },
+    {
+      "category": "Developer Tools & Support",
+      "description": "Automated security scanning, code review, and penetration testing using AWS Security Agent",
+      "icon": "\ud83d\udee1\ufe0f",
+      "id": "security-agent-mcp-server",
+      "name": "AWS Security Agent MCP Server",
+      "source_path": "src/security-agent-mcp-server/",
+      "subcategory": "Security",
+      "tags": [
+        "developer-tools",
+        "security",
+        "code-review",
+        "scanning",
+        "pentest",
+        "remediation",
+        "agentic"
+      ],
+      "workflows": [
+        "agentic"
       ]
     },
     {
@@ -1146,6 +1233,32 @@
       ],
       "workflows": [
         "conversational"
+      ]
+    },
+    {
+      "category": "AI & Machine Learning",
+      "description": "Intelligent text translation with 75+ languages, custom terminology, batch processing, and advanced workflow orchestration",
+      "icon": "\ud83c\udf10",
+      "id": "amazon-translate-mcp-server",
+      "name": "Amazon Translate MCP Server",
+      "source_path": "src/amazon-translate-mcp-server/",
+      "subcategory": "Language Processing",
+      "tags": [
+        "ai-ml",
+        "translate",
+        "language-processing",
+        "multilingual",
+        "terminology",
+        "batch-processing",
+        "workflow-orchestration",
+        "conversational",
+        "autonomous",
+        "vibe-coding"
+      ],
+      "workflows": [
+        "conversational",
+        "autonomous",
+        "vibe-coding"
       ]
     },
     {
