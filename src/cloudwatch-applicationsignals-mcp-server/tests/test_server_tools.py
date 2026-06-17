@@ -1067,6 +1067,140 @@ class TestGetEndpointsAppSignals:
 
 
 # ============================================================================
+# TestErrorPatternComparison — before/after error-count comparison helpers
+# ============================================================================
+
+
+class TestErrorPatternComparison:
+    """Cover the error-pattern comparison helpers in tools.py."""
+
+    def test_pct_change_and_status(self):
+        """Percent change and status classification across the change cases."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.service_events import tools
+
+        assert tools._pct_change(0, 5) is None  # no baseline
+        assert tools._pct_change(100, 130) == 30
+        assert tools._pct_change(100, 50) == -50
+        assert tools._change_status(0, 5) == 'new'
+        assert tools._change_status(5, 0) == 'cleared'
+        assert tools._change_status(5, 9) == 'up'
+        assert tools._change_status(9, 5) == 'down'
+        assert tools._change_status(5, 5) == 'flat'
+
+    def test_merge_rows_unions_and_sorts(self):
+        """Rows from both windows merge by (operation, exception), sorted by recent desc."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.service_events import tools
+
+        before = [
+            {
+                'operation': 'GET /a',
+                'exception': 'x NotFound',
+                'exception_type': 'NotFound',
+                'count': 62,
+            },
+            {
+                'operation': 'GET /b',
+                'exception': 'y Found',
+                'exception_type': 'Found',
+                'count': 10,
+            },
+        ]
+        after = [
+            {
+                'operation': 'GET /b',
+                'exception': 'y Found',
+                'exception_type': 'Found',
+                'count': 30,
+            },
+            {'operation': 'POST /c', 'exception': 'z New', 'exception_type': 'New', 'count': 7},
+        ]
+        rows = tools._merge_comparison_rows(before, after)
+
+        # Sorted by recent_count desc: GET /b (30), POST /c (7), GET /a (0).
+        assert [r['recent_count'] for r in rows] == [30, 7, 0]
+        cleared = next(r for r in rows if r['operation'] == 'GET /a')
+        assert cleared['prior_count'] == 62 and cleared['recent_count'] == 0
+        assert cleared['status'] == 'cleared'
+        new_row = next(r for r in rows if r['operation'] == 'POST /c')
+        assert new_row['status'] == 'new' and new_row['pct_change'] is None
+
+    def test_comparison_uses_deployment_cut_line(self):
+        """A recent deployment drives the ±3h deployment-anchored windows."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.service_events import tools
+        from datetime import datetime, timedelta, timezone
+
+        # Deploy 2h ago -> recent window is partial (only 2h after deploy).
+        deploy_dt = datetime.now(timezone.utc) - timedelta(hours=2)
+        with patch.object(
+            tools,
+            '_query_error_patterns_window',
+            side_effect=[
+                [
+                    {
+                        'operation': 'GET /a',
+                        'exception': 'x NotFound',
+                        'exception_type': 'NotFound',
+                        'count': 8,
+                    }
+                ],
+                [
+                    {
+                        'operation': 'GET /a',
+                        'exception': 'x NotFound',
+                        'exception_type': 'NotFound',
+                        'count': 20,
+                    }
+                ],
+            ],
+        ) as mock_win:
+            cmp = _run(tools._fetch_error_pattern_comparison('svc', None, deploy_dt))
+
+        assert cmp is not None
+        assert cmp['strategy'] == 'deployment'
+        assert cmp['deployment']['deployed_at'] == deploy_dt.isoformat()
+        assert cmp['recent_window']['partial'] is True
+        assert cmp['rows'][0]['delta'] == 12
+        assert mock_win.call_count == 2
+
+    def test_comparison_none_when_a_window_fails(self):
+        """If either window query fails (None), the comparison is omitted."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.service_events import tools
+
+        with patch.object(
+            tools,
+            '_query_error_patterns_window',
+            side_effect=[None, []],
+        ):
+            assert _run(tools._fetch_error_pattern_comparison('svc', None, None)) is None
+
+    def test_comparison_flags_missing_baseline(self):
+        """Empty prior + non-empty recent flags baseline_unavailable (count retention)."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.service_events import tools
+
+        with patch.object(
+            tools,
+            '_query_error_patterns_window',
+            side_effect=[
+                [],  # prior window aged out
+                [
+                    {
+                        'operation': 'GET /a',
+                        'exception': 'x NotFound',
+                        'exception_type': 'NotFound',
+                        'count': 1287,
+                    }
+                ],
+            ],
+        ):
+            cmp = _run(tools._fetch_error_pattern_comparison('svc', None, None))
+
+        assert cmp is not None
+        assert cmp['baseline_unavailable'] is True
+        assert 'note' in cmp
+        assert cmp['rows'][0]['status'] == 'new'
+
+
+# ============================================================================
 # TestGetIncidentsExtra — trigger filter, normalization, AppSignals fallback
 # ============================================================================
 
@@ -1427,6 +1561,12 @@ class TestHealthOverview:
         assert result['data_source'] == 'service_events'
 
     @patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.tools._fetch_error_pattern_comparison'
+    )
+    @patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.tools._latest_deployment_dt'
+    )
+    @patch(
         'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.tools._fetch_error_patterns'
     )
     @patch(
@@ -1435,7 +1575,9 @@ class TestHealthOverview:
     @patch(
         'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.tools.function_metrics.fetch_function_records'
     )
-    def test_error_patterns_included_with_service_name(self, mock_fetch, mock_incidents, mock_err):
+    def test_error_patterns_included_with_service_name(
+        self, mock_fetch, mock_incidents, mock_err, mock_deploy, mock_cmp
+    ):
         """error_patterns is folded into the overview when a service_name is given."""
         from awslabs.cloudwatch_applicationsignals_mcp_server.service_events.tools import (
             get_health_overview,
@@ -1443,6 +1585,8 @@ class TestHealthOverview:
 
         mock_fetch.return_value = []
         mock_incidents.return_value = []
+        mock_deploy.return_value = None
+        mock_cmp.return_value = None
         mock_err.return_value = [
             {
                 'operation': 'GET /a',
@@ -1459,6 +1603,76 @@ class TestHealthOverview:
         assert result['error_patterns'][0]['count'] == 42
         # The error-pattern fetch is scoped to the given service.
         assert mock_err.call_args[0][0] == 'svc'
+        # With errors present, the comparison is attempted (scoped to the service).
+        mock_cmp.assert_called_once()
+        assert mock_cmp.call_args[0][0] == 'svc'
+
+    @patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.tools._latest_deployment_dt'
+    )
+    @patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.tools._fetch_error_patterns'
+    )
+    @patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.cw_logs.query_incidents'
+    )
+    @patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.tools.function_metrics.fetch_function_records'
+    )
+    def test_error_pattern_comparison_folded_in(
+        self, mock_fetch, mock_incidents, mock_err, mock_deploy
+    ):
+        """error_pattern_comparison is attached when error patterns have data."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.service_events import tools
+
+        mock_fetch.return_value = []
+        mock_incidents.return_value = []
+        mock_deploy.return_value = None
+        mock_err.return_value = [
+            {
+                'operation': 'GET /a',
+                'exception': 'x NotFound',
+                'exception_type': 'NotFound',
+                'count': 10,
+            }
+        ]
+        # Two windows: prior 5 vs recent 10 for the same key.
+        with patch.object(
+            tools,
+            '_query_error_patterns_window',
+            side_effect=[
+                [
+                    {
+                        'operation': 'GET /a',
+                        'exception': 'x NotFound',
+                        'exception_type': 'NotFound',
+                        'count': 5,
+                    }
+                ],
+                [
+                    {
+                        'operation': 'GET /a',
+                        'exception': 'x NotFound',
+                        'exception_type': 'NotFound',
+                        'count': 10,
+                    }
+                ],
+            ],
+        ):
+            result = _run(tools.get_health_overview(hours=24, service_name='svc'))
+
+        cmp = result['error_pattern_comparison']
+        assert cmp['strategy'] == 'time_window'
+        assert cmp['rows'][0]['prior_count'] == 5
+        assert cmp['rows'][0]['recent_count'] == 10
+        assert cmp['rows'][0]['pct_change'] == 100
+        assert cmp['rows'][0]['status'] == 'up'
+        assert cmp['totals'] == {
+            'prior_count': 5,
+            'recent_count': 10,
+            'delta': 5,
+            'pct_change': 100,
+        }
 
     @patch(
         'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.tools._fetch_error_patterns'

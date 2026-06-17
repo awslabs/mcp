@@ -340,6 +340,236 @@ def _fetch_error_patterns(
         return None
 
 
+# Cap fetched per window before merging; the displayed table is sliced smaller.
+_COMPARISON_FETCH_TOP = 50
+_COMPARISON_DISPLAY_TOP = 20
+# A deployment is only used as the comparison cut line when this recent.
+_DEPLOYMENT_CUT_MAX_AGE_HOURS = 24
+# Fixed half-window (hours) on each side of a deployment cut line.
+_DEPLOYMENT_WINDOW_HOURS = 3
+# No-deployment fallback: compare the last N hours with the previous N hours.
+_TIME_WINDOW_HOURS = 24
+
+
+def _latest_deployment_dt(service_name: str, environment: Optional[str]) -> Optional[datetime]:
+    """Return the most recent deployment timestamp for the service, or ``None``.
+
+    Best-effort: used only to pick a comparison cut line, so any query failure or a
+    missing/unparseable timestamp yields ``None`` (the caller falls back to a fixed
+    time-window comparison). Looks back one week, matching ``find_deployment``.
+    """
+    try:
+        deployments = cw_logs.query_deployments(service_name=service_name, hours=168, limit=10)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.debug(f'Deployment lookup skipped for {service_name}: {e}')
+        return None
+    latest: Optional[datetime] = None
+    for d in deployments:
+        ts = d.get('deployed_at')
+        if not ts or ts == 'unknown':
+            continue
+        try:
+            dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+        except (ValueError, TypeError):
+            continue
+        if latest is None or dt > latest:
+            latest = dt
+    return latest
+
+
+def _duration_str(seconds: float) -> str:
+    """Format a PromQL range-window duration in seconds (min 60s)."""
+    return f'{max(60, int(round(seconds)))}s'
+
+
+def _query_error_patterns_window(
+    service_name: str,
+    environment: Optional[str],
+    window_seconds: float,
+    end_dt: datetime,
+    limit: int,
+) -> Optional[list]:
+    """Per-(operation, exception) error counts over a window ENDING at ``end_dt``.
+
+    Evaluates ``sum_over_time(count[window])`` at the instant ``end_dt`` (Prometheus
+    ``time`` param), so the result covers ``(end_dt - window, end_dt]``. Returns parsed
+    rows, an empty list when the window had no errors, or ``None`` on query failure.
+    """
+    from . import promql_client, promql_query
+
+    try:
+        query = promql_query.errors_by_operation_exception(
+            service_name,
+            window=_duration_str(window_seconds),
+            environment=environment,
+        )
+        result = promql_client.instant_query(query, time_param=str(end_dt.timestamp())).get(
+            'result', []
+        )
+        return promql_query.vector_to_error_patterns(result, top=limit)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.debug(f'Error-pattern comparison window query skipped for {service_name}: {e}')
+        return None
+
+
+def _pct_change(prior: int, recent: int) -> Optional[int]:
+    """Percent change from ``prior`` to ``recent`` (None when there is no baseline)."""
+    if prior == 0:
+        return None
+    return round((recent - prior) / prior * 100)
+
+
+def _change_status(prior: int, recent: int) -> str:
+    """Classify a before/after count change for rendering arrows."""
+    if prior == 0 and recent > 0:
+        return 'new'
+    if recent == 0 and prior > 0:
+        return 'cleared'
+    if recent > prior:
+        return 'up'
+    if recent < prior:
+        return 'down'
+    return 'flat'
+
+
+def _merge_comparison_rows(before_rows: list, after_rows: list) -> list:
+    """Merge two windows' error rows by (operation, exception) into comparison rows.
+
+    Each row carries prior/recent counts, delta, percent change, and a status. Sorted
+    by recent count desc (then prior count) so the biggest current contributors lead.
+    """
+
+    def _key(r):
+        return (r.get('operation'), r.get('exception'))
+
+    before = {_key(r): r for r in before_rows}
+    after = {_key(r): r for r in after_rows}
+    rows = []
+    for key in set(before) | set(after):
+        b = before.get(key)
+        a = after.get(key)
+        sample = a if a is not None else b
+        assert sample is not None  # key came from the union, so one side is present
+        prior = b.get('count', 0) if b else 0
+        recent = a.get('count', 0) if a else 0
+        rows.append(
+            {
+                'operation': sample.get('operation'),
+                'exception': sample.get('exception'),
+                'exception_type': sample.get('exception_type'),
+                'prior_count': prior,
+                'recent_count': recent,
+                'delta': recent - prior,
+                'pct_change': _pct_change(prior, recent),
+                'status': _change_status(prior, recent),
+            }
+        )
+    rows.sort(key=lambda r: (r['recent_count'], r['prior_count']), reverse=True)
+    return rows
+
+
+async def _fetch_error_pattern_comparison(
+    service_name: str,
+    environment: Optional[str],
+    deployment_dt: Optional[datetime],
+) -> Optional[dict]:
+    """Compare per-(operation, exception) error counts across two windows.
+
+    Cut line: a recent deployment (fixed ±3h around it) when one is available within
+    the last day; otherwise the last 24h vs the previous 24h. Returns a structured
+    comparison (windows, merged rows, totals) for the model to render, or ``None`` when
+    either window's query fails. Best-effort: never raises into the overview.
+    """
+    now = datetime.now(timezone.utc)
+
+    use_deploy = deployment_dt is not None and (now - deployment_dt) <= timedelta(
+        hours=_DEPLOYMENT_CUT_MAX_AGE_HOURS
+    )
+    if use_deploy and deployment_dt is not None:
+        win = timedelta(hours=_DEPLOYMENT_WINDOW_HOURS)
+        before_start, before_end = deployment_dt - win, deployment_dt
+        after_start, after_end = deployment_dt, min(deployment_dt + win, now)
+        after_partial = after_end < deployment_dt + win
+        after_hours = round((after_end - after_start).total_seconds() / 3600, 1)
+        strategy = 'deployment'
+        prior_label = f'Prior {_DEPLOYMENT_WINDOW_HOURS}h (before deploy)'
+        recent_label = (
+            f'Since deploy ({after_hours}h)'
+            if after_partial
+            else f'Last {_DEPLOYMENT_WINDOW_HOURS}h (after deploy)'
+        )
+    else:
+        win = timedelta(hours=_TIME_WINDOW_HOURS)
+        before_start, before_end = now - 2 * win, now - win
+        after_start, after_end = now - win, now
+        after_partial = False
+        strategy = 'time_window'
+        prior_label = f'Prior {_TIME_WINDOW_HOURS}h'
+        recent_label = f'Last {_TIME_WINDOW_HOURS}h'
+
+    before_rows, after_rows = await asyncio.gather(
+        asyncio.to_thread(
+            _query_error_patterns_window,
+            service_name,
+            environment,
+            (before_end - before_start).total_seconds(),
+            before_end,
+            _COMPARISON_FETCH_TOP,
+        ),
+        asyncio.to_thread(
+            _query_error_patterns_window,
+            service_name,
+            environment,
+            (after_end - after_start).total_seconds(),
+            after_end,
+            _COMPARISON_FETCH_TOP,
+        ),
+    )
+    if before_rows is None or after_rows is None:
+        return None
+
+    merged = _merge_comparison_rows(before_rows, after_rows)
+    prior_total = sum(r['prior_count'] for r in merged)
+    recent_total = sum(r['recent_count'] for r in merged)
+
+    comparison = {
+        'strategy': strategy,
+        'prior_window': {
+            'label': prior_label,
+            'start': before_start.isoformat(),
+            'end': before_end.isoformat(),
+        },
+        'recent_window': {
+            'label': recent_label,
+            'start': after_start.isoformat(),
+            'end': after_end.isoformat(),
+            'partial': after_partial,
+        },
+        'rows': merged[:_COMPARISON_DISPLAY_TOP],
+        'truncated': len(merged) > _COMPARISON_DISPLAY_TOP,
+        'totals': {
+            'prior_count': prior_total,
+            'recent_count': recent_total,
+            'delta': recent_total - prior_total,
+            'pct_change': _pct_change(prior_total, recent_total),
+        },
+    }
+    if use_deploy and deployment_dt is not None:
+        comparison['deployment'] = {'deployed_at': deployment_dt.isoformat()}
+    # The `count` metric is short-retention: if the prior window is entirely empty while
+    # the recent one has errors, the baseline is almost certainly missing (aged out),
+    # NOT a genuine zero — so every row would read as "new". Flag it so the comparison is
+    # not mistaken for a real before/after delta.
+    if prior_total == 0 and recent_total > 0:
+        comparison['baseline_unavailable'] = True
+        comparison['note'] = (
+            'The prior window has no data — the count metric has limited retention, so the '
+            'baseline likely aged out rather than being a true zero. Treat the "new"/Δ values '
+            'as current counts without a reliable comparison.'
+        )
+    return comparison
+
+
 async def get_endpoints(
     hours: int = 24,
     operation: Optional[str] = None,
@@ -957,9 +1187,13 @@ async def get_health_overview(
     SLO compliance/breaches, **recent incident events** (errors, timeouts, slow
     requests), the top error-prone functions, and — when a `service_name` is given —
     the **`error_patterns` breakdown (which exceptions on which operations, with
-    counts)** that matches the CloudWatch "Errors" page. A "what errors / which
-    exceptions / did the error pattern change?" question is answered HERE; you do not
-    need a separate endpoint call for the service-wide error breakdown.
+    counts)** that matches the CloudWatch "Errors" page. When errors are present, it
+    also attaches **`error_pattern_comparison`** — a before/after table of those error
+    counts across two windows (anchored on a recent deployment when one exists, else
+    last day vs previous day) so "did the error pattern change?" is answered with the
+    actual delta. A "what errors / which exceptions / did the error pattern change?"
+    question is answered HERE; you do not need a separate endpoint call for the
+    service-wide error breakdown.
 
     **MANDATORY for broad health/performance intent:** A general "any issues?"
     question MUST be answered starting from this tool, because it includes recent
@@ -1010,6 +1244,27 @@ async def get_health_overview(
       This is the operation×exception error breakdown shown on the CloudWatch "Errors"
       page; use it to answer "which errors / did the error pattern change?". Omitted
       when no service_name or the metric is unavailable.
+    - error_pattern_comparison: (present only when `error_patterns` has data) a
+      before/after comparison of those error counts across two windows, so you can
+      answer "did the error pattern change?" directly. Fields:
+        - `strategy`: "deployment" (cut line is a recent deploy, ±3h around it) or
+          "time_window" (last 24h vs previous 24h when no recent deployment).
+        - `deployment.deployed_at`: the cut-line timestamp (deployment strategy only).
+        - `prior_window` / `recent_window`: `{label, start, end[, partial]}` — use the
+          `label` fields as the comparison column headers.
+        - `rows`: per-(operation, exception) `{operation, exception, exception_type,
+          prior_count, recent_count, delta, pct_change, status}`. `status` is one of
+          up / down / flat / new / cleared; `pct_change` is null when prior is 0.
+        - `totals`: aggregate `{prior_count, recent_count, delta, pct_change}`.
+        - `truncated`: true when more rows existed than were returned.
+        - `baseline_unavailable` / `note`: present when the prior window had no data
+          while the recent window has errors. The `count` metric has limited retention,
+          so this usually means the baseline aged out (NOT that the errors are genuinely
+          new). When set, DO NOT report the rows as "new errors" — present them as
+          current counts and say the earlier baseline is unavailable for comparison.
+      RENDER THIS AS A MARKDOWN TABLE with columns: "Operation / Exception",
+      prior_window.label, recent_window.label, and "Change" (use ▲ for up/new, ▼ for
+      down/cleared, ≈ for flat, with the delta and pct_change), plus a Total row.
     - note: Reminder that counts are sampled, not exhaustive totals
     - ALERT: (when SLO breaches detected)
     - slo_compliance: SLO breach summary when Application Signals is enabled
@@ -1102,6 +1357,9 @@ async def get_health_overview(
         tasks.append(
             asyncio.to_thread(_fetch_error_patterns, service_name, hours, None, environment, 20)
         )
+        # Resolve the latest deployment timestamp in parallel; it is the comparison
+        # cut line when one is recent (only computed when there are errors to compare).
+        tasks.append(asyncio.to_thread(_latest_deployment_dt, service_name, environment))
 
     results = await asyncio.gather(*tasks)
 
@@ -1121,6 +1379,9 @@ async def get_health_overview(
     if detail == 'comprehensive':
         idx += 1
     error_patterns = results[idx] if want_error_patterns else None
+    if want_error_patterns:
+        idx += 1
+    latest_deployment_dt = results[idx] if want_error_patterns else None
 
     # Format top error functions (records from CloudWatch Metrics V2)
     sampled_error_count = 0
@@ -1167,6 +1428,15 @@ async def get_health_overview(
         # Per-(operation, exception) error breakdown (CloudWatch "Errors" page data).
         overview['error_patterns'] = error_patterns
         overview['error_patterns_source'] = 'metrics_v2'
+        # Errors are present, so compare them across two windows (deployment-anchored
+        # when a deploy is recent, else last-vs-previous day). Best-effort: a None
+        # result (query failure) simply omits the block.
+        assert service_name is not None  # error_patterns is only set when service_name is
+        comparison = await _fetch_error_pattern_comparison(
+            service_name, environment, latest_deployment_dt
+        )
+        if comparison:
+            overview['error_pattern_comparison'] = comparison
     overview['time_range_hours'] = hours
 
     # Extract cloud context from incidents if available
