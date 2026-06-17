@@ -9,7 +9,7 @@
 | Logical grouping | Measurement | Table (auto-created from measurement) |
 | Indexed metadata | Tags (string only) | Tags → columns (indexed) |
 | Value storage | Fields | Fields → columns (non-indexed) |
-| Retention config | `retentionRules[].everySeconds` | `retentionPeriod` (e.g. `"30d"`) |
+| Retention config | `retentionRules[].everySeconds` | `retention_period` (e.g. `"30d"`) |
 | Series cardinality | ~10M typical threshold (varies by instance) | Virtually unlimited |
 | Query language | Flux (primary), InfluxQL | SQL (primary), InfluxQL |
 
@@ -65,7 +65,7 @@ Design principle: same as V2 — **one database per retention period**.
 
 Guidance:
 - Create databases via `POST /api/v3/configure/database`.
-- Retention is set via `retentionPeriod` (e.g. `"7d"`, `"90d"`, `"1y"`). Null or omitted = infinite.
+- Retention is set via `retention_period` (e.g. `"7d"`, `"90d"`, `"1y"`). Null or omitted = infinite.
 - Tables are limited to **10,000 across all databases** (default) — plan measurement names accordingly.
 - Each table is limited to **500 columns** (1 timestamp + up to 499 tag/field keys).
 
@@ -83,7 +83,7 @@ curl -X POST "https://<endpoint>:8181/api/v3/configure/database" \
 
 ## Retention Policy
 
-Retention is configured per database via `retentionPeriod` using human-readable durations (`"7d"`, `"30d"`, `"1y"`). Null = infinite.
+Retention is configured per database via `retention_period` using human-readable durations (`"7d"`, `"30d"`, `"1y"`). Null = infinite.
 
 Update retention via `PATCH /api/v3/configure/database/{name}`. To clear retention (keep data indefinitely), use `DELETE /api/v3/configure/database/retention?db=<name>`.
 

@@ -9,7 +9,7 @@
 | Logical grouping | Measurement | Table (auto-created from measurement) |
 | Indexed metadata | Tags (string only) | Tags → columns (indexed) |
 | Value storage | Fields | Fields → columns (non-indexed) |
-| Retention config | `retentionRules[].everySeconds` | `retentionPeriod` (e.g. `"30d"`) |
+| Retention config | `retentionRules[].everySeconds` | `retention_period` (e.g. `"30d"`) |
 | Series cardinality | ~10M typical threshold (varies by instance) | Virtually unlimited |
 | Query language | Flux (primary), InfluxQL | SQL (primary), InfluxQL |
 

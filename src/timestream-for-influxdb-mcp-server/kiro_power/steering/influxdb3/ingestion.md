@@ -35,7 +35,7 @@ Content-Type: text/plain
 - Target **5,000+ points per request** minimum
 - Optimal batch size: 5,000–10,000 points
 - Max recommended: ~50,000 points per request (beyond this, HTTP timeouts become a risk)
-- For high-throughput workloads, tune write timeout in the parameter group (see Tuning section below)
+- For high-throughput workloads, tune `ingestQueryInstances` in the parameter group (see Tuning section below) or scale vertically by updating the cluster size with the `--db-instance-type` option (with the AWS CLI).
 
 ## Python Client
 
