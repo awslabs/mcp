@@ -901,6 +901,79 @@ class TestSearchDocumentation:
 
             assert response.metadata is None
 
+    @pytest.mark.asyncio
+    async def test_search_documentation_drops_malformed_response_metadata(self):
+        """A malformed response-level metadata block is dropped, not raised."""
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'queryId': 'qid',
+            'suggestions': [
+                {
+                    'textExcerptSuggestion': {
+                        'link': 'https://docs.aws.amazon.com/x',
+                        'title': 'X',
+                        'suggestionBody': 'desc',
+                    }
+                }
+            ],
+            # discovered_services items require a string `name`; a non-dict entry
+            # makes model_validate raise (ValidationError) unless guarded.
+            'metadata': {'discovered_services': ['not-a-dict']},
+        }
+
+        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = mock_response
+
+            response = await search_documentation(
+                ctx, search_phrase='test', limit=10, product_types=None, guide_types=None
+            )
+
+            # Search succeeded; bad metadata was dropped rather than raised.
+            assert len(response.search_results) == 1
+            assert response.search_results[0].url == 'https://docs.aws.amazon.com/x'
+            assert response.metadata is None
+
+    @pytest.mark.asyncio
+    async def test_search_documentation_drops_malformed_result_metadata(self):
+        """A malformed per-result metadata block is dropped, not raised."""
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'queryId': 'qid',
+            'suggestions': [
+                {
+                    'textExcerptSuggestion': {
+                        'link': 'https://docs.aws.amazon.com/x',
+                        'title': 'X',
+                        'suggestionBody': 'desc',
+                        'metadata': {
+                            'sections': ['Overview'],
+                            # additional_urls entries require a string `url`; a bare
+                            # string entry makes model_validate raise unless guarded.
+                            'additional_urls': ['not-a-dict'],
+                        },
+                    }
+                }
+            ],
+        }
+
+        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = mock_response
+
+            response = await search_documentation(
+                ctx, search_phrase='test', limit=10, product_types=None, guide_types=None
+            )
+
+            result = response.search_results[0]
+            assert result.url == 'https://docs.aws.amazon.com/x'
+            assert result.sections == ['Overview']
+            assert result.metadata is None
+
 
 class TestRecommend:
     """Tests for the recommend function."""

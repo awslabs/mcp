@@ -40,8 +40,8 @@ from awslabs.aws_documentation_mcp_server.util import (
 )
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
-from pydantic import Field
-from typing import List, Optional
+from pydantic import BaseModel, Field, ValidationError
+from typing import Any, Dict, List, Optional, Type, TypeVar
 
 
 SEARCH_API_URL = 'https://proxy.search.docs.aws.com/search'
@@ -49,6 +49,23 @@ RECOMMENDATIONS_API_URL = 'https://api.contentrecs.docs.aws.com/v1/recommendatio
 SESSION_UUID = str(uuid.uuid4())
 SUPPORTED_METADATA_KEYS = ('discovered_services', 'related_tasks', 'relationships')
 SUPPORTED_RESULT_METADATA_KEYS = ('additional_urls',)
+
+_ModelT = TypeVar('_ModelT', bound=BaseModel)
+
+
+def _safe_model_validate(model: Type[_ModelT], data: Dict[str, Any]) -> Optional[_ModelT]:
+    """Validate optional metadata, dropping it (returning None) on any error.
+
+    Metadata is best-effort enrichment: a malformed block from the search backend
+    must never fail an otherwise-successful search. Log and drop instead of raising.
+    """
+    if not data:
+        return None
+    try:
+        return model.model_validate(data)
+    except (ValidationError, TypeError, KeyError, AttributeError) as e:
+        logger.warning(f'Dropping malformed {model.__name__} metadata: {e}')
+        return None
 
 
 # Dict for domain modifiers for search if search terms contain any of the terms
@@ -400,9 +417,7 @@ async def search_documentation(
             filtered_metadata = {
                 k: raw_metadata[k] for k in SUPPORTED_METADATA_KEYS if raw_metadata.get(k)
             }
-            response_metadata = (
-                ResponseMetadata.model_validate(filtered_metadata) if filtered_metadata else None
-            )
+            response_metadata = _safe_model_validate(ResponseMetadata, filtered_metadata)
 
         except json.JSONDecodeError as e:
             error_msg = f'Error parsing search results: {str(e)}'
@@ -472,10 +487,8 @@ async def search_documentation(
                 filtered_result_metadata = {
                     k: metadata[k] for k in SUPPORTED_RESULT_METADATA_KEYS if metadata.get(k)
                 }
-                search_result_metadata = (
-                    SearchResultMetadata.model_validate(filtered_result_metadata)
-                    if filtered_result_metadata
-                    else None
+                search_result_metadata = _safe_model_validate(
+                    SearchResultMetadata, filtered_result_metadata
                 )
                 search_result = SearchResult(
                     rank_order=i + 1,
