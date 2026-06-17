@@ -11,47 +11,82 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import httpx
+from __future__ import annotations
+
 import os
-from awslabs.aws_documentation_mcp_server.models import SearchResponse
-from awslabs.aws_documentation_mcp_server.util import (
-    extract_content_from_html,
-    extract_sections_from_html,
-    format_documentation_result,
-    is_html_content,
-)
 from collections import deque
-from importlib.metadata import version
 from loguru import logger
-from mcp.server.fastmcp import Context
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 from urllib.parse import quote
 
 
-try:
-    __version__ = version('awslabs.aws-documentation-mcp-server')
-except Exception:
-    from . import __version__
+if TYPE_CHECKING:
+    from awslabs.aws_documentation_mcp_server.models import SearchResponse
+    from mcp.server.fastmcp import Context
 
 
-# Allow User-Agent override via environment variable
-BASE_USER_AGENT = os.getenv(
-    'MCP_USER_AGENT',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
-)
-DEFAULT_USER_AGENT = (
-    f'{BASE_USER_AGENT} ModelContextProtocol/{__version__} (AWS Documentation Server)'
-)
+class _UninitializedServer:
+    """Sentinel returned by server modules before main() runs.
+
+    Raises a clear error if code accesses the server instance before the
+    FastMCP factory has been invoked.
+    """
+
+    def __getattr__(self, name: str):
+        raise RuntimeError(
+            'MCP server not initialized. Call main() before accessing the server instance.'
+        )
+
+
+_default_user_agent: Optional[str] = None
+
+
+def _reset_user_agent_cache() -> None:
+    """Reset the cached user agent. Intended for test use only."""
+    global _default_user_agent
+    _default_user_agent = None
+
+
+def get_default_user_agent() -> str:
+    """Lazily compute and cache the default user agent string.
+
+    Defers `importlib.metadata.version` and the MCP_USER_AGENT env lookup to
+    first use, so importing server modules does not pay for either.
+    """
+    global _default_user_agent
+    if _default_user_agent is None:
+        from importlib.metadata import version as get_version
+
+        try:
+            __version__ = get_version('awslabs.aws-documentation-mcp-server')
+        except Exception:
+            from . import __version__
+
+        base = os.getenv(
+            'MCP_USER_AGENT',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+        )
+        _default_user_agent = (
+            f'{base} ModelContextProtocol/{__version__} (AWS Documentation Server)'
+        )
+    return _default_user_agent
 
 
 async def read_documentation_impl(
-    ctx: Context,
+    ctx: 'Context',
     url_str: str,
     max_length: int,
     start_index: int,
     session_uuid: str,
 ) -> str:
     """The implementation of the read_documentation tool."""
+    import httpx
+    from awslabs.aws_documentation_mcp_server.util import (
+        extract_content_from_html,
+        format_documentation_result,
+        is_html_content,
+    )
+
     logger.debug(f'Fetching documentation from {url_str}')
 
     url_with_session = f'{url_str}?session={session_uuid}'
@@ -67,7 +102,7 @@ async def read_documentation_impl(
                 url_with_session,
                 follow_redirects=True,
                 headers={
-                    'User-Agent': DEFAULT_USER_AGENT,
+                    'User-Agent': get_default_user_agent(),
                     'X-MCP-Session-Id': session_uuid,
                 },
                 timeout=30,
@@ -94,7 +129,6 @@ async def read_documentation_impl(
 
     result = format_documentation_result(url_str, content, start_index, max_length)
 
-    # Log if content was truncated
     if len(content) > start_index + max_length:
         logger.debug(
             f'Content truncated at {start_index + max_length} of {len(content)} characters'
@@ -106,7 +140,7 @@ async def read_documentation_impl(
 SEARCH_RESULT_CACHE = deque(maxlen=3)
 
 
-def add_search_result_cache_item(search_response: SearchResponse) -> None:
+def add_search_result_cache_item(search_response: 'SearchResponse') -> None:
     """Adds list of SearchResult items to cache.
 
     Add search results to the front of the cache, to ensure that
@@ -138,7 +172,6 @@ def get_query_id_from_cache(url: str) -> Optional[str]:
     for _, search_response in enumerate(SEARCH_RESULT_CACHE):
         for search_result in search_response.search_results:
             if search_result.url == url:
-                # Sanitization of query_id just in case
                 query_id = quote(search_response.query_id)
                 return query_id
 
@@ -146,12 +179,19 @@ def get_query_id_from_cache(url: str) -> Optional[str]:
 
 
 async def read_sections_impl(
-    ctx: Context,
+    ctx: 'Context',
     url_str: str,
     section_titles: list[str],
     session_uuid: str,
 ) -> str:
     """The implementation of the read_sections tool."""
+    import httpx
+    from awslabs.aws_documentation_mcp_server.util import (
+        extract_content_from_html,
+        extract_sections_from_html,
+        is_html_content,
+    )
+
     logger.debug(f'Fetching sections {section_titles} from {url_str}')
 
     url_with_session = f'{url_str}?session={session_uuid}'
@@ -169,7 +209,7 @@ async def read_sections_impl(
                 url_with_session,
                 follow_redirects=True,
                 headers={
-                    'User-Agent': DEFAULT_USER_AGENT,
+                    'User-Agent': get_default_user_agent(),
                     'X-MCP-Session-Id': session_uuid,
                 },
                 timeout=30,
@@ -203,9 +243,7 @@ async def read_sections_impl(
     try:
         markdown = extract_content_from_html(filtered_content)
 
-        # detect tagged error responses
         if markdown.startswith('<e>') and markdown.endswith('</e>'):
-            # strip only the outer wrapper tags
             error_msg = markdown[3:-4]
             raise ValueError(error_msg)
 
