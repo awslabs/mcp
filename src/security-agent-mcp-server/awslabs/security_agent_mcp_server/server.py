@@ -108,7 +108,7 @@ async def _validate_path(ctx: Context, path: str, must_be_dir: bool = True) -> s
     resolved = os.path.realpath(os.path.abspath(path))
     root = os.path.realpath(_ALLOWED_ROOT) if _ALLOWED_ROOT else os.path.realpath(os.getcwd())
 
-    if not (resolved == root or resolved.startswith(root + os.sep)):
+    if root != os.sep and not (resolved == root or resolved.startswith(root + os.sep)):
         raise ValueError(
             f'Path "{path}" resolves to "{resolved}" which is outside the allowed workspace '
             f'root "{root}". Set the WORKSPACE_ROOT environment variable to the directory '
