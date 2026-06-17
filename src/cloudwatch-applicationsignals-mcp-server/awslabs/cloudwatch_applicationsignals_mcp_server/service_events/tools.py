@@ -457,12 +457,12 @@ def _merge_comparison_rows(before_rows: list, after_rows: list) -> list:
     after = {_key(r): r for r in after_rows}
     rows = []
     for key in set(before) | set(after):
-        b = before.get(key)
-        a = after.get(key)
-        sample = a if a is not None else b
-        assert sample is not None  # key came from the union, so one side is present
-        prior = b.get('count', 0) if b else 0
-        recent = a.get('count', 0) if a else 0
+        b = before.get(key) or {}
+        a = after.get(key) or {}
+        # The key comes from the union, so at least one side is non-empty.
+        sample = a or b
+        prior = b.get('count', 0)
+        recent = a.get('count', 0)
         rows.append(
             {
                 'operation': sample.get('operation'),
@@ -1452,14 +1452,15 @@ async def get_health_overview(
     )
     overview['top_error_functions'] = top_error_functions
     overview['recent_incidents'] = recent_incidents
-    if error_patterns:
+    # error_patterns is only populated when service_name was given; the explicit
+    # service_name check also narrows the Optional for the comparison call below.
+    if error_patterns and service_name:
         # Per-(operation, exception) error breakdown (CloudWatch "Errors" page data).
         overview['error_patterns'] = error_patterns
         overview['error_patterns_source'] = 'metrics_v2'
         # Errors are present, so compare them across two windows (deployment-anchored
         # when a deploy is recent, else last-vs-previous day). Best-effort: a None
         # result (query failure) simply omits the block.
-        assert service_name is not None  # error_patterns is only set when service_name is
         comparison = await _fetch_error_pattern_comparison(
             service_name, environment, latest_deployment_dt
         )

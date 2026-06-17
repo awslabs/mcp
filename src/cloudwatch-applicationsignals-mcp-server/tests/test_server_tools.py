@@ -1220,6 +1220,88 @@ class TestErrorPatternComparison:
         assert 'note' in cmp
         assert cmp['rows'][0]['status'] == 'new'
 
+    def test_duration_str_floors_at_60s(self):
+        """Window durations format as whole seconds, floored at 60s."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.service_events import tools
+
+        assert tools._duration_str(10) == '60s'  # floor
+        assert tools._duration_str(3600) == '3600s'
+        assert tools._duration_str(90.4) == '90s'  # rounded
+
+    @patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.promql_client.instant_query'
+    )
+    def test_query_window_parses_and_uses_time_param(self, mock_query):
+        """The window query evaluates at end_dt (Prometheus time param) and parses rows."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.service_events import tools
+        from datetime import datetime, timezone
+
+        mock_query.return_value = {
+            'result': [
+                {
+                    'metric': {'operation': 'GET /a', 'exception': 'foo.Bar NotFound'},
+                    'value': [0, '7'],
+                }
+            ]
+        }
+        end_dt = datetime(2026, 6, 17, 12, 0, tzinfo=timezone.utc)
+        rows = tools._query_error_patterns_window('svc', None, 3600, end_dt, 20)
+
+        assert rows == [
+            {
+                'operation': 'GET /a',
+                'exception': 'foo.Bar NotFound',
+                'exception_type': 'NotFound',
+                'count': 7,
+            }
+        ]
+        # The instant query is anchored at end_dt via the time param.
+        assert mock_query.call_args.kwargs['time_param'] == str(end_dt.timestamp())
+
+    @patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.promql_client.instant_query'
+    )
+    def test_query_window_swallows_errors(self, mock_query):
+        """A PromQL failure in a window query yields None (best-effort)."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.service_events import tools
+        from datetime import datetime, timezone
+
+        mock_query.side_effect = RuntimeError('promql down')
+        end_dt = datetime(2026, 6, 17, 12, 0, tzinfo=timezone.utc)
+        assert tools._query_error_patterns_window('svc', 'env', 3600, end_dt, 20) is None
+
+    @patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.cw_logs.query_deployments'
+    )
+    def test_latest_deployment_dt_picks_newest(self, mock_deps):
+        """_latest_deployment_dt returns the newest parseable deployment timestamp."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.service_events import tools
+        from datetime import datetime, timezone
+
+        mock_deps.return_value = [
+            {'deployed_at': '2026-06-10T00:00:00Z'},
+            {'deployed_at': 'unknown'},  # skipped
+            {'deployed_at': 'not-a-date'},  # skipped (unparseable)
+            {'deployed_at': '2026-06-12T08:30:00Z'},  # newest
+            {},  # no timestamp, skipped
+        ]
+        dt = tools._latest_deployment_dt('svc', None)
+        assert dt == datetime(2026, 6, 12, 8, 30, tzinfo=timezone.utc)
+
+    @patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.service_events.cw_logs.query_deployments'
+    )
+    def test_latest_deployment_dt_none_on_error_or_empty(self, mock_deps):
+        """Query failure or no parseable timestamps yields None."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.service_events import tools
+
+        mock_deps.side_effect = RuntimeError('logs down')
+        assert tools._latest_deployment_dt('svc', None) is None
+
+        mock_deps.side_effect = None
+        mock_deps.return_value = [{'deployed_at': 'unknown'}, {}]
+        assert tools._latest_deployment_dt('svc', None) is None
+
 
 # ============================================================================
 # TestGetIncidentsExtra — trigger filter, normalization, AppSignals fallback
