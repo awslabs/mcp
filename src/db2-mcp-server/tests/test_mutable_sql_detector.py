@@ -60,6 +60,10 @@ class TestInjectionRisk:
             'SELECT * FROM T WHERE x = 1 OR 1=1',
             "SELECT * FROM T WHERE name = '' OR '1'='1'",
             'SELECT * FROM A UNION SELECT * FROM B',
+            # Newline between UNION and SELECT must still be flagged (re.DOTALL):
+            # without it an injected newline bypasses the guard.
+            'SELECT * FROM A UNION\nSELECT * FROM B',
+            'SELECT 1 UNION\n   SELECT pwd FROM SYSCAT.DBAUTH',
             "CALL SYSPROC.ADMIN_CMD('REORG TABLE T')",
             'SELECT 1; DROP TABLE T',
         ],

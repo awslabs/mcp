@@ -93,6 +93,28 @@ def test_get_fallback_when_identifier_equals_endpoint():
     assert m.get(M, 'host', 'host', 'DB2DB', 50443) is c
 
 
+def test_get_secret_arn_match_filters_exact_and_fallback():
+    """A secret_arn that differs from the cached connection's is never returned.
+
+    Guards against crossing a connection built with different credentials back to
+    a caller (both the exact-match and the identifier==endpoint fallback paths).
+    """
+    m = DBConnectionMap()
+    c = FakeConn(secret_arn=DUMMY_ARN)
+    m.set(M, 'real-id', 'host', 'DB2DB', c, 50443)
+
+    # Exact identifier, matching secret -> returned; mismatched secret -> None.
+    assert m.get(M, 'real-id', 'host', 'DB2DB', 50443, secret_arn=DUMMY_ARN) is c
+    assert m.get(M, 'real-id', 'host', 'DB2DB', 50443, secret_arn=DUMMY_ARN_XYZ) is None
+
+    # Fallback path (identifier defaults to endpoint): same secret filtering applies.
+    assert m.get(M, 'host', 'host', 'DB2DB', 50443, secret_arn=DUMMY_ARN) is c
+    assert m.get(M, 'host', 'host', 'DB2DB', 50443, secret_arn=DUMMY_ARN_XYZ) is None
+
+    # secret_arn=None preserves the original, secret-agnostic behavior.
+    assert m.get(M, 'host', 'host', 'DB2DB', 50443) is c
+
+
 def test_get_validation():
     """Get rejects a missing method or database."""
     m = DBConnectionMap()

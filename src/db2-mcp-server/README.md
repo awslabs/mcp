@@ -35,6 +35,12 @@ SSL uses the IBM driver's `SSLServerCertificate` option pointed at the RDS **reg
 certificate bundle (PEM)** — no Java keystore or `keytool` required. Download the bundle
 for your region and pass its path with `--ssl_server_certificate`.
 
+> **The certificate bundle is required when `--ssl_encryption require` (the default).**
+> `SECURITY=SSL` without a server certificate encrypts the connection but does not
+> authenticate the server, leaving it open to man-in-the-middle interception of
+> credentials and query data. The server therefore refuses to start in SSL mode without
+> a certificate bundle. Use `--ssl_encryption off` only for non-SSL/local testing.
+
 - Client setup (CloudShell / EC2): [Connect to Amazon RDS for Db2 using AWS CloudShell](https://aws.amazon.com/blogs/database/connect-to-amazon-rds-for-db2-using-aws-cloudshell/)
 - SSL without a keystore (the approach used here): [Create an SSL connection to Amazon RDS for Db2 in Java without keystore or keytool](https://aws.amazon.com/blogs/database/create-an-ssl-connection-to-amazon-rds-for-db2-in-java-without-keystore-or-keytool/)
 
@@ -104,7 +110,7 @@ To pre-connect a single instance at startup, pass arguments after the package na
 | `--port` | `50443` (SSL) / `50000` (off) | Db2 port |
 | `--secret_arn` | RDS managed master secret | Secrets Manager ARN for credentials |
 | `--ssl_encryption` | `require` | `require` (SSL) or `off` (plain TCP) |
-| `--ssl_server_certificate` | — | Path to the RDS regional PEM bundle |
+| `--ssl_server_certificate` | — | Path to the RDS regional PEM bundle (required when `--ssl_encryption require`) |
 | `--ssl_hostname_validation` | `basic` | `basic` validates the cert hostname; `off` disables it (tunnel testing only) |
 | `--allow_write_query` | off | Permit non-SELECT statements |
 | `--max_rows` | `1000` | Max rows per query (0 = no limit) |

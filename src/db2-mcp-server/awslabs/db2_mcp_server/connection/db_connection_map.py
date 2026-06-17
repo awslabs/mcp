@@ -20,7 +20,7 @@ import threading
 from awslabs.db2_mcp_server.connection.abstract_db_connection import AbstractDBConnection
 from enum import Enum
 from loguru import logger
-from typing import List
+from typing import List, Optional
 
 
 # RDS for Db2 in this ecosystem is SSL-only: the provisioning skill enforces
@@ -51,6 +51,7 @@ class DBConnectionMap:
         db_endpoint: str,
         database: str,
         port: int = DEFAULT_DB2_SSL_PORT,
+        secret_arn: Optional[str] = None,
     ) -> AbstractDBConnection | None:
         """Get a database connection from the map.
 
@@ -58,6 +59,11 @@ class DBConnectionMap:
         caller did not supply an explicit identifier), fall back to searching for any
         connection that matches on method, db_endpoint, database, and port regardless of
         the instance_identifier that was used at connect time.
+
+        When ``secret_arn`` is provided, only a connection created with the same secret
+        is returned (for both the exact-match and fallback paths), so a cached connection
+        built with different credentials is never crossed back to a caller. When
+        ``secret_arn`` is None the secret is not considered (back-compatible).
         """
         if not method:
             raise ValueError('method cannot be None')
@@ -65,9 +71,12 @@ class DBConnectionMap:
         if not database:
             raise ValueError('database cannot be None or empty')
 
+        def _secret_ok(c: AbstractDBConnection) -> bool:
+            return secret_arn is None or getattr(c, 'secret_arn', None) == secret_arn
+
         with self._lock:
             conn = self.map.get((method, instance_identifier, db_endpoint, database, port))
-            if conn is not None:
+            if conn is not None and _secret_ok(conn):
                 return conn
             if instance_identifier == db_endpoint:
                 for key, stored_conn in self.map.items():
@@ -76,6 +85,7 @@ class DBConnectionMap:
                         and key[2] == db_endpoint
                         and key[3] == database
                         and key[4] == port
+                        and _secret_ok(stored_conn)
                     ):
                         return stored_conn
             return None

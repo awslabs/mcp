@@ -33,6 +33,7 @@ def _conn(**kwargs) -> IbmDbConnection:
         'readonly': True,
         'secret_arn': 'arn:aws:secretsmanager:us-east-1:111122223333:secret:db2',  # pragma: allowlist secret
         'region': 'us-east-1',
+        'ssl_server_certificate': '/tmp/rds-test.pem',
         'is_test': True,
     }
     defaults.update(kwargs)
@@ -60,6 +61,20 @@ class TestConnString:
         """An invalid SSL mode is rejected."""
         with pytest.raises(ValueError):
             _conn(ssl_encryption='bogus')
+
+    def test_ssl_require_without_certificate_rejected(self):
+        """ssl_encryption='require' without a certificate bundle must be rejected.
+
+        SECURITY=SSL with no SSLServerCertificate encrypts but does not authenticate
+        the server (MITM exposure), so the connection must fail fast at construction.
+        """
+        with pytest.raises(ValueError, match='ssl_server_certificate is required'):
+            _conn(ssl_encryption='require', ssl_server_certificate=None)
+
+    def test_plain_tcp_without_certificate_allowed(self):
+        """ssl_encryption='off' does not require a certificate."""
+        c = _conn(ssl_encryption='off', port=50000, ssl_server_certificate=None)
+        assert 'SECURITY=SSL' not in c._build_conn_string('admin', 'pw')
 
 
 class TestPositionalParams:

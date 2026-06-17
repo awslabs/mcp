@@ -94,8 +94,12 @@ READONLY_SUSPICIOUS_PATTERNS = [
     r'(?i)\bsyscat\.(dbauth|tabauth|routineauth|surrogateauthids)\b',
 ]
 
-COMPILED_SUSPICIOUS_PATTERNS = [re.compile(p) for p in SUSPICIOUS_PATTERNS]
-COMPILED_READONLY_SUSPICIOUS_PATTERNS = [re.compile(p) for p in READONLY_SUSPICIOUS_PATTERNS]
+# DOTALL so that '.*' / '.*?' (e.g. the UNION ... SELECT guard) match across
+# newlines; without it an injected newline between tokens bypasses the pattern.
+COMPILED_SUSPICIOUS_PATTERNS = [re.compile(p, re.DOTALL) for p in SUSPICIOUS_PATTERNS]
+COMPILED_READONLY_SUSPICIOUS_PATTERNS = [
+    re.compile(p, re.DOTALL) for p in READONLY_SUSPICIOUS_PATTERNS
+]
 
 TRANSACTION_CONTROL_PATTERN = re.compile(
     r'(?i)\b(COMMIT|ROLLBACK|SAVEPOINT|RELEASE\s+SAVEPOINT)\b'

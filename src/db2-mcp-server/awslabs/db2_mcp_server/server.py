@@ -156,7 +156,7 @@ async def run_query(
             logger.info(f'query rejected: transaction control in readonly mode: {txn_matches}')
             raise McpError(ErrorData(code=INVALID_PARAMS, message=write_query_prohibited_key))
 
-    issues = check_sql_injection_risk(sql, readonly=server_config.readonly_query)
+    issues = check_sql_injection_risk(sql, readonly=db_connection.readonly_query)
     if issues:
         logger.info(f'query rejected: injection risk, reasons:{issues}')
         raise McpError(
@@ -350,7 +350,12 @@ def internal_create_connection(
         raise ValueError("db_endpoint can't be none or empty")
 
     existing = db_connection_map.get(
-        ConnectionMethod.DB2_PASSWORD, instance_identifier, db_endpoint, database, port
+        ConnectionMethod.DB2_PASSWORD,
+        instance_identifier,
+        db_endpoint,
+        database,
+        port,
+        secret_arn=secret_arn,
     )
     if existing and (not secret_arn or getattr(existing, 'secret_arn', '') == secret_arn):
         return existing, {

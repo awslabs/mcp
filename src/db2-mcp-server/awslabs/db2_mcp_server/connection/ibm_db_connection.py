@@ -84,6 +84,17 @@ class IbmDbConnection(AbstractDBConnection):
         super().__init__(readonly)
         if ssl_encryption not in ('require', 'off'):
             raise ValueError("ssl_encryption must be 'require' or 'off'")
+        # Encryption without server authentication is a MITM hazard: SECURITY=SSL
+        # with no SSLServerCertificate encrypts but does not verify the server, so
+        # an on-path attacker presenting any certificate can intercept credentials
+        # and query data. Require the cert bundle whenever SSL is requested.
+        if ssl_encryption == 'require' and not ssl_server_certificate:
+            raise ValueError(
+                "ssl_server_certificate is required when ssl_encryption='require'. "
+                'Without the RDS regional certificate bundle the server certificate '
+                'cannot be validated, leaving the connection open to man-in-the-middle '
+                'attacks. Download the regional bundle and pass --ssl_server_certificate.'
+            )
 
         self.host = host
         self.port = port
@@ -232,7 +243,10 @@ class IbmDbConnection(AbstractDBConnection):
                         stmt, {ibm_db.SQL_ATTR_QUERY_TIMEOUT: self.query_timeout_s}, 0
                     )
                 except Exception as e:  # pragma: no cover - driver/option variance
-                    logger.debug(f'Could not set query timeout: {e}')
+                    logger.warning(
+                        f'Could not set query timeout ({self.query_timeout_s}s); query will '
+                        f'run unbounded and hold the connection lock until it completes: {e}'
+                    )
 
             params = self._to_positional(parameters)
             ok = ibm_db.execute(stmt, params) if params else ibm_db.execute(stmt)
