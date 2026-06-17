@@ -15,6 +15,7 @@
 """Tests for Scanner."""
 
 import pytest
+import subprocess
 from awslabs.security_agent_mcp_server.scanner import Scanner
 from awslabs.security_agent_mcp_server.state import StateManager
 from botocore.exceptions import ClientError
@@ -970,3 +971,157 @@ class TestThreatModelStatusAndFindings:
         called_ids = client.batch_get_threats.call_args.kwargs['threat_ids']
         assert called_ids == ['t-h']
         assert findings['total_findings'] == 1
+
+
+class TestDiffScanEdgeCases:
+    """Cover remaining diff scan edge cases."""
+
+    @pytest.mark.asyncio
+    @patch('awslabs.security_agent_mcp_server.scanner.subprocess.run')
+    async def test_diff_scan_timeout(self, mock_run, mock_client, mock_state, tmp_path):
+        """Git diff timeout returns error."""
+        mock_client.get_agent_space.return_value = {'name': 'sec'}
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd='git', timeout=60)
+        scanner = Scanner(client=mock_client, state=mock_state)
+        result = await scanner.start_diff_scan(path=str(tmp_path), base_ref='HEAD')
+        assert 'timed out' in result['error']
+
+    @pytest.mark.asyncio
+    @patch('awslabs.security_agent_mcp_server.scanner.subprocess.run')
+    async def test_diff_scan_zip_committed_failure(
+        self, mock_run, mock_client, mock_state, tmp_path
+    ):
+        """_zip_committed_and_upload ValueError propagates."""
+        mock_client.get_agent_space.return_value = {'name': 'sec'}
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stdout='diff content\n', stderr=''),
+            MagicMock(returncode=1, stdout='', stderr='fatal: not a valid ref'),
+        ]
+        scanner = Scanner(client=mock_client, state=mock_state)
+        result = await scanner.start_diff_scan(path=str(tmp_path), base_ref='HEAD')
+        assert 'error' in result
+        assert 'git archive failed' in result['error']
+
+    @pytest.mark.asyncio
+    async def test_diff_scan_no_bucket(self, mock_client, tmp_path, monkeypatch):
+        """Missing s3_bucket returns error."""
+        monkeypatch.setattr('awslabs.security_agent_mcp_server.state.STATE_DIR', tmp_path)
+        monkeypatch.setattr(
+            'awslabs.security_agent_mcp_server.state.CONFIG_FILE', tmp_path / 'config.json'
+        )
+        monkeypatch.setattr(
+            'awslabs.security_agent_mcp_server.state.SCANS_FILE', tmp_path / 'scans.json'
+        )
+        state = StateManager()
+        state.update_config(agent_space_id='as-1', service_role='arn:role')
+        scanner = Scanner(client=mock_client, state=state)
+        result = await scanner.start_diff_scan(path=str(tmp_path), base_ref='HEAD')
+        assert 'error' in result
+        assert 'S3 bucket' in result['error']
+
+    @pytest.mark.asyncio
+    async def test_diff_scan_agent_space_gone(self, mock_client, mock_state, tmp_path):
+        """Agent space that no longer exists returns error."""
+        mock_client.get_agent_space.return_value = {}
+        scanner = Scanner(client=mock_client, state=mock_state)
+        result = await scanner.start_diff_scan(path=str(tmp_path), base_ref='HEAD')
+        assert 'error' in result
+        assert 'no longer exists' in result['error']
+
+
+class TestThreatModelEdgeCases:
+    """Cover remaining threat model edge cases."""
+
+    @pytest.mark.asyncio
+    async def test_threat_model_no_bucket(self, mock_client, tmp_path, monkeypatch):
+        """Missing threat_model_s3_bucket returns error."""
+        monkeypatch.setattr('awslabs.security_agent_mcp_server.state.STATE_DIR', tmp_path)
+        monkeypatch.setattr(
+            'awslabs.security_agent_mcp_server.state.CONFIG_FILE', tmp_path / 'config.json'
+        )
+        monkeypatch.setattr(
+            'awslabs.security_agent_mcp_server.state.SCANS_FILE', tmp_path / 'scans.json'
+        )
+        state = StateManager()
+        state.update_config(agent_space_id='as-1', service_role='arn:role')
+        scanner = Scanner(client=mock_client, state=state)
+        result = await scanner.start_threat_model_review(
+            path=str(tmp_path), specs=[str(tmp_path / 'a.md')]
+        )
+        assert 'error' in result
+        assert 'threat-model S3 bucket' in result['error']
+
+    @pytest.mark.asyncio
+    async def test_threat_model_agent_space_gone(self, mock_client, mock_state, tmp_path):
+        """Agent space that no longer exists returns error."""
+        spec = tmp_path / 'design.md'
+        spec.write_text('spec')
+        mock_client.get_agent_space.return_value = {}
+        scanner = Scanner(client=mock_client, state=mock_state)
+        result = await scanner.start_threat_model_review(path=str(tmp_path), specs=[str(spec)])
+        assert 'error' in result
+        assert 'no longer exists' in result['error']
+
+    @pytest.mark.asyncio
+    async def test_threat_model_zip_failure(self, mock_client, mock_state, tmp_path):
+        """_zip_and_upload_source ValueError propagates."""
+        spec = tmp_path / 'design.md'
+        spec.write_text('spec')
+        mock_client.get_agent_space.return_value = {'name': 'sec'}
+        scanner = Scanner(client=mock_client, state=mock_state)
+        with patch.object(scanner, '_zip_and_upload_source', side_effect=ValueError('too large')):
+            result = await scanner.start_threat_model_review(path=str(tmp_path), specs=[str(spec)])
+        assert 'error' in result
+        assert 'too large' in result['error']
+
+    @pytest.mark.asyncio
+    async def test_threat_findings_in_progress_note(self, mock_client):
+        """Threat findings add note when scan still in progress."""
+        state = MagicMock()
+        state.get_config.return_value = {'agent_space_id': 'as-1'}
+        state.get_scan.return_value = {
+            'scan_id': 'tm-1',
+            'scan_type': 'THREAT_MODEL',
+            'agent_space_id': 'as-1',
+            'job_id': 'tj-1',
+            'title': 'test',
+            'started_at': '2026-01-01T00:00:00+00:00',
+        }
+        mock_client.batch_get_threat_model_jobs.return_value = {
+            'threatModelJobs': [{'status': 'IN_PROGRESS'}]
+        }
+        mock_client.list_threats.return_value = {'threats': []}
+        scanner = Scanner(client=mock_client, state=state)
+        result = await scanner.get_findings('tm-1')
+        assert 'note' in result
+        assert 'still in progress' in result['note']
+
+
+class TestStartScanEdgeCases:
+    """Cover start_scan missing bucket and archive errors."""
+
+    @pytest.mark.asyncio
+    async def test_start_scan_no_bucket(self, mock_client, tmp_path, monkeypatch):
+        """Missing s3_bucket returns error."""
+        monkeypatch.setattr('awslabs.security_agent_mcp_server.state.STATE_DIR', tmp_path)
+        monkeypatch.setattr(
+            'awslabs.security_agent_mcp_server.state.CONFIG_FILE', tmp_path / 'config.json'
+        )
+        monkeypatch.setattr(
+            'awslabs.security_agent_mcp_server.state.SCANS_FILE', tmp_path / 'scans.json'
+        )
+        state = StateManager()
+        state.update_config(agent_space_id='as-1', service_role='arn:role')
+        scanner = Scanner(client=mock_client, state=state)
+        result = await scanner.start_scan(path=str(tmp_path))
+        assert 'error' in result
+        assert 'S3 bucket' in result['error']
+
+    @pytest.mark.asyncio
+    @patch('awslabs.security_agent_mcp_server.scanner.subprocess.run')
+    async def test_git_archive_failure(self, mock_run, mock_client, mock_state, tmp_path):
+        """Git archive failure raises ValueError."""
+        mock_run.return_value = MagicMock(returncode=1, stderr='fatal: bad ref')
+        scanner = Scanner(client=mock_client, state=mock_state)
+        with pytest.raises(ValueError, match='git archive failed'):
+            scanner._zip_committed_and_upload(str(tmp_path), 'HEAD', 'bucket')
