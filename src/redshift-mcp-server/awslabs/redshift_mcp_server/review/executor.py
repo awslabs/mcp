@@ -71,7 +71,6 @@ async def review_cluster(
     total_queries = len(queries)
     findings: list[ReviewFinding] = []
     queries_executed: list[str] = []
-    queries_skipped: list[dict[str, str]] = []
 
     # Stage 2 & 3: Execute and collect findings
     for idx, (query_name, sql) in enumerate(queries):
@@ -85,17 +84,13 @@ async def review_cluster(
                 allow_read_write=True,
             )
         except Exception as e:
-            error_msg = str(e).lower()
-            if 'permission denied' in error_msg:
+            logger.error('Review query {} failed: {}', query_name, str(e))
+            if 'permission denied' in str(e).lower():
                 raise Exception(
                     f'Review requires superuser (CREATEUSER) privileges. '
                     f'Query {query_name} failed with: {e}'
                 ) from e
-            logger.warning('Review query {} skipped: {}', query_name, str(e))
-            queries_skipped.append({'query_name': query_name, 'reason': str(e)})
-            if progress_reporter_func:
-                await progress_reporter_func(idx + 1, total_queries)
-            continue
+            raise
 
         queries_executed.append(query_name)
 
@@ -148,9 +143,8 @@ async def review_cluster(
         )
 
     logger.info(
-        'Review complete: {} queries executed, {} skipped, {} findings, {} recommendations',
+        'Review complete: {} queries executed, {} findings, {} recommendations',
         len(queries_executed),
-        len(queries_skipped),
         len(findings),
         len(recommendations),
     )
@@ -160,5 +154,4 @@ async def review_cluster(
         findings=findings,
         recommendations=recommendations,
         queries_executed=queries_executed,
-        queries_skipped=queries_skipped,
     )

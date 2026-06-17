@@ -1038,8 +1038,7 @@ WITH recursive min_list(start_min, end_min) as (
   UNION ALL
   SELECT dateadd(m, 1, start_min), dateadd(m, 1, end_min) from min_list where start_min < date_trunc('m',getdate())),
 precondition AS (
-  SELECT count(DISTINCT user_id) AS distinct_users,
-         count(DISTINCT trunc(start_time)) AS active_days
+  SELECT count(DISTINCT trunc(start_time)) AS active_days
   FROM sys_query_history
   WHERE user_id > 1
 ),
@@ -1099,7 +1098,7 @@ JOIN workload_breakdown b using(workloadtype)
 SELECT count(*), 'REC_032'
 FROM data
 WHERE total_pct_busy < 75
-  AND EXISTS (SELECT 1 FROM precondition WHERE distinct_users >= 2 AND active_days >= 3)
+  AND EXISTS (SELECT 1 FROM precondition WHERE active_days >= 3)
 """,
     ),
 ]
