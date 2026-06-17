@@ -21,8 +21,10 @@ import uuid
 # Import models
 from awslabs.aws_documentation_mcp_server.models import (
     RecommendationResult,
+    ResponseMetadata,
     SearchResponse,
     SearchResult,
+    SearchResultMetadata,
 )
 from awslabs.aws_documentation_mcp_server.server_utils import (
     DEFAULT_USER_AGENT,
@@ -45,6 +47,8 @@ from typing import List, Optional
 SEARCH_API_URL = 'https://proxy.search.docs.aws.com/search'
 RECOMMENDATIONS_API_URL = 'https://api.contentrecs.docs.aws.com/v1/recommendations'
 SESSION_UUID = str(uuid.uuid4())
+SUPPORTED_METADATA_KEYS = ('discovered_services', 'related_tasks', 'relationships')
+SUPPORTED_RESULT_METADATA_KEYS = ('additional_urls',)
 
 
 # Dict for domain modifiers for search if search terms contain any of the terms
@@ -291,8 +295,14 @@ async def search_documentation(
         - title: The page title
         - context: A brief excerpt or summary (if available)
         - sections: Table of contents (when available) - these section titles can be used with the read_sections tool for targeted content extraction
+        - metadata: Optional per-result context (when available). May include:
+            - additional_urls: Other doc URLs related to the same result `{url, section_title, section_anchor}` - pass `section_title` to read_sections to fetch content; use `url#section_anchor` when citing
     - facets: Available filters (product_types, guide_types) for refining searches
     - query_id: Unique identifier for this search session
+    - metadata: Optional response-level context (when available). May include:
+        - discovered_services: AWS services inferred from the query that may be relevant beyond the top results
+        - related_tasks: Related operations or workflows the user may want to follow up on, each with its own doc URLs
+        - relationships: Named connections between information in the search results, useful for understanding how the returned topics relate to each other
 
 
     Args:
@@ -386,6 +396,13 @@ async def search_documentation(
                         facets['product_types'] = value
                     elif key == 'aws-docs-search-guide':
                         facets['guide_types'] = value
+            raw_metadata = data.get('metadata') or {}
+            filtered_metadata = {
+                k: raw_metadata[k] for k in SUPPORTED_METADATA_KEYS if raw_metadata.get(k)
+            }
+            response_metadata = (
+                ResponseMetadata.model_validate(filtered_metadata) if filtered_metadata else None
+            )
 
         except json.JSONDecodeError as e:
             error_msg = f'Error parsing search results: {str(e)}'
@@ -428,7 +445,7 @@ async def search_documentation(
 
                 if 'sections' in metadata:
                     try:
-                        sections_data = metadata['sections']
+                        sections_data = metadata.pop('sections')
                         logger.debug(f'Found sections: {sections_data}')
                         logger.debug(f'Raw sections data type: {type(sections_data)}')
 
@@ -452,12 +469,21 @@ async def search_documentation(
                         f'Found {len(sections)} sections for {title}: {url}, sections: {sections}'
                     )
 
+                filtered_result_metadata = {
+                    k: metadata[k] for k in SUPPORTED_RESULT_METADATA_KEYS if metadata.get(k)
+                }
+                search_result_metadata = (
+                    SearchResultMetadata.model_validate(filtered_result_metadata)
+                    if filtered_result_metadata
+                    else None
+                )
                 search_result = SearchResult(
                     rank_order=i + 1,
                     url=text_suggestion.get('link', ''),
                     title=text_suggestion.get('title', ''),
                     context=context,
                     sections=sections if sections else None,
+                    metadata=search_result_metadata,
                 )
 
                 results.append(search_result)
@@ -465,7 +491,10 @@ async def search_documentation(
     logger.debug(f'Found {len(results)} search results for: {search_phrase}')
     logger.debug(f'Search query ID: {query_id}')
     final_search_response = SearchResponse(
-        search_results=results, facets=facets if facets else None, query_id=query_id
+        search_results=results,
+        facets=facets if facets else None,
+        query_id=query_id,
+        metadata=response_metadata,
     )
     add_search_result_cache_item(final_search_response)
     return final_search_response
