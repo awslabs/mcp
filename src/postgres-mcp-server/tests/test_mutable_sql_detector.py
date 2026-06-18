@@ -990,6 +990,33 @@ class TestCopyProgramRce:
         for issue in issues:
             assert 'PROGRAM' not in issue['message']
 
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            # COPY PROGRAM as a SECOND statement. COPY_PROGRAM_PATTERN is
+            # anchored at the statement start so it does not match here, but
+            # any multi-statement query is rejected by the stacked-query
+            # suspicious pattern regardless of the whitespace after the ';'
+            # (the pattern's \\s* consumes a newline before the (?=\\S) check).
+            "SELECT 1;\nCOPY t TO PROGRAM 'id'",
+            "SELECT 1;\n\n  COPY t FROM PROGRAM 'whoami'",
+            "SELECT 1; COPY t TO PROGRAM 'id'",
+            "SELECT 1 ;\nCOPY t TO PROGRAM 'id'",
+            "SELECT 1;/* c */\nCOPY t TO PROGRAM 'id'",
+        ],
+    )
+    def test_copy_program_as_second_statement_is_blocked(self, sql):
+        """A newline/space-separated stacked COPY PROGRAM must not slip through.
+
+        Regression guard: the protection here comes from the stacked-query
+        pattern (multi-statement queries are rejected outright), not from
+        COPY_PROGRAM_PATTERN. If the stacked-query pattern is ever changed,
+        these assertions catch a reopened bypass.
+        """
+        assert check_sql_injection_risk(sql)
+        # Also blocked in read-only mode via the COPY mutating keyword.
+        assert 'COPY' in detect_mutating_keywords(sql)
+
 
 class TestStripSqlComments:
     """Unit coverage for the comment-stripping normalizer."""
