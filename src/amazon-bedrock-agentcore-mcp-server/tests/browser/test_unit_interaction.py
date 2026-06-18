@@ -1182,6 +1182,34 @@ class TestObservationTools:
         assert 'Result:' in result
         assert '"key": "value"' in result
 
+    async def test_evaluate_scalar_preserves_non_ascii(
+        self, obs_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager, mock_page
+    ):
+        """Scalar string result keeps non-ASCII text verbatim (baseline)."""
+        mock_connection_manager.get_page.return_value = mock_page
+        mock_page.evaluate.return_value = '東京'
+
+        result = await obs_tools.browser_evaluate(
+            ctx=mock_ctx, session_id='sess-1', expression='document.title'
+        )
+
+        assert 'Result: 東京' in result
+
+    async def test_evaluate_object_preserves_non_ascii(
+        self, obs_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager, mock_page
+    ):
+        """Object result keeps non-ASCII text verbatim, matching the scalar path."""
+        mock_connection_manager.get_page.return_value = mock_page
+        mock_page.evaluate.return_value = {'city': '東京', 'emoji': '🌐'}
+
+        result = await obs_tools.browser_evaluate(
+            ctx=mock_ctx, session_id='sess-1', expression='({city: "東京", emoji: "🌐"})'
+        )
+
+        assert '東京' in result
+        assert '🌐' in result
+        assert '\\u' not in result
+
     async def test_evaluate_returns_null(
         self, obs_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager, mock_page
     ):
