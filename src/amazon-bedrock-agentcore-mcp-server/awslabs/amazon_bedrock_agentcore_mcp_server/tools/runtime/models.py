@@ -224,6 +224,20 @@ class StopSessionResponse(BaseModel):
     message: str = ''
 
 
+class InvokeCommandResponse(BaseModel):
+    """Response from invoke_agent_runtime_command (HTTP streaming)."""
+
+    status: str
+    runtime_session_id: str = ''
+    content_type: str = ''
+    http_status_code: Optional[int] = None
+    stdout: str = ''
+    stderr: str = ''
+    exit_code: Optional[int] = None
+    command_status: str = ''
+    message: str = ''
+
+
 # ------------------------------------------------------------------
 # Guide
 # ------------------------------------------------------------------
