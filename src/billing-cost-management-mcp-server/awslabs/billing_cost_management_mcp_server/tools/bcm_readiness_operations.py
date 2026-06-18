@@ -30,8 +30,11 @@ The module is organized as:
 
 There is no direct API that distinguishes "Cost Explorer was never enabled" from
 "enabled but still propagating". A pragmatic heuristic on ``GetCostAndUsage`` is
-used (exception -> not enabled; all-zero success -> propagating; real data ->
-ready) and isolated in ``check_cost_explorer`` so it can be revisited.
+used (not-enabled exception -> not enabled; all-zero success -> propagating; real
+data -> ready) and isolated in ``check_cost_explorer`` so it can be revisited.
+The not-enabled signal has two observed shapes - ``DataUnavailableException`` and
+``AccessDeniedException`` with a "not enabled for cost explorer access" message -
+both handled in ``check_cost_explorer``.
 """
 
 from botocore.exceptions import ClientError
@@ -83,8 +86,10 @@ CACHE_SECONDS = {
     'cost_explorer_not_enabled': _DAY,
     'cost_explorer_propagating': _DAY,
     'tags_not_activated': _DAY,
+    'tags_not_available_in_linked_account': _DAY,
     'cost_optimization_hub_not_enrolled': _FIVE_MIN,
     'insufficient_iam_permissions': _FIVE_MIN,
+    'cannot_verify_iam_permissions': _FIVE_MIN,
     'ready': _HOUR,
 }
 
@@ -92,8 +97,10 @@ CACHE_REASONS = {
     'cost_explorer_not_enabled': 'State changes require 24h propagation',
     'cost_explorer_propagating': 'Waiting for 24h data propagation',
     'tags_not_activated': 'Tag activation requires 24h propagation',
+    'tags_not_available_in_linked_account': 'Org structure is stable - long cache',
     'cost_optimization_hub_not_enrolled': 'Enrollment is immediate - short cache',
     'insufficient_iam_permissions': 'IAM changes are immediate - short cache',
+    'cannot_verify_iam_permissions': 'IAM changes are immediate - short cache',
     'ready': 'Account state rarely changes once configured',
 }
 
@@ -205,14 +212,48 @@ def check_iam_permissions(sts_client: Any, iam_client: Any, intent: str) -> Dict
     Returns:
         A normalized check result: ``{'status': 'ready'}`` or
         ``{'status': 'blocked', 'blocker': {...}}``.
+
+    Raises:
+        ClientError: For any AWS error other than an AccessDenied on the
+            SimulatePrincipalPolicy call itself.
     """
     caller = sts_client.get_caller_identity()
     principal_arn = _principal_arn_for_simulation(caller['Arn'])
     actions = INTENT_IAM_ACTIONS[intent]
 
-    result = iam_client.simulate_principal_policy(
-        PolicySourceArn=principal_arn, ActionNames=actions
-    )
+    try:
+        result = iam_client.simulate_principal_policy(
+            PolicySourceArn=principal_arn, ActionNames=actions
+        )
+    except ClientError as error:
+        code = error.response.get('Error', {}).get('Code', '')
+        if code == 'AccessDenied':
+            # The caller cannot even run the permission probe. Fail closed with an
+            # actionable blocker rather than surfacing a raw 403 - this is exactly
+            # the misconfigured-account case the readiness check exists to catch.
+            return {
+                'status': 'blocked',
+                'blocker': {
+                    'issue': 'cannot_verify_iam_permissions',
+                    'action': (
+                        'Attach AWSBillingReadOnlyAccess policy (grants the required '
+                        'billing permissions and iam:SimulatePrincipalPolicy used to '
+                        'verify them)'
+                    ),
+                    'console_url': 'https://console.aws.amazon.com/iam/home',
+                    'wait_time': 'none',
+                    'is_paid': False,
+                    'suggested_policy_arn': 'arn:aws:iam::aws:policy/AWSBillingReadOnlyAccess',
+                    'missing_permissions': ['iam:SimulatePrincipalPolicy'],
+                    'message': (
+                        'Could not verify IAM permissions because the caller is not '
+                        'authorized to perform iam:SimulatePrincipalPolicy. Grant this '
+                        'action (and the billing read permissions) to enable readiness '
+                        'checks.'
+                    ),
+                },
+            }
+        raise
 
     missing: List[str] = []
     has_explicit_deny = False
@@ -262,13 +303,18 @@ def _latest_non_empty_period(results_by_time: List[Dict[str, Any]]) -> Optional[
     for period in reversed(results_by_time):
         total = period.get('Total') or {}
         groups = period.get('Groups') or []
-        amount = 0.0
+        # Any nonzero metric counts as data - including credits-only accounts
+        # whose UnblendedCost is negative (``> 0`` would misclassify those as
+        # still propagating).
+        has_nonzero = False
         for metric in total.values():
             try:
-                amount += float(metric.get('Amount', 0))
+                if float(metric.get('Amount', 0)) != 0:
+                    has_nonzero = True
+                    break
             except (TypeError, ValueError):
                 pass
-        if amount > 0 or groups:
+        if has_nonzero or groups:
             return period.get('TimePeriod', {}).get('End')
     return None
 
@@ -279,6 +325,13 @@ def check_cost_explorer(ce_client: Any, start_date: str, end_date: str) -> Dict[
     Heuristic (see module docstring):
 
     - ``DataUnavailableException`` -> Cost Explorer not enabled (blocked).
+    - ``AccessDeniedException`` whose message says the user is not enabled for
+      Cost Explorer -> Cost Explorer not enabled (blocked). Real accounts return
+      this shape (``"User not enabled for cost explorer access"``) rather than
+      ``DataUnavailableException`` when CE has never been activated. IAM is
+      verified first via SimulatePrincipalPolicy, so a true permission denial is
+      already ruled out by the time this check runs; the message guard keeps an
+      unrelated ``AccessDeniedException`` from being misread as not-enabled.
     - Success with at least one non-empty period -> ready (with data_freshness).
     - Success but every period is zero/empty -> enabled and propagating (pending).
 
@@ -292,7 +345,7 @@ def check_cost_explorer(ce_client: Any, start_date: str, end_date: str) -> Dict[
         ``pending``.
 
     Raises:
-        ClientError: For any AWS error other than DataUnavailableException.
+        ClientError: For any AWS error other than the not-enabled signals above.
     """
     try:
         response = ce_client.get_cost_and_usage(
@@ -301,8 +354,13 @@ def check_cost_explorer(ce_client: Any, start_date: str, end_date: str) -> Dict[
             Metrics=['UnblendedCost'],
         )
     except ClientError as error:
-        code = error.response.get('Error', {}).get('Code', '')
-        if code == 'DataUnavailableException':
+        err = error.response.get('Error', {})
+        code = err.get('Code', '')
+        message = err.get('Message', '')
+        not_enabled = code == 'DataUnavailableException' or (
+            code == 'AccessDeniedException' and 'not enabled for cost explorer' in message.lower()
+        )
+        if not_enabled:
             return {
                 'status': 'blocked',
                 'blocker': {
@@ -343,15 +401,60 @@ def check_cost_allocation_tags(ce_client: Any) -> Dict[str, Any]:
     Active. Otherwise it is blocked, and the existing (inactive) tags are
     surfaced as alternatives so the agent can guide the user.
 
+    The result is paginated: a single Active tag on any page makes the intent
+    ready, so all pages must be read before concluding none are active.
+
+    Cost allocation tags are managed only at the management (payer) account
+    level, so ``list_cost_allocation_tags`` is denied outright on a linked /
+    member account (``AccessDeniedException``: "Linked account doesn't have
+    access to cost allocation tags"). That is a structural state, not a missing
+    permission, so it is turned into an actionable blocker rather than surfacing
+    a raw 403 - directing the user to run tag analysis from the management
+    account.
+
     Args:
         ce_client: A boto3 Cost Explorer client.
 
     Returns:
         A normalized check result: ``{'status': 'ready'}`` or
         ``{'status': 'blocked', 'blocker': {...}}``.
+
+    Raises:
+        ClientError: For any AWS error other than the linked-account denial.
     """
-    response = ce_client.list_cost_allocation_tags()
-    tags = response.get('CostAllocationTags', [])
+    tags: List[Dict[str, Any]] = []
+    next_token: Optional[str] = None
+    while True:
+        kwargs = {'NextToken': next_token} if next_token else {}
+        try:
+            response = ce_client.list_cost_allocation_tags(**kwargs)
+        except ClientError as error:
+            err = error.response.get('Error', {})
+            code = err.get('Code', '')
+            message = err.get('Message', '')
+            if code == 'AccessDeniedException' and 'linked account' in message.lower():
+                return {
+                    'status': 'blocked',
+                    'blocker': {
+                        'issue': 'tags_not_available_in_linked_account',
+                        'action': (
+                            'Run tag analysis from the management (payer) account, or '
+                            'activate cost allocation tags there'
+                        ),
+                        'console_url': 'https://console.aws.amazon.com/billing/home#/tags',
+                        'wait_time': 'none',
+                        'is_paid': False,
+                        'message': (
+                            'Cost allocation tags are managed at the management (payer) '
+                            'account level and are not accessible from this linked account.'
+                        ),
+                    },
+                }
+            raise
+        tags.extend(response.get('CostAllocationTags', []))
+        next_token = response.get('NextToken')
+        if not next_token:
+            break
 
     active = [t for t in tags if t.get('Status') == 'Active']
     if active:
@@ -399,13 +502,19 @@ def check_cost_optimization_hub(coh_client: Any) -> Dict[str, Any]:
         A normalized check result: ``{'status': 'ready'}`` or
         ``{'status': 'blocked', 'blocker': {...}}``.
     """
-    response = coh_client.list_enrollment_statuses()
-    items = response.get('items') or response.get('Items') or []
-    status = None
-    if items:
-        status = items[0].get('status') or items[0].get('Status')
+    items: List[Dict[str, Any]] = []
+    next_token: Optional[str] = None
+    while True:
+        kwargs = {'nextToken': next_token} if next_token else {}
+        response = coh_client.list_enrollment_statuses(**kwargs)
+        items.extend(response.get('items') or response.get('Items') or [])
+        next_token = response.get('nextToken') or response.get('NextToken')
+        if not next_token:
+            break
 
-    if status == 'Active':
+    is_active = any((i.get('status') or i.get('Status')) == 'Active' for i in items)
+
+    if is_active:
         return {'status': 'ready'}
 
     return {
@@ -499,7 +608,8 @@ def diagnose_readiness(
         The full readiness response envelope.
 
     Raises:
-        ValueError: If ``intent`` is not supported.
+        ValueError: If ``intent`` is not supported, or a required client is
+            missing from ``clients``.
     """
     now = now or _now()
 
@@ -507,6 +617,22 @@ def diagnose_readiness(
         raise ValueError(
             f"Unsupported intent '{intent}'. Supported intents: {', '.join(sorted(INTENT_CHECKS))}"
         )
+
+    # Each check maps to the client keys it needs; fail fast with a clear error
+    # rather than a bare KeyError if the caller omits a required client.
+    required_clients = {
+        'iam': ('sts', 'iam'),
+        'cost_explorer': ('ce',),
+        'tags': ('ce',),
+        'cost_optimization_hub': ('coh',),
+    }
+    for check_name in INTENT_CHECKS[intent]:
+        for key in required_clients[check_name]:
+            if key not in clients:
+                raise ValueError(
+                    f"Missing required client '{key}' for intent '{intent}' "
+                    f"(check '{check_name}')."
+                )
 
     ce_window = _ce_date_window(now)
     runners: Dict[str, Callable[[], Dict[str, Any]]] = {

@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 ### Added
+- Added `check-bcm-readiness` pre-flight tool that diagnoses an account's Billing and Cost Management configuration (IAM permissions, Cost Explorer, cost allocation tags, Cost Optimization Hub) for a given intent and returns an actionable readiness verdict (`ready`, `blocked`, or `pending`) with remediation guidance.
 - Extending support for Billing and Cost Management Pricing Calculator's Workload estimate (`CreateWorkloadEstimate`, `BatchCreateWorkloadEstimateUsage`).
 - Added AWS Billing Conductor tools to analize billing groups, account associations, billing group cost reports, pricing rules/plans, and custom line items
 - Added AWS Billing tools for managing and querying billing views

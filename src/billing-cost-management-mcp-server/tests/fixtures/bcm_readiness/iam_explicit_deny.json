@@ -1,0 +1,102 @@
+{
+  "account_id": "123456789012",
+  "calls": {
+    "ce": [],
+    "iam": [
+      {
+        "kwargs": {
+          "ActionNames": [
+            "ce:GetCostAndUsage",
+            "ce:GetCostForecast",
+            "ce:GetDimensionValues"
+          ],
+          "PolicySourceArn": "arn:aws:iam::123456789012:role/BCM-Test-Explicit-Deny"
+        },
+        "method": "simulate_principal_policy",
+        "response": {
+          "EvaluationResults": [
+            {
+              "EvalActionName": "ce:GetCostAndUsage",
+              "EvalDecision": "allowed",
+              "EvalResourceName": "*",
+              "MatchedStatements": [
+                {
+                  "EndPosition": {
+                    "Column": 6,
+                    "Line": 14
+                  },
+                  "SourcePolicyId": "role_BCM-Test-Explicit-Deny_BasicCostReadWithExplicitDeny",
+                  "SourcePolicyType": "IAM Policy",
+                  "StartPosition": {
+                    "Column": 17,
+                    "Line": 3
+                  }
+                }
+              ],
+              "MissingContextValues": []
+            },
+            {
+              "EvalActionName": "ce:GetCostForecast",
+              "EvalDecision": "explicitDeny",
+              "EvalResourceName": "*",
+              "MatchedStatements": [
+                {
+                  "EndPosition": {
+                    "Column": 6,
+                    "Line": 20
+                  },
+                  "SourcePolicyId": "role_BCM-Test-Explicit-Deny_BasicCostReadWithExplicitDeny",
+                  "SourcePolicyType": "IAM Policy",
+                  "StartPosition": {
+                    "Column": 6,
+                    "Line": 14
+                  }
+                }
+              ],
+              "MissingContextValues": []
+            },
+            {
+              "EvalActionName": "ce:GetDimensionValues",
+              "EvalDecision": "allowed",
+              "EvalResourceName": "*",
+              "MatchedStatements": [
+                {
+                  "EndPosition": {
+                    "Column": 6,
+                    "Line": 14
+                  },
+                  "SourcePolicyId": "role_BCM-Test-Explicit-Deny_BasicCostReadWithExplicitDeny",
+                  "SourcePolicyType": "IAM Policy",
+                  "StartPosition": {
+                    "Column": 17,
+                    "Line": 3
+                  }
+                }
+              ],
+              "MissingContextValues": []
+            }
+          ],
+          "IsTruncated": false
+        }
+      }
+    ],
+    "sts": [
+      {
+        "kwargs": {},
+        "method": "get_caller_identity",
+        "response": {
+          "Account": "123456789012",
+          "Arn": "arn:aws:sts::123456789012:assumed-role/BCM-Test-Explicit-Deny/test-session",
+          "UserId": "AROAEXAMPLEPRINCIPALID:test-session"
+        }
+      }
+    ]
+  },
+  "expected_issue": "insufficient_iam_permissions",
+  "expected_status": "blocked",
+  "intent": "basic_cost_visibility",
+  "observed_exception": null,
+  "observed_issue": "insufficient_iam_permissions",
+  "observed_status": "blocked",
+  "state": "iam_explicit_deny"
+}

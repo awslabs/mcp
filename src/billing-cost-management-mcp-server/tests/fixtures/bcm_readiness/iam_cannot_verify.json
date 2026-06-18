@@ -1,0 +1,42 @@
+{
+  "account_id": "123456789012",
+  "calls": {
+    "ce": [],
+    "iam": [
+      {
+        "error": {
+          "code": "AccessDenied",
+          "message": "User: arn:aws:sts::123456789012:assumed-role/BCM-Test-No-Forecast/test-session is not authorized to perform: iam:SimulatePrincipalPolicy on resource: arn:aws:iam::123456789012:role/BCM-Test-No-Forecast because no identity-based policy allows the iam:SimulatePrincipalPolicy action",
+          "operation": "simulate_principal_policy"
+        },
+        "kwargs": {
+          "ActionNames": [
+            "ce:GetCostAndUsage",
+            "ce:GetCostForecast",
+            "ce:GetDimensionValues"
+          ],
+          "PolicySourceArn": "arn:aws:iam::123456789012:role/BCM-Test-No-Forecast"
+        },
+        "method": "simulate_principal_policy"
+      }
+    ],
+    "sts": [
+      {
+        "kwargs": {},
+        "method": "get_caller_identity",
+        "response": {
+          "Account": "123456789012",
+          "Arn": "arn:aws:sts::123456789012:assumed-role/BCM-Test-No-Forecast/test-session",
+          "UserId": "AROAEXAMPLEPRINCIPALID:test-session"
+        }
+      }
+    ]
+  },
+  "expected_issue": "cannot_verify_iam_permissions",
+  "expected_status": "blocked",
+  "intent": "basic_cost_visibility",
+  "observed_exception": null,
+  "observed_issue": "cannot_verify_iam_permissions",
+  "observed_status": "blocked",
+  "state": "iam_cannot_verify"
+}

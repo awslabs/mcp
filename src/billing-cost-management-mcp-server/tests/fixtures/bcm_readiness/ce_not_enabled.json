@@ -1,0 +1,121 @@
+{
+  "account_id": "123456789012",
+  "calls": {
+    "ce": [
+      {
+        "error": {
+          "code": "AccessDeniedException",
+          "message": "User not enabled for cost explorer access",
+          "operation": "get_cost_and_usage"
+        },
+        "kwargs": {
+          "Granularity": "DAILY",
+          "Metrics": [
+            "UnblendedCost"
+          ],
+          "TimePeriod": {
+            "End": "2026-06-18",
+            "Start": "2026-06-04"
+          }
+        },
+        "method": "get_cost_and_usage"
+      }
+    ],
+    "iam": [
+      {
+        "kwargs": {
+          "ActionNames": [
+            "ce:GetCostAndUsage",
+            "ce:GetCostForecast",
+            "ce:GetDimensionValues"
+          ],
+          "PolicySourceArn": "arn:aws:iam::123456789012:role/ReadOnly"
+        },
+        "method": "simulate_principal_policy",
+        "response": {
+          "EvaluationResults": [
+            {
+              "EvalActionName": "ce:GetCostAndUsage",
+              "EvalDecision": "allowed",
+              "EvalResourceName": "*",
+              "MatchedStatements": [
+                {
+                  "EndPosition": {
+                    "Column": 45287,
+                    "Line": 1
+                  },
+                  "SourcePolicyId": "ReadOnlyAccess",
+                  "SourcePolicyType": "IAM Policy",
+                  "StartPosition": {
+                    "Column": 38,
+                    "Line": 1
+                  }
+                }
+              ],
+              "MissingContextValues": []
+            },
+            {
+              "EvalActionName": "ce:GetCostForecast",
+              "EvalDecision": "allowed",
+              "EvalResourceName": "*",
+              "MatchedStatements": [
+                {
+                  "EndPosition": {
+                    "Column": 45287,
+                    "Line": 1
+                  },
+                  "SourcePolicyId": "ReadOnlyAccess",
+                  "SourcePolicyType": "IAM Policy",
+                  "StartPosition": {
+                    "Column": 38,
+                    "Line": 1
+                  }
+                }
+              ],
+              "MissingContextValues": []
+            },
+            {
+              "EvalActionName": "ce:GetDimensionValues",
+              "EvalDecision": "allowed",
+              "EvalResourceName": "*",
+              "MatchedStatements": [
+                {
+                  "EndPosition": {
+                    "Column": 45287,
+                    "Line": 1
+                  },
+                  "SourcePolicyId": "ReadOnlyAccess",
+                  "SourcePolicyType": "IAM Policy",
+                  "StartPosition": {
+                    "Column": 38,
+                    "Line": 1
+                  }
+                }
+              ],
+              "MissingContextValues": []
+            }
+          ],
+          "IsTruncated": false
+        }
+      }
+    ],
+    "sts": [
+      {
+        "kwargs": {},
+        "method": "get_caller_identity",
+        "response": {
+          "Account": "123456789012",
+          "Arn": "arn:aws:sts::123456789012:assumed-role/ReadOnly/test-session",
+          "UserId": "AROAEXAMPLEPRINCIPALID:test-session"
+        }
+      }
+    ]
+  },
+  "expected_issue": "cost_explorer_not_enabled",
+  "expected_status": "blocked",
+  "intent": "basic_cost_visibility",
+  "observed_exception": null,
+  "observed_issue": "cost_explorer_not_enabled",
+  "observed_status": "blocked",
+  "state": "ce_not_enabled"
+}
