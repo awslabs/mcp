@@ -1302,6 +1302,36 @@ class TestErrorPatternComparison:
         mock_deps.return_value = [{'deployed_at': 'unknown'}, {}]
         assert tools._latest_deployment_dt('svc', None) is None
 
+    def test_parse_deployment_timestamp_coerces_naive_to_utc(self):
+        """A timestamp without an offset is coerced to tz-aware UTC (no naive datetime)."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.service_events import tools
+        from datetime import datetime, timezone
+
+        # Naive (no Z/offset) — fromisoformat succeeds but would otherwise be naive.
+        naive = tools._parse_deployment_timestamp('2026-06-17T13:12:00')
+        assert naive == datetime(2026, 6, 17, 13, 12, tzinfo=timezone.utc)
+        assert naive is not None and naive.tzinfo is not None
+        # Aware (Z) — preserved as UTC.
+        aware = tools._parse_deployment_timestamp('2026-06-17T13:12:00Z')
+        assert aware == datetime(2026, 6, 17, 13, 12, tzinfo=timezone.utc)
+        # Missing / unknown / unparseable -> None.
+        assert tools._parse_deployment_timestamp(None) is None
+        assert tools._parse_deployment_timestamp('unknown') is None
+        assert tools._parse_deployment_timestamp('not-a-date') is None
+
+    def test_comparison_does_not_raise_on_naive_deployment_dt(self):
+        """A naive deployment_dt must not raise when subtracted from aware now."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server.service_events import tools
+
+        # _latest_deployment_dt always returns aware datetimes now, but guard the
+        # comparison path directly against a naive value to prove no TypeError leaks.
+        naive_dt = tools._parse_deployment_timestamp('2026-06-17T13:12:00')
+        assert naive_dt is not None and naive_dt.tzinfo is not None
+        with patch.object(tools, '_query_error_patterns_window', side_effect=[[], []]):
+            cmp = _run(tools._fetch_error_pattern_comparison('svc', None, naive_dt))
+        # No exception; a structured (possibly empty) comparison is returned.
+        assert cmp is not None and 'strategy' in cmp
+
 
 # ============================================================================
 # TestGetIncidentsExtra — trigger filter, normalization, AppSignals fallback

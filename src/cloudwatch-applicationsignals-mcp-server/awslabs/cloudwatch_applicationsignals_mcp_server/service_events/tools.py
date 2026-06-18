@@ -351,6 +351,26 @@ _DEPLOYMENT_WINDOW_HOURS = 3
 _TIME_WINDOW_HOURS = 24
 
 
+def _parse_deployment_timestamp(ts: Optional[str]) -> Optional[datetime]:
+    """Parse a raw deployment ``deployed_at`` string to a tz-aware UTC datetime.
+
+    The SDK attribute (``aws.service_events.deployment.timestamp``) is not normalized
+    upstream, so a value without a ``Z``/offset (e.g. ``2026-06-17T13:12:00``) parses
+    to a NAIVE datetime — which then raises ``TypeError`` when subtracted from an aware
+    ``datetime.now(timezone.utc)``. Coerce naive values to UTC here so every caller gets
+    an aware datetime. Returns ``None`` for missing/``"unknown"``/unparseable input.
+    """
+    if not ts or ts == 'unknown':
+        return None
+    try:
+        dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+    except (ValueError, TypeError):
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 def _latest_deployment_dt(service_name: str, environment: Optional[str]) -> Optional[datetime]:
     """Return the most recent deployment timestamp for the service, or ``None``.
 
@@ -365,12 +385,8 @@ def _latest_deployment_dt(service_name: str, environment: Optional[str]) -> Opti
         return None
     latest: Optional[datetime] = None
     for d in deployments:
-        ts = d.get('deployed_at')
-        if not ts or ts == 'unknown':
-            continue
-        try:
-            dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
-        except (ValueError, TypeError):
+        dt = _parse_deployment_timestamp(d.get('deployed_at'))
+        if dt is None:
             continue
         if latest is None or dt > latest:
             latest = dt
@@ -1636,14 +1652,10 @@ def find_deployment(
         }
 
         # Compute hours_since_deployment
-        deployed_at = d.get('deployed_at', '')
-        if deployed_at and deployed_at != 'unknown':
-            try:
-                dep_time = datetime.fromisoformat(deployed_at.replace('Z', '+00:00'))
-                delta_hours = (now - dep_time).total_seconds() / 3600
-                dep['hours_since_deployment'] = max(1, int(delta_hours) + 1)
-            except (ValueError, TypeError):
-                pass
+        dep_time = _parse_deployment_timestamp(d.get('deployed_at'))
+        if dep_time is not None:
+            delta_hours = (now - dep_time).total_seconds() / 3600
+            dep['hours_since_deployment'] = max(1, int(delta_hours) + 1)
 
         deployments.append(dep)
 
