@@ -592,7 +592,7 @@ class TestSetConfigBypass:
             # Double-quoted function NAME (the quoted-identifier bypass);
             # the GUC arg stays single-quoted as valid SQL requires.
             (
-                'SELECT "set_config"(\'row_security\',\'off\',false)',
+                "SELECT \"set_config\"('row_security','off',false)",
                 'row_security',
             ),
             # Extra whitespace.
@@ -704,7 +704,7 @@ class TestQuotedIdentifierBypass:
             ('SELECT "lo_import"(\'/etc/passwd\')', 'lo_import'),
             ('SELECT "pg_reload_conf"()', 'pg_reload_conf'),
             ('SELECT "pg_advisory_lock"(1)', 'pg_advisory_lock'),
-            ('SELECT "pg_notify"(\'c\', \'m\')', 'pg_notify'),
+            ("SELECT \"pg_notify\"('c', 'm')", 'pg_notify'),
             # The functions added in earlier fixes must stay covered too.
             (
                 'SELECT "dblink_connect"(\'host=169.254.169.254 port=80 dbname=x\')',
@@ -735,7 +735,7 @@ class TestQuotedIdentifierBypass:
 
     def test_quoted_set_config_function_rejected(self):
         """A double-quoted set_config name targeting a security GUC is rejected."""
-        issues = check_sql_injection_risk('SELECT "set_config"(\'row_security\',\'off\',false)')
+        issues = check_sql_injection_risk("SELECT \"set_config\"('row_security','off',false)")
         assert len(issues) == 1
         assert 'row_security' in issues[0]['message']
 
@@ -771,7 +771,7 @@ class TestQuotedIdentifierBypass:
             ('"DELETE" FROM t', 'DELETE'),
             ('"DROP" TABLE t', 'DROP'),
             ('"CREATE" TABLE t (id int)', 'CREATE'),
-            ('"set_config"(\'search_path\', \'x\', false)', 'SET_CONFIG'),
+            ("\"set_config\"('search_path', 'x', false)", 'SET_CONFIG'),
         ],
     )
     def test_quoted_mutation_keyword_still_detected(self, sql, expected_keyword):
@@ -811,7 +811,7 @@ class TestStripQuotedIdentifiers:
             # The substitution is lexical: a double-quoted word inside a
             # single-quoted literal is unwrapped too. Harmless (only
             # removes quote chars / adds spaces) and documented behaviour.
-            ("SELECT 'a \"quoted\" word'", "SELECT 'a quoted word'"),
+            ('SELECT \'a "quoted" word\'', "SELECT 'a quoted word'"),
             # Identifiers with non-word characters are left intact.
             ('SELECT "first name"', 'SELECT "first name"'),
             # No quotes — returned unchanged.
@@ -857,10 +857,10 @@ class TestCommentInjectionBypass:
         'sql,expected_fragment',
         [
             ('SELECT pg_sleep/**/(3)', 'pg_sleep'),
-            ('SELECT pg_read_file/**/(\'/etc/passwd\')', 'pg_read_file'),
-            ('SELECT dblink_connect/**/(\'host=x\')', 'dblink_connect'),
+            ("SELECT pg_read_file/**/('/etc/passwd')", 'pg_read_file'),
+            ("SELECT dblink_connect/**/('host=x')", 'dblink_connect'),
             ('SET/**/row_security = off', 'row_security'),
-            ('SELECT set_config/**/(\'row_security\',\'off\',false)', 'row_security'),
+            ("SELECT set_config/**/('row_security','off',false)", 'row_security'),
         ],
     )
     def test_comment_split_blocked_in_both_modes(self, sql, expected_fragment):
@@ -873,7 +873,7 @@ class TestCommentInjectionBypass:
         'sql',
         [
             "SELECT * INTO/**/OUTFILE '/tmp/x' FROM t",
-            'SELECT load_file/**/(\'/etc/passwd\')',
+            "SELECT load_file/**/('/etc/passwd')",
             'SELECT sleep/**/(5)',
         ],
     )
@@ -1008,6 +1008,17 @@ class TestStripSqlComments:
             ("'a /* b */ c'", "'a /* b */ c'"),
             # Dollar-quoted body is preserved verbatim.
             ('$$ a -- b /* c */ $$', '$$ a -- b /* c */ $$'),
+            # Escaped "" inside a double-quoted identifier: the identifier
+            # a"b is preserved (both quotes kept) and a trailing comment is
+            # still stripped. Exercises the "" escape branch.
+            ('"a""b"/* c */d', '"a""b" d'),
+            # A comment marker inside a double-quoted identifier is data,
+            # not a comment, and must be preserved.
+            ('"a/*b"', '"a/*b"'),
+            # Unterminated dollar-quoted string: copied verbatim to the end
+            # (the closing tag is never found). Exercises the end == -1 path.
+            ('$$ unterminated body', '$$ unterminated body'),
+            ('$tag$ also unterminated', '$tag$ also unterminated'),
             # No comments — unchanged.
             ('SELECT 1', 'SELECT 1'),
         ],
