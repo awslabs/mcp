@@ -392,7 +392,7 @@ class TestDangerousFunctions:
         assert 'pg_advisory_lock' in DANGEROUS_FUNCTIONS
         assert 'pg_advisory_xact_lock' in DANGEROUS_FUNCTIONS
         assert 'pg_try_advisory_xact_lock_shared' in DANGEROUS_FUNCTIONS
-        # dblink family — SSRF (CWE-918).
+        # dblink family — SSRF.
         assert 'dblink' in DANGEROUS_FUNCTIONS
         assert 'dblink_connect' in DANGEROUS_FUNCTIONS
         assert 'dblink_connect_u' in DANGEROUS_FUNCTIONS
@@ -403,7 +403,7 @@ class TestDangerousFunctions:
 
 
 class TestDblinkSsrf:
-    """dblink family functions are SSRF primitives (CWE-918).
+    """dblink family functions are SSRF primitives.
 
     These open outbound TCP connections from the database backend to an
     arbitrary host:port. Before the fix they passed both gates
@@ -561,7 +561,7 @@ class TestSecuritySensitiveGucs:
 class TestSetConfigBypass:
     """set_config() is the function form of SET and must be gated too.
 
-    Regression for CWE-863: SET row_security = off is gated, but the
+    Regression: SET row_security = off is gated, but the
     equivalent set_config('row_security','off',false) previously passed
     every check and ran even in read-only mode, disabling RLS and
     breaking multi-tenant isolation.
@@ -681,7 +681,7 @@ class TestSetConfigBypass:
 class TestQuotedIdentifierBypass:
     """Double-quoted identifiers must not bypass the function / GUC checks.
 
-    Regression for CWE-20. PostgreSQL treats "pg_sleep"(1) as identical
+    Regression. PostgreSQL treats "pg_sleep"(1) as identical
     to pg_sleep(1), but the detection regexes anchor on word boundaries
     and a name-then-paren adjacency that the closing quote breaks, so the
     quoted spelling previously passed every check — neutralizing the
@@ -844,7 +844,7 @@ class TestStripQuotedIdentifiers:
 class TestCommentInjectionBypass:
     """Inline comments must not let keywords/functions evade detection.
 
-    Regression for CWE-20. PostgreSQL treats /* */ block comments (which
+    Regression. PostgreSQL treats /* */ block comments (which
     nest) and -- line comments as whitespace, so INTO/**/OUTFILE,
     pg_sleep/**/(1), SET/**/row_security and IMPORT/**/FOREIGN/**/SCHEMA
     all execute normally while slipping past regexes that expect literal
@@ -939,7 +939,7 @@ class TestCommentInjectionBypass:
 
 
 class TestCopyProgramRce:
-    """COPY ... TO/FROM PROGRAM is server-side RCE (CWE-78).
+    """COPY ... TO/FROM PROGRAM is server-side RCE.
 
     COPY is gated in read-only mode as a mutating keyword, but the PROGRAM
     form runs a shell command on the database host and must be rejected

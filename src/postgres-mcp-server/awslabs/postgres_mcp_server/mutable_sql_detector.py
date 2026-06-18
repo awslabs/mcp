@@ -152,7 +152,7 @@ SUSPICIOUS_PATTERNS = [
 #   dblink_close, dblink_get_connections)
 #       Open outbound TCP connections from the database backend to an
 #       arbitrary host:port. This is a Server-Side Request Forgery
-#       primitive (CWE-918): a read query can reach the instance
+#       primitive: a read query can reach the instance
 #       metadata service (169.254.169.254) to steal IAM credentials,
 #       probe or connect to internal VPC services, or exfiltrate query
 #       results to an attacker-controlled host. The extension is in
@@ -186,7 +186,7 @@ DANGEROUS_FUNCTIONS = {
     'pg_try_advisory_xact_lock_shared',
     # NOTIFY-channel side-channel.
     'pg_notify',
-    # dblink family — SSRF primitive (CWE-918). See comment above.
+    # dblink family — SSRF primitive. See comment above.
     'dblink',
     'dblink_connect',
     'dblink_connect_u',
@@ -237,7 +237,7 @@ DANGEROUS_FUNCTION_PATTERN = re.compile(
 #   1. The SET statement:        SET row_security = off
 #   2. The set_config() function: SELECT set_config('row_security','off',false)
 # set_config() is the function form of SET and reaches the same backend
-# machinery, so blocking only the SET keyword leaves a bypass (CWE-863):
+# machinery, so blocking only the SET keyword leaves a bypass:
 # a read query can call set_config('row_security','off',false) to defeat
 # RLS-based multi-tenant isolation. SECURITY_GUC_PATTERN matches the SET
 # form; SECURITY_SET_CONFIG_PATTERN matches the function form. Both run
@@ -275,7 +275,7 @@ SECURITY_SET_CONFIG_PATTERN = re.compile(
 )
 
 # COPY ... TO PROGRAM / COPY ... FROM PROGRAM executes an arbitrary shell
-# command on the database host (CWE-78 remote command execution). It
+# command on the database host (remote command execution). It
 # requires the COPY privilege plus pg_execute_server_program (or
 # superuser), but where those are held it is a direct RCE primitive —
 # COPY t TO PROGRAM 'curl ...' or COPY t FROM PROGRAM 'whoami'. COPY is
@@ -299,7 +299,7 @@ COPY_PROGRAM_PATTERN = re.compile(r'(?is)^\s*copy\b.*\b(?:to|from)\s+program\b')
 # on word boundaries and a name-then-paren adjacency that a closing quote
 # breaks: "pg_sleep"(1) slips past DANGEROUS_FUNCTION_PATTERN and
 # set_config("row_security",...) / SET "row_security" slip past the GUC
-# patterns, defeating the whole blocklist (CWE-20). Fold the quotes off
+# patterns, defeating the whole blocklist. Fold the quotes off
 # simple identifiers before matching so quoted and unquoted spellings are
 # detected identically.
 #
@@ -345,7 +345,7 @@ def strip_sql_comments(sql: str) -> str:
     ``-- ... <eol>`` line comments as whitespace, so ``INTO/**/OUTFILE``,
     ``pg_sleep/**/(1)`` and ``SET/**/row_security`` all execute normally
     while slipping past regexes that expect literal whitespace between
-    tokens (CWE-20). Folding each comment to a single space — rather than
+    tokens. Folding each comment to a single space — rather than
     deleting it — both restores the keyword adjacency the patterns expect
     and prevents neighbouring tokens from merging.
 
@@ -477,11 +477,11 @@ def check_sql_injection_risk(sql: str) -> list[dict]:
     # comment wedged between tokens (INTO/**/OUTFILE, SET/**/row_security,
     # pg_sleep/**/(1)) is semantically identical to the plain form in
     # PostgreSQL but otherwise slips past the word-boundary / adjacency
-    # anchors below (CWE-20). All subsequent regex checks run on the
+    # anchors below. All subsequent regex checks run on the
     # normalized text; the original sql is preserved for messages.
     normalized_sql = normalize_for_detection(sql)
 
-    # COPY ... TO/FROM PROGRAM is server-side command execution (CWE-78).
+    # COPY ... TO/FROM PROGRAM is server-side command execution.
     # COPY alone is gated in read-only mode as a mutating keyword, but the
     # PROGRAM form is RCE that must be rejected even with writes enabled.
     if COPY_PROGRAM_PATTERN.search(normalized_sql):
