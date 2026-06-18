@@ -209,3 +209,29 @@ class TestTestMigration:
         response = await test_migration(request)
         assert 'error' in response
         assert error_message in response['error']
+
+
+@pytest.mark.asyncio
+async def test_test_migration_works_in_readonly_mode():
+    """Test that test_migration works even when readonly mode is enabled (it's a connectivity probe, not mutating)."""
+    from awslabs.elasticache_mcp_server.context import Context
+    from unittest.mock import MagicMock, patch
+
+    mock_client = MagicMock()
+    mock_client.test_migration.return_value = {
+        'ReplicationGroup': {'ReplicationGroupId': 'test-rg'}
+    }
+
+    with (
+        patch.object(Context, 'readonly_mode', return_value=True),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+            return_value=mock_client,
+        ),
+    ):
+        request = MigrationTestRequest(
+            replication_group_id='test-rg',
+            customer_node_endpoint_list='Address=1.2.3.4,Port=6379',
+        )
+        result = await test_migration(request)
+        assert 'error' not in result
