@@ -330,6 +330,29 @@ See also:
 - https://aws.amazon.com/blogs/big-data/speed-up-your-elt-and-bi-queries-with-amazon-redshift-materialized-views/
 - https://aws.amazon.com/blogs/big-data/optimize-your-analytical-workloads-using-the-automatic-query-rewrite-feature-of-amazon-redshift-materialized-views/
 """,
+    'REC_034': """\
+## For optimal price-performance on Serverless, tune AI-driven scaling and optimization
+
+Amazon Redshift Serverless can automatically scale compute (RPUs) using AI-driven
+scaling and optimization to meet a price-performance target you choose, without
+manual capacity planning. This is most valuable for variable or mixed workloads
+where a fixed base capacity is either over-provisioned (wasting cost) or
+under-provisioned (hurting performance).
+
+If your workload shows large swings between baseline and peak RPU usage, review your
+price-performance target (Optimizes for cost / Balanced / Optimizes for performance).
+AWS recommends AI-driven scaling for workloads running between 8 and 512 base RPUs.
+The setting takes 1-3 days to adapt as the model learns your workload.
+
+To keep cost predictable, always pair aggressive scaling with the Max capacity and
+Max RPU-hours limits — these caps are always enforced regardless of the
+price-performance target.
+
+See also:
+- https://docs.aws.amazon.com/redshift/latest/mgmt/serverless-capacity.html
+- https://docs.aws.amazon.com/redshift/latest/mgmt/serverless-billing.html
+- https://aws.amazon.com/blogs/big-data/configure-monitoring-limits-and-alarms-in-amazon-redshift-serverless-to-keep-costs-predictable/
+""",
 }
 
 
@@ -1097,6 +1120,32 @@ SELECT count(*), 'REC_032'
 FROM data
 WHERE total_pct_busy < 75
   AND EXISTS (SELECT 1 FROM precondition WHERE active_days >= 3)
+""",
+    ),
+    (
+        'ServerlessScaling',
+        'serverless',
+        """\
+-- ServerlessScaling
+WITH usage AS (
+    SELECT compute_capacity
+    FROM SYS_SERVERLESS_USAGE
+    WHERE start_time >= dateadd(day, -7, getdate())
+      AND compute_capacity > 0
+),
+stats AS (
+    SELECT
+        percentile_cont(0.05) WITHIN GROUP (ORDER BY compute_capacity) AS base_rpu,
+        percentile_cont(0.95) WITHIN GROUP (ORDER BY compute_capacity) AS peak_rpu,
+        count(*) AS sample_minutes
+    FROM usage
+)
+-- Signal: variable serverless workload within the AI-scaling supported range
+SELECT count(*), 'REC_034'
+FROM stats
+WHERE sample_minutes >= 60
+  AND base_rpu BETWEEN 8 AND 512
+  AND peak_rpu >= base_rpu * 2
 """,
     ),
 ]

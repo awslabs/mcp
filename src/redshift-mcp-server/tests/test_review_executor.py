@@ -89,6 +89,24 @@ class TestServerlessExclusion:
         assert 'NodeDetails' in result.queries_executed
         assert 'WLMConfig' in result.queries_executed
 
+    @pytest.mark.asyncio
+    async def test_serverless_only_queries_excluded_for_provisioned(self):
+        """For provisioned clusters, serverless-only queries are excluded."""
+        execute_query_func = AsyncMock(side_effect=lambda *a, **kw: _make_empty_response())
+        discover_clusters_func = AsyncMock(
+            return_value=[
+                {'identifier': 'test-cluster', 'type': 'provisioned'},
+            ]
+        )
+
+        result = await review_cluster(
+            cluster_identifier='test-cluster',
+            execute_query_func=execute_query_func,
+            discover_clusters_func=discover_clusters_func,
+        )
+
+        assert 'ServerlessScaling' not in result.queries_executed
+
 
 # ---------------------------------------------------------------------------
 # Signal triggering

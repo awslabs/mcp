@@ -61,11 +61,13 @@ async def review_cluster(
 
     is_serverless = cluster_info.get('type') == 'serverless'
 
-    # Stage 1: Select queries, filtering provisioned-only for serverless
+    # Stage 1: Select queries, filtering by cluster type scope
     queries = [
         (name, sql)
         for name, cluster_type, sql in SIGNAL_EVALUATION_SQL
-        if not (is_serverless and cluster_type == 'provisioned')
+        if cluster_type == 'all'
+        or (is_serverless and cluster_type == 'serverless')
+        or (not is_serverless and cluster_type == 'provisioned')
     ]
 
     total_queries = len(queries)
