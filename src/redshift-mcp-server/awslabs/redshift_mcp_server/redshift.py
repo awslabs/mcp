@@ -498,7 +498,18 @@ async def discover_clusters() -> list[dict]:
             f'Provisioned error: {provisioned_error}; Serverless error: {serverless_error}'
         )
         logger.error(error_msg)
-        raise PermissionError(error_msg)
+
+        # Raise appropriate exception based on the error type
+        access_denied_codes = {'AccessDeniedException', 'UnauthorizedAccess', 'AccessDenied'}
+        if (
+            provisioned_error.response['Error']['Code'] in access_denied_codes
+            or serverless_error.response['Error']['Code'] in access_denied_codes
+        ):
+            raise PermissionError(error_msg)
+        raise ClientError(
+            {'Error': {'Code': 'ClusterDiscoveryFailed', 'Message': error_msg}},
+            'DiscoverClusters',
+        )
 
     logger.info(f'Total clusters discovered: {len(clusters)}')
     return clusters
