@@ -17,6 +17,7 @@
 Updated to use shared utility functions.
 """
 
+import os
 from ..utilities.aws_service_base import (
     create_aws_client,
     format_response,
@@ -48,6 +49,8 @@ USE THIS TOOL FOR:
 
 DO NOT USE FOR: Cost optimization or idle detection (use cost-optimization-hub)
 
+**Note:** Compute Optimizer is a regional service. Specify a `region` to get recommendations for resources in that region. If omitted, defaults to AWS_REGION env var or us-east-1.
+
 This tool supports the following operations:
 1. get_ec2_instance_recommendations: Get recommendations for EC2 instances
 2. get_auto_scaling_group_recommendations: Get recommendations for Auto Scaling groups
@@ -67,6 +70,7 @@ Common finding types include:
 async def compute_optimizer(
     ctx: Context,
     operation: str,
+    region: Optional[str] = None,
     max_results: Optional[int] = None,
     filters: Optional[str] = None,
     account_ids: Optional[str] = None,
@@ -77,6 +81,7 @@ async def compute_optimizer(
     Args:
         ctx: The MCP context
         operation: The operation to perform (e.g., 'get_ec2_instance_recommendations')
+        region: AWS region to query (e.g., 'us-west-2'). Defaults to AWS_REGION env var or us-east-1.
         max_results: Maximum number of results to return (1-100)
         filters: Optional filter expression as JSON string
         account_ids: Optional list of AWS account IDs as JSON array string
@@ -93,7 +98,7 @@ async def compute_optimizer(
         await ctx_logger.info(f'Compute Optimizer operation: {operation}')
 
         # Initialize Compute Optimizer client using shared utility
-        co_client = create_aws_client('compute-optimizer', region_name='us-east-1')
+        co_client = create_aws_client('compute-optimizer', region_name=region)
 
         # Check enrollment status first to provide better error messages
         try:
@@ -124,7 +129,7 @@ async def compute_optimizer(
                             'enrollment_status': status,
                             'operation': operation,
                             'aws_error_code': 'ComputeOptimizerNotActive',
-                            'aws_region': 'us-east-1',
+                            'aws_region': region or os.environ.get('AWS_REGION', 'us-east-1'),
                         },
                         'Compute Optimizer is not active. Please activate the service in the AWS Console first.',
                     )
