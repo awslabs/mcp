@@ -25,7 +25,7 @@ from awslabs.security_agent_mcp_server.consts import (
 from awslabs.security_agent_mcp_server.scanner import Scanner
 from awslabs.security_agent_mcp_server.state import StateManager
 from botocore.exceptions import ClientError
-from datetime import datetime
+from datetime import datetime, timezone
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
@@ -94,6 +94,85 @@ _state = StateManager(region=_region)
 _scanner = Scanner(client=_client, state=_state)
 
 
+_ALLOWED_ROOT: str | None = os.environ.get('WORKSPACE_ROOT')
+
+
+async def _validate_path(ctx: Context, path: str, must_be_dir: bool = True) -> str:
+    """Resolve path and verify it's within the configured workspace root.
+
+    Prevents scanning arbitrary directories (e.g. ~/.aws, /etc) which would
+    upload their contents to S3. The allowed root is determined by:
+    1. WORKSPACE_ROOT env var (set by IDE/power config)
+    2. Server process cwd (fallback)
+    """
+    resolved = os.path.realpath(os.path.abspath(path))
+    root = os.path.realpath(_ALLOWED_ROOT) if _ALLOWED_ROOT else os.path.realpath(os.getcwd())
+
+    if root != os.sep and not (resolved == root or resolved.startswith(root + os.sep)):
+        raise ValueError(
+            f'Path "{path}" resolves to "{resolved}" which is outside the allowed workspace '
+            f'root "{root}". Set the WORKSPACE_ROOT environment variable to the directory '
+            f'you want to allow scanning.'
+        )
+
+    if must_be_dir and not os.path.isdir(resolved):
+        raise ValueError(f'Path "{resolved}" does not exist or is not a directory.')
+    if not must_be_dir and not os.path.isfile(resolved):
+        raise ValueError(f'Path "{resolved}" does not exist or is not a file.')
+
+    return resolved
+
+
+def _client_prefix(ctx: Context) -> str:
+    """Extract a kebab-case prefix from the MCP client name, or 'ide' as fallback."""
+    try:
+        session = ctx.session
+        if session is None:
+            return 'ide'
+        client_params = session.client_params
+        if client_params is None:
+            return 'ide'
+        name = client_params.clientInfo.name  # type: ignore[union-attr]
+        if not isinstance(name, str):
+            return 'ide'
+        return name.lower().replace(' ', '-')
+    except (AttributeError, TypeError):
+        return 'ide'
+
+
+def _ensure_s3_bucket(config: dict, kind: str = 'scans') -> None:
+    """Lazily create and register the per-account S3 bucket for the given kind.
+
+    kind 'scans' -> security-agent-scans-... (full/diff scans);
+    'threat-model' -> security-agent-threat-model-... (threat model reviews).
+    """
+    config_key = 's3_bucket' if kind == 'scans' else 'threat_model_s3_bucket'
+    if config.get(config_key):
+        return
+    account_id = _client.get_caller_identity()['Account']
+    bucket = f'security-agent-{kind}-{account_id}-{_region}'
+    try:
+        _client.create_s3_bucket(bucket)
+    except ClientError as e:
+        if e.response.get('Error', {}).get('Code') != 'BucketAlreadyOwnedByYou':
+            raise
+
+    # Register bucket on agent space so the service can access it
+    agent_space_id = config['agent_space_id']
+    space = _client.get_agent_space(agent_space_id)
+    existing_buckets = space.get('awsResources', {}).get('s3Buckets', [])
+    if bucket not in existing_buckets:
+        existing_buckets.append(bucket)
+        _client.update_agent_space(
+            agent_space_id,
+            space.get('name', 'security-scans'),
+            space.get('awsResources', {}).get('iamRoles', []),
+            existing_buckets,
+        )
+
+    _state.update_config(**{config_key: bucket})
+
+
 @mcp.tool()
 async def setup_check(ctx: Context) -> str:
     """Check if AWS Security Agent prerequisites are configured.
@@ -131,6 +210,7 @@ async def setup_check(ctx: Context) -> str:
                     )
             except Exception as list_err:
                 logger.warning(f'Could not list existing agent spaces: {list_err}')
+                result['list_agent_spaces_error'] = str(list_err)
 
         logger.info(f'Setup check: ready={result["ready"]}')
         return json.dumps(result, default=_json_serial)
@@ -262,32 +342,15 @@ async def start_security_scan(
             return json.dumps({'error': 'Not configured. Run setup first.'}, default=_json_serial)
 
         # Lazy S3 bucket creation on first scan
-        if not config.get('s3_bucket'):
-            identity = _client.get_caller_identity()
-            account_id = identity['Account']
-            s3_bucket = f'security-agent-scans-{account_id}-{_region}'
-            try:
-                _client.create_s3_bucket(s3_bucket)
-            except ClientError as e:
-                if e.response.get('Error', {}).get('Code') == 'BucketAlreadyOwnedByYou':
-                    pass
-                else:
-                    raise
-            _state.update_config(s3_bucket=s3_bucket)
+        _ensure_s3_bucket(config)
 
-            # Register bucket on agent space so service can access it
-            agent_space_id = config['agent_space_id']
-            space = _client.get_agent_space(agent_space_id)
-            existing_buckets = space.get('awsResources', {}).get('s3Buckets', [])
-            if s3_bucket not in existing_buckets:
-                existing_buckets.append(s3_bucket)
-                _client.update_agent_space(
-                    agent_space_id,
-                    space.get('name', 'security-scans'),
-                    space.get('awsResources', {}).get('iamRoles', []),
-                    existing_buckets,
-                )
-
+        path = await _validate_path(ctx, path)
+        prefix = _client_prefix(ctx)
+        title = (
+            f'{prefix}-{title}'
+            if title
+            else f'{prefix}-pre-cr-{datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")}'
+        )
         logger.info(f'Starting security scan on path: {path}')
         result = await _scanner.start_scan(path=path, title=title)
         return json.dumps(result, default=_json_serial)
@@ -296,9 +359,120 @@ async def start_security_scan(
         logger.error(f'Error in start_security_scan: {e}')
         await ctx.error(err['error'])
         return json.dumps(err, default=_json_serial)
+    except ValueError as e:
+        logger.error(f'Error in start_security_scan: {e}')
+        return json.dumps({'error': str(e)}, default=_json_serial)
     except Exception as e:
         logger.error(f'Error in start_security_scan: {e}')
         await ctx.error(f'Scan failed: {e}')
+        raise
+
+
+@mcp.tool()
+async def start_diff_scan(
+    ctx: Context,
+    path: str = Field(
+        default='.',
+        description='Absolute path to the code directory to scan. CRITICAL: Assistant must provide the user\'s current workspace absolute path, NOT ".". The MCP server runs as a subprocess and "." resolves to its own directory, not the user\'s workspace.',
+    ),
+    base_ref: str = Field(
+        default='HEAD',
+        description='Git ref to diff against. "HEAD" for uncommitted changes, or a branch/commit like "main".',
+    ),
+    title: Optional[str] = Field(
+        default=None,
+        description='Title for the diff scan. Auto-generated if not provided.',
+    ),
+) -> str:
+    """Start a diff security scan — analyzes only changed code with full repo as context.
+
+    Faster than a full scan (10-15 min vs ~45 min). Uploads the current repo and
+    the diff patch; the agent focuses on changes while having full source for context.
+    No prior scan required.
+    """
+    try:
+        config = _state.get_config()
+        if not config.get('agent_space_id') or not config.get('service_role'):
+            return json.dumps({'error': 'Not configured. Run setup first.'}, default=_json_serial)
+
+        _ensure_s3_bucket(config)
+
+        path = await _validate_path(ctx, path)
+        prefix = _client_prefix(ctx)
+        title = (
+            f'{prefix}-{title}'
+            if title
+            else f'{prefix}-diff-{base_ref}-{datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")}'
+        )
+        logger.info(f'Starting diff scan on path: {path}, base_ref: {base_ref}')
+        result = await _scanner.start_diff_scan(path=path, base_ref=base_ref, title=title)
+        return json.dumps(result, default=_json_serial)
+    except ClientError as e:
+        err = _translate_client_error(e)
+        logger.error(f'Error in start_diff_scan: {e}')
+        await ctx.error(err['error'])
+        return json.dumps(err, default=_json_serial)
+    except ValueError as e:
+        logger.error(f'Error in start_diff_scan: {e}')
+        return json.dumps({'error': str(e)}, default=_json_serial)
+    except Exception as e:
+        logger.error(f'Error in start_diff_scan: {e}')
+        await ctx.error(f'Diff scan failed: {e}')
+        raise
+
+
+@mcp.tool()
+async def start_threat_model_review(
+    ctx: Context,
+    path: str = Field(
+        default='.',
+        description='Absolute path to the source code directory to threat model. CRITICAL: Assistant must provide the user\'s current workspace absolute path, NOT ".". The MCP server runs as a subprocess and "." resolves to its own directory, not the user\'s workspace.',
+    ),
+    specs: list[str] = Field(
+        default_factory=list,
+        description='Absolute paths to spec documents (e.g., Kiro design.md and requirements.md) for the agent to focus on during threat modeling. At least one is required.',
+    ),
+    title: Optional[str] = Field(
+        default=None,
+        description='Title for the threat model review. Auto-generated if not provided.',
+    ),
+) -> str:
+    """Start a threat model review — analyzes source code guided by design/requirement specs.
+
+    Uploads the source directory and the provided spec documents, creates a threat
+    model with the source as an asset and the specs as scope documents, and starts
+    a threat model job. Returns a scan_id for polling with get_scan_status; retrieve
+    identified threats with get_scan_findings. No prior scan required.
+    """
+    try:
+        config = _state.get_config()
+        if not config.get('agent_space_id') or not config.get('service_role'):
+            return json.dumps({'error': 'Not configured. Run setup first.'}, default=_json_serial)
+
+        _ensure_s3_bucket(config, 'threat-model')
+
+        path = await _validate_path(ctx, path)
+        specs = [await _validate_path(ctx, s, must_be_dir=False) for s in specs]
+        prefix = _client_prefix(ctx)
+        title = (
+            f'{prefix}-{title}'
+            if title
+            else f'{prefix}-threatmodel-{datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")}'
+        )
+        logger.info(f'Starting threat model review on path: {path}, specs: {len(specs)}')
+        result = await _scanner.start_threat_model_review(path=path, specs=specs, title=title)
+        return json.dumps(result, default=_json_serial)
+    except ClientError as e:
+        err = _translate_client_error(e)
+        logger.error(f'Error in start_threat_model_review: {e}')
+        await ctx.error(err['error'])
+        return json.dumps(err, default=_json_serial)
+    except ValueError as e:
+        logger.error(f'Error in start_threat_model_review: {e}')
+        return json.dumps({'error': str(e)}, default=_json_serial)
+    except Exception as e:
+        logger.error(f'Error in start_threat_model_review: {e}')
+        await ctx.error(f'Threat model review failed: {e}')
         raise
 
 

@@ -819,6 +819,161 @@ class TestSearchDocumentation:
 
             mock_post.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_search_documentation_surfaces_known_response_metadata_fields(self):
+        """Known response-level metadata fields are surfaced; unknown fields are dropped."""
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'queryId': 'qid',
+            'suggestions': [
+                {
+                    'textExcerptSuggestion': {
+                        'link': 'https://docs.aws.amazon.com/x',
+                        'title': 'X',
+                        'suggestionBody': 'desc',
+                    }
+                }
+            ],
+            'metadata': {
+                'discovered_services': [{'name': 'Amazon S3'}],
+                'related_tasks': [
+                    {
+                        'name': 'enable Object Lock',
+                        'description': '...',
+                        'urls': [
+                            {
+                                'url_name': '/AmazonS3/latest/userguide/lock.html',
+                                'url_description': 'Object Lock overview',
+                            }
+                        ],
+                    }
+                ],
+                'unknown_field_a': 'should-not-appear',
+                'unknown_field_b': {'foo': 'bar'},
+            },
+        }
+
+        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = mock_response
+
+            response = await search_documentation(
+                ctx, search_phrase='test', limit=10, product_types=None, guide_types=None
+            )
+
+            assert response.metadata is not None
+            assert response.metadata.discovered_services is not None
+            assert response.metadata.discovered_services[0].name == 'Amazon S3'
+            assert response.metadata.related_tasks is not None
+            assert response.metadata.related_tasks[0].name == 'enable Object Lock'
+            metadata_dump = response.metadata.model_dump(exclude_none=True)
+            assert 'unknown_field_a' not in metadata_dump
+            assert 'unknown_field_b' not in metadata_dump
+
+    @pytest.mark.asyncio
+    async def test_search_documentation_no_metadata_when_proxy_omits_it(self):
+        """Responses without a metadata block leave SearchResponse.metadata as None."""
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'queryId': 'qid',
+            'suggestions': [
+                {
+                    'textExcerptSuggestion': {
+                        'link': 'https://docs.aws.amazon.com/x',
+                        'title': 'X',
+                        'suggestionBody': 'desc',
+                    }
+                }
+            ],
+        }
+
+        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = mock_response
+
+            response = await search_documentation(
+                ctx, search_phrase='test', limit=10, product_types=None, guide_types=None
+            )
+
+            assert response.metadata is None
+
+    @pytest.mark.asyncio
+    async def test_search_documentation_drops_malformed_response_metadata(self):
+        """A malformed response-level metadata block is dropped, not raised."""
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'queryId': 'qid',
+            'suggestions': [
+                {
+                    'textExcerptSuggestion': {
+                        'link': 'https://docs.aws.amazon.com/x',
+                        'title': 'X',
+                        'suggestionBody': 'desc',
+                    }
+                }
+            ],
+            # discovered_services items require a string `name`; a non-dict entry
+            # makes model_validate raise (ValidationError) unless guarded.
+            'metadata': {'discovered_services': ['not-a-dict']},
+        }
+
+        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = mock_response
+
+            response = await search_documentation(
+                ctx, search_phrase='test', limit=10, product_types=None, guide_types=None
+            )
+
+            # Search succeeded; bad metadata was dropped rather than raised.
+            assert len(response.search_results) == 1
+            assert response.search_results[0].url == 'https://docs.aws.amazon.com/x'
+            assert response.metadata is None
+
+    @pytest.mark.asyncio
+    async def test_search_documentation_drops_malformed_result_metadata(self):
+        """A malformed per-result metadata block is dropped, not raised."""
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'queryId': 'qid',
+            'suggestions': [
+                {
+                    'textExcerptSuggestion': {
+                        'link': 'https://docs.aws.amazon.com/x',
+                        'title': 'X',
+                        'suggestionBody': 'desc',
+                        'metadata': {
+                            'sections': ['Overview'],
+                            # additional_urls entries require a string `url`; a bare
+                            # string entry makes model_validate raise unless guarded.
+                            'additional_urls': ['not-a-dict'],
+                        },
+                    }
+                }
+            ],
+        }
+
+        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = mock_response
+
+            response = await search_documentation(
+                ctx, search_phrase='test', limit=10, product_types=None, guide_types=None
+            )
+
+            result = response.search_results[0]
+            assert result.url == 'https://docs.aws.amazon.com/x'
+            assert result.sections == ['Overview']
+            assert result.metadata is None
+
 
 class TestRecommend:
     """Tests for the recommend function."""

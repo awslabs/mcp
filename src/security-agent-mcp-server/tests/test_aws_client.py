@@ -133,10 +133,10 @@ class TestSecurityAgentClient:
             client.call('../evil', {})
 
     @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
-    def test_call_unknown_operation(self, mock_boto3):
-        """Operations not in the SecurityAgent service model are rejected."""
+    def test_call_unknown_operation_rejected(self, mock_boto3):
+        """Operations not in the SDK are rejected."""
         mock_client = MagicMock()
-        mock_client.meta.service_model.operation_names = ['ListPentests', 'CreatePentest']
+        mock_client.meta.service_model.operation_names = ['ListPentests']
         mock_boto3.Session.return_value.client.return_value = mock_client
 
         client = SecurityAgentClient()
@@ -347,3 +347,111 @@ class TestSecurityAgentClient:
 
         assert url == 's3://bkt/k.zip'
         mock_s3.upload_file.assert_called_once_with('/tmp/source.zip', 'bkt', 'k.zip')
+
+
+class TestDiffScanAndThreatModel:
+    """Tests for diff scan and threat model operations using standard SDK."""
+
+    @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
+    def test_start_code_review_job_with_diff_success(self, mock_boto3):
+        """Diff scan job calls start_code_review_job with diffSource."""
+        mock_client = MagicMock()
+        mock_client.start_code_review_job.return_value = {'codeReviewJobId': 'cj-diff'}
+        mock_boto3.Session.return_value.client.return_value = mock_client
+
+        client = SecurityAgentClient()
+        result = client.start_code_review_job_with_diff('as-1', 'cr-1', 's3://b/k')
+        assert result == {'codeReviewJobId': 'cj-diff'}
+        mock_client.start_code_review_job.assert_called_once_with(
+            agentSpaceId='as-1', codeReviewId='cr-1', diffSource={'s3Uri': 's3://b/k'}
+        )
+
+    @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
+    def test_create_threat_model_with_scope_docs(self, mock_boto3):
+        """create_threat_model includes scopeDocs when provided."""
+        mock_client = MagicMock()
+        mock_client.create_threat_model.return_value = {'threatModelId': 'tm-1'}
+        mock_boto3.Session.return_value.client.return_value = mock_client
+
+        client = SecurityAgentClient()
+        result = client.create_threat_model(
+            agent_space_id='as-1',
+            title='t',
+            service_role='arn:role',
+            assets={'sourceCode': []},
+            scope_docs=[{'s3Location': 's3://b/spec.md'}],
+        )
+        assert result == {'threatModelId': 'tm-1'}
+        kwargs = mock_client.create_threat_model.call_args.kwargs
+        assert kwargs['scopeDocs'] == [{'s3Location': 's3://b/spec.md'}]
+
+    @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
+    def test_create_threat_model_without_scope_docs(self, mock_boto3):
+        """create_threat_model omits scopeDocs when not provided."""
+        mock_client = MagicMock()
+        mock_client.create_threat_model.return_value = {'threatModelId': 'tm-2'}
+        mock_boto3.Session.return_value.client.return_value = mock_client
+
+        client = SecurityAgentClient()
+        client.create_threat_model(
+            agent_space_id='as-1', title='t', service_role='arn:role', assets={}
+        )
+        kwargs = mock_client.create_threat_model.call_args.kwargs
+        assert 'scopeDocs' not in kwargs
+
+    @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
+    def test_start_threat_model_job(self, mock_boto3):
+        """start_threat_model_job calls the SDK method."""
+        mock_client = MagicMock()
+        mock_client.start_threat_model_job.return_value = {'threatModelJobId': 'tj-1'}
+        mock_boto3.Session.return_value.client.return_value = mock_client
+
+        client = SecurityAgentClient()
+        result = client.start_threat_model_job('as-1', 'tm-1')
+        assert result == {'threatModelJobId': 'tj-1'}
+        mock_client.start_threat_model_job.assert_called_once_with(
+            agentSpaceId='as-1', threatModelId='tm-1'
+        )
+
+    @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
+    def test_batch_get_threat_model_jobs(self, mock_boto3):
+        """batch_get_threat_model_jobs calls the SDK method."""
+        mock_client = MagicMock()
+        mock_client.batch_get_threat_model_jobs.return_value = {'threatModelJobs': []}
+        mock_boto3.Session.return_value.client.return_value = mock_client
+
+        client = SecurityAgentClient()
+        result = client.batch_get_threat_model_jobs('as-1', ['tj-1', 'tj-2'])
+        assert result == {'threatModelJobs': []}
+        mock_client.batch_get_threat_model_jobs.assert_called_once_with(
+            agentSpaceId='as-1', threatModelJobIds=['tj-1', 'tj-2']
+        )
+
+    @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
+    def test_list_threats_pagination(self, mock_boto3):
+        """list_threats follows nextToken until exhausted and concatenates."""
+        mock_client = MagicMock()
+        mock_client.list_threats.side_effect = [
+            {'threats': [{'threatId': 't-1'}], 'nextToken': 'tok'},
+            {'threats': [{'threatId': 't-2'}]},
+        ]
+        mock_boto3.Session.return_value.client.return_value = mock_client
+
+        client = SecurityAgentClient()
+        result = client.list_threats('as-1', 'tj-1')
+        assert len(result['threats']) == 2
+        assert mock_client.list_threats.call_count == 2
+
+    @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
+    def test_batch_get_threats(self, mock_boto3):
+        """batch_get_threats calls the SDK method."""
+        mock_client = MagicMock()
+        mock_client.batch_get_threats.return_value = {'threats': [{'threatId': 't-1'}]}
+        mock_boto3.Session.return_value.client.return_value = mock_client
+
+        client = SecurityAgentClient()
+        result = client.batch_get_threats('as-1', ['t-1'])
+        assert result == {'threats': [{'threatId': 't-1'}]}
+        mock_client.batch_get_threats.assert_called_once_with(
+            agentSpaceId='as-1', threatIds=['t-1']
+        )
