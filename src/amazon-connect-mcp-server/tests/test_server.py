@@ -14,6 +14,7 @@
 
 """Tests that the MCP server initializes and registers the expected tools."""
 
+import importlib
 import pytest
 from awslabs.amazon_connect_mcp_server import server
 from unittest.mock import patch
@@ -42,3 +43,17 @@ def test_main_runs_server():
     with patch.object(server.mcp, 'run') as run:
         server.main()
     run.assert_called_once()
+
+
+def test_registration_failure_is_raised():
+    """A failure while registering tools at import time is logged and re-raised."""
+    with patch(
+        'awslabs.amazon_connect_mcp_server.connect_admin.tools.ConnectAdminTools.register',
+        side_effect=RuntimeError('boom'),
+    ):
+        with pytest.raises(RuntimeError):
+            importlib.reload(server)
+
+    # Reload once more without the patch so the module is left in a clean state
+    # for any subsequent tests that import it.
+    importlib.reload(server)

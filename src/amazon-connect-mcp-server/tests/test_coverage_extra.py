@@ -524,3 +524,191 @@ async def test_historical_has_more_results(ctx):
         )
     assert len(result.results) == 1
     assert result.has_more_results is True
+
+
+# ---------------------------------------------------------------------------
+# None max_items defaults across all tools
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_admin_none_max_items_defaults(ctx):
+    """max_items=None falls back to the default in every admin tool."""
+    fake_client = MagicMock()
+    fake_client.get_paginator.return_value = _Paginator(
+        [
+            {'InstanceSummaryList': [{'Id': 'i1', 'Arn': 'arn:i1'}]},
+        ]
+    )
+    tools = ConnectAdminTools()
+    with patch(
+        'awslabs.amazon_connect_mcp_server.connect_admin.tools.get_aws_client',
+        return_value=fake_client,
+    ):
+        res = await tools.list_connect_instances(ctx, max_items=None)
+    assert len(res.instances) == 1
+
+    fake_client.get_paginator.return_value = _Paginator([{'QueueSummaryList': []}])
+    with patch(
+        'awslabs.amazon_connect_mcp_server.connect_admin.tools.get_aws_client',
+        return_value=fake_client,
+    ):
+        res = await tools.list_queues(ctx, instance_id='i1', max_items=None)
+    assert res.queues == []
+
+    fake_client.get_paginator.return_value = _Paginator([{'RoutingProfileSummaryList': []}])
+    with patch(
+        'awslabs.amazon_connect_mcp_server.connect_admin.tools.get_aws_client',
+        return_value=fake_client,
+    ):
+        res = await tools.list_routing_profiles(ctx, instance_id='i1', max_items=None)
+    assert res.routing_profiles == []
+
+
+@pytest.mark.asyncio
+async def test_realtime_none_max_items_defaults(ctx):
+    """max_items=None falls back to the default in the realtime tools."""
+    fake_client = MagicMock()
+    fake_client.get_current_metric_data.return_value = {'MetricResults': []}
+    tools = ConnectRealtimeTools()
+    with patch(
+        'awslabs.amazon_connect_mcp_server.connect_realtime.tools.get_aws_client',
+        return_value=fake_client,
+    ):
+        res = await tools.get_current_metric_data(ctx, instance_id='i1', max_items=None)
+    assert res.results == []
+
+    fake_client.get_current_user_data.return_value = {'UserDataList': []}
+    with patch(
+        'awslabs.amazon_connect_mcp_server.connect_realtime.tools.get_aws_client',
+        return_value=fake_client,
+    ):
+        res = await tools.get_current_agent_status(
+            ctx, instance_id='i1', agent_ids=['a1'], max_items=None
+        )
+    assert res.agents == []
+
+
+@pytest.mark.asyncio
+async def test_historical_none_max_items_default(ctx):
+    """max_items=None falls back to the default in the historical tool."""
+    fake_client = MagicMock()
+    fake_client.describe_instance.return_value = {'Instance': {'Arn': 'arn:inst'}}
+    fake_client.get_metric_data_v2.return_value = {'MetricResults': []}
+    tools = ConnectHistoricalTools()
+    with patch(
+        'awslabs.amazon_connect_mcp_server.connect_historical.tools.get_aws_client',
+        return_value=fake_client,
+    ):
+        res = await tools.get_historical_metric_data(
+            ctx, instance_id='i1', metrics=['CONTACTS_HANDLED'], queue_ids=['q1'], max_items=None
+        )
+    assert res.results == []
+
+
+# ---------------------------------------------------------------------------
+# NextToken + max_items break paths (pagination short-circuit)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_realtime_metric_nexttoken_with_full_results(ctx):
+    """A page with a NextToken once max_items is reached sets has_more_results."""
+    fake_client = MagicMock()
+    fake_client.get_current_metric_data.return_value = {
+        'MetricResults': [{'Dimensions': {'Queue': {'Id': 'q1', 'Arn': 'a'}}, 'Collections': []}],
+        'NextToken': 'more',
+    }
+    tools = ConnectRealtimeTools()
+    with patch(
+        'awslabs.amazon_connect_mcp_server.connect_realtime.tools.get_aws_client',
+        return_value=fake_client,
+    ):
+        res = await tools.get_current_metric_data(ctx, instance_id='i1', max_items=1)
+    assert res.has_more_results is True
+
+
+@pytest.mark.asyncio
+async def test_agent_status_nexttoken_with_full_results(ctx):
+    """A page with a NextToken once max_items is reached sets has_more_results."""
+    fake_client = MagicMock()
+    fake_client.get_current_user_data.return_value = {
+        'UserDataList': [{'User': {'Id': 'u1', 'Arn': 'a'}, 'Status': {}, 'RoutingProfile': {}}],
+        'NextToken': 'more',
+    }
+    tools = ConnectRealtimeTools()
+    with patch(
+        'awslabs.amazon_connect_mcp_server.connect_realtime.tools.get_aws_client',
+        return_value=fake_client,
+    ):
+        res = await tools.get_current_agent_status(
+            ctx, instance_id='i1', agent_ids=['u1'], max_items=1
+        )
+    assert res.has_more_results is True
+
+
+@pytest.mark.asyncio
+async def test_historical_nexttoken_with_full_results(ctx):
+    """A page with a NextToken once max_items is reached sets has_more_results."""
+    fake_client = MagicMock()
+    fake_client.describe_instance.return_value = {'Instance': {'Arn': 'arn:inst'}}
+    fake_client.get_metric_data_v2.return_value = {
+        'MetricResults': [{'Dimensions': {'QUEUE': 'A'}, 'Collections': []}],
+        'NextToken': 'more',
+    }
+    tools = ConnectHistoricalTools()
+    with patch(
+        'awslabs.amazon_connect_mcp_server.connect_historical.tools.get_aws_client',
+        return_value=fake_client,
+    ):
+        res = await tools.get_historical_metric_data(
+            ctx, instance_id='i1', metrics=['CONTACTS_HANDLED'], queue_ids=['q1'], max_items=1
+        )
+    assert res.has_more_results is True
+
+
+# ---------------------------------------------------------------------------
+# historical: budget-exceeded partial-results path
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_historical_budget_exceeded_returns_partial(ctx, monkeypatch):
+    """When the wall-clock fetch budget is exceeded, partial results are returned."""
+    from awslabs.amazon_connect_mcp_server.connect_historical import tools as hist_tools
+
+    fake_client = MagicMock()
+    fake_client.describe_instance.return_value = {'Instance': {'Arn': 'arn:inst'}}
+    fake_client.get_metric_data_v2.return_value = {'MetricResults': []}
+
+    # monotonic() advances far past the deadline on the first interval check so
+    # the loop breaks immediately with budget_exceeded=True.
+    ticks = iter([1000.0, 1000.0, 999999.0, 999999.0, 999999.0])
+
+    def fake_monotonic():
+        try:
+            return next(ticks)
+        except StopIteration:
+            return 999999.0
+
+    monkeypatch.setattr(hist_tools, 'monotonic', fake_monotonic)
+
+    from datetime import datetime, timedelta, timezone
+
+    end = datetime.now(timezone.utc) - timedelta(hours=1)
+    start = end - timedelta(hours=72)
+    tools = ConnectHistoricalTools()
+    with patch(
+        'awslabs.amazon_connect_mcp_server.connect_historical.tools.get_aws_client',
+        return_value=fake_client,
+    ):
+        res = await tools.get_historical_metric_data(
+            ctx,
+            instance_id='i1',
+            start_time=start.isoformat(),
+            end_time=end.isoformat(),
+            metrics=['CONTACTS_HANDLED'],
+            queue_ids=['q1'],
+        )
+    assert res.has_more_results is True
+    assert res.message is not None and 'partial' in res.message.lower()
