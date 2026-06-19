@@ -712,3 +712,82 @@ async def test_historical_budget_exceeded_returns_partial(ctx, monkeypatch):
         )
     assert res.has_more_results is True
     assert res.message is not None and 'partial' in res.message.lower()
+
+
+# ---------------------------------------------------------------------------
+# Remaining branch coverage
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_list_agents_more_in_single_page_than_max(ctx):
+    """When one page holds more agents than max_items, extras are counted not appended."""
+    fake_client = MagicMock()
+    fake_client.get_paginator.return_value = _Paginator(
+        [
+            {
+                'UserSummaryList': [
+                    {'Id': 'u1', 'Arn': 'arn:u1', 'Username': 'a'},
+                    {'Id': 'u2', 'Arn': 'arn:u2', 'Username': 'b'},
+                    {'Id': 'u3', 'Arn': 'arn:u3', 'Username': 'c'},
+                ]
+            }
+        ]
+    )
+    tools = ConnectAdminTools()
+    with patch(
+        'awslabs.amazon_connect_mcp_server.connect_admin.tools.get_aws_client',
+        return_value=fake_client,
+    ):
+        result = await tools.list_agents(ctx, instance_id='inst-1', max_items=1)
+    assert len(result.agents) == 1
+    assert result.has_more_results is True
+
+
+def test_list_queue_ids_exhausts_without_reaching_limit():
+    """_list_queue_ids returns all ids when the page yields fewer than the limit."""
+    tools = ConnectHistoricalTools()
+    fake_client = MagicMock()
+
+    class _P:
+        def paginate(self, **kwargs):
+            # One id present, one missing (no 'Id') to exercise the falsy branch.
+            yield {'QueueSummaryList': [{'Id': 'q1'}, {'Name': 'no-id'}]}
+
+    fake_client.get_paginator.return_value = _P()
+    ids = tools._list_queue_ids(fake_client, 'inst-1', limit=100)
+    assert ids == ['q1']
+
+
+@pytest.mark.asyncio
+async def test_historical_has_more_short_circuits_remaining_intervals(ctx):
+    """Once max_items is hit in interval one, later intervals are skipped."""
+    fake_client = MagicMock()
+    fake_client.describe_instance.return_value = {'Instance': {'Arn': 'arn:inst'}}
+    # First (and only needed) page already exceeds max_items=1.
+    fake_client.get_metric_data_v2.return_value = {
+        'MetricResults': [
+            {'Dimensions': {'QUEUE': 'A'}, 'Collections': []},
+            {'Dimensions': {'QUEUE': 'B'}, 'Collections': []},
+        ]
+    }
+
+    end = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=1)
+    start = end - datetime.timedelta(hours=72)  # 3 intervals, but should stop after the first
+    tools = ConnectHistoricalTools()
+    with patch(
+        'awslabs.amazon_connect_mcp_server.connect_historical.tools.get_aws_client',
+        return_value=fake_client,
+    ):
+        res = await tools.get_historical_metric_data(
+            ctx,
+            instance_id='i1',
+            start_time=start.isoformat(),
+            end_time=end.isoformat(),
+            metrics=['CONTACTS_HANDLED'],
+            queue_ids=['q1'],
+            max_items=1,
+        )
+    assert res.has_more_results is True
+    # Only the first interval was fetched despite the range spanning three.
+    assert fake_client.get_metric_data_v2.call_count == 1
