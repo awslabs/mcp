@@ -16,15 +16,13 @@
 
 RECOMMENDATIONS: dict[str, str] = {
     'REC_001': """\
-## For additional scalability, migrate to RG instances or serverless
+## For additional performance, migrate to RG instances
 
 RG instances provide the latest generation of compute and managed storage with independent scaling. Migrating from DC, DS, or RA3 node types to RG allows you to benefit from improved price-performance, and leverages automatic data tiering between local SSD and S3-backed managed storage.
 
 See also:
 - https://aws.amazon.com/redshift/features/rg/
 - https://docs.aws.amazon.com/redshift/latest/mgmt/managing-cluster-considerations.html#rs-upgrading-to-ra3
-- https://docs.aws.amazon.com/redshift/latest/mgmt/serverless-whatis.html
-- https://docs.aws.amazon.com/redshift/latest/mgmt/serverless-migration.html
 """,
     'REC_002': """\
 ## For busy clusters, schedule a VACUUM DELETE
@@ -416,7 +414,7 @@ SELECT
   sum((file_bytes_scanned/1000000)::int) mb_scanned,
   avg(loaded_rows/(duration/1000000::decimal(18,2))) insert_rate_rows_per_second,
   avg(source_file_count) avg_files_per_copy,
-  avg(file_bytes_scanned/source_file_count)::decimal(18,2) avg_file_size_mb,
+  avg(file_bytes_scanned/source_file_count/1000000.0)::decimal(18,2) avg_file_size_mb,
   avg(file_bytes_scanned/(duration/1000000::decimal(18,2))) avg_scan_kbps,
   count(distinct query_id) no_of_copy,
   max(query_id) sample_query,
@@ -434,7 +432,7 @@ group by 1,2,3,4,5
 -- Signal: files per copy are less than slice count
 SELECT count(*), 'REC_023'
 FROM data
-WHERE no_of_copy > 24 AND (avg_files_per_copy < (SELECT COUNT(1) FROM stv_slices))
+WHERE no_of_copy > 24 AND (avg_files_per_copy < (SELECT COUNT(1) FROM stv_slices WHERE type='D'))
 UNION ALL
 -- Signal: files with a small size
 SELECT count(*), 'REC_023'
@@ -460,7 +458,7 @@ SELECT d.share_type,
     vi.vacuum_type,
     mi.is_stale mv_is_stale,
     CASE WHEN mi.state = 1 THEN 'Y' WHEN mi.state <> 1 THEN 'N' ELSE NULL END AS is_mv_incremental_refresh,
-    CASE WHEN mi.autorefresh = 1 THEN 'Y' WHEN mi.autorefresh <> 1 THEN 'N' ELSE NULL END AS is_mv_auto_refresh
+    CASE WHEN mi.autorefresh = 't' THEN 'Y' ELSE 'N' END AS is_mv_auto_refresh
 FROM SVV_DATASHARE_OBJECTS d
 LEFT OUTER JOIN SVV_TABLE_INFO ti ON (split_part(d.object_name, '.', 1) = ti."schema" and split_part(d.object_name, '.', 2) = ti."table" and current_database() = ti."database")
 LEFT OUTER JOIN SVV_MV_INFO mi ON (ti."database" = mi.database_name and ti."schema" = mi."schema_name" and ti."table" = mi."name")
@@ -597,34 +595,34 @@ ORDER by 2
 -- Signal: should consider migrating to RG instances
 SELECT count(*), 'REC_001'
 FROM data
-WHERE node_type NOT LIKE 'rg%'
+WHERE node_type IN ('dc2.large', 'dc2.8xlarge', 'ds2.xlarge', 'ds2.8xlarge', 'ra3.large', 'ra3.xlplus', 'ra3.4xlarge', 'ra3.16xlarge')
 UNION ALL
 -- Signal: exceeds the recommended storage threshold of 70%
 SELECT count(*), 'REC_002'
 FROM data
-WHERE storage_utilization_pct > 70 AND node_type NOT LIKE 'rg%'
+WHERE storage_utilization_pct > 70 AND node_type IN ('dc2.large', 'dc2.8xlarge', 'ds2.xlarge', 'ds2.8xlarge', 'ra3.large', 'ra3.xlplus', 'ra3.4xlarge', 'ra3.16xlarge')
 UNION ALL
 SELECT count(*), 'REC_004'
 FROM data
-WHERE storage_utilization_pct > 70 AND node_type NOT LIKE 'rg%'
+WHERE storage_utilization_pct > 70 AND node_type IN ('dc2.large', 'dc2.8xlarge', 'ds2.xlarge', 'ds2.8xlarge', 'ra3.large', 'ra3.xlplus', 'ra3.4xlarge', 'ra3.16xlarge')
 UNION ALL
 SELECT count(*), 'REC_005'
 FROM data
-WHERE storage_utilization_pct > 70 AND node_type NOT LIKE 'rg%'
+WHERE storage_utilization_pct > 70 AND node_type IN ('dc2.large', 'dc2.8xlarge', 'ds2.xlarge', 'ds2.8xlarge', 'ra3.large', 'ra3.xlplus', 'ra3.4xlarge', 'ra3.16xlarge')
 UNION ALL
 SELECT count(*), 'REC_006'
 FROM data
-WHERE storage_utilization_pct > 50 AND node_type NOT LIKE 'rg%'
+WHERE storage_utilization_pct > 50 AND node_type IN ('dc2.large', 'dc2.8xlarge', 'ds2.xlarge', 'ds2.8xlarge', 'ra3.large', 'ra3.xlplus', 'ra3.4xlarge', 'ra3.16xlarge')
 UNION ALL
 -- Signal: has under-utilized storage
 SELECT count(*), 'REC_012'
 FROM data
-WHERE storage_utilization_pct < 40 AND node_type NOT LIKE 'rg%'
+WHERE storage_utilization_pct < 40 AND node_type IN ('dc2.large', 'dc2.8xlarge', 'ds2.xlarge', 'ds2.8xlarge', 'ra3.large', 'ra3.xlplus', 'ra3.4xlarge', 'ra3.16xlarge')
 UNION ALL
 -- Signal: has 10% data skew
 SELECT count(*), 'REC_008'
 FROM data
-WHERE 100*abs(storage_used_gb - (select min(storage_used_gb) from data))/storage_used_gb >= 10
+WHERE storage_used_gb > 0 AND 100*abs(storage_used_gb - (select min(storage_used_gb) from data))/storage_used_gb >= 10
 """,
     ),
     (
