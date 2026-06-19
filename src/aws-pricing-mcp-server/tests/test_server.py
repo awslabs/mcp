@@ -716,9 +716,10 @@ class TestGenerateCostReport:
 
     @pytest.mark.asyncio
     async def test_generate_report_with_detailed_data(
-        self, mock_context, sample_pricing_data_web, temp_output_dir
+        self, mock_context, sample_pricing_data_web, temp_output_dir, monkeypatch
     ):
         """Test generating a report with detailed cost data."""
+        monkeypatch.setenv('AWS_PRICING_MCP_OUTPUT_DIR', temp_output_dir)
         detailed_cost_data = {
             'services': {
                 'AWS Lambda': {
