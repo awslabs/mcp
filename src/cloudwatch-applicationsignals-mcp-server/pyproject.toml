@@ -122,6 +122,10 @@ python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
 asyncio_mode = "auto"
+markers = [
+    "eval: Tool registry + golden dataset eval tests (no AWS/LLM)",
+    "llm_eval: Real LLM eval tests (requires AWS Bedrock + anthropic, local only)",
+]
 
 [tool.coverage.run]
 source = ["awslabs"]
