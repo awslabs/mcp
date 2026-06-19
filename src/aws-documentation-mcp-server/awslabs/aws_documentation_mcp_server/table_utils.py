@@ -130,6 +130,56 @@ def _find_all_tables(soup: BeautifulSoup) -> Optional[dict]:
     }
 
 
+def _parse_multi_row_thead(header_rows: list[Tag]) -> list[str]:
+    """Parse a multi-row thead into a flat list of column headers.
+
+    Handles rowspan (cells that span from an earlier row into the last row)
+    and colspan (cells that span multiple columns).
+    Uses the last row as the primary source, filling in rowspan cells from above.
+    """
+    num_rows = len(header_rows)
+    # First pass: determine total number of columns from the first row
+    num_cols = 0
+    for cell in header_rows[0].find_all(['th', 'td']):
+        if isinstance(cell, Tag):
+            num_cols += int(str(cell.get('colspan', '1')))
+
+    # Build a grid to track which cell occupies each position
+    grid: list[list[str]] = [[''] * num_cols for _ in range(num_rows)]
+    for row_idx, tr in enumerate(header_rows):
+        col_idx = 0
+        for cell in tr.find_all(['th', 'td']):
+            if not isinstance(cell, Tag):
+                continue
+            # Skip columns already filled by rowspan from above
+            while col_idx < num_cols and grid[row_idx][col_idx]:
+                col_idx += 1
+            if col_idx >= num_cols:
+                break
+            text = cell.get_text(strip=True)
+            colspan = int(str(cell.get('colspan', '1')))
+            rowspan = int(str(cell.get('rowspan', '1')))
+            for r in range(rowspan):
+                for c in range(colspan):
+                    if row_idx + r < num_rows and col_idx + c < num_cols:
+                        grid[row_idx + r][col_idx + c] = text
+            col_idx += colspan
+
+    # Flatten: join parent and child names with " - " for each column
+    # If the last row value equals an earlier row value (rowspan cell), use it as-is
+    headers: list[str] = []
+    for col in range(num_cols):
+        parts: list[str] = []
+        seen: set[str] = set()
+        for row in range(num_rows):
+            val = grid[row][col]
+            if val and val not in seen:
+                parts.append(val)
+                seen.add(val)
+        headers.append(' - '.join(parts))
+    return headers
+
+
 def _extract_table_data(table: Tag) -> Optional[dict]:
     """Extract headers and rows from an HTML table element.
 
@@ -141,13 +191,17 @@ def _extract_table_data(table: Tag) -> Optional[dict]:
     headers: list[str] = []
     thead = table.find('thead')
     if thead and isinstance(thead, Tag):
-        for th in thead.find_all(['th', 'td']):
-            if not isinstance(th, Tag):
-                continue
-            colspan = int(str(th.get('colspan', '1')))
-            text = th.get_text(strip=True)
-            for i in range(colspan):
-                headers.append(text if i == 0 else f'{text}_{i + 1}')
+        header_rows = [tr for tr in thead.find_all('tr') if isinstance(tr, Tag)]
+        if len(header_rows) > 1:
+            headers = _parse_multi_row_thead(header_rows)
+        elif header_rows:
+            for th in header_rows[0].find_all(['th', 'td']):
+                if not isinstance(th, Tag):
+                    continue
+                colspan = int(str(th.get('colspan', '1')))
+                text = th.get_text(strip=True)
+                for i in range(colspan):
+                    headers.append(text if i == 0 else f'{text}_{i + 1}')
     else:
         first_row = table.find('tr')
         if first_row and isinstance(first_row, Tag):
@@ -166,12 +220,14 @@ def _extract_table_data(table: Tag) -> Optional[dict]:
     active_rowspans: dict[int, tuple[str, int]] = {}
     parsed_rows = []
 
-    tbody = table.find('tbody') or table
-    if not isinstance(tbody, Tag):
-        return None
-    for tr in tbody.find_all('tr'):
-        if not isinstance(tr, Tag):
-            continue
+    tbody_elements = [tb for tb in table.find_all('tbody') if isinstance(tb, Tag)]
+    if not tbody_elements:
+        tbody_elements = [table]
+    all_trs: list[Tag] = []
+    for tbody in tbody_elements:
+        all_trs.extend(tr for tr in tbody.find_all('tr') if isinstance(tr, Tag))
+
+    for tr in all_trs:
         cells = [c for c in tr.find_all(['td', 'th']) if isinstance(c, Tag)]
         if not cells:
             continue
@@ -324,6 +380,10 @@ def filter_table_rows(rows: list[dict], query: str) -> list[dict]:
     Handles both flat rows (dict of column→value) and nested rows (dict with a 'rows' sub-array).
     For nested rows, searches across parent fields AND all child rows.
 
+    Each query word must match a whole token in the row. Tokens are split on whitespace
+    and common punctuation. This prevents '1' from matching inside '100', while still
+    allowing words to match anywhere across the row (non-contiguous).
+
     Results are sorted by relevance: rows with more query words in the first column
     (typically the Name field) rank higher.
 
@@ -351,12 +411,31 @@ def filter_table_rows(rows: list[dict], query: str) -> list[dict]:
             # Flat format
             row_text = ' '.join(str(v) for v in row.values()).lower()
 
-        if all(word in row_text for word in words):
+        row_tokens = set(_tokenize(row_text))
+        if all(word in row_tokens for word in words):
             matches.append(row)
 
     # Sort by relevance: count query words in the first column value
     def relevance(row):
         first_val = str(list(row.values())[0]).lower()
-        return sum(1 for w in words if w in first_val)
+        first_tokens = set(_tokenize(first_val))
+        return sum(1 for w in words if w in first_tokens)
 
     return sorted(matches, key=relevance, reverse=True)
+
+
+def _tokenize(text: str) -> list[str]:
+    """Split text into searchable tokens.
+
+    Splits on whitespace and punctuation boundaries, preserving hyphenated
+    terms (e.g., 'us-east-1') and version numbers (e.g., 'v2') as single tokens.
+    Also generates sub-tokens from hyphenated/dotted terms so that 'east' matches 'us-east-1'.
+    """
+    import re
+
+    tokens = re.findall(r'[a-z0-9]+(?:[-_.][a-z0-9]+)*', text)
+    result = list(tokens)
+    for token in tokens:
+        if '-' in token or '.' in token or '_' in token:
+            result.extend(re.split(r'[-_.]', token))
+    return result

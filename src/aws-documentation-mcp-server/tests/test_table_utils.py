@@ -263,6 +263,30 @@ class TestFilterTableRows:
         rows = [{'Name': 'foo'}]
         assert filter_table_rows(rows, '') == []
 
+    def test_no_partial_token_match(self):
+        """'1' does not match inside '100' — requires whole token match."""
+        rows = [
+            {'Name': 'Quota A', 'Value': '100'},
+            {'Name': 'Quota B', 'Value': '1'},
+        ]
+        matches = filter_table_rows(rows, '1')
+        assert len(matches) == 1
+        assert matches[0]['Value'] == '1'
+
+    def test_hyphenated_term_matches_whole_and_parts(self):
+        """'east' matches within 'us-east-1', and 'us-east-1' matches exactly."""
+        rows = [
+            {'Name': 'Region us-east-1', 'Value': '500'},
+            {'Name': 'Region eu-west-1', 'Value': '100'},
+        ]
+        matches = filter_table_rows(rows, 'us-east-1')
+        assert len(matches) == 1
+        assert 'us-east-1' in matches[0]['Name']
+
+        matches = filter_table_rows(rows, 'east')
+        assert len(matches) == 1
+        assert 'us-east-1' in matches[0]['Name']
+
     def test_nested_row_filtering(self):
         """Filtering works on nested rows (searches parent + child fields)."""
         rows = [
@@ -488,6 +512,74 @@ class TestCellToText:
         assert result is not None
         cell_val = result['rows'][0]['Name']
         assert cell_val == '[Link](/x)'
+
+
+class TestTwoTierHeaders:
+    """Tests for multi-row thead handling."""
+
+    def test_two_tier_header_flattens(self):
+        """Multi-row thead flattens parent and child into column names."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead>
+            <tr><th rowspan="2">Name</th><th colspan="2">Limits</th></tr>
+            <tr><th>Requests/min</th><th>Tokens/min</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>Titan</td><td>6000</td><td>300000</td></tr>
+        </tbody></table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result is not None
+        assert 'error' not in result
+        assert result['columns'] == ['Name', 'Limits - Requests/min', 'Limits - Tokens/min']
+        assert len(result['rows']) == 1
+        assert result['rows'][0]['Name'] == 'Titan'
+        assert result['rows'][0]['Limits - Requests/min'] == '6000'
+        assert result['rows'][0]['Limits - Tokens/min'] == '300000'
+
+    def test_single_row_thead_unchanged(self):
+        """Single-row thead still works normally."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>A</th><th>B</th></tr></thead>
+        <tbody><tr><td>1</td><td>2</td></tr></tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result is not None
+        assert result['columns'] == ['A', 'B']
+        assert result['rows'][0] == {'A': '1', 'B': '2'}
+
+
+class TestMultipleTbody:
+    """Tests for tables with multiple tbody elements."""
+
+    def test_multiple_tbody_all_rows_parsed(self):
+        """Rows from all tbody sections are included."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>Name</th><th>Value</th></tr></thead>
+        <tbody>
+            <tr><td>A</td><td>1</td></tr>
+            <tr><td>B</td><td>2</td></tr>
+        </tbody>
+        <tbody>
+            <tr><td>C</td><td>3</td></tr>
+            <tr><td>D</td><td>4</td></tr>
+        </tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result is not None
+        assert len(result['rows']) == 4
+        assert result['rows'][0]['Name'] == 'A'
+        assert result['rows'][2]['Name'] == 'C'
+        assert result['rows'][3]['Name'] == 'D'
+
+    def test_single_tbody_unchanged(self):
+        """Single tbody still works normally."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>X</th></tr></thead>
+        <tbody><tr><td>val</td></tr></tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result is not None
+        assert len(result['rows']) == 1
 
 
 class TestColspanHandling:
