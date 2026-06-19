@@ -115,17 +115,71 @@ or docker after a successful `docker build -t awslabs/redshift-mcp-server:latest
 
 ### Discovery Workflow
 
-1. **Discover Clusters**: Find available Redshift resources
-2. **List Databases**: Explore databases in a specific cluster
-3. **Browse Database Structures**: Navigate through schemas, tables, columns
-4. **Query Data**: Execute SQL queries safely with a natural language prompt
+1. **Discover Clusters and Workgroups**: Call `list_clusters` to find all provisioned clusters and serverless workgroups, noting their identifiers, types, regions, and status
+2. **Select Target Environment**: Choose a specific cluster or workgroup based on your query needs
+3. **List Databases**: Use `list_databases` to explore databases in the selected cluster/workgroup, returning database names, owners, types (local/shared), and access control info
+4. **Explore Schemas**: For a given database, call `list_schemas` to find available schemas and their owners
+5. **Inspect Tables**: Use `list_tables` to browse tables, views, and external tables within a schema, including table types and owners
+6. **Examine Columns**: Call `list_columns` to get column metadata — names, data types, nullability, default values, and constraints
+7. **Query Data**: Execute SQL queries safely with `execute_query` using a natural language prompt or direct SQL
 
 ### Simple Examples
 
-- "Show me all available Redshift clusters"
-- "List databases in cluster 'my-redshift-cluster'"
-- "What tables are in the 'public' schema of database 'analytics'?"
-- "Execute: SELECT COUNT(*) FROM users WHERE created_date > '2024-01-01'"
+**Database Discovery**
+
+```
+Show me all available Redshift clusters, then list databases in the first available one.
+```
+
+The assistant will:
+1. Call `list_clusters` to discover Redshift instances
+2. Pick the first available cluster and call `list_databases`
+3. Present a summary of what's available
+
+**Schema Exploration**
+
+```
+What tables are in the 'public' schema of the 'dev' database in my 'analytics-cluster'?
+```
+
+The assistant will:
+1. Call `list_schemas` with the cluster and database
+2. Call `list_tables` with the cluster, database, and schema
+3. List all tables with their types (TABLE, VIEW, EXTERNAL TABLE)
+
+**Column Inspection**
+
+```
+Show me the columns of the 'users' table in the 'analytics-cluster'.
+```
+
+The assistant will:
+1. Discover databases, schemas, and locate the table
+2. Call `list_columns` to get column metadata
+3. Display column names, types, nullability, and constraints
+
+**Data Querying**
+
+```
+How many customers signed up last month? Run the query on my production cluster.
+```
+
+The assistant will:
+1. Use `list_clusters` to find the production cluster
+2. Execute the appropriate SQL via `execute_query`
+3. Format and present the results
+
+**End-to-End Analysis**
+
+```
+Compare total sales by month across all my Redshift clusters for 2024.
+```
+
+The assistant will:
+1. Discover all clusters via `list_clusters`
+2. Explore each cluster's structure (databases, schemas, tables)
+3. Execute aggregate queries on each cluster
+4. Combine and compare results across environments
 
 ### Advanced Examples
 
@@ -273,65 +327,6 @@ FROM tickit.sales
 WHERE saletime >= '2008-12-30'
 ORDER BY saletime DESC, salesid DESC
 LIMIT 10;
-```
- 
-Here are practical prompts to use with the Redshift MCP server in your AI assistant:
-
-### Example 1: Database Discovery
-
-```
-Show me all available Redshift clusters, then list databases in the first available one.
-```
-
-The assistant will:
-1. Call `list_clusters` to discover Redshift instances
-2. Pick the first available cluster and call `list_databases`
-3. Present a summary of what's available
-
-### Example 2: Schema Exploration
-
-```
-What tables are in the 'public' schema of the 'dev' database in my 'analytics-cluster'?
-```
-
-The assistant will:
-1. Call `list_schemas` with the cluster and database
-2. Call `list_tables` with the cluster, database, and schema
-3. List all tables with their types (TABLE, VIEW, EXTERNAL TABLE)
-
-### Example 3: Column Inspection
-
-```
-Show me the columns of the 'users' table in the 'analytics-cluster'.
-```
-
-The assistant will:
-1. Discover databases, schemas, and locate the table
-2. Call `list_columns` to get column metadata
-3. Display column names, types, nullability, and constraints
-
-### Example 4: Data Querying
-
-```
-How many customers signed up last month? Run the query on my production cluster.
-```
-
-The assistant will:
-1. Use `list_clusters` to find the production cluster
-2. Execute the appropriate SQL via `execute_query`
-3. Format and present the results
-
-### Example 5: End-to-End Analysis
-
-```
-Compare total sales by month across all my Redshift clusters for 2024.
-```
-
-The assistant will:
-1. Discover all clusters via `list_clusters`
-2. Explore each cluster's structure (databases, schemas, tables)
-3. Execute aggregate queries on each cluster
-4. Combine and compare results across environments
 ```
 
 ## Tools
