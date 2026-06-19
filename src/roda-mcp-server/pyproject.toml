@@ -16,6 +16,7 @@ license-files = ["LICENSE", "NOTICE" ]
 dev = [
     "pytest>=9.0.0",
     "pytest-asyncio>=1.4.0",
+    "pytest-cov>=6.0.0",
 ]
 
 [project.scripts]
@@ -30,3 +31,6 @@ asyncio_mode = "auto"
 filterwarnings = [
     "ignore::DeprecationWarning:pytest_asyncio",
 ]
+
+[tool.coverage.run]
+source = ["awslabs"]
