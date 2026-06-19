@@ -16,6 +16,7 @@
 
 import pytest
 from awslabs.amazon_connect_mcp_server import server
+from unittest.mock import patch
 
 
 @pytest.mark.asyncio
@@ -34,3 +35,10 @@ async def test_expected_tools_registered():
         'get_historical_metric_data',
     }
     assert expected.issubset(tool_names)
+
+
+def test_main_runs_server():
+    """main() starts the FastMCP server via mcp.run()."""
+    with patch.object(server.mcp, 'run') as run:
+        server.main()
+    run.assert_called_once()
