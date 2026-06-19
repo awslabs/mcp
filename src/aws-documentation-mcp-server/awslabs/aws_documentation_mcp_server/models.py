@@ -13,7 +13,7 @@
 # limitations under the License.
 """Data models for AWS Documentation MCP Server."""
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Any, Dict, List, Optional
 
 

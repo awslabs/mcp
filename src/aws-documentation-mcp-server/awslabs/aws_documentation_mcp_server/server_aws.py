@@ -24,8 +24,8 @@ from awslabs.aws_documentation_mcp_server.models import (
     ResponseMetadata,
     SearchResponse,
     SearchResult,
-    SearchTableResponse,
     SearchResultMetadata,
+    SearchTableResponse,
 )
 from awslabs.aws_documentation_mcp_server.server_utils import (
     DEFAULT_USER_AGENT,
