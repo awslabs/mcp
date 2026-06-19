@@ -28,7 +28,9 @@ from awslabs.redshift_mcp_server.consts import (
     QUERY_POLL_INTERVAL,
     QUERY_TIMEOUT,
     SESSION_KEEPALIVE,
+    SUSPICIOUS_QUERY_MAX_LEN,
     SUSPICIOUS_QUERY_REGEXP,
+    SUSPICIOUS_QUERY_TIMEOUT,
     SVV_ALL_COLUMNS_QUERY,
     SVV_ALL_SCHEMAS_QUERY,
     SVV_ALL_TABLES_QUERY,
@@ -36,6 +38,27 @@ from awslabs.redshift_mcp_server.consts import (
 )
 from botocore.config import Config
 from loguru import logger
+
+
+# Compile once; the pattern uses recursive subroutines so compilation is non-trivial.
+_SUSPICIOUS_QUERY_RE = regex.compile(SUSPICIOUS_QUERY_REGEXP)
+
+
+def _is_suspicious(sql: str) -> bool:
+    """Return True if `sql` looks like it tries to break out of the read-only wrapper.
+
+    Fails closed on oversized input and regex timeouts.
+    """
+    if len(sql) > SUSPICIOUS_QUERY_MAX_LEN:
+        return True
+    try:
+        return bool(_SUSPICIOUS_QUERY_RE.search(sql, timeout=SUSPICIOUS_QUERY_TIMEOUT))
+    except TimeoutError:
+        logger.warning(
+            f'Suspicious-query regex timed out after {SUSPICIOUS_QUERY_TIMEOUT}s; '
+            f'treating SQL as suspicious (length={len(sql)})'
+        )
+        return True
 
 
 class RedshiftClientManager:
@@ -249,9 +272,12 @@ async def _execute_protected_statement(
 
     # Check for suspicious patterns in read-only mode
     if not allow_read_write:
-        if regex.compile(SUSPICIOUS_QUERY_REGEXP).search(sql):
-            logger.error(f'SQL contains suspicious pattern, execution rejected: {sql}')
-            raise Exception(f'SQL contains suspicious pattern, execution rejected: {sql}')
+        if _is_suspicious(sql):
+            sql_preview = (
+                sql if len(sql) <= 500 else f'{sql[:500]}...(truncated, length={len(sql)})'
+            )
+            logger.error(f'SQL contains suspicious pattern, execution rejected: {sql_preview}')
+            raise Exception('SQL contains suspicious pattern, execution rejected')
 
     # Execute BEGIN statement
     begin_sql = 'BEGIN READ WRITE;' if allow_read_write else 'BEGIN READ ONLY;'
@@ -307,7 +333,13 @@ async def _execute_protected_statement(
     # Get results from user query
     data_client = client_manager.redshift_data_client()
     assert user_query_id is not None, 'user_query_id should not be None at this point'
-    results_response = data_client.get_statement_result(Id=user_query_id)
+
+    # Only fetch results when the statement produced a result set (e.g. SET does not).
+    describe_response = data_client.describe_statement(Id=user_query_id)
+    if describe_response.get('HasResultSet'):
+        results_response = data_client.get_statement_result(Id=user_query_id)
+    else:
+        results_response = {'Records': [], 'ColumnMetadata': []}
     return results_response, user_query_id
 
 
