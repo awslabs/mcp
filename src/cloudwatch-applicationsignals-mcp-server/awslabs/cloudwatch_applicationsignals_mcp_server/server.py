@@ -63,14 +63,14 @@ from .group_tools import (
 )
 from .rum_tools import query_rum_events
 from .service_audit_utils import normalize_service_targets, validate_and_enrich_service_targets
+from .service_events import state as service_events_state
+from .service_events.registration import register_tools as register_service_events_tools
 from .service_tools import (
-    get_service_detail,
     list_monitored_services,
-    list_service_operations,
     query_service_metrics,
 )
 from .slo_tools import get_slo, list_slos
-from .trace_tools import list_slis, query_sampled_traces, search_transaction_spans
+from .trace_tools import get_xray_trace, list_slis, search_transaction_spans
 from .utils import parse_timestamp
 from datetime import datetime, timedelta, timezone
 from loguru import logger
@@ -191,6 +191,21 @@ async def audit_services(
     ),
 ) -> str:
     """PRIMARY SERVICE AUDIT TOOL - The #1 tool for comprehensive AWS service health auditing and monitoring.
+
+    **ROUTING — read first:** This tool analyzes Application Signals metrics, SLOs,
+    traces, logs, dependencies, and top contributors. It does **NOT** include
+    ServiceEvents incident events. For a **general, open-ended question** like "are
+    there any performance issues?", "is my app healthy?", or "take a look at my
+    service" — call **`get_service_health_overview` FIRST** (it consolidates SLO
+    breaches + recent incidents + top error functions), then come back here for
+    deeper root cause. Use `audit_services` when the user explicitly asks for an
+    audit / SLO / dependency / log / trace analysis, or once a target service or
+    area is already identified.
+
+    **MANDATORY:** When you do use this tool for a broad health/performance question,
+    you MUST also check recent incidents (`get_recent_incidents` or
+    `get_service_health_overview`) before concluding "no issues found" — this tool's
+    auditors alone will miss problems that only surface as incident events.
 
     **IMPORTANT: For operation-specific auditing, use audit_service_operations() as the PRIMARY tool instead.**
 
@@ -1693,13 +1708,11 @@ async def list_canaries(region: str = AWS_REGION, max_results: int = 20) -> str:
 
 # Register all imported tools with the MCP server
 mcp.tool()(list_monitored_services)
-mcp.tool()(get_service_detail)
 mcp.tool()(query_service_metrics)
-mcp.tool()(list_service_operations)
 mcp.tool()(get_slo)
 mcp.tool()(list_slos)
 mcp.tool()(search_transaction_spans)
-mcp.tool()(query_sampled_traces)
+mcp.tool()(get_xray_trace)
 mcp.tool()(list_slis)
 mcp.tool()(get_enablement_guide)
 mcp.tool()(list_change_events)
@@ -1712,6 +1725,9 @@ mcp.tool()(list_grouping_attribute_definitions)
 # RUM tools
 mcp.tool()(query_rum_events)
 
+# ServiceEvents ServiceEvents data tools (function/endpoint/incident/deployment telemetry)
+register_service_events_tools(mcp)
+
 # Dynamic instrumentation tools (preview - see dynamic_instrumentation/aws_data/README.md)
 register_dynamic_instrumentation_tools(mcp)
 
@@ -1719,6 +1735,16 @@ register_dynamic_instrumentation_tools(mcp)
 def main():
     """Run the MCP server."""
     logger.debug('Starting CloudWatch Application Signals MCP server')
+
+    # This server *is* Application Signals, so service_events's integration fallback is
+    # always available. Enable it and warm the service->environment cache (a live
+    # list_services call, so it stays out of import time for test-friendliness).
+    service_events_state.set_appsignals_enabled(True)
+    try:
+        service_events_state.initialize_env_cache()
+    except Exception as e:
+        logger.warning(f'Failed to initialize service_events env cache: {e}')
+
     try:
         mcp.run(transport='stdio')
     except KeyboardInterrupt:

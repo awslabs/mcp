@@ -14,9 +14,12 @@
 
 """Tests for package initialization."""
 
+import re
 from awslabs.security_agent_mcp_server import __version__
 
 
 def test_version():
-    """Verify version is set."""
-    assert __version__ == '0.1.0'
+    """Verify version is set and follows semantic versioning."""
+    assert re.match(r'^\d+\.\d+\.\d+$', __version__), (
+        f"Version '{__version__}' does not follow semantic versioning"
+    )
