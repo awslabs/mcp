@@ -144,7 +144,7 @@ Examples of rules:
 
 ## Tooling
 
-To foster an environment where AI coding agents excel, follow software developement best practices (clear requirements, modular code, good documentation,...) and use tools (static code analysis, code coverage, CI/CD pipeline, tests, formatter,...).
+To foster an environment where AI coding agents excel, follow software development best practices (clear requirements, modular code, good documentation,...) and use tools (static code analysis, code coverage, CI/CD pipeline, tests, formatter,...).
 
 When you assign tasks to a coding agent, it can autonomously iterate by running test cases and static analysis tools, correcting itself as needed. This minimizes manual intervention and streamlines the development process.
 
