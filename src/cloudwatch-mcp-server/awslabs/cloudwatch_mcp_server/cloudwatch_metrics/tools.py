@@ -1450,9 +1450,7 @@ class CloudWatchMetricsTools:
         ] = None,
         region: Annotated[
             Optional[str],
-            Field(
-                description='AWS region. Defaults to AWS_REGION env or us-east-1.'
-            ),
+            Field(description='AWS region. Defaults to AWS_REGION env or us-east-1.'),
         ] = None,
         profile_name: Annotated[
             Optional[str],
@@ -1536,9 +1534,7 @@ class CloudWatchMetricsTools:
         ],
         region: Annotated[
             Optional[str],
-            Field(
-                description='AWS region. Defaults to AWS_REGION env or us-east-1.'
-            ),
+            Field(description='AWS region. Defaults to AWS_REGION env or us-east-1.'),
         ] = None,
         profile_name: Annotated[
             Optional[str],
@@ -1621,9 +1617,7 @@ class CloudWatchMetricsTools:
         ] = None,
         region: Annotated[
             Optional[str],
-            Field(
-                description='AWS region. Defaults to AWS_REGION env or us-east-1.'
-            ),
+            Field(description='AWS region. Defaults to AWS_REGION env or us-east-1.'),
         ] = None,
         profile_name: Annotated[
             Optional[str],
@@ -1690,9 +1684,7 @@ class CloudWatchMetricsTools:
         ] = None,
         region: Annotated[
             Optional[str],
-            Field(
-                description='AWS region. Defaults to AWS_REGION env or us-east-1.'
-            ),
+            Field(description='AWS region. Defaults to AWS_REGION env or us-east-1.'),
         ] = None,
         profile_name: Annotated[
             Optional[str],
@@ -1752,9 +1744,7 @@ class CloudWatchMetricsTools:
         ] = None,
         region: Annotated[
             Optional[str],
-            Field(
-                description='AWS region. Defaults to AWS_REGION env or us-east-1.'
-            ),
+            Field(description='AWS region. Defaults to AWS_REGION env or us-east-1.'),
         ] = None,
         profile_name: Annotated[
             Optional[str],
