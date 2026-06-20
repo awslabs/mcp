@@ -128,13 +128,16 @@ or docker after a successful `docker build -t awslabs/redshift-mcp-server:latest
 **Database Discovery**
 
 ```
-Show me all available Redshift clusters, then list databases in the first available one.
+Explore everything in my Redshift environment.
 ```
 
 The assistant will:
-1. Call `list_clusters` to discover Redshift instances
-2. Pick the first available cluster and call `list_databases`
-3. Present a summary of what's available
+1. Call `list_clusters` to find all available clusters and workgroups
+2. Pick the first available cluster and call `list_databases` to discover databases
+3. Call `list_schemas` on each database to map the schema landscape
+4. Call `list_tables` in each schema to discover tables and views
+5. Call `list_columns` on key tables to get detailed column metadata
+6. Present a complete summary of the environment structure
 
 **Schema Exploration**
 
@@ -143,9 +146,8 @@ What tables are in the 'public' schema of the 'dev' database in my 'analytics-cl
 ```
 
 The assistant will:
-1. Call `list_schemas` with the cluster and database
-2. Call `list_tables` with the cluster, database, and schema
-3. List all tables with their types (TABLE, VIEW, EXTERNAL TABLE)
+1. Call `list_tables` with the cluster, database, and schema
+2. List all tables with their types (TABLE, VIEW, EXTERNAL TABLE) and owners
 
 **Column Inspection**
 
@@ -154,7 +156,7 @@ Show me the columns of the 'users' table in the 'analytics-cluster'.
 ```
 
 The assistant will:
-1. Discover databases, schemas, and locate the table
+1. Call `list_databases` and `list_schemas` to locate the table
 2. Call `list_columns` to get column metadata
 3. Display column names, types, nullability, and constraints
 
@@ -166,31 +168,22 @@ How many customers signed up last month? Run the query on my production cluster.
 
 The assistant will:
 1. Use `list_clusters` to find the production cluster
-2. Execute the appropriate SQL via `execute_query`
-3. Format and present the results
-
-**End-to-End Analysis**
-
-```
-Compare total sales by month across all my Redshift clusters for 2024.
-```
-
-The assistant will:
-1. Discover all clusters via `list_clusters`
-2. Explore each cluster's structure (databases, schemas, tables)
-3. Execute aggregate queries on each cluster
-4. Combine and compare results across environments
+2. Explore the schema to locate the relevant table
+3. Execute the appropriate SQL via `execute_query`
+4. Format and present the results
 
 ### Advanced Examples
 
-#### Natural Language Data Request
+**Natural Language Data Request**
+
+```
+Show me the last 3 sales from the analytics Redshift cluster.
+```
 
 ```log
-> Show me the last 3 sales from the analytics Redshift cluster.
-I'll help you retrieve the last 3 sales from your analytics Redshift cluster. Let me start by discovering your available Redshift clusters and then
-explore the database structure to find the sales data.
+I'll help you retrieve the last 3 sales from your analytics Redshift cluster. Let me start by discovering your available Redshift clusters and then explore the database structure to find the sales data.
 
-...skipping the auto-discovery logs...
+...discovering 3 Redshift environments (analytics cluster, marketing cluster, ETL workgroup)...
 
 Here are the last 3 sales from your analytics Redshift cluster:
 
@@ -208,22 +201,18 @@ Most Recent Sales (from tickit.sales table):
    • Price paid: $372.00
    • Seller ID: 5760, Buyer ID: 5797
 
-The data shows ticket sales from the TICKIT sample dataset, which appears to be for event ticket transactions. All three sales occurred on December 31, 2008, with the most recent sale being for $1,008 for 4 tickets.
-
 > Briefly describe your actions.
-I performed the following actions to retrieve the last 3 sales from your analytics Redshift cluster:
+I performed the following actions:
 
-1. Discovered clusters - Listed all available Redshift clusters and identified redshift-cluster-analytics as your analytics cluster
-2. Explored databases - Found two databases: dev and sample_data_dev
-3. Located schemas - Checked the sample_data_dev database and found the tickit schema containing sample data
-4. Found sales table - Identified the sales table within the tickit schema
-5. Analyzed table structure - Examined the columns in the sales table (salesid, pricepaid, qtysold, saletime, etc.)
-6. Executed query - Ran a SQL query to get the 3 most recent sales ordered by saletime DESC
+1. Discovered clusters — Listed all available Redshift clusters and identified redshift-cluster-analytics
+2. Explored databases — Found two databases: dev and sample_data_dev
+3. Located schemas — Checked the sample_data_dev database and found the tickit schema
+4. Found sales table — Identified the sales table within the tickit schema
+5. Analyzed table structure — Examined columns in the sales table (salesid, pricepaid, qtysold, saletime, etc.)
+6. Executed query — Ran SQL to get the 3 most recent sales ordered by saletime DESC
 
-The process involved using the Redshift MCP tools to systematically navigate the cluster structure and retrieve the requested sales data from the TICKIT sample dataset.
-
-> Show me the query text which you executed to get the sales.
-Here's the exact SQL query I executed to get the last 3 sales:
+> Show me the query text.
+Here's the exact SQL query:
 
 sql
 SELECT salesid, listid, sellerid, buyerid, eventid, qtysold, pricepaid, commission, saletime
@@ -232,14 +221,16 @@ ORDER BY saletime DESC
 LIMIT 3;
 ```
 
-#### Cross-Cluster Data Comparison Request
+**Cross-Cluster Data Comparison**
+
+```
+How off is the analytics sales data from the ETL sales data in Redshift?
+```
 
 ```log
-> How off is the analytics sales data from the ETL sales data based on the recent records in Redshift?
-I'll help you analyze sales data from your Redshift ETL pipeline. To get started, I need to discover your Redshift environment and understand the data
-structure.
+I'll help you analyze sales data from your Redshift ETL pipeline. Let me discover your Redshift environment first.
 
-...skipping auto-discovery logs...
+...discovering 3 Redshift environments (analytics cluster, marketing cluster, ETL workgroup)...
 
 # Sales Data Comparison: Analytics vs ETL
 
@@ -247,9 +238,9 @@ structure.
 Sales data between Analytics cluster and ETL workgroup is perfectly synchronized with zero discrepancies found.
 
 ## Environment Overview
-• **Analytics**: redshift-cluster-analytics (Provisioned, 2x dc2.large nodes)
-• **ETL**: redshift-workgroup-etl (Serverless)
-• **Database**: sample_data_dev.tickit.sales
+• Analytics: redshift-cluster-analytics (Provisioned, 2x dc2.large nodes)
+• ETL: redshift-workgroup-etl (Serverless)
+• Database: sample_data_dev.tickit.sales
 
 ## Data Comparison Results
 
@@ -269,24 +260,17 @@ Sales data between Analytics cluster and ETL workgroup is perfectly synchronized
 | Nov 2008 | $9,044,905        | $9,044,905    | 14,261         | 14,261   | Match  |
 | Oct 2008 | $10,726,368       | $10,726,368   | 16,741         | 16,741   | Match  |
 
-## Key Findings
-• Data Integrity: Perfect synchronization across all metrics
-• Verification: Transaction-level details match exactly (verified 10 recent records)
-
 > Briefly describe your actions.
 I analyzed sales data from your Redshift environments by:
 
-1. Discovered Infrastructure: Found 3 Redshift environments (analytics cluster, marketing cluster, ETL workgroup)
-2. Explored Data Structure: Located sales data in sample_data_dev.tickit.sales table with 10 columns including salesid, pricepaid, qtysold, and saletime
-3. Compared High-Level Metrics: Ran aggregate queries on both analytics cluster and ETL workgroup to compare total records (172,456), revenue ($110M), and date ranges
-4. Analyzed Recent Data: Examined Q4 2008 monthly sales trends and verified the 10 most recent transactions from Dec 30-31, 2008
-5. Performance Testing: Measured query execution times across different query types (6.7-19.5 seconds range)
-6. Generated Report: Created a comprehensive comparison showing perfect data synchronization between environments with performance insights and recommendations
+1. Discovered Infrastructure — Found 3 Redshift environments (analytics, marketing, ETL)
+2. Explored Data Structure — Located sales data in sample_data_dev.tickit.sales with 10 columns
+3. Compared High-Level Metrics — Ran aggregate queries on both clusters (172,456 records, $110M revenue)
+4. Analyzed Recent Data — Examined Q4 2008 monthly trends and verified 10 most recent transactions
+5. Generated Report — Created a comprehensive comparison showing perfect synchronization
 
-> Show me the text of the SQL queries you used.
-Here are the SQL queries I executed during the analysis:
-
-## 1. High-Level Metrics Query
+> Show me the SQL queries you used.
+## 1. High-Level Metrics
 sql
 SELECT
     COUNT(*) as total_records,
@@ -297,7 +281,7 @@ SELECT
     AVG(pricepaid) as avg_price
 FROM tickit.sales;
 
-## 2. Recent Monthly Sales Analysis
+## 2. Recent Monthly Sales
 sql
 SELECT
     DATE_TRUNC('month', saletime) as sale_month,
@@ -313,16 +297,7 @@ LIMIT 10;
 
 ## 3. Recent Transaction Details
 sql
-SELECT
-    salesid,
-    listid,
-    sellerid,
-    buyerid,
-    eventid,
-    qtysold,
-    pricepaid,
-    commission,
-    saletime
+SELECT salesid, listid, sellerid, buyerid, eventid, qtysold, pricepaid, commission, saletime
 FROM tickit.sales
 WHERE saletime >= '2008-12-30'
 ORDER BY saletime DESC, salesid DESC
