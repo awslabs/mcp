@@ -39,6 +39,7 @@ from awslabs.redshift_mcp_server.redshift import (
 )
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
+from mcp.types import ToolAnnotations
 from pydantic import Field
 
 
@@ -96,7 +97,7 @@ This tool uses the Redshift Data API to run queries and return results.
 )
 
 
-@mcp.tool(name='list_clusters')
+@mcp.tool(name='list_clusters', annotations=ToolAnnotations(readOnlyHint=True))
 async def list_clusters_tool(ctx: Context) -> list[RedshiftCluster]:
     """List all available Amazon Redshift clusters and serverless workgroups.
 
@@ -161,7 +162,7 @@ async def list_clusters_tool(ctx: Context) -> list[RedshiftCluster]:
         raise
 
 
-@mcp.tool(name='list_databases')
+@mcp.tool(name='list_databases', annotations=ToolAnnotations(readOnlyHint=True))
 async def list_databases_tool(
     ctx: Context,
     cluster_identifier: str = Field(
@@ -240,7 +241,7 @@ async def list_databases_tool(
         raise
 
 
-@mcp.tool(name='list_schemas')
+@mcp.tool(name='list_schemas', annotations=ToolAnnotations(readOnlyHint=True))
 async def list_schemas_tool(
     ctx: Context,
     cluster_identifier: str = Field(
@@ -327,7 +328,7 @@ async def list_schemas_tool(
         raise
 
 
-@mcp.tool(name='list_tables')
+@mcp.tool(name='list_tables', annotations=ToolAnnotations(readOnlyHint=True))
 async def list_tables_tool(
     ctx: Context,
     cluster_identifier: str = Field(
@@ -422,7 +423,7 @@ async def list_tables_tool(
         raise
 
 
-@mcp.tool(name='list_columns')
+@mcp.tool(name='list_columns', annotations=ToolAnnotations(readOnlyHint=True))
 async def list_columns_tool(
     ctx: Context,
     cluster_identifier: str = Field(
@@ -531,7 +532,7 @@ async def list_columns_tool(
         raise
 
 
-@mcp.tool(name='execute_query')
+@mcp.tool(name='execute_query', annotations=ToolAnnotations(readOnlyHint=True))
 async def execute_query_tool(
     ctx: Context,
     cluster_identifier: str = Field(
