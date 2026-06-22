@@ -27,14 +27,6 @@ The module is organized as:
   status of ``ready``, ``blocked``, or ``pending``.
 - ``diagnose_readiness``: the router that runs the intent's checks in order and
   returns the first non-ready result, or a ``ready`` envelope with capabilities.
-
-There is no direct API that distinguishes "Cost Explorer was never enabled" from
-"enabled but still propagating". A pragmatic heuristic on ``GetCostAndUsage`` is
-used (not-enabled exception -> not enabled; all-zero success -> propagating; real
-data -> ready) and isolated in ``check_cost_explorer`` so it can be revisited.
-The not-enabled signal has two observed shapes - ``DataUnavailableException`` and
-``AccessDeniedException`` with a "not enabled for cost explorer access" message -
-both handled in ``check_cost_explorer``.
 """
 
 from botocore.exceptions import ClientError
@@ -106,26 +98,12 @@ CACHE_REASONS = {
 
 
 def _now() -> datetime:
-    """Return the current UTC time.
-
-    Wrapped so tests can inject a fixed clock via the ``now`` parameter of
-    ``diagnose_readiness``.
-
-    Returns:
-        The current timezone-aware UTC datetime.
-    """
+    """Return the current UTC time (wrapped so tests can inject a fixed clock)."""
     return datetime.now(timezone.utc)
 
 
 def _iso(dt: datetime) -> str:
-    """Format a datetime as a Z-suffixed ISO-8601 timestamp.
-
-    Args:
-        dt: The datetime to format.
-
-    Returns:
-        An ISO-8601 string in UTC with a trailing ``Z``.
-    """
+    """Format a datetime as a Z-suffixed ISO-8601 UTC timestamp."""
     return dt.astimezone(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
@@ -322,7 +300,8 @@ def _latest_non_empty_period(results_by_time: List[Dict[str, Any]]) -> Optional[
 def check_cost_explorer(ce_client: Any, start_date: str, end_date: str) -> Dict[str, Any]:
     """Diagnose Cost Explorer enablement and data availability.
 
-    Heuristic (see module docstring):
+    No direct API distinguishes "never enabled" from "enabled but still
+    propagating", so a pragmatic heuristic on ``GetCostAndUsage`` is used:
 
     - ``DataUnavailableException`` -> Cost Explorer not enabled (blocked).
     - ``AccessDeniedException`` whose message says the user is not enabled for
