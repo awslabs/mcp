@@ -151,24 +151,9 @@ IaC code: [ABSOLUTE_PATH_TO_IAC]"
 - Discover specific service names and environments for manual audit target construction
 - **RECOMMENDED**: Use `audit_services()` with wildcard patterns instead for comprehensive discovery AND analysis
 
-#### 5. **`get_service_detail`** - Service Metadata Tool
-**For basic service metadata and configuration details**
-
-- Service metadata and configuration (platform information, key attributes)
-- Service-level metrics (Latency, Error, Fault aggregates)
-- Log groups associated with the service
-- **IMPORTANT**: This tool does NOT provide operation names - use `audit_services()` for operation discovery
-
-#### 6. **`list_service_operations`** - Operation Discovery Tool
-**CRITICAL LIMITATION**: Only discovers operations that have been ACTIVELY INVOKED in the specified time window
-
-- Basic operation inventory for RECENTLY ACTIVE operations only (max 24 hours)
-- Empty results ≠ no operations exist, just no recent invocations
-- **RECOMMENDED**: Use `audit_services()` FIRST for comprehensive operation discovery and analysis
-
 ### 🎯 SLO Management Tools
 
-#### 7. **`get_slo`** - SLO Configuration Details
+#### 5. **`get_slo`** - SLO Configuration Details
 **Essential for understanding SLO configuration before deep investigation**
 
 - Comprehensive SLO configuration details (metrics, thresholds, goals)
@@ -176,7 +161,7 @@ IaC code: [ABSOLUTE_PATH_TO_IAC]"
 - Metric type (LATENCY or AVAILABILITY) and comparison operators
 - **NEXT STEP**: Use `audit_slos()` with `auditors="all"` for root cause analysis
 
-#### 8. **`list_slos`** - SLO Discovery
+#### 6. **`list_slos`** - SLO Discovery
 **List all Service Level Objectives in Application Signals**
 
 - Complete list of all SLOs in your account with names and ARNs
@@ -186,7 +171,7 @@ IaC code: [ABSOLUTE_PATH_TO_IAC]"
 
 ### 📈 Metrics & Performance Tools
 
-#### 9. **`query_service_metrics`** - CloudWatch Metrics Analysis
+#### 7. **`query_service_metrics`** - CloudWatch Metrics Analysis
 **Get CloudWatch metrics for specific Application Signals services**
 
 - Analyze service performance (latency, throughput, error rates)
@@ -196,11 +181,11 @@ IaC code: [ABSOLUTE_PATH_TO_IAC]"
 
 ### 🔍 Advanced Trace & Log Analysis Tools
 
-#### 10. **`search_transaction_spans`** - 100% Trace Visibility
+#### 8. **`search_transaction_spans`** - 100% Trace Visibility
 **Query OpenTelemetry Spans data via Transaction Search (100% sampled data)**
 
 - **100% sampled data** vs X-Ray's 5% sampling for more accurate results
-- Query "aws/spans" log group with CloudWatch Logs Insights
+- Queries OpenTelemetry spans across all log groups using the CloudWatch Logs `@data_format = "AWS-OTEL-TRACE-V1"` default field index; pass `log_group_name` to scope to a single log group
 - Generate business performance insights and summaries
 - **IMPORTANT**: Always include a limit in queries to prevent overwhelming context
 
@@ -211,20 +196,16 @@ FILTER attributes.aws.local.service = "payment-service" and attributes.aws.local
 | LIMIT 50
 ```
 
-#### 11. **`query_sampled_traces`** - X-Ray Trace Analysis (Secondary Tool)
-**Query AWS X-Ray traces (5% sampled data) for trace investigation**
+#### 9. **`get_xray_trace`** - X-Ray Trace Lookup (Downstream Dependency Analysis)
+**Look up specific X-Ray traces by trace ID to analyze downstream dependency calls**
 
-- **⚠️ IMPORTANT**: Consider using `audit_slos()` with `auditors="all"` instead for comprehensive root cause analysis
-- Uses X-Ray's 5% sampled trace data - may miss critical errors
-- Limited context compared to comprehensive audit tools
-- **RECOMMENDATION**: Use `get_service_detail()` for operation discovery and `audit_slos()` for root cause analysis
+- Retrieves full X-Ray trace data showing all downstream calls with their latencies, errors, and fault status
+- Accepts one or more comma-separated trace IDs (max 5 per call) in OTel, X-Ray, or raw-hex format
+- **Primary use**: drill into a downstream dependency after `get_incident_root_cause()` surfaces a `telemetry_correlation.trace_id`
+- Distinguishes AWS managed-service segments (`namespace: "aws"`) from instrumented remote services (`namespace: "remote"`) so you can follow the dependency chain to the true root cause
+- **Note**: X-Ray data is 5% sampled — prefer `get_service_health_overview()` / `get_recent_incidents()` for issue discovery, and use this tool for targeted trace drill-down
 
-**Common Filter Expressions:**
-- `service("service-name"){fault = true}` - Find traces with faults (5xx errors)
-- `duration > 5` - Find slow requests (over 5 seconds)
-- `annotation[aws.local.operation]="GET /api/orders"` - Filter by specific operation
-
-#### 12. **`analyze_canary_failures`** - Comprehensive Canary Failure Analysis
+#### 10. **`analyze_canary_failures`** - Comprehensive Canary Failure Analysis
 **Deep dive into CloudWatch Synthetics canary failures with root cause identification**
 
 - Comprehensive canary failure analysis with deep dive into issues
@@ -259,7 +240,7 @@ FILTER attributes.aws.local.service = "payment-service" and attributes.aws.local
 - Backend Service Debugging: Identify application code issues affecting canary success
 - Known Issue Detection: Automatically identify known runtime bugs and get targeted fix recommendations
 
-#### 13. **`list_canaries`** - Canary Discovery and Status
+#### 11. **`list_canaries`** - Canary Discovery and Status
 **List all CloudWatch Synthetics canaries in the account**
 
 - Discover all canaries with their current status (Running, Stopped, Error)
@@ -276,7 +257,7 @@ FILTER attributes.aws.local.service = "payment-service" and attributes.aws.local
 - `list_canaries(region="eu-west-1")` - List canaries in a specific region
 - `list_canaries(max_results=100)` - List up to 100 canaries
 
-#### 14. **`list_change_events`** - AWS Application Signals Change Event Query
+#### 12. **`list_change_events`** - AWS Application Signals Change Event Query
 **Query AWS Application Signals change events to correlate infrastructure and application changes with service performance issues**
 
 This tool provides access to AWS Application Signals' change detection capabilities through two complementary APIs:
@@ -317,7 +298,7 @@ This tool provides access to AWS Application Signals' change detection capabilit
 - **Supports audit_service_operations()**: Adds timeline context for operation performance investigations
 - **Complements analyze_canary_failures()**: Provides deployment correlation for canary issues
 
-#### 15. **`list_slis`** - Legacy SLI Status Report (Specialized Tool)
+#### 13. **`list_slis`** - Legacy SLI Status Report (Specialized Tool)
 **Use `audit_services()` as the PRIMARY tool for service auditing**
 
 - Basic report showing summary counts (total, healthy, breached, insufficient data)
@@ -327,7 +308,7 @@ This tool provides access to AWS Application Signals' change detection capabilit
 
 ### 🏢 Group-Level Monitoring Tools
 
-#### 16. **`list_group_services`** - Group Service Discovery
+#### 14. **`list_group_services`** - Group Service Discovery
 **Discover all services belonging to a specific group**
 
 - List services by group name with wildcard support (`*payment*`)
@@ -338,7 +319,7 @@ This tool provides access to AWS Application Signals' change detection capabilit
 - `list_group_services(group_name="Payments")` - List all services in Payments group
 - `list_group_services(group_name="*prod*")` - Find all production groups
 
-#### 17. **`audit_group_health`** - Group Health Monitoring
+#### 15. **`audit_group_health`** - Group Health Monitoring
 **Comprehensive health assessment for all services in a group**
 
 - Automatic health detection using SLOs and metrics
@@ -351,7 +332,7 @@ This tool provides access to AWS Application Signals' change detection capabilit
 - `audit_group_health(group_name="Payments")` - Audit all payment services
 - `audit_group_health(group_name="Frontend", fault_threshold_critical=10.0)` - Custom thresholds
 
-#### 18. **`get_group_dependencies`** - Group Dependency Mapping
+#### 16. **`get_group_dependencies`** - Group Dependency Mapping
 **Map dependencies within and across service groups**
 
 - Identifies intra-group dependencies (services calling each other)
@@ -362,7 +343,7 @@ This tool provides access to AWS Application Signals' change detection capabilit
 - `get_group_dependencies(group_name="Payments")` - Map payment service dependencies
 - Useful for understanding service architecture and blast radius
 
-#### 19. **`get_group_changes`** - Group Change Tracking
+#### 17. **`get_group_changes`** - Group Change Tracking
 **Track deployments across a group**
 
 - Lists recent deployments
@@ -374,13 +355,111 @@ This tool provides access to AWS Application Signals' change detection capabilit
 - `get_group_changes(group_name="Payments")` - Recent deployments in last 24 hours
 - `get_group_changes(group_name="API", start_time="2024-01-15 00:00:00")` - Deployments since specific time
 
-#### 20. **`list_grouping_attribute_definitions`** - Group Configuration
+#### 18. **`list_grouping_attribute_definitions`** - Group Configuration
 **List all custom grouping attribute definitions**
 
 - Shows configured grouping attributes (Team, BusinessUnit, etc.)
 - Displays source keys (AWS tags, OTEL attributes)
 - Shows default values for each grouping attribute
 - Useful for understanding available groups
+
+### 🛰️ ServiceEvents Telemetry Tools
+
+Incident-aware health, performance, and deployment telemetry sourced from ServiceEvents
+(CloudWatch Logs `incident_snapshot` records) and CloudWatch Metrics V2 (PromQL). Start
+broad health/performance investigations here — these tools surface incident events that
+the audit tools do not.
+
+**Health & incident tools**
+
+- `get_service_health_overview` — **PRIMARY entry point for general health/performance questions** ("any issues?", "is my app healthy?"). Consolidates SLO breaches, recent incident events, and the top error-prone functions in a single fast call.
+- `get_recent_incidents` — Lightweight list of recent incidents (errors, timeouts, slow requests). Falls back to Application Signals trace findings when no ServiceEvents incidents are present.
+- `get_incident_root_cause` — Full detail for one incident `snapshot_id`: exception/stack-trace context plus the per-function `call_tree` when instrumentation captured it.
+
+**Function & endpoint telemetry**
+
+- `list_monitored_functions` — List functions with captured telemetry (calls, errors, average duration) for a service.
+- `get_function_metrics` — Per-function metric detail; filterable by endpoint/operation.
+- `search_functions_by_name` — Find instrumented functions by name substring.
+- `get_endpoint_performance` — Endpoint/operation RED (rate, errors, duration) performance summary.
+
+**Deployment**
+
+- `find_deployment` — Locate recent deployment events; use the returned `hours_since_deployment` to scope health/incident queries to the post-deployment window.
+
+### 🌐 CloudWatch RUM Tools
+
+Monitor real user experience across web and mobile applications using CloudWatch RUM data.
+
+> **Prerequisite:** Most RUM analytics actions require CloudWatch Logs to be enabled on the app monitor (`CwLogEnabled=true`). Use `check_data_access` to verify your setup.
+
+All RUM functionality is exposed through a single **`query_rum_events`** tool with an `action` parameter:
+
+```
+query_rum_events(action="<action_name>", app_monitor_name="my-app", ...)
+```
+
+#### Actions Reference
+
+| Action | Description | Required Params |
+|--------|-------------|-----------------|
+| **Discovery** | | |
+| `check_data_access` | Inspect app monitor config, find issues | `app_monitor_name` |
+| `list_monitors` | List all app monitors | *(none)* |
+| `get_monitor` | Get full app monitor config | `app_monitor_name` |
+| `list_tags` | List tags on an app monitor | `resource_arn` |
+| `get_policy` | Get resource-based policy | `app_monitor_name` |
+| **Analytics** *(require CW Logs)* | | |
+| `query` | Run custom Logs Insights query | `app_monitor_name`, `query_string`, `start_time`, `end_time` |
+| `health` | Quick health audit (errors, slow pages, sessions) | `app_monitor_name`, `start_time`, `end_time` |
+| `errors` | JS/HTTP errors by message and page | `app_monitor_name`, `start_time`, `end_time` |
+| `performance` | Page load + Core Web Vitals with good/needs-improvement/poor assessment | `app_monitor_name`, `start_time`, `end_time` |
+| `sessions` | Recent sessions with browser/OS/device | `app_monitor_name`, `start_time`, `end_time` |
+| `session_detail` | Full event timeline for a single session | `app_monitor_name`, `session_id`, `start_time`, `end_time` |
+| `page_views` | Top pages by view count | `app_monitor_name`, `start_time`, `end_time` |
+| `timeseries` | Time-bucketed trends (errors, performance, sessions) | `app_monitor_name`, `start_time`, `end_time` |
+| `locations` | Sessions and performance by country | `app_monitor_name`, `start_time`, `end_time` |
+| `http_requests` | Top HTTP requests with latency and error rates | `app_monitor_name`, `start_time`, `end_time` |
+| `resources` | Top resource requests by duration and size | `app_monitor_name`, `start_time`, `end_time` |
+| `page_flows` | Page-to-page navigation flows | `app_monitor_name`, `start_time`, `end_time` |
+| `crashes` | Mobile crashes + ANRs (Android validated, iOS experimental) | `app_monitor_name`, `start_time`, `end_time` |
+| `app_launches` | Mobile cold/warm/pre-warm launch times | `app_monitor_name`, `start_time`, `end_time` |
+| `analyze` | Anomaly detection + message patterns | `app_monitor_name`, `start_time`, `end_time` |
+| **Correlation & Metrics** | | |
+| `correlate` | Frontend-to-backend X-Ray trace correlation | `app_monitor_name`, `page_url`, `start_time`, `end_time` |
+| `metrics` | CloudWatch RUM namespace metrics | `app_monitor_name`, `metric_names` (JSON array), `start_time`, `end_time` |
+
+**Optional parameters** (action-dependent): `resource_arn`, `page_url`, `group_by`, `platform`, `max_results`, `max_traces`, `statistic`, `period`, `session_id`, `metric`, `bucket`, `compare_previous`
+
+### 🔬 Dynamic Instrumentation Tools
+
+Interactively debug live services without redeploying. Dynamic instrumentation
+lets you place breakpoint-style or probe-style instrumentation on running
+Application Signals services, then inspect the captured snapshots (arguments,
+local state, and stack traces) from CloudWatch Logs.
+
+> **Note:** These tools depend on `application-signals` dynamic
+> instrumentation operations that are not yet part of the public AWS SDK. The
+> server bundles a trimmed service model (see
+> `awslabs/cloudwatch_applicationsignals_mcp_server/dynamic_instrumentation/aws_data/README.md`)
+> so the tools work against these operations. The bundled model is removed once
+> the operations are generally available in `botocore`.
+
+**Configuration & status tools**
+
+- `create_instrumentation` — Create a dynamic instrumentation configuration for BREAKPOINT or PROBE.
+- `list_instrumentations` — List active instrumentation configurations for one service, environment, and type.
+- `get_instrumentation` — Get the full backend configuration for a single instrumentation target.
+- `delete_instrumentation` — Delete a single instrumentation configuration.
+- `batch_delete_instrumentations_by_scope` — Batch delete instrumentation configurations by scope.
+- `batch_delete_instrumentations_by_arns` — Batch delete instrumentation configurations by explicit resource ARN list.
+- `get_instrumentation_configuration_status` — Get status-event history for one instrumentation configuration and one explicit status.
+- `check_instrumentation_status` — Run a consolidated READY/ACTIVE/ERROR status check over a time window.
+
+**Snapshot analysis tools**
+
+- `search_snapshots_for_status_event` — Search CloudWatch Logs snapshots near a known instrumentation status timestamp.
+- `get_sample_snapshot_for_breakpoint` — Fetch one nearby snapshot to inspect the structure of captured data.
 
 ## Installation
 
@@ -652,7 +731,6 @@ Assistant: I'll use Transaction Search to analyze all errors with 100% trace vis
 [Uses search_transaction_spans for complete trace data]
 
 search_transaction_spans(
-  log_group_name="aws/spans",
   query_string='FILTER attributes.aws.local.service = "checkout-service" and attributes.http.status_code >= 400 | STATS count() as error_count by attributes.http.status_code, attributes.aws.local.operation | SORT error_count DESC | LIMIT 20',
   start_time="2024-01-15T10:00:00Z",
   end_time="2024-01-15T11:00:00Z"
@@ -681,6 +759,8 @@ ERROR BREAKDOWN (Last Hour):
 2. Add validation for checkout ID existence (404s)
 3. Implement circuit breaker for payment service calls (503s)
 ```
+
+`log_group_name` is optional. When omitted, the tool prepends `SOURCE logGroups() | filterIndex @data_format = "AWS-OTEL-TRACE-V1"` so it finds OTEL spans wherever they live. Pass `log_group_name="my-spans-lg"` to scope to a single log group.
 
 ### Example 5: Service Discovery and Overview
 ```
@@ -862,11 +942,33 @@ list_change_events(
 💡 **RECOMMENDED NEXT STEPS:**
 
 For detailed change history of specific problematic services, I can investigate further:
-1. Get service details first: get_service_detail("payment-service")
+1. Check service health first: get_service_health_overview(service_name="payment-service")
 2. Then query comprehensive change history: list_change_events() with service_key_attributes
 3. Correlate specific change timing with issue onset
 
 Would you like me to investigate the change history for any specific service in detail?
+```
+
+### Example 9: CloudWatch RUM — Real User Monitoring
+```
+User: "Are my users experiencing issues on the checkout page?"
+Assistant: I'll check your RUM data for user-facing issues on the checkout page.
+
+[Step 1: Verify the app monitor is configured correctly]
+query_rum_events(action="check_data_access", app_monitor_name="my-web-app")
+→ CW Logs enabled, X-Ray enabled, all telemetries active. Full analytics available.
+
+[Step 2: Quick health check]
+query_rum_events(action="health", app_monitor_name="my-web-app", start_time="2026-03-18T00:00:00Z", end_time="2026-03-19T00:00:00Z")
+→ Error rate is 3x higher than normal, concentrated on /checkout page, mostly Chrome users in Germany.
+
+[Step 3: Get error details]
+query_rum_events(action="errors", app_monitor_name="my-web-app", start_time="...", end_time="...", page_url="/checkout")
+→ Top error: "TypeError: Cannot read property 'total' of undefined" — 847 occurrences.
+
+[Step 4: Is it frontend or backend?]
+query_rum_events(action="correlate", app_monitor_name="my-web-app", page_url="/checkout", start_time="...", end_time="...")
+→ Backend payment-service is returning 500 errors with avg 5.2s response time. Root cause is in the backend.
 ```
 
 ## Recommended Workflows
@@ -927,6 +1029,7 @@ The server requires the following AWS IAM permissions:
         "application-signals:ListGroupingAttributeDefinitions",
         "cloudwatch:GetMetricData",
         "cloudwatch:GetMetricStatistics",
+        "cloudwatch:ListMetrics",
         "logs:GetQueryResults",
         "logs:StartQuery",
         "logs:StopQuery",
@@ -937,12 +1040,25 @@ The server requires the following AWS IAM permissions:
         "synthetics:GetCanary",
         "synthetics:GetCanaryRuns",
         "synthetics:DescribeCanaries",
+        "rum:GetAppMonitor",
+        "rum:ListAppMonitors",
+        "rum:ListTagsForResource",
+        "rum:GetResourcePolicy",
+        "logs:DescribeLogGroups",
+        "logs:ListLogAnomalyDetectors",
+        "logs:ListAnomalies",
         "s3:GetObject",
         "s3:ListBucket",
         "iam:GetRole",
         "iam:ListAttachedRolePolicies",
         "iam:GetPolicy",
-        "iam:GetPolicyVersion"
+        "iam:GetPolicyVersion",
+        "application-signals:CreateInstrumentationConfiguration",
+        "application-signals:ListInstrumentationConfigurations",
+        "application-signals:GetInstrumentationConfiguration",
+        "application-signals:DeleteInstrumentationConfiguration",
+        "application-signals:BatchDeleteInstrumentationConfigurations",
+        "application-signals:GetInstrumentationConfigurationStatus"
       ],
       "Resource": "*"
     }
@@ -956,6 +1072,7 @@ The server requires the following AWS IAM permissions:
 - `AWS_REGION` - AWS region (defaults to us-east-1)
 - `MCP_CLOUDWATCH_APPLICATION_SIGNALS_LOG_LEVEL` - Logging level (defaults to INFO)
 - `AUDITOR_LOG_PATH` - Path for audit log files (defaults to /tmp)
+- `MCP_RUM_ENDPOINT` - Override RUM API endpoint URL (for testing against non-production environments)
 
 ### AWS Credentials
 

@@ -21,8 +21,38 @@ from botocore.config import Config
 from loguru import logger
 
 
-# Get AWS region from environment variable or use default
-AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
+def _resolve_region() -> str:
+    """Resolve AWS region with priority: AWS_REGION > AWS_DEFAULT_REGION > profile/config > us-east-1.
+
+    We check the env vars explicitly (rather than relying on boto3's own
+    resolution) so the AWS_REGION > AWS_DEFAULT_REGION ordering is deterministic:
+    when both are set, some boto3 versions return AWS_DEFAULT_REGION. Only when
+    neither is set do we let boto3 resolve from the configured profile / ~/.aws/config,
+    so a profile-only caller (AWS_PROFILE set, no env region) picks up that
+    profile's region instead of silently defaulting to us-east-1.
+    """
+    env_region = os.environ.get('AWS_REGION') or os.environ.get('AWS_DEFAULT_REGION')
+    if env_region:
+        logger.debug(f'Region from AWS_REGION/AWS_DEFAULT_REGION env var: {env_region}')
+        return env_region
+    # Let boto3 resolve from AWS_PROFILE config or ~/.aws/config
+    profile = os.environ.get('AWS_PROFILE')
+    try:
+        session = boto3.Session(profile_name=profile)
+        if session.region_name:
+            logger.debug(
+                f'Region from AWS profile/config (profile={profile}): {session.region_name}'
+            )
+            return session.region_name
+    except Exception as e:  # pragma: no cover - defensive; bad/missing profile
+        logger.debug(f'Could not resolve region from boto3 session (profile={profile}): {e}')
+    logger.debug(
+        f'No region found in env or profile (profile={profile}), falling back to us-east-1'
+    )
+    return 'us-east-1'
+
+
+AWS_REGION = _resolve_region()
 logger.debug(f'Using AWS region: {AWS_REGION}')
 
 
@@ -42,6 +72,7 @@ def _initialize_aws_clients():
     cloudwatch_endpoint = os.environ.get('MCP_CLOUDWATCH_ENDPOINT')
     xray_endpoint = os.environ.get('MCP_XRAY_ENDPOINT')
     synthetics_endpoint = os.environ.get('MCP_SYNTHETICS_ENDPOINT')
+    rum_endpoint = os.environ.get('MCP_RUM_ENDPOINT')
 
     # Log endpoint overrides
     if applicationsignals_endpoint:
@@ -54,6 +85,8 @@ def _initialize_aws_clients():
         logger.debug(f'Using X-Ray endpoint override: {xray_endpoint}')
     if synthetics_endpoint:
         logger.debug(f'Using Synthetics endpoint override: {synthetics_endpoint}')
+    if rum_endpoint:
+        logger.debug(f'Using RUM endpoint override: {rum_endpoint}')
 
     # Check for AWS_PROFILE environment variable
     if aws_profile := os.environ.get('AWS_PROFILE'):
@@ -69,6 +102,7 @@ def _initialize_aws_clients():
         cloudwatch = session.client('cloudwatch', config=config, endpoint_url=cloudwatch_endpoint)
         xray = session.client('xray', config=config, endpoint_url=xray_endpoint)
         synthetics = session.client('synthetics', config=config, endpoint_url=synthetics_endpoint)
+        rum = session.client('rum', config=config, endpoint_url=rum_endpoint)
         s3 = session.client('s3', config=config)
         iam = session.client('iam', config=config)
         lambda_client = session.client('lambda', config=config)
@@ -89,17 +123,17 @@ def _initialize_aws_clients():
         xray = boto3.client(
             'xray', region_name=AWS_REGION, config=config, endpoint_url=xray_endpoint
         )
-        # Additional clients for canary functionality
         synthetics = boto3.client(
             'synthetics', region_name=AWS_REGION, config=config, endpoint_url=synthetics_endpoint
         )
+        rum = boto3.client('rum', region_name=AWS_REGION, config=config, endpoint_url=rum_endpoint)
         s3 = boto3.client('s3', region_name=AWS_REGION, config=config)
         iam = boto3.client('iam', region_name=AWS_REGION, config=config)
         lambda_client = boto3.client('lambda', region_name=AWS_REGION, config=config)
         sts = boto3.client('sts', region_name=AWS_REGION, config=config)
 
     logger.debug('AWS clients initialized successfully')
-    return logs, applicationsignals, cloudwatch, xray, synthetics, s3, iam, lambda_client, sts
+    return logs, applicationsignals, cloudwatch, xray, synthetics, s3, iam, lambda_client, sts, rum
 
 
 # Initialize clients at module level
@@ -114,7 +148,22 @@ try:
         iam_client,
         lambda_client,
         sts_client,
+        rum_client,
     ) = _initialize_aws_clients()
 except Exception as e:
     logger.error(f'Failed to initialize AWS clients: {str(e)}')
     raise
+
+
+def get_applicationsignals_client():
+    """Return the module-level Application Signals client.
+
+    Provided so callers (e.g. the service_events tools) can resolve the client lazily,
+    which lets ``mock.patch`` of the module attribute propagate in tests.
+    """
+    return applicationsignals_client
+
+
+def get_cloudwatch_client():
+    """Return the module-level CloudWatch client (lazy accessor; see above)."""
+    return cloudwatch_client

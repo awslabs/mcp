@@ -203,39 +203,65 @@ metadata:
             assert 'other-annotation: This should be preserved' in result
 
     @pytest.mark.asyncio
-    async def test_apply_yaml_relative_path(self, mock_context, mock_mcp, mock_client_cache):
-        """Test apply_yaml method with a relative path."""
-        # Initialize the K8s handler
+    async def test_apply_yaml_write_access_disabled(
+        self, mock_context, mock_mcp, mock_client_cache
+    ):
+        """Test apply_yaml method rejects requests when write access is disabled."""
+        # Initialize the K8s handler with write access disabled
         with patch(
             'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
         ):
-            handler = K8sHandler(mock_mcp)
+            handler = K8sHandler(mock_mcp, allow_write=False)
 
-        # Mock os.path.isabs to return False for relative paths
-        with patch('os.path.isabs', return_value=False):
-            # Apply YAML from a relative path
-            result = await handler.apply_yaml(
-                mock_context,
-                yaml_path='relative/path/to/manifest.yaml',
-                cluster_name='test-cluster',
-                namespace='default',
-                force=True,
-            )
+        # Attempt to apply YAML without write access
+        result = await handler.apply_yaml(
+            mock_context,
+            yaml_path='/absolute/path/to/manifest.yaml',
+            cluster_name='test-cluster',
+            namespace='default',
+            force=True,
+        )
 
-            # Verify the result
-            assert result.isError
-            assert isinstance(result.content[0], TextContent)
-            assert 'Path must be absolute' in result.content[0].text
-            assert 'relative/path/to/manifest.yaml' in result.content[0].text
+        # Verify the result is an error
+        assert result.isError
+        assert isinstance(result.content[0], TextContent)
+        assert 'Operation apply_yaml is not allowed without write access' in result.content[0].text
+
+        # Verify that no Kubernetes client was created (apply was blocked before reaching k8s)
+        mock_client_cache.get_client.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_apply_yaml_relative_path(self, mock_context, mock_mcp, mock_client_cache):
+        """Test apply_yaml method with a relative path."""
+        # Initialize the K8s handler with write access enabled
+        with patch(
+            'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
+        ):
+            handler = K8sHandler(mock_mcp, allow_write=True)
+
+        # Apply YAML from a relative path
+        result = await handler.apply_yaml(
+            mock_context,
+            yaml_path='relative/path/to/manifest.yaml',
+            cluster_name='test-cluster',
+            namespace='default',
+            force=True,
+        )
+
+        # Verify the result
+        assert result.isError
+        assert isinstance(result.content[0], TextContent)
+        assert 'Path must be absolute' in result.content[0].text
+        assert 'relative/path/to/manifest.yaml' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_apply_yaml_success(self, mock_context, mock_mcp, mock_client_cache):
         """Test apply_yaml method with successful application."""
-        # Initialize the K8s handler
+        # Initialize the K8s handler with write access enabled
         with patch(
             'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
         ):
-            handler = K8sHandler(mock_mcp)
+            handler = K8sHandler(mock_mcp, allow_write=True)
 
         # Mock get_client
         mock_k8s_apis = MagicMock()
@@ -286,11 +312,11 @@ metadata:
     @pytest.mark.asyncio
     async def test_apply_yaml_file_not_found(self, mock_context, mock_mcp, mock_client_cache):
         """Test apply_yaml method with file not found error."""
-        # Initialize the K8s handler
+        # Initialize the K8s handler with write access enabled
         with patch(
             'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
         ):
-            handler = K8sHandler(mock_mcp)
+            handler = K8sHandler(mock_mcp, allow_write=True)
 
         # Mock get_client
         mock_k8s_apis = MagicMock()
@@ -319,11 +345,11 @@ metadata:
     @pytest.mark.asyncio
     async def test_apply_yaml_io_error(self, mock_context, mock_mcp, mock_client_cache):
         """Test apply_yaml method with IO error."""
-        # Initialize the K8s handler
+        # Initialize the K8s handler with write access enabled
         with patch(
             'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
         ):
-            handler = K8sHandler(mock_mcp)
+            handler = K8sHandler(mock_mcp, allow_write=True)
 
         # Mock get_client
         mock_k8s_apis = MagicMock()
@@ -353,11 +379,11 @@ metadata:
     @pytest.mark.asyncio
     async def test_apply_yaml_create_error(self, mock_context, mock_mcp, mock_client_cache):
         """Test apply_yaml method with error from create_from_yaml."""
-        # Initialize the K8s handler
+        # Initialize the K8s handler with write access enabled
         with patch(
             'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
         ):
-            handler = K8sHandler(mock_mcp)
+            handler = K8sHandler(mock_mcp, allow_write=True)
 
         # Mock get_client
         mock_k8s_apis = MagicMock()
@@ -394,11 +420,11 @@ metadata:
     @pytest.mark.asyncio
     async def test_apply_yaml_outer_exception(self, mock_context, mock_mcp, mock_client_cache):
         """Test apply_yaml method with outer exception (Error applying YAML from file)."""
-        # Initialize the K8s handler
+        # Initialize the K8s handler with write access enabled
         with patch(
             'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
         ):
-            handler = K8sHandler(mock_mcp)
+            handler = K8sHandler(mock_mcp, allow_write=True)
 
         # Mock get_client to raise an exception
         with patch.object(handler, 'get_client', side_effect=Exception('Connection error')):
@@ -940,21 +966,19 @@ metadata:
         ):
             handler = K8sHandler(mock_mcp, allow_write=True)
 
-        # Mock os.path.isabs to return False for relative paths
-        with patch('os.path.isabs', return_value=False):
-            # Generate manifest with a relative path
-            result = await handler.generate_app_manifest(
-                mock_context,
-                app_name='test-app',
-                image_uri='123456789012.dkr.ecr.region.amazonaws.com/repo:tag',
-                output_dir='relative/path/to/output',
-            )
+        # Generate manifest with a relative path
+        result = await handler.generate_app_manifest(
+            mock_context,
+            app_name='test-app',
+            image_uri='123456789012.dkr.ecr.region.amazonaws.com/repo:tag',
+            output_dir='relative/path/to/output',
+        )
 
-            # Verify the result
-            assert result.isError
-            assert isinstance(result.content[0], TextContent)
-            assert 'Output directory path must be absolute' in result.content[0].text
-            assert 'relative/path/to/output' in result.content[0].text
+        # Verify the result
+        assert result.isError
+        assert isinstance(result.content[0], TextContent)
+        assert 'Path must be absolute' in result.content[0].text
+        assert 'relative/path/to/output' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_generate_app_manifest_path_traversal(
@@ -1013,8 +1037,11 @@ metadata:
 
         # Mock the _load_yaml_template method to avoid template loading issues
         with patch.object(handler, '_load_yaml_template', return_value='combined yaml content'):
-            # Mock os.path.isabs to return True for absolute paths
-            with patch('os.path.isabs', return_value=True):
+            # Mock validate_directory_path to pass through
+            with patch(
+                'awslabs.eks_mcp_server.k8s_handler.validate_directory_path',
+                side_effect=lambda p: p,
+            ):
                 # Mock os.makedirs to avoid creating directories
                 with patch('os.makedirs') as mock_makedirs:
                     # Mock open for writing output
@@ -1143,8 +1170,11 @@ metadata:
 
         # Mock the _load_yaml_template method to avoid template loading issues
         with patch.object(handler, '_load_yaml_template', return_value='combined yaml content'):
-            # Mock os.path.isabs to return True for absolute paths
-            with patch('os.path.isabs', return_value=True):
+            # Mock validate_directory_path to pass through
+            with patch(
+                'awslabs.eks_mcp_server.k8s_handler.validate_directory_path',
+                side_effect=lambda p: p,
+            ):
                 # Mock os.makedirs to avoid creating directories
                 with patch('os.makedirs') as mock_makedirs:
                     # Mock open for writing output
@@ -1195,8 +1225,11 @@ metadata:
 
         # Mock the _load_yaml_template method to avoid template loading issues
         with patch.object(handler, '_load_yaml_template', return_value='combined yaml content'):
-            # Mock os.path.isabs to return True for absolute paths
-            with patch('os.path.isabs', return_value=True):
+            # Mock validate_directory_path to pass through
+            with patch(
+                'awslabs.eks_mcp_server.k8s_handler.validate_directory_path',
+                side_effect=lambda p: p,
+            ):
                 # Mock os.makedirs to avoid creating directories
                 with patch('os.makedirs') as mock_makedirs:
                     # Mock open for writing output
@@ -1976,3 +2009,52 @@ spec:
 
         result = handler.filter_null_values(complex_input)
         assert result == expected_complex
+
+
+class TestK8sHandlerPathValidation:
+    """Tests that path validation is wired up in K8sHandler methods."""
+
+    @pytest.mark.asyncio
+    async def test_generate_app_manifest_calls_validate_directory_path(
+        self, mock_context, mock_mcp, mock_client_cache
+    ):
+        with patch(
+            'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
+        ):
+            handler = K8sHandler(mock_mcp, allow_write=True)
+
+        with patch(
+            'awslabs.eks_mcp_server.k8s_handler.validate_directory_path',
+            side_effect=ValueError('blocked'),
+        ) as mock_validate:
+            result = await handler.generate_app_manifest(
+                mock_context,
+                app_name='test-app',
+                image_uri='123456789012.dkr.ecr.region.amazonaws.com/repo:tag',
+                output_dir='/some/path',
+            )
+
+            mock_validate.assert_called_once_with('/some/path')
+            assert result.isError
+
+    @pytest.mark.asyncio
+    async def test_apply_yaml_calls_validate_file_path(
+        self, mock_context, mock_mcp, mock_client_cache
+    ):
+        with patch(
+            'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
+        ):
+            handler = K8sHandler(mock_mcp, allow_write=True)
+
+        with patch(
+            'awslabs.eks_mcp_server.k8s_handler.validate_file_path',
+            side_effect=ValueError('blocked'),
+        ) as mock_validate:
+            result = await handler.apply_yaml(
+                mock_context,
+                yaml_path='/some/file.yaml',
+                cluster_name='test-cluster',
+            )
+
+            mock_validate.assert_called_once_with('/some/file.yaml')
+            assert result.isError

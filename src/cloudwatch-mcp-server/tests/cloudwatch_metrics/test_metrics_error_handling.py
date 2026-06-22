@@ -468,13 +468,18 @@ class TestEdgeCases:
             tools.register(mock_mcp)
 
             # Verify all tools are registered
-            assert mock_mcp.tool.call_count == 4
+            assert mock_mcp.tool.call_count == 9
             tool_calls = [call[1]['name'] for call in mock_mcp.tool.call_args_list]
             expected_tools = [
                 'get_metric_data',
                 'get_metric_metadata',
                 'analyze_metric',
                 'get_recommended_metric_alarms',
+                'execute_promql_query',
+                'execute_promql_range_query',
+                'get_promql_label_values',
+                'get_promql_series',
+                'get_promql_labels',
             ]
             for tool in expected_tools:
                 assert tool in tool_calls

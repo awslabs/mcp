@@ -141,6 +141,9 @@ def validate_file_path(file_path: str) -> str:
 
     if FILE_ACCESS_MODE == FileAccessMode.UNRESTRICTED:
         return file_path
+    # Expand environment variables and user home directory before validation
+    # to prevent bypass via $HOME, ${HOME}, $TMPDIR, etc.
+    file_path = os.path.expandvars(os.path.expanduser(file_path))
 
     # Reject unexpanded tilde paths (e.g., ~invalid_user/path)
     if file_path.startswith('~') and not os.path.isabs(os.path.expanduser(file_path)):

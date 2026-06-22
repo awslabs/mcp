@@ -19,12 +19,115 @@ from awslabs.postgres_mcp_server import __user_agent__
 from botocore.config import Config
 from botocore.exceptions import ClientError
 from loguru import logger
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
+
+
+DEFAULT_POSTGRES_PORT = 5432
 
 
 def internal_create_rds_client(region: str):
     """Create an RDS client with custom user agent configuration."""
     return boto3.client('rds', region_name=region, config=Config(user_agent_extra=__user_agent__))
+
+
+def internal_get_cluster_valid_endpoints(
+    cluster_properties: Dict[str, Any], region: str
+) -> List[Tuple[str, int]]:
+    """Return the list of valid (host, port) connection endpoints for a cluster.
+
+    A caller-supplied db_endpoint/port is considered legitimate only if it
+    matches one of the endpoints returned here. This is used to prevent
+    connection strings from pointing at arbitrary hosts (e.g. an
+    attacker-controlled FQDN / IP) that could capture DB credentials or
+    IAM auth tokens.
+
+    The returned list includes, where present:
+      - Writer endpoint (cluster.Endpoint)
+      - Reader endpoint (cluster.ReaderEndpoint)
+      - Custom endpoints (cluster.CustomEndpoints)
+      - Each member instance endpoint (from describe_db_instances)
+
+    Host comparison should be case-insensitive (DNS is case-insensitive);
+    this function returns hosts as reported by AWS without normalization.
+
+    Args:
+        cluster_properties: Cluster properties previously fetched via
+            internal_get_cluster_properties.
+        region: AWS region (used to fetch member instance endpoints).
+
+    Returns:
+        Non-empty list of (host, port) tuples.
+
+    Raises:
+        ValueError: If no valid endpoints could be resolved. A real Aurora
+            cluster always has at least a writer endpoint with a port, so
+            an empty result indicates malformed cluster properties or a
+            transient API state; we treat it as an error rather than
+            silently accepting any caller-supplied endpoint.
+    """
+    endpoints: List[Tuple[str, int]] = []
+
+    cluster_port_raw = cluster_properties.get('Port')
+    try:
+        cluster_port = int(cluster_port_raw) if cluster_port_raw is not None else 0
+    except (TypeError, ValueError):
+        cluster_port = DEFAULT_POSTGRES_PORT
+
+    writer_endpoint = cluster_properties.get('Endpoint')
+    if writer_endpoint and cluster_port:
+        endpoints.append((writer_endpoint, cluster_port))
+
+    reader_endpoint = cluster_properties.get('ReaderEndpoint')
+    if reader_endpoint and cluster_port:
+        endpoints.append((reader_endpoint, cluster_port))
+
+    for custom_endpoint in cluster_properties.get('CustomEndpoints', []) or []:
+        if custom_endpoint and cluster_port:
+            endpoints.append((custom_endpoint, cluster_port))
+
+    members = cluster_properties.get('DBClusterMembers', []) or []
+    instance_ids = [
+        m.get('DBInstanceIdentifier') for m in members if m.get('DBInstanceIdentifier')
+    ]
+    if instance_ids:
+        rds_client = internal_create_rds_client(region=region)
+        for instance_id in instance_ids:
+            try:
+                response = rds_client.describe_db_instances(DBInstanceIdentifier=instance_id)
+                for instance in response.get('DBInstances', []):
+                    instance_endpoint = instance.get('Endpoint', {})
+                    host = instance_endpoint.get('Address')
+                    port_raw = instance_endpoint.get('Port')
+                    try:
+                        port = int(port_raw) if port_raw is not None else 0
+                    except (TypeError, ValueError):
+                        port = 0
+                    if host and port:
+                        endpoints.append((host, port))
+            except ClientError as e:
+                # Don't fail the whole validation if a single instance lookup
+                # fails; log and continue. The caller still has to match one of
+                # the endpoints we successfully resolved.
+                logger.warning(
+                    f"Failed to fetch endpoint for member instance '{instance_id}': "
+                    f'{e.response["Error"]["Code"]} - {e.response["Error"]["Message"]}'
+                )
+
+    if not endpoints:
+        # A real Aurora cluster always advertises at least a writer endpoint
+        # with a valid port. An empty result here means either the cluster
+        # properties dict was malformed (missing/invalid Port, missing
+        # Endpoint) or every describe_db_instances call failed. Treat as an
+        # error so the caller doesn't build a connection string from caller
+        # input.
+        raise ValueError(
+            f'Cluster has no valid connection endpoints. '
+            f'Endpoint={cluster_properties.get("Endpoint")!r}, '
+            f'ReaderEndpoint={cluster_properties.get("ReaderEndpoint")!r}, '
+            f'Port={cluster_properties.get("Port")!r}'
+        )
+
+    return endpoints
 
 
 def internal_get_instance_properties(target_endpoint: str, region: str) -> Dict[str, Any]:
@@ -80,7 +183,7 @@ def internal_get_cluster_properties(cluster_identifier: str, region: str) -> Dic
     if not cluster_identifier or not region:
         raise ValueError('cluster_identifier and region are required')
 
-    logger.info(f"Fetching properties for cluster '{cluster_identifier}' in '{region}' ")
+    logger.debug(f"Fetching properties for cluster '{cluster_identifier}' in '{region}' ")
 
     try:
         rds_client = internal_create_rds_client(region)
@@ -94,7 +197,7 @@ def internal_get_cluster_properties(cluster_identifier: str, region: str) -> Dic
         cluster_properties = clusters[0]
 
         # Log summary only
-        logger.info(
+        logger.debug(
             f"Retrieved cluster '{cluster_identifier}': "
             f'Status={cluster_properties.get("Status")}, '
             f'Engine={cluster_properties.get("Engine")}'
@@ -189,6 +292,8 @@ def internal_create_serverless_cluster(
     min_capacity: float = 0.5,
     max_capacity: float = 4,
     enable_cloudwatch_logs: bool = True,
+    publicly_accessible: bool = False,
+    vpc_security_group_ids: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """Create an Aurora PostgreSQL cluster with a single writer instance.
 
@@ -203,6 +308,13 @@ def internal_create_serverless_cluster(
         min_capacity: minimum ACU capacity
         max_capacity: maximum ACU capacity
         enable_cloudwatch_logs: Enable CloudWatch logs export
+        publicly_accessible: Whether the writer instance gets a public
+            DNS name. Test-only path — never exposed via the MCP
+            create_cluster tool. Default False keeps production behaviour
+            unchanged.
+        vpc_security_group_ids: Optional list of pre-existing VPC SGs to
+            attach to the cluster. Test-only path. Default None lets RDS
+            apply the VPC's default SG.
 
     Returns:
         Dictionary containing cluster information and secret ARN
@@ -249,6 +361,9 @@ def internal_create_serverless_cluster(
             'EnableCloudwatchLogsExports': enable_cloudwatch_logs_exports,
         }
 
+        if vpc_security_group_ids:
+            cluster_params['VpcSecurityGroupIds'] = list(vpc_security_group_ids)
+
         cluster_params['ServerlessV2ScalingConfiguration'] = {
             'MinCapacity': min_capacity,
             'MaxCapacity': max_capacity,
@@ -284,7 +399,7 @@ def internal_create_serverless_cluster(
             'DBInstanceClass': 'db.serverless',
             'Engine': 'aurora-postgresql',
             'DBClusterIdentifier': cluster_identifier,
-            'PubliclyAccessible': False,  # Set to True if needed
+            'PubliclyAccessible': publicly_accessible,
             'Tags': tags,
             'CopyTagsToSnapshot': True,
         }
@@ -371,10 +486,10 @@ def setup_aurora_iam_policy_for_current_user(
         arn = identity['Arn']
         user_id = identity['UserId']
 
-        logger.info('Current Identity:')
-        logger.info(f'  ARN: {arn}')
-        logger.info(f'  Account: {account_id}')
-        logger.info(f'  UserID: {user_id}')
+        logger.debug('Current Identity:')
+        logger.debug(f'  ARN: {arn}')
+        logger.debug(f'  Account: {account_id}')
+        logger.debug(f'  UserID: {user_id}')
 
     except Exception as e:
         logger.exception(f'❌ Error getting caller identity: {e}')
@@ -392,8 +507,8 @@ def setup_aurora_iam_policy_for_current_user(
         # Standard IAM user: arn:aws:iam::123456789012:user/username
         current_user = arn.split(':user/')[-1].split('/')[-1]
         identity_type = 'user'
-        logger.info('  Type: IAM User')
-        logger.info(f'  Username: {current_user}')
+        logger.debug('  Type: IAM User')
+        logger.debug(f'  Username: {current_user}')
 
     elif ':assumed-role/' in arn:
         # 🔵 MODIFIED: Extract BASE ROLE name from assumed role session
@@ -404,10 +519,10 @@ def setup_aurora_iam_policy_for_current_user(
         session_name = parts[1] if len(parts) > 1 else 'unknown'
 
         identity_type = 'role'
-        logger.info('  Type: Assumed Role Session')
-        logger.info(f'  Base Role: {current_role}')
-        logger.info(f'  Session Name: {session_name}')
-        logger.info(f'  → Will attach policy to base role: {current_role}')
+        logger.debug('  Type: Assumed Role Session')
+        logger.debug(f'  Base Role: {current_role}')
+        logger.debug(f'  Session Name: {session_name}')
+        logger.debug(f'  → Will attach policy to base role: {current_role}')
         logger.warning(
             f"⚠️  Policy will be attached to role '{current_role}'\n"
             f'   This will grant Aurora access to ALL users/services that assume this role.'
@@ -438,18 +553,18 @@ def setup_aurora_iam_policy_for_current_user(
         f'arn:aws:rds-db:{cluster_region}:{account_id}:dbuser:{cluster_resource_id}/{db_user}'
     )
 
-    logger.info('\nPolicy Configuration:')
-    logger.info(f'  Policy Name: {policy_name}')
-    logger.info(f'  New Resource: {new_resource_arn}')
-    logger.info(f'  Cluster Region: {cluster_region}')
-    logger.info(f'  Cluster Resource ID: {cluster_resource_id}')
+    logger.debug('\nPolicy Configuration:')
+    logger.debug(f'  Policy Name: {policy_name}')
+    logger.debug(f'  New Resource: {new_resource_arn}')
+    logger.debug(f'  Cluster Region: {cluster_region}')
+    logger.debug(f'  Cluster Resource ID: {cluster_resource_id}')
 
     # 4. Create or update policy
 
     try:
         # Try to get existing policy
         existing_policy = iam.get_policy(PolicyArn=policy_arn)
-        logger.info(f'\n✓ Policy already exists: {policy_name}')
+        logger.debug(f'Policy already exists: {policy_name}')
 
         # Get current policy document
         policy_version = iam.get_policy_version(
@@ -463,17 +578,17 @@ def setup_aurora_iam_policy_for_current_user(
         if isinstance(current_resources, str):
             current_resources = [current_resources]
 
-        logger.info(f'  Current resources in policy: {len(current_resources)}')
+        logger.debug(f'  Current resources in policy: {len(current_resources)}')
         for idx, res in enumerate(current_resources, 1):
-            logger.info(f'    {idx}. {res}')
+            logger.debug(f'    {idx}. {res}')
 
         # Check if new resource already exists
         if new_resource_arn in current_resources:
-            logger.info('\n✓ Cluster already included in policy - no update needed')
+            logger.debug('Cluster already included in policy - no update needed')
         else:
             # Add new resource to the list
             current_resources.append(new_resource_arn)
-            logger.info('\n→ Adding new cluster to policy...')
+            logger.debug('Adding new cluster to policy...')
 
             # Create updated policy document
             updated_doc = {
@@ -485,14 +600,14 @@ def setup_aurora_iam_policy_for_current_user(
 
             # Handle AWS policy version limits (max 5 versions per policy)
             versions = iam.list_policy_versions(PolicyArn=policy_arn)['Versions']
-            logger.info(f'  Current policy versions: {len(versions)}/5')
+            logger.debug(f'  Current policy versions: {len(versions)}/5')
 
             if len(versions) >= 5:
                 # Find oldest non-default version to delete
                 non_default_versions = [v for v in versions if not v['IsDefaultVersion']]
                 if non_default_versions:
                     oldest_version = sorted(non_default_versions, key=lambda v: v['CreateDate'])[0]
-                    logger.info(
+                    logger.debug(
                         f'  Deleting oldest version: {oldest_version["VersionId"]} (created {oldest_version["CreateDate"]})'
                     )
                     iam.delete_policy_version(
@@ -506,13 +621,15 @@ def setup_aurora_iam_policy_for_current_user(
                 SetAsDefault=True,
             )
 
-            logger.info('✓ Successfully updated policy')
-            logger.info(f'  New version: {new_version["PolicyVersion"]["VersionId"]}')
-            logger.info(f'  Total resources now: {len(current_resources)}')
+            logger.info(
+                f'Updated IAM policy {policy_name}: added cluster '
+                f'{cluster_resource_id} (version {new_version["PolicyVersion"]["VersionId"]}, '
+                f'{len(current_resources)} resources total)'
+            )
 
     except iam.exceptions.NoSuchEntityException:
         # Policy doesn't exist - create new one
-        logger.info("\nPolicy doesn't exist, creating new policy...")
+        logger.debug("Policy doesn't exist, creating new policy...")
 
         policy_document = {
             'Version': '2012-10-17',
@@ -528,11 +645,11 @@ def setup_aurora_iam_policy_for_current_user(
                 Description=f'IAM authentication for Aurora PostgreSQL user {db_user} across all clusters',
             )
             policy_arn = policy_response['Policy']['Arn']
-            logger.info(f'✓ Successfully created new policy: {policy_name}')
-            logger.info(f'  Policy ARN: {policy_arn}')
+            logger.info(f'Created new IAM policy: {policy_name}')
+            logger.debug(f'  Policy ARN: {policy_arn}')
 
         except iam.exceptions.EntityAlreadyExistsException:
-            logger.info('✓ Policy was just created by another process')
+            logger.debug('Policy was just created by another process')
 
         except Exception as e:
             logger.exception(f'\n❌ Error creating policy: {e}')
@@ -555,21 +672,21 @@ def setup_aurora_iam_policy_for_current_user(
             )
 
             if already_attached:
-                logger.info(f'\n✓ Policy already attached to user: {current_user}')
+                logger.debug(f'Policy already attached to user: {current_user}')
             else:
                 iam.attach_user_policy(UserName=current_user, PolicyArn=policy_arn)
-                logger.info(f'\n✓ Successfully attached policy to user: {current_user}')
+                logger.info(f'Attached policy {policy_name} to user: {current_user}')
 
             # Display summary
-            logger.info(f'\nAttached policies for user {current_user}:')
+            logger.debug(f'Attached policies for user {current_user}:')
             attached_policies = iam.list_attached_user_policies(UserName=current_user)
             for policy in attached_policies['AttachedPolicies']:
                 marker = '  → ' if policy['PolicyArn'] == policy_arn else '    '
-                logger.info(f'{marker}{policy["PolicyName"]}')
+                logger.debug(f'{marker}{policy["PolicyName"]}')
 
         elif identity_type == 'role':
             # 🔵 MODIFIED: Attach to BASE ROLE (not session)
-            logger.info(f'\n→ Attempting to attach policy to base role: {current_role}')
+            logger.debug(f'Attempting to attach policy to base role: {current_role}')
 
             try:
                 # Check if already attached to the base role
@@ -579,21 +696,21 @@ def setup_aurora_iam_policy_for_current_user(
                 )
 
                 if already_attached:
-                    logger.info(f'\n✓ Policy already attached to role: {current_role}')
+                    logger.debug(f'Policy already attached to role: {current_role}')
                 else:
                     # Attach to the BASE ROLE
                     iam.attach_role_policy(RoleName=current_role, PolicyArn=policy_arn)
-                    logger.info(f'\n✓ Successfully attached policy to role: {current_role}')
+                    logger.info(f'Attached policy {policy_name} to role: {current_role}')
                     logger.warning(
                         f"⚠️  All users/services assuming role '{current_role}' now have Aurora access"
                     )
 
                 # Display summary
-                logger.info(f'\nAttached policies for role {current_role}:')
+                logger.debug(f'Attached policies for role {current_role}:')
                 attached_policies = iam.list_attached_role_policies(RoleName=current_role)
                 for policy in attached_policies['AttachedPolicies']:
                     marker = '  → ' if policy['PolicyArn'] == policy_arn else '    '
-                    logger.info(f'{marker}{policy["PolicyName"]}')
+                    logger.debug(f'{marker}{policy["PolicyName"]}')
 
             except iam.exceptions.AccessDeniedException:
                 # 🔵 MODIFIED: Graceful handling of permission denied
