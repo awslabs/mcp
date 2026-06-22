@@ -511,3 +511,49 @@ def test_cost_explorer_reraises_unexpected_clienterror():
     clients = _clients(ce=FakeCE(cau_error=_ce_error('ThrottlingException')))
     with pytest.raises(ClientError):
         ops.diagnose_readiness(ACCOUNT, ops.INTENT_BASIC, clients, now=NOW)
+
+
+def test_latest_non_empty_period_ignores_non_numeric_amount():
+    """A non-numeric metric Amount is skipped (TypeError/ValueError), not raised.
+
+    The only metric has an unparseable Amount, so the period is treated as
+    empty and the scan returns None rather than propagating a ValueError.
+    """
+    results = [
+        {
+            'TimePeriod': {'Start': '2026-05-10', 'End': '2026-05-11'},
+            'Total': {'UnblendedCost': {'Amount': 'not-a-number', 'Unit': 'USD'}},
+            'Groups': [],
+        }
+    ]
+    assert ops._latest_non_empty_period(results) is None
+
+
+class _PagingFakeCOH:
+    """Fake Cost Optimization Hub client that paginates enrollment statuses.
+
+    Returns one item per page across ``pages`` pages, advancing via nextToken so
+    the pagination loop in check_cost_optimization_hub runs more than once.
+    """
+
+    def __init__(self, statuses):
+        """Store one status per page."""
+        self._statuses = statuses
+
+    def list_enrollment_statuses(self, **kwargs):
+        """Return a single-item page, advancing by nextToken."""
+        idx = int(kwargs.get('nextToken', '0'))
+        result = {'items': [{'status': self._statuses[idx]}]}
+        if idx + 1 < len(self._statuses):
+            result['nextToken'] = str(idx + 1)
+        return result
+
+
+def test_optimization_ready_when_active_on_later_page():
+    """An Active enrollment on a later page is found by following nextToken."""
+    clients = _clients(
+        iam=FakeIAM(_all_allowed(ops.INTENT_OPTIMIZATION)),
+        coh=_PagingFakeCOH(['Inactive', 'Active']),
+    )
+    result = ops.diagnose_readiness(ACCOUNT, ops.INTENT_OPTIMIZATION, clients, now=NOW)
+    assert result['status'] == 'ready'

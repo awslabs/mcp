@@ -160,3 +160,38 @@ class TestCheckBcmReadiness:
 
         assert result['status'] == 'error'
         assert result['error_type'] == 'ThrottlingException'
+
+    async def test_optimization_intent_creates_coh_client(self, mock_context):
+        """The optimization intent additionally creates a cost-optimization-hub client."""
+        mod = _reload_with_identity_decorator()
+        clients = _ready_clients()
+        coh = MagicMock()
+        coh.list_enrollment_statuses.return_value = {'items': [{'status': 'Active'}]}
+        clients['coh'] = coh
+        requested = []
+
+        def _fake_create_client(service_name, region_name=None):
+            requested.append(service_name)
+            return clients[{'cost-optimization-hub': 'coh'}.get(service_name, service_name)]
+
+        with patch.object(mod, 'create_aws_client', side_effect=_fake_create_client):
+            result = await mod.check_bcm_readiness(
+                mock_context, account_id='123456789012', intent='optimization'
+            )
+
+        assert 'cost-optimization-hub' in requested
+        assert result['status'] == 'success'
+        assert result['data']['status'] == 'ready'
+
+    async def test_unexpected_exception_handled(self, mock_context):
+        """A non-ClientError raised during diagnosis is handled, not propagated."""
+        mod = _reload_with_identity_decorator()
+        clients = _ready_clients()
+        clients['ce'].get_cost_and_usage.side_effect = RuntimeError('unexpected')
+
+        with patch.object(
+            mod, 'create_aws_client', side_effect=lambda s, region_name=None: clients[s]
+        ):
+            result = await mod.check_bcm_readiness(mock_context, account_id='123456789012')
+
+        assert result['status'] == 'error'
