@@ -240,7 +240,7 @@ def create_instrumentation(
         request_kwargs['AttributeFilters'] = attribute_filters
 
     try:
-        response = gateway.create_instrumentation_configuration(**request_kwargs)
+        response = gateway.call('create_instrumentation_configuration', **request_kwargs)
     except gateway.GatewayError as err:
         return gateway.render_error(
             err,
@@ -330,7 +330,7 @@ def list_instrumentations(
         request_kwargs['NextToken'] = next_token
 
     try:
-        data = gateway.list_instrumentation_configurations(**request_kwargs)
+        data = gateway.call('list_instrumentation_configurations', **request_kwargs)
     except gateway.GatewayError as err:
         return gateway.render_error(
             err,
@@ -382,7 +382,8 @@ def batch_delete_instrumentations_by_scope(
     }
 
     try:
-        data = gateway.batch_delete_instrumentation_configurations(
+        data = gateway.call(
+            'batch_delete_instrumentation_configurations',
             DeletionTarget=deletion_target,
         )
     except gateway.GatewayError as err:
@@ -444,7 +445,8 @@ def batch_delete_instrumentations_by_arns(
     }
 
     try:
-        data = gateway.batch_delete_instrumentation_configurations(
+        data = gateway.call(
+            'batch_delete_instrumentation_configurations',
             DeletionTarget=deletion_target,
         )
     except gateway.GatewayError as err:
@@ -539,7 +541,8 @@ def delete_instrumentation(
     target_desc = location.describe()
 
     try:
-        gateway.delete_instrumentation_configuration(
+        gateway.call(
+            'delete_instrumentation_configuration',
             InstrumentationType=normalized_type,
             Service=service,
             Environment=environment,
@@ -636,7 +639,8 @@ def get_instrumentation(
     target_desc = location.describe()
 
     try:
-        data = gateway.get_instrumentation_configuration(
+        data = gateway.call(
+            'get_instrumentation_configuration',
             InstrumentationType=normalized_type,
             Service=service,
             Environment=environment,
