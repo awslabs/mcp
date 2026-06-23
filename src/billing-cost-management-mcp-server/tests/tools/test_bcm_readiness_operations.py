@@ -543,7 +543,7 @@ class _PagingFakeCOH:
     def list_enrollment_statuses(self, **kwargs):
         """Return a single-item page, advancing by nextToken."""
         idx = int(kwargs.get('nextToken', '0'))
-        result = {'items': [{'status': self._statuses[idx]}]}
+        result: dict = {'items': [{'status': self._statuses[idx]}]}
         if idx + 1 < len(self._statuses):
             result['nextToken'] = str(idx + 1)
         return result

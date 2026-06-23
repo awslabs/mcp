@@ -172,7 +172,8 @@ class TestCheckBcmReadiness:
 
         def _fake_create_client(service_name, region_name=None):
             requested.append(service_name)
-            return clients[{'cost-optimization-hub': 'coh'}.get(service_name, service_name)]
+            key = 'coh' if service_name == 'cost-optimization-hub' else service_name
+            return clients[key]
 
         with patch.object(mod, 'create_aws_client', side_effect=_fake_create_client):
             result = await mod.check_bcm_readiness(
