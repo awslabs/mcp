@@ -270,3 +270,22 @@ async def test_describe_log_groups_max_items_with_remainder():
         assert result['nextToken'] == 'token1'
         assert result['logGroups'][0]['logGroupName'] == 'group-1'
         assert result['logGroups'][2]['logGroupName'] == 'group-3'
+
+
+@pytest.mark.asyncio
+async def test_describe_log_groups_works_in_readonly_mode():
+    """Test that describe_log_groups works in readonly mode."""
+    from awslabs.elasticache_mcp_server.context import Context
+    from unittest.mock import MagicMock, patch
+
+    mock_client = MagicMock()
+    mock_client.describe_log_groups.return_value = {'logGroups': []}
+    with (
+        patch.object(Context, 'readonly_mode', return_value=True),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.CloudWatchLogsConnectionManager.get_connection',
+            return_value=mock_client,
+        ),
+    ):
+        result = await describe_log_groups()
+        assert 'error' not in result

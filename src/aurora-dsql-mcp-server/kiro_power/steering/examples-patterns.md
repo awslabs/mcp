@@ -131,43 +131,55 @@ INSERT INTO distributors VALUES (nextval('order_seq'), 'nothing');
 
 ## Data Serialization
 
-**Pattern:** MUST store arrays and JSON as TEXT (runtime-only types). Per [DSQL docs](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/working-with-postgresql-compatibility-supported-data-types.html), cast to JSON at query time.
+**Pattern:** Arrays must be serialized into a single-column representation. PREFER `JSONB` for queryable arrays; MAY use `TEXT` when opaque to the database. For document columns, choose `JSONB` (queryable with `@>`/`?`/indexed paths) or `JSON` (write-heavy or byte-exact). Per [DSQL docs](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/working-with-postgresql-compatibility-supported-data-types.html).
+
+**JSONB (write + query with operators):**
 
 ```javascript
-function toTextArray(values) {
-  return values.join(',');
-}
+const categories = ['backend', 'api', 'database'];
+await pool.query(
+  'INSERT INTO projects (project_id, categories) VALUES ($1, $2::jsonb)',
+  [projectId, JSON.stringify(categories)]
+);
 
-function fromTextArray(textValue) {
-  return textValue ? textValue.split(',').map(v => v.trim()) : [];
-}
-
-function toTextJSON(object) {
-  return JSON.stringify(object);
-}
-
-function fromTextJSON(textValue) {
-  if (!textValue) return null;
-  try {
-    return JSON.parse(textValue);
-  } catch (err) {
-    console.warn('Invalid JSON in column:', err.message);
-    return null;
-  }
-}
-
-const categoriesText = toTextArray(['backend', 'api', 'database']);
-await pool.query('INSERT INTO projects (project_id, categories) VALUES ($1, $2)', [projectId, categoriesText]);
-
-const configText = toTextJSON({ theme: 'dark', notifications: true });
-await pool.query('INSERT INTO user_settings (user_id, preferences) VALUES ($1, $2)', [userId, configText]);
+const preferences = { theme: 'dark', notifications: true };
+await pool.query(
+  'INSERT INTO user_settings (user_id, preferences) VALUES ($1, $2::jsonb)',
+  [userId, JSON.stringify(preferences)]
+);
 ```
 
-Query-time operations:
+```sql
+-- JSONB-only operators (containment, key existence, indexed paths):
+SELECT user_id FROM user_settings WHERE preferences @> '{"theme":"dark"}';
+SELECT project_id, jsonb_array_elements_text(categories) AS category FROM projects;
+
+-- ->/->> work on both JSON and JSONB:
+SELECT user_id, preferences->>'theme' AS theme
+FROM user_settings WHERE preferences->>'notifications' = 'true';
+```
+
+**JSON (write-heavy, byte-exact, key-extraction only):**
+
+```javascript
+const auditPayload = { event: 'login', ts: 1717890000, user_id: '...' };
+await pool.query(
+  'INSERT INTO audit_log (id, payload) VALUES ($1, $2)',  // no cast: column is JSON
+  [eventId, JSON.stringify(auditPayload)]
+);
+```
 
 ```sql
-SELECT user_id, preferences::jsonb->>'theme' as theme
-FROM user_settings WHERE preferences::jsonb->>'notifications' = 'true';
+SELECT id, payload->>'event' AS event FROM audit_log WHERE payload->>'user_id' = $1;
+```
 
-SELECT project_id, string_to_array(categories, ',') as category_array FROM projects;
+**TEXT (opaque to the database):**
+
+```javascript
+const tagsCsv = ['backend', 'api', 'database'].join(',');
+await pool.query(
+  'INSERT INTO projects (project_id, tags_csv) VALUES ($1, $2)',
+  [projectId, tagsCsv]
+);
+// Application parses tags_csv.split(',') on read; the database never inspects it.
 ```

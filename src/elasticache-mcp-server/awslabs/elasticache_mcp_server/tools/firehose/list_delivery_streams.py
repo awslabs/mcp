@@ -15,13 +15,14 @@
 """Tool for listing Kinesis Firehose delivery streams."""
 
 from ...common.connection import FirehoseConnectionManager
-from ...common.decorators import handle_exceptions
+from ...common.decorators import handle_exceptions, readonly_safe
 from ...common.server import mcp
 from typing import Any, Dict
 
 
 @mcp.tool(name='list-delivery-streams')
 @handle_exceptions
+@readonly_safe
 async def list_delivery_streams(
     limit: Any = None,
     delivery_stream_type: Any = None,

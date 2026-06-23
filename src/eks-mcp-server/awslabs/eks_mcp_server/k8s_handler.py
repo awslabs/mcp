@@ -33,6 +33,7 @@ from awslabs.eks_mcp_server.models import (
     PodLogsData,
     ResourceSummary,
 )
+from awslabs.eks_mcp_server.path_validation import validate_directory_path, validate_file_path
 from mcp.server.fastmcp import Context
 from mcp.types import CallToolResult, TextContent
 from pydantic import Field
@@ -148,9 +149,11 @@ class K8sHandler:
                     content=[TextContent(type='text', text=error_msg)],
                 )
 
-            # Validate that the path is absolute
-            if not os.path.isabs(yaml_path):
-                error_msg = f'Path must be absolute: {yaml_path}'
+            # Validate the path
+            try:
+                yaml_path = validate_file_path(yaml_path)
+            except ValueError as e:
+                error_msg = f'Invalid yaml_path: {e}'
                 log_with_request_id(ctx, LogLevel.ERROR, error_msg)
                 return CallToolResult(
                     isError=True,
@@ -734,9 +737,11 @@ class K8sHandler:
                     content=[TextContent(type='text', text=error_msg)],
                 )
 
-            # Validate that the path is absolute
-            if not os.path.isabs(output_dir):
-                error_msg = f'Output directory path must be absolute: {output_dir}'
+            # Validate the output directory path
+            try:
+                output_dir = validate_directory_path(output_dir)
+            except ValueError as e:
+                error_msg = f'Invalid output_dir: {e}'
                 log_with_request_id(ctx, LogLevel.ERROR, error_msg)
                 return CallToolResult(
                     isError=True,
