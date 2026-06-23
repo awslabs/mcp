@@ -40,7 +40,7 @@ Concrete example (from `dsql_lint(sql="CREATE INDEX idx ON t (c);", fix=true)`):
 
 **Schema notes:**
 
-- `rule` is a snake_case string identifying the rule (e.g., `index_async`, `truncate`, `json_type`, `set_transaction`); `line` is 1-indexed.
+- `rule` is a snake_case string identifying the rule (e.g., `index_async`, `truncate`, `array_type`, `set_transaction`); `line` is 1-indexed.
 - `fix_result.status` is one of three values: `fixed`, `fixed_with_warning`, or `unfixable`. Always check this field — `fix_result` is present for every diagnostic when `fix=true`.
 - `fix_result.detail` is present for `fixed` and `fixed_with_warning`; absent for `unfixable`.
 - `fixed_sql` is always a string when `fix=true` (may include the original text verbatim for `unfixable` portions that could not be rewritten); `null` when `fix=false`. Presence of `fixed_sql` does NOT mean the SQL is safe to execute — check every diagnostic first.

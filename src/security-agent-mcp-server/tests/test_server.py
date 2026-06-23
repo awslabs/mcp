@@ -26,6 +26,8 @@ def test_server_has_expected_tools():
         'setup_check',
         'setup',
         'start_security_scan',
+        'start_diff_scan',
+        'start_threat_model_review',
         'get_scan_status',
         'get_scan_findings',
         'list_scans',
@@ -49,7 +51,7 @@ def test_server_has_instructions():
 
 def test_server_tool_count():
     """Verify correct number of tools."""
-    assert len(mcp._tool_manager._tools) == 9
+    assert len(mcp._tool_manager._tools) == 11
 
 
 class TestSetupCheck:
@@ -229,6 +231,9 @@ class TestStartSecurityScan:
     """Tests for start_security_scan lazy bucket creation."""
 
     @pytest.mark.asyncio
+    @patch(
+        'awslabs.security_agent_mcp_server.server._validate_path', new=AsyncMock(return_value='.')
+    )
     @patch('awslabs.security_agent_mcp_server.server._scanner')
     @patch('awslabs.security_agent_mcp_server.server._state')
     @patch('awslabs.security_agent_mcp_server.server._client')
@@ -249,6 +254,9 @@ class TestStartSecurityScan:
         assert 'scan-1' in result
 
     @pytest.mark.asyncio
+    @patch(
+        'awslabs.security_agent_mcp_server.server._validate_path', new=AsyncMock(return_value='.')
+    )
     @patch('awslabs.security_agent_mcp_server.server._scanner')
     @patch('awslabs.security_agent_mcp_server.server._state')
     @patch('awslabs.security_agent_mcp_server.server._client')
@@ -375,6 +383,9 @@ class TestStartSecurityScanBucketRegistration:
     """Covers bucket-registration path in start_security_scan."""
 
     @pytest.mark.asyncio
+    @patch(
+        'awslabs.security_agent_mcp_server.server._validate_path', new=AsyncMock(return_value='.')
+    )
     @patch('awslabs.security_agent_mcp_server.server._scanner')
     @patch('awslabs.security_agent_mcp_server.server._state')
     @patch('awslabs.security_agent_mcp_server.server._client')
@@ -814,6 +825,9 @@ class TestErrorContract:
         assert _json.loads(result)['error_code'] == 'AccessDeniedException'
 
     @pytest.mark.asyncio
+    @patch(
+        'awslabs.security_agent_mcp_server.server._validate_path', new=AsyncMock(return_value='.')
+    )
     @patch('awslabs.security_agent_mcp_server.server._scanner')
     @patch('awslabs.security_agent_mcp_server.server._state')
     async def test_start_security_scan_clienterror_returns_structured(
@@ -842,3 +856,442 @@ class TestErrorContract:
         import json as _json
 
         assert _json.loads(result)['error_code'] == 'ValidationException'
+
+
+class TestStartDiffScan:
+    """Tests for start_diff_scan tool."""
+
+    @pytest.mark.asyncio
+    @patch(
+        'awslabs.security_agent_mcp_server.server._validate_path', new=AsyncMock(return_value='.')
+    )
+    @patch('awslabs.security_agent_mcp_server.server._scanner')
+    @patch('awslabs.security_agent_mcp_server.server._state')
+    async def test_success(self, mock_state, mock_scanner):
+        """Delegates to scanner.start_diff_scan when configured."""
+        mock_state.get_config.return_value = {
+            'agent_space_id': 'as-1',
+            'service_role': 'arn:role',
+            's3_bucket': 'bucket',
+        }
+        mock_scanner.start_diff_scan = AsyncMock(
+            return_value={'scan_id': 'scan-diff-1', 'scan_type': 'DIFF'}
+        )
+        ctx = MagicMock()
+        ctx.error = AsyncMock()
+
+        from awslabs.security_agent_mcp_server.server import start_diff_scan
+
+        result = await start_diff_scan(ctx, path='.', base_ref='HEAD', title='diff-test')
+        assert 'scan-diff-1' in result
+        assert 'DIFF' in result
+
+    @pytest.mark.asyncio
+    @patch('awslabs.security_agent_mcp_server.server._state')
+    async def test_not_configured(self, mock_state):
+        """Returns error when agent_space_id missing."""
+        mock_state.get_config.return_value = {}
+        ctx = MagicMock()
+        ctx.error = AsyncMock()
+
+        from awslabs.security_agent_mcp_server.server import start_diff_scan
+
+        result = await start_diff_scan(ctx, path='.', base_ref='HEAD', title=None)
+        assert 'Not configured' in result
+
+    @pytest.mark.asyncio
+    @patch(
+        'awslabs.security_agent_mcp_server.server._validate_path',
+        new=AsyncMock(return_value='/tmp/test'),
+    )
+    @patch('awslabs.security_agent_mcp_server.server._state')
+    @patch('awslabs.security_agent_mcp_server.server._ensure_s3_bucket')
+    @patch('awslabs.security_agent_mcp_server.server._scanner')
+    async def test_lazily_creates_bucket(self, mock_scanner, mock_ensure_bucket, mock_state):
+        """Calls _ensure_s3_bucket when bucket not yet configured."""
+        mock_state.get_config.return_value = {
+            'agent_space_id': 'as-1',
+            'service_role': 'arn:role',
+        }
+        mock_scanner.start_diff_scan = AsyncMock(return_value={'scan_id': 'scan-123'})
+        ctx = MagicMock()
+        ctx.error = AsyncMock()
+
+        from awslabs.security_agent_mcp_server.server import start_diff_scan
+
+        result = await start_diff_scan(ctx, path='/tmp/test', base_ref='HEAD', title=None)
+        mock_ensure_bucket.assert_called_once_with(mock_state.get_config.return_value)
+        assert 'scan-123' in result
+
+
+class TestStartThreatModelReview:
+    """Tests for the start_threat_model_review tool."""
+
+    @pytest.mark.asyncio
+    @patch(
+        'awslabs.security_agent_mcp_server.server._validate_path',
+        new=AsyncMock(side_effect=lambda ctx, p, **kw: p),
+    )
+    @patch('awslabs.security_agent_mcp_server.server._scanner')
+    @patch('awslabs.security_agent_mcp_server.server._client')
+    @patch('awslabs.security_agent_mcp_server.server._state')
+    async def test_success(self, mock_state, mock_client, mock_scanner):
+        """Delegates to scanner.start_threat_model_review when configured."""
+        mock_state.get_config.return_value = {
+            'agent_space_id': 'as-1',
+            'service_role': 'arn:role',
+            'threat_model_s3_bucket': 'tm-bucket',
+        }
+        mock_scanner.start_threat_model_review = AsyncMock(
+            return_value={'scan_id': 'tm-scan-1', 'scan_type': 'THREAT_MODEL'}
+        )
+        ctx = MagicMock()
+        ctx.error = AsyncMock()
+
+        from awslabs.security_agent_mcp_server.server import start_threat_model_review
+
+        result = await start_threat_model_review(
+            ctx, path='/abs/path', specs=['/abs/path/design.md'], title='tm-test'
+        )
+        assert 'tm-scan-1' in result
+        mock_scanner.start_threat_model_review.assert_called_once_with(
+            path='/abs/path', specs=['/abs/path/design.md'], title='ide-tm-test'
+        )
+
+    @pytest.mark.asyncio
+    @patch('awslabs.security_agent_mcp_server.server._state')
+    async def test_not_configured(self, mock_state):
+        """Returns error when agent_space_id/service_role missing."""
+        mock_state.get_config.return_value = {}
+        ctx = MagicMock()
+        ctx.error = AsyncMock()
+
+        from awslabs.security_agent_mcp_server.server import start_threat_model_review
+
+        result = await start_threat_model_review(ctx, path='.', specs=[], title=None)
+        assert 'Not configured' in result
+
+    @pytest.mark.asyncio
+    @patch(
+        'awslabs.security_agent_mcp_server.server._validate_path',
+        new=AsyncMock(side_effect=lambda ctx, p, **kw: p),
+    )
+    @patch('awslabs.security_agent_mcp_server.server._scanner')
+    @patch('awslabs.security_agent_mcp_server.server._client')
+    @patch('awslabs.security_agent_mcp_server.server._state')
+    async def test_lazy_creates_threat_model_bucket(self, mock_state, mock_client, mock_scanner):
+        """When threat_model_s3_bucket missing, _ensure_s3_bucket creates+registers it."""
+        mock_state.get_config.return_value = {
+            'agent_space_id': 'as-1',
+            'service_role': 'arn:role',
+        }
+        mock_client.get_caller_identity.return_value = {'Account': '123'}
+        mock_client.create_s3_bucket.return_value = 'security-agent-threat-model-123-us-east-1'
+        mock_client.get_agent_space.return_value = {
+            'name': 'sec',
+            'awsResources': {'iamRoles': ['arn:role'], 's3Buckets': []},
+        }
+        mock_state.update_config = MagicMock()
+        mock_scanner.start_threat_model_review = AsyncMock(return_value={'scan_id': 'tm-scan-1'})
+        ctx = MagicMock()
+        ctx.error = AsyncMock()
+
+        from awslabs.security_agent_mcp_server.server import start_threat_model_review
+
+        await start_threat_model_review(ctx, path='/abs', specs=['/abs/design.md'], title='t')
+        # Bucket creation called with the threat-model name
+        mock_client.create_s3_bucket.assert_called_once()
+        bucket_arg = mock_client.create_s3_bucket.call_args.args[0]
+        assert bucket_arg.startswith('security-agent-threat-model-')
+        # Registered on agent space
+        mock_client.update_agent_space.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch(
+        'awslabs.security_agent_mcp_server.server._validate_path',
+        new=AsyncMock(side_effect=lambda ctx, p, **kw: p),
+    )
+    @patch('awslabs.security_agent_mcp_server.server._scanner')
+    @patch('awslabs.security_agent_mcp_server.server._state')
+    async def test_unexpected_error_propagates(self, mock_state, mock_scanner):
+        """Non-ClientError surfaces via ctx.error and re-raises."""
+        mock_state.get_config.return_value = {
+            'agent_space_id': 'as-1',
+            'service_role': 'arn:role',
+            'threat_model_s3_bucket': 'tm-bucket',
+        }
+        mock_scanner.start_threat_model_review = AsyncMock(side_effect=RuntimeError('boom'))
+        ctx = MagicMock()
+        ctx.error = AsyncMock()
+
+        from awslabs.security_agent_mcp_server.server import start_threat_model_review
+
+        with pytest.raises(RuntimeError):
+            await start_threat_model_review(ctx, path='.', specs=['/x'], title=None)
+        ctx.error.assert_awaited()
+
+
+class TestEnsureS3BucketHelper:
+    """Tests for the _ensure_s3_bucket helper used by both scan tools."""
+
+    @pytest.mark.asyncio
+    @patch('awslabs.security_agent_mcp_server.server._client')
+    @patch('awslabs.security_agent_mcp_server.server._state')
+    async def test_skips_when_already_configured(self, mock_state, mock_client):
+        """If bucket already in config, helper returns immediately without API calls."""
+        from awslabs.security_agent_mcp_server.server import _ensure_s3_bucket
+
+        config = {'s3_bucket': 'already-set', 'agent_space_id': 'as-1'}
+        _ensure_s3_bucket(config, 'scans')
+        mock_client.get_caller_identity.assert_not_called()
+        mock_client.create_s3_bucket.assert_not_called()
+
+    @patch('awslabs.security_agent_mcp_server.server._client')
+    @patch('awslabs.security_agent_mcp_server.server._state')
+    def test_handles_bucket_already_owned(self, mock_state, mock_client):
+        """BucketAlreadyOwnedByYou is swallowed (idempotent setup)."""
+        from awslabs.security_agent_mcp_server.server import _ensure_s3_bucket
+        from botocore.exceptions import ClientError
+
+        config = {'agent_space_id': 'as-1'}
+        mock_client.get_caller_identity.return_value = {'Account': '123'}
+        mock_client.create_s3_bucket.side_effect = ClientError(
+            {'Error': {'Code': 'BucketAlreadyOwnedByYou', 'Message': 'owned'}},
+            'CreateBucket',
+        )
+        mock_client.get_agent_space.return_value = {
+            'name': 'sec',
+            'awsResources': {'iamRoles': [], 's3Buckets': []},
+        }
+        # Should not raise
+        _ensure_s3_bucket(config, 'scans')
+        # Despite create error, bucket still gets registered with the agent space
+        mock_client.update_agent_space.assert_called_once()
+
+    @patch('awslabs.security_agent_mcp_server.server._client')
+    @patch('awslabs.security_agent_mcp_server.server._state')
+    def test_unexpected_create_error_raises(self, mock_state, mock_client):
+        """Non-BucketAlreadyOwnedByYou ClientError surfaces."""
+        from awslabs.security_agent_mcp_server.server import _ensure_s3_bucket
+        from botocore.exceptions import ClientError
+
+        config = {'agent_space_id': 'as-1'}
+        mock_client.get_caller_identity.return_value = {'Account': '123'}
+        mock_client.create_s3_bucket.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDenied', 'Message': 'no'}}, 'CreateBucket'
+        )
+        with pytest.raises(ClientError):
+            _ensure_s3_bucket(config, 'scans')
+
+
+class TestValidatePath:
+    """Tests for _validate_path workspace boundary enforcement."""
+
+    @pytest.mark.asyncio
+    async def test_valid_path_within_workspace(self, tmp_path):
+        """Valid path within WORKSPACE_ROOT resolves successfully."""
+        import awslabs.security_agent_mcp_server.server as srv
+
+        subdir = tmp_path / 'project'
+        subdir.mkdir()
+        original = srv._ALLOWED_ROOT
+        srv._ALLOWED_ROOT = str(tmp_path)
+        try:
+            ctx = MagicMock()
+            result = await srv._validate_path(ctx, str(subdir))
+            assert result == str(subdir.resolve())
+        finally:
+            srv._ALLOWED_ROOT = original
+
+    @pytest.mark.asyncio
+    async def test_path_outside_workspace_raises(self, tmp_path):
+        """Path outside WORKSPACE_ROOT raises ValueError."""
+        import awslabs.security_agent_mcp_server.server as srv
+
+        original = srv._ALLOWED_ROOT
+        srv._ALLOWED_ROOT = str(tmp_path / 'workspace')
+        (tmp_path / 'workspace').mkdir()
+        try:
+            ctx = MagicMock()
+            with pytest.raises(ValueError, match='outside the allowed workspace'):
+                await srv._validate_path(ctx, '/etc')
+        finally:
+            srv._ALLOWED_ROOT = original
+
+    @pytest.mark.asyncio
+    async def test_nonexistent_dir_raises(self, tmp_path):
+        """Non-existent directory raises ValueError."""
+        import awslabs.security_agent_mcp_server.server as srv
+
+        original = srv._ALLOWED_ROOT
+        srv._ALLOWED_ROOT = str(tmp_path)
+        try:
+            ctx = MagicMock()
+            with pytest.raises(ValueError, match='does not exist'):
+                await srv._validate_path(ctx, str(tmp_path / 'nonexistent'))
+        finally:
+            srv._ALLOWED_ROOT = original
+
+    @pytest.mark.asyncio
+    async def test_file_validation(self, tmp_path):
+        """File path validates with must_be_dir=False."""
+        import awslabs.security_agent_mcp_server.server as srv
+
+        f = tmp_path / 'spec.md'
+        f.write_text('hello')
+        original = srv._ALLOWED_ROOT
+        srv._ALLOWED_ROOT = str(tmp_path)
+        try:
+            ctx = MagicMock()
+            result = await srv._validate_path(ctx, str(f), must_be_dir=False)
+            assert result == str(f.resolve())
+        finally:
+            srv._ALLOWED_ROOT = original
+
+    @pytest.mark.asyncio
+    async def test_nonexistent_file_raises(self, tmp_path):
+        """Non-existent file raises ValueError with must_be_dir=False."""
+        import awslabs.security_agent_mcp_server.server as srv
+
+        original = srv._ALLOWED_ROOT
+        srv._ALLOWED_ROOT = str(tmp_path)
+        try:
+            ctx = MagicMock()
+            with pytest.raises(ValueError, match='does not exist'):
+                await srv._validate_path(ctx, str(tmp_path / 'nofile.md'), must_be_dir=False)
+        finally:
+            srv._ALLOWED_ROOT = original
+
+
+class TestClientPrefix:
+    """Tests for _client_prefix."""
+
+    def test_extracts_client_name(self):
+        """Extracts and kebab-cases client name from session."""
+        from awslabs.security_agent_mcp_server.server import _client_prefix
+
+        ctx = MagicMock()
+        ctx.session.client_params.clientInfo.name = 'Kiro IDE'
+        assert _client_prefix(ctx) == 'kiro-ide'
+
+    def test_none_session_returns_fallback(self):
+        """Returns 'ide' when session is None."""
+        from awslabs.security_agent_mcp_server.server import _client_prefix
+
+        ctx = MagicMock()
+        ctx.session = None
+        assert _client_prefix(ctx) == 'ide'
+
+    def test_non_string_name_returns_fallback(self):
+        """Returns 'ide' when name is not a string."""
+        from awslabs.security_agent_mcp_server.server import _client_prefix
+
+        ctx = MagicMock()
+        ctx.session.client_params.clientInfo.name = 123
+        assert _client_prefix(ctx) == 'ide'
+
+    def test_attribute_error_returns_fallback(self):
+        """Returns 'ide' on AttributeError."""
+        from awslabs.security_agent_mcp_server.server import _client_prefix
+
+        ctx = MagicMock()
+        type(ctx.session.client_params).clientInfo = property(
+            lambda self: (_ for _ in ()).throw(AttributeError)
+        )
+        assert _client_prefix(ctx) == 'ide'
+
+
+class TestStartDiffScanErrors:
+    """Tests for start_diff_scan error paths."""
+
+    @pytest.mark.asyncio
+    @patch('awslabs.security_agent_mcp_server.server._validate_path')
+    @patch('awslabs.security_agent_mcp_server.server._scanner')
+    @patch('awslabs.security_agent_mcp_server.server._state')
+    @patch('awslabs.security_agent_mcp_server.server._client')
+    async def test_client_error_returns_structured(
+        self, mock_client, mock_state, mock_scanner, mock_validate
+    ):
+        """ClientError returns structured error JSON."""
+        from awslabs.security_agent_mcp_server.server import start_diff_scan
+        from botocore.exceptions import ClientError
+
+        mock_state.get_config.return_value = {
+            'agent_space_id': 'as-1',
+            'service_role': 'arn:role',
+            's3_bucket': 'bucket',
+        }
+        mock_validate.return_value = '.'
+        mock_scanner.start_diff_scan = AsyncMock(
+            side_effect=ClientError({'Error': {'Code': 'AccessDenied', 'Message': 'no'}}, 'Op')
+        )
+        ctx = MagicMock()
+        ctx.error = AsyncMock()
+
+        result = await start_diff_scan(ctx, path='.', base_ref='HEAD')
+        assert 'error' in result
+
+    @pytest.mark.asyncio
+    @patch('awslabs.security_agent_mcp_server.server._state')
+    async def test_value_error_returns_message(self, mock_state):
+        """ValueError from _validate_path returns error message."""
+        from awslabs.security_agent_mcp_server.server import start_diff_scan
+
+        mock_state.get_config.return_value = {
+            'agent_space_id': 'as-1',
+            'service_role': 'arn:role',
+            's3_bucket': 'bucket',
+        }
+        ctx = MagicMock()
+        ctx.error = AsyncMock()
+
+        result = await start_diff_scan(ctx, path='/etc/passwd', base_ref='HEAD')
+        assert 'error' in result
+
+
+class TestStartThreatModelErrors:
+    """Tests for start_threat_model_review error paths."""
+
+    @pytest.mark.asyncio
+    @patch('awslabs.security_agent_mcp_server.server._validate_path')
+    @patch('awslabs.security_agent_mcp_server.server._scanner')
+    @patch('awslabs.security_agent_mcp_server.server._state')
+    @patch('awslabs.security_agent_mcp_server.server._client')
+    async def test_client_error_returns_structured(
+        self, mock_client, mock_state, mock_scanner, mock_validate
+    ):
+        """ClientError returns structured error JSON."""
+        from awslabs.security_agent_mcp_server.server import start_threat_model_review
+        from botocore.exceptions import ClientError
+
+        mock_state.get_config.return_value = {
+            'agent_space_id': 'as-1',
+            'service_role': 'arn:role',
+            'threat_model_s3_bucket': 'bucket',
+        }
+        mock_validate.return_value = '.'
+        mock_scanner.start_threat_model_review = AsyncMock(
+            side_effect=ClientError({'Error': {'Code': 'AccessDenied', 'Message': 'no'}}, 'Op')
+        )
+        ctx = MagicMock()
+        ctx.error = AsyncMock()
+
+        result = await start_threat_model_review(ctx, path='.', specs=[])
+        assert 'error' in result
+
+    @pytest.mark.asyncio
+    @patch('awslabs.security_agent_mcp_server.server._state')
+    async def test_value_error_returns_message(self, mock_state):
+        """ValueError from _validate_path returns error message."""
+        from awslabs.security_agent_mcp_server.server import start_threat_model_review
+
+        mock_state.get_config.return_value = {
+            'agent_space_id': 'as-1',
+            'service_role': 'arn:role',
+            'threat_model_s3_bucket': 'bucket',
+        }
+        ctx = MagicMock()
+        ctx.error = AsyncMock()
+
+        result = await start_threat_model_review(ctx, path='/etc/passwd', specs=[])
+        assert 'error' in result
