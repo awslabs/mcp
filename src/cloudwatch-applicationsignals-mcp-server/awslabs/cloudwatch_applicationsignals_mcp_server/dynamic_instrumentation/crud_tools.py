@@ -66,6 +66,21 @@ def create_instrumentation(
     capture_arguments for method/function-level targets and capture_locals for
     line-level targets.
 
+    **Primary RCA use — capture the runtime values that telemetry and source code
+    cannot show.** Reach for this tool when an incident's stack trace tells you WHERE
+    an exception threw but not WHY: the exception message is a generic symptom
+    (`/ by zero`, NullPointerException, IndexOutOfBoundsException, ClassCastException),
+    only a subset of requests fail, and the deciding value lives in runtime state that
+    no span, log, metric, or trace recorded — a downstream response body field, a DB
+    row, a cache entry, a method argument, or a local variable. Source code only
+    reveals the code path, not which live input took it; a BREAKPOINT at the throwing
+    line capturing the relevant arguments/locals records the actual values on the next
+    failing request, with no redeploy and no added logging. This converts a
+    source-only hypothesis ("this divisor could be zero" / "this field could be null")
+    into a confirmed root cause backed by the exact runtime value that triggered the
+    failure. After the breakpoint is ACTIVE and a failing request hits it, read the
+    captured state with `get_sample_snapshot_for_breakpoint`.
+
     Args:
         instrumentation_type: BREAKPOINT or PROBE. PROBE is method/function-level only
             (no line_number) and is not supported for JavaScript. Unlike BREAKPOINT,
