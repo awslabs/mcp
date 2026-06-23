@@ -13,10 +13,8 @@
     for status inspection.
   - `search_snapshots_for_status_event`, `get_sample_snapshot_for_breakpoint`
     for analyzing captured snapshots from CloudWatch Logs.
-  - Ships a trimmed `application-signals` service model bundled under
-    `dynamic_instrumentation/aws_data/`, loaded via a session-scoped botocore
-    data loader. The bundled model is removed once the operations are generally
-    available in `botocore`.
+  - Calls the public `application-signals` dynamic instrumentation operations
+    (`boto3` >= 1.43.35).
 
 ## [0.1.0] - 2025-01-18
 

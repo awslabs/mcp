@@ -43,7 +43,8 @@ def _check_status_with_time_range(
 ) -> Tuple[bool, List[dict], Optional[str]]:
     """Check whether status events exist for the configuration in a time range."""
     try:
-        data = gateway.get_instrumentation_configuration_status(
+        data = gateway.call(
+            'get_instrumentation_configuration_status',
             InstrumentationType=instrumentation_type,
             Service=service,
             Environment=environment,
@@ -210,7 +211,7 @@ Use explicit status checks in this order:
         request_kwargs['NextToken'] = next_token
 
     try:
-        data = gateway.get_instrumentation_configuration_status(**request_kwargs)
+        data = gateway.call('get_instrumentation_configuration_status', **request_kwargs)
     except gateway.GatewayError as err:
         return gateway.render_error(
             err,
@@ -278,7 +279,8 @@ def check_instrumentation_status(
         return 'ERROR: location_hash must be a 16-character hex string'
 
     try:
-        created_at_response = gateway.get_instrumentation_configuration(
+        created_at_response = gateway.call(
+            'get_instrumentation_configuration',
             InstrumentationType=normalized_type,
             Service=service,
             Environment=environment,
