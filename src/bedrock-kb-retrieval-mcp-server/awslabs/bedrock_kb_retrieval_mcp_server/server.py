@@ -125,7 +125,7 @@ async def list_knowledge_bases_tool() -> str:
     3. Use the names to determine which knowledge base and data source(s) are most relevant to the user's query
     """
     knowledge_bases = await discover_knowledge_bases(kb_agent_mgmt_client, kb_inclusion_tag_key)
-    return json.dumps(knowledge_bases)
+    return json.dumps(knowledge_bases, ensure_ascii=False)
 
 
 @mcp.tool(name='QueryKnowledgeBases')
