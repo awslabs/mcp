@@ -79,6 +79,7 @@ class SearchResult(BaseModel):
     url: str
     title: str
     context: Optional[str] = None
+    recommended_sections: Optional[List[str]] = None
     sections: Optional[List[str]] = None
     metadata: Optional[SearchResultMetadata] = None
 
