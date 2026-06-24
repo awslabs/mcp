@@ -855,16 +855,11 @@ SELECT
   service_class_name,
   count(1) query_count,
   sum(case when query_type = 'COPY' then 1 else 0 end) copy_count,
-  sum(case when query_type = 'INSERT' then 1 else 0 end) insert_count,
-  sum(case when query_type = 'UPDATE' then 1 else 0 end) update_count,
-  sum(case when query_type = 'DDL' then 1 else 0 end) ddl_count,
-  sum(case when query_type = 'CTAS' then 1 else 0 end) ctas_count,
   sum(case when result_cache_hit then 1 else 0 end) result_cache_hits,
   sum(case when queue_time > 0 then 1 else 0 end) queued_queries,
   sum(case when nvl(error_message,'') = '' then 0 else 1 end) error_queries,
   sum(case when compute_type != 'primary' then 1 else 0 end) burst_queries,
   sum(case when compute_type != 'primary' then execution_time/1000000.0 else 0 end)::decimal(18,2) burst_secs,
-  sum(case when compile_time > 0 then 1 else 0 end) compiled_queries,
   sum(queue_time/1000000)::decimal(18,2) total_queue_time,
   sum(compile_time/1000000)::decimal(18,2) total_compile_time,
   sum(planning_time/1000000)::decimal(18,2) total_planning_time,
@@ -1115,7 +1110,7 @@ FROM summary s
 JOIN workload_breakdown b using(workloadtype)
 )
 -- Signal: Evaluate Workload for Serverless. Cluster is busy less than 75% of the time in a day.
--- Gate: only evaluate if at least 2 distinct users and 3 active days in history.
+-- Gate: only evaluate if at least 3 active days in history.
 SELECT count(*), 'REC_032'
 FROM data
 WHERE total_pct_busy < 75
