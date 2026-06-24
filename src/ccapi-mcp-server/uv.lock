@@ -231,7 +231,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-ccapi-mcp-server"
-version = "1.0.22"
+version = "1.0.9223372036854775807"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },

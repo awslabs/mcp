@@ -61,19 +61,21 @@ def _validate_token_chain(
     if not security_scan_token or security_scan_token not in workflow_store:
         raise ClientError('Invalid security_scan_token')
 
-    # Security scan token must be created after explain token in same workflow
     explained_data = workflow_store[explained_token]
     security_data = workflow_store[security_scan_token]
 
-    # For now, just ensure both tokens exist and are valid types
     if explained_data.get('type') != 'explained_properties':
         raise ClientError('Invalid explained_token type')
 
     if security_data.get('type') != 'security_scan':
         raise ClientError('Invalid security_scan_token type')
 
-    # Set the parent relationship (security scan derives from explained token)
-    workflow_store[security_scan_token]['parent_token'] = explained_token
+    stored_parent = security_data.get('parent_token')
+    if stored_parent and stored_parent != explained_token:
+        raise ClientError(
+            'Token chain mismatch: security_scan_token was not derived from '
+            'the provided explained_token'
+        )
 
 
 async def create_resource_impl(request: CreateResourceRequest, workflow_store: dict) -> dict:
@@ -167,17 +169,62 @@ async def update_resource_impl(request: UpdateResourceRequest, workflow_store: d
     security_scanning_enabled, security_warning = check_security_scanning()
 
     # Validate security scan token if security scanning is enabled
-    if security_scanning_enabled and not request.security_scan_token:
-        raise ClientError('Security scan token required (run run_checkov() first)')
+    if security_scanning_enabled:
+        if not request.security_scan_token:
+            raise ClientError(
+                'Security scanning is enabled but no security_scan_token provided: '
+                'run run_checkov() first and get user approval'
+            )
+        _validate_token_chain(request.explained_token, request.security_scan_token, workflow_store)
+    elif not request.skip_security_check:
+        raise ClientError(
+            'Security scanning is disabled. You must set skip_security_check=True '
+            'to proceed without security validation.'
+        )
 
-    # CRITICAL SECURITY: Validate explained token (already validated in token chain if security enabled)
-    if not security_scanning_enabled or request.skip_security_check:
-        validate_workflow_token(request.explained_token, 'explained_properties', workflow_store)
-    else:
-        # Token already validated in chain
-        pass
+    # Always validate explained_token exists and has correct type
+    workflow_data = validate_workflow_token(
+        request.explained_token, 'explained_properties', workflow_store
+    )
 
-    validate_patch(request.patch_document)
+    # Verify the token was generated for an update operation and matches the target resource
+    token_data = workflow_data.get('data', {})
+    stored_operation = token_data.get('operation', '')
+    if stored_operation != 'update':
+        raise ClientError(
+            f'Invalid explained_token: token was generated for '
+            f'{stored_operation or "unknown"}, not update'
+        )
+
+    stored_resource_type = token_data.get('resource_type', '')
+    if stored_resource_type != request.resource_type:
+        raise ClientError(
+            f'Resource type mismatch: token is for {stored_resource_type or "unknown"}, '
+            f'but update targets {request.resource_type}'
+        )
+
+    stored_identifier = token_data.get('identifier', '')
+    if stored_identifier != request.identifier:
+        raise ClientError(
+            f'Identifier mismatch: token is for {stored_identifier or "unknown"}, '
+            f'but update targets {request.identifier}'
+        )
+
+    # Use the server-stored patch; reject if caller tries to override
+    stored_patch = token_data.get('patch_document')
+    if stored_patch is None:
+        raise ClientError(
+            'Invalid explained_token: token does not contain a patch_document. '
+            'Generate and explain the update via generate_infrastructure_code() first.'
+        )
+    if request.patch_document is not None and request.patch_document != stored_patch:
+        raise ClientError(
+            'Patch document mismatch: the submitted patch differs from '
+            'what was explained and scanned. Generate and explain a new patch.'
+        )
+    patch_to_use = stored_patch
+
+    validate_patch(patch_to_use)
     # Use MCP env region or session region, no hardcoded fallback
     env_vars = aws_session_data.get('environment_variables', {})
     region_str = env_vars.get('AWS_REGION') or aws_session_data.get('region')
@@ -186,7 +233,7 @@ async def update_resource_impl(request: UpdateResourceRequest, workflow_store: d
     cloudcontrol_client = get_aws_client('cloudcontrol', region_str)
 
     # Convert patch document to JSON string for the API
-    patch_document_str = json.dumps(request.patch_document)
+    patch_document_str = json.dumps(patch_to_use)
 
     # Update the resource
     try:
