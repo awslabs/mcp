@@ -339,14 +339,23 @@ def _get_specialized_converter(operation_name: str) -> Optional[str]:
     """Get specific converter function for API.
 
     Args:
-        operation_name: Name of the API operation
+        operation_name: Name of the API operation. MUST match the string the
+            tool layer passes to ``convert_api_response_to_table`` /
+            ``convert_response_if_needed`` — i.e. the namespaced snake_case
+            identifier (``cost_explorer_get_cost_and_usage``,
+            ``aws_pricing_get_products``, …). Namespacing by service avoids
+            cross-service collisions as the offload feature expands.
 
     Returns:
         Optional[str]: Type of specialized converter to use, or None for generic
     """
-    # Map of operation names to specialized converter types
+    # Map of operation names to specialized converter types. Keys are the exact
+    # ``operation_name`` strings the callers pass; mismatches silently fall
+    # through to the generic ``(key, value)`` flatten branch and lose all
+    # typed-column structure, so keep these in sync with the call sites in
+    # tools/cost_explorer_operations.py and tools/aws_pricing_operations.py.
     converters = {
-        'aws_pricing_get_products': 'pricing_products',
+        # Cost Explorer
         'cost_explorer_get_cost_and_usage': 'cost_and_usage',
         'cost_explorer_get_cost_and_usage_with_resources': 'cost_and_usage',
         'cost_explorer_get_dimension_values': 'dimension_values',
@@ -354,6 +363,8 @@ def _get_specialized_converter(operation_name: str) -> Optional[str]:
         'cost_explorer_get_usage_forecast': 'forecast',
         'cost_explorer_get_tags': 'tags',
         'cost_explorer_get_cost_categories': 'cost_categories',
+        # AWS Pricing
+        'aws_pricing_get_products': 'pricing_products',
     }
 
     return converters.get(operation_name)

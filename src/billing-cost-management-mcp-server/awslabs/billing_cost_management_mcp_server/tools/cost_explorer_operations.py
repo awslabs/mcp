@@ -25,7 +25,7 @@ from ..utilities.aws_service_base import (
     paginate_aws_response,
     parse_json,
 )
-from ..utilities.sql_utils import convert_api_response_to_table
+from ..utilities.sql_utils import convert_response_if_needed
 from datetime import datetime, timedelta
 from fastmcp import Context
 from typing import Any, Dict, Optional
@@ -124,11 +124,15 @@ async def get_cost_and_usage(
             # For single page, make direct call
             response = ce_client.get_cost_and_usage(**request_params)
 
-        # Convert large responses to SQL table
-        table_response = await convert_api_response_to_table(
+        # Offload large responses to SQLite via the size gate; small responses
+        # pass through and are returned inline. ``convert_response_if_needed``
+        # returns either {status, data_stored, table_name, ...} (large) or
+        # {status, data, response_size_bytes} (small) — the ``data_stored``
+        # check below picks the right shape for ``format_response``.
+        table_response = await convert_response_if_needed(
             ctx,
             response,
-            'getCostAndUsage',
+            'cost_explorer_get_cost_and_usage',
             granularity=granularity,
             start_date=start,
             end_date=end,
