@@ -23,8 +23,6 @@ DEFAULT_LOG_LEVEL = 'WARNING'
 QUERY_TIMEOUT = 3600
 QUERY_POLL_INTERVAL = 1
 SESSION_KEEPALIVE = 600
-SUSPICIOUS_QUERY_MAX_LEN = 65_536
-SUSPICIOUS_QUERY_TIMEOUT = 1.0
 
 # Best practices
 
@@ -126,20 +124,30 @@ ORDER BY ordinal_position;
 
 # SQL guardrails
 
-# Single-lines comments.
-re_slc = r'--.*?$'
+# Read-only guard limits and deny-list (used by sql_guard.py; sqlglot AST-based).
 
+# Maximum SQL length accepted before parsing; longer input is rejected (fail closed).
+MAX_SQL_LEN = 65_536
 
-def re_mlc(g: int) -> str:
-    """Multi-line comments, considering balanced recursion."""
-    return rf'(?P<mlc{g}>(?:\/\*)(?:[^\/\*]|\/[^\*]|\*[^\/]|(?P>mlc{g}))*(?:\*\/))'
-
-
-def re_sp(g: int) -> str:
-    """Whitespaces, comments, semicolons which can occur between words."""
-    return rf'({re_slc}|{re_mlc(g)}|\s|;)'
-
-
-# We consider `(END|COMMIT|ROLLBACK|ABORT) [WORK|TRANSACTION]` as a breaker for the `BEGIN READ ONLY; {sql}; END;`
-# guarding wrapper, having there might be variations of whitespaces and comments in the construct.
-SUSPICIOUS_QUERY_REGEXP = rf'(?im)(^|;){re_sp(1)}*(END|COMMIT|ROLLBACK|ABORT)({re_sp(2)}+(WORK|TRANSACTION))?{re_sp(3)}*;'
+# Operations denied in read-only mode. Each keyword maps to a sqlglot AST node type
+# (or bare-command name) in sql_guard.py; matched structurally, not by leading text.
+# Fixed internal constant -- not operator-configurable.
+READ_ONLY_DENY_LIST = frozenset(
+    {
+        'UNLOAD',
+        'BEGIN',
+        'START',
+        'COMMIT',
+        'END',
+        'ROLLBACK',
+        'ABORT',
+        'TRUNCATE',
+        'CALL',
+        'GRANT',
+        'REVOKE',
+        'VACUUM',
+        'ANALYZE',
+        'COMMENT',
+        'CANCEL',
+    }
+)

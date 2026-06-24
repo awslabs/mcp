@@ -8,7 +8,7 @@ This MCP server provides tools to discover, explore, and query Amazon Redshift c
 
 - **Cluster Discovery**: Automatically discover both provisioned Redshift clusters and serverless workgroups
 - **Metadata Exploration**: Browse databases, schemas, tables, and columns
-- **Safe Query Execution**: Execute SQL queries in a READ ONLY mode (a safe READ WRITE support is planned to be implemnted in the future versions)
+- **Safe Query Execution**: Run SQL queries in a read-only mode (single statement; writes rejected)
 - **Multi-Cluster Support**: Work with multiple clusters and workgroups simultaneously
 
 ## Prerequisites
@@ -460,3 +460,5 @@ In addition to AWS IAM permissions, you need appropriate database-level permissi
 - **Schema Access**: `USAGE` permissions on schemas you want to explore
 - **Database Access**: Connection permissions to databases you want to access
 - **Review Access**: The `review_cluster` tool requires superuser (CREATEUSER) privileges to read system views such as `SYS_AUTO_TABLE_OPTIMIZATION`, `SYS_QUERY_HISTORY`, and `SVV_TABLE_INFO`. Grant via `ALTER USER <username> CREATEUSER;` or `GRANT ROLE sys:monitor TO <username>;` for a narrower scope.
+
+For the strongest protection, grant these to a **least-privilege, read-only role** rather than a broad or write-capable one.

@@ -13,7 +13,8 @@ dependencies = [
     "loguru>=0.7.0",
     "mcp[cli]>=1.23.0",
     "pydantic>=2.10.6",
-    "regex>=2024.11.6",
+    # Guard correctness depends on sqlglot's internal AST classes/parse behavior; pin to the validated 29.x line. Bumping the major requires re-verifying the deny-list->AST mapping + guard suite.
+    "sqlglot>=29.0.1,<30.0.0",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
