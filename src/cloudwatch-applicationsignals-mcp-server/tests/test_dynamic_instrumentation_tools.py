@@ -18,7 +18,6 @@
 """Unit tests for dynamic instrumentation helper modules."""
 
 import awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients as parent_aws_clients
-import awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation.aws_clients as aws_clients
 import awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation.capture as capture
 import awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation.constants as constants
 import awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation.crud_rendering as crud_rendering
@@ -34,7 +33,6 @@ import awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation.
 import awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation.status_tools as status_tools
 import awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation.validation as validation
 import json
-import os
 import pytest
 from botocore.exceptions import ClientError, EndpointConnectionError, NoCredentialsError
 from botocore.stub import Stubber
@@ -61,34 +59,56 @@ class RecorderMCP:
 
 
 @pytest.fixture(autouse=True)
-def _reset_dynamic_instrumentation_clients():
-    """Drop cached boto3 clients between tests so Stubber can target a fresh client."""
-    aws_clients._reset_clients()
+def _deactivate_stubbers():
+    """Deactivate any Stubber attached to the shared client between tests.
+
+    The dynamic-instrumentation tools call the parent package's *module-level*
+    ``application-signals`` client (``parent_aws_clients.applicationsignals_client``).
+    Unlike a per-test lazy client, that singleton persists across tests, so a
+    Stubber activated on it would leak its queued responses into the next test.
+    Tests register their Stubber on ``_active_stubbers`` (via the shared
+    ``_stub_application_signals`` helper) and this fixture deactivates them on
+    teardown.
+    """
     yield
-    aws_clients._reset_clients()
+    # Drain in a finally so that if one deactivate() raises, the remaining
+    # stubbers are still detached from the shared client and cannot leak their
+    # queued responses into the next test.
+    while _active_stubbers:
+        stubber = _active_stubbers.pop()
+        try:
+            stubber.deactivate()
+        except Exception:  # pragma: no cover - defensive teardown
+            pass
 
 
-class TestBoto3ClientFactory:
-    """Test the lazy boto3 client factory for dynamic instrumentation."""
+# Stubbers registered by _stub_application_signals(); drained by the autouse
+# fixture above so each test starts with a clean shared client.
+_active_stubbers: list = []
 
-    def test_application_signals_client_loads_private_model(self):
-        """Application signals client loads private model."""
-        client = aws_clients.get_application_signals_client()
-        assert 'CreateInstrumentationConfiguration' in client.meta.service_model.operation_names
-        assert client.meta.service_model.api_version == aws_clients.APPLICATION_SIGNALS_API_VERSION
 
-    def test_application_signals_client_is_singleton(self):
-        """Application signals client is singleton."""
-        first = aws_clients.get_application_signals_client()
-        second = aws_clients.get_application_signals_client()
-        assert first is second
+def _stub_application_signals() -> Stubber:
+    """Activate a Stubber on the shared application-signals client and track it.
 
-    def test_default_endpoint_resolution(self):
-        """The client uses normal AWS endpoint resolution."""
-        aws_clients._reset_clients()
-        client = aws_clients.get_application_signals_client()
-        assert client.meta.endpoint_url.startswith('https://')
-        assert 'application-signals' in client.meta.endpoint_url
+    Returns the activated Stubber; the autouse ``_deactivate_stubbers`` fixture
+    tears it down after the test so it cannot leak into the next one.
+    """
+    client = parent_aws_clients.get_applicationsignals_client()
+    stubber = Stubber(client)
+    stubber.activate()
+    _active_stubbers.append(stubber)
+    return stubber
+
+
+class TestApplicationSignalsModel:
+    """The shared application-signals client exposes the DI operations."""
+
+    def test_application_signals_client_exposes_instrumentation_operations(self):
+        """The public application-signals model exposes the DI operations."""
+        client = parent_aws_clients.get_applicationsignals_client()
+        operations = client.meta.service_model.operation_names
+        assert 'CreateInstrumentationConfiguration' in operations
+        assert 'ListInstrumentationConfigurations' in operations
 
 
 class TestErrorTranslator:
@@ -170,15 +190,9 @@ class TestErrorTranslator:
 class TestCrudToolsBoto3Integration:
     """Stubber-driven coverage for the boto3 CRUD path."""
 
-    def _stub_application_signals(self) -> Stubber:
-        client = aws_clients.get_application_signals_client()
-        stubber = Stubber(client)
-        stubber.activate()
-        return stubber
-
     def test_list_instrumentations_renders_empty_list(self):
         """List instrumentations renders empty list."""
-        stubber = self._stub_application_signals()
+        stubber = _stub_application_signals()
         stubber.add_response(
             'list_instrumentation_configurations',
             {
@@ -205,7 +219,7 @@ class TestCrudToolsBoto3Integration:
 
     def test_list_instrumentations_translates_client_error(self):
         """List instrumentations translates client error."""
-        stubber = self._stub_application_signals()
+        stubber = _stub_application_signals()
         stubber.add_client_error(
             'list_instrumentation_configurations',
             service_error_code='ValidationException',
@@ -222,7 +236,7 @@ class TestCrudToolsBoto3Integration:
 
     def test_create_instrumentation_rejects_wildcard_capture_argument(self):
         """Create instrumentation rejects a wildcard in capture_arguments before any API call."""
-        stubber = self._stub_application_signals()
+        stubber = _stub_application_signals()
         rendered = crud_tools.create_instrumentation(
             instrumentation_type='BREAKPOINT',
             service='svc',
@@ -239,7 +253,7 @@ class TestCrudToolsBoto3Integration:
 
     def test_create_line_level_success_suppresses_arguments_and_return(self):
         """A line-level create success message shows locals/stack traces, not arguments/return."""
-        stubber = self._stub_application_signals()
+        stubber = _stub_application_signals()
         stubber.add_response(
             'create_instrumentation_configuration',
             {
@@ -288,7 +302,7 @@ class TestCrudToolsBoto3Integration:
 
     def test_create_instrumentation_renders_client_error_with_attempted_block(self):
         """Create instrumentation renders client error with attempted block."""
-        stubber = self._stub_application_signals()
+        stubber = _stub_application_signals()
         stubber.add_client_error(
             'create_instrumentation_configuration',
             service_error_code='ResourceAlreadyExistsException',
@@ -311,7 +325,7 @@ class TestCrudToolsBoto3Integration:
 
     def test_delete_instrumentation_uses_dict_location_identifier(self):
         """Delete instrumentation uses dict location identifier."""
-        stubber = self._stub_application_signals()
+        stubber = _stub_application_signals()
         stubber.add_response(
             'delete_instrumentation_configuration',
             {'DeletionStatus': 'DELETED'},
@@ -334,7 +348,7 @@ class TestCrudToolsBoto3Integration:
 
     def test_get_instrumentation_unwraps_configuration(self):
         """Get instrumentation unwraps configuration."""
-        stubber = self._stub_application_signals()
+        stubber = _stub_application_signals()
         stubber.add_response(
             'get_instrumentation_configuration',
             {
@@ -377,7 +391,7 @@ class TestCrudToolsBoto3Integration:
 
     def test_batch_delete_by_scope_renders_summary(self):
         """Batch delete by scope renders summary."""
-        stubber = self._stub_application_signals()
+        stubber = _stub_application_signals()
         stubber.add_response(
             'batch_delete_instrumentation_configurations',
             {
@@ -899,12 +913,6 @@ class TestSnapshotHelpers:
 class TestGetInstrumentationConfigurationStatusTool:
     """Stubber-driven coverage for the get-status tool entrypoint."""
 
-    def _stub_application_signals(self) -> Stubber:
-        client = aws_clients.get_application_signals_client()
-        stubber = Stubber(client)
-        stubber.activate()
-        return stubber
-
     def test_requires_status_argument(self):
         """Omitting status returns the explicit-status guidance, not an API call."""
         rendered = status_tools.get_instrumentation_configuration_status(
@@ -938,7 +946,7 @@ class TestGetInstrumentationConfigurationStatusTool:
 
     def test_renders_confirmed_status_with_events(self):
         """A READY response with events renders a CONFIRMED report."""
-        stubber = self._stub_application_signals()
+        stubber = _stub_application_signals()
         stubber.add_response(
             'get_instrumentation_configuration_status',
             {
@@ -978,7 +986,7 @@ class TestGetInstrumentationConfigurationStatusTool:
 
     def test_translates_client_error_with_attempted_block(self):
         """A backend error renders the attempted-retrieval block."""
-        stubber = self._stub_application_signals()
+        stubber = _stub_application_signals()
         stubber.add_client_error(
             'get_instrumentation_configuration_status',
             service_error_code='ResourceNotFoundException',
@@ -1044,7 +1052,7 @@ class TestGetInstrumentationConfigurationStatusTool:
 
     def test_forwards_optional_params_and_renders_pagination(self):
         """Optional time/paging params are forwarded; a NextToken yields pagination hint."""
-        stubber = self._stub_application_signals()
+        stubber = _stub_application_signals()
         stubber.add_response(
             'get_instrumentation_configuration_status',
             {
@@ -1119,12 +1127,6 @@ def _full_instrumentation_configuration() -> dict:
 class TestCheckInstrumentationStatusTool:
     """Stubber-driven coverage for the consolidated status-check tool."""
 
-    def _stub_application_signals(self) -> Stubber:
-        client = aws_clients.get_application_signals_client()
-        stubber = Stubber(client)
-        stubber.activate()
-        return stubber
-
     def test_rejects_bad_location_hash_length(self):
         """A non-16-character location hash is rejected before any API call."""
         rendered = status_tools.check_instrumentation_status(
@@ -1139,7 +1141,7 @@ class TestCheckInstrumentationStatusTool:
 
     def test_rejects_end_before_start(self):
         """end_time must be later than start_time; this is caught after config fetch."""
-        stubber = self._stub_application_signals()
+        stubber = _stub_application_signals()
         stubber.add_response(
             'get_instrumentation_configuration',
             {'Configuration': _full_instrumentation_configuration()},
@@ -1156,7 +1158,7 @@ class TestCheckInstrumentationStatusTool:
 
     def test_config_fetch_error_reports_failure(self):
         """A backend error fetching the configuration surfaces a created_at failure."""
-        stubber = self._stub_application_signals()
+        stubber = _stub_application_signals()
         stubber.add_client_error(
             'get_instrumentation_configuration',
             service_error_code='ResourceNotFoundException',
@@ -1174,7 +1176,7 @@ class TestCheckInstrumentationStatusTool:
 
     def test_active_verdict_renders_when_active_events_present(self):
         """A populated ACTIVE check yields an ACTIVE consolidated assessment."""
-        stubber = self._stub_application_signals()
+        stubber = _stub_application_signals()
         stubber.add_response(
             'get_instrumentation_configuration',
             {'Configuration': _full_instrumentation_configuration()},
@@ -1229,7 +1231,7 @@ class TestCheckInstrumentationStatusTool:
 
     def test_rejects_invalid_start_time(self):
         """A malformed start_time is rejected after the config fetch succeeds."""
-        stubber = self._stub_application_signals()
+        stubber = _stub_application_signals()
         stubber.add_response(
             'get_instrumentation_configuration',
             {'Configuration': _full_instrumentation_configuration()},
@@ -1246,7 +1248,7 @@ class TestCheckInstrumentationStatusTool:
 
     def test_rejects_invalid_end_time(self):
         """A malformed end_time is rejected after the config fetch succeeds."""
-        stubber = self._stub_application_signals()
+        stubber = _stub_application_signals()
         stubber.add_response(
             'get_instrumentation_configuration',
             {'Configuration': _full_instrumentation_configuration()},
@@ -2654,12 +2656,6 @@ class TestSnapshotRenderingMoreHelpers:
 class TestCrudToolsMoreEntrypoints:
     """Additional Stubber-driven and validation coverage for crud_tools."""
 
-    def _stub_application_signals(self) -> Stubber:
-        client = aws_clients.get_application_signals_client()
-        stubber = Stubber(client)
-        stubber.activate()
-        return stubber
-
     def test_create_rejects_invalid_instrumentation_type(self):
         """An invalid instrumentation_type short-circuits create."""
         rendered = crud_tools.create_instrumentation(
@@ -2688,7 +2684,7 @@ class TestCrudToolsMoreEntrypoints:
 
     def test_list_instrumentations_renders_populated_results(self):
         """A populated list response renders configuration details."""
-        stubber = self._stub_application_signals()
+        stubber = _stub_application_signals()
         stubber.add_response(
             'list_instrumentation_configurations',
             {
@@ -2734,7 +2730,7 @@ class TestCrudToolsMoreEntrypoints:
 
     def test_list_instrumentations_forwards_optional_params(self):
         """Optional synced_at/max_results/next_token are forwarded to the API."""
-        stubber = self._stub_application_signals()
+        stubber = _stub_application_signals()
         stubber.add_response(
             'list_instrumentation_configurations',
             {
@@ -2767,7 +2763,7 @@ class TestCrudToolsMoreEntrypoints:
 
     def test_get_instrumentation_error_path(self):
         """A backend error on get renders the attempted-retrieve block."""
-        stubber = self._stub_application_signals()
+        stubber = _stub_application_signals()
         stubber.add_client_error(
             'get_instrumentation_configuration',
             service_error_code='ResourceNotFoundException',
@@ -2793,7 +2789,7 @@ class TestCrudToolsMoreEntrypoints:
 
     def test_delete_instrumentation_by_code_location(self):
         """Delete resolves a code location into a CodeLocation identifier."""
-        stubber = self._stub_application_signals()
+        stubber = _stub_application_signals()
         stubber.add_response(
             'delete_instrumentation_configuration',
             {'DeletionStatus': 'DELETED'},
@@ -2833,7 +2829,7 @@ class TestCrudToolsMoreEntrypoints:
 
     def test_delete_instrumentation_error_path(self):
         """A backend error on delete renders the attempted-delete block."""
-        stubber = self._stub_application_signals()
+        stubber = _stub_application_signals()
         stubber.add_client_error(
             'delete_instrumentation_configuration',
             service_error_code='ResourceNotFoundException',
@@ -2850,7 +2846,7 @@ class TestCrudToolsMoreEntrypoints:
 
     def test_batch_delete_by_arns_success(self):
         """Batch delete by ARNs renders a successful summary."""
-        stubber = self._stub_application_signals()
+        stubber = _stub_application_signals()
         arn = (
             'arn:aws:application-signals:us-west-1:123456789012:'
             'instrumentationConfig/svc/env/SNAPSHOT/aaaabbbbccccdddd'
@@ -2881,7 +2877,7 @@ class TestCrudToolsMoreEntrypoints:
 
     def test_batch_delete_by_arns_error_path(self):
         """A backend error on ARN batch delete renders the attempted block."""
-        stubber = self._stub_application_signals()
+        stubber = _stub_application_signals()
         arn = (
             'arn:aws:application-signals:us-west-1:123456789012:'
             'instrumentationConfig/svc/env/SNAPSHOT/aaaabbbbccccdddd'
@@ -2924,7 +2920,7 @@ class TestCrudToolsMoreEntrypoints:
 
     def test_batch_delete_by_scope_error_path(self):
         """A backend error on scope batch delete renders the failure block."""
-        stubber = self._stub_application_signals()
+        stubber = _stub_application_signals()
         stubber.add_client_error(
             'batch_delete_instrumentation_configurations',
             service_error_code='ValidationException',
@@ -2946,35 +2942,6 @@ class TestCrudToolsMoreEntrypoints:
             instrumentation_type='NOPE',
         )
         assert 'instrumentation_type must be one of' in rendered
-
-
-# Ensure tests don't depend on any pre-existing AWS credentials in the env.
-# Stubber injects responses without making real API calls, but boto3 still
-# requires *some* credentials when constructing the client. Set placeholders
-# so the factory succeeds in CI environments without configured credentials.
-os.environ.setdefault('AWS_ACCESS_KEY_ID', 'test')
-os.environ.setdefault('AWS_SECRET_ACCESS_KEY', 'test')
-os.environ.setdefault('AWS_DEFAULT_REGION', 'us-west-2')
-
-
-class TestResolveRegion:
-    """Cover region resolution in dynamic_instrumentation.aws_clients.
-
-    DI deliberately defers to the parent package's already-resolved
-    ``aws_clients.AWS_REGION`` (AWS_REGION/AWS_DEFAULT_REGION env > configured
-    profile region > us-east-1) rather than resolving region itself. The DI
-    app-signals client and the parent's logs_client must resolve to the same
-    region for a given caller, so DI reads that single source of truth.
-    """
-
-    def test_defers_to_parent_region(self):
-        """DI region resolution returns the parent package's AWS_REGION."""
-        assert aws_clients._resolve_region() == parent_aws_clients.AWS_REGION
-
-    def test_reads_parent_value_live(self, monkeypatch):
-        """DI reads the parent's AWS_REGION at call time, not a cached copy."""
-        monkeypatch.setattr(parent_aws_clients, 'AWS_REGION', 'eu-central-1')
-        assert aws_clients._resolve_region() == 'eu-central-1'
 
 
 class TestCaptureLimitsPayload:
@@ -3862,21 +3829,13 @@ class TestParseIsoTimestamp:
 class TestStatusToolsBranches:
     """Cover gateway-error, empty-config, and missing-CreatedAt branches."""
 
-    def _stub_application_signals(self) -> Stubber:
-        client = aws_clients.get_application_signals_client()
-        stubber = Stubber(client)
-        stubber.activate()
-        return stubber
-
     def test_check_status_with_time_range_gateway_error(self, monkeypatch):
         """_check_status_with_time_range maps a GatewayError to an API error string."""
 
-        def _raise(**kwargs):
+        def _raise(method_name, **kwargs):
             raise status_tools.gateway.GatewayError(RuntimeError('boom'))
 
-        monkeypatch.setattr(
-            status_tools.gateway, 'get_instrumentation_configuration_status', _raise
-        )
+        monkeypatch.setattr(status_tools.gateway, 'call', _raise)
         has_events, events, error = status_tools._check_status_with_time_range(
             service='svc',
             environment='env',
@@ -3921,8 +3880,8 @@ class TestStatusToolsBranches:
         """An empty Configuration block surfaces a no-instrumentation error."""
         monkeypatch.setattr(
             status_tools.gateway,
-            'get_instrumentation_configuration',
-            lambda **kwargs: {'Configuration': {}},
+            'call',
+            lambda method_name, **kwargs: {'Configuration': {}},
         )
         rendered = status_tools.check_instrumentation_status(
             service='svc',
@@ -3940,8 +3899,8 @@ class TestStatusToolsBranches:
         config.pop('CreatedAt')
         monkeypatch.setattr(
             status_tools.gateway,
-            'get_instrumentation_configuration',
-            lambda **kwargs: {'Configuration': config},
+            'call',
+            lambda method_name, **kwargs: {'Configuration': config},
         )
         rendered = status_tools.check_instrumentation_status(
             service='svc',
@@ -3957,15 +3916,9 @@ class TestStatusToolsBranches:
 class TestCrudToolsTtlAndFilters:
     """Cover ExpiresAt/AttributeFilters emission and code-location lookup errors."""
 
-    def _stub_application_signals(self) -> Stubber:
-        client = aws_clients.get_application_signals_client()
-        stubber = Stubber(client)
-        stubber.activate()
-        return stubber
-
     def test_create_with_ttl_and_attribute_filters(self):
         """ttl_hours adds ExpiresAt and attribute_filters adds AttributeFilters."""
-        stubber = self._stub_application_signals()
+        stubber = _stub_application_signals()
         stubber.add_response(
             'create_instrumentation_configuration',
             {
@@ -4037,8 +3990,8 @@ class TestCrudToolsTtlAndFilters:
         """get_instrumentation reports no-instrumentation when Configuration is empty."""
         monkeypatch.setattr(
             crud_tools.gateway,
-            'get_instrumentation_configuration',
-            lambda **kwargs: {'Configuration': {}},
+            'call',
+            lambda method_name, **kwargs: {'Configuration': {}},
         )
         rendered = crud_tools.get_instrumentation(
             service='svc',
