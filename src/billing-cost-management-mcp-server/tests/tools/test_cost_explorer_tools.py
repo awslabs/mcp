@@ -940,6 +940,8 @@ async def test_ce_real_get_cost_and_usage_with_resources_passes_args_reload_iden
             '[{"Type":"DIMENSION","Key":"SERVICE"}]',
             '{"Tags":{"Key":"Environment","Values":["prod"]}}',
             None,
+            None,
+            None,
         )
 
 
@@ -1361,6 +1363,8 @@ async def test_ce_real_get_cost_and_usage_with_resources_with_billing_view_arn(
             '2024-01-10',
             '2024-01-20',
             'DAILY',
+            None,
+            None,
             None,
             None,
             None,

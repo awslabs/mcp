@@ -335,9 +335,7 @@ class TestGetCostAndUsage:
         assert result['status'] == 'error'
         assert 'message' in result
 
-    async def test_caller_next_token_is_used_on_first_request(
-        self, mock_context, mock_ce_client
-    ):
+    async def test_caller_next_token_is_used_on_first_request(self, mock_context, mock_ce_client):
         """Caller-supplied next_token must be injected into the first boto3 call."""
         mock_ce_client.get_cost_and_usage.return_value = {
             'ResultsByTime': [{'TimePeriod': {'Start': '2023-01-02', 'End': '2023-01-03'}}],
@@ -1013,6 +1011,7 @@ class TestGetSavingsPlansUtilization:
 # first boto3 request for every paginated CE operation. Pre-fix, only its
 # truthiness was used (as a flag to enable paginate-mode); the value was lost.
 
+
 @pytest.mark.parametrize(
     'op_func, ce_method, result_key, token_key, kwargs',
     [
@@ -1022,6 +1021,13 @@ class TestGetSavingsPlansUtilization:
             'ResultsByTime',
             'NextPageToken',
             {'start_date': '2023-01-01', 'end_date': '2023-01-31'},
+        ),
+        (
+            get_cost_and_usage_with_resources,
+            'get_cost_and_usage_with_resources',
+            'ResultsByTime',
+            'NextPageToken',
+            {'start_date': '2023-01-01', 'end_date': '2023-01-07'},
         ),
         (
             get_dimension_values,
