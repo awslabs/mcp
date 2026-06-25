@@ -1,7 +1,7 @@
 [project]
 name = "roda-mcp-server"
 version = "0.1.0"
-description = "MCP server for discovering and previewing AWS Registry of Open Data datasets"
+description = "MCP server for discovering and exploring AWS Registry of Open Data datasets"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -25,6 +25,13 @@ roda-mcp-server = "awslabs.roda_mcp_server.server:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

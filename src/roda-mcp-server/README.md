@@ -1,13 +1,14 @@
 # Registry of Open Data on AWS (RODA) MCP Server
 
-An Model Context Protocol (MCP) server for discovering and exploring datasets from the [Registry of Open Data on AWS (RODA)](https://registry.opendata.aws/). The registry hosts hundreds of publicly available datasets including climate data, genomics, satellite imagery, and more on Amazon Simple Storage Service (S3).
+Model Context Protocol (MCP) server for discovering and exploring datasets from the [Registry of Open Data on AWS (RODA)](https://registry.opendata.aws/). The Registry hosts hundreds of publicly available datasets including climate data, genomics, satellite imagery, and more on Amazon Simple Storage Service (S3).
 
 ## Features
 
 - Discover datasets across 1,000+ open datasets on AWS
 - Search by keyword, organization, license, or topic in natural language
 - Find related datasets and explore by domain
-- License-aware — always surfaces compliance information
+- Always surfaces license information
+- Preview and sample datasets for early evaluation
 - Curated next steps on how to access datasets
 - For public datasets without controlled access:
   - preview S3 bucket structure
@@ -35,14 +36,6 @@ An Model Context Protocol (MCP) server for discovering and exploring datasets fr
 | `search_stac_endpoints` | Find datasets with STAC (SpatioTemporal Asset Catalog) API endpoints |
 
 
-## High-level Architecture
-
-Open data providers onboard new datasets and provide updates to existing datasets using a structured YAML schema for dataset metadata (see example [here](https://github.com/awslabs/open-data-registry)). The YAML schema includes keys such as name, description, tags (a list of relevant topics), managedBy (provider organization), update frequency and resources (as part of access instructions). Every time an update is made (such as adding or updating data) in the Registry, an automated build is run to generate a parsed metadata file in ndjson format.
-
-This MCP server uses this ndjson file to build an in-memory knowledge base. In particular, we build indexes for parsed data across different search categories, such as tags, keywords, and organizations, to provide fast and accurate retrieval of information based on the dataset’s metadata. Metadata information is cached for 24 hours for better performance, and the cache automatically refreshes after expiration.
-
-![Architecture](./docs/architecture.png)
-
 Datasets on the Registry fall into three access tiers, due to different compliance reasons:
 - Open and free; hosted in a public S3 bucket and don't require AWS account to use
 - Open, but require AWS credentials and requester pay
@@ -50,36 +43,64 @@ Datasets on the Registry fall into three access tiers, due to different complian
 
 For the datasets that are open and free, we offer a preview into S3 buckets, as well as capability to sample a file to help users quickly evaluate the datasets. For other datasets, we provide access instructions to users on how to access the datasets.
 
+To learn more about how we designed this MCP server, check out [High-Level Design](high-level-design.md).
 
+## Setup
 
-## 🚀 Quick Start
+### Using Claude Code CLI
 
-### 1. Install
+```
+# Add RODA MCP
+claude mcp add roda-mcp uvx awslabs.roda-mcp-server@latest
 
-```bash
-# Create virtual environment
-python3 -m venv .venv
-
-# Activate virtual environment
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install the package
-pip install -e .
+# List installed server
+claude mcp list
 ```
 
-### 2. Configuration
+### Using uv
 
-For Kiro:
+Configure the MCP server in your MCP client configuration (e.g., for Kiro, edit `~/.kiro/settings/mcp.json`):
 
-Add to `.kiro/settings/mcp.json`:
+**For Linux/MacOS users:**
 
-**Option A: Using uv**
 ```json
 {
   "mcpServers": {
-    "roda": {
+    "awslabs.roda-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "awslabs.roda-mcp-server@latest"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+**For Windows users:**
+
+```json
+{
+  "mcpServers": {
+    "awslabs.roda-mcp-server": {
+      "disabled": false,
+      "timeout": 60,
+      "type": "stdio",
       "command": "uv",
-      "args": ["--directory", "/absolute/path/to/roda-mcp-server", "run", "-m", "awslabs.roda_mcp_server.server"],
+      "args": [
+        "tool",
+        "run",
+        "--from",
+        "awslabs.roda-mcp-server@latest",
+        "awslabs.roda-mcp-server.exe"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
       "disabled": false,
       "autoApprove": []
     }
@@ -87,47 +108,6 @@ Add to `.kiro/settings/mcp.json`:
 }
 ```
 
-**Option B: Using Python**
-```json
-{
-  "mcpServers": {
-    "roda": {
-      "command": "/absolute/path/to/roda-mcp-server/.venv/bin/python",
-      "args": ["-m", "awslabs.roda_mcp_server.server"],
-      "cwd": "/absolute/path/to/roda-mcp-server",
-      "disabled": false,
-      "autoApprove": []
-    }
-  }
-}
-```
-
-For Claude Code:
-
-Update `.mcp.json` (in this project root):
-```json
-  {
-    "mcpServers": {
-      "roda-mcp-server": {
-        "command": "uv",
-        "args": ["run", "--directory", "/absolute/path/to/roda-mcp-server",
-  "roda-mcp-server"]
-      }
-    }
-  }
-```
-
-### 3. Restart Kiro or Claude Code
-
-Kiro: Open Command Palette → "Reconnect MCP Servers"
-
-### 4. Test It
-
-In Kiro/ Claude Code chat:
-```
-Search for climate datasets
-Find datasets managed by NASA
-```
 
 ## Security
 Check out [Security](SECURITY.md) for security considerations on this MCP server.
