@@ -53,15 +53,15 @@ curl --request POST \
 
 **Syntax**
 ```sql
-[ WITH with_query [, …] ]  
-SELECT [ ALL | DISTINCT ] select_expr [, …]  
-[ FROM from_item [, …] ]  
-[ JOIN join_item [, …] ]  
-[ WHERE condition ]  
-[ GROUP BY grouping_element [, …] ]  
-[ HAVING condition]  
+[ WITH with_query [, …] ]
+SELECT [ ALL | DISTINCT ] select_expr [, …]
+[ FROM from_item [, …] ]
+[ JOIN join_item [, …] ]
+[ WHERE condition ]
+[ GROUP BY grouping_element [, …] ]
+[ HAVING condition]
 [ UNION [ ALL ] ]
-[ ORDER BY expression [ ASC | DESC ][, …] ]  
+[ ORDER BY expression [ ASC | DESC ][, …] ]
 [ LIMIT count ]
 ```
 
@@ -120,10 +120,10 @@ WITH
 
 **Date and Time Literals**
 ```sql
-'2022-01-31T06:30:30.123Z'     -- (RFC3339) 
+'2022-01-31T06:30:30.123Z'     -- (RFC3339)
 '2022-01-31T06:30:30.123'      -- (RFC3339-like)
 '2022-01-31 06:30:30.123'      -- (RFC3339-like)
-'2022-01-31 06:30:30'          -- (RFC3339-like, no fractional seconds) 
+'2022-01-31 06:30:30'          -- (RFC3339-like, no fractional seconds)
 to_timestamp_nanos(1643610630123000000)   -- (Unix epoch nanoseconds to a timestamp)
 to_timestamp(1643610630)                  -- (Unix epoch seconds to a timestamp)
 ```
@@ -140,12 +140,12 @@ SELECT * FROM "h2o-temperature"
 SELECT "pH" FROM "Water"
 
 -- Selecting with a WHERE clause
-SELECT 
-  * 
-FROM 
-  "h2o_feet" 
-WHERE 
-  "location" = 'santa_monica' 
+SELECT
+  *
+FROM
+  "h2o_feet"
+WHERE
+  "location" = 'santa_monica'
   AND "level description" = 'below 3 feet'
 ```
 
@@ -208,12 +208,12 @@ Selector functions:
 
 Examples:
 ```sql
-SELECT 
+SELECT
 SELECTOR_MAX("pH", time)['value'],
 SELECTOR_MAX("pH", time)['time']
 FROM "h2o_pH"
 
-SELECT 
+SELECT
 SELECTOR_LAST("water_level", time)['value'],
 SELECTOR_LAST("water_level", time)['time']
 FROM "h2o_feet"

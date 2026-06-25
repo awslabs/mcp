@@ -1,6 +1,6 @@
 # Migrating to Timestream for InfluxDB 3
 
-How to migrate **into** Timestream for InfluxDB v3 from common sources. Pick the section that 
+How to migrate **into** Timestream for InfluxDB v3 from common sources. Pick the section that
 matches your source system. For the differences
 between the engines, see [`influxdb-2-vs-3.md`](../influxdb-2-vs-3.md).
 
