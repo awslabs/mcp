@@ -128,14 +128,16 @@ mcp = FastMCP(
     instructions="""AWS Billing and Cost Management MCP Server - Provides AWS cost optimization tools and prompts through MCP.
 
 When using these tools, always:
-1. Use UnblendedCost metric by default
-2. Exclude Credits and Refunds by default
-3. Be concise and focus on essential information first
-4. For optimization queries, focus on top 2-3 highest impact recommendations
+1. For ANY cost/billing/optimization question about an account, call check-bcm-readiness FIRST and branch on its status before running cost-explorer, cost-optimization, or any other cost query. This prevents presenting silent $0/empty results as truth.
+2. Use UnblendedCost metric by default
+3. Exclude Credits and Refunds by default
+4. Be concise and focus on essential information first
+5. For optimization queries, focus on top 2-3 highest impact recommendations
 
 Available components:
 
 TOOLS:
+- check-bcm-readiness: Pre-flight diagnosis of whether an account is ready (IAM, Cost Explorer, tags, Cost Optimization Hub) for a cost-management intent. Call FIRST to avoid silent $0/empty failures.
 - cost-explorer: Historical cost and usage data with flexible filtering
 - compute-optimizer: Performance optimization recommendations to identify under provisioned AWS compute resources like EC2, Lambda, ASG, RDS, ECS
 - cost-optimization: Cost optimization recommendations across AWS services
@@ -155,24 +157,25 @@ TOOLS:
 - billing-view: AWS Billing View tools for managing and querying billing views (get-billing-view, list-billing-views, list-source-views-for-billing-view, get-resource-policy)
 - cost-allocation-tags: List cost allocation tags and backfill history (list-cost-allocation-tags, list-cost-allocation-tag-backfill-history)
 - cost-category: Describe and list cost category definitions (describe-cost-category-definition, list-cost-category-definitions)
-- check-bcm-readiness: Pre-flight diagnosis of whether an account is ready (IAM, Cost Explorer, tags, Cost Optimization Hub) for a cost-management intent. Call FIRST to avoid silent $0/empty failures.
 
 PROMPTS:
 - savings_plans: Analyzes AWS usage and identifies opportunities for Savings Plans purchases
 - graviton_migration: Analyzes EC2 instances and identifies opportunities to migrate to AWS Graviton processors
 
 For financial analysis:
-1. Start with a high-level view of costs using cost-explorer with SERVICE dimension
-2. Look for cost optimization opportunities with compute-optimizer or cost-optimization
-3. For S3-specific optimizations, use storage-lens
-4. For budget monitoring, use the budget tool
-5. For anomaly detection, use the cost-anomaly tool
+1. Pre-flight the account with check-bcm-readiness and branch on its status (ready/blocked/pending) before querying costs.
+2. Once ready, start with a high-level view of costs using cost-explorer with SERVICE dimension
+3. Look for cost optimization opportunities with compute-optimizer or cost-optimization
+4. For S3-specific optimizations, use storage-lens
+5. For budget monitoring, use the budget tool
+6. For anomaly detection, use the cost-anomaly tool
 
 For optimization recommendations:
-1. Use cost-optimization to get recommendations for cost optimization across services. This includes including Idle resources, Rightsizing for savings, RI/SP.
-2. Use rec-details for enhanced recommendation analysis for specific cost optimization recommendations.
-3. Use compute-optimizer to get performance optimization recommendations for compute resources such as EC2, ECS, EBS, Lambda, RDS, ASG.
-4. Use ri-performance and sp-performance to analyze purchase programs
+1. Pre-flight the account with check-bcm-readiness using intent="optimization" (this checks Cost Optimization Hub). Branch on its status before requesting recommendations - COH returns empty when it is not enabled.
+2. Once ready, use cost-optimization to get recommendations for cost optimization across services. This includes including Idle resources, Rightsizing for savings, RI/SP.
+3. Use rec-details for enhanced recommendation analysis for specific cost optimization recommendations.
+4. Use compute-optimizer to get performance optimization recommendations for compute resources such as EC2, ECS, EBS, Lambda, RDS, ASG.
+5. Use ri-performance and sp-performance to analyze purchase programs
 
 For multi-account environments:
 - Include the LINKED_ACCOUNT dimension in cost_explorer queries
