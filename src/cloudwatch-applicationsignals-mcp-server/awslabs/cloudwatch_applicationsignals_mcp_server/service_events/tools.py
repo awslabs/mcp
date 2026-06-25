@@ -971,6 +971,31 @@ async def get_incident_details(
       candidates. If `call_tree` is absent, examine `duration_ms` and trace data
       (`telemetry_correlation.trace_id`) instead.
 
+    **⚠️ When the stack trace localizes WHERE but not WHY — escalate to Dynamic
+    Instrumentation (DI).** A stack trace tells you the file/line/method that threw
+    and the exception message, but it does NOT tell you the runtime *values* that
+    caused it. Exceptions whose message is a generic symptom — `ArithmeticException:
+    / by zero`, `NullPointerException`, `IndexOutOfBoundsException`,
+    `ClassCastException`, `NumberFormatException` — name the failure mode but not the
+    offending data, and that data is frequently:
+      - a field of a downstream service's response body (not on any span or in logs),
+      - a value read from a database row, a cache, or config at runtime,
+      - a method argument or local variable that never leaves the process.
+    These values are NOT present in spans, logs, metrics, traces, OR the source code
+    (the source shows the code path; only the live request shows which input took it).
+    Reading the source can produce a *hypothesis* ("this divides by a value that could
+    be zero"), but it cannot identify WHICH production request/data actually triggers
+    it. When RCA stalls at "I can see where it throws and can guess the mechanism, but
+    not which specific data causes it — and only some requests fail," that is the
+    signal to use Dynamic Instrumentation: call `create_instrumentation` with a
+    BREAKPOINT at the throwing location, capturing the relevant method arguments and
+    local variables (e.g. the downstream response object, the divisor, the lookup
+    key). The breakpoint records the live values on the next failing request — without
+    a redeploy or adding logging — turning the hypothesis into confirmed root cause.
+    Then read the captured values with `get_sample_snapshot_for_breakpoint`. Prefer
+    this over speculative source-only conclusions whenever the deciding value is
+    runtime data the existing telemetry did not record.
+
     **Example call_tree output:**
     ```
     [Timing: function-call instrumentation]

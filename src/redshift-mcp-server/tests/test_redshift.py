@@ -276,18 +276,18 @@ class TestExecuteProtectedStatement:
         # Verify session was created
         mock_session_manager.session.assert_called_once()
 
-        # Verify three statements were executed: BEGIN READ ONLY, user SQL, END
+        # Verify three statements were executed: BEGIN READ ONLY, user SQL, ROLLBACK
         assert mock_execute_statement.call_count == 3
         calls = mock_execute_statement.call_args_list
         assert calls[0][1]['sql'] == 'BEGIN READ ONLY;'
         assert calls[1][1]['sql'] == 'SELECT 1'
-        assert calls[2][1]['sql'] == 'END;'
+        assert calls[2][1]['sql'] == 'ROLLBACK;'
 
         assert result[1] == 'user-stmt-id'
 
     @pytest.mark.asyncio
     async def test_execute_protected_statement_read_write(self, mocker):
-        """Test executing protected statement in read-write mode."""
+        """Read-write runs the single statement directly, with no transaction wrapper."""
         # Mock discover_clusters
         mock_discover_clusters = mocker.patch(
             'awslabs.redshift_mcp_server.redshift.discover_clusters'
@@ -304,23 +304,60 @@ class TestExecuteProtectedStatement:
         mock_execute_statement = mocker.patch(
             'awslabs.redshift_mcp_server.redshift._execute_statement'
         )
-        mock_execute_statement.side_effect = ['begin-stmt-id', 'user-stmt-id', 'end-stmt-id']
+        mock_execute_statement.return_value = 'user-stmt-id'
 
         # Mock data client
         mock_data_client = mocker.Mock()
-        mock_data_client.get_statement_result.return_value = {'Records': [], 'ColumnMetadata': []}
+        mock_data_client.describe_statement.return_value = {
+            'Status': 'FINISHED',
+            'HasResultSet': False,
+        }
         mock_client_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.client_manager')
         mock_client_manager.redshift_data_client.return_value = mock_data_client
 
-        await _execute_protected_statement(
-            'test-cluster', 'test-db', 'DROP TABLE test', allow_read_write=True
+        _, query_id = await _execute_protected_statement(
+            'test-cluster', 'test-db', 'CREATE TABLE t (id int)', allow_read_write=True
         )
 
-        # Verify BEGIN READ WRITE was used
+        # The user statement runs directly: exactly one execution, the user SQL itself.
+        assert mock_execute_statement.call_count == 1
         calls = mock_execute_statement.call_args_list
-        assert calls[0][1]['sql'] == 'BEGIN READ WRITE;'
-        assert calls[1][1]['sql'] == 'DROP TABLE test'
-        assert calls[2][1]['sql'] == 'END;'
+        assert calls[0][1]['sql'] == 'CREATE TABLE t (id int)'
+
+        # No transaction wrapper is issued in read-write mode.
+        executed_sqls = [call[1]['sql'] for call in calls]
+        for wrapper in ('BEGIN READ WRITE;', 'BEGIN READ ONLY;', 'ROLLBACK;', 'END;'):
+            assert wrapper not in executed_sqls
+
+        assert query_id == 'user-stmt-id'
+
+    @pytest.mark.asyncio
+    async def test_execute_protected_statement_read_write_rejects_multi_statement(self, mocker):
+        """Read-write still enforces single-statement: a stacked submission is rejected."""
+        mock_discover_clusters = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_clusters'
+        )
+        mock_discover_clusters.return_value = [
+            {'identifier': 'test-cluster', 'type': 'provisioned', 'status': 'available'}
+        ]
+
+        mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
+        mock_session_manager.session = mocker.AsyncMock(return_value='test-session-123')
+
+        mock_execute_statement = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_statement'
+        )
+
+        with pytest.raises(Exception, match='single SQL statement is allowed'):
+            await _execute_protected_statement(
+                'test-cluster',
+                'test-db',
+                'CREATE TABLE t (id int); CREATE TABLE u (id int)',
+                allow_read_write=True,
+            )
+
+        # Rejected up front by the guard: nothing reaches the engine.
+        mock_execute_statement.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_execute_protected_statement_no_result_set(self, mocker):
@@ -407,47 +444,48 @@ class TestExecuteProtectedStatement:
         assert results_response == expected_result
 
     @pytest.mark.asyncio
-    async def test_execute_protected_statement_transaction_breaker_error(self, mocker):
-        """Test transaction breaker protection in read-only mode."""
-        # Mock discover_clusters
+    async def test_execute_protected_statement_denylisted_statements_rejected(self, mocker):
+        """Deny-listed and multi-statement SQL is rejected before it reaches the engine."""
         mock_discover_clusters = mocker.patch(
             'awslabs.redshift_mcp_server.redshift.discover_clusters'
         )
         mock_discover_clusters.return_value = [
             {'identifier': 'test-cluster', 'type': 'provisioned', 'status': 'available'}
         ]
-
-        # Mock session manager
         mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
         mock_session_manager.session = mocker.AsyncMock(return_value='test-session-123')
 
-        # Test suspicious SQL patterns that should be rejected
-        suspicious_sqls = [
-            'END; SELECT 1',
-            '  COMMIT\t\r\n; SELECT 1',
-            ';;;abort -- slc \n; SELECT 1',
-            'ABORT work; SELECT 1',
-            '/* mlc */ COMMIT work;;   ; SELECT 1',
-            'commit   TRANSACTION/* mlc /* /* mlc */ mlc */ */; SELECT 1',
-            'rollback  ; -- slc \n SELECT 1',
-            'ROLLBACK TRANSACTION;/* mlc /* /* mlc */ mlc */ */SELECT 1',
-            ';; \t\r\n; rollback -- slc\n  /* mlc -- mlc \n */  work;-- slc \n SELECT 1',
-            'SELECT 1; COMMIT;',
+        mock_execute_statement = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_statement'
+        )
+
+        # Deny-listed leading keywords and a stacked mode-flip + write; all must be rejected.
+        rejected_sqls = [
+            'COMMIT',
+            "UNLOAD ('x') TO 's3://b' IAM_ROLE 'arn'",
+            'TRUNCATE"t"',
+            'SET transaction_read_only TO off; CREATE TABLE t (id int)',
         ]
 
-        for sql in suspicious_sqls:
+        for sql in rejected_sqls:
             with pytest.raises(
                 Exception,
-                match='SQL contains suspicious pattern, execution rejected',
+                match=r'not allowed in read-only mode|single SQL statement is allowed',
             ):
                 await _execute_protected_statement(
                     'test-cluster', 'test-db', sql, allow_read_write=False
                 )
+            # The rejected statement must never be sent to the engine.
+            executed = [call.kwargs.get('sql') for call in mock_execute_statement.call_args_list]
+            assert sql not in executed
+
+        # Guard rejects up front: no statement (BEGIN/user/ROLLBACK) is ever executed.
+        mock_execute_statement.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_execute_protected_statement_oversized_sql_rejected(self, mocker):
-        """SQL longer than SUSPICIOUS_QUERY_MAX_LEN is rejected without invoking the regex."""
-        from awslabs.redshift_mcp_server.consts import SUSPICIOUS_QUERY_MAX_LEN
+        """SQL longer than MAX_SQL_LEN is rejected up front, without reaching the engine."""
+        from awslabs.redshift_mcp_server.consts import MAX_SQL_LEN
 
         mock_discover_clusters = mocker.patch(
             'awslabs.redshift_mcp_server.redshift.discover_clusters'
@@ -458,43 +496,19 @@ class TestExecuteProtectedStatement:
         mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
         mock_session_manager.session = mocker.AsyncMock(return_value='test-session-123')
 
-        # Stand-in regex whose .search must not be called; the length cap should short-circuit.
-        sentinel_regex = mocker.Mock()
-        sentinel_regex.search.side_effect = AssertionError(
-            'regex.search should not be called for oversized SQL'
+        mock_execute_statement = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_statement'
         )
-        mocker.patch('awslabs.redshift_mcp_server.redshift._SUSPICIOUS_QUERY_RE', sentinel_regex)
 
-        oversized_sql = 'SELECT 1' + ' ' * (SUSPICIOUS_QUERY_MAX_LEN + 1)
+        oversized_sql = 'SELECT 1' + ' ' * (MAX_SQL_LEN + 1)
 
-        with pytest.raises(Exception, match='SQL contains suspicious pattern, execution rejected'):
+        with pytest.raises(Exception, match='exceeds the maximum allowed length'):
             await _execute_protected_statement(
                 'test-cluster', 'test-db', oversized_sql, allow_read_write=False
             )
 
-        sentinel_regex.search.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_execute_protected_statement_regex_timeout_rejected(self, mocker):
-        """A regex timeout is treated as suspicious and the SQL is rejected."""
-        mock_discover_clusters = mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.discover_clusters'
-        )
-        mock_discover_clusters.return_value = [
-            {'identifier': 'test-cluster', 'type': 'provisioned', 'status': 'available'}
-        ]
-        mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
-        mock_session_manager.session = mocker.AsyncMock(return_value='test-session-123')
-
-        # Stand-in regex that raises TimeoutError on search.
-        timing_out_regex = mocker.Mock()
-        timing_out_regex.search.side_effect = TimeoutError('timed out')
-        mocker.patch('awslabs.redshift_mcp_server.redshift._SUSPICIOUS_QUERY_RE', timing_out_regex)
-
-        with pytest.raises(Exception, match='SQL contains suspicious pattern, execution rejected'):
-            await _execute_protected_statement(
-                'test-cluster', 'test-db', 'SELECT 1', allow_read_write=False
-            )
+        # Length cap short-circuits before any execution.
+        mock_execute_statement.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_execute_protected_statement_cluster_not_found(self, mocker):
@@ -528,8 +542,8 @@ class TestExecuteProtectedStatement:
             )
 
     @pytest.mark.asyncio
-    async def test_execute_protected_statement_user_sql_fails_end_succeeds(self, mocker):
-        """Test user SQL fails but END succeeds - should raise user SQL error."""
+    async def test_execute_protected_statement_user_sql_fails_rollback_succeeds(self, mocker):
+        """Test user SQL fails but ROLLBACK succeeds - should raise user SQL error."""
         # Mock discover_clusters
         mock_discover_clusters = mocker.patch(
             'awslabs.redshift_mcp_server.redshift.discover_clusters'
@@ -542,7 +556,7 @@ class TestExecuteProtectedStatement:
         mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
         mock_session_manager.session = mocker.AsyncMock(return_value='session-123')
 
-        # Mock _execute_statement to fail for user SQL, succeed for BEGIN and END
+        # Mock _execute_statement to fail for user SQL, succeed for BEGIN and ROLLBACK
         mock_execute_statement = mocker.patch(
             'awslabs.redshift_mcp_server.redshift._execute_statement'
         )
@@ -552,8 +566,8 @@ class TestExecuteProtectedStatement:
                 return 'begin-stmt-id'
             elif sql == 'SELECT invalid_syntax':
                 raise Exception('SQL syntax error')
-            elif sql == 'END;':
-                return 'end-stmt-id'
+            elif sql == 'ROLLBACK;':
+                return 'rollback-stmt-id'
             return 'stmt-id'
 
         mock_execute_statement.side_effect = execute_side_effect
@@ -563,16 +577,16 @@ class TestExecuteProtectedStatement:
                 'test-cluster', 'test-db', 'SELECT invalid_syntax', allow_read_write=False
             )
 
-        # Verify END was still called
+        # Verify ROLLBACK was still called
         assert mock_execute_statement.call_count == 3
         calls = mock_execute_statement.call_args_list
         assert calls[0][1]['sql'] == 'BEGIN READ ONLY;'
         assert calls[1][1]['sql'] == 'SELECT invalid_syntax'
-        assert calls[2][1]['sql'] == 'END;'
+        assert calls[2][1]['sql'] == 'ROLLBACK;'
 
     @pytest.mark.asyncio
-    async def test_execute_protected_statement_user_sql_succeeds_end_fails(self, mocker):
-        """Test user SQL succeeds but END fails - should raise END error."""
+    async def test_execute_protected_statement_user_sql_succeeds_rollback_fails(self, mocker):
+        """Test user SQL succeeds but ROLLBACK fails - should raise ROLLBACK error."""
         # Mock discover_clusters
         mock_discover_clusters = mocker.patch(
             'awslabs.redshift_mcp_server.redshift.discover_clusters'
@@ -585,7 +599,7 @@ class TestExecuteProtectedStatement:
         mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
         mock_session_manager.session = mocker.AsyncMock(return_value='session-123')
 
-        # Mock _execute_statement to succeed for user SQL, fail for END
+        # Mock _execute_statement to succeed for user SQL, fail for ROLLBACK
         mock_execute_statement = mocker.patch(
             'awslabs.redshift_mcp_server.redshift._execute_statement'
         )
@@ -595,20 +609,20 @@ class TestExecuteProtectedStatement:
                 return 'begin-stmt-id'
             elif sql == 'SELECT 1':
                 return 'user-stmt-id'
-            elif sql == 'END;':
-                raise Exception('END statement failed')
+            elif sql == 'ROLLBACK;':
+                raise Exception('ROLLBACK statement failed')
             return 'stmt-id'
 
         mock_execute_statement.side_effect = execute_side_effect
 
-        with pytest.raises(Exception, match='END statement failed'):
+        with pytest.raises(Exception, match='ROLLBACK statement failed'):
             await _execute_protected_statement(
                 'test-cluster', 'test-db', 'SELECT 1', allow_read_write=False
             )
 
     @pytest.mark.asyncio
-    async def test_execute_protected_statement_both_user_sql_and_end_fail(self, mocker):
-        """Test both user SQL and END fail - should raise combined error."""
+    async def test_execute_protected_statement_both_user_sql_and_rollback_fail(self, mocker):
+        """Test both user SQL and ROLLBACK fail - should raise combined error."""
         # Mock discover_clusters
         mock_discover_clusters = mocker.patch(
             'awslabs.redshift_mcp_server.redshift.discover_clusters'
@@ -621,7 +635,7 @@ class TestExecuteProtectedStatement:
         mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
         mock_session_manager.session = mocker.AsyncMock(return_value='session-123')
 
-        # Mock _execute_statement to fail for both user SQL and END
+        # Mock _execute_statement to fail for both user SQL and ROLLBACK
         mock_execute_statement = mocker.patch(
             'awslabs.redshift_mcp_server.redshift._execute_statement'
         )
@@ -631,15 +645,15 @@ class TestExecuteProtectedStatement:
                 return 'begin-stmt-id'
             elif sql == 'SELECT invalid_syntax':
                 raise Exception('SQL syntax error')
-            elif sql == 'END;':
-                raise Exception('END statement failed')
+            elif sql == 'ROLLBACK;':
+                raise Exception('ROLLBACK statement failed')
             return 'stmt-id'
 
         mock_execute_statement.side_effect = execute_side_effect
 
         with pytest.raises(
             Exception,
-            match='User SQL failed: SQL syntax error; END statement failed: END statement failed',
+            match='User SQL failed: SQL syntax error; ROLLBACK statement failed: ROLLBACK statement failed',
         ):
             await _execute_protected_statement(
                 'test-cluster', 'test-db', 'SELECT invalid_syntax', allow_read_write=False
