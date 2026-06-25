@@ -378,10 +378,7 @@ async def get_pricing_from_api(
         }
 
         # Offload large responses to SQLite via the size gate; small responses
-        # pass through (no ``data_stored`` key) and fall through to the
-        # human-readable processing below. Previously this used
-        # ``convert_api_response_to_table`` directly, which always converted —
-        # so the processing branch below was unreachable.
+        # fall through to the human-readable processing below.
         table_response = await convert_response_if_needed(
             ctx, raw_response, 'aws_pricing_get_products', service_code=service_code
         )

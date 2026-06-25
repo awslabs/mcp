@@ -106,7 +106,11 @@ async def get_cost_and_usage(
 
         # Use shared pagination utility
         if next_token or max_pages:
-            # For paginated requests, use the paginate utility
+            # paginate_aws_response only sets the token on iter 2+, so inject
+            # the caller's token into the first boto3 request explicitly.
+            if next_token:
+                request_params['NextPageToken'] = next_token
+
             results, pagination_metadata = await paginate_aws_response(
                 ctx,
                 'getCostAndUsage',
@@ -118,17 +122,22 @@ async def get_cost_and_usage(
                 max_pages,
             )
 
-            # Format paginated response
             response = {'ResultsByTime': results, 'Pagination': pagination_metadata}
+            pagination_envelope = {
+                'next_page_token': pagination_metadata.get('next_token'),
+                'has_more': pagination_metadata.get('has_more', False),
+                'pages_fetched': pagination_metadata.get('pages_fetched'),
+            }
         else:
-            # For single page, make direct call
             response = ce_client.get_cost_and_usage(**request_params)
+            pagination_envelope = {
+                'next_page_token': response.get('NextPageToken'),
+                'has_more': bool(response.get('NextPageToken')),
+                'pages_fetched': 1,
+            }
 
-        # Offload large responses to SQLite via the size gate; small responses
-        # pass through and are returned inline. ``convert_response_if_needed``
-        # returns either {status, data_stored, table_name, ...} (large) or
-        # {status, data, response_size_bytes} (small) — the ``data_stored``
-        # check below picks the right shape for ``format_response``.
+        # Forward pagination metadata as **metadata so it survives SQL offload
+        # — the typed cost_and_usage converter only walks ResultsByTime.
         table_response = await convert_response_if_needed(
             ctx,
             response,
@@ -138,6 +147,7 @@ async def get_cost_and_usage(
             end_date=end,
             group_by=group_by,
             metrics=metrics,
+            **pagination_envelope,
         )
 
         # Return the response (either the original or the SQL table info)
@@ -290,7 +300,8 @@ async def get_dimension_values(
 
         # Handle pagination
         if next_token or max_pages:
-            # For paginated requests, use the paginate utility
+            if next_token:
+                request_params['NextPageToken'] = next_token
             results, pagination_metadata = await paginate_aws_response(
                 ctx,
                 'getDimensionValues',
@@ -516,7 +527,8 @@ async def get_tags(
             api_function = ce_client.get_tags
             result_key = 'Tags' if not tag_key else 'TagValues'
 
-            # For paginated requests, use the paginate utility
+            if next_token:
+                request_params['NextPageToken'] = next_token
             results, pagination_metadata = await paginate_aws_response(
                 ctx,
                 operation,
@@ -600,6 +612,11 @@ async def get_cost_categories(
 
         # Handle pagination
         if next_token or max_pages:
+            result_key = 'CostCategories' if not cost_category_name else 'CostCategoryValues'
+
+            if next_token:
+                request_params['NextPageToken'] = next_token
+
             # For paginated requests, use the paginate utility
             results, pagination_metadata = await paginate_aws_response(
                 ctx,
@@ -669,7 +686,8 @@ async def get_savings_plans_utilization(
 
         # Handle pagination
         if next_token or max_pages:
-            # For paginated requests, use the paginate utility
+            if next_token:
+                request_params['NextToken'] = next_token
             results, pagination_metadata = await paginate_aws_response(
                 ctx,
                 'getSavingsPlansUtilization',

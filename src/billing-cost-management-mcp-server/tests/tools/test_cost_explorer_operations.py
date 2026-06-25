@@ -335,6 +335,79 @@ class TestGetCostAndUsage:
         assert result['status'] == 'error'
         assert 'message' in result
 
+    async def test_caller_next_token_is_used_on_first_request(
+        self, mock_context, mock_ce_client
+    ):
+        """Caller-supplied next_token must be injected into the first boto3 call."""
+        mock_ce_client.get_cost_and_usage.return_value = {
+            'ResultsByTime': [{'TimePeriod': {'Start': '2023-01-02', 'End': '2023-01-03'}}],
+        }
+
+        await get_cost_and_usage(
+            mock_context,
+            mock_ce_client,
+            start_date='2023-01-01',
+            end_date='2023-01-31',
+            next_token='resume-from-here',
+            max_pages=1,
+        )
+
+        first_call_kwargs = mock_ce_client.get_cost_and_usage.call_args_list[0][1]
+        assert first_call_kwargs.get('NextPageToken') == 'resume-from-here'
+
+    async def test_single_page_surfaces_next_page_token_for_agent(
+        self, mock_context, mock_ce_client
+    ):
+        """Small responses preserve the raw boto3 NextPageToken in result.data."""
+        mock_ce_client.get_cost_and_usage.return_value = {
+            'ResultsByTime': [{'TimePeriod': {'Start': '2023-01-01', 'End': '2023-01-02'}}],
+            'NextPageToken': 'continue-here',
+        }
+
+        result = await get_cost_and_usage(
+            mock_context,
+            mock_ce_client,
+            start_date='2023-01-01',
+            end_date='2023-01-31',
+        )
+
+        assert result['status'] == 'success'
+        assert result['data'].get('NextPageToken') == 'continue-here'
+
+    async def test_pagination_metadata_forwarded_to_sql_offload(
+        self, mock_context, mock_ce_client
+    ):
+        """Pagination kwargs must be forwarded to convert_response_if_needed for the SQL offload path."""
+        mock_ce_client.get_cost_and_usage.return_value = {
+            'ResultsByTime': [{'TimePeriod': {'Start': '2023-01-01', 'End': '2023-01-02'}}],
+            'NextPageToken': 'continue-here',
+        }
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.tools.cost_explorer_operations.convert_response_if_needed',
+            new_callable=AsyncMock,
+        ) as mock_helper:
+            mock_helper.return_value = {
+                'status': 'success',
+                'data_stored': True,
+                'table_name': 'getCostAndUsage_xyz',
+                'next_page_token': 'continue-here',
+                'has_more': True,
+                'pages_fetched': 1,
+            }
+
+            await get_cost_and_usage(
+                mock_context,
+                mock_ce_client,
+                start_date='2023-01-01',
+                end_date='2023-01-31',
+            )
+
+        helper_kwargs = mock_helper.call_args.kwargs
+        assert helper_kwargs.get('next_page_token') == 'continue-here'
+        assert helper_kwargs.get('has_more') is True
+        assert helper_kwargs.get('pages_fetched') == 1
+
 
 @pytest.mark.asyncio
 class TestGetCostAndUsageWithResources:
@@ -934,3 +1007,66 @@ class TestGetSavingsPlansUtilization:
         # Verify error was properly handled
         assert result['status'] == 'error'
         assert 'message' in result
+
+
+# Pagination contract — agent-supplied next_token must be injected into the
+# first boto3 request for every paginated CE operation. Pre-fix, only its
+# truthiness was used (as a flag to enable paginate-mode); the value was lost.
+
+@pytest.mark.parametrize(
+    'op_func, ce_method, result_key, token_key, kwargs',
+    [
+        (
+            get_cost_and_usage,
+            'get_cost_and_usage',
+            'ResultsByTime',
+            'NextPageToken',
+            {'start_date': '2023-01-01', 'end_date': '2023-01-31'},
+        ),
+        (
+            get_dimension_values,
+            'get_dimension_values',
+            'DimensionValues',
+            'NextPageToken',
+            {'dimension': 'SERVICE', 'start_date': '2023-01-01', 'end_date': '2023-01-31'},
+        ),
+        (
+            get_tags,
+            'get_tags',
+            'Tags',
+            'NextPageToken',
+            {'start_date': '2023-01-01', 'end_date': '2023-01-31'},
+        ),
+        (
+            get_cost_categories,
+            'get_cost_categories',
+            'CostCategories',
+            'NextPageToken',
+            {'start_date': '2023-01-01', 'end_date': '2023-01-31'},
+        ),
+        (
+            get_savings_plans_utilization,
+            'get_savings_plans_utilization',
+            'SavingsPlansUtilizationsByTime',
+            'NextToken',
+            {'start_date': '2023-01-01', 'end_date': '2023-01-31'},
+        ),
+    ],
+)
+@pytest.mark.asyncio
+async def test_caller_next_token_injected_into_first_request(
+    mock_context, mock_ce_client, op_func, ce_method, result_key, token_key, kwargs
+):
+    """Caller's next_token reaches the first boto3 call for every paginated CE op."""
+    getattr(mock_ce_client, ce_method).return_value = {result_key: []}
+
+    await op_func(
+        mock_context,
+        mock_ce_client,
+        next_token='resume-from-here',
+        max_pages=1,
+        **kwargs,
+    )
+
+    first_call_kwargs = getattr(mock_ce_client, ce_method).call_args_list[0][1]
+    assert first_call_kwargs.get(token_key) == 'resume-from-here'
