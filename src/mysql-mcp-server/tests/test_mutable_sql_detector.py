@@ -16,11 +16,11 @@
 
 These pin two things at once:
 
-1. The reported bypass class
-   where SQL inline comments (``/* ... */``, ``-- ...``, ``#``) and MySQL
-   conditional comments (``/*!50000 ... */``) sneak forbidden keywords past
-   the regex-based detector because Python regex treats those tokens as
-   opaque characters while the MySQL parser treats them as whitespace.
+1. The reported bypass class where SQL inline comments
+   (``/* ... */``, ``-- ...``, ``#``) and MySQL conditional comments
+   (``/*!50000 ... */``) sneak forbidden keywords past the regex-based
+   detector because Python regex treats those tokens as opaque characters
+   while the MySQL parser treats them as whitespace.
 
 2. The benign-comment cases that real users have in real queries, so a
    future change to the detector cannot silently start blocking
@@ -30,7 +30,10 @@ The test cases include the reporter's verbatim payloads so a security
 reviewer can match them against the report 1:1.
 """
 
+import pytest
 from awslabs.mysql_mcp_server.mutable_sql_detector import (
+    MUTATING_KEYWORDS,
+    SECURITY_SENSITIVE_VARS,
     check_sql_injection_risk,
     detect_mutating_keywords,
 )
@@ -389,3 +392,416 @@ class TestCommentDoesNotReassembleIdentifiers:
         """
         sql = 'DR/**/OP TABLE users'
         assert 'DROP' not in detect_mutating_keywords(sql)
+
+
+# ---------------------------------------------------------------------------
+# Completeness of MUTATING_KEYWORDS
+#
+# These pin every entry in the set against a minimal payload so that:
+#   1. any future commit that removes a keyword fails CI loudly, and
+#   2. the security reviewer can match the test list against the ticket
+#      payload list 1:1 without having to read the regex.
+# ---------------------------------------------------------------------------
+
+
+# Mapping of every keyword in MUTATING_KEYWORDS to a minimal payload
+# that contains it as a top-level mutation. Listed by hand (not generated
+# from the set) so adding a keyword without thinking about the payload
+# fails the parametrize collection — that is the regression guard.
+_MUTATING_KEYWORD_PAYLOADS: dict[str, str] = {
+    # DML
+    'INSERT': "INSERT INTO t VALUES (1, 'x')",
+    'UPDATE': "UPDATE t SET name = 'x' WHERE id = 1",
+    'DELETE': 'DELETE FROM t WHERE id = 1',
+    'MERGE': 'MERGE INTO t USING s ON (t.id = s.id) WHEN MATCHED THEN UPDATE SET t.x = s.x',
+    'TRUNCATE': 'TRUNCATE TABLE t',
+    'REPLACE INTO': "REPLACE INTO t (id, name) VALUES (1, 'x')",
+    'LOAD DATA': "LOAD DATA INFILE '/etc/passwd' INTO TABLE t",
+    'LOAD XML': "LOAD XML INFILE '/etc/passwd' INTO TABLE t",
+    # DDL
+    'CREATE': 'CREATE TABLE t (id INT)',
+    'DROP': 'DROP TABLE t',
+    'ALTER': 'ALTER TABLE t ADD COLUMN x INT',
+    'RENAME': 'RENAME USER a TO b',
+    'RENAME TABLE': 'RENAME TABLE old_t TO new_t',
+    # Permissions
+    'GRANT': "GRANT SELECT ON t TO 'u'@'%'",
+    'REVOKE': "REVOKE SELECT ON t FROM 'u'@'%'",
+    # Extensions and functions
+    'CREATE FUNCTION': 'CREATE FUNCTION f() RETURNS INT RETURN 1',
+    'CREATE PROCEDURE': 'CREATE PROCEDURE p() BEGIN END',
+    'INSTALL': "INSTALL PLUGIN x SONAME 'x.so'",
+    'UNINSTALL': 'UNINSTALL PLUGIN x',
+    # Storage-level
+    'OPTIMIZE': 'OPTIMIZE TABLE t',
+    'REPAIR': 'REPAIR TABLE t',
+    'ANALYZE': 'ANALYZE TABLE t',
+    # Session / server config
+    'SET': "SET sql_mode = 'TRADITIONAL'",
+    # Stored-program execution
+    'CALL': 'CALL p()',
+    # Dynamic SQL
+    'PREPARE': "PREPARE s FROM 'SELECT 1'",
+    'EXECUTE': 'EXECUTE s',
+    'DEALLOCATE': 'DEALLOCATE PREPARE s',
+    # Direct storage-engine access
+    'HANDLER': 'HANDLER t OPEN',
+    # Lock and admin state
+    'LOCK': 'LOCK INSTANCE FOR BACKUP',
+    'LOCK TABLES': 'LOCK TABLES t WRITE',
+    'UNLOCK': 'UNLOCK INSTANCE',
+    'UNLOCK TABLES': 'UNLOCK TABLES',
+    'FLUSH': 'FLUSH PRIVILEGES',
+    'RESET': 'RESET MASTER',
+    'KILL': 'KILL 1',
+}
+
+
+def test_every_mutating_keyword_has_a_payload():
+    """The payload table must cover every entry in MUTATING_KEYWORDS.
+
+    Adding a keyword to MUTATING_KEYWORDS without adding a payload here
+    fails this test, forcing the author to think about how the new
+    keyword is exercised in a query.
+    """
+    missing = MUTATING_KEYWORDS - set(_MUTATING_KEYWORD_PAYLOADS.keys())
+    assert not missing, f'Missing test payloads for: {sorted(missing)}'
+
+
+@pytest.mark.parametrize(
+    'keyword,payload',
+    sorted(_MUTATING_KEYWORD_PAYLOADS.items()),
+)
+def test_mutating_keyword_is_detected(keyword, payload):
+    """Every keyword in MUTATING_KEYWORDS must be detected on its payload.
+
+    Mirrors the Postgres sibling's TestAllMutatingKeywords. Pins the set
+    against any future change that silently removes a keyword.
+    """
+    matches = detect_mutating_keywords(payload)
+    assert keyword in matches, (
+        f'Expected {keyword!r} in detect_mutating_keywords({payload!r}), got {matches!r}'
+    )
+
+
+# ---------------------------------------------------------------------------
+# Ticket payloads — verbatim from the external security report
+#
+# Each test asserts the exact payload from the security report is
+# rejected by the readonly gate. A reviewer can match these 1:1 against
+# the report without reading the regex.
+# ---------------------------------------------------------------------------
+
+
+class TestReportedReadonlyBypassPayloads:
+    """Verbatim ticket payloads must each be reported as mutations."""
+
+    def test_set_global_general_log_is_detected(self):
+        """``SET GLOBAL general_log = 'ON'`` — server-config write."""
+        assert 'SET' in detect_mutating_keywords("SET GLOBAL general_log = 'ON'")
+
+    def test_set_sql_log_bin_is_detected_as_mutation(self):
+        """``SET sql_log_bin = 0`` — disables binlog for the session.
+
+        Caught by the SET keyword in MUTATING_KEYWORDS in readonly mode.
+        Also caught by SECURITY_SENSITIVE_VAR_PATTERN regardless of mode
+        — see TestSecuritySensitiveVarsAlwaysBlocked below.
+        """
+        assert 'SET' in detect_mutating_keywords('SET sql_log_bin = 0')
+
+    def test_call_some_proc_is_detected(self):
+        """``CALL some_proc()`` — stored proc body can mutate."""
+        assert 'CALL' in detect_mutating_keywords('CALL some_proc()')
+
+    def test_prepare_is_detected(self):
+        """``PREPARE s FROM @x`` — dynamic SQL setup."""
+        assert 'PREPARE' in detect_mutating_keywords('PREPARE s FROM @x')
+
+    def test_execute_is_detected(self):
+        """``EXECUTE s`` — dynamic SQL fire."""
+        assert 'EXECUTE' in detect_mutating_keywords('EXECUTE s')
+
+    def test_deallocate_is_detected(self):
+        """``DEALLOCATE PREPARE s`` — dynamic SQL teardown."""
+        assert 'DEALLOCATE' in detect_mutating_keywords('DEALLOCATE PREPARE s')
+
+    def test_handler_open_is_detected(self):
+        """``HANDLER t OPEN`` — direct storage-engine access."""
+        assert 'HANDLER' in detect_mutating_keywords('HANDLER t OPEN')
+
+    def test_flush_privileges_is_detected(self):
+        """``FLUSH PRIVILEGES`` — admin state change."""
+        assert 'FLUSH' in detect_mutating_keywords('FLUSH PRIVILEGES')
+
+    def test_reset_master_is_detected(self):
+        """``RESET MASTER`` — admin state change."""
+        assert 'RESET' in detect_mutating_keywords('RESET MASTER')
+
+    def test_lock_tables_write_is_detected(self):
+        """``LOCK TABLES t WRITE`` — write lock acquisition.
+
+        The longer phrase ``LOCK TABLES`` should win the regex race over
+        bare ``LOCK`` because of the length-descending sort. Either is
+        sufficient for the gate to fire; we assert the longer phrase
+        for log clarity.
+        """
+        assert 'LOCK TABLES' in detect_mutating_keywords('LOCK TABLES t WRITE')
+
+    def test_kill_is_detected(self):
+        """``KILL <id>`` — terminates other sessions."""
+        assert 'KILL' in detect_mutating_keywords('KILL 1')
+
+    def test_uninstall_plugin_is_detected(self):
+        """``UNINSTALL PLUGIN x`` — plugin lifecycle."""
+        assert 'UNINSTALL' in detect_mutating_keywords('UNINSTALL PLUGIN x')
+
+
+# ---------------------------------------------------------------------------
+# SET is blanket-blocked in readonly mode
+#
+# Pins the design choice that bare SET (without distinguishing user
+# vars from system vars) is rejected. This is the cost of the closed-
+# by-construction approach — a future change that allowlists SET @var
+# or SET NAMES must update these tests deliberately, with a CR linked
+# to the security review.
+# ---------------------------------------------------------------------------
+
+
+class TestSetVariantsAreBlocked:
+    """All SET forms are rejected in readonly mode by design."""
+
+    def test_set_user_variable_is_blocked(self):
+        """``SET @x = 1`` — benign in isolation, blocked by blanket rule."""
+        assert 'SET' in detect_mutating_keywords('SET @x = 1')
+
+    def test_set_names_is_blocked(self):
+        """``SET NAMES utf8mb4`` — character set, blocked by blanket rule."""
+        assert 'SET' in detect_mutating_keywords('SET NAMES utf8mb4')
+
+    def test_set_session_sql_mode_is_blocked(self):
+        """``SET SESSION sql_mode = 'TRADITIONAL'`` — session config."""
+        assert 'SET' in detect_mutating_keywords("SET SESSION sql_mode = 'TRADITIONAL'")
+
+    def test_set_global_is_blocked(self):
+        """``SET GLOBAL general_log = 'ON'`` — server-wide config."""
+        assert 'SET' in detect_mutating_keywords("SET GLOBAL general_log = 'ON'")
+
+    def test_set_with_double_at_prefix_is_blocked(self):
+        """``SET @@session.sql_mode = '...'`` — at-prefix syntax."""
+        assert 'SET' in detect_mutating_keywords("SET @@session.sql_mode = 'TRADITIONAL'")
+
+    def test_set_transaction_is_blocked(self):
+        """``SET TRANSACTION READ WRITE`` — would re-arm writes."""
+        assert 'SET' in detect_mutating_keywords('SET TRANSACTION READ WRITE')
+
+
+# ---------------------------------------------------------------------------
+# Security-sensitive variables are blocked in BOTH modes
+#
+# These run against check_sql_injection_risk, not detect_mutating_keywords,
+# because the always-block lives there. In readonly mode the SET keyword
+# fires first and these payloads are rejected by detect_mutating_keywords;
+# in write mode (with --allow_write_query) the keyword path is bypassed
+# and only this check stands between the LLM and the variable flip.
+# ---------------------------------------------------------------------------
+
+
+class TestSecuritySensitiveVarsAlwaysBlocked:
+    """SET of binlog / FK / uniqueness toggles is rejected in every mode."""
+
+    def test_set_sql_log_bin_zero_is_rejected(self):
+        """Reporter's payload: ``SET sql_log_bin = 0``."""
+        issues = check_sql_injection_risk('SET sql_log_bin = 0')
+        assert issues, 'Expected SET sql_log_bin = 0 to be flagged'
+        assert issues[0]['type'] == 'sql'
+        assert 'sql_log_bin' in issues[0]['message']
+
+    def test_set_session_sql_log_bin_is_rejected(self):
+        """``SET SESSION sql_log_bin = 0`` — explicit session modifier."""
+        assert check_sql_injection_risk('SET SESSION sql_log_bin = 0')
+
+    def test_set_global_sql_log_bin_is_rejected(self):
+        """``SET GLOBAL sql_log_bin = 0`` — global modifier (rare but valid)."""
+        assert check_sql_injection_risk('SET GLOBAL sql_log_bin = 0')
+
+    def test_set_at_at_sql_log_bin_is_rejected(self):
+        """``SET @@sql_log_bin = 0`` — at-prefix syntax."""
+        assert check_sql_injection_risk('SET @@sql_log_bin = 0')
+
+    def test_set_at_at_session_sql_log_bin_is_rejected(self):
+        """``SET @@session.sql_log_bin = 0`` — at-prefix with scope."""
+        assert check_sql_injection_risk('SET @@session.sql_log_bin = 0')
+
+    def test_set_at_at_global_sql_log_bin_is_rejected(self):
+        """``SET @@global.sql_log_bin = 0`` — at-prefix global."""
+        assert check_sql_injection_risk('SET @@global.sql_log_bin = 0')
+
+    def test_set_local_sql_log_bin_is_rejected(self):
+        """``SET LOCAL sql_log_bin = 0`` — LOCAL alias for SESSION."""
+        assert check_sql_injection_risk('SET LOCAL sql_log_bin = 0')
+
+    def test_set_foreign_key_checks_is_rejected(self):
+        """``SET foreign_key_checks = 0`` — FK bypass."""
+        issues = check_sql_injection_risk('SET foreign_key_checks = 0')
+        assert issues
+        assert 'foreign_key_checks' in issues[0]['message']
+
+    def test_set_unique_checks_is_rejected(self):
+        """``SET unique_checks = 0`` — uniqueness bypass."""
+        issues = check_sql_injection_risk('SET unique_checks = 0')
+        assert issues
+        assert 'unique_checks' in issues[0]['message']
+
+    def test_lowercase_set_is_rejected(self):
+        """Case-insensitive: lowercase ``set`` still fires."""
+        assert check_sql_injection_risk('set sql_log_bin = 0')
+
+    def test_security_sensitive_var_check_survives_block_comment(self):
+        """``SET /**/ sql_log_bin = 0`` — comment between SET and var.
+
+        sqlparse strips the comment before the regex sweep, so the
+        normalised form ``SET  sql_log_bin = 0`` matches the pattern.
+        """
+        assert check_sql_injection_risk('SET /**/ sql_log_bin = 0')
+
+    def test_prefix_match_does_not_false_positive(self):
+        r"""``SET sql_log_bin_extra = 0`` — \b prevents prefix collision.
+
+        There is no real MySQL variable named ``sql_log_bin_extra``,
+        but the principle matters: the pattern must require a word
+        boundary after the variable name so a longer identifier is
+        not flagged as the security-sensitive one.
+        """
+        # Note: the SET keyword itself still fires in readonly mode via
+        # MUTATING_KEYWORDS, so this test specifically asserts that
+        # check_sql_injection_risk does NOT flag the security-sensitive
+        # message — the readonly path uses detect_mutating_keywords.
+        issues = check_sql_injection_risk('SET sql_log_bin_extra = 0')
+        for issue in issues:
+            assert 'sql_log_bin' not in issue['message'], f'Prefix collision: {issue!r}'
+
+
+# ---------------------------------------------------------------------------
+# Multi-variable SET coverage
+#
+# MySQL allows comma-separated assignments in a single SET statement:
+#   SET @x = 1, sql_log_bin = 0
+# The previous pattern anchored on the first assignment slot only, so a
+# security-sensitive variable in any later position slipped through in
+# write mode. These tests pin the fix: the danger variable is detected
+# in any position of a multi-variable SET, with or without scope qualifiers,
+# across newlines, and even when earlier assignments contain commas
+# inside function call arguments.
+# ---------------------------------------------------------------------------
+
+
+class TestMultiVariableSetCoverage:
+    """Security-sensitive vars must be detected in any position of a multi-var SET."""
+
+    def test_danger_var_in_position_two_is_rejected(self):
+        """``SET @x = 1, sql_log_bin = 0`` — reviewer's verbatim payload."""
+        issues = check_sql_injection_risk('SET @x = 1, sql_log_bin = 0')
+        assert issues, 'Multi-var SET with danger var in position 2 must be flagged'
+        assert 'sql_log_bin' in issues[0]['message']
+
+    def test_danger_var_in_position_three_is_rejected(self):
+        """``SET @x = 1, @y = 2, foreign_key_checks = 0``."""
+        issues = check_sql_injection_risk('SET @x = 1, @y = 2, foreign_key_checks = 0')
+        assert issues
+        assert 'foreign_key_checks' in issues[0]['message']
+
+    def test_danger_var_in_position_four_is_rejected(self):
+        """``SET @x = 1, @y = 2, @z = 3, unique_checks = 0``."""
+        issues = check_sql_injection_risk('SET @x = 1, @y = 2, @z = 3, unique_checks = 0')
+        assert issues
+        assert 'unique_checks' in issues[0]['message']
+
+    def test_danger_var_in_position_one_still_works(self):
+        """``SET sql_log_bin = 0, @x = 1`` — regression guard.
+
+        The new optional skip group must not break the position-1 case
+        that previously already worked correctly.
+        """
+        assert check_sql_injection_risk('SET sql_log_bin = 0, @x = 1')
+
+    def test_newline_between_assignments_is_handled(self):
+        r"""``SET @x = 1,\n sql_log_bin = 0`` — motivates re.DOTALL.
+
+        Without DOTALL, ``.`` does not match ``\n`` and the skip group
+        cannot span the newline. With DOTALL the payload is caught.
+        """
+        assert check_sql_injection_risk('SET @x = 1,\n sql_log_bin = 0')
+
+    def test_scope_qualifier_on_later_var_is_handled(self):
+        """``SET @x = 1, @@session.sql_log_bin = 0`` — scope on second var."""
+        assert check_sql_injection_risk('SET @x = 1, @@session.sql_log_bin = 0')
+
+    def test_function_call_comma_in_earlier_slot_is_handled(self):
+        """``SET @x = CONCAT('a', 'b'), sql_log_bin = 0``.
+
+        A naive comma-split would mis-tokenise the CONCAT call. The
+        regex approach handles this because the wildcard skip includes
+        the inner comma in its non-greedy span; the engine extends past
+        it until the security variable is reached.
+        """
+        assert check_sql_injection_risk("SET @x = CONCAT('a', 'b'), sql_log_bin = 0")
+
+    def test_long_preceding_assignment_within_bound_is_handled(self):
+        """A 100-char REPEAT() expression in slot 1 still leaves slot 2 detectable.
+
+        Pins that the 500-char wildcard bound is comfortable for
+        realistic payloads.
+        """
+        assert check_sql_injection_risk("SET @x = REPEAT('a', 100), sql_log_bin = 0")
+
+    def test_mixed_security_vars_in_one_statement_is_rejected(self):
+        """``SET sql_log_bin = 0, foreign_key_checks = 0`` — two danger vars.
+
+        Either match is sufficient to reject; we don't care which one
+        the regex reports first, only that the statement is rejected.
+        """
+        issues = check_sql_injection_risk('SET sql_log_bin = 0, foreign_key_checks = 0')
+        assert issues
+        # The reported variable is implementation-defined; assert one of them is named.
+        assert any(v in issues[0]['message'] for v in ('sql_log_bin', 'foreign_key_checks'))
+
+    def test_uppercase_set_with_multi_var_is_handled(self):
+        """Case-insensitive matching survives the multi-var path."""
+        assert check_sql_injection_risk('SET @X = 1, SQL_LOG_BIN = 0')
+
+
+class TestMultiVariableSetFalsePositiveBoundary:
+    """Pin the known false-positive limitation as deliberate, not accidental.
+
+    ``UPDATE t SET sql_log_bin = 0`` would match the regex (the parser
+    sees ``set sql_log_bin``). This is a deliberate trade-off: closing
+    it requires sqlparse tokenisation to distinguish statement-level
+    SET from UPDATE's SET clause. Real-world impact is rejecting one
+    weird query in write mode, not a security leak.
+
+    These tests document the boundary so a future "fix" that changes
+    the behaviour must update the tests deliberately.
+    """
+
+    def test_update_with_column_named_like_session_var_is_flagged(self):
+        """Documents the false positive: column named ``sql_log_bin``.
+
+        If a future change uses sqlparse to distinguish UPDATE-SET from
+        statement-level SET, this test must be updated to assert NO
+        match. Right now it asserts the false positive exists so the
+        trade-off is visible.
+        """
+        # No realistic schema names a column after a MySQL session
+        # variable; this test exists to make the boundary explicit.
+        assert check_sql_injection_risk('UPDATE t SET sql_log_bin = 0 WHERE id = 1')
+
+
+# ---------------------------------------------------------------------------
+# Security-sensitive vars set is well-formed
+# ---------------------------------------------------------------------------
+
+
+def test_security_sensitive_vars_is_non_empty():
+    """The set must have at least the three ticket-required entries."""
+    assert {'sql_log_bin', 'foreign_key_checks', 'unique_checks'} <= SECURITY_SENSITIVE_VARS
+
