@@ -1076,3 +1076,69 @@ async def test_caller_next_token_injected_into_first_request(
 
     first_call_kwargs = getattr(mock_ce_client, ce_method).call_args_list[0][1]
     assert first_call_kwargs.get(token_key) == 'resume-from-here'
+
+
+@pytest.mark.parametrize(
+    'op_func, ce_method, result_key, token_key, kwargs',
+    [
+        (
+            get_cost_and_usage,
+            'get_cost_and_usage',
+            'ResultsByTime',
+            'NextPageToken',
+            {'start_date': '2023-01-01', 'end_date': '2023-01-31'},
+        ),
+        (
+            get_cost_and_usage_with_resources,
+            'get_cost_and_usage_with_resources',
+            'ResultsByTime',
+            'NextPageToken',
+            {'start_date': '2023-01-01', 'end_date': '2023-01-07'},
+        ),
+        (
+            get_dimension_values,
+            'get_dimension_values',
+            'DimensionValues',
+            'NextPageToken',
+            {'dimension': 'SERVICE', 'start_date': '2023-01-01', 'end_date': '2023-01-31'},
+        ),
+        (
+            get_tags,
+            'get_tags',
+            'Tags',
+            'NextPageToken',
+            {'start_date': '2023-01-01', 'end_date': '2023-01-31'},
+        ),
+        (
+            get_cost_categories,
+            'get_cost_categories',
+            'CostCategories',
+            'NextPageToken',
+            {'start_date': '2023-01-01', 'end_date': '2023-01-31'},
+        ),
+        (
+            get_savings_plans_utilization,
+            'get_savings_plans_utilization',
+            'SavingsPlansUtilizationsByTime',
+            'NextToken',
+            {'start_date': '2023-01-01', 'end_date': '2023-01-31'},
+        ),
+    ],
+)
+@pytest.mark.asyncio
+async def test_max_pages_without_next_token_omits_token_from_first_request(
+    mock_context, mock_ce_client, op_func, ce_method, result_key, token_key, kwargs
+):
+    """When max_pages is set but next_token is None, the first boto3 request must not carry a token."""
+    getattr(mock_ce_client, ce_method).return_value = {result_key: []}
+
+    await op_func(
+        mock_context,
+        mock_ce_client,
+        next_token=None,
+        max_pages=1,
+        **kwargs,
+    )
+
+    first_call_kwargs = getattr(mock_ce_client, ce_method).call_args_list[0][1]
+    assert token_key not in first_call_kwargs

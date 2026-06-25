@@ -90,36 +90,23 @@ class TestShouldConvertToSql:
         # Assert
         assert result is True
 
-    @patch('os.getenv')
-    def test_should_convert_with_force_enabled(self, mock_getenv):
+    def test_should_convert_with_force_enabled(self):
         """Test should_convert_to_sql with FORCE_SQL_CONVERSION enabled."""
         # Setup - Force conversion regardless of size
         small_size = 100  # Very small response
 
-        # Mock the getenv to return 'true' for MCP_FORCE_SQL
-        mock_getenv.side_effect = (
-            lambda key, default=None: 'true' if key == 'MCP_FORCE_SQL' else default
+        # Patch the module-level FORCE_SQL_CONVERSION constant directly instead of
+        # reloading the module. The previous approach (del sys.modules[...] +
+        # reimport) created a divergent module instance — sys.modules was
+        # restored on exit but the parent package's `sql_utils` attribute was
+        # left pointing at the new module, which broke `patch(...string path...)`
+        # in later tests and made the suite flaky under random test ordering.
+        from awslabs.billing_cost_management_mcp_server.utilities import (
+            sql_utils as sql_utils_mod,
         )
 
-        # Reset module constants by reloading the module
-        with patch.dict('sys.modules'):
-            # Clear the module to force reload
-            import sys
-
-            if 'awslabs.billing_cost_management_mcp_server.utilities.sql_utils' in sys.modules:
-                del sys.modules['awslabs.billing_cost_management_mcp_server.utilities.sql_utils']
-
-            # Now reimport with our patched environment
-            from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
-                FORCE_SQL_CONVERSION,
-                should_convert_to_sql,
-            )
-
-            # Verify patched value took effect
-            assert FORCE_SQL_CONVERSION is True
-
-            # Execute
-        result = should_convert_to_sql(small_size)
+        with patch.object(sql_utils_mod, 'FORCE_SQL_CONVERSION', True):
+            result = sql_utils_mod.should_convert_to_sql(small_size)
 
         # Assert
         assert result is True
@@ -141,11 +128,23 @@ class TestGetSessionDbPath:
         mock_dirname.return_value = '/mock/path'
         mock_abspath.return_value = '/mock/path/file'
 
-        path = get_session_db_path()
+        # Reset the module-level singleton so the mocked path computation runs,
+        # and restore it after so later tests don't get a poisoned path that
+        # doesn't exist on disk (causes sqlite3.OperationalError elsewhere).
+        from awslabs.billing_cost_management_mcp_server.utilities import (
+            sql_utils as sql_utils_mod,
+        )
 
-        # Just verify we get a path back
-        assert path is not None
-        assert isinstance(path, str)
+        saved = sql_utils_mod._SESSION_DB_PATH
+        sql_utils_mod._SESSION_DB_PATH = None
+        try:
+            path = get_session_db_path()
+
+            # Just verify we get a path back
+            assert path is not None
+            assert isinstance(path, str)
+        finally:
+            sql_utils_mod._SESSION_DB_PATH = saved
 
 
 class TestGetDbConnection:
