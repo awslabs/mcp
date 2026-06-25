@@ -34,4 +34,3 @@ Field value types:
 | Boolean | `true`/`false` | `active=true` |
 
 Type is inferred on first write and locked — writing a different type to the same field causes an error and the conflicting point is dropped.
-
