@@ -853,6 +853,35 @@ async def convert_api_response_to_table(
                 }
             )
 
+        elif converter_type == 'cost_categories':
+            # Cost Categories queries
+
+            # Category names only
+            names_query = (
+                create_safe_sql_statement('SELECT', table_name, 'category_value')
+                + " WHERE category_type = 'name' ORDER BY category_value"
+            )
+            sample_queries.append(
+                {
+                    'name': 'Cost category names',
+                    'description': 'Lists all cost category names alphabetically',
+                    'sql': names_query,
+                }
+            )
+
+            # Category values only
+            values_query = (
+                create_safe_sql_statement('SELECT', table_name, 'category_value')
+                + " WHERE category_type = 'value' ORDER BY category_value"
+            )
+            sample_queries.append(
+                {
+                    'name': 'Cost category values',
+                    'description': 'Lists all cost category values alphabetically',
+                    'sql': values_query,
+                }
+            )
+
         else:
             # Generic key-value pair queries for other types
             key_query = (
