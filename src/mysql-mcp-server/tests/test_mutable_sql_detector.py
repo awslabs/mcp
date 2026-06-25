@@ -805,3 +805,73 @@ def test_security_sensitive_vars_is_non_empty():
     """The set must have at least the three ticket-required entries."""
     assert {'sql_log_bin', 'foreign_key_checks', 'unique_checks'} <= SECURITY_SENSITIVE_VARS
 
+
+# ---------------------------------------------------------------------------
+# Pin the existing stacked-queries protection against transaction-bypass
+# payloads.
+#
+# The initial assessment proposed adding a dedicated
+# detect_transaction_bypass_attempt function mirroring the Aurora-DSQL
+# sibling. On closer inspection the existing stacked-queries pattern
+# in SUSPICIOUS_PATTERNS already rejects every canonical bypass payload
+# the security report names, matching the Postgres sibling's design
+# choice. Rather than adding a new function with overlapping logic, we
+# pin the existing protection here so a future "let's relax stacked
+# queries" change has to update these tests deliberately.
+#
+# Each parametrised case exercises a real attack shape against
+# check_sql_injection_risk and asserts a rejection. detect_mutating_keywords
+# also fires on most of these because they contain mutating verbs after
+# the transaction-control keyword; we deliberately route through
+# check_sql_injection_risk to pin the SUSPICIOUS_PATTERNS layer
+# independently.
+# ---------------------------------------------------------------------------
+
+
+class TestTransactionBypassCoverage:
+    """Stacked-queries pattern must reject transaction-bypass payloads."""
+
+    @pytest.mark.parametrize(
+        'payload',
+        [
+            # Canonical: COMMIT mid-chain re-arms writes in a new transaction.
+            'SELECT 1; COMMIT; INSERT INTO t VALUES (1)',
+            # ROLLBACK variant — same shape.
+            'SELECT 1; ROLLBACK; INSERT INTO t VALUES (1)',
+            # SAVEPOINT manipulates nested transaction scope.
+            'SELECT 1; SAVEPOINT sp1',
+            # RELEASE SAVEPOINT — release of nested scope.
+            'SELECT 1; RELEASE SAVEPOINT sp1',
+            # START TRANSACTION re-arms a fresh writable transaction.
+            'SELECT 1; START TRANSACTION; INSERT INTO t VALUES (1)',
+            # BEGIN is a synonym for START TRANSACTION in MySQL.
+            'SELECT 1; BEGIN; INSERT INTO t VALUES (1)',
+            # Case-insensitive: lowercase variant must still fire.
+            'select 1; commit; insert into t values (1)',
+            # Comment between SELECT and COMMIT: sqlparse strip leaves the
+            # semicolon and the chained statement intact, so the stacked-
+            # queries pattern still matches.
+            'SELECT 1; /* annotation */ COMMIT; INSERT INTO t VALUES (1)',
+            # Whitespace variants: tab and newline as the post-semicolon
+            # separator both still leave a non-whitespace next char.
+            'SELECT 1;\tCOMMIT;\tINSERT INTO t VALUES (1)',
+            'SELECT 1;\nCOMMIT;\nINSERT INTO t VALUES (1)',
+        ],
+    )
+    def test_bypass_payload_is_rejected(self, payload):
+        """Every canonical bypass shape must be flagged by the injection check."""
+        issues = check_sql_injection_risk(payload)
+        assert issues, f'Bypass payload not rejected: {payload!r}'
+        assert issues[0]['type'] == 'sql'
+
+    def test_single_statement_with_commit_in_line_comment_is_benign(self):
+        """``SELECT 1 -- COMMIT`` is a comment, not a bypass — must pass.
+
+        Negative case: regression guard against an overzealous future
+        change that flags transaction-control keywords inside comments.
+        """
+        assert check_sql_injection_risk('SELECT 1 -- COMMIT') == []
+
+    def test_single_statement_with_commit_in_block_comment_is_benign(self):
+        """``SELECT 1 /* COMMIT */`` is a comment, not a bypass — must pass."""
+        assert check_sql_injection_risk('SELECT 1 /* COMMIT */') == []
