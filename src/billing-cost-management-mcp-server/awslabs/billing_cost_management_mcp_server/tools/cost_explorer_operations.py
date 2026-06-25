@@ -565,8 +565,11 @@ async def get_cost_categories(
     Returns:
         Cost categories response
     """
-    operation = 'getCostCategories' if not cost_category_name else 'getCostCategoryValues'
-    await ctx.info(f'Calling {operation} API')
+    operation = 'getCostCategories'
+    await ctx.info(
+        f'Calling {operation} API'
+        + (f' for cost category {cost_category_name!r}' if cost_category_name else '')
+    )
 
     try:
         # Get date range with defaults
@@ -580,26 +583,24 @@ async def get_cost_categories(
         if search_string:
             request_params['SearchString'] = str(search_string)
 
+        # When CostCategoryName is provided the API returns CostCategoryValues
+        # (the values inside that category) instead of CostCategoryNames.
         if cost_category_name:
             request_params['CostCategoryName'] = str(cost_category_name)
 
         if billing_view_arn:
             request_params['BillingViewArn'] = billing_view_arn
 
+        # Response field name depends on whether CostCategoryName was supplied.
+        result_key = 'CostCategoryValues' if cost_category_name else 'CostCategoryNames'
+
         # Handle pagination
         if next_token or max_pages:
-            api_function = (
-                ce_client.get_cost_categories
-                if not cost_category_name
-                else ce_client.get_cost_category_values
-            )
-            result_key = 'CostCategories' if not cost_category_name else 'CostCategoryValues'
-
             # For paginated requests, use the paginate utility
             results, pagination_metadata = await paginate_aws_response(
                 ctx,
                 operation,
-                lambda **params: api_function(**params),
+                lambda **params: ce_client.get_cost_categories(**params),
                 request_params,
                 result_key,
                 'NextPageToken',
@@ -611,10 +612,7 @@ async def get_cost_categories(
             response = {result_key: results, 'Pagination': pagination_metadata}
         else:
             # For single page, make direct call
-            if cost_category_name:
-                response = ce_client.get_cost_category_values(**request_params)
-            else:
-                response = ce_client.get_cost_categories(**request_params)
+            response = ce_client.get_cost_categories(**request_params)
 
         return format_response('success', response)
 
