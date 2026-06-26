@@ -75,6 +75,8 @@ class SearchResultMetadata(BaseModel):
 class SearchResult(BaseModel):
     """Search result from AWS documentation search."""
 
+    model_config = ConfigDict(exclude_none=True)
+
     rank_order: int
     url: str
     title: str
@@ -87,6 +89,8 @@ class SearchResult(BaseModel):
 class SearchResponse(BaseModel):
     """Complete search response including results and facets."""
 
+    model_config = ConfigDict(exclude_none=True)
+
     search_results: List[SearchResult]
     facets: Optional[Dict[str, List[str]]] = None
     query_id: str
@@ -96,6 +100,8 @@ class SearchResponse(BaseModel):
 class RecommendationResult(BaseModel):
     """Recommendation result from AWS documentation."""
 
+    model_config = ConfigDict(exclude_none=True)
+
     url: str
     title: str
     context: Optional[str] = None
@@ -103,6 +109,8 @@ class RecommendationResult(BaseModel):
 
 class TableResult(BaseModel):
     """A single table's filtered results."""
+
+    model_config = ConfigDict(exclude_none=True)
 
     table_heading: Optional[str] = None
     columns: List[str]
@@ -114,6 +122,8 @@ class TableResult(BaseModel):
 
 class SearchTableResponse(BaseModel):
     """Response from the search_table tool."""
+
+    model_config = ConfigDict(exclude_none=True)
 
     url: str
     section_title: str
