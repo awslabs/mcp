@@ -101,9 +101,6 @@ def mock_ce_client():
     mock_client.get_tag_values.return_value = {'TagValues': ['dev', 'prod', 'test']}
 
     mock_client.get_cost_categories.return_value = {'CostCategoryNames': ['Department', 'Team']}
-    mock_client.get_cost_category_values.return_value = {
-        'CostCategoryValues': ['Engineering', 'Marketing']
-    }
 
     mock_client.get_savings_plans_utilization.return_value = {
         'SavingsPlansUtilizationsByTime': [
@@ -827,15 +824,19 @@ class TestGetCostCategories:
         assert result['data'] is not None
 
     async def test_get_cost_category_values(self, mock_context, mock_ce_client):
-        """Test get_cost_categories with cost_category_name to get values."""
+        """Test get_cost_categories with cost_category_name to get values.
+
+        AWS GetCostCategories is a single API: passing CostCategoryName makes
+        it return CostCategoryValues from the same get_cost_categories method.
+        """
         result = await get_cost_categories(
             mock_context,
             mock_ce_client,
             cost_category_name='Department',
         )
 
-        mock_ce_client.get_cost_category_values.assert_called_once()
-        call_kwargs = mock_ce_client.get_cost_category_values.call_args[1]
+        mock_ce_client.get_cost_categories.assert_called_once()
+        call_kwargs = mock_ce_client.get_cost_categories.call_args[1]
         assert 'CostCategoryName' in call_kwargs
         assert call_kwargs['CostCategoryName'] == 'Department'
 
