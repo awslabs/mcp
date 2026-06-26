@@ -80,13 +80,11 @@ See [full list of unsupported features](https://docs.aws.amazon.com/aurora-dsql/
 
 ### Error: "Datatype array not supported"
 
-**Cause:** Using TEXT[] or other array types
-**Solution:**
+**Cause:** Using TEXT[] or other array column types
+**Solution:** Serialize the array into a single column. PREFER `JSONB`; MAY use `TEXT` for opaque columns. ASK the user.
 
-1. Change column to TEXT
-2. Store as comma-separated: `"tag1,tag2,tag3"`
-3. Or use JSON.stringify: `"["tag1","tag2","tag3"]"`
-4. Deserialize in application layer
+- **PREFER `JSONB`** — application filters with `@>`/`?`/`?|`/`?&` or expands with `jsonb_array_elements_text`. Insert: `INSERT INTO t (tags) VALUES ($1::jsonb)` with `JSON.stringify(arr)`. Query: `jsonb_array_elements_text(tags)`.
+- **MAY use `TEXT`** — column is opaque to the database (app-side parse only). Insert raw: `INSERT INTO t (tags_csv) VALUES ($1)` with `arr.join(',')`.
 
 ### Error: "Please use CREATE INDEX ASYNC"
 
