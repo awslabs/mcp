@@ -135,10 +135,8 @@ class InsightsHandler:
             # Always use the default EKS client
             eks_client = self.eks_client
 
-            # Determine operation mode based on whether insight_id is provided
-            detail_mode = insight_id is not None
-
-            if detail_mode:
+            # Determine operation mode based on whether a non-empty insight_id is provided
+            if insight_id and insight_id.strip():
                 # Get details for a specific insight
                 return await self._get_insight_detail(
                     ctx, eks_client, cluster_name, insight_id, next_token
