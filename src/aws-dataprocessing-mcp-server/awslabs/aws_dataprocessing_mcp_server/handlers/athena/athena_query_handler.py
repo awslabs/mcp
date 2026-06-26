@@ -210,7 +210,7 @@ class AthenaQueryHandler:
                         'query_string is required for start-query-execution operation'
                     )
 
-                # Check for write operations when write access is disabled (allowlist approach - fail closed)
+                # Reject queries that are not explicitly read-only when write access is disabled (allowlist / fail-closed)
                 if not self.allow_write and not SqlAnalyzer.is_read_only_query(query_string):
                     error_message = (
                         f'Operation {operation} contains write operations and is not allowed without write access. '
