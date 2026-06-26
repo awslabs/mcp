@@ -68,6 +68,7 @@ def create_aws_client(service_name: str, region_name: Optional[str] = None) -> A
         'compute-optimizer',  # Compute Optimizer
         'cost-optimization-hub',  # Cost Optimization Hub
         'sts',  # STS (for account validation)
+        'iam',  # IAM (for permission simulation in readiness checks)
         'freetier',  # AWS Free Tier Usage
         's3',  # AWS S3
         'bcm-pricing-calculator',  # BCM Pricing Calculator

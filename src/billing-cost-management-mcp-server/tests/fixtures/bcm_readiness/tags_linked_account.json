@@ -1,0 +1,359 @@
+{
+  "account_id": "123456789012",
+  "calls": {
+    "ce": [
+      {
+        "kwargs": {
+          "Granularity": "DAILY",
+          "Metrics": [
+            "UnblendedCost"
+          ],
+          "TimePeriod": {
+            "End": "2026-06-18",
+            "Start": "2026-06-04"
+          }
+        },
+        "method": "get_cost_and_usage",
+        "response": {
+          "DimensionValueAttributes": [],
+          "ResultsByTime": [
+            {
+              "Estimated": true,
+              "Groups": [],
+              "TimePeriod": {
+                "End": "2026-06-05",
+                "Start": "2026-06-04"
+              },
+              "Total": {
+                "UnblendedCost": {
+                  "Amount": "0.0108020906",
+                  "Unit": "USD"
+                }
+              }
+            },
+            {
+              "Estimated": true,
+              "Groups": [],
+              "TimePeriod": {
+                "End": "2026-06-06",
+                "Start": "2026-06-05"
+              },
+              "Total": {
+                "UnblendedCost": {
+                  "Amount": "0.0103842199",
+                  "Unit": "USD"
+                }
+              }
+            },
+            {
+              "Estimated": true,
+              "Groups": [],
+              "TimePeriod": {
+                "End": "2026-06-07",
+                "Start": "2026-06-06"
+              },
+              "Total": {
+                "UnblendedCost": {
+                  "Amount": "0.0107660796",
+                  "Unit": "USD"
+                }
+              }
+            },
+            {
+              "Estimated": true,
+              "Groups": [],
+              "TimePeriod": {
+                "End": "2026-06-08",
+                "Start": "2026-06-07"
+              },
+              "Total": {
+                "UnblendedCost": {
+                  "Amount": "0.0107790598",
+                  "Unit": "USD"
+                }
+              }
+            },
+            {
+              "Estimated": true,
+              "Groups": [],
+              "TimePeriod": {
+                "End": "2026-06-09",
+                "Start": "2026-06-08"
+              },
+              "Total": {
+                "UnblendedCost": {
+                  "Amount": "0.0108060074",
+                  "Unit": "USD"
+                }
+              }
+            },
+            {
+              "Estimated": true,
+              "Groups": [],
+              "TimePeriod": {
+                "End": "2026-06-10",
+                "Start": "2026-06-09"
+              },
+              "Total": {
+                "UnblendedCost": {
+                  "Amount": "0.0108112134",
+                  "Unit": "USD"
+                }
+              }
+            },
+            {
+              "Estimated": true,
+              "Groups": [],
+              "TimePeriod": {
+                "End": "2026-06-11",
+                "Start": "2026-06-10"
+              },
+              "Total": {
+                "UnblendedCost": {
+                  "Amount": "0.0108592354",
+                  "Unit": "USD"
+                }
+              }
+            },
+            {
+              "Estimated": true,
+              "Groups": [],
+              "TimePeriod": {
+                "End": "2026-06-12",
+                "Start": "2026-06-11"
+              },
+              "Total": {
+                "UnblendedCost": {
+                  "Amount": "0.0107991927",
+                  "Unit": "USD"
+                }
+              }
+            },
+            {
+              "Estimated": true,
+              "Groups": [],
+              "TimePeriod": {
+                "End": "2026-06-13",
+                "Start": "2026-06-12"
+              },
+              "Total": {
+                "UnblendedCost": {
+                  "Amount": "0.0107919307",
+                  "Unit": "USD"
+                }
+              }
+            },
+            {
+              "Estimated": true,
+              "Groups": [],
+              "TimePeriod": {
+                "End": "2026-06-14",
+                "Start": "2026-06-13"
+              },
+              "Total": {
+                "UnblendedCost": {
+                  "Amount": "0.0107835035",
+                  "Unit": "USD"
+                }
+              }
+            },
+            {
+              "Estimated": true,
+              "Groups": [],
+              "TimePeriod": {
+                "End": "2026-06-15",
+                "Start": "2026-06-14"
+              },
+              "Total": {
+                "UnblendedCost": {
+                  "Amount": "0.0104124143",
+                  "Unit": "USD"
+                }
+              }
+            },
+            {
+              "Estimated": true,
+              "Groups": [],
+              "TimePeriod": {
+                "End": "2026-06-16",
+                "Start": "2026-06-15"
+              },
+              "Total": {
+                "UnblendedCost": {
+                  "Amount": "0.0107826963",
+                  "Unit": "USD"
+                }
+              }
+            },
+            {
+              "Estimated": true,
+              "Groups": [],
+              "TimePeriod": {
+                "End": "2026-06-17",
+                "Start": "2026-06-16"
+              },
+              "Total": {
+                "UnblendedCost": {
+                  "Amount": "0.0138636042",
+                  "Unit": "USD"
+                }
+              }
+            },
+            {
+              "Estimated": true,
+              "Groups": [],
+              "TimePeriod": {
+                "End": "2026-06-18",
+                "Start": "2026-06-17"
+              },
+              "Total": {
+                "UnblendedCost": {
+                  "Amount": "0.0091540411",
+                  "Unit": "USD"
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "error": {
+          "code": "AccessDeniedException",
+          "message": "Failed to list Cost Allocation Tags: Linked account doesn't have access to cost allocation tags.",
+          "operation": "list_cost_allocation_tags"
+        },
+        "kwargs": {},
+        "method": "list_cost_allocation_tags"
+      }
+    ],
+    "iam": [
+      {
+        "kwargs": {
+          "ActionNames": [
+            "ce:GetCostAndUsage",
+            "ce:GetCostForecast",
+            "ce:GetDimensionValues",
+            "ce:ListCostAllocationTags"
+          ],
+          "PolicySourceArn": "arn:aws:iam::123456789012:role/Admin"
+        },
+        "method": "simulate_principal_policy",
+        "response": {
+          "EvaluationResults": [
+            {
+              "EvalActionName": "ce:GetCostAndUsage",
+              "EvalDecision": "allowed",
+              "EvalResourceName": "*",
+              "MatchedStatements": [
+                {
+                  "EndPosition": {
+                    "Column": 6,
+                    "Line": 8
+                  },
+                  "SourcePolicyId": "AdministratorAccess",
+                  "SourcePolicyType": "IAM Policy",
+                  "StartPosition": {
+                    "Column": 17,
+                    "Line": 3
+                  }
+                }
+              ],
+              "MissingContextValues": [],
+              "OrganizationsDecisionDetail": {
+                "AllowedByOrganizations": true
+              }
+            },
+            {
+              "EvalActionName": "ce:GetCostForecast",
+              "EvalDecision": "allowed",
+              "EvalResourceName": "*",
+              "MatchedStatements": [
+                {
+                  "EndPosition": {
+                    "Column": 6,
+                    "Line": 8
+                  },
+                  "SourcePolicyId": "AdministratorAccess",
+                  "SourcePolicyType": "IAM Policy",
+                  "StartPosition": {
+                    "Column": 17,
+                    "Line": 3
+                  }
+                }
+              ],
+              "MissingContextValues": [],
+              "OrganizationsDecisionDetail": {
+                "AllowedByOrganizations": true
+              }
+            },
+            {
+              "EvalActionName": "ce:GetDimensionValues",
+              "EvalDecision": "allowed",
+              "EvalResourceName": "*",
+              "MatchedStatements": [
+                {
+                  "EndPosition": {
+                    "Column": 6,
+                    "Line": 8
+                  },
+                  "SourcePolicyId": "AdministratorAccess",
+                  "SourcePolicyType": "IAM Policy",
+                  "StartPosition": {
+                    "Column": 17,
+                    "Line": 3
+                  }
+                }
+              ],
+              "MissingContextValues": [],
+              "OrganizationsDecisionDetail": {
+                "AllowedByOrganizations": true
+              }
+            },
+            {
+              "EvalActionName": "ce:ListCostAllocationTags",
+              "EvalDecision": "allowed",
+              "EvalResourceName": "*",
+              "MatchedStatements": [
+                {
+                  "EndPosition": {
+                    "Column": 6,
+                    "Line": 8
+                  },
+                  "SourcePolicyId": "AdministratorAccess",
+                  "SourcePolicyType": "IAM Policy",
+                  "StartPosition": {
+                    "Column": 17,
+                    "Line": 3
+                  }
+                }
+              ],
+              "MissingContextValues": [],
+              "OrganizationsDecisionDetail": {
+                "AllowedByOrganizations": true
+              }
+            }
+          ],
+          "IsTruncated": false
+        }
+      }
+    ],
+    "sts": [
+      {
+        "kwargs": {},
+        "method": "get_caller_identity",
+        "response": {
+          "Account": "123456789012",
+          "Arn": "arn:aws:sts::123456789012:assumed-role/Admin/test-session",
+          "UserId": "AROAEXAMPLEPRINCIPALID:test-session"
+        }
+      }
+    ]
+  },
+  "expected_issue": "tags_not_available_in_linked_account",
+  "expected_status": "blocked",
+  "intent": "tag_analysis",
+  "observed_exception": null,
+  "observed_issue": "tags_not_available_in_linked_account",
+  "observed_status": "blocked",
+  "state": "tags_linked_account"
+}
