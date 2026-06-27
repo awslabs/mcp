@@ -375,36 +375,37 @@ class TestGetCostAndUsage:
     async def test_pagination_metadata_forwarded_to_sql_offload(
         self, mock_context, mock_ce_client
     ):
-        """Pagination kwargs must be forwarded to convert_response_if_needed for the SQL offload path."""
+        """Pagination markers in the response must surface in the offload result.
+
+        convert_response_if_needed auto-derives next_page_token / has_more /
+        pages_fetched from the response shape (NextPageToken for single-page,
+        or the Pagination sub-dict for the paginate_aws_response wrapper),
+        so the operation no longer passes them as kwargs.
+        """
         mock_ce_client.get_cost_and_usage.return_value = {
             'ResultsByTime': [{'TimePeriod': {'Start': '2023-01-01', 'End': '2023-01-02'}}],
             'NextPageToken': 'continue-here',
         }
 
+        # Force SQL offload so we can inspect the offload result, regardless
+        # of the small response size that would otherwise stay inline.
         with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.cost_explorer_operations.convert_response_if_needed',
-            new_callable=AsyncMock,
-        ) as mock_helper:
-            mock_helper.return_value = {
-                'status': 'success',
-                'data_stored': True,
-                'table_name': 'getCostAndUsage_xyz',
-                'next_page_token': 'continue-here',
-                'has_more': True,
-                'pages_fetched': 1,
-            }
-
-            await get_cost_and_usage(
+            'awslabs.billing_cost_management_mcp_server.utilities.sql_utils.should_convert_to_sql',
+            return_value=True,
+        ):
+            result = await get_cost_and_usage(
                 mock_context,
                 mock_ce_client,
                 start_date='2023-01-01',
                 end_date='2023-01-31',
             )
 
-        helper_kwargs = mock_helper.call_args.kwargs
-        assert helper_kwargs.get('next_page_token') == 'continue-here'
-        assert helper_kwargs.get('has_more') is True
-        assert helper_kwargs.get('pages_fetched') == 1
+        assert result['status'] == 'success'
+        data = result['data']
+        assert data.get('data_stored') is True
+        assert data.get('next_page_token') == 'continue-here'
+        assert data.get('has_more') is True
+        assert data.get('pages_fetched') == 1
 
 
 @pytest.mark.asyncio

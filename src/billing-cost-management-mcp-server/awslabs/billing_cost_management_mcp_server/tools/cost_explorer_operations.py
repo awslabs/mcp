@@ -123,21 +123,9 @@ async def get_cost_and_usage(
             )
 
             response = {'ResultsByTime': results, 'Pagination': pagination_metadata}
-            pagination_envelope = {
-                'next_page_token': pagination_metadata.get('next_token'),
-                'has_more': pagination_metadata.get('has_more', False),
-                'pages_fetched': pagination_metadata.get('pages_fetched'),
-            }
         else:
             response = ce_client.get_cost_and_usage(**request_params)
-            pagination_envelope = {
-                'next_page_token': response.get('NextPageToken'),
-                'has_more': bool(response.get('NextPageToken')),
-                'pages_fetched': 1,
-            }
 
-        # Forward pagination metadata as **metadata so it survives SQL offload
-        # — the typed cost_and_usage converter only walks ResultsByTime.
         table_response = await convert_response_if_needed(
             ctx,
             response,
@@ -147,16 +135,9 @@ async def get_cost_and_usage(
             end_date=end,
             group_by=group_by,
             metrics=metrics,
-            **pagination_envelope,
         )
 
-        # Return the response (either the original or the SQL table info)
-        return format_response(
-            'success',
-            table_response
-            if isinstance(table_response, dict) and 'data_stored' in table_response
-            else response,
-        )
+        return format_response('success', table_response)
 
     except Exception as e:
         # Use shared error handling
@@ -253,22 +234,10 @@ async def get_cost_and_usage_with_resources(
             )
 
             response = {'ResultsByTime': results, 'Pagination': pagination_metadata}
-            pagination_envelope = {
-                'next_page_token': pagination_metadata.get('next_token'),
-                'has_more': pagination_metadata.get('has_more', False),
-                'pages_fetched': pagination_metadata.get('pages_fetched'),
-            }
         else:
             await ctx.info('Calling getCostAndUsageWithResources API')
             response = ce_client.get_cost_and_usage_with_resources(**request_params)
-            pagination_envelope = {
-                'next_page_token': response.get('NextPageToken'),
-                'has_more': bool(response.get('NextPageToken')),
-                'pages_fetched': 1,
-            }
 
-        # Forward through the SQL offload — same ResultsByTime shape as
-        # getCostAndUsage, so the cost_and_usage typed converter handles it.
         table_response = await convert_response_if_needed(
             ctx,
             response,
@@ -278,15 +247,9 @@ async def get_cost_and_usage_with_resources(
             end_date=end,
             group_by=group_by,
             metrics=metrics,
-            **pagination_envelope,
         )
 
-        return format_response(
-            'success',
-            table_response
-            if isinstance(table_response, dict) and 'data_stored' in table_response
-            else response,
-        )
+        return format_response('success', table_response)
 
     except Exception as e:
         return await handle_aws_error(ctx, e, 'getCostAndUsageWithResources', 'Cost Explorer')
@@ -367,22 +330,10 @@ async def get_dimension_values(
 
             # Format paginated response
             response = {'DimensionValues': results, 'Pagination': pagination_metadata}
-            pagination_envelope = {
-                'next_page_token': pagination_metadata.get('next_token'),
-                'has_more': pagination_metadata.get('has_more', False),
-                'pages_fetched': pagination_metadata.get('pages_fetched'),
-            }
         else:
             # For single page, make direct call
             response = ce_client.get_dimension_values(**request_params)
-            pagination_envelope = {
-                'next_page_token': response.get('NextPageToken'),
-                'has_more': bool(response.get('NextPageToken')),
-                'pages_fetched': 1,
-            }
 
-        # Forward pagination metadata as **metadata so it survives SQL offload
-        # — the typed dimension_values converter only walks DimensionValues.
         table_response = await convert_response_if_needed(
             ctx,
             response,
@@ -391,15 +342,9 @@ async def get_dimension_values(
             start_date=start,
             end_date=end,
             search_string=search_string,
-            **pagination_envelope,
         )
 
-        return format_response(
-            'success',
-            table_response
-            if isinstance(table_response, dict) and 'data_stored' in table_response
-            else response,
-        )
+        return format_response('success', table_response)
 
     except Exception as e:
         # Use shared error handling
@@ -485,12 +430,7 @@ async def get_cost_forecast(
             end_date=end_date,
         )
 
-        return format_response(
-            'success',
-            table_response
-            if isinstance(table_response, dict) and 'data_stored' in table_response
-            else response,
-        )
+        return format_response('success', table_response)
 
     except Exception as e:
         # Use shared error handling
@@ -573,12 +513,7 @@ async def get_usage_forecast(
             end_date=end_date,
         )
 
-        return format_response(
-            'success',
-            table_response
-            if isinstance(table_response, dict) and 'data_stored' in table_response
-            else response,
-        )
+        return format_response('success', table_response)
 
     except Exception as e:
         # Use shared error handling
@@ -654,22 +589,10 @@ async def get_tags(
 
             # Format paginated response
             response = {result_key: results, 'Pagination': pagination_metadata}
-            pagination_envelope = {
-                'next_page_token': pagination_metadata.get('next_token'),
-                'has_more': pagination_metadata.get('has_more', False),
-                'pages_fetched': pagination_metadata.get('pages_fetched'),
-            }
         else:
             # For single page, make direct call
             response = ce_client.get_tags(**request_params)
-            pagination_envelope = {
-                'next_page_token': response.get('NextPageToken'),
-                'has_more': bool(response.get('NextPageToken')),
-                'pages_fetched': 1,
-            }
 
-        # Forward pagination metadata as **metadata so it survives SQL offload
-        # — the typed tags converter only walks the Tags array.
         table_response = await convert_response_if_needed(
             ctx,
             response,
@@ -678,15 +601,9 @@ async def get_tags(
             end_date=end,
             search_string=search_string,
             tag_key=tag_key,
-            **pagination_envelope,
         )
 
-        return format_response(
-            'success',
-            table_response
-            if isinstance(table_response, dict) and 'data_stored' in table_response
-            else response,
-        )
+        return format_response('success', table_response)
 
     except Exception as e:
         # Use shared error handling
@@ -771,23 +688,10 @@ async def get_cost_categories(
 
             # Format paginated response
             response = {result_key: results, 'Pagination': pagination_metadata}
-            pagination_envelope = {
-                'next_page_token': pagination_metadata.get('next_token'),
-                'has_more': pagination_metadata.get('has_more', False),
-                'pages_fetched': pagination_metadata.get('pages_fetched'),
-            }
         else:
             # For single page, make direct call
             response = ce_client.get_cost_categories(**request_params)
-            pagination_envelope = {
-                'next_page_token': response.get('NextPageToken'),
-                'has_more': bool(response.get('NextPageToken')),
-                'pages_fetched': 1,
-            }
 
-        # Forward pagination metadata as **metadata so it survives SQL offload
-        # — the typed cost_categories converter walks CostCategoryNames /
-        # CostCategoryValues arrays.
         table_response = await convert_response_if_needed(
             ctx,
             response,
@@ -796,15 +700,9 @@ async def get_cost_categories(
             end_date=end,
             search_string=search_string,
             cost_category_name=cost_category_name,
-            **pagination_envelope,
         )
 
-        return format_response(
-            'success',
-            table_response
-            if isinstance(table_response, dict) and 'data_stored' in table_response
-            else response,
-        )
+        return format_response('success', table_response)
 
     except Exception as e:
         # Use shared error handling
