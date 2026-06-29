@@ -926,7 +926,9 @@ async def test_output_location_blocked_without_sensitive_data_access(handler_no_
     )
 
     assert response.isError
-    assert 'Custom OutputLocation in ResultConfiguration is not allowed' in response.content[0].text
+    assert (
+        'Custom OutputLocation in ResultConfiguration is not allowed' in response.content[0].text
+    )
     assert '--allow-sensitive-data-access' in response.content[0].text
 
 
