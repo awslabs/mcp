@@ -16,7 +16,7 @@
 
 import base64
 from .client import get_session_client
-from .models import FileOperationResult
+from .models import FileListResult, FileOperationResult
 from loguru import logger
 from mcp.server.fastmcp import Context
 from typing import Any
@@ -124,5 +124,105 @@ async def download_file(
     return FileOperationResult(
         path=path,
         content=file_content,
+        message=message,
+    )
+
+
+def _parse_list_files_response(result: Any) -> tuple[list[str], str]:
+    """Parse the EventStream response from invoke('listFiles').
+
+    The API returns a streaming response with content blocks. For listFiles,
+    expect 'text' blocks with listing output and 'resource_link' blocks with
+    file URIs.
+
+    Args:
+        result: Raw response from client.invoke('listFiles', ...).
+
+    Returns:
+        Tuple of (file_paths, raw_content_text).
+    """
+    files: list[str] = []
+    text_parts: list[str] = []
+
+    if isinstance(result, dict) and 'stream' in result:
+        for event in result['stream']:
+            if 'result' not in event:
+                continue
+            event_result = event['result']
+
+            for block in event_result.get('content', []):
+                block_type = block.get('type', '')
+
+                if block_type == 'text' and block.get('text'):
+                    text_parts.append(block['text'])
+
+                elif block_type == 'resource_link':
+                    uri = block.get('uri', '')
+                    path = uri.replace('file://', '') if uri.startswith('file://') else uri
+                    name = block.get('name', '')
+                    entry = path or name
+                    if entry:
+                        files.append(entry)
+
+    # If no resource_link blocks were found, extract file paths from text output
+    if not files and text_parts:
+        raw_text = '\n'.join(text_parts)
+        for line in raw_text.splitlines():
+            stripped = line.strip()
+            if stripped and not stripped.startswith('total '):
+                files.append(stripped)
+
+    raw_content = '\n'.join(text_parts)
+    return files, raw_content
+
+
+async def list_files(
+    ctx: Context,
+    session_id: str,
+    directory_path: str | None = None,
+    region: str | None = None,
+) -> FileListResult:
+    """List files in the sandboxed code interpreter session.
+
+    Lists files and directories at the specified path in the session's sandbox.
+    If no directory_path is provided, lists files from the default working directory.
+
+    Args:
+        ctx: MCP context for error signaling and progress updates.
+        session_id: The session ID to list files in. Must be a started session.
+        directory_path: Optional directory path to list. Lists from the default
+            working directory if omitted.
+        region: AWS region.
+
+    Returns:
+        FileListResult with file paths, raw content text, and message.
+    """
+    target = directory_path or 'default working directory'
+    logger.info(f'Listing files in session {session_id}: {target}')
+
+    try:
+        client = get_session_client(session_id)
+
+        kwargs: dict[str, Any] = {}
+        if directory_path is not None:
+            kwargs['directoryPath'] = directory_path
+
+        raw = client.invoke('listFiles', kwargs)
+        files, content = _parse_list_files_response(raw)
+
+    except Exception as e:
+        error_msg = f'List files failed: {type(e).__name__}: {e}'
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        raise
+
+    count = len(files)
+    message = (
+        f'Found {count} file(s) in {target}.' if count > 0 else f'No files found in {target}.'
+    )
+
+    return FileListResult(
+        files=files,
+        content=content,
         message=message,
     )
