@@ -438,12 +438,8 @@ lets you place breakpoint-style or probe-style instrumentation on running
 Application Signals services, then inspect the captured snapshots (arguments,
 local state, and stack traces) from CloudWatch Logs.
 
-> **Note:** These tools depend on `application-signals` dynamic
-> instrumentation operations that are not yet part of the public AWS SDK. The
-> server bundles a trimmed service model (see
-> `awslabs/cloudwatch_applicationsignals_mcp_server/dynamic_instrumentation/aws_data/README.md`)
-> so the tools work against these operations. The bundled model is removed once
-> the operations are generally available in `botocore`.
+> **Note:** These tools call the `application-signals` dynamic instrumentation
+> operations available in the public AWS SDK (`boto3` >= 1.43.35).
 
 **Configuration & status tools**
 

@@ -550,12 +550,14 @@ async def test_get_tags_and_values(mock_context, mock_ce_client):
 @pytest.mark.asyncio
 async def test_get_cost_categories(mock_context, mock_ce_client):
     """Test the get_cost_categories function."""
-    # Mock cost category values response
-    mock_ce_client.get_cost_category_values.return_value = {
-        'CostCategoryValues': ['Engineering', 'Marketing']
-    }
+    # AWS GetCostCategories returns CostCategoryNames or CostCategoryValues from
+    # the same API depending on whether CostCategoryName is supplied.
+    mock_ce_client.get_cost_categories.side_effect = [
+        {'CostCategoryNames': ['Department', 'Project']},
+        {'CostCategoryValues': ['Engineering', 'Marketing']},
+    ]
 
-    # Test getCostCategories operation
+    # Test getCostCategories operation (list category names)
     categories_result = await get_cost_categories(
         mock_context,
         mock_ce_client,
@@ -563,8 +565,8 @@ async def test_get_cost_categories(mock_context, mock_ce_client):
         end_date='2023-01-31',
     )
 
-    # Test getCostCategoryValues operation
-    await get_cost_categories(
+    # Test getCostCategories operation with cost_category_name (list values)
+    values_result = await get_cost_categories(
         mock_context,
         mock_ce_client,
         start_date='2023-01-01',
@@ -572,23 +574,30 @@ async def test_get_cost_categories(mock_context, mock_ce_client):
         cost_category_name='Department',
     )
 
-    # Verify getCostCategories call
-    mock_ce_client.get_cost_categories.assert_called_once()
-    categories_call_kwargs = mock_ce_client.get_cost_categories.call_args[1]
-    assert 'TimePeriod' in categories_call_kwargs
-    assert categories_call_kwargs['TimePeriod']['Start'] == '2023-01-01'
-    assert categories_call_kwargs['TimePeriod']['End'] == '2023-01-31'
+    # Both calls should hit ce_client.get_cost_categories — there is no
+    # separate get_cost_category_values method on the boto3 client.
+    assert mock_ce_client.get_cost_categories.call_count == 2
 
-    # Verify getCostCategories result
+    # Verify first call: no CostCategoryName, returns names
+    first_call_kwargs = mock_ce_client.get_cost_categories.call_args_list[0][1]
+    assert 'TimePeriod' in first_call_kwargs
+    assert first_call_kwargs['TimePeriod']['Start'] == '2023-01-01'
+    assert first_call_kwargs['TimePeriod']['End'] == '2023-01-31'
+    assert 'CostCategoryName' not in first_call_kwargs
+
+    # Verify first result
     assert categories_result['status'] == 'success'
     assert 'data' in categories_result
 
-    # Verify getCostCategoryValues call
-    mock_ce_client.get_cost_category_values.assert_called_once()
-    category_values_call_kwargs = mock_ce_client.get_cost_category_values.call_args[1]
-    assert 'TimePeriod' in category_values_call_kwargs
-    assert 'CostCategoryName' in category_values_call_kwargs
-    assert category_values_call_kwargs['CostCategoryName'] == 'Department'
+    # Verify second call: CostCategoryName set, returns values
+    second_call_kwargs = mock_ce_client.get_cost_categories.call_args_list[1][1]
+    assert 'TimePeriod' in second_call_kwargs
+    assert 'CostCategoryName' in second_call_kwargs
+    assert second_call_kwargs['CostCategoryName'] == 'Department'
+
+    # Verify second result
+    assert values_result['status'] == 'success'
+    assert 'data' in values_result
 
 
 @pytest.mark.asyncio
@@ -1195,10 +1204,12 @@ async def test_ce_real_get_cost_categories_and_values_routing_reload_identity_de
         )
         assert res1['status'] == 'success'
 
-        # getCostCategoryValues
+        # getCostCategoryValues is no longer routed — it's not in the tool's
+        # public surface and the same behavior is reachable by passing
+        # cost_category_name to getCostCategories.
         res2 = await real_fn(  # type: ignore
             mock_context,
-            operation='getCostCategoryValues',
+            operation='getCostCategories',
             start_date='2023-01-01',
             end_date='2023-01-31',
             search_string='Dept',
@@ -1215,7 +1226,7 @@ async def test_ce_real_get_cost_categories_and_values_routing_reload_identity_de
             '2023-01-01',
             '2023-01-31',
             'Dept',
-            None,  # cost_category_name for getCostCategories
+            None,  # cost_category_name omitted on the first call
             'p1',
             2,
             None,

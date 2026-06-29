@@ -377,22 +377,14 @@ class TestClientAndRegion:
         ):
             assert cw_logs._region() == 'eu-west-1'
 
-    def test_get_logs_client_builds_and_caches(self):
-        """Build the boto3 logs client once and reuse the cached instance."""
-        cw_logs._reset_client()
+    def test_get_logs_client_delegates_to_shared_client(self):
+        """Use the shared aws_clients logs client rather than building its own."""
         sentinel = object()
-        fake_boto3 = MagicMock()
-        fake_boto3.client.return_value = sentinel
-        with (
-            patch.dict('sys.modules', {'boto3': fake_boto3}),
-            patch.object(cw_logs, '_region', return_value='us-east-2'),
+        with patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.get_logs_client',
+            return_value=sentinel,
         ):
-            first = cw_logs._get_logs_client()
-            second = cw_logs._get_logs_client()
-        assert first is sentinel
-        assert second is sentinel
-        # boto3.client called exactly once thanks to caching.
-        fake_boto3.client.assert_called_once_with('logs', region_name='us-east-2')
+            assert cw_logs._get_logs_client() is sentinel
 
 
 # ============================================================================

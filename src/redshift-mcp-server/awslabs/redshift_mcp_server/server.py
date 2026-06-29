@@ -92,7 +92,7 @@ This tool uses the Redshift Data API to run queries and return results.
 {CLIENT_BEST_PRACTICES}
 {REDSHIFT_BEST_PRACTICES}
 """,
-    dependencies=['boto3', 'loguru', 'pydantic', 'regex'],
+    dependencies=['boto3', 'loguru', 'pydantic', 'sqlglot'],
 )
 
 
@@ -598,8 +598,8 @@ async def execute_query_tool(
 
     - Avoid dynamic SQL construction with user input.
     - Consider database object permissions.
-    - Currently, the execute_query tool runs the query in a READ ONLY transaction to prevent unintentional modifications.
-    - The READ WRITE mode will be added in the future versions with additional protection mechanisms.
+    - Queries run in read-only mode and must be a single statement; writes and
+      multi-statement submissions are rejected.
     """
     try:
         logger.info(f'Executing query on cluster {cluster_identifier} in database {database_name}')

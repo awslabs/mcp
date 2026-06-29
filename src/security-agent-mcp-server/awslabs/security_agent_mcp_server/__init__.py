@@ -14,4 +14,4 @@
 
 """AWS Security Agent MCP Server — automated security scanning and penetration testing."""
 
-__version__ = '0.1.1'
+__version__ = '0.1.2'
