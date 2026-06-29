@@ -17,9 +17,12 @@
 from awslabs.aws_healthomics_mcp_server.consts import (
     BATCH_STATUSES,
     DEFAULT_MAX_RESULTS,
+    DEFAULT_SCRATCH_STORAGE_MODE,
     ERROR_INVALID_BATCH_RUN_SETTINGS,
     ERROR_INVALID_BATCH_STATUS,
+    ERROR_INVALID_SCRATCH_STORAGE_MODE,
     ERROR_INVALID_SUBMISSION_STATUS,
+    SCRATCH_STORAGE_MODES,
     SUBMISSION_STATUSES,
 )
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
@@ -79,6 +82,16 @@ async def start_run_batch(
         None, description='Cache behavior: CACHE_ALWAYS or CACHE_ON_FAILURE'
     ),
     retention_mode: Optional[str] = Field(None, description='Retention mode: RETAIN or REMOVE'),
+    scratch_storage_mode: Optional[str] = Field(
+        None,
+        description=(
+            'Scratch storage mode applied to all runs in the batch. Allowed values: '
+            'LOCAL (mount local EBS ephemeral scratch storage at /tmp for CPU tasks) or '
+            'SHARED (use shared scratch storage). '
+            'Defaults to LOCAL when omitted (the MCP server default; note the HealthOmics '
+            'API default is SHARED).'
+        ),
+    ),
     request_id: Optional[str] = Field(None, description='Idempotency token'),
     tags: Optional[Dict[str, str]] = Field(None, description='Tags for the batch'),
     aws_profile: Optional[str] = Field(
@@ -108,6 +121,7 @@ async def start_run_batch(
         cache_id: Optional run cache ID
         cache_behavior: Optional cache behavior
         retention_mode: Optional retention mode
+        scratch_storage_mode: Optional scratch storage mode (LOCAL or SHARED); defaults to LOCAL
         request_id: Optional idempotency token
         tags: Optional tags for the batch
         aws_profile: Optional AWS profile name override
@@ -121,6 +135,23 @@ async def start_run_batch(
         validation_error = _validate_batch_run_settings(batch_run_settings)
         if validation_error:
             return await handle_tool_error(ctx, ValueError(validation_error), 'Invalid parameters')
+
+        # Resolve and validate scratch storage mode before any API call
+        effective_scratch_storage_mode = (
+            scratch_storage_mode
+            if scratch_storage_mode is not None
+            else DEFAULT_SCRATCH_STORAGE_MODE
+        )
+        if effective_scratch_storage_mode not in SCRATCH_STORAGE_MODES:
+            return await handle_tool_error(
+                ctx,
+                ValueError(
+                    ERROR_INVALID_SCRATCH_STORAGE_MODE.format(
+                        effective_scratch_storage_mode, SCRATCH_STORAGE_MODES
+                    )
+                ),
+                'Invalid scratch storage mode',
+            )
 
         client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
@@ -157,6 +188,10 @@ async def start_run_batch(
 
         if retention_mode is not None:
             default_run_setting['retentionMode'] = retention_mode
+
+        # Always inject the effective scratch storage mode so all runs in the batch
+        # use the MCP server default (LOCAL) unless the caller overrides it.
+        default_run_setting['scratchStorageMode'] = effective_scratch_storage_mode
 
         # Build API params
         params: Dict[str, Any] = {

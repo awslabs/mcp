@@ -100,11 +100,12 @@ USE THIS TOOL FOR:
    Example 2: {"operation": "getTagsOrValues", "tag_key": "Environment"}
    Returns: List of available cost allocation tags with automatic pagination. If tag values for a particular key are needed, pass the tag key as a parameter.
 
-7. getCostCategories - Available cost categories
+7. getCostCategories - Available cost categories or values inside a category
    Required: operation="getCostCategories", start_date, end_date
-   Optional: search_string, next_token, max_pages, billing_view_arn
-   Example: {"operation": "getCostCategories", "start_date": "2024-01-01", "end_date": "2024-08-01"}
-   Returns: List of available cost categories with automatic pagination
+   Optional: cost_category_name, search_string, next_token, max_pages, billing_view_arn
+   Example 1 (list category names): {"operation": "getCostCategories", "start_date": "2024-01-01", "end_date": "2024-08-01"}
+   Example 2 (list values inside a category): {"operation": "getCostCategories", "cost_category_name": "CostCenters", "start_date": "2024-01-01", "end_date": "2024-08-01"}
+   Notes: Without cost_category_name the response contains CostCategoryNames. With cost_category_name set the response contains CostCategoryValues for that category. Pagination is automatic.
 
 8. getSavingsPlansUtilization - Savings Plans utilization data
    Required: operation="getSavingsPlansUtilization", start_date, end_date
@@ -315,14 +316,17 @@ async def cost_explorer(
                 billing_view_arn,
             )
 
-        elif operation == 'getCostCategories' or operation == 'getCostCategoryValues':
+        elif operation == 'getCostCategories':
+            # When `cost_category_name` is provided, the same AWS API
+            # (GetCostCategories) returns the values inside that category
+            # instead of the list of category names.
             return await get_cost_categories(
                 ctx,
                 ce_client,
                 start_date,
                 end_date,
                 search_string,
-                cost_category_name if operation == 'getCostCategoryValues' else None,
+                cost_category_name,
                 next_token,
                 max_pages,
                 billing_view_arn,
