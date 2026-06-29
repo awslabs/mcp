@@ -8,9 +8,12 @@ dependencies = [
     "loguru>=0.7.0",
     "mcp[cli]>=1.23.0",
     "pydantic>=2.10.6",
-    "valkey>=6.1.0",
-    "dotenv>=0.9.9",
-    "numpy>=2.2.4",
+    "valkey-glide>=2.0.0",
+    "python-dotenv>=0.9.9",
+    "boto3>=1.42.10",
+    "openai>=1.0.0",
+    "httpx>=0.25.0",
+    "urllib3>=2.6.3",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
@@ -50,6 +53,8 @@ dev = [
     "pytest-asyncio>=0.26.0",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.12.0",
+    "pytest-timeout>=2.3.0",
+    "testcontainers[redis]>=4.10.0",
 ]
 
 [build-system]
@@ -86,6 +91,7 @@ no-sections = true
 
 [tool.ruff.lint.per-file-ignores]
 "**/*.ipynb" = ["F704"]
+"tests/**" = ["D101", "D102", "D103"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -123,8 +129,10 @@ python_classes = "Test*"
 python_functions = "test_*"
 testpaths = [ "tests"]
 asyncio_mode = "auto"
+timeout = 30
 markers = [
     "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
+    "integration: marks tests requiring Docker (deselect with '-m \"not integration\"')",
     "asyncio: marks tests that use asyncio"
 ]
 
