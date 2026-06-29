@@ -29,6 +29,7 @@ from ..common.file_system_controls import validate_file_path
 from ..common.helpers import Boto3Encoder, operation_timer
 from botocore.config import Config
 from jmespath.parser import ParsedResult
+from loguru import logger
 from typing import Any
 
 
@@ -101,6 +102,7 @@ def _handle_streaming_output(response: dict[str, Any], output_file: OutputFile) 
     # Validate file path before writing
     validated_path = validate_file_path(output_file.path)
 
+    logger.info('Writing streaming output to file: {}', validated_path)
     with open(validated_path, 'wb') as f:
         for chunk in streaming_output.iter_chunks(chunk_size=CHUNK_SIZE):
             f.write(chunk)
