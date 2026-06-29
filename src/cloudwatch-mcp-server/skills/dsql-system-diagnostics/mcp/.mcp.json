@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "cloudwatch": {
+      "args": [
+        "awslabs.cloudwatch-mcp-server@latest"
+      ],
+      "command": "uvx",
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    }
+  }
+}
