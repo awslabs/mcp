@@ -1,6 +1,6 @@
 # MCP Server Setup Instructions
 
-This skill uses the CloudWatch MCP Server with PromQL tools for querying Aurora DSQL OTel metrics.
+This skill uses the CloudWatch MCP Server for both PromQL queries (Aurora DSQL OTel metrics) and standard CloudWatch metrics (TotalTransactions, OccConflicts).
 
 ## Prerequisites
 

@@ -115,11 +115,11 @@ execute_promql_range_query(
 )
 ```
 
-### Commit wait trend (conflict storm detection)
+### Commit wait trend
 
 ```promql
 execute_promql_range_query(
-  query='sum(db.active_sessions.avg{@resource.aws.auroradsql.cluster_id="CLUSTER_ID", wait_event="Commit"})',
+  query='sum({__name__="db.active_sessions.avg", "@resource.aws.auroradsql.cluster_id"="CLUSTER_ID", wait_event="Commit"})',
   start="START_TIME", end="END_TIME", step="60s"
 )
 ```
@@ -185,7 +185,7 @@ execute_promql_range_query(
   start="START_TIME", end="END_TIME", step="60s"
 )
 
-# CW Metrics: TotalTransactions and OccConflicts
+# CW Metrics: TotalTransactions and OccConflicts (detect conflict rate vs volume)
 get_metric_data(namespace="AuroraDSQL", metric_name="TotalTransactions", dimensions=[{name:"ClusterId", value:"CLUSTER_ID"}])
 get_metric_data(namespace="AuroraDSQL", metric_name="OccConflicts", dimensions=[{name:"ClusterId", value:"CLUSTER_ID"}])
 ```

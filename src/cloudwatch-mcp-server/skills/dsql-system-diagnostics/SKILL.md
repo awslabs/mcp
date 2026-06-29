@@ -1,6 +1,6 @@
 ---
 name: dsql-system-diagnostics
-description: Diagnose Aurora DSQL performance issues using PromQL queries against CloudWatch OTel metrics. Detect anomalies in wait event distribution, identify regression points, and hand off to the dsql skill for live database investigation.
+description: Diagnose Aurora DSQL performance issues using PromQL queries against CloudWatch OTel metrics. Detect anomalies in wait event distribution, identify regression points, and hand off to the dsql skill for per-query diagnosis.
 ---
 
 # DSQL System Diagnostics
@@ -24,7 +24,8 @@ Diagnose Aurora DSQL cluster performance by querying Active Average Sessions (AA
 
 **MUST** have before starting:
 1. A specific `cluster_id` to investigate — never proceed without one. Ask the user if not provided.
-2. The CloudWatch MCP server configured with PromQL access (see [mcp-setup.md](mcp/mcp-setup.md))
+2. The CloudWatch MCP server configured with PromQL access in the **same region** as the DSQL cluster (see [mcp-setup.md](mcp/mcp-setup.md))
+3. Verify the `aurora-dsql` MCP server is configured for the target cluster — if not, prompt the user to configure it before proceeding (required for handoff)
 
 ---
 
@@ -53,11 +54,7 @@ Diagnose Aurora DSQL cluster performance by querying Active Average Sessions (AA
 
 The primary metric is `db.active_sessions.avg` — the average number of sessions actively executing or waiting at a given instant.
 
-**Normalized SQL and AAS interpretation:** All SQL in the metric is normalized (parameterized). The `normalized_sql` label groups all executions of the same query shape. A query with high AAS could mean either:
-- A slow query (high per-execution cost)
-- A fast query called at very high frequency (volume accumulates AAS)
-
-This skill cannot distinguish between these — the `dsql` skill can via call counts and per-execution timing.
+**Normalized SQL and AAS interpretation:** All SQL in the metric is normalized (parameterized). The `normalized_sql` label groups all executions of the same query shape. A query with high AAS indicates it is executing frequently and/or concurrently across many sessions. A single slow query can only contribute at most 1 AAS — high AAS always means high concurrency or high call frequency, not a single slow execution. Neither this skill nor the `dsql` skill can currently distinguish frequency from per-execution cost; this will be possible in a future release that publishes per-SQL execution statistics via PromQL.
 
 | Label | Purpose |
 |-------|---------|
@@ -66,7 +63,7 @@ This skill cannot distinguish between these — the `dsql` skill can via call co
 | `query_id` | Correlates with DSQL `EXPLAIN` Query Identifier |
 | `application_name` | Client application identifier |
 | `iam_role_arn` | IAM role used for the connection |
-| `session_state` | Session state (active) |
+| `session_state` | Session state (active, idle in transaction) |
 | `@resource.aws.auroradsql.cluster_id` | Cluster identifier for filtering |
 | `@resource.cloud.resource_id` | Full cluster ARN |
 
@@ -158,7 +155,7 @@ execute_promql_query(query='topk(10, sum by (normalized_sql, query_id, wait_even
 | **SequentialScanRead** | Identify query via Workflow 2. Hand off to `dsql` skill — may be plan regression or missing index. |
 | **ScatteredBatchRead** | Identify query. Hand off to `dsql` skill. |
 | **SingleRead** | Identify query. Hand off to `dsql` skill. |
-| **FkExistenceCheck** | Identify query. Check whether insert volume increased. |
+| **FkExistenceCheck** | Identify query. Check TotalTransactions CW metric for insert volume change. |
 | **UniqueConstraintCheck** | Identify query. Check whether insert/upsert patterns changed. |
 | **Commit** | Run Workflow 6 (Commit Analysis) to distinguish volume increase from OCC conflicts. |
 | **PgSleep** | Identify application. Verify intentional — may indicate new polling behavior. |
@@ -261,18 +258,9 @@ execute_promql_range_query(
 
 When investigation identifies a query that has become more prominent, hand off to the `dsql` skill for live database analysis. Do not provide specific diagnostics or recommendations — simply describe the observed anomaly.
 
-### Automatic Handoff
-
-Before handing off, verify the `dsql` skill's MCP server is configured for the cluster under investigation:
-
-1. Check if the `aurora-dsql` MCP server is configured (look for it in the active MCP servers)
-2. Verify the `--cluster_endpoint` in its args matches the cluster being investigated
-3. If not configured or pointing to a different cluster, prompt the user:
-   > "The Aurora DSQL MCP server needs to be configured for cluster `{CLUSTER_ID}` to proceed with live database investigation. Please add or update the `aurora-dsql` server in your MCP configuration with `--cluster_endpoint {CLUSTER_ENDPOINT}`."
-
 ### Handoff Format
 
-When handing off, describe only the observed anomaly — do not suggest causes or fixes:
+Describe only the observed anomaly — do not suggest causes or fixes:
 
 > "Query `{NORMALIZED_SQL}` (query_id: `{QUERY_ID}`) is using significantly more system time than it did {TIMEFRAME} ago. Its share of cluster AAS on `{WAIT_EVENT}` has grown from {OLD}% to {NEW}%. Please diagnose what is happening with this query."
 
