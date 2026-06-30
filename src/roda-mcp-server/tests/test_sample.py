@@ -37,7 +37,11 @@ SAMPLE_DATASETS = [
         'ManagedBy': '[NASA](https://www.nasa.gov/)',
         'Tags': ['climate'],
         'Resources': [
-            {'Type': 'S3 Bucket', 'ARN': 'arn:aws:s3:::open-bucket', 'Region': 'us-east-1'}
+            {
+                'Type': 'S3 Bucket',
+                'ARN': 'arn:aws:s3:::open-bucket',
+                'Region': 'us-east-1',
+            }
         ],
     },
     {
@@ -71,7 +75,9 @@ def setup_sample_state():
 @pytest.fixture
 def patch_fetch():
     """Mock fetch_datasets to return sample data."""
-    with patch('awslabs.roda_mcp_server.server.fetch_datasets', new_callable=AsyncMock) as mock:
+    with patch(
+        'awslabs.roda_mcp_server.server.fetch_datasets', new_callable=AsyncMock
+    ) as mock:
         mock.return_value = SAMPLE_DATASETS
         yield mock
 
@@ -195,4 +201,22 @@ async def test_access_denied(patch_fetch, mock_boto3):
     data = json.loads(result)
 
     assert 'error' in data
-    assert 'credentials' in data['error'].lower() or 'access denied' in data['error'].lower()
+    assert (
+        'credentials' in data['error'].lower()
+        or 'access denied' in data['error'].lower()
+    )
+
+
+async def test_zero_byte_file(patch_fetch, mock_boto3):
+    """Zero-byte file returns a message instead of crashing with invalid Range header."""
+    mock_s3 = MagicMock()
+    mock_boto3.return_value = mock_s3
+    mock_s3.head_object.return_value = {'ContentLength': 0}
+
+    result = await sample_dataset('open-data', file_key='empty.csv')
+    data = json.loads(result)
+
+    assert data['file_size_bytes'] == 0
+    assert 'empty' in data['message'].lower()
+    assert data['bucket'] == 'open-bucket'
+    assert data['license'] == 'Public Domain'

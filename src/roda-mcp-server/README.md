@@ -47,16 +47,6 @@ To learn more about how we designed this MCP server, check out [High-Level Desig
 
 ## Setup
 
-### Using Claude Code CLI
-
-```
-# Add RODA MCP
-claude mcp add roda-mcp uvx awslabs.roda-mcp-server@latest
-
-# List installed server
-claude mcp list
-```
-
 ### Using uv
 
 Configure the MCP server in your MCP client configuration (e.g., for Kiro, edit `~/.kiro/settings/mcp.json`):
@@ -106,6 +96,15 @@ Configure the MCP server in your MCP client configuration (e.g., for Kiro, edit 
     }
   }
 }
+```
+### Using Claude Code CLI
+
+```
+# Add RODA MCP
+claude mcp add roda-mcp uvx awslabs.roda-mcp-server@latest
+
+# List installed server
+claude mcp list
 ```
 
 

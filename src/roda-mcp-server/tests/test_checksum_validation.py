@@ -118,16 +118,16 @@ async def test_checksum_validation_failure():
             with pytest.raises(ChecksumValidationError) as exc_info:
                 await fetch_datasets()
 
-        assert 'Unable to verify this dataset' in str(exc_info.value)
+        assert 'Checksum validation failed' in str(exc_info.value)
+        assert wrong_checksum in str(exc_info.value)
 
 
 @pytest.mark.asyncio
 async def test_checksum_unavailable_raises_exception():
-    """Checksum file fetch fails (e.g., 404) — exception propagates up.
+    """Checksum file fetch fails (e.g., 404) — retries are exhausted then error propagates.
 
-    The current implementation does not gracefully handle checksum fetch failures.
-    If the checksum URL returns an error, raise_for_status() throws an
-    HTTPStatusError which bubbles up to the caller.
+    Network and HTTP errors are now retried. If all attempts fail, the last
+    error is re-raised to the caller.
     """
     import httpx as real_httpx
 
@@ -141,19 +141,28 @@ async def test_checksum_unavailable_raises_exception():
     mock_ndjson_response.raise_for_status = MagicMock()
 
     # Checksum fetch fails with HTTP 404
-    mock_checksum_response = MagicMock()
-    mock_checksum_response.raise_for_status = MagicMock(
-        side_effect=real_httpx.HTTPStatusError(
-            '404 Not Found',
-            request=MagicMock(),
-            response=MagicMock(status_code=404),
-        )
+    http_error = real_httpx.HTTPStatusError(
+        '404 Not Found',
+        request=MagicMock(),
+        response=MagicMock(status_code=404),
     )
+    mock_checksum_response = MagicMock()
+    mock_checksum_response.raise_for_status = MagicMock(side_effect=http_error)
 
     with patch('awslabs.roda_mcp_server.server.httpx.AsyncClient') as mock_client:
-        mock_get = AsyncMock(side_effect=[mock_ndjson_response, mock_checksum_response])
+        # 3 attempts: each attempt fetches NDJSON successfully then fails on checksum
+        mock_get = AsyncMock(
+            side_effect=[
+                mock_ndjson_response,
+                mock_checksum_response,  # attempt 1
+                mock_ndjson_response,
+                mock_checksum_response,  # attempt 2
+                mock_ndjson_response,
+                mock_checksum_response,  # attempt 3
+            ]
+        )
         mock_client.return_value.__aenter__.return_value.get = mock_get
 
-        # The HTTPStatusError should propagate — no graceful fallback exists
-        with pytest.raises(real_httpx.HTTPStatusError):
-            await fetch_datasets()
+        with patch('asyncio.sleep', new_callable=AsyncMock):
+            with pytest.raises(real_httpx.HTTPStatusError):
+                await fetch_datasets()

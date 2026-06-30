@@ -22,6 +22,7 @@ import re
 from awslabs.roda_mcp_server.knowledge_base import DatasetKnowledgeBase
 from datetime import datetime, timedelta
 from fastmcp import FastMCP
+from loguru import logger
 from typing import Any
 
 
@@ -66,43 +67,85 @@ async def fetch_datasets() -> list[dict[str, Any]]:
     async with httpx.AsyncClient(verify=True, http2=True) as client:
         # Fetch the NDJSON file with all datasets
         # All external API calls require TLS 1.2 or higher with certificate validation enabled
-        # Retry up to 2 times to handle brief CDN propagation delays
+        # Retry up to 2 times to handle CDN propagation delays and transient network errors
         max_retries = 2
         content_bytes = None
+        last_error: Exception | None = None
+        expected_checksum: str | None = None
+        computed_checksum: str | None = None
+
         for attempt in range(max_retries + 1):
-            response = await client.get(REGISTRY_NDJSON_URL, timeout=30.0)
-            response.raise_for_status()
-            content_bytes = response.content
+            try:
+                response = await client.get(REGISTRY_NDJSON_URL, timeout=30.0)
+                response.raise_for_status()
+                content_bytes = response.content
 
-            # Fetch and validate checksum
-            checksum_response = await client.get(REGISTRY_CHECKSUM_URL, timeout=10.0)
-            checksum_response.raise_for_status()
-            expected_checksum = checksum_response.text.strip().split()[0].lower()
+                # Fetch and validate checksum
+                checksum_response = await client.get(
+                    REGISTRY_CHECKSUM_URL, timeout=10.0
+                )
+                checksum_response.raise_for_status()
+                checksum_parts = checksum_response.text.strip().split()
+                if not checksum_parts:
+                    raise ChecksumValidationError(
+                        'Checksum endpoint returned empty or whitespace-only content. '
+                        'The registry may be misconfigured or under maintenance.'
+                    )
+                expected_checksum = checksum_parts[0].lower()
 
-            computed_checksum = hashlib.sha256(content_bytes).hexdigest().lower()
-            if computed_checksum == expected_checksum:
-                break
+                computed_checksum = hashlib.sha256(content_bytes).hexdigest().lower()
+                if computed_checksum == expected_checksum:
+                    break
+
+                # Checksum mismatch — log and retry
+                logger.warning(
+                    f'Checksum mismatch on attempt {attempt + 1}/{max_retries + 1}: '
+                    f'expected={expected_checksum}, computed={computed_checksum}'
+                )
+                last_error = None  # Not a network error, just a mismatch
+
+            except (
+                httpx.HTTPStatusError,
+                httpx.TimeoutException,
+                httpx.ConnectError,
+            ) as e:
+                logger.warning(
+                    f'Network error on attempt {attempt + 1}/{max_retries + 1}: '
+                    f'{type(e).__name__}: {e}'
+                )
+                last_error = e
 
             if attempt < max_retries:
                 await asyncio.sleep(3)
         else:
+            # All retries exhausted
+            if last_error is not None:
+                # Network errors prevented successful fetch
+                raise last_error
+            # Checksum never matched — possible tampering or corruption
+            logger.error(
+                f'Checksum validation failed after {max_retries + 1} attempts: '
+                f'expected={expected_checksum}, computed={computed_checksum}'
+            )
             raise ChecksumValidationError(
-                'Unable to verify this dataset. '
-                'This can happen during a brief window when the registry is updating. '
-                'Please try again in a few minutes.'
+                'Checksum validation failed — the downloaded data does not match '
+                'the expected hash. This could indicate data corruption or tampering. '
+                f'Expected: {expected_checksum}, Got: {computed_checksum}'
             )
 
         # Parse NDJSON (one JSON object per line). Malformed lines are skipped
         # with a warning; the registry requires specific data attributes to be present.
         datasets = []
         invalid_count = 0
+        total_lines = 0
         for line in content_bytes.decode('utf-8').strip().split('\n'):
             if not line:
                 continue
+            total_lines += 1
             try:
                 dataset = json.loads(line)
             except json.JSONDecodeError as exc:
-                print(f'Warning: skipping malformed JSON line: {exc}')
+                logger.warning(f'Skipping malformed JSON line: {exc}')
                 invalid_count += 1
                 continue
 
@@ -113,7 +156,18 @@ async def fetch_datasets() -> list[dict[str, Any]]:
             datasets.append(dataset)
 
         if invalid_count:
-            print(f'Warning: {invalid_count} malformed line(s) skipped')
+            logger.warning(
+                f'{invalid_count} malformed line(s) skipped out of {total_lines} total'
+            )
+
+        # If a large fraction of lines are malformed, this likely signals an
+        # upstream format change rather than a few harmless glitches.
+        if total_lines > 0 and invalid_count / total_lines > 0.1:
+            raise ValueError(
+                f'Registry data appears corrupt: {invalid_count}/{total_lines} lines '
+                f'({invalid_count * 100 // total_lines}%) failed to parse. '
+                'This may indicate an upstream format change.'
+            )
 
         # Only cache if validation succeeded (or was skipped)
         _datasets_cache = datasets
@@ -273,7 +327,7 @@ async def list_datasets(tag: str | None = None, limit: int = 20) -> str:
 
     Args:
         tag: Optional tag to filter by (e.g., 'climate', 'genomics', 'satellite imagery')
-        limit: Maximum number of results to return (default: 10)
+        limit: Maximum number of results to return (default: 20)
 
     Returns:
         JSON string with dataset list
@@ -307,7 +361,12 @@ async def list_datasets(tag: str | None = None, limit: int = 20) -> str:
             break
 
     return json.dumps(
-        {'total': len(datasets), 'filtered': len(results), 'tag_filter': tag, 'datasets': results},
+        {
+            'total': len(datasets),
+            'filtered': len(results),
+            'tag_filter': tag,
+            'datasets': results,
+        },
         indent=2,
     )
 
@@ -393,7 +452,10 @@ async def discover_by_license(license_type: str, limit: int = 10) -> str:
     """Discover datasets by license type.
 
     Args:
-        license_type: License type (e.g., 'creative commons', 'mit', 'apache', 'public domain')
+        license_type: License type to search for. Supported values:
+                      'creative commons', 'mit', 'apache', 'public domain'.
+                      Other values will return zero results with a hint showing
+                      the available license types.
         limit: Maximum number of results to return (default: 10)
 
     Returns:
@@ -402,6 +464,18 @@ async def discover_by_license(license_type: str, limit: int = 10) -> str:
     await fetch_datasets()  # Verify KB is built
 
     results = _knowledge_base.search_by_license(license_type)[:limit]
+
+    if not results:
+        return json.dumps(
+            {
+                'license_type': license_type,
+                'count': 0,
+                'datasets': [],
+                'hint': f'No datasets found for license type: {license_type!r}.',
+                'supported_license_types': list(_knowledge_base.license_index.keys()),
+            },
+            indent=2,
+        )
 
     return json.dumps(
         {
@@ -476,7 +550,8 @@ async def get_knowledge_base_stats() -> str:
 async def preview_dataset(slug: str, bucket_arn: str | None = None) -> str:
     """Show the S3 bucket structure for a public dataset (no AWS account required).
 
-    Lists the first 10 files in the dataset's S3 bucket using anonymous access.
+    Returns up to 10 objects (the first 10 keys returned by S3 in lexicographic
+    order), sorted newest-first by LastModified for display.
     Only works for datasets that are publicly accessible without credentials.
     No data is downloaded — this is a structure/inventory view only.
 
@@ -493,8 +568,8 @@ async def preview_dataset(slug: str, bucket_arn: str | None = None) -> str:
 
     Returns:
         JSON string with bucket structure: bucket name, region, prefix,
-        the first 10 objects (key, size, last_modified), and ready-to-use
-        CLI commands. The response always includes the license field.
+        up to 10 objects (key, size, last_modified) sorted newest-first,
+        and ready-to-use CLI commands. The response always includes the license field.
 
     Presentation Guidelines:
         - Always display the license field verbatim. Do not omit it.
@@ -504,10 +579,14 @@ async def preview_dataset(slug: str, bucket_arn: str | None = None) -> str:
         - After presenting the bucket structure, offer to use sample_dataset
           to read the content of any listed file.
     """
-    import boto3
-    from botocore import UNSIGNED
-    from botocore.config import Config
-    from botocore.exceptions import ClientError
+    from botocore.exceptions import (
+        ClientError,
+        ConnectTimeoutError,
+        ConnectionClosedError,
+        EndpointConnectionError,
+        ReadTimeoutError,
+    )
+    from awslabs.roda_mcp_server.aws_client import get_s3_client
 
     datasets = await fetch_datasets()
     dataset = next((d for d in datasets if d.get('Slug', '') == slug), None)
@@ -625,12 +704,7 @@ async def preview_dataset(slug: str, bucket_arn: str | None = None) -> str:
 
     # Anonymous LIST only — no data downloaded.
     try:
-        s3 = boto3.client(
-            's3',
-            config=Config(signature_version=UNSIGNED, s3={'use_ssl': True}),
-            region_name=s3_resource.get('Region', 'us-east-1'),
-            verify=True,
-        )
+        s3 = get_s3_client(region=s3_resource.get('Region', 'us-east-1'))
         list_kwargs = {'Bucket': bucket_name, 'MaxKeys': 10}
         if prefix:
             list_kwargs['Prefix'] = prefix
@@ -688,8 +762,10 @@ async def preview_dataset(slug: str, bucket_arn: str | None = None) -> str:
                     'dataset': dataset.get('Name', ''),
                     'slug': slug,
                     'error': 'Access denied — this dataset requires AWS credentials.',
-                    'note': 'Use sample_dataset with your credentials, or contact the dataset provider.',
-                    'dataset_contact': dataset.get('Contact', 'See dataset documentation'),
+                    'note': 'Use the AWS CLI with your own credentials to access this bucket (e.g., aws s3 ls s3://<bucket>).',
+                    'dataset_contact': dataset.get(
+                        'Contact', 'See dataset documentation'
+                    ),
                 },
                 indent=2,
             )
@@ -703,12 +779,33 @@ async def preview_dataset(slug: str, bucket_arn: str | None = None) -> str:
             indent=2,
         )
 
-    except Exception as e:
+    except (
+        EndpointConnectionError,
+        ConnectTimeoutError,
+        ReadTimeoutError,
+        ConnectionClosedError,
+        OSError,
+    ) as e:
         return json.dumps(
             {
                 'dataset': dataset.get('Name', ''),
                 'slug': slug,
-                'error': 'Unexpected error listing bucket',
+                'error': 'Network error listing bucket',
+                'message': str(e),
+            },
+            indent=2,
+        )
+
+    except Exception as e:
+        logger.error(
+            f'Unexpected error in preview_dataset: {type(e).__name__}: {e} '
+            f'(slug={slug}, bucket={bucket_name}, region={s3_resource.get("Region", "us-east-1")}, prefix={prefix!r})'
+        )
+        return json.dumps(
+            {
+                'dataset': dataset.get('Name', ''),
+                'slug': slug,
+                'error': f'Unexpected error listing bucket: {type(e).__name__}',
                 'message': str(e),
             },
             indent=2,
@@ -716,12 +813,16 @@ async def preview_dataset(slug: str, bucket_arn: str | None = None) -> str:
 
 
 @mcp.tool()
-async def sample_dataset(slug: str, file_key: str, bucket_arn: str | None = None) -> str:
-    """Read the first 100KB of a specific file from a public dataset's S3 bucket.
+async def sample_dataset(
+    slug: str, file_key: str, bucket_arn: str | None = None
+) -> str:
+    """Read a sample of a specific file from a public dataset's S3 bucket.
 
-    Downloads a byte-range of a single file using anonymous access (no AWS
-    account required). Use preview_dataset first to discover available file keys.
+    Downloads up to 100KB of raw bytes using anonymous access (no AWS account
+    required). For text files, the displayed content is further capped at
+    2000 characters to keep responses concise.
 
+    Use preview_dataset first to discover available file keys.
     Only works for datasets that are publicly accessible without credentials.
 
     Args:
@@ -733,19 +834,28 @@ async def sample_dataset(slug: str, file_key: str, bucket_arn: str | None = None
                     ARN the user selected in preview_dataset.
 
     Returns:
-        JSON string with file content (text) or a binary notice, plus the
-        full file size, a CLI command to download the complete file, and
-        the license field.
+        JSON string with:
+        - file content (text, capped at 2000 chars) or a binary notice
+        - file_size_bytes: total file size on S3
+        - bytes_read: how many bytes were downloaded (up to 100KB)
+        - is_partial: True if file_size exceeds 100KB OR text was truncated
+        - content_truncated: True if text display was capped at 2000 chars
+        - a CLI command to download the complete file
+        - the license field
 
     Presentation Guidelines:
         - Always display the license field verbatim. Do not omit it.
     """
     max_bytes = 102400  # Fixed 100KB download
 
-    import boto3
-    from botocore import UNSIGNED
-    from botocore.config import Config
-    from botocore.exceptions import ClientError
+    from botocore.exceptions import (
+        ClientError,
+        ConnectTimeoutError,
+        ConnectionClosedError,
+        EndpointConnectionError,
+        ReadTimeoutError,
+    )
+    from awslabs.roda_mcp_server.aws_client import get_s3_client
 
     datasets = await fetch_datasets()
     dataset = next((d for d in datasets if d.get('Slug', '') == slug), None)
@@ -814,15 +924,24 @@ async def sample_dataset(slug: str, file_key: str, bucket_arn: str | None = None
         )
 
     try:
-        s3 = boto3.client(
-            's3',
-            config=Config(signature_version=UNSIGNED, s3={'use_ssl': True}),
-            region_name=s3_resource.get('Region', 'us-east-1'),
-            verify=True,
-        )
+        s3 = get_s3_client(region=s3_resource.get('Region', 'us-east-1'))
         # HEAD first to get file size without downloading
         head = s3.head_object(Bucket=bucket_name, Key=file_key)
         file_size = head['ContentLength']
+
+        if file_size == 0:
+            return json.dumps(
+                {
+                    'dataset': dataset.get('Name', ''),
+                    'slug': slug,
+                    'license': dataset.get('License', ''),
+                    'bucket': bucket_name,
+                    'file_key': file_key,
+                    'file_size_bytes': 0,
+                    'message': 'File is empty (0 bytes).',
+                },
+                indent=2,
+            )
 
         bytes_to_read = min(file_size, max_bytes)
         obj = s3.get_object(
@@ -835,16 +954,27 @@ async def sample_dataset(slug: str, file_key: str, bucket_arn: str | None = None
 
         try:
             text = content.decode('utf-8')
-            if len(text) > 2000:
-                text = text[:2000] + '\n... (truncated at 2000 chars)'
+            content_truncated = len(text) > 2000
+            if content_truncated:
+                # Truncate at the last complete line before the limit
+                cut = text[:2000].rfind('\n')
+                if cut > 0:
+                    text = text[:cut]
+                else:
+                    # No newline found (single long line) — hard cut
+                    text = text[:2000]
+                text += '\n... (truncated for display)'
             content_result = {
                 'encoding': 'utf-8',
                 'content': text,
+                'content_truncated': content_truncated,
             }
         except UnicodeDecodeError:
+            content_truncated = False
             content_result = {
                 'encoding': 'binary',
                 'content': '[Binary file — cannot display as text]',
+                'content_truncated': False,
                 'note': 'Use the CLI command below to download the full file.',
             }
 
@@ -857,9 +987,11 @@ async def sample_dataset(slug: str, file_key: str, bucket_arn: str | None = None
                 'file_key': file_key,
                 'file_size_bytes': file_size,
                 'bytes_read': len(content),
-                'is_partial': is_partial,
+                'is_partial': is_partial or content_truncated,
                 **content_result,
-                'cli_command': (f'aws s3 cp s3://{bucket_name}/{file_key} . --no-sign-request'),
+                'cli_command': (
+                    f'aws s3 cp s3://{bucket_name}/{file_key} . --no-sign-request'
+                ),
             },
             indent=2,
         )
@@ -890,12 +1022,34 @@ async def sample_dataset(slug: str, file_key: str, bucket_arn: str | None = None
             indent=2,
         )
 
-    except Exception as e:
+    except (
+        EndpointConnectionError,
+        ConnectTimeoutError,
+        ReadTimeoutError,
+        ConnectionClosedError,
+        OSError,
+    ) as e:
         return json.dumps(
             {
                 'dataset': dataset.get('Name', ''),
                 'slug': slug,
-                'error': 'Unexpected error reading file',
+                'error': 'Network error reading file',
+                'file_key': file_key,
+                'message': str(e),
+            },
+            indent=2,
+        )
+
+    except Exception as e:
+        logger.error(
+            f'Unexpected error in sample_dataset: {type(e).__name__}: {e} '
+            f'(slug={slug}, bucket={bucket_name}, file_key={file_key!r})'
+        )
+        return json.dumps(
+            {
+                'dataset': dataset.get('Name', ''),
+                'slug': slug,
+                'error': f'Unexpected error reading file: {type(e).__name__}',
                 'message': str(e),
             },
             indent=2,

@@ -49,10 +49,15 @@ class TestFetchDatasets:
     """Tests for fetch_datasets parsing logic not covered by test_checksum_validation."""
 
     async def test_malformed_json_lines_skipped(self):
-        """Malformed JSON lines are skipped with a warning."""
+        """Malformed JSON lines are skipped with a warning when under the threshold."""
         import hashlib
 
-        content = b'{"Slug":"good","Name":"Good Dataset","Tags":[]}\nnot-json\n'
+        # 10 good lines + 1 bad line = ~9% malformed (under 10% threshold)
+        lines = [
+            f'{{"Slug":"ds-{i}","Name":"Dataset {i}","Tags":[]}}' for i in range(10)
+        ]
+        lines.append('not-json')
+        content = ('\n'.join(lines) + '\n').encode('utf-8')
         checksum = hashlib.sha256(content).hexdigest()
 
         mock_response = MagicMock()
@@ -74,10 +79,40 @@ class TestFetchDatasets:
         with patch('httpx.AsyncClient', return_value=mock_client):
             result = await fetch_datasets()
 
-        assert len(result) == 1
-        assert result[0]['Slug'] == 'good'
+        assert len(result) == 10
+        assert result[0]['Slug'] == 'ds-0'
 
-        # Restore
+        server_module._datasets_cache = None
+        server_module._cache_timestamp = None
+
+    async def test_high_malformed_ratio_raises(self):
+        """When >10% of lines are malformed, raises ValueError signaling format change."""
+        import hashlib
+
+        # 1 good line + 2 bad lines = 67% malformed (over 10% threshold)
+        content = b'{"Slug":"good","Name":"Good","Tags":[]}\nnot-json-1\nnot-json-2\n'
+        checksum = hashlib.sha256(content).hexdigest()
+
+        mock_response = MagicMock()
+        mock_response.content = content
+        mock_response.raise_for_status = MagicMock()
+
+        mock_checksum_response = MagicMock()
+        mock_checksum_response.text = f'{checksum}  file.ndjson'
+        mock_checksum_response.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=[mock_response, mock_checksum_response])
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        server_module._datasets_cache = None
+        server_module._cache_timestamp = None
+
+        with patch('httpx.AsyncClient', return_value=mock_client):
+            with pytest.raises(ValueError, match='corrupt'):
+                await fetch_datasets()
+
         server_module._datasets_cache = None
         server_module._cache_timestamp = None
 
@@ -159,7 +194,9 @@ class TestSearchDatasets:
         data = json.loads(result)
 
         # Find the long-desc result
-        long_result = next((r for r in data['results'] if r['slug'] == 'long-desc'), None)
+        long_result = next(
+            (r for r in data['results'] if r['slug'] == 'long-desc'), None
+        )
         if long_result:
             assert long_result['description'].endswith('...')
             assert len(long_result['description']) <= 204  # 200 + '...'
@@ -320,7 +357,11 @@ STAC_DATASETS = [
         'ManagedBy': '[NOAA](https://www.noaa.gov/)',
         'Tags': ['climate', 'weather'],
         'Resources': [
-            {'Type': 'S3 Bucket', 'ARN': 'arn:aws:s3:::regular-data', 'Region': 'us-east-1'}
+            {
+                'Type': 'S3 Bucket',
+                'ARN': 'arn:aws:s3:::regular-data',
+                'Region': 'us-east-1',
+            }
         ],
     },
     {
@@ -413,7 +454,9 @@ class TestSearchStacEndpoints:
         result = await search_stac_endpoints()
         data = json.loads(result)
 
-        sentinel_result = next(r for r in data['results'] if r['slug'] == 'sentinel-stac')
+        sentinel_result = next(
+            r for r in data['results'] if r['slug'] == 'sentinel-stac'
+        )
         assert sentinel_result['has_stac_tag'] is True
 
     async def test_endpoints_deduplicated(self, patch_fetch_stac):
@@ -446,7 +489,11 @@ class TestPreviewEdgeCases:
                 'ManagedBy': '[Test](https://test.com/)',
                 'Tags': [],
                 'Resources': [
-                    {'Type': 'S3 Bucket', 'ARN': 'not-a-valid-arn', 'Region': 'us-east-1'}
+                    {
+                        'Type': 'S3 Bucket',
+                        'ARN': 'not-a-valid-arn',
+                        'Region': 'us-east-1',
+                    }
                 ],
             },
             {
@@ -497,7 +544,9 @@ class TestPreviewEdgeCases:
             data = json.loads(result)
 
             assert 'error' in data
-            assert 'Unexpected' in data['error'] or 'Network timeout' in data.get('message', '')
+            assert 'Unexpected' in data['error'] or 'Network timeout' in data.get(
+                'message', ''
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -553,7 +602,9 @@ class TestSampleEdgeCases:
             data = json.loads(result)
 
             assert 'error' in data
-            assert 'Unexpected' in data['error'] or 'Connection reset' in data.get('message', '')
+            assert 'Unexpected' in data['error'] or 'Connection reset' in data.get(
+                'message', ''
+            )
 
     async def test_non_access_denied_client_error(self, patch_fetch_sample):
         """Non-AccessDenied ClientError returns generic AWS error."""
