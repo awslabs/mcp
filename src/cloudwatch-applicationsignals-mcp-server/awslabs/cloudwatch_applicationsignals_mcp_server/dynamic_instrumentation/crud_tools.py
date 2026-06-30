@@ -66,6 +66,21 @@ def create_instrumentation(
     capture_arguments for method/function-level targets and capture_locals for
     line-level targets.
 
+    **Primary RCA use — capture the runtime values that telemetry and source code
+    cannot show.** Reach for this tool when an incident's stack trace tells you WHERE
+    an exception threw but not WHY: the exception message is a generic symptom
+    (`/ by zero`, NullPointerException, IndexOutOfBoundsException, ClassCastException),
+    only a subset of requests fail, and the deciding value lives in runtime state that
+    no span, log, metric, or trace recorded — a downstream response body field, a DB
+    row, a cache entry, a method argument, or a local variable. Source code only
+    reveals the code path, not which live input took it; a BREAKPOINT at the throwing
+    line capturing the relevant arguments/locals records the actual values on the next
+    failing request, with no redeploy and no added logging. This converts a
+    source-only hypothesis ("this divisor could be zero" / "this field could be null")
+    into a confirmed root cause backed by the exact runtime value that triggered the
+    failure. After the breakpoint is ACTIVE and a failing request hits it, read the
+    captured state with `get_sample_snapshot_for_breakpoint`.
+
     Args:
         instrumentation_type: BREAKPOINT or PROBE. PROBE is method/function-level only
             (no line_number) and is not supported for JavaScript. Unlike BREAKPOINT,
@@ -240,7 +255,7 @@ def create_instrumentation(
         request_kwargs['AttributeFilters'] = attribute_filters
 
     try:
-        response = gateway.create_instrumentation_configuration(**request_kwargs)
+        response = gateway.call('create_instrumentation_configuration', **request_kwargs)
     except gateway.GatewayError as err:
         return gateway.render_error(
             err,
@@ -330,7 +345,7 @@ def list_instrumentations(
         request_kwargs['NextToken'] = next_token
 
     try:
-        data = gateway.list_instrumentation_configurations(**request_kwargs)
+        data = gateway.call('list_instrumentation_configurations', **request_kwargs)
     except gateway.GatewayError as err:
         return gateway.render_error(
             err,
@@ -382,7 +397,8 @@ def batch_delete_instrumentations_by_scope(
     }
 
     try:
-        data = gateway.batch_delete_instrumentation_configurations(
+        data = gateway.call(
+            'batch_delete_instrumentation_configurations',
             DeletionTarget=deletion_target,
         )
     except gateway.GatewayError as err:
@@ -444,7 +460,8 @@ def batch_delete_instrumentations_by_arns(
     }
 
     try:
-        data = gateway.batch_delete_instrumentation_configurations(
+        data = gateway.call(
+            'batch_delete_instrumentation_configurations',
             DeletionTarget=deletion_target,
         )
     except gateway.GatewayError as err:
@@ -539,7 +556,8 @@ def delete_instrumentation(
     target_desc = location.describe()
 
     try:
-        gateway.delete_instrumentation_configuration(
+        gateway.call(
+            'delete_instrumentation_configuration',
             InstrumentationType=normalized_type,
             Service=service,
             Environment=environment,
@@ -636,7 +654,8 @@ def get_instrumentation(
     target_desc = location.describe()
 
     try:
-        data = gateway.get_instrumentation_configuration(
+        data = gateway.call(
+            'get_instrumentation_configuration',
             InstrumentationType=normalized_type,
             Service=service,
             Environment=environment,
