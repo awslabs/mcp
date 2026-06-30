@@ -13,6 +13,8 @@
 # limitations under the License.
 """Table parsing and filtering utilities for AWS Documentation MCP Server."""
 
+import re
+
 from bs4 import BeautifulSoup, Tag
 from typing import Optional
 
@@ -431,8 +433,6 @@ def _tokenize(text: str) -> list[str]:
     terms (e.g., 'us-east-1') and version numbers (e.g., 'v2') as single tokens.
     Also generates sub-tokens from hyphenated/dotted terms so that 'east' matches 'us-east-1'.
     """
-    import re
-
     tokens = re.findall(r'[a-z0-9]+(?:[-_.][a-z0-9]+)*', text)
     result = list(tokens)
     for token in tokens:
