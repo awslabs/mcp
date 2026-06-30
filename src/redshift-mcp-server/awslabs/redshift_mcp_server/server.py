@@ -17,9 +17,7 @@
 import os
 import sys
 from awslabs.redshift_mcp_server.consts import (
-    CLIENT_BEST_PRACTICES,
     DEFAULT_LOG_LEVEL,
-    REDSHIFT_BEST_PRACTICES,
 )
 from awslabs.redshift_mcp_server.models import (
     QueryResult,
@@ -52,7 +50,7 @@ logger.add(
 
 mcp = FastMCP(
     'awslabs.redshift-mcp-server',
-    instructions=f"""
+    instructions="""
 # Amazon Redshift MCP Server.
 
 This MCP server provides comprehensive access to Amazon Redshift clusters and serverless workgroups.
@@ -89,8 +87,44 @@ This tool uses the Redshift Data API to run queries and return results.
 2. Use the list_clusters tool to discover available Redshift instances.
 3. Note the cluster identifiers for use with other tools (coming in future milestones).
 
-{CLIENT_BEST_PRACTICES}
-{REDSHIFT_BEST_PRACTICES}
+## Session Management and Concurrency
+
+The server reuses one Redshift Data API session per `cluster:database`:
+- Queries to the same `cluster:database` are serialized (parallel calls queue; a long-running query blocks later ones to that target).
+- Queries to different targets run concurrently on independent sessions.
+- Each read-only query runs isolated in its own transaction.
+
+## AWS Client Best Practices
+
+### Authentication and Configuration
+
+- Default AWS credentials chain (IAM roles, ~/.aws/credentials, etc.).
+- AWS_PROFILE environment variable (if set).
+- Region configuration (in order of precedence):
+  - AWS_REGION environment variable (highest priority)
+  - AWS_DEFAULT_REGION environment variable
+  - Region specified in AWS profile configuration
+
+### Error Handling
+
+- Always print out AWS client errors in full to help diagnose configuration issues.
+- For region-related errors, suggest checking AWS_REGION, AWS_DEFAULT_REGION, or AWS profile configuration.
+- For credential errors, suggest verifying AWS credentials setup and permissions.
+
+## Amazon Redshift Best Practices
+
+### Query Guidelines
+
+- Always specify the database and schema when referencing objects to avoid ambiguity.
+- Leverage distribution in WHERE and JOIN predicates and sort keys in ORDER BY for optimal query performance.
+- Use LIMIT clauses for exploratory queries to avoid large result sets.
+- Analyze table to update table statistics if it is not updated or too off before making a decision on the query structure.
+- Prefer explicitly specifying columns in SELECT over "*" for better performance.
+
+### Connection Guidelines
+
+- We use the Redshift API and Redshift Data API.
+- Leverage IAM authentication when possible instead of secrets (database passwords).
 """,
     dependencies=['boto3', 'loguru', 'pydantic', 'sqlglot'],
 )
