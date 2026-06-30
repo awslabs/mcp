@@ -187,8 +187,8 @@ class TestSearchDatasets:
             'Tags': ['climate'],
             'Resources': [],
         }
-        server_module._datasets_cache.append(long_ds)
-        server_module._knowledge_base.build_indexes(server_module._datasets_cache)
+        server_module._datasets_cache.append(long_ds)  # type: ignore[union-attr]
+        server_module._knowledge_base.build_indexes(server_module._datasets_cache)  # type: ignore[arg-type]
 
         result = await search_datasets('climate')
         data = json.loads(result)

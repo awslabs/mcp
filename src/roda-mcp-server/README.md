@@ -14,6 +14,8 @@ Model Context Protocol (MCP) server for discovering and exploring datasets from 
   - preview S3 bucket structure
   - sample file directly in conversation
 
+![Basic Usage](https://github.com/awslabs/mcp/blob/main/src/roda-mcp-server/docs/basic-usage.gif)
+
 ## Prerequisites
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/)
@@ -35,7 +37,6 @@ Model Context Protocol (MCP) server for discovering and exploring datasets from 
 | `sample_dataset` | Read the first 100KB of a specific file from a public dataset's S3 bucket. This is only available for public datasets without controlled access. You should review and agree to the dataset license before sampling datasets.|
 | `search_stac_endpoints` | Find datasets with STAC (SpatioTemporal Asset Catalog) API endpoints |
 
-
 Datasets on the Registry fall into three access tiers, due to different compliance reasons:
 - Open and free; hosted in a public S3 bucket and don't require AWS account to use
 - Open, but require AWS credentials and requester pay
@@ -43,7 +44,7 @@ Datasets on the Registry fall into three access tiers, due to different complian
 
 For the datasets that are open and free, we offer a preview into S3 buckets, as well as capability to sample a file to help users quickly evaluate the datasets. For other datasets, we provide access instructions to users on how to access the datasets.
 
-To learn more about how we designed this MCP server, check out [High-Level Design](high-level-design.md).
+To learn more about how we designed this MCP server, check out [High-Level Design](https://github.com/awslabs/mcp/blob/main/src/roda-mcp-server/docs/high-level-design.md).
 
 ## Setup
 
@@ -109,7 +110,7 @@ claude mcp list
 
 
 ## Security
-Check out [Security](SECURITY.md) for security considerations on this MCP server.
+Check out [Security](https://github.com/awslabs/mcp/blob/main/src/roda-mcp-server/SECURITY.md) for security considerations on this MCP server.
 
 ## License
 Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
