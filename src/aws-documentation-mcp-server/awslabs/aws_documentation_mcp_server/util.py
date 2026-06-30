@@ -260,6 +260,59 @@ def extract_sections_from_html(html: str, section_titles: List[str]) -> str:
     return result_html
 
 
+def truncate_large_tables(
+    markdown: str, url: str = '', max_rows: int = 20, preview_rows: int = 5
+) -> str:
+    """Detect large markdown tables and truncate them with a search_table hint.
+
+    Args:
+        markdown: Markdown content that may contain large tables
+        url: The source URL (used in the hint message)
+        max_rows: Tables with more data rows than this get truncated
+        preview_rows: Number of sample rows to keep
+
+    Returns:
+        Markdown with large tables truncated and a tool usage hint appended
+    """
+    if not markdown:
+        return markdown
+
+    lines = markdown.split('\n')
+    result = []
+    i = 0
+
+    while i < len(lines):
+        if lines[i].strip().startswith('|'):
+            table_lines = []
+            while i < len(lines) and lines[i].strip().startswith('|'):
+                table_lines.append(lines[i])
+                i += 1
+
+            if len(table_lines) >= 3:
+                header = table_lines[0]
+                separator = table_lines[1]
+                data_rows = table_lines[2:]
+
+                if len(data_rows) > max_rows:
+                    result.append(header)
+                    result.append(separator)
+                    for row in data_rows[:preview_rows]:
+                        result.append(row)
+                    hint = f'\n\nTable truncated (showing {preview_rows} of {len(data_rows)} rows). Use the `search_table` tool to find specific rows.'
+                    if url:
+                        hint += f'\n  Example: search_table(url="{url}", section_title="<section>", query="your search term")'
+                    result.append(hint)
+                else:
+                    result.extend(table_lines)
+            else:
+                result.extend(table_lines)
+        else:
+            result.append(lines[i])
+            i += 1
+
+    return '\n'.join(result)
+
+
 def parse_recommendation_results(data: Dict[str, Any]) -> List[RecommendationResult]:
     """Parse recommendation API response into RecommendationResult objects.
 
