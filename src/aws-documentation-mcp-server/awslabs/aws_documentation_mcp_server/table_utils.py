@@ -14,7 +14,6 @@
 """Table parsing and filtering utilities for AWS Documentation MCP Server."""
 
 import re
-
 from bs4 import BeautifulSoup, Tag
 from typing import Optional
 
