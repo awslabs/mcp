@@ -22,6 +22,12 @@ MCP server for accessing Amazon Bedrock Knowledge Bases
 - Include or exclude specific data sources
 - Prioritize results from specific data sources
 
+### Filter results by metadata
+
+- Pass a raw Bedrock retrieval filter expression via `metadata_filter` for attribute-based filtering
+- Supports all Bedrock filter operators: equals, notEquals, greaterThan, lessThan, in, notIn, startsWith, andAll, orAll, and more
+- Automatically composed with data source filters using `andAll` when both are provided
+
 ### Rerank results
 
 - Improve relevance of retrieval results
