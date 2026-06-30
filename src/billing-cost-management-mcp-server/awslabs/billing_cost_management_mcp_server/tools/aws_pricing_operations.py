@@ -26,7 +26,7 @@ from ..utilities.aws_service_base import (
     parse_json,
 )
 from ..utilities.logging_utils import get_context_logger
-from ..utilities.sql_utils import convert_api_response_to_table
+from ..utilities.sql_utils import convert_response_if_needed
 from fastmcp import Context
 from typing import Any, Dict, Optional
 
@@ -377,9 +377,10 @@ async def get_pricing_from_api(
             'PriceList': all_price_list,
         }
 
-        # Convert large responses to SQL table
-        table_response = await convert_api_response_to_table(
-            ctx, raw_response, 'getPricing', service_code=service_code
+        # Offload large responses to SQLite via the size gate; small responses
+        # fall through to the human-readable processing below.
+        table_response = await convert_response_if_needed(
+            ctx, raw_response, 'aws_pricing_get_products', service_code=service_code
         )
 
         # If table was created, return that, otherwise process the response for easier consumption

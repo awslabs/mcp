@@ -510,6 +510,18 @@ class TestSqlAnalyzer:
                 f'DDL operation incorrectly marked as read-only: {repr(query)}'
             )
 
+    def test_contains_write_operations_unload_queries(self):
+        """Test that contains_write_operations correctly identifies UNLOAD as write operation."""
+        test_cases = [
+            "UNLOAD (SELECT * FROM table) TO 's3://bucket/prefix/' WITH (format='JSON')",
+            "unload (select col1, col2 from db.table) to 's3://bucket/path/' with (format='PARQUET')",
+            "UNLOAD (SELECT * FROM t WHERE id > 100) TO 's3://my-bucket/output/'",
+            "  UNLOAD  (SELECT * FROM t) TO 's3://bucket/p/'  ",
+        ]
+        for query in test_cases:
+            assert SqlAnalyzer.contains_write_operations(query), f'Failed for: {query}'
+            assert not SqlAnalyzer.is_read_only_query(query), f'Failed is_read_only for: {query}'
+
     def test_case_insensitive_enhanced_operations(self):
         """Test that enhanced operations are detected case-insensitively."""
         case_variations = [
