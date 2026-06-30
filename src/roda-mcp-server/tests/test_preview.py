@@ -39,7 +39,11 @@ PREVIEW_DATASETS = [
         'ManagedBy': '[NASA](https://www.nasa.gov/)',
         'Tags': ['climate'],
         'Resources': [
-            {'Type': 'S3 Bucket', 'ARN': 'arn:aws:s3:::open-bucket', 'Region': 'us-east-1'}
+            {
+                'Type': 'S3 Bucket',
+                'ARN': 'arn:aws:s3:::open-bucket',
+                'Region': 'us-east-1',
+            }
         ],
     },
     {
@@ -126,7 +130,9 @@ def setup_preview_state():
 @pytest.fixture
 def patch_fetch():
     """Mock fetch_datasets to return preview sample data."""
-    with patch('awslabs.roda_mcp_server.server.fetch_datasets', new_callable=AsyncMock) as mock:
+    with patch(
+        'awslabs.roda_mcp_server.server.fetch_datasets', new_callable=AsyncMock
+    ) as mock:
         mock.return_value = PREVIEW_DATASETS
         yield mock
 
@@ -198,7 +204,9 @@ async def test_multi_bucket_with_arn(patch_fetch, mock_boto3):
 
 async def test_multi_bucket_wrong_arn(patch_fetch):
     """Providing a bucket_arn that doesn't belong to the dataset returns error."""
-    result = await preview_dataset('multi-bucket', bucket_arn='arn:aws:s3:::wrong-bucket')
+    result = await preview_dataset(
+        'multi-bucket', bucket_arn='arn:aws:s3:::wrong-bucket'
+    )
     data = json.loads(result)
 
     assert 'error' in data
@@ -212,7 +220,11 @@ async def test_successful_listing(patch_fetch, mock_boto3):
     mock_boto3.return_value = mock_s3
     mock_s3.list_objects_v2.return_value = {
         'Contents': [
-            {'Key': 'data/2024/obs.csv', 'Size': 5120, 'LastModified': datetime(2024, 6, 1)},
+            {
+                'Key': 'data/2024/obs.csv',
+                'Size': 5120,
+                'LastModified': datetime(2024, 6, 1),
+            },
         ],
         'IsTruncated': False,
     }
@@ -234,7 +246,11 @@ async def test_with_prefix(patch_fetch, mock_boto3):
     mock_boto3.return_value = mock_s3
     mock_s3.list_objects_v2.return_value = {
         'Contents': [
-            {'Key': 'data/v2/file.parquet', 'Size': 9999, 'LastModified': datetime(2024, 3, 1)},
+            {
+                'Key': 'data/v2/file.parquet',
+                'Size': 9999,
+                'LastModified': datetime(2024, 3, 1),
+            },
         ],
         'IsTruncated': False,
     }
@@ -263,7 +279,10 @@ async def test_access_denied(patch_fetch, mock_boto3):
     data = json.loads(result)
 
     assert 'error' in data
-    assert 'credentials' in data['error'].lower() or 'access denied' in data['error'].lower()
+    assert (
+        'credentials' in data['error'].lower()
+        or 'access denied' in data['error'].lower()
+    )
 
 
 async def test_empty_bucket(patch_fetch, mock_boto3):

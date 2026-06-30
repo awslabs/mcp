@@ -151,6 +151,114 @@ class TestFetchDatasets:
         server_module._datasets_cache = None
         server_module._cache_timestamp = None
 
+    async def test_cache_hit_returns_cached_data(self):
+        """Second call within cache TTL returns cached data without network call."""
+        import hashlib
+
+        content = b'{"Slug":"cached","Name":"Cached Dataset","Tags":[]}\n'
+        checksum = hashlib.sha256(content).hexdigest()
+
+        mock_response = MagicMock()
+        mock_response.content = content
+        mock_response.raise_for_status = MagicMock()
+
+        mock_checksum_response = MagicMock()
+        mock_checksum_response.text = f'{checksum}  file.ndjson'
+        mock_checksum_response.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=[mock_response, mock_checksum_response])
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        server_module._datasets_cache = None
+        server_module._cache_timestamp = None
+
+        with patch('httpx.AsyncClient', return_value=mock_client):
+            # First call — fetches from network
+            result1 = await fetch_datasets()
+            # Second call — should use cache, no additional network call
+            result2 = await fetch_datasets()
+
+        assert result1 == result2
+        assert len(result1) == 1
+        assert result1[0]['Slug'] == 'cached'
+        # Only 2 get() calls total (ndjson + checksum), not 4
+        assert mock_client.get.call_count == 2
+
+        server_module._datasets_cache = None
+        server_module._cache_timestamp = None
+
+    async def test_empty_checksum_response_raises(self):
+        """Empty or whitespace-only checksum body raises ChecksumValidationError."""
+        from awslabs.roda_mcp_server.server import ChecksumValidationError
+
+        content = b'{"Slug":"test","Name":"Test","Tags":[]}\n'
+
+        mock_response = MagicMock()
+        mock_response.content = content
+        mock_response.raise_for_status = MagicMock()
+
+        mock_checksum_response = MagicMock()
+        mock_checksum_response.text = '   \n'  # whitespace-only
+        mock_checksum_response.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=[mock_response, mock_checksum_response])
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        server_module._datasets_cache = None
+        server_module._cache_timestamp = None
+
+        with patch('httpx.AsyncClient', return_value=mock_client):
+            with pytest.raises(ChecksumValidationError, match='empty'):
+                await fetch_datasets()
+
+        server_module._datasets_cache = None
+        server_module._cache_timestamp = None
+
+    async def test_network_error_retried_then_succeeds(self):
+        """Transient network error on first attempt is retried and succeeds."""
+        import hashlib
+        import httpx
+
+        content = b'{"Slug":"retry-ok","Name":"Retry OK","Tags":[]}\n'
+        checksum = hashlib.sha256(content).hexdigest()
+
+        mock_response = MagicMock()
+        mock_response.content = content
+        mock_response.raise_for_status = MagicMock()
+
+        mock_checksum_response = MagicMock()
+        mock_checksum_response.text = f'{checksum}  file.ndjson'
+        mock_checksum_response.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        # First attempt: timeout on ndjson fetch. Second attempt: success.
+        mock_client.get = AsyncMock(
+            side_effect=[
+                httpx.TimeoutException('timed out'),  # attempt 1 fails
+                mock_response,
+                mock_checksum_response,  # attempt 2 succeeds
+            ]
+        )
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        server_module._datasets_cache = None
+        server_module._cache_timestamp = None
+
+        with patch('httpx.AsyncClient', return_value=mock_client):
+            with patch('asyncio.sleep', new_callable=AsyncMock):
+                result = await fetch_datasets()
+
+        assert len(result) == 1
+        assert result[0]['Slug'] == 'retry-ok'
+
+        server_module._datasets_cache = None
+        server_module._cache_timestamp = None
+
 
 # ---------------------------------------------------------------------------
 # search_datasets tests

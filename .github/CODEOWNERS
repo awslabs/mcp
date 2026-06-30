@@ -79,6 +79,7 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/timestream-for-influxdb-mcp-server                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @lokendrp-aws
 /src/valkey-mcp-server                                         @awslabs/mcp-admins @awslabs/mcp-maintainers  @swarnaprakash @madolson @allenss-amazon @kevinmcgehee
 /src/well-architected-security-mcp-server                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @juntinyeh
+/src/roda-mcp-server                                           @awslabs/mcp-admins @awslabs/mcp-maintainers  @guyye @cstner
 
 ## Samples
 

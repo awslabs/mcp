@@ -33,7 +33,9 @@ SAMPLE_DATASETS = [
         'ManagedBy': '[NASA](https://www.nasa.gov/)',
         'License': 'Creative Commons Attribution 4.0',
         'Tags': ['climate', 'earth observation', 'satellite'],
-        'Resources': [{'Type': 'S3 Bucket', 'ARN': 'arn:aws:s3:::nasanex', 'Region': 'us-west-2'}],
+        'Resources': [
+            {'Type': 'S3 Bucket', 'ARN': 'arn:aws:s3:::nasanex', 'Region': 'us-west-2'}
+        ],
         'Documentation': 'https://example.com/docs',
     },
     {
@@ -44,7 +46,11 @@ SAMPLE_DATASETS = [
         'License': 'Public Domain',
         'Tags': ['climate', 'weather', 'historical'],
         'Resources': [
-            {'Type': 'S3 Bucket', 'ARN': 'arn:aws:s3:::noaa-ghcn', 'Region': 'us-east-1'}
+            {
+                'Type': 'S3 Bucket',
+                'ARN': 'arn:aws:s3:::noaa-ghcn',
+                'Region': 'us-east-1',
+            }
         ],
         'Documentation': 'https://example.com/noaa',
     },
@@ -67,7 +73,11 @@ SAMPLE_DATASETS = [
         'License': 'Public Domain',
         'Tags': ['satellite', 'earth observation', 'imagery'],
         'Resources': [
-            {'Type': 'S3 Bucket', 'ARN': 'arn:aws:s3:::landsat-8', 'Region': 'us-west-2'}
+            {
+                'Type': 'S3 Bucket',
+                'ARN': 'arn:aws:s3:::landsat-8',
+                'Region': 'us-west-2',
+            }
         ],
     },
 ]
@@ -93,6 +103,8 @@ def setup_server(sample_datasets):
 @pytest.fixture
 def patch_fetch(sample_datasets):
     """Mock fetch_datasets to return sample data without network calls."""
-    with patch('awslabs.roda_mcp_server.server.fetch_datasets', new_callable=AsyncMock) as mock:
+    with patch(
+        'awslabs.roda_mcp_server.server.fetch_datasets', new_callable=AsyncMock
+    ) as mock:
         mock.return_value = sample_datasets
         yield mock

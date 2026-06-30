@@ -98,7 +98,9 @@ class DatasetKnowledgeBase:
         top_tags = sorted(tag_counts.items(), key=lambda x: x[1], reverse=True)[:10]
 
         # Get top organizations
-        org_counts = {org: len(indices) for org, indices in self.managed_by_index.items()}
+        org_counts = {
+            org: len(indices) for org, indices in self.managed_by_index.items()
+        }
         top_orgs = sorted(org_counts.items(), key=lambda x: x[1], reverse=True)[:10]
 
         return {
@@ -139,6 +141,8 @@ class DatasetKnowledgeBase:
                     related_scores[idx] += 1
 
         # Sort by score and return top results
-        sorted_results = sorted(related_scores.items(), key=lambda x: x[1], reverse=True)[:limit]
+        sorted_results = sorted(
+            related_scores.items(), key=lambda x: x[1], reverse=True
+        )[:limit]
 
         return [self.datasets[idx] for idx, _ in sorted_results]
