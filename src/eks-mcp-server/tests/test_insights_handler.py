@@ -152,6 +152,33 @@ class TestInsightsHandler:
         assert 'Successfully retrieved 2 insights' in result.content[0].text
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize('insight_id', ['', '   '])
+    async def test_get_eks_insights_empty_insight_id_uses_list_mode(
+        self, mock_context, mock_mcp, insight_id
+    ):
+        """Test empty insight IDs are treated as not provided."""
+        mock_eks_client = MagicMock()
+        mock_eks_client.list_insights.return_value = {
+            'insights': [
+                self._create_mock_insight_item(insight_id='insight-1', category='CONFIGURATION')
+            ]
+        }
+
+        handler = InsightsHandler(mock_mcp)
+        handler.eks_client = mock_eks_client
+
+        result = await handler._get_eks_insights_impl(
+            mock_context, cluster_name='test-cluster', insight_id=insight_id
+        )
+
+        mock_eks_client.list_insights.assert_called_once_with(clusterName='test-cluster')
+        mock_eks_client.describe_insight.assert_not_called()
+        assert not result.isError
+
+        data = json.loads(result.content[1].text)
+        assert data['detail_mode'] is False
+
+    @pytest.mark.asyncio
     async def test_get_eks_insights_detail_mode(self, mock_context, mock_mcp):
         """Test _get_eks_insights_impl in detail mode (with an insight_id)."""
         # Create mock AWS client
