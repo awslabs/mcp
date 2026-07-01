@@ -66,7 +66,7 @@ USE THIS TOOL FOR:
 
 2. getCostAndUsageWithResources - Resource-level cost data (limited to last 14 days)
    Required: operation="getCostAndUsageWithResources", filter, granularity, start_date, end_date
-   Optional: metrics, group_by, billing_view_arn
+   Optional: metrics, group_by, next_token, max_pages, billing_view_arn
    Notes: RESOURCE_ID must be included in either filter OR group_by parameters. This operation is limited to past 14 days of data from current date. Hourly granularity is only available for EC2-Instances resource-level data. All other resource-level data is available at daily granularity.
    Example: {"operation": "getCostAndUsageWithResources", "start_date": "2025-08-07", "end_date": "2025-08-21", "granularity": "DAILY", "filter": "{\"Dimensions\": {\"Key\": \"SERVICE\", \"Values\": [\"Amazon Elastic Compute Cloud - Compute\"]}}", "group_by": "[{\"Type\": \"DIMENSION\", \"Key\": \"RESOURCE_ID\"}]"}
    Returns: Cost data with resource-level granularity
@@ -244,6 +244,8 @@ async def cost_explorer(
                 metrics,
                 group_by,
                 filter,
+                next_token,
+                max_pages,
                 billing_view_arn,
             )
 

@@ -965,7 +965,7 @@ class TestGetPricingFromApiAdditional:
         'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
     )
     @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.convert_api_response_to_table'
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.convert_response_if_needed'
     )
     async def test_get_pricing_from_api_table_conversion(
         self, mock_convert_table, mock_create_client, mock_context
@@ -993,7 +993,7 @@ class TestGetPricingFromApiAdditional:
         'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
     )
     @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.convert_api_response_to_table'
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.convert_response_if_needed'
     )
     async def test_get_pricing_from_api_no_results(
         self, mock_convert_table, mock_create_client, mock_context
@@ -1018,7 +1018,7 @@ class TestGetPricingFromApiAdditional:
         'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
     )
     @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.convert_api_response_to_table'
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.convert_response_if_needed'
     )
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.get_context_logger'
@@ -1060,7 +1060,7 @@ class TestGetPricingFromApiAdditional:
         'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
     )
     @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.convert_api_response_to_table'
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.convert_response_if_needed'
     )
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.get_context_logger'
@@ -1098,7 +1098,7 @@ class TestGetPricingFromApiAdditional:
         'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
     )
     @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.convert_api_response_to_table'
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.convert_response_if_needed'
     )
     async def test_get_pricing_from_api_pagination_with_max_results_limit(
         self, mock_convert_table, mock_create_client, mock_context
@@ -1133,7 +1133,7 @@ class TestGetPricingFromApiAdditional:
         'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
     )
     @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.convert_api_response_to_table'
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.convert_response_if_needed'
     )
     @patch('awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.parse_json')
     async def test_get_pricing_from_api_with_filters(
@@ -1168,7 +1168,7 @@ class TestGetPricingFromApiAdditional:
         'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
     )
     @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.convert_api_response_to_table'
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.convert_response_if_needed'
     )
     async def test_get_pricing_from_api_filters_with_none_values(
         self, mock_convert_table, mock_create_client, mock_context
