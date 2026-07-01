@@ -205,3 +205,62 @@ async def test_close_all_running_loop_tolerates_task_error():
     m.close_all()
     await asyncio.sleep(0.05)  # let the failing close task run + done-callback fire
     assert m.map == {}
+
+
+def test_set_closes_replaced_connection_on_overwrite():
+    """Re-setting the same key with a new connection closes the previous one (no leak)."""
+    m = DBConnectionMap()
+    old = FakeConn()
+    new = FakeConn()
+    m.set(M, 'id', 'host', 'DB2DB', old, 50443)
+    m.set(M, 'id', 'host', 'DB2DB', new, 50443)
+    assert old.closed is True
+    assert m.get(M, 'id', 'host', 'DB2DB', 50443) is new
+
+
+def test_set_same_connection_not_closed():
+    """Setting the identical connection object again does not close it."""
+    m = DBConnectionMap()
+    c = FakeConn()
+    m.set(M, 'id', 'host', 'DB2DB', c, 50443)
+    m.set(M, 'id', 'host', 'DB2DB', c, 50443)
+    assert c.closed is False
+
+
+def test_set_closes_replaced_async_no_running_loop():
+    """Overwriting with an async-close connection drives close() via asyncio.run."""
+    m = DBConnectionMap()
+    old = FakeConn(async_close=True)
+    m.set(M, 'id', 'host', 'DB2DB', old, 50443)
+    m.set(M, 'id', 'host', 'DB2DB', FakeConn(), 50443)
+    assert old.closed is True
+
+
+def test_set_close_error_is_tolerated():
+    """A failing close on the replaced connection is logged, not raised."""
+    m = DBConnectionMap()
+    old = FakeConn(raise_close=True)
+    m.set(M, 'id', 'host', 'DB2DB', old, 50443)
+    # Should not raise despite the replaced connection's close() throwing.
+    m.set(M, 'id', 'host', 'DB2DB', FakeConn(), 50443)
+
+
+async def test_set_closes_replaced_async_running_loop():
+    """On a running loop, the replaced async connection is closed via a scheduled task."""
+    m = DBConnectionMap()
+    old = FakeConn(async_close=True)
+    m.set(M, 'id', 'host', 'DB2DB', old, 50443)
+    m.set(M, 'id', 'host', 'DB2DB', FakeConn(), 50443)
+    await asyncio.sleep(0.05)  # let the scheduled close task run
+    assert old.closed is True
+
+
+async def test_set_closes_replaced_async_running_loop_tolerates_error():
+    """A failing async close on the running loop is logged; the map still updates."""
+    m = DBConnectionMap()
+    old = FakeConn(async_close=True, raise_close=True)
+    new = FakeConn()
+    m.set(M, 'id', 'host', 'DB2DB', old, 50443)
+    m.set(M, 'id', 'host', 'DB2DB', new, 50443)
+    await asyncio.sleep(0.05)  # let the failing close task run + done-callback fire
+    assert m.get(M, 'id', 'host', 'DB2DB', 50443) is new

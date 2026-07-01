@@ -78,7 +78,12 @@ SUSPICIOUS_PATTERNS = [
     r"(?i)'.*?--",  # comment injection
     r'(?i)\bor\b\s+\d+\s*=\s*\d+',  # numeric tautology e.g. OR 1=1
     r"(?i)\bor\b\s*'[^']*'\s*=\s*'[^']*'",  # string tautology e.g. OR '1'='1' (also matches ''='' after literal stripping)
-    r'(?i)\bunion\b.*\bselect\b',  # UNION SELECT
+    # UNION ... SELECT. Intentionally conservative: this also rejects some legitimate
+    # read-only analytics (e.g. `SELECT a FROM t1 UNION SELECT a FROM t2`). UNION is a
+    # classic exfiltration vector, so the server keeps the block by design and documents
+    # the limitation in the README (see "SQL restrictions"). DOTALL so a newline between
+    # UNION and SELECT cannot bypass it.
+    r'(?i)\bunion\b.*\bselect\b',
     r';\s*(?!($|\s*--|\s*/\*))(?=\S)',  # stacked queries
     r'(?i)\bsleep\s*\(',  # delay-based probes
     # Db2-specific high-risk patterns

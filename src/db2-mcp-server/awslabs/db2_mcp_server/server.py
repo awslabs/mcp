@@ -35,7 +35,7 @@ from awslabs.db2_mcp_server.mutable_sql_detector import (
     detect_transaction_bypass_attempt,
 )
 from botocore.config import Config
-from botocore.exceptions import ClientError
+from botocore.exceptions import BotoCoreError, ClientError
 from dataclasses import dataclass
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
@@ -298,7 +298,10 @@ async def connect_to_database(
             secret_arn=secret_arn,
         )
         return llm_response
-    except (ValueError, ClientError) as e:
+    except (ValueError, ClientError, BotoCoreError) as e:
+        # BotoCoreError covers non-ClientError boto failures (EndpointConnectionError,
+        # NoCredentialsError, connect/read timeouts) so they honor the Failed contract
+        # instead of crashing the tool.
         logger.exception(f'connect_to_database failed: {e}')
         return {'status': 'Failed', 'error': str(e)}
 
@@ -500,6 +503,22 @@ def validate_identifier(name: str | None) -> bool:
     return True
 
 
+def _looks_like_rds_endpoint(host: str) -> bool:
+    """Return True if host looks like a standard RDS DNS endpoint.
+
+    RDS endpoints are DNS names of the form
+    ``<instance-id>.<token>.<region>.rds.amazonaws.com``, so the instance id can be
+    derived from the first label. An IP address or a dotless host (e.g. an SSM
+    tunnel to 127.0.0.1) is not derivable and must not be split into a bogus id.
+    """
+    if not host or '.' not in host:
+        return False
+    labels = host.split('.')
+    if all(label.isdigit() for label in labels):  # IPv4 literal
+        return False
+    return bool(labels[0])
+
+
 def main():
     """Main entry point for the RDS for Db2 MCP server."""
     parser = argparse.ArgumentParser(
@@ -579,11 +598,24 @@ def main():
             if not args.region:
                 logger.error('--region is required when --db_endpoint is provided')
                 sys.exit(1)
-            # Default the RDS instance identifier to the first DNS label of the
-            # endpoint (e.g. "db2-prod" from "db2-prod.abc123.us-east-1.rds.amazonaws.com").
-            # RDS instance identifiers cannot contain dots, so this is unambiguous;
-            # DescribeDBInstances rejects the full endpoint address as an identifier.
-            instance_identifier = args.instance_identifier or args.db_endpoint.split('.')[0]
+            # Default the RDS instance identifier from the endpoint. For a standard
+            # RDS DNS endpoint the id is the first label (e.g. "db2-prod" from
+            # "db2-prod.abc123.us-east-1.rds.amazonaws.com"); DescribeDBInstances
+            # rejects the full address. For a dotless/IP endpoint (e.g. an SSM tunnel
+            # to 127.0.0.1) the id can't be derived, so a secret must be supplied.
+            if args.instance_identifier:
+                instance_identifier = args.instance_identifier
+            elif _looks_like_rds_endpoint(args.db_endpoint):
+                instance_identifier = args.db_endpoint.split('.')[0]
+            else:
+                instance_identifier = args.db_endpoint
+                if not server_config.default_secret_arn:
+                    logger.error(
+                        f"Cannot derive an RDS instance identifier from '{args.db_endpoint}' "
+                        '(not a standard RDS endpoint — e.g. an IP or tunnel host). Pass '
+                        '--instance_identifier and/or --secret_arn explicitly. Exiting.'
+                    )
+                    sys.exit(1)
             db_connection, _ = internal_create_connection(
                 region=args.region,
                 instance_identifier=instance_identifier,

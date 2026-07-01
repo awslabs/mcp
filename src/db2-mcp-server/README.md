@@ -24,6 +24,19 @@ DDL, `CALL ... ADMIN_CMD`, etc.), transaction-control bypasses, and common SQL-i
 patterns are rejected before execution; the connection runs with autocommit off and rolls
 back after every query. Pass `--allow_write_query` to permit writes.
 
+#### SQL restrictions (intentional)
+
+The injection guard is deliberately conservative and rejects some SQL that is technically
+read-only:
+
+- **`UNION` / `UNION ALL`** are blocked. `UNION` is a classic data-exfiltration vector, so
+  the server rejects `UNION ... SELECT` even in read-only mode, including legitimate
+  analytics like `SELECT region, COUNT(*) FROM sales UNION SELECT region, COUNT(*) FROM archive`.
+  Rewrite such queries without `UNION` (e.g. run the two `SELECT`s separately). This is a
+  conscious safety-over-convenience choice; open an issue if it blocks a real workflow.
+- Stacked queries, `CALL ... ADMIN_CMD`, `SYSPROC.*`, and authorization-catalog views
+  (`SYSCAT.DBAUTH`, etc.) are also rejected.
+
 ## Connectivity & SSL
 
 RDS for Db2 is reached over a private endpoint inside your VPC. In the Db2 tooling

@@ -24,6 +24,7 @@ import asyncio
 import boto3
 import ibm_db
 import json
+import os
 import threading
 from awslabs.db2_mcp_server.connection.abstract_db_connection import AbstractDBConnection
 from botocore.exceptions import ClientError
@@ -84,17 +85,25 @@ class IbmDbConnection(AbstractDBConnection):
         super().__init__(readonly)
         if ssl_encryption not in ('require', 'off'):
             raise ValueError("ssl_encryption must be 'require' or 'off'")
-        # Encryption without server authentication is a MITM hazard: SECURITY=SSL
-        # with no SSLServerCertificate encrypts but does not verify the server, so
-        # an on-path attacker presenting any certificate can intercept credentials
-        # and query data. Require the cert bundle whenever SSL is requested.
-        if ssl_encryption == 'require' and not ssl_server_certificate:
-            raise ValueError(
-                "ssl_server_certificate is required when ssl_encryption='require'. "
-                'Without the RDS regional certificate bundle the server certificate '
-                'cannot be validated, leaving the connection open to man-in-the-middle '
-                'attacks. Download the regional bundle and pass --ssl_server_certificate.'
-            )
+        # SECURITY=SSL without a server certificate encrypts the channel but does
+        # NOT authenticate the server: the driver has no trust anchor to verify the
+        # presented certificate, so an on-path attacker can intercept credentials and
+        # data (MITM). We therefore require the RDS regional bundle when SSL is on,
+        # and fail fast if the path doesn't point at a readable file. (The driver
+        # performs the actual chain/hostname validation; this check only guarantees
+        # a bundle was supplied and exists.)
+        if ssl_encryption == 'require':
+            if not ssl_server_certificate:
+                raise ValueError(
+                    "ssl_server_certificate is required when ssl_encryption='require'. "
+                    'Without the RDS regional certificate bundle the server certificate '
+                    'cannot be validated, leaving the connection open to man-in-the-middle '
+                    'attacks. Download the regional bundle and pass --ssl_server_certificate.'
+                )
+            if not is_test and not os.path.isfile(ssl_server_certificate):
+                raise ValueError(
+                    f'ssl_server_certificate not found or not a file: {ssl_server_certificate}'
+                )
 
         self.host = host
         self.port = port
@@ -209,7 +218,10 @@ class IbmDbConnection(AbstractDBConnection):
                 values.append(value['booleanValue'])
             elif 'blobValue' in value:
                 values.append(value['blobValue'])
-            elif 'isNull' in value and value['isNull']:
+            elif 'isNull' in value:
+                # An explicit null marker binds NULL. A lone {'isNull': False} carries
+                # no typed value to bind, so it is treated as NULL as well rather than
+                # raising the generic "unrecognized format" error.
                 values.append(None)
             else:
                 raise ValueError(f'Parameter has unrecognized value format: {list(value.keys())}')
@@ -242,11 +254,15 @@ class IbmDbConnection(AbstractDBConnection):
                     ibm_db.set_option(
                         stmt, {ibm_db.SQL_ATTR_QUERY_TIMEOUT: self.query_timeout_s}, 0
                     )
-                except Exception as e:  # pragma: no cover - driver/option variance
-                    logger.warning(
-                        f'Could not set query timeout ({self.query_timeout_s}s); query will '
-                        f'run unbounded and hold the connection lock until it completes: {e}'
-                    )
+                except Exception as e:
+                    # Do NOT silently continue: running without the operator's
+                    # configured timeout could hold the single serialized connection
+                    # lock indefinitely (self-inflicted DoS on all tools). Fail the
+                    # query instead so the safety bound is never dropped unnoticed.
+                    raise ValueError(
+                        f'Refusing to run query: could not enforce the configured '
+                        f'{self.query_timeout_s}s query timeout (set_option failed: {e}).'
+                    ) from e
 
             params = self._to_positional(parameters)
             ok = ibm_db.execute(stmt, params) if params else ibm_db.execute(stmt)

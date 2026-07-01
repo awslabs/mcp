@@ -474,3 +474,102 @@ class TestMain:
 def test_connection_method_enum():
     """The DB2 password connection method is defined."""
     assert ConnectionMethod.DB2_PASSWORD.value == 'db2_password'
+
+
+# --------------------------------------------------------------------------- #
+# Additional coverage from review round 2
+# --------------------------------------------------------------------------- #
+
+
+class TestReadonlyPropagation:
+    """The connection factory must carry the global read-only flag into connections."""
+
+    @pytest.mark.parametrize('readonly', [True, False])
+    def test_propagates_readonly_flag(self, mocker, readonly):
+        """internal_create_connection builds the connection with server_config.readonly_query.
+
+        A regression here would silently disable all mutation blocking, and the run_query
+        security tests (which use FakeConn with an independently-set flag) would not catch it.
+        """
+        mocker.patch.object(server.db_connection_map, 'get', return_value=None)
+        mocker.patch.object(server.db_connection_map, 'set')
+        fake = mocker.patch.object(server, 'IbmDbConnection', return_value=FakeConn())
+        server.server_config.readonly_query = readonly
+        server.internal_create_connection(
+            'us-east-1',
+            'id',
+            'host',
+            50443,
+            'DB2DB',
+            secret_arn='arn:explicit',  # pragma: allowlist secret
+        )
+        assert fake.call_args.kwargs['readonly'] is readonly
+
+
+async def test_connect_botocore_error_returns_failed(mocker):
+    """A BotoCoreError (endpoint/credential failure) honors the Failed contract, not a crash."""
+    from botocore.exceptions import EndpointConnectionError
+
+    mocker.patch.object(
+        server,
+        'internal_create_connection',
+        side_effect=EndpointConnectionError(endpoint_url='https://rds.example'),
+    )
+    out = await server.connect_to_database('us-east-1', 'host')
+    assert out['status'] == 'Failed'
+
+
+async def test_run_query_max_rows_zero_no_truncation(mocker):
+    """max_rows=0 means no limit and no truncation note."""
+    server.server_config.readonly_query = False
+    server.server_config.max_rows = 0
+    mocker.patch.object(
+        server.db_connection_map,
+        'get',
+        return_value=FakeConn(readonly=False, rows=[{'A': i} for i in range(5)]),
+    )
+    out = await server.run_query('SELECT A FROM T', FakeCtx(), 'host', 'DB2DB')
+    assert 'truncated' not in out.lower()
+
+
+async def test_run_query_exact_boundary_no_truncation(mocker):
+    """Exactly max_rows rows returns without a truncation note (boundary case)."""
+    server.server_config.readonly_query = False
+    server.server_config.max_rows = 3
+    mocker.patch.object(
+        server.db_connection_map,
+        'get',
+        return_value=FakeConn(readonly=False, rows=[{'A': i} for i in range(3)]),
+    )
+    out = await server.run_query('SELECT A FROM T', FakeCtx(), 'host', 'DB2DB')
+    assert 'truncated' not in out.lower()
+
+
+class TestLooksLikeRdsEndpoint:
+    """Tests for RDS-endpoint detection used to derive the instance identifier."""
+
+    @pytest.mark.parametrize(
+        'host,expected',
+        [
+            ('db2.abc123.us-east-1.rds.amazonaws.com', True),
+            ('db2-prod.xyz.eu-west-1.rds.amazonaws.com', True),
+            ('host', False),  # dotless (e.g. a local alias)
+            ('127.0.0.1', False),  # IPv4 tunnel host
+            ('', False),
+        ],
+    )
+    def test_looks_like_rds_endpoint(self, host, expected):
+        """Only standard RDS DNS endpoints are treated as id-derivable."""
+        assert server._looks_like_rds_endpoint(host) is expected
+
+
+def test_main_dotless_endpoint_without_secret_exits(mocker, monkeypatch):
+    """A dotless/IP endpoint with no secret can't derive an instance id and exits cleanly."""
+    monkeypatch.setattr(
+        sys, 'argv', ['prog', '--region', 'us-east-1', '--db_endpoint', '127.0.0.1']
+    )
+    server.server_config.default_secret_arn = ''
+    mocker.patch.object(server.mcp, 'run')
+    mocker.patch.object(server.db_connection_map, 'close_all')
+    with pytest.raises(SystemExit):
+        server.main()

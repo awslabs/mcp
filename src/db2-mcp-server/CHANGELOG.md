@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
-- Require an SSL server certificate bundle when `--ssl_encryption require` (the default): the server now refuses to start with `SECURITY=SSL` and no certificate, closing a man-in-the-middle gap where the connection was encrypted but the server was not authenticated.
+- Require an SSL server certificate bundle when `--ssl_encryption require` (the default): the server now refuses to start with `SECURITY=SSL` and no certificate, closing a man-in-the-middle gap where the connection was encrypted but the server was not authenticated. The certificate path is also validated to point at a real file (fast-fail).
 - Harden the SQL injection detector so `.*` patterns (e.g. the `UNION ... SELECT` guard) match across newlines (`re.DOTALL`); an injected newline no longer bypasses the check.
 - Make the connection-map lookup secret-aware so a cached connection built with different credentials is never returned to a caller.
 
@@ -25,4 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Removed the `list_db2_instances` / `describe_db2_instance` discovery tools (account-wide enumeration with no connection precondition), aligning with the `oracle-mcp-server` template.
 - Read-only enforcement now reads a single source of truth (the per-connection flag) for both the mutation and injection checks.
-- Query-timeout configuration failures are logged at `warning` (previously `debug`) since the query then runs unbounded.
+- `connect_to_database` now also handles `BotoCoreError` (endpoint/credential failures, timeouts) via the `Failed` contract instead of crashing the tool.
+- Query execution now **refuses to run** if the configured per-query timeout cannot be applied (previously it logged a warning and ran unbounded, which could hold the connection lock indefinitely).
+- Replaced cached connections are now closed on overwrite (fixes a connection leak when reconnecting under a different secret); the `get()` docstring was corrected to describe the actual secret/replacement semantics.
+- Startup instance-identifier derivation guards dotless/IP (tunnel) endpoints and gives an actionable error asking for `--instance_identifier` / `--secret_arn` instead of a misleading "instance not found".
+- `_to_positional` handles an explicit `{'isNull': False}` marker instead of raising an "unrecognized format" error.
+
+### Documented
+
+- `UNION` / `UNION ALL` are intentionally rejected even in read-only mode (data-exfiltration vector); the limitation and workaround are noted in the README.

@@ -16,6 +16,7 @@
 
 import json
 import pytest
+import tempfile
 from awslabs.db2_mcp_server.connection.ibm_db_connection import IbmDbConnection
 from datetime import date
 from decimal import Decimal
@@ -23,6 +24,13 @@ from decimal import Decimal
 
 DUMMY_PASSWORD = 'pw'  # pragma: allowlist secret
 BAD_JSON_PAYLOAD = 'not-json'
+
+# A real (empty) file on disk so the SSL cert existence check passes for the
+# is_test=False credential tests. Contents are irrelevant — the driver is mocked.
+_CERT_FILE = tempfile.NamedTemporaryFile(prefix='rds-test-', suffix='.pem', delete=False)
+_CERT_FILE.write(b'-----BEGIN CERTIFICATE-----\n')
+_CERT_FILE.close()
+_CERT_PATH = _CERT_FILE.name
 
 
 def _conn(**kwargs) -> IbmDbConnection:
@@ -33,7 +41,7 @@ def _conn(**kwargs) -> IbmDbConnection:
         'readonly': True,
         'secret_arn': 'arn:aws:secretsmanager:us-east-1:111122223333:secret:db2',  # pragma: allowlist secret
         'region': 'us-east-1',
-        'ssl_server_certificate': '/tmp/rds-test.pem',
+        'ssl_server_certificate': _CERT_PATH,
         'is_test': True,
     }
     defaults.update(kwargs)
@@ -341,3 +349,46 @@ def test_credential_error_excludes_secret_material(mocker):
     assert DUMMY_PASSWORD not in message
     assert 'internal-db.example.com' not in message
     assert 'host' not in message
+
+
+# --------------------------------------------------------------------------- #
+# Additional coverage from review round 2
+# --------------------------------------------------------------------------- #
+
+
+def test_isnull_true_and_false_bind_none():
+    """Both {'isNull': True} and an explicit {'isNull': False} bind NULL without raising."""
+    params = [
+        {'name': 'a', 'value': {'isNull': True}},
+        {'name': 'b', 'value': {'isNull': False}},
+    ]
+    assert IbmDbConnection._to_positional(params) == (None, None)
+
+
+def test_ssl_require_missing_cert_file_rejected():
+    """A cert path that does not point at a real file is rejected (fast-fail)."""
+    with pytest.raises(ValueError, match='not found'):
+        IbmDbConnection(
+            host='h',
+            port=50443,
+            database='DB2DB',
+            readonly=True,
+            secret_arn='arn:aws:secretsmanager:us-east-1:111122223333:secret:db2',  # pragma: allowlist secret
+            region='us-east-1',
+            ssl_encryption='require',
+            ssl_server_certificate='/no/such/bundle.pem',
+            is_test=False,
+        )
+
+
+async def test_timeout_set_option_failure_refuses_query(mocker):
+    """If the configured query timeout cannot be applied, the query is refused.
+
+    Running unbounded would hold the single serialized connection lock indefinitely,
+    so execute_query must raise rather than silently drop the safety bound.
+    """
+    fake = _fake_ibm_db(mocker, rows=[{'A': 1}])
+    fake.set_option.side_effect = RuntimeError('driver has no timeout support')
+    c = _conn(readonly=True)  # default query_timeout_s=30 -> set_option is attempted
+    with pytest.raises(ValueError, match='timeout'):
+        await c.execute_query('SELECT A FROM T')

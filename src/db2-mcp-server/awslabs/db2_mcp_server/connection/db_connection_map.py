@@ -62,8 +62,12 @@ class DBConnectionMap:
 
         When ``secret_arn`` is provided, only a connection created with the same secret
         is returned (for both the exact-match and fallback paths), so a cached connection
-        built with different credentials is never crossed back to a caller. When
-        ``secret_arn`` is None the secret is not considered (back-compatible).
+        built with different credentials is never handed back. When ``secret_arn`` is None
+        the secret is not considered (back-compatible) — callers on the query path
+        (``run_query``/``is_database_connected``) omit it and match on endpoint/db/port.
+        Note: ``secret_arn`` is NOT part of the cache key, so a reconnect under a different
+        secret replaces the prior connection (which ``set`` closes on overwrite) rather than
+        coexisting with it.
         """
         if not method:
             raise ValueError('method cannot be None')
@@ -106,8 +110,43 @@ class DBConnectionMap:
         if not conn:
             raise ValueError('conn cannot be None')
 
+        key = (method, instance_identifier, db_endpoint, database, port)
         with self._lock:
-            self.map[(method, instance_identifier, db_endpoint, database, port)] = conn
+            old = self.map.get(key)
+            self.map[key] = conn
+        # A reconnect under a different secret reuses the same key and would otherwise
+        # drop the previous connection without closing it (leaked server-side session).
+        # Close the replaced connection best-effort, outside the map lock.
+        if old is not None and old is not conn:
+            self._close_best_effort(old, key)
+
+    def _close_best_effort(self, conn: AbstractDBConnection, key=None) -> None:
+        """Close a replaced connection, tolerating a sync or async ``close()``."""
+        try:
+            result = conn.close()
+        except Exception as e:
+            logger.warning(f'Failed to close replaced connection {key}: {e}')
+            return
+        if inspect.isawaitable(result):
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+            if loop and loop.is_running():
+                task = loop.create_task(result)
+
+                def _done_cb(t, k=key):
+                    if t.cancelled():
+                        logger.warning(f'Close task for replaced connection {k} was cancelled')
+                    elif t.exception():
+                        logger.warning(f'Failed to close replaced connection {k}: {t.exception()}')
+
+                task.add_done_callback(_done_cb)
+            else:
+                try:
+                    asyncio.run(result)
+                except Exception as e:
+                    logger.warning(f'Failed to close replaced connection {key}: {e}')
 
     def remove(
         self,

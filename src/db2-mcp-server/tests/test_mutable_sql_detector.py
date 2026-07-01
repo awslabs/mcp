@@ -132,3 +132,16 @@ class TestStripComments:
     def test_savepoint_bypass(self):
         """SAVEPOINT is detected as a transaction-control bypass."""
         assert 'SAVEPOINT' in detect_transaction_bypass_attempt('SAVEPOINT s1')
+
+
+def test_data_change_table_reference_blocked():
+    """Db2 data-change-table-references (SELECT ... FROM FINAL TABLE(INSERT ...)) are caught.
+
+    These embed a mutation inside a SELECT; the mutating-keyword detector must still
+    flag the INSERT so read-only mode rejects them.
+    """
+    sql = 'SELECT a FROM FINAL TABLE (INSERT INTO t(a) VALUES (1))'
+    assert 'INSERT' in detect_mutating_keywords(sql)
+
+    sql_update = 'SELECT a FROM OLD TABLE (UPDATE t SET a = 2 WHERE a = 1)'
+    assert 'UPDATE' in detect_mutating_keywords(sql_update)
