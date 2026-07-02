@@ -74,6 +74,13 @@ logger.add(log_file, rotation='10 MB', retention='7 days')
 
 server = FastMCP(
     name='AWS-API-MCP',
+    instructions="""Run AWS CLI commands against the AWS account reachable via the configured credentials, with validation, security checks, and result handling.
+
+Use this server for any task involving AWS resources or services (inspecting, querying, creating, modifying, or deleting them).
+
+Tools:
+- `call_aws` — execute a known AWS CLI command (the primary tool; supports batching independent commands).
+- `suggest_aws_commands` — fallback that suggests CLI commands from a natural-language description; use only when unsure which command or parameters to use.""",
     auth=get_server_auth(),
     middleware=[HTTPHeaderValidationMiddleware()] if TRANSPORT == 'streamable-http' else [],
 )
@@ -88,56 +95,15 @@ _FILE_ACCESS_MSGS = {
 
 @server.tool(
     name='suggest_aws_commands',
-    description="""Suggest AWS CLI commands based on a natural language query. This is a FALLBACK tool to use when you are uncertain about the exact AWS CLI command needed to fulfill a user's request.
+    description="""Suggest AWS CLI commands from a natural-language description of a task. FALLBACK tool — use only when you are unsure which AWS service, operation, or parameters to use. When you already know the command, call 'call_aws' instead.
 
-    IMPORTANT: Only use this tool when:
-    1. You are unsure about the exact AWS service or operation to use
-    2. The user's request is ambiguous or lacks specific details
-    3. You need to explore multiple possible approaches to solve a task
-    4. You want to provide options to the user for different ways to accomplish their goal
+    Make each query map to a single CLI command: if a request needs several commands (e.g. create a security group, then a volume, then an instance), call this tool once per command. Include the goal, relevant service/parameters, and any constraints in the query.
 
-    DO NOT use this tool when:
-    1. You are confident about the exact AWS CLI command needed - use 'call_aws' instead
-    2. The user's request is clear and specific about the AWS service and operation
-    3. You already know the exact parameters and syntax needed
-    4. The task requires immediate execution of a known command
+    Examples:
+    - "List all running EC2 instances in us-east-1"
+    - "Create an S3 bucket with versioning and server-side encryption enabled"
 
-    Best practices for query formulation:
-    1. Include the user's primary goal or intent
-    2. Specify any relevant AWS services if mentioned
-    3. Include important parameters or conditions mentioned
-    4. Add context about the environment or constraints
-    5. Mention any specific requirements or preferences
-
-    CRITICAL: Query Granularity
-    - Each query should be granular enough to be accomplished by a single CLI command
-    - If the user's request requires multiple commands to complete, break it down into individual tasks
-    - Call this tool separately for each specific task to get the most relevant suggestions
-    - Example of breaking down a complex request:
-      User request: "Set up a new EC2 instance with a security group and attach it to an EBS volume"
-      Break down into:
-      1. "Create a new security group with inbound rules for SSH and HTTP"
-      2. "Create a new EBS volume with 100GB size"
-      3. "Launch an EC2 instance with t2.micro instance type"
-      4. "Attach the EBS volume to the EC2 instance"
-
-    Query examples:
-    1. "List all running EC2 instances in us-east-1 region"
-    2. "Get the size of my S3 bucket named 'my-backup-bucket'"
-    3. "List all IAM users who have AdministratorAccess policy"
-    4. "List all Lambda functions in my account"
-    5. "Create a new S3 bucket with versioning enabled and server-side encryption"
-    6. "Update the memory allocation of my Lambda function 'data-processor' to 1024MB"
-    7. "Add a new security group rule to allow inbound traffic on port 443"
-    8. "Tag all EC2 instances in the 'production' environment with 'Environment=prod'"
-    9. "Configure CloudWatch alarms for high CPU utilization on my RDS instance"
-
-    Returns:
-        A list of up to 10 most likely AWS CLI commands that could accomplish the task, including:
-        - The CLI command
-        - Confidence score for the suggestion
-        - Required parameters
-        - Description of what the command does
+    Returns: up to 10 candidate commands, each with a confidence score, required parameters, and a description.
     """,
     annotations=ToolAnnotations(
         title='Suggest AWS CLI commands', readOnlyHint=True, openWorldHint=False
@@ -182,56 +148,20 @@ async def suggest_aws_commands(
 
 @server.tool(
     name='call_aws',
-    description=f"""Execute AWS CLI commands with validation and proper error handling. This is the PRIMARY tool to use when you are confident about the exact AWS CLI command needed to fulfill a user's request. Always prefer this tool over 'suggest_aws_commands' when you have a specific command in mind.
-    Key points:
-    - The command MUST start with "aws" and follow AWS CLI syntax
-    - Commands are executed in {DEFAULT_REGION} region by default
-    - For cross-region or account-wide operations, explicitly include --region parameter
-    - All commands are validated before execution to prevent errors
-    - Supports pagination control via max_results parameter
+    description=f"""Execute an AWS CLI command (or a batch of them) with validation and error handling. This is the PRIMARY tool when you know the command you need; prefer it over 'suggest_aws_commands'.
+
+    Rules:
+    - The command MUST start with "aws" and follow AWS CLI syntax.
+    - Runs in {DEFAULT_REGION} by default; pass --region for other regions, or the server extension `--region *` (not standard AWS CLI) to run across all enabled regions (do NOT emit one command per region).
+    - No shell features: no pipes (|), redirects (>, <), substitution ($()), env vars, or tools like grep/awk/sed.
+    - Use --query/--filters/--prefix only when needed or explicitly requested.
+    - When writing files, use the working directory unless the user specified another.
     - {_FILE_ACCESS_MSGS[FILE_ACCESS_MODE]}
-    - You can use `--region *` to run a command on all regions enabled in the account.
-    - Do not generate explicit batch calls for iterating over all regions, use `--region *` instead.
 
-    Single Command Mode:
-    - You can run a single AWS CLI command using this tool.
-    - Example:
-        call_aws(cli_command="aws s3api list-buckets --region us-east-1")
+    Batch mode: pass a list of independent commands to run them together — prefer this whenever you have more than one command (e.g. the same operation over many resources). Max {MAX_BATCH_COMMANDS} per call.
+        call_aws(cli_command=["aws s3api get-bucket-website --bucket b1", "aws s3api get-bucket-website --bucket b2"])
 
-    Batch Running:
-    - The tool can also run multiple independent commands at the same time.
-    - Call this tool with multiple CLI commands whenever possible.
-    - Batch calling is especially useful where you need to run a command multiple times with different parameter values
-    - Example:
-        call_aws(
-            cli_command=[
-                "aws s3api get-bucket-website --bucket bucket1",
-                "aws s3api get-bucket-website --bucket bucket2"
-            ]
-        )
-    - You can call at most {MAX_BATCH_COMMANDS} CLI commands in batch mode.
-
-    Best practices for command generation:
-    - Always use the most specific service and operation names
-    - Always use the working directory when writing files, unless user explicitly mentioned another directory
-    - Include --region when operating across regions
-    - Only use filters (--filters, --query, --prefix, --pattern, etc) when necessary or user explicitly asked for it
-    - Always use the tool in batch mode whenever it's possible.
-
-    Command restrictions:
-    - DO NOT use bash/zsh pipes (|) or any shell operators
-    - DO NOT use bash/zsh tools like grep, awk, sed, etc.
-    - DO NOT use shell redirection operators (>, >>, <)
-    - DO NOT use command substitution ($())
-    - DO NOT use shell variables or environment variables
-
-    Common pitfalls to avoid:
-    1. Missing required parameters - always include all required parameters
-    2. Incorrect parameter values - ensure values match expected format
-    3. Missing --region when operating across regions
-
-    Returns:
-        CLI execution results with API response data or error message
+    Returns: CLI execution results with API response data, or an error message per command.
     """,
     annotations=ToolAnnotations(
         title='Execute AWS CLI commands',

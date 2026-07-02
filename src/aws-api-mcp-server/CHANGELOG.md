@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Add server instructions and trim `call_aws` / `suggest_aws_commands` tool descriptions to reduce context usage while preserving all enforced constraints
+
 ### Fixed
 
 - Remove max range check on parameters to remain forwards compatible with any API changes (#2445)
