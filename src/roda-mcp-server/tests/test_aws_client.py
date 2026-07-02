@@ -17,9 +17,9 @@
 Run: uv run python -m pytest tests/test_aws_client.py -v
 """
 
+import pytest
 from awslabs.roda_mcp_server.aws_client import get_s3_client
 from unittest.mock import MagicMock, patch
-import pytest
 
 
 def test_returns_s3_client():

@@ -6,11 +6,10 @@ This MCP server uses this ndjson file to build an in-memory knowledge base. In p
 
 
 ```mermaid
-  flowchart LR
-      User([User]) --> LLM["LLM Host"]
+    flowchart LR
+      User([User]) -->|question| LLM["LLM Host"]
       LLM -->|stdio| Server
-      Server -->|stdio| LLM
-      LLM --> User
+      Server -.->|results| LLM -.->|answer| User
 
       subgraph Server["RODA MCP Server"]
           direction TB
@@ -25,7 +24,8 @@ This MCP server uses this ndjson file to build an in-memory knowledge base. In p
           Fetch --> Execute
       end
 
-      GitHub[("GitHub<br/>open data metadata")] --> Fetch
+      GitHub[("GitHub<br/>open data metadata")]
+      Fetch -->|fetch| GitHub
 ```
 
 For detailed design, check of this [drawio file](architecture.drawio).
