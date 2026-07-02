@@ -55,7 +55,8 @@ class ServerConfig:
     def __init__(self):
         """Initialize with safe defaults."""
         self.readonly_query: bool = True
-        self.default_secret_arn: Optional[str] = None
+        self.configured_secret_arns: Dict[str, str] = {}
+        self.configured_default_secret_arn: Optional[str] = None
         self.allowed_endpoints: Set[str] = set()
 
 
@@ -292,24 +293,23 @@ async def connect_to_database(
     ctx: Context,
     port: Annotated[int, Field(description='SQL Server port')] = 1433,
     database: Annotated[str, Field(description='database name')] = 'master',
-    secret_arn: Annotated[
-        Optional[str],
-        Field(
-            description='Secrets Manager ARN for database credentials (overrides the RDS master secret)'
-        ),
-    ] = None,
 ) -> str:
     """Connect to a SQL Server RDS instance and save the connection internally."""
     try:
-        db_connection, llm_response = internal_create_connection(
+        db_connection, llm_response, replaced_conn = internal_create_connection(
             region=region,
             connection_method=connection_method,
             instance_identifier=instance_identifier,
             db_endpoint=db_endpoint,
             port=port,
             database=database,
-            secret_arn=secret_arn,
         )
+
+        if replaced_conn:
+            try:
+                await replaced_conn.close()
+            except Exception as close_err:
+                logger.warning(f'Failed to close replaced connection: {close_err}')
 
         if isinstance(db_connection, PymssqlPoolConnection):
             try:
@@ -452,7 +452,6 @@ def internal_create_connection(
     port: int,
     database: str,
     encryption: str = 'require',
-    secret_arn: Optional[str] = None,
 ) -> Tuple:
     """Create or retrieve a cached database connection."""
     global db_connection_map, server_config
@@ -469,50 +468,94 @@ def internal_create_connection(
     if not db_endpoint:
         raise ValueError("db_endpoint can't be none or empty")
 
+    # Resolve the Secrets Manager ARN first so we can detect stale cached
+    # connections whose ARN no longer matches the operator config.
+    # Priority: per-target → default → RDS MasterUserSecret metadata.
+    # The LLM cannot influence this — only operator --secret_arn flags control it.
+    target_key = instance_identifier
+    per_target_secret_arn = server_config.configured_secret_arns.get(target_key, '')
+    metadata_secret_arn = ''
+
+    if not per_target_secret_arn and not server_config.configured_default_secret_arn:
+        rds_client = boto3.client(
+            'rds', region_name=region, config=Config(user_agent_extra=__user_agent__)
+        )
+        try:
+            response = rds_client.describe_db_instances(DBInstanceIdentifier=instance_identifier)
+        except ClientError as e:
+            code = e.response['Error']['Code']
+            if code == 'DBInstanceNotFound':
+                raise ValueError(
+                    f"RDS instance '{instance_identifier}' not found in region '{region}'"
+                ) from e
+            raise ValueError(
+                f'Failed to describe RDS instance: {e.response["Error"]["Message"]}'
+            ) from e
+
+        instances = response.get('DBInstances', [])
+        if not instances:
+            raise ValueError(
+                f"describe_db_instances returned no instances for '{instance_identifier}'"
+            )
+        instance_props = instances[0]
+        master_secret = instance_props.get('MasterUserSecret', {})
+        metadata_secret_arn = master_secret.get('SecretArn', '') if master_secret else ''
+
+    secret_arn: str = (
+        per_target_secret_arn
+        or server_config.configured_default_secret_arn
+        or metadata_secret_arn
+        or ''
+    )
+
+    if per_target_secret_arn:
+        logger.info(f'Using per-target secret_arn for instance {target_key}')
+    elif server_config.configured_default_secret_arn:
+        logger.info('Using default secret_arn from startup configuration')
+    elif metadata_secret_arn:
+        logger.info(f'Using RDS MasterUserSecret metadata for instance {target_key}')
+
+    if not secret_arn:
+        raise ValueError(
+            f"No secret resolved for instance '{instance_identifier}': "
+            f'no per-target --secret_arn matched this instance, no bare default '
+            f'--secret_arn was configured, and the instance has no managed '
+            f'MasterUserSecret. Supply --secret_arn <arn> (bare default) or '
+            f'--secret_arn {instance_identifier}=<arn> (per-target).'
+        )
+
+    # Check for existing connection; evict if the resolved ARN differs.
+    replaced_conn = None
     existing_conn = db_connection_map.get(
         connection_method, instance_identifier, db_endpoint, database, port
     )
     if existing_conn:
-        llm_response = json.dumps(
-            {
-                'connection_method': connection_method,
-                'instance_identifier': instance_identifier,
-                'db_endpoint': db_endpoint,
-                'database': database,
-                'port': port,
-            },
-            indent=2,
-            default=str,
-        )
-        return (existing_conn, llm_response)
+        if secret_arn and getattr(existing_conn, 'secret_arn', '') != secret_arn:
+            logger.info(
+                f'Replacing existing connection for {instance_identifier}/{database}: '
+                f'secret_arn changed'
+            )
+            db_connection_map.remove(
+                connection_method, instance_identifier, db_endpoint, database, port
+            )
+            replaced_conn = existing_conn
+        else:
+            llm_response = json.dumps(
+                {
+                    'connection_method': connection_method,
+                    'instance_identifier': instance_identifier,
+                    'db_endpoint': db_endpoint,
+                    'database': database,
+                    'port': port,
+                },
+                indent=2,
+                default=str,
+            )
+            return (existing_conn, llm_response, None)
 
     # Validate the endpoint against RDS or the allowed list.
     # Use the AWS-sourced endpoint for the connection string.
     db_endpoint, port = validate_endpoint(db_endpoint, port, instance_identifier, region)
-
-    if not secret_arn:
-        # First try to use the default secret_arn from startup args
-        if server_config.default_secret_arn:
-            secret_arn = server_config.default_secret_arn
-            logger.info('Using default secret_arn from startup configuration')
-        else:
-            # Fall back to the RDS instance's managed master secret
-            rds_client = boto3.client(
-                'rds', region_name=region, config=Config(user_agent_extra=__user_agent__)
-            )
-
-            instance_props = rds_client.describe_db_instances(
-                DBInstanceIdentifier=instance_identifier
-            )['DBInstances'][0]
-
-            master_secret = instance_props.get('MasterUserSecret', {})
-            secret_arn = master_secret.get('SecretArn') if master_secret else None
-            if not secret_arn:
-                raise ValueError(
-                    f"RDS instance '{instance_identifier}' does not have a managed "
-                    f'MasterUserSecret and no --secret_arn was provided. '
-                    f'Supply a --secret_arn or configure a Secrets Manager secret.'
-                )
 
     logger.debug(f'Connection props: secret_arn:{secret_arn}, endpoint:{db_endpoint}, port:{port}')
 
@@ -540,7 +583,7 @@ def internal_create_connection(
         indent=2,
         default=str,
     )
-    return (db_connection, llm_response)
+    return (db_connection, llm_response, replaced_conn)
 
 
 def _parse_identifier_parts(table_name: str) -> Optional[list[str]]:
@@ -665,7 +708,25 @@ def main():
     )
     parser.add_argument(
         '--secret_arn',
-        help='Secrets Manager ARN for database credentials (overrides the RDS master secret)',
+        required=False,
+        action='append',
+        default=None,
+        help=(
+            'Optional Secrets Manager ARN override. May be repeated. Each '
+            'value is either:\n'
+            '  - "<instance_identifier>=<arn>" — bind the ARN to a specific '
+            'RDS instance (matched against the instance_identifier parameter '
+            'from the connect_to_database tool).\n'
+            '  - "<arn>" without "=" — bare ARN used as the default for any '
+            'target the operator did not pin explicitly (at most one allowed).\n'
+            'Resolution order: per-target ARN > bare default ARN > RDS '
+            'MasterUserSecret metadata. A bare default takes precedence over '
+            'the instance MasterUserSecret for all unpinned instances. '
+            'The RDS MasterUserSecret is only consulted when no --secret_arn '
+            'is configured at all. '
+            'The LLM cannot pick a secret ARN — it can only target an instance '
+            'the operator has registered here.'
+        ),
     )
     parser.add_argument(
         '--allowed_endpoints',
@@ -674,6 +735,45 @@ def main():
         help='Additional allowed endpoint hostnames (for on-premise or non-RDS instances)',
     )
     args = parser.parse_args()
+
+    # Parse --secret_arn entries into the per-target map and the optional
+    # default. Each --secret_arn value is either "key=arn" (per-target)
+    # or a bare ARN (default).
+    secret_arn_map: Dict[str, str] = {}
+    default_secret_arn: Optional[str] = None
+    for raw in args.secret_arn or []:
+        if '=' in raw:
+            key, _, arn = raw.partition('=')
+            key = key.strip()
+            arn = arn.strip()
+            if not key or not arn:
+                logger.error(
+                    f'Invalid --secret_arn value {raw!r}: both key and ARN '
+                    'must be non-empty when using key=arn syntax.'
+                )
+                sys.exit(2)
+            if key in secret_arn_map:
+                logger.error(
+                    f'Duplicate --secret_arn key {key!r} (already mapped to '
+                    f'{secret_arn_map[key]!r}).'
+                )
+                sys.exit(2)
+            secret_arn_map[key] = arn
+        else:
+            arn = raw.strip()
+            if not arn:
+                logger.error(
+                    'Empty --secret_arn value. If using a shell variable, '
+                    'ensure it is set and non-empty.'
+                )
+                sys.exit(2)
+            if default_secret_arn is not None:
+                logger.error(
+                    'At most one bare --secret_arn (no "=" separator) is '
+                    'allowed; got at least two default ARNs.'
+                )
+                sys.exit(2)
+            default_secret_arn = arn
 
     logger.info(
         f'MCP configuration:\n'
@@ -685,10 +785,13 @@ def main():
         f'database:{args.database}\n'
         f'port:{args.port}\n'
         f'ssl_encryption:{args.ssl_encryption}\n'
+        f'secret_arn entries: {len(secret_arn_map)} per-target, '
+        f'default={"set" if default_secret_arn else "unset"}\n'
     )
 
     server_config.readonly_query = not args.allow_write_query
-    server_config.default_secret_arn = args.secret_arn
+    server_config.configured_secret_arns = secret_arn_map
+    server_config.configured_default_secret_arn = default_secret_arn
     server_config.allowed_endpoints = set(args.allowed_endpoints)
     if args.db_endpoint:
         server_config.allowed_endpoints.add(args.db_endpoint.strip().lower())
@@ -717,7 +820,7 @@ def main():
                 )
                 sys.exit(1)
 
-            db_connection, _ = internal_create_connection(
+            db_connection, _, _ = internal_create_connection(
                 region=args.region,
                 connection_method=connection_method,
                 instance_identifier=args.instance_identifier,
@@ -725,7 +828,6 @@ def main():
                 port=args.port,
                 database=args.database,
                 encryption=args.ssl_encryption,
-                secret_arn=args.secret_arn,
             )
 
             if db_connection and isinstance(db_connection, PymssqlPoolConnection):
