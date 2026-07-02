@@ -270,14 +270,14 @@ async def search_datasets(
     def matches_filters(dataset: dict) -> bool:
         """Return True if dataset passes all active filters."""
         if tag_list:
-            dataset_tags = [t.lower() for t in dataset.get('Tags', [])]
+            dataset_tags = [t.lower() for t in (dataset.get('Tags') or [])]
             if not any(ft in dataset_tags for ft in tag_list):
                 return False
         if org_lower:
-            if org_lower not in dataset.get('ManagedBy', '').lower():
+            if org_lower not in (dataset.get('ManagedBy') or '').lower():
                 return False
         if license_lower:
-            dataset_license = dataset.get('License', '').lower()
+            dataset_license = (dataset.get('License') or '').lower()
             if license_lower not in dataset_license:
                 return False
         return True
@@ -286,9 +286,9 @@ async def search_datasets(
     all_matches = []
     all_tags = []
     for dataset in datasets:
-        name = dataset.get('Name', '').lower()
-        description = dataset.get('Description', '').lower()
-        dtags = [tag.lower() for tag in dataset.get('Tags', [])]
+        name = (dataset.get('Name') or '').lower()
+        description = (dataset.get('Description') or '').lower()
+        dtags = [tag.lower() for tag in (dataset.get('Tags') or [])]
 
         if not (
             matches_query(name)
@@ -300,19 +300,18 @@ async def search_datasets(
         if not matches_filters(dataset):
             continue
 
+        desc = dataset.get('Description') or ''
         all_matches.append(
             {
-                'slug': dataset.get('Slug', ''),
-                'name': dataset.get('Name', ''),
-                'description': dataset.get('Description', '')[:200] + '...'
-                if len(dataset.get('Description', '')) > 200
-                else dataset.get('Description', ''),
-                'tags': dataset.get('Tags', []),
-                'managed_by': dataset.get('ManagedBy', ''),
-                'license': dataset.get('License', 'Not specified'),
+                'slug': dataset.get('Slug') or '',
+                'name': dataset.get('Name') or '',
+                'description': desc[:200] + '...' if len(desc) > 200 else desc,
+                'tags': dataset.get('Tags') or [],
+                'managed_by': dataset.get('ManagedBy') or '',
+                'license': dataset.get('License') or 'Not specified',
             }
         )
-        all_tags.extend(dataset.get('Tags', []))
+        all_tags.extend(dataset.get('Tags') or [])
 
     total_count = len(all_matches)
 
@@ -387,20 +386,19 @@ async def list_datasets(tag: str | None = None, limit: int = 20) -> str:
     results = []
     for dataset in datasets:
         if tag:
-            tags = [t.lower() for t in dataset.get('Tags', [])]
+            tags = [t.lower() for t in (dataset.get('Tags') or [])]
             if tag.lower() not in tags:
                 continue
 
+        desc = dataset.get('Description') or ''
         results.append(
             {
-                'slug': dataset.get('Slug', ''),
-                'name': dataset.get('Name', ''),
-                'description': dataset.get('Description', '')[:150] + '...'
-                if len(dataset.get('Description', '')) > 150
-                else dataset.get('Description', ''),
-                'tags': dataset.get('Tags', [])[:5],
-                'managed_by': dataset.get('ManagedBy', ''),
-                'license': dataset.get('License', 'Not specified'),
+                'slug': dataset.get('Slug') or '',
+                'name': dataset.get('Name') or '',
+                'description': desc[:150] + '...' if len(desc) > 150 else desc,
+                'tags': (dataset.get('Tags') or [])[:5],
+                'managed_by': dataset.get('ManagedBy') or '',
+                'license': dataset.get('License') or 'Not specified',
             }
         )
 
@@ -661,7 +659,7 @@ async def preview_dataset(slug: str, bucket_arn: str | None = None) -> str:
     s3_resources = [
         r
         for r in dataset.get('Resources', [])
-        if 's3 bucket' in r.get('Type', '').lower()
+        if 's3 bucket' in (r.get('Type') or '').lower()
         and not r.get('RequesterPays', False)
         and not r.get('ControlledAccess')
     ]
@@ -669,7 +667,7 @@ async def preview_dataset(slug: str, bucket_arn: str | None = None) -> str:
     if not s3_resources:
         all_types = [r.get('Type', '') for r in dataset.get('Resources', [])]
         has_rp = any(
-            's3 bucket' in r.get('Type', '').lower() and r.get('RequesterPays', False)
+            's3 bucket' in (r.get('Type') or '').lower() and r.get('RequesterPays', False)
             for r in dataset.get('Resources', [])
         )
         controlled_urls = [
@@ -938,7 +936,7 @@ async def sample_dataset(slug: str, file_key: str, bucket_arn: str | None = None
     s3_resources = [
         r
         for r in dataset.get('Resources', [])
-        if 's3 bucket' in r.get('Type', '').lower()
+        if 's3 bucket' in (r.get('Type') or '').lower()
         and not r.get('RequesterPays', False)
         and not r.get('ControlledAccess')
     ]
