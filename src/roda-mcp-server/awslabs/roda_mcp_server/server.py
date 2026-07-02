@@ -444,7 +444,7 @@ async def get_dataset_details(slug: str) -> str:
     datasets = await fetch_datasets()
 
     for dataset in datasets:
-        if dataset.get('Slug', '') == slug:
+        if (dataset.get('Slug') or '') == slug:
             return json.dumps({'status': 'ok', **dataset}, indent=2)
 
     return json.dumps(
@@ -480,14 +480,14 @@ async def discover_by_organization(organization: str, limit: int = 10) -> str:
             'count': len(results),
             'datasets': [
                 {
-                    'slug': d.get('Slug', ''),
-                    'name': d.get('Name', ''),
-                    'description': d.get('Description', '')[:200] + '...'
-                    if len(d.get('Description', '')) > 200
-                    else d.get('Description', ''),
-                    'managed_by': d.get('ManagedBy', ''),
-                    'license': d.get('License', 'Not specified'),
-                    'tags': d.get('Tags', [])[:5],
+                    'slug': d.get('Slug') or '',
+                    'name': d.get('Name') or '',
+                    'description': (d.get('Description') or '')[:200] + '...'
+                    if len(d.get('Description') or '') > 200
+                    else (d.get('Description') or ''),
+                    'managed_by': d.get('ManagedBy') or '',
+                    'license': d.get('License') or 'Not specified',
+                    'tags': (d.get('Tags') or [])[:5],
                 }
                 for d in results
             ],
@@ -535,10 +535,10 @@ async def discover_by_license(license_type: str, limit: int = 10) -> str:
             'count': len(results),
             'datasets': [
                 {
-                    'slug': d.get('Slug', ''),
-                    'name': d.get('Name', ''),
-                    'license': d.get('License', ''),
-                    'managed_by': d.get('ManagedBy', ''),
+                    'slug': d.get('Slug') or '',
+                    'name': d.get('Name') or '',
+                    'license': d.get('License') or '',
+                    'managed_by': d.get('ManagedBy') or '',
                 }
                 for d in results
             ],
@@ -570,14 +570,14 @@ async def find_related_datasets(slug: str, limit: int = 5) -> str:
             'count': len(related),
             'related_datasets': [
                 {
-                    'slug': d.get('Slug', ''),
-                    'name': d.get('Name', ''),
-                    'description': d.get('Description', '')[:150] + '...'
-                    if len(d.get('Description', '')) > 150
-                    else d.get('Description', ''),
-                    'tags': d.get('Tags', [])[:5],
-                    'managed_by': d.get('ManagedBy', ''),
-                    'license': d.get('License', 'Not specified'),
+                    'slug': d.get('Slug') or '',
+                    'name': d.get('Name') or '',
+                    'description': (d.get('Description') or '')[:150] + '...'
+                    if len(d.get('Description') or '') > 150
+                    else (d.get('Description') or ''),
+                    'tags': (d.get('Tags') or [])[:5],
+                    'managed_by': d.get('ManagedBy') or '',
+                    'license': d.get('License') or 'Not specified',
                 }
                 for d in related
             ],
@@ -644,7 +644,7 @@ async def preview_dataset(slug: str, bucket_arn: str | None = None) -> str:
     )
 
     datasets = await fetch_datasets()
-    dataset = next((d for d in datasets if d.get('Slug', '') == slug), None)
+    dataset = next((d for d in datasets if (d.get('Slug') or '') == slug), None)
     if not dataset:
         return json.dumps(
             {
@@ -689,7 +689,7 @@ async def preview_dataset(slug: str, bucket_arn: str | None = None) -> str:
             msg = 'No publicly accessible S3 bucket found for this dataset.'
         result = {
             'status': 'info',
-            'dataset': dataset.get('Name', ''),
+            'dataset': dataset.get('Name') or '',
             'slug': slug,
             'message': msg,
             'available_resource_types': all_types,
@@ -705,7 +705,7 @@ async def preview_dataset(slug: str, bucket_arn: str | None = None) -> str:
         return json.dumps(
             {
                 'status': 'info',
-                'dataset': dataset.get('Name', ''),
+                'dataset': dataset.get('Name') or '',
                 'slug': slug,
                 'message': (
                     f'This dataset has {len(s3_resources)} public S3 buckets. '
@@ -733,7 +733,7 @@ async def preview_dataset(slug: str, bucket_arn: str | None = None) -> str:
             return json.dumps(
                 {
                     'status': 'error',
-                    'dataset': dataset.get('Name', ''),
+                    'dataset': dataset.get('Name') or '',
                     'slug': slug,
                     'error': f'Bucket ARN not found among public buckets for this dataset: {bucket_arn}',
                     'available_arns': [r.get('ARN', '') for r in s3_resources],
@@ -759,7 +759,7 @@ async def preview_dataset(slug: str, bucket_arn: str | None = None) -> str:
         return json.dumps(
             {
                 'status': 'error',
-                'dataset': dataset.get('Name', ''),
+                'dataset': dataset.get('Name') or '',
                 'slug': slug,
                 'error': 'Could not parse S3 bucket name from ARN',
                 'arn': arn,
@@ -779,7 +779,7 @@ async def preview_dataset(slug: str, bucket_arn: str | None = None) -> str:
             return json.dumps(
                 {
                     'status': 'info',
-                    'dataset': dataset.get('Name', ''),
+                    'dataset': dataset.get('Name') or '',
                     'slug': slug,
                     'bucket': bucket_name,
                     'region': s3_resource.get('Region', 'us-east-1'),
@@ -800,9 +800,9 @@ async def preview_dataset(slug: str, bucket_arn: str | None = None) -> str:
         return json.dumps(
             {
                 'status': 'ok',
-                'dataset': dataset.get('Name', ''),
+                'dataset': dataset.get('Name') or '',
                 'slug': slug,
-                'license': dataset.get('License', ''),
+                'license': dataset.get('License') or '',
                 'bucket': bucket_name,
                 'region': s3_resource.get('Region', 'us-east-1'),
                 'prefix': prefix or None,
@@ -823,7 +823,7 @@ async def preview_dataset(slug: str, bucket_arn: str | None = None) -> str:
             return json.dumps(
                 {
                     'status': 'error',
-                    'dataset': dataset.get('Name', ''),
+                    'dataset': dataset.get('Name') or '',
                     'slug': slug,
                     'error': 'Access denied — this dataset requires AWS credentials.',
                     'note': 'Use the AWS CLI with your own credentials to access this bucket (e.g., aws s3 ls s3://<bucket>).',
@@ -834,7 +834,7 @@ async def preview_dataset(slug: str, bucket_arn: str | None = None) -> str:
         return json.dumps(
             {
                 'status': 'error',
-                'dataset': dataset.get('Name', ''),
+                'dataset': dataset.get('Name') or '',
                 'slug': slug,
                 'error': f'AWS error: {error_code}',
                 'message': str(e),
@@ -852,7 +852,7 @@ async def preview_dataset(slug: str, bucket_arn: str | None = None) -> str:
         return json.dumps(
             {
                 'status': 'error',
-                'dataset': dataset.get('Name', ''),
+                'dataset': dataset.get('Name') or '',
                 'slug': slug,
                 'error': 'Network error listing bucket',
                 'message': str(e),
@@ -868,7 +868,7 @@ async def preview_dataset(slug: str, bucket_arn: str | None = None) -> str:
         return json.dumps(
             {
                 'status': 'error',
-                'dataset': dataset.get('Name', ''),
+                'dataset': dataset.get('Name') or '',
                 'slug': slug,
                 'error': f'Unexpected error listing bucket: {type(e).__name__}',
                 'message': str(e),
@@ -921,7 +921,7 @@ async def sample_dataset(slug: str, file_key: str, bucket_arn: str | None = None
     )
 
     datasets = await fetch_datasets()
-    dataset = next((d for d in datasets if d.get('Slug', '') == slug), None)
+    dataset = next((d for d in datasets if (d.get('Slug') or '') == slug), None)
     if not dataset:
         return json.dumps(
             {
@@ -945,7 +945,7 @@ async def sample_dataset(slug: str, file_key: str, bucket_arn: str | None = None
         return json.dumps(
             {
                 'status': 'info',
-                'dataset': dataset.get('Name', ''),
+                'dataset': dataset.get('Name') or '',
                 'slug': slug,
                 'error': 'No publicly accessible S3 bucket found for this dataset.',
             },
@@ -958,7 +958,7 @@ async def sample_dataset(slug: str, file_key: str, bucket_arn: str | None = None
         return json.dumps(
             {
                 'status': 'info',
-                'dataset': dataset.get('Name', ''),
+                'dataset': dataset.get('Name') or '',
                 'slug': slug,
                 'message': (
                     f'This dataset has {len(s3_resources)} public S3 buckets. '
@@ -986,7 +986,7 @@ async def sample_dataset(slug: str, file_key: str, bucket_arn: str | None = None
             return json.dumps(
                 {
                     'status': 'error',
-                    'dataset': dataset.get('Name', ''),
+                    'dataset': dataset.get('Name') or '',
                     'slug': slug,
                     'error': f'Bucket ARN not found among public buckets for this dataset: {bucket_arn}',
                     'available_arns': [r.get('ARN', '') for r in s3_resources],
@@ -1006,7 +1006,7 @@ async def sample_dataset(slug: str, file_key: str, bucket_arn: str | None = None
         return json.dumps(
             {
                 'status': 'error',
-                'dataset': dataset.get('Name', ''),
+                'dataset': dataset.get('Name') or '',
                 'slug': slug,
                 'error': 'Could not parse S3 bucket name from ARN',
                 'arn': arn,
@@ -1024,9 +1024,9 @@ async def sample_dataset(slug: str, file_key: str, bucket_arn: str | None = None
             return json.dumps(
                 {
                     'status': 'info',
-                    'dataset': dataset.get('Name', ''),
+                    'dataset': dataset.get('Name') or '',
                     'slug': slug,
-                    'license': dataset.get('License', ''),
+                    'license': dataset.get('License') or '',
                     'bucket': bucket_name,
                     'file_key': file_key,
                     'file_size_bytes': 0,
@@ -1069,9 +1069,9 @@ async def sample_dataset(slug: str, file_key: str, bucket_arn: str | None = None
                 return json.dumps(
                     {
                         'status': 'ok',
-                        'dataset': dataset.get('Name', ''),
+                        'dataset': dataset.get('Name') or '',
                         'slug': slug,
-                        'license': dataset.get('License', ''),
+                        'license': dataset.get('License') or '',
                         'bucket': bucket_name,
                         'file_key': file_key,
                         'file_size_bytes': file_size,
@@ -1104,9 +1104,9 @@ async def sample_dataset(slug: str, file_key: str, bucket_arn: str | None = None
         return json.dumps(
             {
                 'status': 'ok',
-                'dataset': dataset.get('Name', ''),
+                'dataset': dataset.get('Name') or '',
                 'slug': slug,
-                'license': dataset.get('License', ''),
+                'license': dataset.get('License') or '',
                 'bucket': bucket_name,
                 'file_key': file_key,
                 'file_size_bytes': file_size,
@@ -1124,7 +1124,7 @@ async def sample_dataset(slug: str, file_key: str, bucket_arn: str | None = None
             return json.dumps(
                 {
                     'status': 'error',
-                    'dataset': dataset.get('Name', ''),
+                    'dataset': dataset.get('Name') or '',
                     'slug': slug,
                     'error': (
                         'File not found.'
@@ -1138,7 +1138,7 @@ async def sample_dataset(slug: str, file_key: str, bucket_arn: str | None = None
         return json.dumps(
             {
                 'status': 'error',
-                'dataset': dataset.get('Name', ''),
+                'dataset': dataset.get('Name') or '',
                 'slug': slug,
                 'error': f'AWS error: {error_code}',
                 'message': str(e),
@@ -1156,7 +1156,7 @@ async def sample_dataset(slug: str, file_key: str, bucket_arn: str | None = None
         return json.dumps(
             {
                 'status': 'error',
-                'dataset': dataset.get('Name', ''),
+                'dataset': dataset.get('Name') or '',
                 'slug': slug,
                 'error': 'Network error reading file',
                 'file_key': file_key,
@@ -1173,7 +1173,7 @@ async def sample_dataset(slug: str, file_key: str, bucket_arn: str | None = None
         return json.dumps(
             {
                 'status': 'error',
-                'dataset': dataset.get('Name', ''),
+                'dataset': dataset.get('Name') or '',
                 'slug': slug,
                 'error': f'Unexpected error reading file: {type(e).__name__}',
                 'message': str(e),
@@ -1261,9 +1261,9 @@ async def search_stac_endpoints(query: str | None = None, limit: int = 20) -> st
 
         results.append(
             {
-                'slug': dataset.get('Slug', ''),
-                'name': dataset.get('Name', ''),
-                'managed_by': dataset.get('ManagedBy', ''),
+                'slug': dataset.get('Slug') or '',
+                'name': dataset.get('Name') or '',
+                'managed_by': dataset.get('ManagedBy') or '',
                 'has_stac_tag': has_stac_tag,
                 'stac_endpoints': unique,
             }
