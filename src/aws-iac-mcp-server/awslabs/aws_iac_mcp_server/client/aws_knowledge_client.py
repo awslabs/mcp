@@ -76,14 +76,22 @@ def _parse_search_documentation_result(result: CallToolResult) -> List[Knowledge
     result_content_json = json.loads(content.text)
     raw_results = result_content_json['content']['result']
 
-    results = [
-        KnowledgeResult(
-            rank=item['rank_order'],
-            title=item['title'],
-            url=item['url'],
-            context=item['context'],
+    results = []
+    for item in raw_results:
+        if 'skill_description' in item:
+            url = item.get('url')
+            context = item['skill_description']
+        else:
+            url = item['url']
+            context = item['context']
+
+        results.append(
+            KnowledgeResult(
+                rank=item['rank_order'],
+                title=item['title'],
+                url=url,
+                context=context,
+            )
         )
-        for item in raw_results
-    ]
 
     return results

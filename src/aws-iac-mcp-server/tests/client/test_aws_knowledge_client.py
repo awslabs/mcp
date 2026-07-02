@@ -142,6 +142,42 @@ class TestParseSearchResult:
 
         assert parsed == []
 
+    def test_skill_result_without_url(self):
+        """Test parsing of skill results without document URLs."""
+        mock_result = MagicMock()
+        mock_result.is_error = False
+        mock_content = TextContent(
+            type='text',
+            text=json.dumps(
+                {
+                    'content': {
+                        'result': [
+                            {
+                                'rank_order': 1,
+                                'title': 'AWS::Lambda::Function',
+                                'url': 'https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-lambda-function.html',
+                                'context': 'CloudFormation resource documentation',
+                            },
+                            {
+                                'rank_order': 2,
+                                'title': 'AWS Lambda IaC guidance',
+                                'skill_name': 'lambda-iac-guidance',
+                                'skill_description': 'Use this skill for Lambda infrastructure guidance.',
+                            },
+                        ]
+                    }
+                }
+            ),
+        )
+        mock_result.content = [mock_content]
+
+        parsed = _parse_search_documentation_result(mock_result)
+
+        assert len(parsed) == 2
+        assert parsed[1].title == 'AWS Lambda IaC guidance'
+        assert parsed[1].url is None
+        assert parsed[1].context == 'Use this skill for Lambda infrastructure guidance.'
+
     def test_is_error_true(self):
         """Test handling of error responses from MCP client.
 
