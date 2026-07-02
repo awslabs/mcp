@@ -22,6 +22,10 @@ from typing import Any
 class DatasetKnowledgeBase:
     """In-memory knowledge base for dataset metadata with indexing and search capabilities."""
 
+    # Fixed set of recognized license categories used by the indexer.
+    # This is the authoritative list regardless of which categories have matches.
+    SUPPORTED_LICENSE_TYPES = ['creative commons', 'mit', 'apache', 'public domain']
+
     def __init__(self):
         """Initialize an empty knowledge base with dataset storage and search indexes."""
         self.datasets: list[dict[str, Any]] = []
@@ -39,17 +43,18 @@ class DatasetKnowledgeBase:
         self.resource_type_index.clear()
 
         for idx, dataset in enumerate(datasets):
-            # Index tags
-            for tag in dataset.get('Tags', []):
-                self.tag_index[tag.lower()].append(idx)
+            # Index tags (guard against null values from upstream JSON)
+            for tag in dataset.get('Tags') or []:
+                if isinstance(tag, str):
+                    self.tag_index[tag.lower()].append(idx)
 
             # Index managed by
-            managed_by = dataset.get('ManagedBy', '').lower()
+            managed_by = (dataset.get('ManagedBy') or '').lower()
             if managed_by:
                 self.managed_by_index[managed_by].append(idx)
 
             # Index license
-            license_text = dataset.get('License', '').lower()
+            license_text = (dataset.get('License') or '').lower()
             if license_text:
                 # Extract common license types
                 if 'cc' in license_text or 'creative commons' in license_text:
@@ -62,8 +67,8 @@ class DatasetKnowledgeBase:
                     self.license_index['public domain'].append(idx)
 
             # Index resource types
-            for resource in dataset.get('Resources', []):
-                resource_type = resource.get('Type', '').lower()
+            for resource in dataset.get('Resources') or []:
+                resource_type = (resource.get('Type') or '').lower()
                 if resource_type:
                     self.resource_type_index[resource_type].append(idx)
 
@@ -98,9 +103,7 @@ class DatasetKnowledgeBase:
         top_tags = sorted(tag_counts.items(), key=lambda x: x[1], reverse=True)[:10]
 
         # Get top organizations
-        org_counts = {
-            org: len(indices) for org, indices in self.managed_by_index.items()
-        }
+        org_counts = {org: len(indices) for org, indices in self.managed_by_index.items()}
         top_orgs = sorted(org_counts.items(), key=lambda x: x[1], reverse=True)[:10]
 
         return {
@@ -128,7 +131,7 @@ class DatasetKnowledgeBase:
             return []
 
         # Get tags from the dataset
-        tags = dataset.get('Tags', [])
+        tags = dataset.get('Tags') or []
         if not tags:
             return []
 
@@ -141,8 +144,6 @@ class DatasetKnowledgeBase:
                     related_scores[idx] += 1
 
         # Sort by score and return top results
-        sorted_results = sorted(
-            related_scores.items(), key=lambda x: x[1], reverse=True
-        )[:limit]
+        sorted_results = sorted(related_scores.items(), key=lambda x: x[1], reverse=True)[:limit]
 
         return [self.datasets[idx] for idx, _ in sorted_results]

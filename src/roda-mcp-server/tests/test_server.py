@@ -53,9 +53,7 @@ class TestFetchDatasets:
         import hashlib
 
         # 10 good lines + 1 bad line = ~9% malformed (under 10% threshold)
-        lines = [
-            f'{{"Slug":"ds-{i}","Name":"Dataset {i}","Tags":[]}}' for i in range(10)
-        ]
+        lines = [f'{{"Slug":"ds-{i}","Name":"Dataset {i}","Tags":[]}}' for i in range(10)]
         lines.append('not-json')
         content = ('\n'.join(lines) + '\n').encode('utf-8')
         checksum = hashlib.sha256(content).hexdigest()
@@ -259,6 +257,97 @@ class TestFetchDatasets:
         server_module._datasets_cache = None
         server_module._cache_timestamp = None
 
+    async def test_concurrent_fetch_only_downloads_once(self):
+        """Multiple concurrent cold calls share a single download via asyncio.Lock."""
+        import asyncio
+        import hashlib
+
+        content = b'{"Slug":"concurrent","Name":"Concurrent Test","Tags":[]}\n'
+        checksum = hashlib.sha256(content).hexdigest()
+
+        call_count = 0
+
+        async def mock_get(url, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            # Simulate network latency so concurrent calls overlap
+            await asyncio.sleep(0.01)
+            if 'sha256' in url:
+                resp = MagicMock()
+                resp.text = f'{checksum}  file.ndjson'
+                resp.raise_for_status = MagicMock()
+                return resp
+            resp = MagicMock()
+            resp.content = content
+            resp.raise_for_status = MagicMock()
+            return resp
+
+        mock_client = AsyncMock()
+        mock_client.get = mock_get
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        server_module._datasets_cache = None
+        server_module._cache_timestamp = None
+
+        with patch('httpx.AsyncClient', return_value=mock_client):
+            # Launch 5 concurrent fetch calls
+            results = await asyncio.gather(
+                fetch_datasets(),
+                fetch_datasets(),
+                fetch_datasets(),
+                fetch_datasets(),
+                fetch_datasets(),
+            )
+
+        # All 5 calls should return the same data
+        for result in results:
+            assert len(result) == 1
+            assert result[0]['Slug'] == 'concurrent'
+
+        # Only 2 HTTP calls (ndjson + checksum) — not 10 (5 × 2)
+        # The lock ensures only one coroutine does the actual fetch
+        assert call_count == 2
+
+        server_module._datasets_cache = None
+        server_module._cache_timestamp = None
+
+    async def test_stale_cache_triggers_refetch(self):
+        """Expired cache timestamp causes a fresh download."""
+        import hashlib
+        from datetime import datetime, timedelta
+
+        # Pre-populate cache with stale data (expired 25 hours ago)
+        server_module._datasets_cache = [{'Slug': 'stale', 'Name': 'Stale', 'Tags': []}]
+        server_module._cache_timestamp = datetime.now() - timedelta(hours=25)
+
+        # New data from the server
+        content = b'{"Slug":"fresh","Name":"Fresh Dataset","Tags":[]}\n'
+        checksum = hashlib.sha256(content).hexdigest()
+
+        mock_response = MagicMock()
+        mock_response.content = content
+        mock_response.raise_for_status = MagicMock()
+
+        mock_checksum_response = MagicMock()
+        mock_checksum_response.text = f'{checksum}  file.ndjson'
+        mock_checksum_response.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=[mock_response, mock_checksum_response])
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch('httpx.AsyncClient', return_value=mock_client):
+            result = await fetch_datasets()
+
+        # Should have fetched fresh data, not returned stale cache
+        assert len(result) == 1
+        assert result[0]['Slug'] == 'fresh'
+
+        server_module._datasets_cache = None
+        server_module._cache_timestamp = None
+
 
 # ---------------------------------------------------------------------------
 # search_datasets tests
@@ -302,9 +391,7 @@ class TestSearchDatasets:
         data = json.loads(result)
 
         # Find the long-desc result
-        long_result = next(
-            (r for r in data['results'] if r['slug'] == 'long-desc'), None
-        )
+        long_result = next((r for r in data['results'] if r['slug'] == 'long-desc'), None)
         if long_result:
             assert long_result['description'].endswith('...')
             assert len(long_result['description']) <= 204  # 200 + '...'
@@ -562,9 +649,7 @@ class TestSearchStacEndpoints:
         result = await search_stac_endpoints()
         data = json.loads(result)
 
-        sentinel_result = next(
-            r for r in data['results'] if r['slug'] == 'sentinel-stac'
-        )
+        sentinel_result = next(r for r in data['results'] if r['slug'] == 'sentinel-stac')
         assert sentinel_result['has_stac_tag'] is True
 
     async def test_endpoints_deduplicated(self, patch_fetch_stac):
@@ -652,9 +737,7 @@ class TestPreviewEdgeCases:
             data = json.loads(result)
 
             assert 'error' in data
-            assert 'Unexpected' in data['error'] or 'Network timeout' in data.get(
-                'message', ''
-            )
+            assert 'Unexpected' in data['error'] or 'Network timeout' in data.get('message', '')
 
 
 # ---------------------------------------------------------------------------
@@ -710,9 +793,7 @@ class TestSampleEdgeCases:
             data = json.loads(result)
 
             assert 'error' in data
-            assert 'Unexpected' in data['error'] or 'Connection reset' in data.get(
-                'message', ''
-            )
+            assert 'Unexpected' in data['error'] or 'Connection reset' in data.get('message', '')
 
     async def test_non_access_denied_client_error(self, patch_fetch_sample):
         """Non-AccessDenied ClientError returns generic AWS error."""

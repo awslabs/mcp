@@ -130,9 +130,7 @@ def setup_preview_state():
 @pytest.fixture
 def patch_fetch():
     """Mock fetch_datasets to return preview sample data."""
-    with patch(
-        'awslabs.roda_mcp_server.server.fetch_datasets', new_callable=AsyncMock
-    ) as mock:
+    with patch('awslabs.roda_mcp_server.server.fetch_datasets', new_callable=AsyncMock) as mock:
         mock.return_value = PREVIEW_DATASETS
         yield mock
 
@@ -204,9 +202,7 @@ async def test_multi_bucket_with_arn(patch_fetch, mock_boto3):
 
 async def test_multi_bucket_wrong_arn(patch_fetch):
     """Providing a bucket_arn that doesn't belong to the dataset returns error."""
-    result = await preview_dataset(
-        'multi-bucket', bucket_arn='arn:aws:s3:::wrong-bucket'
-    )
+    result = await preview_dataset('multi-bucket', bucket_arn='arn:aws:s3:::wrong-bucket')
     data = json.loads(result)
 
     assert 'error' in data
@@ -279,10 +275,7 @@ async def test_access_denied(patch_fetch, mock_boto3):
     data = json.loads(result)
 
     assert 'error' in data
-    assert (
-        'credentials' in data['error'].lower()
-        or 'access denied' in data['error'].lower()
-    )
+    assert 'credentials' in data['error'].lower() or 'access denied' in data['error'].lower()
 
 
 async def test_empty_bucket(patch_fetch, mock_boto3):
@@ -296,3 +289,20 @@ async def test_empty_bucket(patch_fetch, mock_boto3):
 
     assert 'message' in data
     assert 'empty' in data['message'].lower() or 'restricted' in data['message'].lower()
+
+
+async def test_network_error_endpoint_connection(patch_fetch, mock_boto3):
+    """EndpointConnectionError returns a network error message."""
+    from botocore.exceptions import EndpointConnectionError
+
+    mock_s3 = MagicMock()
+    mock_boto3.return_value = mock_s3
+    mock_s3.list_objects_v2.side_effect = EndpointConnectionError(
+        endpoint_url='https://s3.amazonaws.com'
+    )
+
+    result = await preview_dataset('open-data')
+    data = json.loads(result)
+
+    assert 'error' in data
+    assert 'network' in data['error'].lower() or 'Network' in data['error']

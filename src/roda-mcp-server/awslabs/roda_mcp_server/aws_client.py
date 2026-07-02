@@ -41,7 +41,7 @@ def get_s3_client(region: str = 'us-east-1') -> Any:
         config = Config(
             signature_version=UNSIGNED,
             s3={'use_ssl': True},
-            user_agent_extra=f'md/awslabs#mcp#iam-mcp-server#{__version__}',
+            user_agent_extra=f'md/awslabs#mcp#roda-mcp-server#{__version__}',
         )
         logger.debug(f'Creating anonymous S3 client for region: {region}')
         return boto3.client('s3', config=config, region_name=region, verify=True)

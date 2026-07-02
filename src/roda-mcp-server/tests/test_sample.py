@@ -75,9 +75,7 @@ def setup_sample_state():
 @pytest.fixture
 def patch_fetch():
     """Mock fetch_datasets to return sample data."""
-    with patch(
-        'awslabs.roda_mcp_server.server.fetch_datasets', new_callable=AsyncMock
-    ) as mock:
+    with patch('awslabs.roda_mcp_server.server.fetch_datasets', new_callable=AsyncMock) as mock:
         mock.return_value = SAMPLE_DATASETS
         yield mock
 
@@ -201,10 +199,7 @@ async def test_access_denied(patch_fetch, mock_boto3):
     data = json.loads(result)
 
     assert 'error' in data
-    assert (
-        'credentials' in data['error'].lower()
-        or 'access denied' in data['error'].lower()
-    )
+    assert 'credentials' in data['error'].lower() or 'access denied' in data['error'].lower()
 
 
 async def test_zero_byte_file(patch_fetch, mock_boto3):
@@ -220,3 +215,123 @@ async def test_zero_byte_file(patch_fetch, mock_boto3):
     assert 'empty' in data['message'].lower()
     assert data['bucket'] == 'open-bucket'
     assert data['license'] == 'Public Domain'
+
+
+async def test_text_truncation_at_line_boundary(patch_fetch, mock_boto3):
+    """Text >2000 chars is truncated at the last newline before 2000, with flags set."""
+    mock_s3 = MagicMock()
+    mock_boto3.return_value = mock_s3
+
+    # Build content with lines that exceed 2000 chars total
+    # Each line is 50 chars + newline = 51 chars, so 50 lines = 2550 chars
+    lines = [f'line-{i:03d},' + 'x' * 44 for i in range(50)]
+    file_content = ('\n'.join(lines) + '\n').encode('utf-8')
+
+    mock_s3.head_object.return_value = {'ContentLength': len(file_content)}
+    mock_s3.get_object.return_value = {
+        'Body': MagicMock(read=MagicMock(return_value=file_content)),
+    }
+
+    result = await sample_dataset('open-data', file_key='big-text.csv')
+    data = json.loads(result)
+
+    # content_truncated flag should be set
+    assert data['content_truncated'] is True
+    # is_partial should reflect the display truncation
+    assert data['is_partial'] is True
+    # Content should end with the truncation marker
+    assert '... (truncated for display)' in data['content']
+    # Content should NOT cut mid-line — last real line should be complete
+    content_lines = data['content'].split('\n')
+    # The second-to-last line (before the marker) should be a complete line
+    real_lines = [l for l in content_lines if not l.startswith('...')]
+    for line in real_lines:
+        if line:  # skip empty lines
+            assert line.startswith('line-')
+
+
+async def test_short_text_not_truncated(patch_fetch, mock_boto3):
+    """Text <=2000 chars is returned in full without truncation flags."""
+    mock_s3 = MagicMock()
+    mock_boto3.return_value = mock_s3
+
+    file_content = b'short content\nonly two lines\n'
+    mock_s3.head_object.return_value = {'ContentLength': len(file_content)}
+    mock_s3.get_object.return_value = {
+        'Body': MagicMock(read=MagicMock(return_value=file_content)),
+    }
+
+    result = await sample_dataset('open-data', file_key='small.csv')
+    data = json.loads(result)
+
+    assert data['content_truncated'] is False
+    assert data['content'] == 'short content\nonly two lines\n'
+    assert '... (truncated' not in data['content']
+
+
+async def test_multi_bucket_no_arn_prompts_choice(patch_fetch, mock_boto3):
+    """Multi-bucket dataset without bucket_arn asks user to choose."""
+    # Temporarily add a multi-bucket dataset to the cache
+    multi_bucket_ds = {
+        'Slug': 'multi-bucket',
+        'Name': 'Multi Bucket Dataset',
+        'Description': 'Has two public buckets',
+        'License': 'MIT',
+        'ManagedBy': '[Test](https://test.com/)',
+        'Tags': [],
+        'Resources': [
+            {'Type': 'S3 Bucket', 'ARN': 'arn:aws:s3:::bucket-a', 'Region': 'us-east-1'},
+            {'Type': 'S3 Bucket', 'ARN': 'arn:aws:s3:::bucket-b', 'Region': 'us-west-2'},
+        ],
+    }
+    server_module._datasets_cache.append(multi_bucket_ds)
+
+    result = await sample_dataset('multi-bucket', file_key='data.csv')
+    data = json.loads(result)
+
+    assert 'available_buckets' in data
+    assert len(data['available_buckets']) == 2
+    assert 'Please specify bucket_arn' in data['message']
+
+
+async def test_multi_bucket_wrong_arn(patch_fetch, mock_boto3):
+    """Providing a bucket_arn that doesn't belong to the dataset returns error."""
+    multi_bucket_ds = {
+        'Slug': 'multi-bucket-2',
+        'Name': 'Multi Bucket Dataset 2',
+        'Description': 'Has two public buckets',
+        'License': 'MIT',
+        'ManagedBy': '[Test](https://test.com/)',
+        'Tags': [],
+        'Resources': [
+            {'Type': 'S3 Bucket', 'ARN': 'arn:aws:s3:::bucket-x', 'Region': 'us-east-1'},
+            {'Type': 'S3 Bucket', 'ARN': 'arn:aws:s3:::bucket-y', 'Region': 'us-west-2'},
+        ],
+    }
+    server_module._datasets_cache.append(multi_bucket_ds)
+
+    result = await sample_dataset(
+        'multi-bucket-2', file_key='data.csv', bucket_arn='arn:aws:s3:::wrong-bucket'
+    )
+    data = json.loads(result)
+
+    assert 'error' in data
+    assert 'wrong-bucket' in data['error']
+    assert 'available_arns' in data
+
+
+async def test_network_error_endpoint_connection(patch_fetch, mock_boto3):
+    """EndpointConnectionError returns a network error message."""
+    from botocore.exceptions import EndpointConnectionError
+
+    mock_s3 = MagicMock()
+    mock_boto3.return_value = mock_s3
+    mock_s3.head_object.side_effect = EndpointConnectionError(
+        endpoint_url='https://s3.amazonaws.com'
+    )
+
+    result = await sample_dataset('open-data', file_key='data.csv')
+    data = json.loads(result)
+
+    assert 'error' in data
+    assert 'network' in data['error'].lower() or 'Network' in data['error']
