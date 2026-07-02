@@ -22,6 +22,7 @@ import os
 import re
 import sys
 from awslabs.roda_mcp_server.knowledge_base import DatasetKnowledgeBase
+from collections import Counter
 from datetime import datetime, timedelta
 from fastmcp import FastMCP
 from loguru import logger
@@ -316,8 +317,6 @@ async def search_datasets(
     total_count = len(all_matches)
 
     # Top 5 categories from matched results
-    from collections import Counter
-
     tag_counts = Counter(all_tags)
     top_categories = [tag for tag, count in tag_counts.most_common(5)]
 

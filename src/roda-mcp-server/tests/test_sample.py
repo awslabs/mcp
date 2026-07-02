@@ -284,7 +284,7 @@ async def test_multi_bucket_no_arn_prompts_choice(patch_fetch, mock_boto3):
             {'Type': 'S3 Bucket', 'ARN': 'arn:aws:s3:::bucket-b', 'Region': 'us-west-2'},
         ],
     }
-    server_module._datasets_cache.append(multi_bucket_ds)
+    server_module._datasets_cache.append(multi_bucket_ds)  # type: ignore[union-attr]
 
     result = await sample_dataset('multi-bucket', file_key='data.csv')
     data = json.loads(result)
@@ -308,7 +308,7 @@ async def test_multi_bucket_wrong_arn(patch_fetch, mock_boto3):
             {'Type': 'S3 Bucket', 'ARN': 'arn:aws:s3:::bucket-y', 'Region': 'us-west-2'},
         ],
     }
-    server_module._datasets_cache.append(multi_bucket_ds)
+    server_module._datasets_cache.append(multi_bucket_ds)  # type: ignore[union-attr]
 
     result = await sample_dataset(
         'multi-bucket-2', file_key='data.csv', bucket_arn='arn:aws:s3:::wrong-bucket'

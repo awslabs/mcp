@@ -17,14 +17,15 @@ Model Context Protocol (MCP) server for discovering and exploring datasets from 
 ## Basic Usage
 
 Ask your AI assistants in natural language:
-* "What open data are on AWS?"
-* "Show me datasets related to land surface temperature."
-* "Get more details about 1000 Genomes."
-* "Preview the file structure of CHIRPS and sample a file."
+  * "What open data are on AWS?"
+  * "Show me datasets related to land surface temperature."
+  * "Get more details about 1000 Genomes."
+  * "Preview the file structure of CHIRPS and sample a file."
 
 For more example on how to use the MCP server, check out [Example Usage](https://github.com/awslabs/mcp/blob/main/src/roda-mcp-server/examples/example_usage.md).
 
-[!NOTE] Please review the license information of datasets before using them.
+> [!NOTE]
+> Each dataset on RODA has specific license terms. Please review them before accessing or using the data.
 
 ## Prerequisites
 

@@ -392,9 +392,9 @@ class TestSearchDatasets:
 
         # Find the long-desc result
         long_result = next((r for r in data['results'] if r['slug'] == 'long-desc'), None)
-        if long_result:
-            assert long_result['description'].endswith('...')
-            assert len(long_result['description']) <= 204  # 200 + '...'
+        assert long_result is not None
+        assert long_result['description'].endswith('...')
+        assert len(long_result['description']) <= 204  # 200 + '...'
 
 
 # ---------------------------------------------------------------------------

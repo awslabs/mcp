@@ -4,4 +4,28 @@ Open data providers onboard new datasets and provide updates to existing dataset
 
 This MCP server uses this ndjson file to build an in-memory knowledge base. In particular, we build indexes for parsed data across different search categories, such as tags, keywords, and organizations, to provide fast and accurate retrieval of information based on the dataset’s metadata. Metadata information is cached for 24 hours for better performance, and the cache automatically refreshes after expiration.
 
-![Architecture](architecture.drawio)
+
+```mermaid
+  flowchart LR
+      User([User]) --> LLM["LLM Host"]
+      LLM -->|stdio| Server
+      Server -->|stdio| LLM
+      LLM --> User
+
+      subgraph Server["RODA MCP Server"]
+          direction TB
+
+  Tools["Tools:<br/>search_datasets<br/>list_datasets<br/>get_dataset_details<br/>preview_dataset<br/>sample_dataset"]
+          Cache{"Cache valid?"}
+          Execute["Execute query"]
+
+          Tools --> Cache
+          Cache -->|Yes| Execute
+          Cache -->|No| Fetch["Fetch & index metadata"]
+          Fetch --> Execute
+      end
+
+      GitHub[("GitHub<br/>open data metadata")] --> Fetch
+```
+
+For detailed design, check of this [drawio file](architecture.drawio).

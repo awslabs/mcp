@@ -215,9 +215,7 @@ def patch_fetch_datasets():
     """
     from unittest.mock import AsyncMock, patch
 
-    with patch(
-        'awslabs.roda_mcp_server.server.fetch_datasets', new_callable=AsyncMock
-    ) as mock:
+    with patch('awslabs.roda_mcp_server.server.fetch_datasets', new_callable=AsyncMock) as mock:
         mock.return_value = SAMPLE_DATASETS
         yield mock
 
