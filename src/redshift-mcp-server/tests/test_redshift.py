@@ -1100,7 +1100,9 @@ class TestDiscoverFunctions:
         ]
         mock_serverless_client.get_workgroup.return_value = {
             'workgroup': {
-                'configParameters': [{'parameterValue': 'analytics'}],
+                'configParameters': [
+                    {'parameterKey': 'default_database', 'parameterValue': 'analytics'}
+                ],
                 'endpoint': {'address': 'test.serverless.amazonaws.com', 'port': 5439},
                 'subnetIds': ['subnet-123'],
                 'publiclyAccessible': True,

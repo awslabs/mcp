@@ -401,6 +401,28 @@ execute_query(cluster_identifier: str, database_name: str, sql: str) -> QueryRes
 - Row count and execution time
 - Query ID for reference
 
+### review_cluster
+
+Runs a diagnostic review of a Redshift cluster or serverless workgroup. Returns identified potential issues and respective recommendations ordered by required mitigation effort.
+
+```python
+review_cluster(cluster_identifier: str, database_name: str = 'dev') -> ReviewResult
+```
+
+**Parameters**:
+
+- `cluster_identifier`: The cluster identifier from `list_clusters`
+- `database_name`: Database to connect to for querying system views (defaults to `dev`)
+
+**Returns**: Review result including:
+
+- Number of signals evaluated
+- Findings with affected row counts and recommendation IDs
+- Deduplicated recommendations with documentation links
+- List of diagnostic queries executed
+
+**Note**: Requires superuser (CREATEUSER) privileges. Provisioned-only diagnostics are automatically skipped for serverless workgroups.
+
 ## Permissions
 
 ### AWS IAM Permissions
@@ -437,5 +459,6 @@ In addition to AWS IAM permissions, you need appropriate database-level permissi
 - **Read Access**: `SELECT` permissions on tables/views you want to query
 - **Schema Access**: `USAGE` permissions on schemas you want to explore
 - **Database Access**: Connection permissions to databases you want to access
+- **Review Access**: The `review_cluster` tool requires superuser (CREATEUSER) privileges to read system views such as `SYS_AUTO_TABLE_OPTIMIZATION`, `SYS_QUERY_HISTORY`, and `SVV_TABLE_INFO`. Grant via `ALTER USER <username> CREATEUSER;` or `GRANT ROLE sys:monitor TO <username>;` for a narrower scope.
 
 For the strongest protection, grant these to a **least-privilege, read-only role** rather than a broad or write-capable one.

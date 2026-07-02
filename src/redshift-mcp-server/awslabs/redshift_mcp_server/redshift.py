@@ -492,8 +492,13 @@ async def discover_clusters() -> list[dict]:
                     'identifier': workgroup['workgroupName'],
                     'type': 'serverless',
                     'status': workgroup['status'],
-                    'database_name': workgroup_detail.get('configParameters', [{}])[0].get(
-                        'parameterValue', 'dev'
+                    'database_name': next(
+                        (
+                            p['parameterValue']
+                            for p in workgroup_detail.get('configParameters', [])
+                            if p.get('parameterKey') == 'default_database'
+                        ),
+                        'dev',
                     ),
                     'endpoint': workgroup_detail.get('endpoint', {}).get('address'),
                     'port': workgroup_detail.get('endpoint', {}).get('port'),
@@ -738,13 +743,16 @@ async def discover_columns(
         raise
 
 
-async def execute_query(cluster_identifier: str, database_name: str, sql: str) -> dict:
+async def execute_query(
+    cluster_identifier: str, database_name: str, sql: str, allow_read_write: bool = False
+) -> dict:
     """Execute a SQL query against a Redshift cluster using the Data API.
 
     Args:
         cluster_identifier: The cluster identifier to query.
         database_name: The database to execute the query against.
         sql: The SQL statement to execute.
+        allow_read_write: Whether to use a read-write transaction. Defaults to False (read-only).
 
     Returns:
         Dictionary with query results including columns, rows, and metadata.
@@ -760,7 +768,10 @@ async def execute_query(cluster_identifier: str, database_name: str, sql: str) -
 
         # Execute the query using the common function
         results_response, query_id = await _execute_protected_statement(
-            cluster_identifier=cluster_identifier, database_name=database_name, sql=sql
+            cluster_identifier=cluster_identifier,
+            database_name=database_name,
+            sql=sql,
+            allow_read_write=allow_read_write,
         )
 
         # Calculate execution time
