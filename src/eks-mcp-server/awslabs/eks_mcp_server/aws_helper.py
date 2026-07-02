@@ -38,6 +38,47 @@ class AwsHelper:
     # Client cache with AWS service name as key
     _client_cache: Dict[str, Any] = {}
 
+    @classmethod
+    def set_aws_context(cls, profile: Optional[str] = None, region: Optional[str] = None) -> Dict[str, Optional[str]]:
+        """Set AWS profile and/or region at runtime and clear cached clients.
+
+        Args:
+            profile: AWS profile name to use. Pass empty string to unset.
+            region: AWS region to use. Pass empty string to unset.
+
+        Returns:
+            Dict with the new profile and region values
+        """
+        if profile is not None:
+            if profile == '':
+                os.environ.pop('AWS_PROFILE', None)
+                logger.info('Cleared AWS_PROFILE')
+            else:
+                os.environ['AWS_PROFILE'] = profile
+                logger.info(f'Set AWS_PROFILE to {profile}')
+
+        if region is not None:
+            if region == '':
+                os.environ.pop('AWS_REGION', None)
+                logger.info('Cleared AWS_REGION')
+            else:
+                os.environ['AWS_REGION'] = region
+                logger.info(f'Set AWS_REGION to {region}')
+
+        # Clear the client cache so new clients use updated credentials
+        cls.clear_client_cache()
+
+        return {
+            'profile': cls.get_aws_profile(),
+            'region': cls.get_aws_region(),
+        }
+
+    @classmethod
+    def clear_client_cache(cls) -> None:
+        """Clear all cached boto3 clients."""
+        cls._client_cache.clear()
+        logger.info('Cleared AWS client cache')
+
     @staticmethod
     def get_aws_region() -> Optional[str]:
         """Get the AWS region from the environment if set."""

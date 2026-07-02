@@ -613,6 +613,49 @@ Parameters:
 
 * cluster_name, insight_id (optional), category (optional), next_token (optional)
 
+### AWS Context Management
+
+#### `get_aws_context`
+
+Returns the currently configured AWS profile and region used for all AWS API calls.
+
+Features:
+
+* Returns the current AWS profile and region from environment variables.
+* Returns `None` for values that are not explicitly set (falling back to AWS SDK defaults).
+
+Parameters:
+
+* None
+
+#### `set_aws_context`
+
+Changes the AWS profile and/or region at runtime without restarting the MCP server.
+
+Features:
+
+* Sets the AWS profile and/or region used for all subsequent AWS API calls.
+* Clears all cached AWS and Kubernetes clients to ensure new connections use the updated credentials.
+* Pass an empty string (`""`) to clear a value and revert to AWS SDK defaults.
+* Useful for switching between AWS accounts or regions, or querying clusters in different regions.
+
+Parameters:
+
+* profile (optional): AWS profile name from `~/.aws/credentials` or `~/.aws/config`. Pass `None` to keep current value, empty string to clear.
+* region (optional): AWS region code (e.g., `us-east-1`, `ap-south-1`). Pass `None` to keep current value, empty string to clear.
+
+Example usage:
+
+```
+# Switch to a production account in us-west-2
+set_aws_context(profile="prod-account", region="us-west-2")
+
+# Change only the region, keep the current profile
+set_aws_context(region="eu-west-1")
+
+# Clear the profile to use default credentials
+set_aws_context(profile="")
+```
 
 ## Security & permissions
 

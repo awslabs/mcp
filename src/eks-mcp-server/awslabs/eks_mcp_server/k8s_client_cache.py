@@ -87,6 +87,16 @@ class K8sClientCache:
         """Return the current authentication mode."""
         return self._auth_mode
 
+    def clear_cache(self) -> None:
+        """Clear all cached Kubernetes clients.
+
+        This should be called when AWS credentials change to ensure
+        new clients are created with the updated credentials.
+        """
+        self._client_cache.clear()
+        self._sts_event_handlers_registered = False
+        logger.info('Cleared Kubernetes client cache')
+
     def _get_sts_client(self):
         """Get the STS client with event handlers registered."""
         sts_client = AwsHelper.create_boto3_client('sts')
