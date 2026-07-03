@@ -206,10 +206,14 @@ async def call_fes_direct_sigv4(
     if region is None:
         session = AwsHelper.create_session()
         region = AwsHelper.resolve_region(session)
-    client = _create_sigv4_client(
-        endpoint, region=region, max_retries=max_retries, timeout=timeout_seconds
-    )
-    return await asyncio.to_thread(_call_boto3, client, operation, body or {})
+
+    def _create_and_call() -> Any:
+        client = _create_sigv4_client(
+            endpoint, region=region, max_retries=max_retries, timeout=timeout_seconds
+        )
+        return _call_boto3(client, operation, body or {})
+
+    return await asyncio.to_thread(_create_and_call)
 
 
 async def call_fes_direct_cookie(

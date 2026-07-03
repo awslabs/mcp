@@ -63,3 +63,17 @@ FES_REGIONS: List[str] = [
 
 # ── Fan-out timeout for profile discovery (seconds per region) ──────────
 PROFILE_DISCOVERY_TIMEOUT_SECONDS: float = 5.0
+
+
+def regions_for_profile_discovery() -> List[str]:
+    """Return regions to probe during credential/profile discovery.
+
+    When ``AWS_REGION`` is set to a supported FES region, probe only that
+    region to avoid serializing slow boto3 client builds across all regions.
+    """
+    import os
+
+    env_region = (os.environ.get('AWS_REGION') or '').strip()
+    if env_region in FES_REGIONS:
+        return [env_region]
+    return list(FES_REGIONS)

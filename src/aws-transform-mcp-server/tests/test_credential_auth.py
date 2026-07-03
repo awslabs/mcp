@@ -306,6 +306,70 @@ class TestProbeSigv4Fes:
         mock_set.assert_called_once_with(False)
 
 
+# ── regions_for_profile_discovery / _discover_sigv4_regions ──────────────
+
+
+class TestRegionsForProfileDiscovery:
+    def test_uses_aws_region_when_supported(self, monkeypatch):
+        from awslabs.aws_transform_mcp_server.consts import regions_for_profile_discovery
+
+        monkeypatch.setenv('AWS_REGION', 'eu-central-1')
+        assert regions_for_profile_discovery() == ['eu-central-1']
+
+    def test_falls_back_to_all_regions_when_unset(self, monkeypatch):
+        from awslabs.aws_transform_mcp_server.consts import FES_REGIONS, regions_for_profile_discovery
+
+        monkeypatch.delenv('AWS_REGION', raising=False)
+        assert regions_for_profile_discovery() == list(FES_REGIONS)
+
+    def test_falls_back_when_aws_region_not_supported(self, monkeypatch):
+        from awslabs.aws_transform_mcp_server.consts import FES_REGIONS, regions_for_profile_discovery
+
+        monkeypatch.setenv('AWS_REGION', 'us-west-2')
+        assert regions_for_profile_discovery() == list(FES_REGIONS)
+
+
+class TestDiscoverSigv4Regions:
+    @pytest.mark.asyncio
+    async def test_probes_only_configured_aws_region(self, monkeypatch):
+        from awslabs.aws_transform_mcp_server.server import _discover_sigv4_regions
+
+        monkeypatch.setenv('AWS_REGION', 'us-east-1')
+
+        with patch(f'{_SERVER_MOD}.call_fes_direct_sigv4', new_callable=AsyncMock) as mock_call:
+            mock_call.return_value = {'workspaces': []}
+            regions = await _discover_sigv4_regions()
+
+        assert regions == ['us-east-1']
+        assert mock_call.call_count == 1
+        assert mock_call.call_args[1]['region'] == 'us-east-1'
+
+    @pytest.mark.asyncio
+    async def test_client_creation_runs_in_worker_thread(self):
+        from awslabs.aws_transform_mcp_server.transform_api_client import call_fes_direct_sigv4
+
+        async def _run_worker(fn):
+            return fn()
+
+        with (
+            patch(f'{_FES_MOD}.asyncio.to_thread', side_effect=_run_worker) as mock_to_thread,
+            patch(f'{_FES_MOD}._create_sigv4_client') as mock_create,
+            patch(f'{_FES_MOD}._call_boto3', return_value={'items': []}) as mock_call,
+        ):
+            mock_create.return_value = MagicMock()
+
+            result = await call_fes_direct_sigv4(
+                'https://api.transform.us-east-1.on.aws/',
+                'ListWorkspaces',
+                region='us-east-1',
+            )
+
+        assert result == {'items': []}
+        mock_to_thread.assert_awaited_once()
+        mock_create.assert_called_once()
+        mock_call.assert_called_once()
+
+
 # ── _startup clears stale config ─────────────────────────────────────────
 
 
