@@ -44,6 +44,9 @@ from loguru import logger
 # Compile once; the pattern uses recursive subroutines so compilation is non-trivial.
 _SUSPICIOUS_QUERY_RE = regex.compile(SUSPICIOUS_QUERY_REGEXP)
 
+# ClientError codes that indicate missing IAM permissions.
+_ACCESS_DENIED = {'AccessDeniedException', 'UnauthorizedAccess', 'AccessDenied'}
+
 
 def _is_suspicious(sql: str) -> bool:
     """Return True if `sql` looks like it tries to break out of the read-only wrapper.
@@ -468,8 +471,10 @@ async def discover_clusters() -> list[dict]:
         logger.info(f'Found {len(clusters)} provisioned clusters')
 
     except ClientError as e:
+        if e.response.get('Error', {}).get('Code') not in _ACCESS_DENIED:
+            raise
         provisioned_error = e
-        logger.warning(f'Unable to discover provisioned clusters: {str(e)}')
+        logger.warning(f'Skipping provisioned; IAM lacks permission: {e}')
 
     # Attempt serverless workgroup discovery
     try:
@@ -514,28 +519,20 @@ async def discover_clusters() -> list[dict]:
         logger.info(f'Found {serverless_count} serverless workgroups')
 
     except ClientError as e:
+        if e.response.get('Error', {}).get('Code') not in _ACCESS_DENIED:
+            raise
         serverless_error = e
-        logger.warning(f'Unable to discover serverless workgroups: {str(e)}')
+        logger.warning(f'Skipping serverless; IAM lacks permission: {e}')
 
     # If both discovery methods failed, raise an error
     if provisioned_error and serverless_error:
-        error_msg = (
-            f'Failed to discover any Redshift clusters. '
-            f'Provisioned error: {provisioned_error}; Serverless error: {serverless_error}'
+        msg = (
+            'Unable to discover any Redshift clusters: IAM lacks both redshift and '
+            f'redshift-serverless permissions. Provisioned: {provisioned_error}; '
+            f'Serverless: {serverless_error}'
         )
-        logger.error(error_msg)
-
-        # Raise appropriate exception based on the error type
-        access_denied_codes = {'AccessDeniedException', 'UnauthorizedAccess', 'AccessDenied'}
-        if (
-            provisioned_error.response['Error']['Code'] in access_denied_codes
-            or serverless_error.response['Error']['Code'] in access_denied_codes
-        ):
-            raise PermissionError(error_msg)
-        raise ClientError(
-            {'Error': {'Code': 'ClusterDiscoveryFailed', 'Message': error_msg}},
-            'DiscoverClusters',
-        )
+        logger.error(msg)
+        raise PermissionError(msg)
 
     logger.info(f'Total clusters discovered: {len(clusters)}')
     return clusters
